@@ -16,6 +16,7 @@ fi
 version="${VERSION:-$(tr -d '\r\n' < VERSION)}"
 dist_dir="${DIST_DIR:-dist}"
 manifest_dir="${MANIFEST_DIR:-${dist_dir}/manifests}"
+signature_verify_command="${KIANA_SIGNATURE_VERIFY_COMMAND:-}"
 failures=0
 seen_linux=0
 seen_macos=0
@@ -72,6 +73,27 @@ require_proof_file() {
   local label="$3"
   require_file "$file"
   require_json_pattern "$file" "\"schema\"[[:space:]]*:[[:space:]]*\"${schema}\"" "${label} schema"
+}
+
+verify_signature_file() {
+  local target="$1"
+  local signature="$2"
+  local label="$3"
+  if [[ ! -f "$target" || ! -f "$signature" ]]; then
+    return
+  fi
+  if [[ -z "$signature_verify_command" ]]; then
+    fail "KIANA_SIGNATURE_VERIFY_COMMAND is required to verify ${label}"
+    return
+  fi
+  if KIANA_SIGNATURE_VERIFY_TARGET="$target" \
+    KIANA_SIGNATURE_VERIFY_SIGNATURE="$signature" \
+    bash -c "$signature_verify_command"
+  then
+    pass "${label} signature verifies"
+  else
+    fail "${label} signature failed verification"
+  fi
 }
 
 python_bin() {
@@ -262,6 +284,9 @@ with open(path, "r", encoding="utf-8") as handle:
 signature_files = report.get("signature_files")
 if not isinstance(signature_files, dict):
     signature_files = {}
+verification = report.get("verification")
+if not isinstance(verification, dict):
+    verification = {}
 
 placeholder_markers = (
     "todo",
@@ -292,6 +317,10 @@ checks = [
     not_placeholder(report.get("signer")),
     signature_files.get("archive") == expected_archive_sig,
     signature_files.get("binary") == expected_binary_sig,
+    verification.get("method") == "KIANA_SIGNATURE_VERIFY_COMMAND",
+    verification.get("archive") == "verified",
+    verification.get("binary") == "verified",
+    filled(verification, "verified_at"),
 ]
 sys.exit(0 if all(checks) else 1)
 PY
@@ -372,6 +401,8 @@ for archive in "${archives[@]}"; do
   require_json_pattern "$signature_proof" "\"archive\"[[:space:]]*:[[:space:]]*\"${filename}\"" "release signature archive matches"
   reject_json_pattern "$signature_proof" '"signer"[[:space:]]*:[[:space:]]*"external-release-signer"' "default release signer placeholder"
   require_release_signature_contract "$signature_proof" "$target" "$filename" "${filename}.sig" "${package}.binary.sig"
+  verify_signature_file "$archive" "${archive}.sig" "${target} archive"
+  verify_signature_file "${dist_dir}/${package}.binary.sha256" "${dist_dir}/${package}.binary.sig" "${target} binary checksum"
 
   if [[ "$target" == macos-* ]]; then
     notarization_proof="${dist_dir}/${package}.notarization.json"

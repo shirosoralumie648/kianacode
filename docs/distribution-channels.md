@@ -28,7 +28,7 @@ The channels below define the commercial distribution target state.
   and installer YAML under `dist/manifests/winget/`.
 - Commercial artifact verification runs through
   `scripts/verify-commercial-release-artifacts.sh` after all runner artifacts
-  are combined; it fails on missing signatures, missing macOS notarization
+  are combined; it fails on missing or unverifiable signatures, missing macOS notarization
   proof, missing Windows ZIP/MSI/EXE publishable artifacts, blocked channel
   manifests, missing live smoke proof, or missing product acceptance proof.
 - Enterprise offline bundles include
@@ -50,7 +50,7 @@ The channels below define the commercial distribution target state.
   and uninstall instructions for the shipped artifact.
 - Signing proof artifacts using `kiana.release-signature.v1` beside every
   archive and binary checksum, validated against the target archive and
-  signature file names.
+  signature file names plus `KIANA_SIGNATURE_VERIFY_COMMAND` verification.
 - macOS notarization proof artifacts using `kiana.macos-notarization.v1` with
   `status=accepted`.
 

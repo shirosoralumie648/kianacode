@@ -71,6 +71,7 @@ for file in \
   scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh \
   scripts/sign-release-artifacts.sh \
   scripts/verify-commercial-release-artifacts.sh \
+  scripts/release-signature-verification-smoke.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
   scripts/generate-distribution-manifests.sh \
   .github/workflows/release-smoke.yml .github/workflows/release.yml
@@ -297,6 +298,14 @@ else
   fail "release signature JSON schema is missing kiana.release-signature.v1 const"
 fi
 
+if grep -Fq '"verification"' docs/schemas/kiana-release-signature.v1.schema.json &&
+  grep -Fq 'KIANA_SIGNATURE_VERIFY_COMMAND' scripts/sign-release-artifacts.sh &&
+  grep -Fq 'KIANA_SIGNATURE_VERIFY_COMMAND' scripts/verify-commercial-release-artifacts.sh; then
+  pass "release signature verification command is enforced"
+else
+  fail "release signature verification command is not enforced"
+fi
+
 if grep -Fq '"const": "kiana.macos-notarization.v1"' docs/schemas/kiana-macos-notarization.v1.schema.json; then
   pass "macOS notarization JSON schema version is pinned"
 else
@@ -346,10 +355,11 @@ else
 fi
 
 if grep -Fq 'sign-release-artifacts.sh' .github/workflows/release.yml &&
-  grep -Fq 'KIANA_SIGNING_COMMAND' .github/workflows/release.yml; then
-  pass "release workflow has an explicit artifact signing proof step"
+  grep -Fq 'KIANA_SIGNING_COMMAND' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_SIGNATURE_VERIFY_COMMAND' .github/workflows/release.yml; then
+  pass "release workflow has explicit artifact signing and signature verification steps"
 else
-  fail "release workflow does not run explicit artifact signing proof step"
+  fail "release workflow does not run explicit artifact signing and signature verification"
 fi
 
 if grep -Fq 'dist/*.signature.json' .github/workflows/release.yml &&
@@ -449,6 +459,12 @@ else
   fi
 
   pass "local RC mode: git remote, HEAD, clean tracked tree, and signing checks skipped"
+fi
+
+if "$bash_bin" scripts/release-signature-verification-smoke.sh; then
+  pass "release signature verification smoke passed"
+else
+  fail "release signature verification smoke failed"
 fi
 
 if (( failures > 0 )); then

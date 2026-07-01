@@ -80,6 +80,7 @@ jobs:
         shell: bash
         env:
           KIANA_SIGNING_COMMAND: ${{ secrets.KIANA_SIGNING_COMMAND }}
+          KIANA_SIGNATURE_VERIFY_COMMAND: ${{ secrets.KIANA_SIGNATURE_VERIFY_COMMAND }}
           KIANA_RELEASE_SIGNER: ${{ vars.KIANA_RELEASE_SIGNER }}
           KIANA_MACOS_NOTARIZATION_COMMAND: ${{ secrets.KIANA_MACOS_NOTARIZATION_COMMAND }}
           KIANA_MACOS_NOTARIZATION_PROOF_FILE: ${{ secrets.KIANA_MACOS_NOTARIZATION_PROOF_FILE }}
@@ -145,6 +146,8 @@ jobs:
 
       - name: Verify commercial release artifacts
         shell: bash
+        env:
+          KIANA_SIGNATURE_VERIFY_COMMAND: ${{ secrets.KIANA_SIGNATURE_VERIFY_COMMAND }}
         run: |
           DIST_DIR=release-artifacts \
             MANIFEST_DIR=release-artifacts/manifests \

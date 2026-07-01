@@ -90,6 +90,10 @@ minor versions may include breaking CLI, config, or storage changes. Use
   support contact, retention policy, and credential review.
 - Commercial artifact verification now rejects release signature proofs that
   still use the default `external-release-signer` placeholder.
+- Commercial artifact signing and verification now require
+  `KIANA_SIGNATURE_VERIFY_COMMAND`, record verified archive/binary-checksum
+  signature status, and include an offline smoke that rejects invalid
+  signatures.
 - Added `scripts/entitlement-proof-report.sh` plus the
   `kiana.entitlement-proof.v1` schema so full commercial preflight requires an
   accepted active enterprise entitlement proof from an external backend record.

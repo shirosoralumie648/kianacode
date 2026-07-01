@@ -85,9 +85,9 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   alignment, derives manifest URLs from the active repository/tag, runs full
   preflight, runs the smoke gate, packages artifacts on Linux/macOS/Windows
   with full compliance reports, runs package lifecycle smoke before signing,
-  runs `scripts/sign-release-artifacts.sh` using release signing/notarization
-  commands, verifies checksums, preserves signing and notarization proof
-  artifacts, regenerates combined distribution manifests, runs
+  runs `scripts/sign-release-artifacts.sh` using release signing, signature
+  verification, and notarization commands, verifies checksums, preserves
+  signing and notarization proof artifacts, regenerates combined distribution manifests, runs
   `scripts/verify-commercial-release-artifacts.sh`, uploads artifacts, and
   creates a draft GitHub Release for tag builds only after the commercial
   artifact proof gate passes.
@@ -114,11 +114,16 @@ Artifact signing is explicit and credential-backed:
 
 ```bash
 KIANA_SIGNING_COMMAND='gpg --batch --yes --armor --detach-sign --output "$KIANA_SIGN_OUTPUT" "$KIANA_SIGN_INPUT"' \
+KIANA_SIGNATURE_VERIFY_COMMAND='gpg --batch --verify "$KIANA_SIGNATURE_VERIFY_SIGNATURE" "$KIANA_SIGNATURE_VERIFY_TARGET"' \
   bash scripts/sign-release-artifacts.sh
 ```
 
 The signing command receives `KIANA_SIGN_INPUT` and `KIANA_SIGN_OUTPUT` for
-each archive and binary checksum. macOS targets also require
+each archive and binary checksum. The signature verification command receives
+`KIANA_SIGNATURE_VERIFY_TARGET` and `KIANA_SIGNATURE_VERIFY_SIGNATURE`; both
+`scripts/sign-release-artifacts.sh` and
+`scripts/verify-commercial-release-artifacts.sh` require it for commercial
+release verification. macOS targets also require
 `KIANA_MACOS_NOTARIZATION_COMMAND` to write `KIANA_NOTARIZATION_PROOF`, or a
 pre-validated `KIANA_MACOS_NOTARIZATION_PROOF_FILE`; the proof must use
 `kiana.macos-notarization.v1` with `status=accepted`. Set

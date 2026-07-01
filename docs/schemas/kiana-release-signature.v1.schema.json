@@ -9,7 +9,8 @@
     "archive",
     "signed_at",
     "signer",
-    "signature_files"
+    "signature_files",
+    "verification"
   ],
   "properties": {
     "schema": {
@@ -42,6 +43,26 @@
         "binary": {
           "type": "string",
           "pattern": "^[^/]+[.]binary[.]sig$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "required": ["method", "archive", "binary", "verified_at"],
+      "properties": {
+        "method": {
+          "const": "KIANA_SIGNATURE_VERIFY_COMMAND"
+        },
+        "archive": {
+          "const": "verified"
+        },
+        "binary": {
+          "const": "verified"
+        },
+        "verified_at": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false

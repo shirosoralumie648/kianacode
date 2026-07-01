@@ -126,7 +126,8 @@ for file in \
   "$package_root/scripts/provider-live-smoke.sh" \
   "$package_root/scripts/remote-live-smoke.sh" \
   "$package_root/scripts/sign-release-artifacts.sh" \
-  "$package_root/scripts/verify-commercial-release-artifacts.sh"
+  "$package_root/scripts/verify-commercial-release-artifacts.sh" \
+  "$package_root/scripts/release-signature-verification-smoke.sh"
 do
   if [[ ! -f "$file" ]]; then
     echo "package missing required file: $file" >&2

@@ -48,13 +48,15 @@ commercial release.
 - Any allowed advisory warnings are listed in `deny.toml` or release notes with an owner and follow-up path.
 - SBOM output is attached or linked.
 - Release binaries are signed; macOS artifacts are notarized when applicable.
-- `scripts/sign-release-artifacts.sh` runs with a real `KIANA_SIGNING_COMMAND`
-  and, on macOS, real notarization proof input.
+- `scripts/sign-release-artifacts.sh` runs with real `KIANA_SIGNING_COMMAND`
+  and `KIANA_SIGNATURE_VERIFY_COMMAND` inputs and, on macOS, real notarization
+  proof input.
 - `KIANA_RELEASE_SIGNER` is set to a reviewed signer identity and is not the
   default `external-release-signer` placeholder.
 - Signing proof files use `kiana.release-signature.v1` and validate the target,
-  archive, signer, and archive/binary signature file names; macOS notarization
-  proof files use `kiana.macos-notarization.v1` with `status=accepted`.
+  archive, signer, archive/binary signature file names, and verified signature
+  status; macOS notarization proof files use `kiana.macos-notarization.v1` with
+  `status=accepted`.
 - `scripts/release-ops-report.sh full` passes with `kiana.release-ops.v1`
   proof covering private vulnerability reporting, release credential ownership,
   support contact, artifact/log retention, and accepted credential review.
