@@ -49,6 +49,7 @@ for file in \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh \
+  scripts/sign-release-artifacts.sh \
   scripts/verify-commercial-release-artifacts.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
   scripts/generate-distribution-manifests.sh \
@@ -199,6 +200,13 @@ if grep -Fq 'verify-commercial-release-artifacts.sh' .github/workflows/release.y
   pass "GitHub release draft is gated by commercial artifact verification"
 else
   fail "GitHub release workflow does not verify commercial artifacts before draft release"
+fi
+
+if grep -Fq 'sign-release-artifacts.sh' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_SIGNING_COMMAND' .github/workflows/release.yml; then
+  pass "release workflow has an explicit artifact signing proof step"
+else
+  fail "release workflow does not run explicit artifact signing proof step"
 fi
 
 if grep -Fq 'dist/*.signature.json' .github/workflows/release.yml &&

@@ -83,8 +83,9 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   through `scripts/install-compliance-tools.sh`, validates `v$(VERSION)` tag
   alignment, derives manifest URLs from the active repository/tag, runs full
   preflight, runs the smoke gate, packages artifacts on Linux/macOS/Windows
-  with full compliance reports, verifies checksums, preserves signing and
-  notarization proof artifacts, regenerates combined distribution manifests,
+  with full compliance reports, runs `scripts/sign-release-artifacts.sh` using
+  release signing/notarization commands, verifies checksums, preserves signing
+  and notarization proof artifacts, regenerates combined distribution manifests,
   runs `scripts/verify-commercial-release-artifacts.sh`, uploads artifacts, and
   creates a draft GitHub Release for tag builds only after the commercial
   artifact proof gate passes.
@@ -102,6 +103,19 @@ The full preflight no longer accepts a manual signing confirmation variable.
 Commercial release tags must produce signed artifacts, macOS notarization proof,
 publishable channel manifests, and no blocked channel state before the draft
 GitHub Release step can run.
+
+Artifact signing is explicit and credential-backed:
+
+```bash
+KIANA_SIGNING_COMMAND='gpg --batch --yes --armor --detach-sign --output "$KIANA_SIGN_OUTPUT" "$KIANA_SIGN_INPUT"' \
+  bash scripts/sign-release-artifacts.sh
+```
+
+The signing command receives `KIANA_SIGN_INPUT` and `KIANA_SIGN_OUTPUT` for
+each archive and binary checksum. macOS targets also require
+`KIANA_MACOS_NOTARIZATION_COMMAND` to write `KIANA_NOTARIZATION_PROOF`, or a
+pre-validated `KIANA_MACOS_NOTARIZATION_PROOF_FILE`; the proof must use
+`kiana.macos-notarization.v1` with `status=accepted`.
 
 ## Optional Live Service Gate
 

@@ -73,6 +73,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Windows release packaging now creates a portable ZIP plus checksum for winget,
   and combined distribution manifest generation emits winget YAML when that ZIP
   is present.
+- Added `scripts/sign-release-artifacts.sh` and wired the release workflow to
+  require external signing/notarization proof generation before artifact upload.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

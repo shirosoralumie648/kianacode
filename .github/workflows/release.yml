@@ -63,6 +63,15 @@ jobs:
         shell: bash
         run: KIANA_PACKAGE_COMPLIANCE_MODE=full bash scripts/package-release.sh
 
+      - name: Sign release artifacts
+        shell: bash
+        env:
+          KIANA_SIGNING_COMMAND: ${{ secrets.KIANA_SIGNING_COMMAND }}
+          KIANA_RELEASE_SIGNER: ${{ vars.KIANA_RELEASE_SIGNER }}
+          KIANA_MACOS_NOTARIZATION_COMMAND: ${{ secrets.KIANA_MACOS_NOTARIZATION_COMMAND }}
+          KIANA_MACOS_NOTARIZATION_PROOF_FILE: ${{ secrets.KIANA_MACOS_NOTARIZATION_PROOF_FILE }}
+        run: bash scripts/sign-release-artifacts.sh
+
       - name: Run compliance audit
         shell: bash
         run: bash scripts/compliance-audit.sh

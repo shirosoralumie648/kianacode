@@ -434,7 +434,10 @@ mod tests {
         assert!(package_script
             .contains("cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"));
         assert!(preflight.contains("scripts/generate-distribution-manifests.sh"));
+        assert!(preflight.contains("scripts/sign-release-artifacts.sh"));
         assert!(workflow.contains("cargo fetch --locked"));
+        assert!(workflow.contains("bash scripts/sign-release-artifacts.sh"));
+        assert!(workflow.contains("KIANA_SIGNING_COMMAND"));
         assert!(workflow.contains("dist/manifests/**"));
         assert!(manifest_script.contains("offline-manifest.json"));
         assert!(manifest_script.contains("kiana.enterprise.offline-manifest.v1"));
