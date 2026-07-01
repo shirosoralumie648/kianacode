@@ -65,6 +65,7 @@ struct TuiRuntime {
     pending_resume_session_id: Option<String>,
     pending_permission: Option<PendingPermission>,
     pending_permission_queue: VecDeque<PendingPermission>,
+    onboarding_shown: bool,
     events_tx: UnboundedSender<TuiEvent>,
     events_rx: UnboundedReceiver<TuiEvent>,
 }
@@ -137,6 +138,7 @@ impl TuiRuntime {
             pending_resume_session_id: None,
             pending_permission: None,
             pending_permission_queue: VecDeque::new(),
+            onboarding_shown: false,
             events_tx,
             events_rx,
         })
@@ -426,10 +428,28 @@ impl TuiRuntime {
     }
 
     fn drain_events(&mut self, app: &mut App) -> Result<()> {
+        self.maybe_show_onboarding(app);
         while let Ok(event) = self.events_rx.try_recv() {
             self.apply_event(app, event);
         }
         Ok(())
+    }
+
+    fn maybe_show_onboarding(&mut self, app: &mut App) {
+        if self.onboarding_shown {
+            return;
+        }
+        self.onboarding_shown = true;
+        if kiana_services::auth::get_api_key().is_some()
+            || kiana_services::auth::check_oauth_tokens()
+        {
+            return;
+        }
+        app.repl.push_message(
+            MessageRole::System,
+            "Onboarding: authentication is not configured. Run `kiana auth login <api-key>` or set `ANTHROPIC_API_KEY`, then run `/doctor` to verify readiness."
+                .to_string(),
+        );
     }
 
     fn apply_event(&mut self, app: &mut App, event: TuiEvent) {
@@ -1458,6 +1478,7 @@ mod tests {
             pending_resume_session_id: None,
             pending_permission: None,
             pending_permission_queue: VecDeque::new(),
+            onboarding_shown: true,
             events_tx,
             events_rx,
         }
@@ -1465,6 +1486,31 @@ mod tests {
 
     fn tui_env_lock() -> &'static Mutex<()> {
         crate::test_support::env_lock()
+    }
+
+    struct EnvSnapshot {
+        values: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    }
+
+    impl EnvSnapshot {
+        fn take(keys: &[&'static str]) -> Self {
+            let values = keys
+                .iter()
+                .map(|key| (*key, std::env::var_os(key)))
+                .collect();
+            Self { values }
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (key, value) in &self.values {
+                match value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
     }
 
     struct ScopedKianaHome {
@@ -1661,6 +1707,57 @@ mod tests {
         let error = ensure_tui_terminal(true, false).unwrap_err().to_string();
 
         assert!(error.contains("interactive stdout"));
+    }
+
+    #[test]
+    fn tui_shows_onboarding_when_auth_or_config_missing() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&[
+            "ANTHROPIC_API_KEY",
+            "KIANA_CONFIG_FILE",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_MANAGED_SETTINGS_FILE",
+            "KIANA_MANAGED_POLICY_FILE",
+            "KIANA_OAUTH_TOKENS_FILE",
+            "CLAUDE_CODE_OAUTH_TOKENS_FILE",
+            "KIANA_HOME",
+        ]);
+        let root = std::env::temp_dir().join(format!(
+            "kiana-tui-onboarding-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_MANAGED_SETTINGS_FILE");
+        std::env::remove_var("KIANA_MANAGED_POLICY_FILE");
+        std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::set_var("KIANA_HOME", &root);
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", root.join("missing-oauth.json"));
+        std::env::remove_var("CLAUDE_CODE_OAUTH_TOKENS_FILE");
+        let mut runtime = runtime_for_test("session-1");
+        runtime.onboarding_shown = false;
+        let mut app = App::new();
+
+        runtime.drain_events(&mut app).unwrap();
+        runtime.drain_events(&mut app).unwrap();
+
+        let onboarding_messages = app
+            .repl
+            .messages
+            .iter()
+            .filter(|message| message.content.contains("Onboarding: authentication"))
+            .count();
+        assert_eq!(onboarding_messages, 1);
+        assert!(app.repl.messages[0].content.contains("kiana auth login"));
+        assert!(app.repl.messages[0].content.contains("/doctor"));
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

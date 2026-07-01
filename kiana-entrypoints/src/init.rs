@@ -16,6 +16,9 @@ static NEXT_CLEANUP_ID: AtomicU64 = AtomicU64::new(1);
 const REMOTE_SETTINGS_FILE_ENV: &str = "KIANA_REMOTE_SETTINGS_FILE";
 const REMOTE_SETTINGS_CACHE_FILE_ENV: &str = "KIANA_REMOTE_SETTINGS_CACHE_FILE";
 const REMOTE_SETTINGS_STATUS_ENV: &str = "KIANA_REMOTE_SETTINGS_STATUS";
+const FIRST_START_FILE_ENV: &str = "KIANA_FIRST_START_FILE";
+const FIRST_START_STATUS_ENV: &str = "KIANA_FIRST_START_STATUS";
+const FIRST_START_SCHEMA: &str = "kiana.first-start.v1";
 
 type CleanupFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 type CleanupFn = Arc<dyn Fn() -> CleanupFuture + Send + Sync>;
@@ -193,12 +196,95 @@ async fn init_remote_settings() {
         }
     }
 }
-fn record_first_start() {}
+fn record_first_start() {
+    match record_first_start_at(&first_start_path()) {
+        Ok(FirstStartRecordResult::Created) => set_first_start_status("created"),
+        Ok(FirstStartRecordResult::Existing) => set_first_start_status("existing"),
+        Err(error) => {
+            set_first_start_status(&format!("error:{error}"));
+            eprintln!("first-start state error: {error}");
+        }
+    }
+}
 fn configure_mtls() {}
 fn configure_proxy() {}
 fn preconnect_api() {}
 async fn init_upstream_proxy() {}
 fn set_shell_windows() {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FirstStartRecordResult {
+    Created,
+    Existing,
+}
+
+pub fn first_start_path() -> PathBuf {
+    if let Ok(path) = std::env::var(FIRST_START_FILE_ENV) {
+        let path = path.trim();
+        if !path.is_empty() {
+            return PathBuf::from(path);
+        }
+    }
+    kiana_home_dir().join("first-start.json")
+}
+
+pub fn load_first_start_state() -> Result<Option<Value>> {
+    let path = first_start_path();
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let value = std::fs::read_to_string(path)?;
+    Ok(Some(serde_json::from_str(&value)?))
+}
+
+fn record_first_start_at(path: &Path) -> Result<FirstStartRecordResult> {
+    if path.exists() {
+        return Ok(FirstStartRecordResult::Existing);
+    }
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent)?;
+        set_owner_only_permissions(parent)?;
+    }
+    let created_at_unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let payload = json!({
+        "schema": FIRST_START_SCHEMA,
+        "created_at_unix": created_at_unix,
+        "onboarding": {
+            "status": "pending",
+            "recommended_checks": [
+                "kiana auth status --json",
+                "kiana doctor --json",
+                "kiana config init"
+            ]
+        }
+    });
+    let mut file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Ok(FirstStartRecordResult::Existing);
+        }
+        Err(error) => return Err(error.into()),
+    };
+    use std::io::Write;
+    file.write_all(&serde_json::to_vec_pretty(&payload)?)?;
+    file.sync_all()?;
+    set_owner_only_permissions(path)?;
+    Ok(FirstStartRecordResult::Created)
+}
+
+fn set_first_start_status(status: &str) {
+    std::env::set_var(FIRST_START_STATUS_ENV, status);
+}
 
 enum RemoteSettingsFetch {
     Settings {
@@ -508,6 +594,8 @@ mod tests {
             REMOTE_SETTINGS_FILE_ENV,
             REMOTE_SETTINGS_CACHE_FILE_ENV,
             REMOTE_SETTINGS_STATUS_ENV,
+            FIRST_START_FILE_ENV,
+            FIRST_START_STATUS_ENV,
             "KIANA_HOME",
             "KIANA_CONFIG_FILE",
             "KIANA_SETTINGS_FILE",
@@ -579,6 +667,48 @@ mod tests {
         std::env::set_var("KIANA_DISABLE_SCRATCHPAD", "true");
         assert!(!scratchpad_enabled());
         std::env::remove_var("KIANA_DISABLE_SCRATCHPAD");
+    }
+
+    #[test]
+    fn init_records_first_start_once_under_kiana_home() {
+        let _guard = crate::test_support::env_lock().lock().unwrap();
+        clear_remote_settings_env();
+        let root = temp_root("first-start");
+        std::env::set_var("KIANA_HOME", &root);
+
+        record_first_start();
+
+        let path = root.join("first-start.json");
+        assert_eq!(first_start_path(), path);
+        assert_eq!(
+            std::env::var(FIRST_START_STATUS_ENV).ok().as_deref(),
+            Some("created")
+        );
+        let value = load_first_start_state().unwrap().unwrap();
+        assert_eq!(value["schema"], FIRST_START_SCHEMA);
+        assert_eq!(value["onboarding"]["status"], "pending");
+
+        std::fs::write(
+            &path,
+            serde_json::to_vec_pretty(&json!({
+                "schema": FIRST_START_SCHEMA,
+                "created_at_unix": 1,
+                "onboarding": { "status": "complete" }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        record_first_start();
+
+        assert_eq!(
+            std::env::var(FIRST_START_STATUS_ENV).ok().as_deref(),
+            Some("existing")
+        );
+        let value = load_first_start_state().unwrap().unwrap();
+        assert_eq!(value["onboarding"]["status"], "complete");
+
+        clear_remote_settings_env();
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[tokio::test]
