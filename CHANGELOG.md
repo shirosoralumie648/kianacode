@@ -57,6 +57,11 @@ minor versions may include breaking CLI, config, or storage changes. Use
   manifest URLs from the active GitHub repository/tag, run full release
   preflight before packaging, and recursively attach manifest/compliance
   artifacts to draft GitHub Releases.
+- Commercial release workflows now reject manual signing confirmation shortcuts:
+  `scripts/verify-commercial-release-artifacts.sh` checks combined release
+  artifacts for signatures, macOS notarization proof, publishable Windows
+  packaging, and non-blocked channel manifests before a draft GitHub Release is
+  created.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

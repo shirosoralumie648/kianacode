@@ -47,6 +47,7 @@ for file in \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
+  scripts/verify-commercial-release-artifacts.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
   scripts/generate-distribution-manifests.sh \
   .github/workflows/release-smoke.yml .github/workflows/release.yml
@@ -183,6 +184,26 @@ else
   fail "GitHub release upload does not include recursive manifest/compliance artifacts"
 fi
 
+if grep -Fq 'verify-commercial-release-artifacts.sh' .github/workflows/release.yml; then
+  pass "GitHub release draft is gated by commercial artifact verification"
+else
+  fail "GitHub release workflow does not verify commercial artifacts before draft release"
+fi
+
+if grep -Fq 'dist/*.signature.json' .github/workflows/release.yml &&
+  grep -Fq 'dist/*.notarization.json' .github/workflows/release.yml &&
+  grep -Fq 'dist/*.sig' .github/workflows/release.yml; then
+  pass "release workflow preserves signing and notarization proof artifacts"
+else
+  fail "release workflow does not upload signing/notarization proof artifacts"
+fi
+
+if grep -Fq 'KIANA_RELEASE_SIGNING_CONFIRMED' .github/workflows/release.yml; then
+  fail "release workflow still accepts manual signing confirmation instead of artifact proof"
+else
+  pass "release workflow does not accept manual signing confirmation"
+fi
+
 if [[ "$mode" == "full" ]]; then
   expected_tag="v${workspace_version}"
   if git rev-parse --verify HEAD >/dev/null 2>&1; then
@@ -215,11 +236,7 @@ if [[ "$mode" == "full" ]]; then
     fail "KIANA_RELEASE_TAG=${KIANA_RELEASE_TAG} does not match expected ${expected_tag}"
   fi
 
-  if [[ "${KIANA_RELEASE_SIGNING_CONFIRMED:-}" == "1" ]]; then
-    pass "release signing confirmation present"
-  else
-    fail "release signing is not confirmed; set KIANA_RELEASE_SIGNING_CONFIRMED=1 only after signing is active"
-  fi
+  pass "full release signing/channel proof is enforced by release artifact verification"
 else
   pass "local RC mode: git remote, HEAD, clean tracked tree, and signing checks skipped"
 fi

@@ -83,8 +83,11 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   through `scripts/install-compliance-tools.sh`, validates `v$(VERSION)` tag
   alignment, derives manifest URLs from the active repository/tag, runs full
   preflight, runs the smoke gate, packages artifacts on Linux/macOS/Windows
-  with full compliance reports, verifies checksums, uploads artifacts, and
-  creates a draft GitHub Release for tag builds.
+  with full compliance reports, verifies checksums, preserves signing and
+  notarization proof artifacts, regenerates combined distribution manifests,
+  runs `scripts/verify-commercial-release-artifacts.sh`, uploads artifacts, and
+  creates a draft GitHub Release for tag builds only after the commercial
+  artifact proof gate passes.
 
 These workflows still require a real remote repository, tag policy, release
 credentials, and signing before they become authoritative release gates.
@@ -92,11 +95,13 @@ credentials, and signing before they become authoritative release gates.
 Before cutting a real release tag, run the full preflight:
 
 ```bash
-KIANA_RELEASE_SIGNING_CONFIRMED=1 bash scripts/release-preflight.sh
+bash scripts/release-preflight.sh
 ```
 
-The signing confirmation must only be set after signing, notarization where
-applicable, and release-channel credential checks are active.
+The full preflight no longer accepts a manual signing confirmation variable.
+Commercial release tags must produce signed artifacts, macOS notarization proof,
+publishable channel manifests, and no blocked channel state before the draft
+GitHub Release step can run.
 
 ## Optional Live Service Gate
 

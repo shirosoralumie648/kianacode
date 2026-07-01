@@ -25,6 +25,8 @@ commercial release.
   `scripts/release-smoke.sh`.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - Checksum verification passes before upload.
+- `scripts/verify-commercial-release-artifacts.sh` passes on the combined
+  release artifact set before a draft GitHub Release is created.
 - `scripts/compliance-audit.sh --local-rc` produces `SBOM.cdx.json` and
   `compliance-report.json`.
 - `scripts/compliance-audit.sh` passes with `cargo-audit`, `cargo-deny`, and
@@ -39,6 +41,8 @@ commercial release.
 - Any allowed advisory warnings are listed in `deny.toml` or release notes with an owner and follow-up path.
 - SBOM output is attached or linked.
 - Release binaries are signed; macOS artifacts are notarized when applicable.
+- Signing proof files use `kiana.release-signature.v1`; macOS notarization
+  proof files use `kiana.macos-notarization.v1` with `status=accepted`.
 - Private vulnerability reporting route is active.
 
 ## Distribution
@@ -52,6 +56,8 @@ commercial release.
   artifact checksum.
 - Upgrade and rollback instructions are linked.
 - Package-manager channels are either published or explicitly marked as pending.
+- Commercial GA requires published channels; pending/dry-run/blocked channel
+  state is allowed only for source-build RCs, not for full commercial release.
 
 ## Product Readiness
 

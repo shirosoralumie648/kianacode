@@ -59,6 +59,8 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Remote code-session create, bridge credential fetch, smoke, and hydrate commands retry once after auth failure through the same remote refresh path used by websocket reconnects.
 - Code-session auth retry now keys off typed 401/403 HTTP status from remote API errors, with text matching retained only as a compatibility fallback.
 - Tag release workflow now enforces `v$(VERSION)` alignment, derives package manifest URLs from the active GitHub repository/tag, runs full release preflight before packaging, and recursively uploads manifest/compliance artifacts into the draft GitHub Release.
+- Tag release workflow now preserves signing/notarization proof artifacts, regenerates combined distribution manifests after all matrix artifacts are downloaded, and runs `scripts/verify-commercial-release-artifacts.sh` before drafting a GitHub Release.
+- Full release preflight no longer accepts `KIANA_RELEASE_SIGNING_CONFIRMED`; commercial signing, notarization, Windows publishable packaging, and channel status must be represented by artifact proof files and manifests.
 - `kiana auth status --json` now exposes redacted OAuth token-file status, expiry, expiring/expired state, refreshability, and storage source; service-level OAuth token checks reject expired token files instead of using a placeholder false result.
 - `kiana auth status --json` now exposes provider-aware readiness for Anthropic, OpenAI-compatible, Ollama, and fake providers, including redacted API key previews plus endpoint/model settings without exposing secrets.
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and TUI startup shows a one-time onboarding message when no API key or usable OAuth token is configured.
@@ -85,9 +87,9 @@ These are not solved by the local release gate and must be completed before clai
 
 - Publish the real Git repository and remote URL, then activate CI on real push/PR/release events.
 - Push the local product commit to the real remote, then create an immutable release tag from a reviewed clean tree.
-- Activate the release workflow on the real remote, then add signing, notarization where applicable, release credential review, and retention policy review.
+- Activate the release workflow on the real remote, then add real signing, notarization where applicable, release credential review, and retention policy review so `scripts/verify-commercial-release-artifacts.sh` can pass instead of blocking the draft release.
 - Provide real install URLs and distribution channels such as GitHub Releases, Homebrew, winget, npm, apt, or an enterprise installer.
-- Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists but needs release-channel execution.
+- Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists, and full commercial verification now fails while Homebrew/winget/enterprise channel state remains pending, dry-run, or blocked.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring live terminal walkthroughs for TUI permission, diff, onboarding, resume, history, and settings readiness to reference-level usability; the named product-shell headless smoke is now wired into release gates, but target-customer interactive acceptance is still pending.
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, and provider credential/readiness metadata is visible through `auth status`, but live provider operation is not proven by default gates.

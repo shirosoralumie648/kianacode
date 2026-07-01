@@ -19,6 +19,11 @@ The channels below define the commercial distribution target state.
 - Distribution manifest dry-runs are generated through
   `scripts/generate-distribution-manifests.sh` and included beside package
   artifacts under `dist/manifests/`.
+- Commercial artifact verification runs through
+  `scripts/verify-commercial-release-artifacts.sh` after all runner artifacts
+  are combined; it fails on missing signatures, missing macOS notarization
+  proof, missing Windows ZIP/MSI/EXE publishable artifacts, or blocked channel
+  manifests.
 - Enterprise offline bundles include
   `manifests/enterprise/offline-manifest.json`, generated from the same archive
   checksum files and validated by package lifecycle smoke against the pinned
@@ -36,6 +41,10 @@ The channels below define the commercial distribution target state.
 - A stable install URL that does not depend on a moving branch.
 - Real public release notes that link the existing install, upgrade, rollback,
   and uninstall instructions for the shipped artifact.
+- Signing proof artifacts using `kiana.release-signature.v1` beside every
+  archive and binary checksum.
+- macOS notarization proof artifacts using `kiana.macos-notarization.v1` with
+  `status=accepted`.
 
 ## Planned Package Managers
 
@@ -50,3 +59,7 @@ set as the GitHub Release artifacts.
 Until Windows packaging produces a winget-supported ZIP/MSI/EXE, the winget
 manifest generator records an explicit blocker instead of pretending the tarball
 is publishable.
+
+Full commercial release verification treats those blockers as hard failures.
+Use local RC mode for source-build release candidates that intentionally ship
+before signing, notarization, or package-manager publication is complete.

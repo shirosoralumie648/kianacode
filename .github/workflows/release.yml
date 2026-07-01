@@ -54,8 +54,6 @@ jobs:
       - name: Run release preflight
         shell: bash
         run: KIANA_PREFLIGHT_SKIP_COMPLIANCE=1 bash scripts/release-preflight.sh
-        env:
-          KIANA_RELEASE_SIGNING_CONFIRMED: ${{ secrets.KIANA_RELEASE_SIGNING_CONFIRMED }}
 
       - name: Run release smoke
         shell: bash
@@ -85,6 +83,12 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.sha256
+            dist/*.sig
+            dist/*.signature.json
+            dist/*.notarization.json
+            dist/*.zip
+            dist/*.msi
+            dist/*.exe
             dist/manifests/**
             dist/compliance/*
           if-no-files-found: error
@@ -98,10 +102,30 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           path: release-artifacts
           merge-multiple: true
+
+      - name: Regenerate combined distribution manifests
+        shell: bash
+        run: |
+          release_tag="${GITHUB_REF_NAME}"
+          KIANA_RELEASE_BASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}" \
+            DIST_DIR=release-artifacts \
+            MANIFEST_DIR=release-artifacts/manifests \
+            bash scripts/generate-distribution-manifests.sh
+
+      - name: Verify commercial release artifacts
+        shell: bash
+        run: |
+          DIST_DIR=release-artifacts \
+            MANIFEST_DIR=release-artifacts/manifests \
+            bash scripts/verify-commercial-release-artifacts.sh
 
       - uses: softprops/action-gh-release@v2
         with:
