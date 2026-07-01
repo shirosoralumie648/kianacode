@@ -57,6 +57,14 @@ impl Command for ReleaseCommand {
         lines.push("gate: ./target/release/kiana --version".to_string());
         lines.push("gate: ./target/release/kiana doctor".to_string());
         lines.push("gate: temp INSTALL_DIR make install + installed kiana doctor".to_string());
+        lines.push("commercial_gate: bash scripts/release-preflight.sh".to_string());
+        lines.push("commercial_gate: bash scripts/provider-live-smoke.sh --required".to_string());
+        lines.push("commercial_gate: bash scripts/remote-live-smoke.sh --required".to_string());
+        lines.push("commercial_gate: bash scripts/sign-release-artifacts.sh".to_string());
+        lines.push("commercial_gate: bash scripts/product-acceptance-report.sh full".to_string());
+        lines.push(
+            "commercial_gate: bash scripts/verify-commercial-release-artifacts.sh".to_string(),
+        );
         lines
             .push("optional_live_gate: kiana remote-session code-session smoke --json".to_string());
         lines.push(format!("optional_live_gate_status: {}", live_gate.label()));
@@ -299,6 +307,21 @@ mod tests {
         assert!(result
             .value
             .contains("gate: temp INSTALL_DIR make install + installed kiana doctor"));
+        assert!(result
+            .value
+            .contains("commercial_gate: bash scripts/provider-live-smoke.sh --required"));
+        assert!(result
+            .value
+            .contains("commercial_gate: bash scripts/remote-live-smoke.sh --required"));
+        assert!(result
+            .value
+            .contains("commercial_gate: bash scripts/sign-release-artifacts.sh"));
+        assert!(result
+            .value
+            .contains("commercial_gate: bash scripts/product-acceptance-report.sh full"));
+        assert!(result
+            .value
+            .contains("commercial_gate: bash scripts/verify-commercial-release-artifacts.sh"));
     }
 
     #[tokio::test]
