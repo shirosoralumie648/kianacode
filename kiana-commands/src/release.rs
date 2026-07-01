@@ -440,7 +440,8 @@ mod tests {
         assert!(manifest_script.contains("kiana.enterprise.offline-manifest.v1"));
         assert!(manifest_script.contains("Homebrew Manifest Blocked"));
         assert!(manifest_script.contains("winget Manifest Blocked"));
-        assert!(manifest_script.contains("blocked_until_supported_windows_installer"));
+        assert!(manifest_script.contains("InstallerType: zip"));
+        assert!(manifest_script.contains("NestedInstallerType: portable"));
         assert!(manifest_script.contains("KIANA_RELEASE_BASE_URL"));
     }
 

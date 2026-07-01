@@ -9,6 +9,7 @@ manifest_dir="${MANIFEST_DIR:-${dist_dir}/manifests}"
 release_base_url="${KIANA_RELEASE_BASE_URL:-https://github.com/kiana-project/kiana/releases/download/v${version}}"
 
 mkdir -p "$manifest_dir/homebrew" "$manifest_dir/winget" "$manifest_dir/enterprise"
+rm -f "$manifest_dir/homebrew/BLOCKED.md" "$manifest_dir/winget/BLOCKED.md"
 
 shopt -s nullglob
 archives=("${dist_dir}/kiana-${version}-"*.tar.gz)
@@ -35,6 +36,7 @@ read_sha256() {
 }
 
 homebrew_written=0
+winget_written=0
 enterprise_targets=()
 winget_blockers=()
 
@@ -76,7 +78,57 @@ FORMULA
   esac
 
   if [[ "$target" == windows-* ]]; then
-    winget_blockers+=("${filename}")
+    zip_file="${dist_dir}/${package}.zip"
+    if [[ -f "$zip_file" ]]; then
+      zip_filename="$(basename "$zip_file")"
+      zip_sha="$(read_sha256 "${zip_file}.sha256")"
+      winget_arch="neutral"
+      case "$target" in
+        *-x86_64) winget_arch="x64" ;;
+        *-aarch64) winget_arch="arm64" ;;
+      esac
+      winget_package_id="${KIANA_WINGET_PACKAGE_IDENTIFIER:-Kiana.Kiana}"
+      winget_manifest_version="${KIANA_WINGET_MANIFEST_VERSION:-1.6.0}"
+      winget_dir="${manifest_dir}/winget/${winget_package_id}/${version}"
+      zip_url="${release_base_url}/${zip_filename}"
+      mkdir -p "$winget_dir"
+      cat > "${winget_dir}/${winget_package_id}.yaml" <<EOF
+PackageIdentifier: ${winget_package_id}
+PackageVersion: ${version}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: ${winget_manifest_version}
+EOF
+      cat > "${winget_dir}/${winget_package_id}.locale.en-US.yaml" <<EOF
+PackageIdentifier: ${winget_package_id}
+PackageVersion: ${version}
+PackageLocale: en-US
+Publisher: Kiana Project
+PackageName: Kiana Code
+License: MIT OR Apache-2.0
+ShortDescription: Kiana Code AI coding assistant
+ManifestType: defaultLocale
+ManifestVersion: ${winget_manifest_version}
+EOF
+      cat > "${winget_dir}/${winget_package_id}.installer.yaml" <<EOF
+PackageIdentifier: ${winget_package_id}
+PackageVersion: ${version}
+InstallerType: zip
+NestedInstallerType: portable
+Installers:
+- Architecture: ${winget_arch}
+  InstallerUrl: ${zip_url}
+  InstallerSha256: ${zip_sha}
+  NestedInstallerFiles:
+  - RelativeFilePath: ${package}/kiana.exe
+    PortableCommandAlias: kiana
+ManifestType: installer
+ManifestVersion: ${winget_manifest_version}
+EOF
+      winget_written=1
+    else
+      winget_blockers+=("${filename}")
+    fi
   fi
 
   enterprise_targets+=(
@@ -104,13 +156,22 @@ if (( ${#winget_blockers[@]} > 0 )); then
     echo
     echo "Generate a winget-supported installer or portable ZIP/MSI/EXE before submitting a winget manifest."
   } > "$manifest_dir/winget/BLOCKED.md"
-else
+elif (( winget_written == 0 )); then
   cat > "$manifest_dir/winget/BLOCKED.md" <<EOF
 # winget Manifest Blocked
 
 No Windows artifact was present in ${dist_dir}.
 Run the release package workflow on a Windows runner before generating winget metadata.
 EOF
+fi
+
+homebrew_channel="blocked_no_unix_artifacts"
+if (( homebrew_written == 1 )); then
+  homebrew_channel="generated"
+fi
+winget_channel="blocked_no_windows_publishable_artifact"
+if (( winget_written == 1 && ${#winget_blockers[@]} == 0 )); then
+  winget_channel="generated"
 fi
 
 {
@@ -128,9 +189,9 @@ fi
   done
   echo "  ],"
   echo "  \"channels\": {"
-  echo "    \"github_releases\": \"pending_remote_release\","
-  echo "    \"homebrew\": \"dry_run_or_blocked\","
-  echo "    \"winget\": \"blocked_until_supported_windows_installer\""
+  echo "    \"github_releases\": \"generated_from_release_base_url\","
+  echo "    \"homebrew\": \"${homebrew_channel}\","
+  echo "    \"winget\": \"${winget_channel}\""
   echo "  }"
   echo "}"
 } > "$manifest_dir/enterprise/offline-manifest.json"

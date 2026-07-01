@@ -24,6 +24,8 @@ commercial release.
 - `scripts/product-shell-smoke.sh` passes and remains wired into
   `scripts/release-smoke.sh`.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
+- Windows `scripts/package-release.sh` runs produce a portable ZIP plus
+  checksum for winget submission.
 - Checksum verification passes before upload.
 - `scripts/verify-commercial-release-artifacts.sh` passes on the combined
   release artifact set before a draft GitHub Release is created.
@@ -58,6 +60,8 @@ commercial release.
 - Package-manager channels are either published or explicitly marked as pending.
 - Commercial GA requires published channels; pending/dry-run/blocked channel
   state is allowed only for source-build RCs, not for full commercial release.
+- Combined release artifacts include generated Homebrew formulae and winget
+  YAML; no channel `BLOCKED.md` file remains.
 
 ## Product Readiness
 

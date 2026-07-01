@@ -19,6 +19,11 @@ The channels below define the commercial distribution target state.
 - Distribution manifest dry-runs are generated through
   `scripts/generate-distribution-manifests.sh` and included beside package
   artifacts under `dist/manifests/`.
+- Windows package runs now produce a portable ZIP beside the tarball, with a
+  checksum file for winget submission.
+- When combined release artifacts include the Windows portable ZIP,
+  `scripts/generate-distribution-manifests.sh` emits winget version, locale,
+  and installer YAML under `dist/manifests/winget/`.
 - Commercial artifact verification runs through
   `scripts/verify-commercial-release-artifacts.sh` after all runner artifacts
   are combined; it fails on missing signatures, missing macOS notarization
@@ -58,7 +63,9 @@ set as the GitHub Release artifacts.
 
 Until Windows packaging produces a winget-supported ZIP/MSI/EXE, the winget
 manifest generator records an explicit blocker instead of pretending the tarball
-is publishable.
+is publishable. Windows release packaging now emits a portable ZIP; full
+commercial verification still requires that ZIP to be present in the combined
+release artifact set before the winget blocker is removed.
 
 Full commercial release verification treats those blockers as hard failures.
 Use local RC mode for source-build release candidates that intentionally ship

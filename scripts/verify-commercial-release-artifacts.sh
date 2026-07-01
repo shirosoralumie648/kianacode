@@ -121,13 +121,23 @@ fi
 if [[ -f "${manifest_dir}/homebrew/BLOCKED.md" ]]; then
   fail "Homebrew channel manifest is still blocked"
 else
-  pass "Homebrew channel manifest is not blocked"
+  homebrew_formulas=("${manifest_dir}/homebrew/"*.rb)
+  if (( ${#homebrew_formulas[@]} > 0 )); then
+    pass "Homebrew channel manifest is not blocked"
+  else
+    fail "Homebrew channel manifest is not blocked but no formula was generated"
+  fi
 fi
 
 if [[ -f "${manifest_dir}/winget/BLOCKED.md" ]]; then
   fail "winget channel manifest is still blocked"
 else
-  pass "winget channel manifest is not blocked"
+  winget_installer_manifests=("${manifest_dir}/winget/"*"/${version}/"*".installer.yaml")
+  if (( ${#winget_installer_manifests[@]} > 0 )); then
+    pass "winget channel manifest is not blocked"
+  else
+    fail "winget channel manifest is not blocked but no installer manifest was generated"
+  fi
 fi
 
 enterprise_manifest="${manifest_dir}/enterprise/offline-manifest.json"

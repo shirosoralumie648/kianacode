@@ -23,11 +23,12 @@ target="${KIANA_PACKAGE_TARGET:-${os}-${arch}}"
 package="kiana-${version}-${target}"
 stage="${dist_dir}/${package}"
 archive="${dist_dir}/${package}.tar.gz"
+portable_zip="${dist_dir}/${package}.zip"
 compliance_dir="${dist_dir}/compliance-${package}"
 compliance_mode="${KIANA_PACKAGE_COMPLIANCE_MODE:---local-rc}"
 
-if [[ -e "$stage" || -e "$archive" ]]; then
-  echo "package output already exists: $stage or $archive" >&2
+if [[ -e "$stage" || -e "$archive" || -e "$portable_zip" ]]; then
+  echo "package output already exists: $stage, $archive, or $portable_zip" >&2
   echo "set DIST_DIR to a fresh directory or remove the previous package output" >&2
   exit 1
 fi
@@ -49,12 +50,37 @@ cp "$compliance_dir/compliance-report.json" "$stage/docs/compliance-report.json"
 (
   cd "$dist_dir"
   tar -czf "${package}.tar.gz" "$package"
+  if [[ "$target" == windows-* ]]; then
+    python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+    if [[ -z "$python_bin" ]]; then
+      echo "python3 or python is required to create the Windows portable ZIP" >&2
+      exit 1
+    fi
+    "$python_bin" - "$package" "${package}.zip" <<'PY'
+import os
+import sys
+import zipfile
+
+root, output = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    for current, _, files in os.walk(root):
+        for name in sorted(files):
+            path = os.path.join(current, name)
+            archive.write(path, os.path.relpath(path, "."))
+PY
+  fi
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "${package}.tar.gz" > "${package}.tar.gz.sha256"
     sha256sum "${package}/kiana${exe_ext}" > "${package}.binary.sha256"
+    if [[ -f "${package}.zip" ]]; then
+      sha256sum "${package}.zip" > "${package}.zip.sha256"
+    fi
   elif command -v shasum >/dev/null 2>&1; then
     shasum -a 256 "${package}.tar.gz" > "${package}.tar.gz.sha256"
     shasum -a 256 "${package}/kiana${exe_ext}" > "${package}.binary.sha256"
+    if [[ -f "${package}.zip" ]]; then
+      shasum -a 256 "${package}.zip" > "${package}.zip.sha256"
+    fi
   else
     echo "warning: sha256 tool not found; checksum files were not created" >&2
   fi
@@ -63,3 +89,6 @@ cp "$compliance_dir/compliance-report.json" "$stage/docs/compliance-report.json"
 bash scripts/generate-distribution-manifests.sh
 
 echo "Created ${archive}"
+if [[ -f "$portable_zip" ]]; then
+  echo "Created ${portable_zip}"
+fi

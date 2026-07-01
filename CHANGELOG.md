@@ -70,6 +70,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   `scripts/provider-live-smoke.sh --required` stores live catalog/text/tool
   proof JSON, `scripts/remote-live-smoke.sh --required` stores CCR v2 code
   session proof JSON, and full release preflight now runs both gates.
+- Windows release packaging now creates a portable ZIP plus checksum for winget,
+  and combined distribution manifest generation emits winget YAML when that ZIP
+  is present.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.
