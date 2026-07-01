@@ -56,7 +56,8 @@ The channels below define the commercial distribution target state.
   archive and binary checksum, validated against the target archive and
   signature file names plus `KIANA_SIGNATURE_VERIFY_COMMAND` verification.
 - macOS notarization proof artifacts using `kiana.macos-notarization.v1` with
-  `status=accepted`.
+  `status=accepted`, target/archive binding, accepted timestamp, authority, and
+  notarization id.
 
 ## 0.1.0 Commercial GA Channels
 

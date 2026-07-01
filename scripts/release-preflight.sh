@@ -385,6 +385,14 @@ else
   fail "macOS notarization JSON schema is missing kiana.macos-notarization.v1 const"
 fi
 
+if grep -Fq '"notarization_id"' docs/schemas/kiana-macos-notarization.v1.schema.json &&
+  grep -Fq '"authority"' docs/schemas/kiana-macos-notarization.v1.schema.json &&
+  grep -Fq '"additionalProperties": false' docs/schemas/kiana-macos-notarization.v1.schema.json; then
+  pass "macOS notarization commercial schema contract is pinned"
+else
+  fail "macOS notarization commercial schema contract is not pinned"
+fi
+
 if grep -Fq '"const": "kiana.release-ops.v1"' docs/schemas/kiana-release-ops.v1.schema.json; then
   pass "release ops JSON schema version is pinned"
 else

@@ -407,6 +407,7 @@ PY
 require_macos_notarization_contract() {
   local file="$1"
   local expected_target="$2"
+  local expected_archive="$3"
   if [[ ! -f "$file" ]]; then
     return
   fi
@@ -416,19 +417,59 @@ require_macos_notarization_contract() {
     fail "python3 or python is required to validate macOS notarization proof"
     return
   fi
-  if "$python" - "$file" "$expected_target" <<'PY'
+  if "$python" - "$file" "$expected_target" "$expected_archive" <<'PY'
 import json
 import sys
 
-path, expected_target = sys.argv[1:3]
+path, expected_target, expected_archive = sys.argv[1:4]
 with open(path, "r", encoding="utf-8") as handle:
     report = json.load(handle)
 
-target = report.get("target")
+allowed_keys = {
+    "schema",
+    "status",
+    "target",
+    "archive",
+    "accepted_at",
+    "authority",
+    "notarization_id",
+    "notes",
+}
+required_strings = [
+    "target",
+    "archive",
+    "accepted_at",
+    "authority",
+    "notarization_id",
+]
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+)
+
+def filled(key):
+    value = report.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(key):
+    value = report.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
 checks = [
+    set(report).issubset(allowed_keys),
     report.get("schema") == "kiana.macos-notarization.v1",
     report.get("status") == "accepted",
-    target is None or target == expected_target,
+    report.get("target") == expected_target,
+    report.get("archive") == expected_archive,
+    all(filled(key) for key in required_strings),
+    all(not_placeholder(key) for key in required_strings),
 ]
 sys.exit(0 if all(checks) else 1)
 PY
@@ -482,7 +523,7 @@ for archive in "${archives[@]}"; do
     require_file "$notarization_proof"
     require_json_pattern "$notarization_proof" '"schema"[[:space:]]*:[[:space:]]*"kiana.macos-notarization.v1"' "macOS notarization proof schema"
     require_json_pattern "$notarization_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "macOS notarization accepted"
-    require_macos_notarization_contract "$notarization_proof" "$target"
+    require_macos_notarization_contract "$notarization_proof" "$target" "$filename"
   fi
 
   if [[ "$target" == windows-* ]]; then

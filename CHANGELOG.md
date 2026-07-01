@@ -119,6 +119,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added pinned release-signature and macOS-notarization proof schemas, and made
   commercial artifact verification validate signature proof structure instead
   of relying only on string markers.
+- Tightened the macOS notarization proof contract to require target/archive
+  binding, accepted timestamp, authority, notarization id, and no unrecognized
+  fields.
 - Release artifact workflow now runs package lifecycle smoke after packaging and
   before signing artifacts.
 - Plugin marketplace JSON now surfaces plugin interface/policy metadata, rejects

@@ -59,7 +59,8 @@ commercial release.
 - Signing proof files use `kiana.release-signature.v1` and validate the target,
   archive, signer, archive/binary signature file names, and verified signature
   status; macOS notarization proof files use `kiana.macos-notarization.v1` with
-  `status=accepted`.
+  `status=accepted`, target/archive binding, accepted timestamp, authority, and
+  notarization id.
 - `scripts/release-ops-report.sh full` passes with `kiana.release-ops.v1`
   proof covering private vulnerability reporting, release credential ownership,
   support contact, artifact/log retention, and accepted credential review.

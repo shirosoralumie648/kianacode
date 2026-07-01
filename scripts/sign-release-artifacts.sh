@@ -38,6 +38,13 @@ json_escape() {
   printf '%s' "$value"
 }
 
+python_bin() {
+  command -v python3 2>/dev/null || command -v python 2>/dev/null || {
+    echo "python3 or python is required to validate macOS notarization proof" >&2
+    exit 1
+  }
+}
+
 sign_file() {
   local input="$1"
   local output="$2"
@@ -98,6 +105,8 @@ write_notarization_proof() {
   local target="$1"
   local archive="$2"
   local proof="$3"
+  local archive_name
+  archive_name="$(basename "$archive")"
   if [[ -n "${KIANA_MACOS_NOTARIZATION_PROOF_FILE:-}" ]]; then
     cp "$KIANA_MACOS_NOTARIZATION_PROOF_FILE" "$proof"
   elif [[ -n "${KIANA_MACOS_NOTARIZATION_COMMAND:-}" ]]; then
@@ -114,9 +123,43 @@ write_notarization_proof() {
     echo "macOS notarization proof was not created: $proof" >&2
     exit 1
   fi
-  if ! grep -Eq '"schema"[[:space:]]*:[[:space:]]*"kiana.macos-notarization.v1"' "$proof" ||
-    ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"accepted"' "$proof"; then
-    echo "macOS notarization proof must use kiana.macos-notarization.v1 with status=accepted: $proof" >&2
+  if ! "$(python_bin)" - "$proof" "$target" "$archive_name" <<'PY'
+import json
+import sys
+
+path, expected_target, expected_archive = sys.argv[1:4]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+allowed_keys = {
+    "schema",
+    "status",
+    "target",
+    "archive",
+    "accepted_at",
+    "authority",
+    "notarization_id",
+    "notes",
+}
+required_strings = [
+    "target",
+    "archive",
+    "accepted_at",
+    "authority",
+    "notarization_id",
+]
+checks = [
+    set(report).issubset(allowed_keys),
+    report.get("schema") == "kiana.macos-notarization.v1",
+    report.get("status") == "accepted",
+    report.get("target") == expected_target,
+    report.get("archive") == expected_archive,
+    all(isinstance(report.get(key), str) and report[key].strip() for key in required_strings),
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    echo "macOS notarization proof failed commercial contract: $proof" >&2
     exit 1
   fi
 }

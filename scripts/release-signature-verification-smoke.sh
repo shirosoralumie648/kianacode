@@ -148,9 +148,13 @@ for target in "${targets[@]}"; do
   if [[ "$target" == macos-* ]]; then
     cat > "$dist_dir/${package}.notarization.json" <<EOF
 {
+  "accepted_at": "2026-07-01T00:00:00Z",
+  "archive": "$archive_name",
+  "authority": "fixture-apple-notary",
+  "notarization_id": "fixture-notary-${target}",
   "schema": "kiana.macos-notarization.v1",
-  "target": "$target",
-  "status": "accepted"
+  "status": "accepted",
+  "target": "$target"
 }
 EOF
   fi

@@ -3,7 +3,15 @@
   "$id": "https://kiana.local/schemas/kiana-macos-notarization.v1.schema.json",
   "title": "Kiana macOS Notarization v1",
   "type": "object",
-  "required": ["schema", "status"],
+  "required": [
+    "schema",
+    "status",
+    "target",
+    "archive",
+    "accepted_at",
+    "authority",
+    "notarization_id"
+  ],
   "properties": {
     "schema": {
       "const": "kiana.macos-notarization.v1"
@@ -38,5 +46,5 @@
       }
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

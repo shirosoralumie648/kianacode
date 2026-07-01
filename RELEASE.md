@@ -143,7 +143,8 @@ each archive and binary checksum. The signature verification command receives
 release verification. macOS targets also require
 `KIANA_MACOS_NOTARIZATION_COMMAND` to write `KIANA_NOTARIZATION_PROOF`, or a
 pre-validated `KIANA_MACOS_NOTARIZATION_PROOF_FILE`; the proof must use
-`kiana.macos-notarization.v1` with `status=accepted`. Set
+`kiana.macos-notarization.v1` with `status=accepted`, target/archive binding,
+accepted timestamp, authority, and notarization id. Set
 `KIANA_RELEASE_SIGNER` to the audited release signer; the commercial artifact
 verifier rejects the default `external-release-signer` placeholder.
 
