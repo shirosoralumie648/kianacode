@@ -5223,6 +5223,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_sandbox_handler),
         )
         .route(
+            "/app/plugins",
+            axum::routing::get(direct_connect_app_plugins_handler),
+        )
+        .route(
             "/app/git/status",
             axum::routing::get(direct_connect_app_git_status_handler),
         )
@@ -5376,6 +5380,44 @@ async fn direct_connect_app_sandbox_handler(
             "permission_prompt",
             "exec_policy"
         ],
+    }))
+    .into_response()
+}
+
+async fn direct_connect_app_plugins_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let context = CommandContext {
+        args: String::new(),
+        app_state: HashMap::from([(
+            "cwd".to_string(),
+            Value::String(state.workspace.display().to_string()),
+        )]),
+    };
+    let plugins = match kiana_commands::plugin::installed_plugin_summaries(&context) {
+        Ok(Value::Array(plugins)) => plugins,
+        Ok(_) => Vec::new(),
+        Err(error) => {
+            return direct_connect_json_error(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to load plugin summaries: {error}"),
+            )
+        }
+    };
+    axum::Json(serde_json::json!({
+        "schema": "kiana.app-server.plugins.v1",
+        "count": plugins.len(),
+        "plugins": plugins,
     }))
     .into_response()
 }
@@ -5878,6 +5920,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "settings.read",
             "secrets.redacted",
             "sandbox.read",
+            "plugins.read",
             "git.status.read"
         ],
         "endpoints": [
@@ -5905,6 +5948,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/sandbox",
                 "schema": "kiana.app-server.sandbox.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/plugins",
+                "schema": "kiana.app-server.plugins.v1"
             },
             {
                 "method": "GET",
@@ -14936,9 +14984,25 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn direct_connect_app_contract_exposes_product_shell_endpoints() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&["KIANA_HOME", "KIANA_PLUGINS_DIR"]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&workspace).unwrap();
+        let plugins_dir = workspace.join(".plugins");
+        let plugin_manifest_dir = plugins_dir.join("app-tools").join(".codex-plugin");
+        std::fs::create_dir_all(&plugin_manifest_dir).unwrap();
+        std::fs::write(
+            plugin_manifest_dir.join("plugin.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "app-tools",
+                "version": "1.0.0",
+                "description": "App server plugin"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server_args = DirectConnectServerArgs {
@@ -15009,6 +15073,10 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&Value::String("conversations.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("plugins.read".to_string())));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -15017,6 +15085,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/conversations"
                     && endpoint["schema"] == "kiana.app-server.conversations.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/plugins"
+                    && endpoint["schema"] == "kiana.app-server.plugins.v1"
             }));
 
         let conversations: Value = client
@@ -15077,6 +15154,21 @@ mod tests {
             .unwrap();
         assert_eq!(sandbox["schema"], "kiana.app-server.sandbox.v1");
         assert_eq!(sandbox["default_permission_mode"], "ask");
+
+        let plugins: Value = client
+            .get(format!("http://{addr}/app/plugins"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(plugins["schema"], "kiana.app-server.plugins.v1");
+        assert_eq!(plugins["count"], 1);
+        assert_eq!(plugins["plugins"][0]["id"], "app-tools");
+        assert_eq!(plugins["plugins"][0]["enabled"], true);
+        assert_eq!(plugins["plugins"][0]["valid"], true);
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))

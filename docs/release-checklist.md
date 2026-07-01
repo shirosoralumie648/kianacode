@@ -92,6 +92,8 @@ commercial release.
   passing before any manual terminal acceptance.
 - Local app-server contract endpoints are accepted for the target customer
   segment before Web or IDE clients are promoted as supported surfaces.
+- App-server plugin visibility returns `kiana.app-server.plugins.v1` without
+  exposing plugin secrets or bypassing managed plugin policy.
 - Local context index/search workflows are accepted for repository knowledge
   lookup before richer RAG features are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and

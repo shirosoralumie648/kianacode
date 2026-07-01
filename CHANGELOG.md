@@ -113,6 +113,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   for local repository file metadata and ranked lexical search.
 - Added pinned app-server subresponse schemas for conversations, settings,
   secrets, sandbox, and git-status release/package gates.
+- Added a bearer-protected `/app/plugins` app-server endpoint and pinned
+  `kiana.app-server.plugins.v1` schema for product clients.
 - Added pinned context index/search schemas and release/package smoke checks for
   local repository knowledge search.
 - Product acceptance reports now require local app-server and context-search

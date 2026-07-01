@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-plugins.v1.schema.json",
+  "title": "Kiana App Server Plugins v1",
+  "type": "object",
+  "required": ["schema", "count", "plugins"],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.plugins.v1"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "root",
+          "enabled",
+          "valid",
+          "components",
+          "errors",
+          "warnings"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": ["string", "null"]
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "root": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "components": {
+            "type": "object",
+            "required": [
+              "commands",
+              "agents",
+              "skills",
+              "hooks",
+              "output_styles",
+              "lsp_servers",
+              "apps",
+              "mcp_servers"
+            ],
+            "properties": {
+              "commands": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "agents": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skills": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hooks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "output_styles": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lsp_servers": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "apps": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mcp_servers": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

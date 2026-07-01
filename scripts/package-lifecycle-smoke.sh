@@ -102,6 +102,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-conversations.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-git-status.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-plugins.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
