@@ -82,6 +82,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Release workflows now store live smoke and product acceptance proofs under
   `dist/proofs/`, and commercial artifact verification checks those proof files,
   including `kiana.remote-code-session-smoke.v1`.
+- Package lifecycle smoke now verifies that the tarball includes commercial
+  proof scripts and pinned product/remote proof schemas.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

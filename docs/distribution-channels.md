@@ -12,7 +12,8 @@ The channels below define the commercial distribution target state.
 - Binary tarball uninstall through `scripts/install-release-binary.sh --uninstall`.
 - Package lifecycle smoke through `scripts/package-lifecycle-smoke.sh` verifies
   checksum, extraction, install, repeated install, rollback restore, and
-  uninstall behavior for a staged tarball.
+  uninstall behavior for a staged tarball. It also verifies that commercial
+  release proof scripts and pinned proof schemas are packaged.
 - Release tarballs include `SBOM.cdx.json` and `docs/compliance-report.json`.
 - Release tarballs include pinned JSON schemas under `docs/schemas/`, including
   doctor, model provider smoke, and license readiness reports.

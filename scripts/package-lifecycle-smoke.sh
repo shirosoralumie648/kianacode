@@ -102,7 +102,14 @@ for file in \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
-  "$package_root/scripts/install-release-binary.sh"
+  "$package_root/docs/schemas/kiana-product-acceptance.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
+  "$package_root/scripts/install-release-binary.sh" \
+  "$package_root/scripts/product-acceptance-report.sh" \
+  "$package_root/scripts/provider-live-smoke.sh" \
+  "$package_root/scripts/remote-live-smoke.sh" \
+  "$package_root/scripts/sign-release-artifacts.sh" \
+  "$package_root/scripts/verify-commercial-release-artifacts.sh"
 do
   if [[ ! -f "$file" ]]; then
     echo "package missing required file: $file" >&2
