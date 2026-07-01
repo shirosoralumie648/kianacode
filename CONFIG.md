@@ -97,6 +97,28 @@ export KIANA_MANAGED_POLICY_FILE="/etc/kiana/policy.json"
 }
 ```
 
+Managed plugin install policy can live in the shared managed policy file under
+`plugins`, or in a dedicated file referenced by `KIANA_MANAGED_PLUGIN_POLICY_FILE`.
+`deny` rules win over `allow` rules. When `allow` is non-empty, plugins not
+listed there are rejected.
+
+```bash
+export KIANA_MANAGED_PLUGIN_POLICY_FILE="/etc/kiana/plugin-policy.json"
+```
+
+```json
+{
+  "schema": "kiana.managed-plugin-policy.v1",
+  "plugins": {
+    "allow": ["review-tools@tools-marketplace"],
+    "deny": ["blocked-tools"],
+    "allowMarketplaces": ["tools-marketplace"],
+    "denyMarketplaces": ["untrusted-marketplace"],
+    "denyPathInstalls": true
+  }
+}
+```
+
 ### 5. 权限预设
 ```bash
 kiana permissions profile read-only

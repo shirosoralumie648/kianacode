@@ -109,7 +109,9 @@ commercial release.
   posture on Windows, macOS, and Linux.
 - Installed plugins include `kiana.plugin-install-receipt.v1` receipts with
   source, marketplace policy, file count, and stable content hashes; enterprise
-  deployments layer signed/admin allow-deny policy on top of those receipts.
+  deployments set `KIANA_MANAGED_PLUGIN_POLICY_FILE` or shared
+  `KIANA_MANAGED_POLICY_FILE` plugin allow/deny rules and require signed
+  receipt policy where applicable.
 - `kiana doctor` reports `commercial_security: ready` on target release
   environments, or release notes explicitly scope unsupported platforms.
 - Enterprise account, license, policy, and support expectations are documented;

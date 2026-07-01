@@ -107,6 +107,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Plugin installation now writes a pinned `kiana.plugin-install-receipt.v1`
   receipt with source, marketplace policy, file count, and stable content
   hashes, and release smoke verifies the installed receipt.
+- Managed plugin install policy now supports administrator allow/deny rules via
+  `KIANA_MANAGED_PLUGIN_POLICY_FILE` or shared `KIANA_MANAGED_POLICY_FILE`.
 - Added deterministic `kiana context index` and `kiana context search` commands
   for local repository file metadata and ranked lexical search.
 - Added pinned app-server subresponse schemas for conversations, settings,

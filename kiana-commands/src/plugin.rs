@@ -15,6 +15,7 @@ use std::time::Duration;
 
 const PLUGIN_INSTALL_RECEIPT_SCHEMA: &str = "kiana.plugin-install-receipt.v1";
 const PLUGIN_INSTALL_RECEIPT_FILE: &str = ".kiana-install-receipt.json";
+const KIANA_MANAGED_PLUGIN_POLICY_FILE_ENV: &str = "KIANA_MANAGED_PLUGIN_POLICY_FILE";
 
 pub struct PluginCommand;
 
@@ -170,6 +171,8 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
             source_info.display_name()
         ));
     }
+    let managed_policy =
+        enforce_managed_plugin_policy(source_info.display_name(), source.marketplace.as_deref())?;
 
     let install_name = safe_plugin_dir_name(source_info.display_name())?;
     let install_root = plugin_root_dir(context);
@@ -190,7 +193,8 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
     }
 
     copy_plugin_dir(&source_info.root, &destination)?;
-    let receipt_path = write_plugin_install_receipt(&source_info, &source, &destination)?;
+    let receipt_path =
+        write_plugin_install_receipt(&source_info, &source, &destination, managed_policy.as_ref())?;
     let state_path = set_plugin_enabled(&install_root, source_info.display_name(), true)
         .map_err(anyhow::Error::msg)?;
     kiana_tools::lsp_tool::shutdown_lsp_clients().await;
@@ -206,6 +210,9 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
     }
     if !source.policy.is_empty() {
         lines.push(format!("policy: {}", source.policy.summary()));
+    }
+    if let Some(decision) = managed_policy {
+        lines.push(format!("managed_policy: {}", decision.summary()));
     }
     lines.push(format!("receipt: {}", receipt_path.display()));
     lines.push(format!("state: {}", state_path.display()));
@@ -1343,6 +1350,7 @@ fn write_plugin_install_receipt(
     source_info: &PluginInfo,
     source: &InstallSource,
     destination: &Path,
+    managed_policy: Option<&ManagedPluginPolicyDecision>,
 ) -> Result<PathBuf> {
     let files = collect_plugin_receipt_files(destination)?;
     let receipt = PluginInstallReceipt {
@@ -1358,6 +1366,7 @@ fn write_plugin_install_receipt(
         install_path: destination.display().to_string(),
         marketplace: source.marketplace.clone(),
         policy: source.policy.clone(),
+        managed_policy: managed_policy.map(ManagedPluginPolicyReceipt::from),
         file_count: files.len(),
         content_hash: aggregate_receipt_hash(&files),
         files,
@@ -1433,6 +1442,55 @@ fn update_stable_hash(hash: &mut u64, bytes: &[u8]) {
         *hash ^= u64::from(*byte);
         *hash = hash.wrapping_mul(0x100000001b3);
     }
+}
+
+fn enforce_managed_plugin_policy(
+    plugin_name: &str,
+    marketplace: Option<&str>,
+) -> Result<Option<ManagedPluginPolicyDecision>> {
+    let Some(path) = managed_plugin_policy_path() else {
+        return Ok(None);
+    };
+    let contents = std::fs::read_to_string(&path).map_err(|error| {
+        anyhow!(
+            "failed to read managed plugin policy {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    let value = serde_json::from_str::<Value>(&contents).map_err(|error| {
+        anyhow!(
+            "failed to parse managed plugin policy {}: {}",
+            path.display(),
+            error
+        )
+    })?;
+    let Some(policy_value) = value
+        .get("plugins")
+        .or_else(|| value.get("pluginInstallPolicy"))
+        .or_else(|| value.get("plugin_install_policy"))
+        .or_else(|| value.get("plugin-install-policy"))
+    else {
+        return Ok(None);
+    };
+    let policy =
+        serde_json::from_value::<ManagedPluginPolicy>(policy_value.clone()).map_err(|error| {
+            anyhow!(
+                "failed to parse managed plugin install policy {}: {}",
+                path.display(),
+                error
+            )
+        })?;
+    if policy.is_empty() {
+        return Ok(None);
+    }
+    policy.evaluate(plugin_name, marketplace, path)
+}
+
+fn managed_plugin_policy_path() -> Option<PathBuf> {
+    std::env::var_os(KIANA_MANAGED_PLUGIN_POLICY_FILE_ENV)
+        .or_else(|| std::env::var_os("KIANA_MANAGED_POLICY_FILE"))
+        .map(PathBuf::from)
 }
 
 fn resolve_plugin(context: &CommandContext, target: &str) -> Result<PluginInfo> {
@@ -1879,6 +1937,8 @@ struct PluginInstallReceipt {
     #[serde(skip_serializing_if = "Option::is_none")]
     marketplace: Option<String>,
     policy: MarketplacePluginPolicy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    managed_policy: Option<ManagedPluginPolicyReceipt>,
     file_count: usize,
     content_hash: String,
     files: Vec<PluginReceiptFile>,
@@ -1889,6 +1949,150 @@ struct PluginReceiptFile {
     path: String,
     bytes: u64,
     content_hash: String,
+}
+
+#[derive(Debug, Clone)]
+struct ManagedPluginPolicyDecision {
+    source: PathBuf,
+    decision: &'static str,
+    reason: String,
+}
+
+impl ManagedPluginPolicyDecision {
+    fn summary(&self) -> String {
+        format!(
+            "{} ({}) from {}",
+            self.decision,
+            self.reason,
+            self.source.display()
+        )
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ManagedPluginPolicyReceipt {
+    source: String,
+    decision: &'static str,
+    reason: String,
+}
+
+impl From<&ManagedPluginPolicyDecision> for ManagedPluginPolicyReceipt {
+    fn from(value: &ManagedPluginPolicyDecision) -> Self {
+        Self {
+            source: value.source.display().to_string(),
+            decision: value.decision,
+            reason: value.reason.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedPluginPolicy {
+    #[serde(default, alias = "allow_plugins", alias = "allow-plugins")]
+    allow: Vec<String>,
+    #[serde(default, alias = "deny_plugins", alias = "deny-plugins")]
+    deny: Vec<String>,
+    #[serde(default, alias = "allow_marketplaces", alias = "allow-marketplaces")]
+    allow_marketplaces: Vec<String>,
+    #[serde(default, alias = "deny_marketplaces", alias = "deny-marketplaces")]
+    deny_marketplaces: Vec<String>,
+    #[serde(default, alias = "deny_path_installs", alias = "deny-path-installs")]
+    deny_path_installs: bool,
+}
+
+impl ManagedPluginPolicy {
+    fn is_empty(&self) -> bool {
+        self.allow.is_empty()
+            && self.deny.is_empty()
+            && self.allow_marketplaces.is_empty()
+            && self.deny_marketplaces.is_empty()
+            && !self.deny_path_installs
+    }
+
+    fn evaluate(
+        &self,
+        plugin_name: &str,
+        marketplace: Option<&str>,
+        source: PathBuf,
+    ) -> Result<Option<ManagedPluginPolicyDecision>> {
+        let plugin_candidates = plugin_policy_candidates(plugin_name, marketplace);
+        let marketplace_key = marketplace.map(normalize_target);
+
+        if self.deny_path_installs && marketplace.is_none() {
+            return Err(anyhow!(
+                "plugin '{}' is denied by managed plugin policy {}: path installs are disabled",
+                plugin_name,
+                source.display()
+            ));
+        }
+        if marketplace_rule_matches(&self.deny_marketplaces, marketplace_key.as_deref()) {
+            return Err(anyhow!(
+                "plugin '{}' is denied by managed plugin policy {}: marketplace '{}' is denied",
+                plugin_name,
+                source.display(),
+                marketplace.unwrap_or("none")
+            ));
+        }
+        if plugin_rule_matches(&self.deny, &plugin_candidates) {
+            return Err(anyhow!(
+                "plugin '{}' is denied by managed plugin policy {}",
+                plugin_name,
+                source.display()
+            ));
+        }
+        if !self.allow_marketplaces.is_empty()
+            && marketplace.is_some()
+            && !marketplace_rule_matches(&self.allow_marketplaces, marketplace_key.as_deref())
+        {
+            return Err(anyhow!(
+                "plugin '{}' is not allowed by managed plugin policy {}: marketplace '{}' is not allowed",
+                plugin_name,
+                source.display(),
+                marketplace.unwrap_or("none")
+            ));
+        }
+        if !self.allow.is_empty() && !plugin_rule_matches(&self.allow, &plugin_candidates) {
+            return Err(anyhow!(
+                "plugin '{}' is not allowed by managed plugin policy {}",
+                plugin_name,
+                source.display()
+            ));
+        }
+
+        Ok(Some(ManagedPluginPolicyDecision {
+            source,
+            decision: "allowed",
+            reason: "managed plugin policy matched".to_string(),
+        }))
+    }
+}
+
+fn plugin_policy_candidates(plugin_name: &str, marketplace: Option<&str>) -> Vec<String> {
+    let plugin = normalize_target(plugin_name);
+    let mut candidates = vec![plugin.clone()];
+    if let Some(marketplace) = marketplace.map(normalize_target) {
+        candidates.push(format!("{plugin}@{marketplace}"));
+        candidates.push(format!("{marketplace}/{plugin}"));
+    }
+    candidates
+}
+
+fn plugin_rule_matches(rules: &[String], candidates: &[String]) -> bool {
+    rules.iter().any(|rule| {
+        let rule = normalize_target(rule);
+        rule == "*" || candidates.iter().any(|candidate| candidate == &rule)
+    })
+}
+
+fn marketplace_rule_matches(rules: &[String], marketplace: Option<&str>) -> bool {
+    let Some(marketplace) = marketplace else {
+        return false;
+    };
+    rules.iter().any(|rule| {
+        let rule = normalize_target(rule);
+        rule == "*" || rule == marketplace
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2859,6 +3063,129 @@ mod tests {
         match previous_home {
             Some(value) => std::env::set_var("KIANA_HOME", value),
             None => std::env::remove_var("KIANA_HOME"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_rejects_managed_plugin_policy_deny() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_policy = std::env::var_os("KIANA_MANAGED_PLUGIN_POLICY_FILE");
+        let root = temp_root("managed-plugin-deny");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        let policy_file = root.join("managed-plugin-policy.json");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::write(
+            &policy_file,
+            serde_json::to_string_pretty(&json!({
+                "plugins": {
+                    "deny": ["review-tools@tools-marketplace"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", &policy_file);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let error = PluginCommand
+            .execute(context("install review-tools@tools-marketplace", &cwd))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("plugin 'review-tools' is denied by managed plugin policy"));
+        assert!(!plugins_dir.join("review-tools").exists());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_policy {
+            Some(value) => std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", value),
+            None => std::env::remove_var("KIANA_MANAGED_PLUGIN_POLICY_FILE"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_records_managed_plugin_policy_allow_decision() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_policy = std::env::var_os("KIANA_MANAGED_PLUGIN_POLICY_FILE");
+        let root = temp_root("managed-plugin-allow");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        let policy_file = root.join("managed-plugin-policy.json");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::write(
+            &policy_file,
+            serde_json::to_string_pretty(&json!({
+                "plugins": {
+                    "allow": ["review-tools@tools-marketplace"],
+                    "allowMarketplaces": ["tools-marketplace"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", &policy_file);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let installed = PluginCommand
+            .execute(context("install review-tools@tools-marketplace", &cwd))
+            .await
+            .unwrap();
+        assert!(installed
+            .value
+            .contains("managed_policy: allowed (managed plugin policy matched)"));
+        let receipt_path = plugins_dir
+            .join("review-tools")
+            .join(".kiana-install-receipt.json");
+        let receipt: Value =
+            serde_json::from_str(&fs::read_to_string(receipt_path).unwrap()).unwrap();
+        assert_eq!(receipt["managed_policy"]["decision"], "allowed");
+        assert_eq!(
+            receipt["managed_policy"]["reason"],
+            "managed plugin policy matched"
+        );
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_policy {
+            Some(value) => std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", value),
+            None => std::env::remove_var("KIANA_MANAGED_PLUGIN_POLICY_FILE"),
         }
         std::env::remove_var("KIANA_PLUGINS_DIR");
         let _ = fs::remove_dir_all(root);

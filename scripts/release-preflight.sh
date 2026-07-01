@@ -53,6 +53,7 @@ for file in \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
+  docs/schemas/kiana-managed-plugin-policy.v1.schema.json \
   docs/schemas/kiana-plugin-install-receipt.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   docs/schemas/kiana-entitlement-proof.v1.schema.json \
@@ -177,6 +178,13 @@ else
   fail "release smoke does not exercise plugin install receipts"
 fi
 
+if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
+  grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs; then
+  pass "managed plugin allow/deny policy is wired"
+else
+  fail "managed plugin allow/deny policy is not wired"
+fi
+
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
   grep -Fq '"context-search"' scripts/product-acceptance-report.sh &&
   grep -Fq 'cargo test -p kiana-commands --locked --offline context_search' scripts/product-acceptance-report.sh; then
@@ -244,6 +252,12 @@ if grep -Fq '"const": "kiana.plugin-install-receipt.v1"' docs/schemas/kiana-plug
   pass "plugin install receipt JSON schema version is pinned"
 else
   fail "plugin install receipt JSON schema is missing kiana.plugin-install-receipt.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.managed-plugin-policy.v1"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json; then
+  pass "managed plugin policy JSON schema version is pinned"
+else
+  fail "managed plugin policy JSON schema is missing kiana.managed-plugin-policy.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then
