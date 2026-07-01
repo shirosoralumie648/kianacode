@@ -3,6 +3,7 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandRegistry, CommandResult, CommandType,
 };
 use kiana_screens::{
+    history::{normalize_history_entries, HistoryEntry},
     repl::{ConversationMessage, MessageRole, ReplPermissionPanel},
     resume_conversation::SessionEntry,
     App, AppAction, AppScreen,
@@ -14,13 +15,18 @@ use kiana_tools::tool_execution::{
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
+use std::fs;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     oneshot, watch,
 };
+
+const TUI_PROMPT_HISTORY_LIMIT: usize = 200;
+const TUI_PROMPT_HISTORY_FILE: &str = "tui-history.jsonl";
 
 pub async fn run_tui() -> Result<()> {
     ensure_tui_terminal(
@@ -66,6 +72,9 @@ struct TuiRuntime {
     pending_permission: Option<PendingPermission>,
     pending_permission_queue: VecDeque<PendingPermission>,
     onboarding_shown: bool,
+    prompt_history_path: PathBuf,
+    prompt_history_entries: Vec<HistoryEntry>,
+    prompt_history_synced: bool,
     events_tx: UnboundedSender<TuiEvent>,
     events_rx: UnboundedReceiver<TuiEvent>,
 }
@@ -125,6 +134,9 @@ struct ResumedSession {
 impl TuiRuntime {
     async fn new(cwd: PathBuf) -> Result<Self> {
         let session_id = create_tui_session(&cwd).await?;
+        let prompt_history_path = prompt_history_path();
+        let prompt_history_entries =
+            load_prompt_history_entries_from_path(&prompt_history_path).unwrap_or_default();
         let (events_tx, events_rx) = unbounded_channel();
         Ok(Self {
             cwd,
@@ -139,6 +151,9 @@ impl TuiRuntime {
             pending_permission: None,
             pending_permission_queue: VecDeque::new(),
             onboarding_shown: false,
+            prompt_history_path,
+            prompt_history_entries,
+            prompt_history_synced: false,
             events_tx,
             events_rx,
         })
@@ -160,10 +175,15 @@ impl TuiRuntime {
                     let _ = events_tx.send(TuiEvent::ResumeEntriesLoaded(result));
                 });
             }
+            AppAction::LoadPromptHistory => {
+                self.load_prompt_history(app);
+            }
             AppAction::SubmitPrompt(prompt) => {
+                self.record_prompt_history(&prompt, app);
                 self.start_prompt(prompt, app);
             }
             AppAction::QueuePrompt(prompt) => {
+                self.record_prompt_history(&prompt, app);
                 self.queue_prompt(prompt, app);
             }
             AppAction::CancelPrompt => {
@@ -189,6 +209,39 @@ impl TuiRuntime {
             }
         }
         Ok(())
+    }
+
+    fn load_prompt_history(&mut self, app: &mut App) {
+        app.history.loading = false;
+        match load_prompt_history_entries_from_path(&self.prompt_history_path) {
+            Ok(entries) => {
+                self.prompt_history_entries = entries.clone();
+                self.prompt_history_synced = true;
+                app.history.load_entries(entries.clone());
+                app.repl.load_persisted_history(&entries);
+            }
+            Err(error) => {
+                app.screen = AppScreen::Repl;
+                app.repl.push_message(
+                    MessageRole::System,
+                    format!("Failed to load prompt history: {error}"),
+                );
+            }
+        }
+    }
+
+    fn record_prompt_history(&mut self, prompt: &str, app: &mut App) {
+        match record_prompt_history_at_path(&self.prompt_history_path, prompt) {
+            Ok(entries) => {
+                self.prompt_history_entries = entries.clone();
+                self.prompt_history_synced = true;
+                app.history.load_entries(entries);
+            }
+            Err(error) => app.repl.push_message(
+                MessageRole::System,
+                format!("Failed to save prompt history: {error}"),
+            ),
+        }
     }
 
     fn load_doctor(&mut self, app: &mut App) {
@@ -427,11 +480,23 @@ impl TuiRuntime {
     }
 
     fn drain_events(&mut self, app: &mut App) -> Result<()> {
+        self.sync_prompt_history(app);
         self.maybe_show_onboarding(app);
         while let Ok(event) = self.events_rx.try_recv() {
             self.apply_event(app, event);
         }
         Ok(())
+    }
+
+    fn sync_prompt_history(&mut self, app: &mut App) {
+        if self.prompt_history_synced {
+            return;
+        }
+        self.prompt_history_synced = true;
+        app.history
+            .load_entries(self.prompt_history_entries.clone());
+        app.repl
+            .load_persisted_history(&self.prompt_history_entries);
     }
 
     fn maybe_show_onboarding(&mut self, app: &mut App) {
@@ -907,6 +972,90 @@ async fn load_resume_entries(cwd: &Path) -> Result<Vec<SessionEntry>> {
         .into_iter()
         .map(session_info_to_entry)
         .collect())
+}
+
+fn prompt_history_path() -> PathBuf {
+    tui_kiana_home_dir().join(TUI_PROMPT_HISTORY_FILE)
+}
+
+fn tui_kiana_home_dir() -> PathBuf {
+    if let Ok(path) = std::env::var("KIANA_HOME") {
+        return PathBuf::from(path);
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".kiana");
+    }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".kiana");
+    }
+    PathBuf::from(".kiana")
+}
+
+#[cfg(test)]
+fn load_prompt_history_entries() -> Result<Vec<HistoryEntry>> {
+    load_prompt_history_entries_from_path(&prompt_history_path())
+}
+
+fn load_prompt_history_entries_from_path(path: &Path) -> Result<Vec<HistoryEntry>> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let contents = fs::read_to_string(path)?;
+    let entries = contents
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
+            }
+            serde_json::from_str::<HistoryEntry>(line).ok()
+        })
+        .collect::<Vec<_>>();
+    let mut entries = normalize_history_entries(entries);
+    entries.truncate(TUI_PROMPT_HISTORY_LIMIT);
+    Ok(entries)
+}
+
+#[cfg(test)]
+fn record_prompt_history_entry(prompt: &str) -> Result<Vec<HistoryEntry>> {
+    record_prompt_history_at_path(&prompt_history_path(), prompt)
+}
+
+fn record_prompt_history_at_path(path: &Path, prompt: &str) -> Result<Vec<HistoryEntry>> {
+    let prompt = prompt.trim();
+    let mut entries = load_prompt_history_entries_from_path(path)?;
+    if prompt.is_empty() {
+        return Ok(entries);
+    }
+    entries.retain(|entry| entry.prompt != prompt);
+    entries.insert(
+        0,
+        HistoryEntry::new(prompt.to_string(), current_history_timestamp()),
+    );
+    entries.truncate(TUI_PROMPT_HISTORY_LIMIT);
+    write_prompt_history_entries(path, &entries)?;
+    Ok(entries)
+}
+
+fn write_prompt_history_entries(path: &Path, entries: &[HistoryEntry]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut contents = String::new();
+    for entry in entries {
+        contents.push_str(&serde_json::to_string(entry)?);
+        contents.push('\n');
+    }
+    fs::write(path, contents)?;
+    Ok(())
+}
+
+fn current_history_timestamp() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .to_string()
 }
 
 fn filter_resume_sessions_for_cwd(
@@ -1613,9 +1762,14 @@ fn content_block_text(value: &Value) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::sync::Mutex;
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    };
 
     fn runtime_for_test(session_id: &str) -> TuiRuntime {
+        static HISTORY_COUNTER: AtomicU64 = AtomicU64::new(0);
+        let history_id = HISTORY_COUNTER.fetch_add(1, Ordering::SeqCst);
         let (events_tx, events_rx) = unbounded_channel();
         TuiRuntime {
             cwd: PathBuf::from("/tmp/work"),
@@ -1630,6 +1784,12 @@ mod tests {
             pending_permission: None,
             pending_permission_queue: VecDeque::new(),
             onboarding_shown: true,
+            prompt_history_path: std::env::temp_dir().join(format!(
+                "kiana-tui-test-history-{}-{history_id}.jsonl",
+                std::process::id()
+            )),
+            prompt_history_entries: Vec::new(),
+            prompt_history_synced: true,
             events_tx,
             events_rx,
         }
@@ -1744,6 +1904,113 @@ mod tests {
             }
             let _ = std::fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn prompt_history_path_uses_kiana_home() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+
+        assert_eq!(
+            prompt_history_path(),
+            home.root.join(TUI_PROMPT_HISTORY_FILE)
+        );
+    }
+
+    #[test]
+    fn prompt_history_file_records_newest_first_and_dedupes() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+
+        record_prompt_history_entry("first prompt").unwrap();
+        record_prompt_history_entry("second prompt").unwrap();
+        record_prompt_history_entry("first prompt").unwrap();
+
+        let entries = load_prompt_history_entries().unwrap();
+        let prompts = entries
+            .iter()
+            .map(|entry| entry.prompt.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(prompts, vec!["first prompt", "second prompt"]);
+        assert!(entries.iter().all(|entry| !entry.timestamp.is_empty()));
+        assert!(home.root.join(TUI_PROMPT_HISTORY_FILE).exists());
+    }
+
+    #[test]
+    fn prompt_history_loader_skips_invalid_lines_and_blank_prompts() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+        let path = home.root.join(TUI_PROMPT_HISTORY_FILE);
+        let newest =
+            serde_json::to_string(&HistoryEntry::new("keep this".to_string(), "2".to_string()))
+                .unwrap();
+        let duplicate =
+            serde_json::to_string(&HistoryEntry::new("keep this".to_string(), "1".to_string()))
+                .unwrap();
+        let blank =
+            serde_json::to_string(&HistoryEntry::new("   ".to_string(), "0".to_string())).unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, format!("not json\n{newest}\n{duplicate}\n{blank}\n")).unwrap();
+
+        let entries = load_prompt_history_entries_from_path(&path).unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].prompt, "keep this");
+        assert_eq!(entries[0].timestamp, "2");
+    }
+
+    #[test]
+    fn load_prompt_history_action_populates_picker_and_repl_recall() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let _home = ScopedKianaHome::new();
+        record_prompt_history_entry("older prompt").unwrap();
+        record_prompt_history_entry("newer prompt").unwrap();
+        let mut runtime = runtime_for_test("session-1");
+        runtime.prompt_history_path = prompt_history_path();
+        let mut app = App::new();
+        app.screen = AppScreen::History;
+        app.history.loading = true;
+
+        runtime
+            .handle_action(AppAction::LoadPromptHistory, &mut app)
+            .unwrap();
+
+        let prompts = app
+            .history
+            .entries
+            .iter()
+            .map(|entry| entry.prompt.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(prompts, vec!["newer prompt", "older prompt"]);
+        assert!(!app.history.loading);
+        assert_eq!(app.repl.history, vec!["older prompt", "newer prompt"]);
+    }
+
+    #[test]
+    fn queue_prompt_action_records_prompt_history() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let _home = ScopedKianaHome::new();
+        let mut runtime = runtime_for_test("session-1");
+        runtime.prompt_history_path = prompt_history_path();
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::QueuePrompt("queued history prompt".to_string()),
+                &mut app,
+            )
+            .unwrap();
+
+        let entries = load_prompt_history_entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].prompt, "queued history prompt");
+        assert_eq!(
+            app.history
+                .selected_entry()
+                .map(|entry| entry.prompt.as_str()),
+            Some("queued history prompt")
+        );
     }
 
     fn permission_request_for_test() -> PermissionPromptRequest {

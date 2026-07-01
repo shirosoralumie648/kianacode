@@ -1,5 +1,6 @@
 pub mod app;
 pub mod doctor;
+pub mod history;
 pub mod repl;
 pub mod resume_conversation;
 

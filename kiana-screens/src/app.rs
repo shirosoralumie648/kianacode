@@ -12,6 +12,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 
 use crate::doctor::{DoctorScreen, DoctorState};
+use crate::history::{HistoryScreen, HistoryState};
 use crate::repl::{ReplScreen, ReplState};
 use crate::resume_conversation::{ResumeScreen, ResumeState};
 
@@ -24,6 +25,8 @@ pub enum AppScreen {
     Doctor,
     /// Session-resume picker screen.
     ResumeConversation,
+    /// Prompt history picker screen (`/history`).
+    History,
 }
 
 /// Actions emitted by the UI that must be handled by the application shell.
@@ -31,6 +34,7 @@ pub enum AppScreen {
 pub enum AppAction {
     LoadDoctor,
     LoadResumeSessions,
+    LoadPromptHistory,
     SubmitPrompt(String),
     QueuePrompt(String),
     CancelPrompt,
@@ -44,6 +48,7 @@ pub struct App {
     pub repl: ReplState,
     pub doctor: DoctorState,
     pub resume: ResumeState,
+    pub history: HistoryState,
     pub should_quit: bool,
     actions: Vec<AppAction>,
 }
@@ -55,6 +60,7 @@ impl App {
             repl: ReplState::default(),
             doctor: DoctorState::default(),
             resume: ResumeState::default(),
+            history: HistoryState::default(),
             should_quit: false,
             actions: Vec::new(),
         }
@@ -106,6 +112,11 @@ impl App {
                             if next == AppScreen::ResumeConversation {
                                 self.actions.push(AppAction::LoadResumeSessions);
                             }
+                            if next == AppScreen::History {
+                                self.history.reset_search();
+                                self.history.loading = true;
+                                self.actions.push(AppAction::LoadPromptHistory);
+                            }
                             self.screen = next;
                         }
                         crate::repl::ReplEvent::SubmitPrompt(prompt) => {
@@ -139,6 +150,19 @@ impl App {
                     }
                 }
             }
+            AppScreen::History => {
+                if let Some(event) = self.history.handle_key(key) {
+                    match event {
+                        crate::history::HistoryEvent::SwitchScreen(next) => {
+                            self.screen = next;
+                        }
+                        crate::history::HistoryEvent::RestorePrompt(prompt) => {
+                            self.repl.restore_draft(prompt);
+                            self.screen = AppScreen::Repl;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -152,6 +176,7 @@ impl App {
             AppScreen::Repl => ReplScreen::draw(frame, &mut self.repl),
             AppScreen::Doctor => DoctorScreen::draw(frame, &self.doctor),
             AppScreen::ResumeConversation => ResumeScreen::draw(frame, &mut self.resume),
+            AppScreen::History => HistoryScreen::draw(frame, &mut self.history),
         }
     }
 
@@ -231,6 +256,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::history::HistoryEntry;
     use crate::resume_conversation::SessionEntry;
 
     fn key(code: KeyCode) -> event::KeyEvent {
@@ -393,6 +419,24 @@ mod tests {
     }
 
     #[test]
+    fn repl_history_command_switches_screen_and_requests_history_load() {
+        let mut app = App::new();
+        app.history.search_active = true;
+        app.history.search_query = "old filter".to_string();
+        app.repl.input = "/history".to_string();
+        app.repl.cursor = app.repl.input.len();
+
+        app.handle_key(key(KeyCode::Enter));
+
+        assert_eq!(app.screen, AppScreen::History);
+        assert!(app.history.loading);
+        assert!(!app.history.search_active);
+        assert!(app.history.search_query.is_empty());
+        assert_eq!(app.take_actions(), vec![AppAction::LoadPromptHistory]);
+        assert!(app.repl.input.is_empty());
+    }
+
+    #[test]
     fn repl_doctor_command_switches_screen_and_requests_load() {
         let mut app = App::new();
         app.repl.input = "/doctor".to_string();
@@ -459,5 +503,24 @@ mod tests {
             app.take_actions(),
             vec![AppAction::ResumeSession("session-1".to_string())]
         );
+    }
+
+    #[test]
+    fn history_enter_restores_selected_prompt_as_repl_draft() {
+        let mut app = App::new();
+        app.screen = AppScreen::History;
+        app.history.load_entries(vec![
+            HistoryEntry::new("first prompt".to_string(), "2".to_string()),
+            HistoryEntry::new("second prompt".to_string(), "1".to_string()),
+        ]);
+        app.history.selected = 1;
+        app.history.list_state.select(Some(1));
+
+        app.handle_key(key(KeyCode::Enter));
+
+        assert_eq!(app.screen, AppScreen::Repl);
+        assert_eq!(app.repl.input, "second prompt");
+        assert_eq!(app.repl.cursor, app.repl.input.len());
+        assert!(app.take_actions().is_empty());
     }
 }

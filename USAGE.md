@@ -20,6 +20,10 @@ cargo build --release -p kiana-entrypoints --bin kiana
 
 开发模式：
 
+Inside the TUI, `/history` opens the persisted prompt history picker. History is
+stored under `KIANA_HOME/tui-history.jsonl`, deduped newest-first, searchable, and
+restores the selected prompt as a draft.
+
 ```bash
 cargo run -p kiana-entrypoints --bin kiana -- -p "hello"
 ```

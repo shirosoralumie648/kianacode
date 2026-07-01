@@ -82,6 +82,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   picker search view.
 - Added `kiana model smoke [--json] [--live]` for provider smoke reports, with
   fake provider covered by default release gates and live providers opt-in.
+- Added a TUI `/history` picker backed by `KIANA_HOME/tui-history.jsonl`, with
+  searchable prompt history, deduped newest-first persistence, draft restore,
+  and headless render/state coverage.
 - Added `kiana license status [--json|--text]` with a pinned
   `kiana.license-status.v1` readiness report for offline enterprise license,
   account, entitlement, support, and managed-policy inputs without exposing raw

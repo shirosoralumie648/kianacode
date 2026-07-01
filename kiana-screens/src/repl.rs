@@ -23,6 +23,7 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::app::AppScreen;
+use crate::history::HistoryEntry;
 
 // ─── Message entry ───────────────────────────────────────────────────────────
 
@@ -164,41 +165,37 @@ impl ReplState {
                 if text.is_empty() {
                     return None;
                 }
+                let slash_command = split_slash_command(&text);
                 if self.is_loading {
-                    if let Some((name, args)) = split_slash_command(&text) {
+                    if let Some((name, args)) = slash_command.clone() {
                         if is_loading_slash_command(&name) {
-                            self.history_idx = None;
-                            self.history_draft.clear();
-                            self.input.clear();
-                            self.cursor = 0;
+                            self.record_history(&text);
+                            self.clear_input_after_submit();
                             return Some(ReplEvent::RunSlashCommand { name, args });
                         }
                         return None;
                     }
-                    if self.history.last().map(|h| h != &text).unwrap_or(true) {
-                        self.history.push(text.clone());
-                    }
-                    self.history_idx = None;
-                    self.history_draft.clear();
-                    self.input.clear();
-                    self.cursor = 0;
+                    self.record_history(&text);
+                    self.clear_input_after_submit();
                     return Some(ReplEvent::QueuePrompt(text));
                 }
-                if self.history.last().map(|h| h != &text).unwrap_or(true) {
-                    self.history.push(text.clone());
-                }
-                self.history_idx = None;
-                self.history_draft.clear();
-                self.input.clear();
-                self.cursor = 0;
 
-                if let Some((name, args)) = split_slash_command(&text) {
+                if let Some((name, args)) = slash_command {
+                    if name == "history" {
+                        self.clear_input_after_submit();
+                        return Some(ReplEvent::SwitchScreen(AppScreen::History));
+                    }
+                    self.record_history(&text);
+                    self.clear_input_after_submit();
                     return match name.as_str() {
                         "doctor" => Some(ReplEvent::SwitchScreen(AppScreen::Doctor)),
                         "resume" => Some(ReplEvent::SwitchScreen(AppScreen::ResumeConversation)),
                         _ => Some(ReplEvent::RunSlashCommand { name, args }),
                     };
                 }
+
+                self.record_history(&text);
+                self.clear_input_after_submit();
 
                 // Add user message to transcript
                 self.push_message(MessageRole::User, text);
@@ -343,6 +340,41 @@ impl ReplState {
         self.permission_request_active = false;
         self.permission_request_queue_len = 0;
         self.permission_panel = None;
+    }
+
+    pub fn load_persisted_history(&mut self, entries: &[HistoryEntry]) {
+        self.history = entries
+            .iter()
+            .rev()
+            .map(|entry| entry.prompt.clone())
+            .collect();
+        self.history_idx = None;
+        self.history_draft.clear();
+    }
+
+    pub fn restore_draft(&mut self, prompt: String) {
+        self.input = prompt;
+        self.cursor = self.input.len();
+        self.history_idx = None;
+        self.history_draft.clear();
+    }
+
+    fn record_history(&mut self, text: &str) {
+        let text = text.trim();
+        if text.is_empty() {
+            return;
+        }
+        if let Some(index) = self.history.iter().position(|entry| entry == text) {
+            self.history.remove(index);
+        }
+        self.history.push(text.to_string());
+    }
+
+    fn clear_input_after_submit(&mut self) {
+        self.history_idx = None;
+        self.history_draft.clear();
+        self.input.clear();
+        self.cursor = 0;
     }
 
     fn insert_char(&mut self, c: char) {
@@ -607,7 +639,7 @@ fn status_text(state: &ReplState) -> String {
     };
 
     format!(
-        "{}model: {}  in: {}  out: {}  cost: ${:.4}  [/doctor] [/resume] {}",
+        "{}model: {}  in: {}  out: {}  cost: ${:.4}  [/doctor] [/resume] [/history] {}",
         spinner,
         state.model_name,
         state.input_tokens,
@@ -817,6 +849,52 @@ mod tests {
         assert_eq!(state.messages.len(), 1);
         assert_eq!(state.messages[0].content, "first\nsecond");
         assert!(state.input.is_empty());
+    }
+
+    #[test]
+    fn submitted_prompt_history_dedupes_and_keeps_latest_last() {
+        let mut state = ReplState::default();
+        for prompt in ["first", "second", "first"] {
+            state.input = prompt.to_string();
+            state.cursor = state.input.len();
+            state.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        }
+
+        assert_eq!(state.history, vec!["second", "first"]);
+    }
+
+    #[test]
+    fn persisted_history_entries_feed_up_down_recall_newest_first() {
+        let mut state = ReplState::default();
+        state.load_persisted_history(&[
+            HistoryEntry::new("newest prompt".to_string(), "2".to_string()),
+            HistoryEntry::new("older prompt".to_string(), "1".to_string()),
+        ]);
+
+        state.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(state.input, "newest prompt");
+
+        state.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(state.input, "older prompt");
+
+        state.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(state.input, "newest prompt");
+    }
+
+    #[test]
+    fn restore_draft_replaces_input_and_resets_history_navigation() {
+        let mut state = ReplState::default();
+        state.history = vec!["old".to_string()];
+        state.input = "draft".to_string();
+        state.cursor = state.input.len();
+        state.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+
+        state.restore_draft("restored prompt".to_string());
+
+        assert_eq!(state.input, "restored prompt");
+        assert_eq!(state.cursor, state.input.len());
+        assert_eq!(state.history_idx, None);
+        assert!(state.history_draft.is_empty());
     }
 
     #[test]
