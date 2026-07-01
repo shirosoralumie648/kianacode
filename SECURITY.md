@@ -8,6 +8,11 @@ Kiana is currently a source-build release-readiness snapshot. Treat it as pre-1.
 
 Do not publish working exploits, tokens, API keys, or customer data in public issues. Use the maintainer's private security channel once the project repository is published. If no private channel is configured yet, block public release until one is available.
 
+Commercial releases must attach an accepted `kiana.release-ops.v1` proof through
+`scripts/release-ops-report.sh full`. That proof records the private reporting
+route, security contact, release credential owner, support contact, artifact/log
+retention policy, and credential review owner.
+
 ## Security Scope
 
 Security-sensitive areas include:
@@ -28,6 +33,7 @@ The local release smoke gate verifies formatting, tests, release build, CLI help
 - `cargo audit` / `cargo deny` / SBOM review.
 - Real remote-service end-to-end validation.
 - A published security advisory process.
+- An accepted `kiana.release-ops.v1` operations proof for public release.
 
 ## Secret Handling
 

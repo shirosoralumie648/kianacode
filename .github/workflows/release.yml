@@ -57,6 +57,8 @@ jobs:
           KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke
           KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json
           KIANA_PRODUCT_ACCEPTANCE_FILE: ${{ vars.KIANA_PRODUCT_ACCEPTANCE_FILE }}
+          KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json
+          KIANA_RELEASE_OPS_FILE: ${{ vars.KIANA_RELEASE_OPS_FILE }}
         run: KIANA_PREFLIGHT_SKIP_COMPLIANCE=1 bash scripts/release-preflight.sh
 
       - name: Run release smoke

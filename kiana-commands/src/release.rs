@@ -62,6 +62,7 @@ impl Command for ReleaseCommand {
         lines.push("commercial_gate: bash scripts/remote-live-smoke.sh --required".to_string());
         lines.push("commercial_gate: bash scripts/sign-release-artifacts.sh".to_string());
         lines.push("commercial_gate: bash scripts/product-acceptance-report.sh full".to_string());
+        lines.push("commercial_gate: bash scripts/release-ops-report.sh full".to_string());
         lines.push(
             "commercial_gate: bash scripts/verify-commercial-release-artifacts.sh".to_string(),
         );
@@ -321,6 +322,9 @@ mod tests {
             .contains("commercial_gate: bash scripts/product-acceptance-report.sh full"));
         assert!(result
             .value
+            .contains("commercial_gate: bash scripts/release-ops-report.sh full"));
+        assert!(result
+            .value
             .contains("commercial_gate: bash scripts/verify-commercial-release-artifacts.sh"));
     }
 
@@ -459,6 +463,7 @@ mod tests {
         assert!(preflight.contains("scripts/generate-distribution-manifests.sh"));
         assert!(preflight.contains("scripts/sign-release-artifacts.sh"));
         assert!(preflight.contains("scripts/product-acceptance-report.sh"));
+        assert!(preflight.contains("scripts/release-ops-report.sh"));
         assert!(workflow.contains("cargo fetch --locked"));
         assert!(workflow.contains("bash scripts/sign-release-artifacts.sh"));
         assert!(workflow.contains("KIANA_SIGNING_COMMAND"));
@@ -466,6 +471,9 @@ mod tests {
         assert!(workflow.contains("KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke"));
         assert!(workflow
             .contains("KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json"));
+        assert!(
+            workflow.contains("KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json")
+        );
         assert!(workflow.contains("dist/manifests/**"));
         assert!(manifest_script.contains("offline-manifest.json"));
         assert!(manifest_script.contains("kiana.enterprise.offline-manifest.v1"));

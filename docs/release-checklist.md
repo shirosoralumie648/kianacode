@@ -45,9 +45,15 @@ commercial release.
 - Release binaries are signed; macOS artifacts are notarized when applicable.
 - `scripts/sign-release-artifacts.sh` runs with a real `KIANA_SIGNING_COMMAND`
   and, on macOS, real notarization proof input.
+- `KIANA_RELEASE_SIGNER` is set to a reviewed signer identity and is not the
+  default `external-release-signer` placeholder.
 - Signing proof files use `kiana.release-signature.v1`; macOS notarization
   proof files use `kiana.macos-notarization.v1` with `status=accepted`.
-- Private vulnerability reporting route is active.
+- `scripts/release-ops-report.sh full` passes with `kiana.release-ops.v1`
+  proof covering private vulnerability reporting, release credential ownership,
+  support contact, artifact/log retention, and accepted credential review.
+- Private vulnerability reporting route is active before the public release tag
+  is created.
 
 ## Distribution
 
@@ -80,9 +86,10 @@ commercial release.
   any manual terminal acceptance.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`.
-- Release artifacts include `dist/proofs/live-smoke/**` and
-  `dist/proofs/product/product-acceptance.json`, and the commercial artifact
-  verifier checks those proof files.
+- Release artifacts include `dist/proofs/live-smoke/**`,
+  `dist/proofs/product/product-acceptance.json`, and
+  `dist/proofs/release-ops/release-ops.json`; the commercial artifact verifier
+  checks those proof files.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
 - `kiana doctor` reports `commercial_security: ready` on target release

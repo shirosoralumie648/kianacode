@@ -90,6 +90,10 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   creates a draft GitHub Release for tag builds only after the commercial
   artifact proof gate passes.
 
+The release workflow stores live smoke, product acceptance, and release ops
+proofs under `dist/proofs/`; the combined commercial artifact verifier requires
+those proof files before drafting a release.
+
 These workflows still require a real remote repository, tag policy, release
 credentials, and signing before they become authoritative release gates.
 
@@ -115,7 +119,9 @@ The signing command receives `KIANA_SIGN_INPUT` and `KIANA_SIGN_OUTPUT` for
 each archive and binary checksum. macOS targets also require
 `KIANA_MACOS_NOTARIZATION_COMMAND` to write `KIANA_NOTARIZATION_PROOF`, or a
 pre-validated `KIANA_MACOS_NOTARIZATION_PROOF_FILE`; the proof must use
-`kiana.macos-notarization.v1` with `status=accepted`.
+`kiana.macos-notarization.v1` with `status=accepted`. Set
+`KIANA_RELEASE_SIGNER` to the audited release signer; the commercial artifact
+verifier rejects the default `external-release-signer` placeholder.
 
 Product acceptance is explicit as well. Local RCs can record headless product
 shell coverage:
@@ -128,6 +134,19 @@ Full commercial preflight requires `KIANA_PRODUCT_ACCEPTANCE_FILE` or
 `docs/product-acceptance/$(cat VERSION).json` with
 `schema = kiana.product-acceptance.v1`, `status = accepted`, and the required
 permission, diff, history, onboarding, resume, and settings workflows.
+
+Release operations acceptance is explicit as well. Local RCs can record that
+the proof is still missing:
+
+```bash
+bash scripts/release-ops-report.sh --local-rc
+```
+
+Full commercial preflight requires `KIANA_RELEASE_OPS_FILE` or
+`docs/release-ops/$(cat VERSION).json` with
+`schema = kiana.release-ops.v1`, `status = accepted`, a private vulnerability
+reporting route, release credential owner, support contact, artifact/log
+retention policy, and accepted credential review.
 
 ## Optional Live Service Gate
 
@@ -165,8 +184,8 @@ them without production-like credentials.
 
 - Real git remote, release tags, and active CI.
 - Stable install URLs and package-manager channels.
-- Binary signing, macOS notarization, retention policy, full dependency audit,
-  and third-party license review signoff.
+- Binary signing, macOS notarization, release ops acceptance proof, full
+  dependency audit, and third-party license review signoff.
 - Live remote/CCR/Session Ingress/token refresh end-to-end verification.
 - Live provider text/tool smoke and live dynamic model-catalog proof against
   production-like credentials or daemons.

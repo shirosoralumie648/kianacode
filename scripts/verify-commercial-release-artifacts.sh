@@ -52,12 +52,111 @@ require_json_pattern() {
   fi
 }
 
+reject_json_pattern() {
+  local file="$1"
+  local pattern="$2"
+  local label="$3"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  if grep -Eq "$pattern" "$file"; then
+    fail "$file contains $label"
+  else
+    pass "$label not present"
+  fi
+}
+
 require_proof_file() {
   local file="$1"
   local schema="$2"
   local label="$3"
   require_file "$file"
   require_json_pattern "$file" "\"schema\"[[:space:]]*:[[:space:]]*\"${schema}\"" "${label} schema"
+}
+
+python_bin() {
+  command -v python3 2>/dev/null || command -v python 2>/dev/null || true
+}
+
+require_release_ops_contract() {
+  local file="$1"
+  local expected_version="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate release ops proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" <<'PY'
+import json
+import sys
+
+path, expected_version = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+credential_review = report.get("credential_review")
+if not isinstance(credential_review, dict):
+    credential_review = {}
+
+required_strings = [
+    "accepted_by",
+    "accepted_at",
+    "security_contact",
+    "vulnerability_report_channel",
+    "release_credentials_owner",
+    "support_contact",
+]
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+    "public issue",
+)
+
+def filled(key):
+    value = report.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(key):
+    value = report.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
+checks = [
+    report.get("schema") == "kiana.release-ops.v1",
+    report.get("version") == expected_version,
+    report.get("status") == "accepted",
+    report.get("accepted") is True,
+    all(filled(key) for key in required_strings),
+    all(not_placeholder(key) for key in required_strings),
+    isinstance(report.get("artifact_retention_days"), int)
+    and report["artifact_retention_days"] >= 90,
+    isinstance(report.get("log_retention_days"), int)
+    and report["log_retention_days"] >= 30,
+    credential_review.get("status") == "accepted",
+    isinstance(credential_review.get("reviewed_by"), str)
+    and bool(credential_review["reviewed_by"].strip()),
+    isinstance(credential_review.get("reviewed_at"), str)
+    and bool(credential_review["reviewed_at"].strip()),
+    isinstance(credential_review.get("scope"), str)
+    and bool(credential_review["scope"].strip()),
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "release ops proof commercial contract"
+  else
+    fail "release ops proof failed commercial contract"
+  fi
 }
 
 has_windows_publishable_artifact() {
@@ -93,6 +192,7 @@ for archive in "${archives[@]}"; do
   require_json_pattern "$signature_proof" '"schema"[[:space:]]*:[[:space:]]*"kiana.release-signature.v1"' "release signature proof schema"
   require_json_pattern "$signature_proof" "\"target\"[[:space:]]*:[[:space:]]*\"${target}\"" "release signature target matches"
   require_json_pattern "$signature_proof" "\"archive\"[[:space:]]*:[[:space:]]*\"${filename}\"" "release signature archive matches"
+  reject_json_pattern "$signature_proof" '"signer"[[:space:]]*:[[:space:]]*"external-release-signer"' "default release signer placeholder"
 
   if [[ "$target" == macos-* ]]; then
     notarization_proof="${dist_dir}/${package}.notarization.json"
@@ -161,6 +261,7 @@ provider_catalog_proof="${dist_dir}/proofs/live-smoke/provider/model-catalog-liv
 provider_smoke_proof="${dist_dir}/proofs/live-smoke/provider/model-smoke-live-tools.json"
 remote_smoke_proof="${dist_dir}/proofs/live-smoke/remote/code-session-smoke.json"
 product_acceptance_proof="${dist_dir}/proofs/product/product-acceptance.json"
+release_ops_proof="${dist_dir}/proofs/release-ops/release-ops.json"
 
 require_proof_file "$provider_catalog_proof" "kiana.model-catalog.v1" "provider live catalog proof"
 require_json_pattern "$provider_catalog_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live catalog proof is live"
@@ -172,6 +273,16 @@ require_json_pattern "$remote_smoke_proof" '"status"[[:space:]]*:[[:space:]]*"ok
 require_proof_file "$product_acceptance_proof" "kiana.product-acceptance.v1" "product acceptance proof"
 require_json_pattern "$product_acceptance_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "product acceptance proof accepted"
 require_json_pattern "$product_acceptance_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "product acceptance proof accepted flag"
+require_proof_file "$release_ops_proof" "kiana.release-ops.v1" "release ops proof"
+require_json_pattern "$release_ops_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "release ops proof accepted"
+require_json_pattern "$release_ops_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "release ops proof accepted flag"
+require_json_pattern "$release_ops_proof" '"vulnerability_report_channel"[[:space:]]*:' "release ops proof has vulnerability report channel"
+require_json_pattern "$release_ops_proof" '"release_credentials_owner"[[:space:]]*:' "release ops proof has credentials owner"
+require_json_pattern "$release_ops_proof" '"support_contact"[[:space:]]*:' "release ops proof has support contact"
+require_json_pattern "$release_ops_proof" '"artifact_retention_days"[[:space:]]*:' "release ops proof has artifact retention"
+require_json_pattern "$release_ops_proof" '"log_retention_days"[[:space:]]*:' "release ops proof has log retention"
+require_json_pattern "$release_ops_proof" '"credential_review"[[:space:]]*:' "release ops proof has credential review"
+require_release_ops_contract "$release_ops_proof" "$version"
 
 if (( failures > 0 )); then
   echo "commercial release artifact verification failed with ${failures} issue(s)" >&2

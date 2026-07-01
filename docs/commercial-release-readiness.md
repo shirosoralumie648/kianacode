@@ -74,6 +74,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - TUI `/settings` now opens a read-only readiness hub for account/auth, provider/model capability, permissions, MCP, remote, and diagnostics status using the existing command registry, with headless render and runtime coverage.
 - `scripts/product-shell-smoke.sh` now names and runs the TUI approval, diff, onboarding, resume, prompt-history, and settings-readiness headless gates, and `scripts/release-smoke.sh` invokes it in full release mode.
 - Added `scripts/product-acceptance-report.sh` and the pinned `kiana.product-acceptance.v1` schema; local RC mode records headless product-shell coverage, while full commercial preflight requires an accepted target-customer workflow signoff file.
+- Added `scripts/release-ops-report.sh` and the pinned `kiana.release-ops.v1` schema; local RC mode records missing operational signoff, while full commercial preflight requires an accepted private vulnerability route, credential owner, support contact, retention policy, and credential review proof.
 - OpenAI-compatible provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; Chat Completions text and function-style tool loops are covered by local mock gates.
 - Local Ollama provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; `/api/chat` text and `tools`/`tool_calls` loops are covered by local mock gates.
 - Built-in provider registry metadata now centralizes provider display name, protocol, auth method, option aliases, env vars, default model/base URL, model source category, streaming mode, and live-smoke requirement for `model list`, `auth status`, and runner provider construction.
@@ -84,7 +85,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`, and provider tool-call smoke remains opt-in through `--tools` or `KIANA_PROVIDER_SMOKE_TOOLS=1`.
 - `scripts/provider-live-smoke.sh --required` now turns opt-in provider reports into commercial evidence by running live catalog plus live text/tool smoke and storing proof JSON under `target/live-smoke/provider/`.
 - `scripts/remote-live-smoke.sh --required` now turns `remote-session code-session smoke --json` into a pinned `kiana.remote-code-session-smoke.v1` commercial evidence gate with proof JSON under `target/live-smoke/remote/`.
-- The release workflow now writes live smoke and product acceptance proof artifacts under `dist/proofs/`, uploads them, and the commercial artifact verifier checks those proof files before drafting a release.
+- The release workflow now writes live smoke, product acceptance, and release ops proof artifacts under `dist/proofs/`, uploads them, and the commercial artifact verifier checks those proof files before drafting a release.
 - `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
@@ -95,7 +96,7 @@ These are not solved by the local release gate and must be completed before clai
 
 - Publish the real Git repository and remote URL, then activate CI on real push/PR/release events.
 - Push the local product commit to the real remote, then create an immutable release tag from a reviewed clean tree.
-- Activate the release workflow on the real remote, then add real `KIANA_SIGNING_COMMAND`, macOS notarization command/proof where applicable, release credential review, and retention policy review so `scripts/sign-release-artifacts.sh` and `scripts/verify-commercial-release-artifacts.sh` can pass instead of blocking the draft release.
+- Activate the release workflow on the real remote, then add real `KIANA_SIGNING_COMMAND`, macOS notarization command/proof where applicable, and an accepted `KIANA_RELEASE_OPS_FILE` so `scripts/sign-release-artifacts.sh`, `scripts/release-ops-report.sh full`, and `scripts/verify-commercial-release-artifacts.sh` can pass instead of blocking the draft release.
 - Provide real install URLs and distribution channels such as GitHub Releases, Homebrew, winget, npm, apt, or an enterprise installer.
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists, and full commercial verification now fails while required channel manifests are blocked or missing from the combined artifact set.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services; full preflight now invokes `scripts/remote-live-smoke.sh --required`, but credentials and hosted service readiness remain external blockers.
@@ -103,7 +104,7 @@ These are not solved by the local release gate and must be completed before clai
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, stream-json capability visibility now includes skills/plugins, provider credential/readiness metadata is visible through `auth status`, and full preflight now requires `scripts/provider-live-smoke.sh --required`, but real credentials/daemons are still external blockers.
 - Repeat platform-specific execution-isolation proof on real Windows, macOS, and Linux release runners; local doctor now distinguishes Linux `bwrap` from Windows/macOS exec-policy isolation, but release-runner acceptance evidence is still required.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
-- Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.
+- Complete real enterprise account/license backend validation and policy support; release ops now has a proof contract for the private vulnerability route and support ownership, but production entitlement verification is not wired.
 
 ## Current Conclusion
 
