@@ -77,7 +77,7 @@ pub fn build_repo_map(root: impl AsRef<Path>, options: RepoMapOptions) -> Result
     })
 }
 
-fn collect_paths(
+pub(crate) fn collect_paths(
     root: &Path,
     dir: &Path,
     ignore_rules: &IgnoreRules,
@@ -143,7 +143,7 @@ fn estimate_entry_tokens(path: &str, language: Option<&str>, symbols: &[String])
     (((path.len() + language_chars + symbol_chars) as u64) / 4 + 6).max(4)
 }
 
-fn language_for_path(path: &Path) -> Option<&'static str> {
+pub(crate) fn language_for_path(path: &Path) -> Option<&'static str> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("rs") => Some("rust"),
         Some("py") => Some("python"),
@@ -257,14 +257,14 @@ fn symbol_name_after(line: &str, keyword: &str) -> Option<String> {
 }
 
 #[derive(Debug, Default)]
-struct IgnoreRules {
+pub(crate) struct IgnoreRules {
     names: HashSet<String>,
     dir_names: HashSet<String>,
     path_patterns: Vec<String>,
 }
 
 impl IgnoreRules {
-    fn load(root: &Path) -> Self {
+    pub(crate) fn load(root: &Path) -> Self {
         let mut rules = Self {
             names: common_ignored_names(),
             dir_names: common_ignored_dirs(),
@@ -291,7 +291,7 @@ impl IgnoreRules {
         rules
     }
 
-    fn ignores(&self, rel: &Path, is_dir: bool) -> bool {
+    pub(crate) fn ignores(&self, rel: &Path, is_dir: bool) -> bool {
         let rel_text = rel.to_string_lossy().replace('\\', "/");
         let file_name = rel.file_name().and_then(|name| name.to_str()).unwrap_or("");
         if file_name.starts_with('.') {

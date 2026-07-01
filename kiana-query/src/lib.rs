@@ -9,6 +9,7 @@
 /// - `stop_hooks`   — post-turn stop-hook orchestration
 pub mod config;
 pub mod deps;
+pub mod index;
 pub mod repo_map;
 pub mod stop_hooks;
 pub mod token_budget;
@@ -16,6 +17,10 @@ pub mod transitions;
 
 pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use deps::QueryDeps;
+pub use index::{
+    build_context_index, search_context_index, ContextIndex, ContextIndexOptions,
+    ContextIndexedFile, ContextSearchHit, ContextSearchOptions, ContextSearchResults,
+};
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
 pub use stop_hooks::{
     handle_stop_hooks, run_post_tool_use_hooks, run_pre_tool_use_hooks, run_session_start_hooks,

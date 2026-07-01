@@ -104,6 +104,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Plugin marketplace JSON now surfaces plugin interface/policy metadata, rejects
   `not_available` entries during install, and hides disabled plugin agents from
   discovery.
+- Added deterministic `kiana context index` and `kiana context search` commands
+  for local repository file metadata and ranked lexical search.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

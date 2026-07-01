@@ -2,7 +2,10 @@ use crate::local_state::{app_state_array_len, app_state_keys};
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
-use kiana_query::{build_repo_map, RepoMap, RepoMapOptions};
+use kiana_query::{
+    build_context_index, build_repo_map, search_context_index, ContextIndex, ContextIndexOptions,
+    ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
+};
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -30,6 +33,12 @@ impl Command for ContextCommand {
         let args = context.args.trim();
         if let Some(rest) = args.strip_prefix("repo-map") {
             return repo_map_result(&context, rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("index") {
+            return index_result(&context, rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("search") {
+            return search_result(&context, rest.trim());
         }
 
         match args {
@@ -61,7 +70,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--max-bytes-per-file N]|search <query> [--json] [--limit N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -93,12 +102,110 @@ fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<Comma
     Ok(CommandResult::text(format_repo_map_text(&map)))
 }
 
+fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+
+    let index = build_context_index(
+        context_cwd(context),
+        ContextIndexOptions { max_bytes_per_file },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&index)?));
+    }
+    Ok(CommandResult::text(format_context_index_text(&index)))
+}
+
+fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut limit = None;
+    let mut max_bytes_per_file = None;
+    let mut query = Vec::new();
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--limit" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--limit=") => {
+                let value = arg.trim_start_matches("--limit=");
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" if query.is_empty() => {
+                return Ok(CommandResult::text(usage()))
+            }
+            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
+            _ => query.push(arg.to_string()),
+        }
+    }
+    if query.is_empty() {
+        return Err(anyhow!(
+            "Usage: kiana context search <query> [--json] [--limit N]"
+        ));
+    }
+
+    let results = search_context_index(
+        context_cwd(context),
+        &query.join(" "),
+        ContextSearchOptions {
+            limit,
+            max_bytes_per_file,
+        },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&results)?));
+    }
+    Ok(CommandResult::text(format_context_search_text(&results)))
+}
+
 fn parse_max_tokens(value: &str) -> anyhow::Result<u64> {
     let parsed = value
         .parse::<u64>()
         .map_err(|_| anyhow!("--max-tokens requires a positive integer"))?;
     if parsed == 0 {
         return Err(anyhow!("--max-tokens requires a positive integer"));
+    }
+    Ok(parsed)
+}
+
+fn parse_positive_usize(value: &str, label: &str) -> anyhow::Result<usize> {
+    let parsed = value
+        .parse::<usize>()
+        .map_err(|_| anyhow!("{label} requires a positive integer"))?;
+    if parsed == 0 {
+        return Err(anyhow!("{label} requires a positive integer"));
     }
     Ok(parsed)
 }
@@ -136,6 +243,56 @@ fn format_repo_map_text(map: &RepoMap) -> String {
         ));
         if !file.symbols.is_empty() {
             lines.push(format!("  symbols: {}", file.symbols.join(", ")));
+        }
+    }
+    lines.join("\n")
+}
+
+fn format_context_index_text(index: &ContextIndex) -> String {
+    let mut lines = vec![
+        "Context index".to_string(),
+        format!("root: {}", index.root),
+        format!(
+            "files_indexed: {} skipped_files: {} total_bytes: {}",
+            index.files_indexed, index.skipped_files, index.total_bytes
+        ),
+    ];
+    for file in &index.files {
+        lines.push(format!(
+            "- {} [{}] bytes={} lines={} hash={}",
+            file.path,
+            file.language.as_deref().unwrap_or("unknown"),
+            file.bytes,
+            file.line_count,
+            file.content_hash
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_search_text(results: &ContextSearchResults) -> String {
+    let mut lines = vec![
+        "Context search".to_string(),
+        format!("root: {}", results.root),
+        format!(
+            "query: {} terms={} files_indexed={} skipped_files={}",
+            results.query,
+            results.terms.join(","),
+            results.files_indexed,
+            results.skipped_files
+        ),
+    ];
+    for hit in &results.hits {
+        lines.push(format!(
+            "- {}:{} score={} occurrences={} terms={}",
+            hit.path,
+            hit.line_number,
+            hit.score,
+            hit.occurrences,
+            hit.matched_terms.join(",")
+        ));
+        if !hit.line.is_empty() {
+            lines.push(format!("  {}", hit.line));
         }
     }
     lines.join("\n")
@@ -196,6 +353,61 @@ mod tests {
             .unwrap()
             .iter()
             .any(|symbol| symbol == "fn render"));
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_index_json_reports_file_hashes() {
+        let root = fixture_root("index-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn indexed() {}\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "index --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-index.v1");
+        assert_eq!(value["files_indexed"], 1);
+        assert_eq!(value["files"][0]["path"], "src/lib.rs");
+        assert_eq!(
+            value["files"][0]["content_hash"].as_str().unwrap().len(),
+            16
+        );
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_search_json_returns_ranked_hits() {
+        let root = fixture_root("search-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn checkout() {}\n// checkout checkout\n",
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "checkout guide\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "search checkout --json --limit 1".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-search.v1");
+        assert_eq!(value["terms"][0], "checkout");
+        assert_eq!(value["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(value["hits"][0]["path"], "src/lib.rs");
+        assert_eq!(value["hits"][0]["line_number"], 1);
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
