@@ -1,39 +1,87 @@
-use rmcp::{
-    handler::server::{router::tool::ToolRouter, tool::Parameters},
-    model::*,
-    schemars, tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler, ServiceExt,
-};
 use serde::{Deserialize, Serialize};
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
 use url::Url;
 
 type Callback = Arc<dyn Fn(String) + Send + Sync>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterSchemeRequest {
     pub scheme: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandleUrlRequest {
     pub url: String,
+}
+
+pub struct Parameters<T>(pub T);
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Content {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    text: String,
+}
+
+impl Content {
+    pub fn text(text: impl Into<String>) -> Self {
+        Self {
+            kind: "text",
+            text: text.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CallToolResult {
+    content: Vec<Content>,
+    #[serde(rename = "isError")]
+    is_error: bool,
+}
+
+impl CallToolResult {
+    pub fn success(content: Vec<Content>) -> Self {
+        Self {
+            content,
+            is_error: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct McpError {
+    code: i64,
+    message: String,
+}
+
+impl McpError {
+    pub fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            code: -32600,
+            message: message.into(),
+        }
+    }
+
+    pub fn internal_error(message: impl Into<String>) -> Self {
+        Self {
+            code: -32603,
+            message: message.into(),
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct UrlHandler {
     callback: Arc<Mutex<Option<Callback>>>,
-    tool_router: ToolRouter<Self>,
 }
 
-#[tool_router(router = tool_router)]
 impl UrlHandler {
     pub fn new() -> Self {
         Self {
             callback: Arc::new(Mutex::new(None)),
-            tool_router: Self::tool_router(),
         }
     }
 
@@ -45,28 +93,23 @@ impl UrlHandler {
         *cb = Some(Arc::new(callback));
     }
 
-    #[tool(description = "Register a custom URL scheme handler")]
     async fn register_url_scheme(
         &self,
         request: Parameters<RegisterSchemeRequest>,
     ) -> Result<CallToolResult, McpError> {
         self._register_scheme(&request.0.scheme)
-            .map_err(|e| McpError::internal_error(e, None))?;
+            .map_err(McpError::internal_error)?;
         Ok(CallToolResult::success(vec![Content::text(
             "Registered successfully",
         )]))
     }
 
-    #[tool(description = "Handle an incoming URL")]
     async fn handle_url(
         &self,
         request: Parameters<HandleUrlRequest>,
     ) -> Result<CallToolResult, McpError> {
         if let Err(e) = Url::parse(&request.0.url) {
-            return Err(McpError::invalid_request(
-                format!("Invalid URL: {}", e),
-                None,
-            ));
+            return Err(McpError::invalid_request(format!("Invalid URL: {}", e)));
         }
 
         if let Some(cb) = self.callback.lock().await.as_ref() {
@@ -263,26 +306,160 @@ fn quote_exec_arg(arg: &str) -> String {
     format!("\"{}\"", arg.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-#[tool_handler(router = self.tool_router)]
-impl ServerHandler for UrlHandler {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some("URL handler for custom schemes and deep linking".into()),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
+pub async fn run_mcp_server() -> Result<(), Box<dyn std::error::Error>> {
+    let handler = UrlHandler::new();
+    let stdin = tokio::io::stdin();
+    let mut lines = BufReader::new(stdin).lines();
+    let mut stdout = tokio::io::stdout();
+
+    while let Some(line) = lines.next_line().await? {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let response = match serde_json::from_str::<serde_json::Value>(&line) {
+            Ok(request) => handler.handle_json_rpc(request).await,
+            Err(e) => Some(json_rpc_error(
+                serde_json::Value::Null,
+                -32700,
+                format!("Parse error: {}", e),
+            )),
+        };
+        if let Some(response) = response {
+            stdout
+                .write_all(serde_json::to_string(&response)?.as_bytes())
+                .await?;
+            stdout.write_all(b"\n").await?;
+            stdout.flush().await?;
+        }
+    }
+    Ok(())
+}
+
+impl UrlHandler {
+    async fn handle_json_rpc(&self, request: serde_json::Value) -> Option<serde_json::Value> {
+        let id = request
+            .get("id")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        let Some(method) = request.get("method").and_then(|method| method.as_str()) else {
+            return Some(json_rpc_error(id, -32600, "Missing method"));
+        };
+
+        match method {
+            "notifications/initialized" => None,
+            "initialize" => Some(json_rpc_result(
+                id,
+                serde_json::json!({
+                    "protocolVersion": "2024-11-05",
+                    "serverInfo": {
+                        "name": "kiana-url-handler",
+                        "version": env!("CARGO_PKG_VERSION")
+                    },
+                    "capabilities": {
+                        "tools": {}
+                    },
+                    "instructions": "URL handler for custom schemes and deep linking"
+                }),
+            )),
+            "tools/list" => Some(json_rpc_result(
+                id,
+                serde_json::json!({
+                    "tools": [
+                        {
+                            "name": "register_url_scheme",
+                            "description": "Register a custom URL scheme handler",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "scheme": {"type": "string"}
+                                },
+                                "required": ["scheme"]
+                            }
+                        },
+                        {
+                            "name": "handle_url",
+                            "description": "Handle an incoming URL",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "url": {"type": "string"}
+                                },
+                                "required": ["url"]
+                            }
+                        }
+                    ]
+                }),
+            )),
+            "tools/call" => Some(self.handle_tool_call(id, request.get("params")).await),
+            _ => Some(json_rpc_error(
+                id,
+                -32601,
+                format!("Method not found: {}", method),
+            )),
+        }
+    }
+
+    async fn handle_tool_call(
+        &self,
+        id: serde_json::Value,
+        params: Option<&serde_json::Value>,
+    ) -> serde_json::Value {
+        let Some(params) = params else {
+            return json_rpc_error(id, -32600, "Missing params");
+        };
+        let Some(name) = params.get("name").and_then(|name| name.as_str()) else {
+            return json_rpc_error(id, -32600, "Missing tool name");
+        };
+        let arguments = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        let result = match name {
+            "register_url_scheme" => match serde_json::from_value(arguments) {
+                Ok(request) => self.register_url_scheme(Parameters(request)).await,
+                Err(e) => Err(McpError::invalid_request(format!(
+                    "Invalid arguments: {}",
+                    e
+                ))),
+            },
+            "handle_url" => match serde_json::from_value(arguments) {
+                Ok(request) => self.handle_url(Parameters(request)).await,
+                Err(e) => Err(McpError::invalid_request(format!(
+                    "Invalid arguments: {}",
+                    e
+                ))),
+            },
+            _ => return json_rpc_error(id, -32602, format!("Unknown tool: {}", name)),
+        };
+
+        match result {
+            Ok(result) => json_rpc_result(id, serde_json::to_value(result).unwrap_or_default()),
+            Err(error) => json_rpc_error(id, error.code, error.message),
         }
     }
 }
 
-pub async fn run_mcp_server() -> Result<(), Box<dyn std::error::Error>> {
-    use rmcp::transport::stdio;
+fn json_rpc_result(id: serde_json::Value, result: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": result
+    })
+}
 
-    let service = UrlHandler::new().serve(stdio()).await.inspect_err(|e| {
-        eprintln!("Error starting server: {}", e);
-    })?;
-    service.waiting().await?;
-
-    Ok(())
+fn json_rpc_error(
+    id: serde_json::Value,
+    code: i64,
+    message: impl Into<String>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": code,
+            "message": message.into()
+        }
+    })
 }
 
 #[cfg(test)]
@@ -375,6 +552,78 @@ mod tests {
             UrlHandler::quote_exec_arg("/tmp/Kiana Code/kiana"),
             "\"/tmp/Kiana Code/kiana\""
         );
+    }
+
+    #[tokio::test]
+    async fn test_json_rpc_lists_tools() {
+        let handler = UrlHandler::new();
+        let response = handler
+            .handle_json_rpc(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list"
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(response["jsonrpc"], "2.0");
+        assert_eq!(response["id"], 1);
+        let tools = response["result"]["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 2);
+        assert_eq!(tools[0]["name"], "register_url_scheme");
+        assert_eq!(tools[1]["name"], "handle_url");
+    }
+
+    #[tokio::test]
+    async fn test_json_rpc_handle_url_tool_call() {
+        let handler = UrlHandler::new();
+        let response = handler
+            .handle_json_rpc(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": "call-1",
+                "method": "tools/call",
+                "params": {
+                    "name": "handle_url",
+                    "arguments": {
+                        "url": "kiana://open?path=README.md"
+                    }
+                }
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(response["id"], "call-1");
+        assert_eq!(response["result"]["isError"], false);
+        assert_eq!(
+            response["result"]["content"][0]["text"],
+            "Handled: kiana://open?path=README.md"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_json_rpc_rejects_invalid_tool_arguments() {
+        let handler = UrlHandler::new();
+        let response = handler
+            .handle_json_rpc(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": "bad-call",
+                "method": "tools/call",
+                "params": {
+                    "name": "handle_url",
+                    "arguments": {
+                        "url": "invalid url"
+                    }
+                }
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(response["id"], "bad-call");
+        assert_eq!(response["error"]["code"], -32600);
+        assert!(response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Invalid URL"));
     }
 
     #[test]

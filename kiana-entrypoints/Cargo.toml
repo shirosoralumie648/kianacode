@@ -33,20 +33,20 @@ rustyline = "14.0"
 colored = "2"
 dirs = "5.0"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-native-roots"] }
 toml = "0.8"
-kiana-services = { path = "../kiana-services" }
-kiana-bootstrap = { path = "../kiana-bootstrap" }
-kiana-tools = { path = "../kiana-tools" }
-kiana-query = { path = "../kiana-query" }
-kiana-commands = { path = "../kiana-commands" }
-kiana-bridge = { path = "../kiana-bridge" }
-kiana-screens = { path = "../kiana-screens" }
-kiana-chrome-mcp = { path = "../kiana-chrome-mcp" }
-kiana-computer-mcp = { path = "../kiana-computer-mcp" }
-kiana-remote = { path = "../kiana-remote" }
-kiana-types = { path = "../kiana-types" }
-kiana-url-handler = { path = "../kiana-url-handler" }
+kiana-services = { path = "../kiana-services", version = "0.1.0" }
+kiana-bootstrap = { path = "../kiana-bootstrap", version = "0.1.0" }
+kiana-tools = { path = "../kiana-tools", version = "0.1.0" }
+kiana-query = { path = "../kiana-query", version = "0.1.0" }
+kiana-commands = { path = "../kiana-commands", version = "0.1.0" }
+kiana-bridge = { path = "../kiana-bridge", version = "0.1.0" }
+kiana-screens = { path = "../kiana-screens", version = "0.1.0" }
+kiana-chrome-mcp = { path = "../kiana-chrome-mcp", version = "0.1.0" }
+kiana-computer-mcp = { path = "../kiana-computer-mcp", version = "0.1.0" }
+kiana-remote = { path = "../kiana-remote", version = "0.1.0" }
+kiana-types = { path = "../kiana-types", version = "0.1.0" }
+kiana-url-handler = { path = "../kiana-url-handler", version = "0.1.0" }
 uuid = { version = "1", features = ["v4"] }
 async-trait = "0.1"
 url = "2.5"

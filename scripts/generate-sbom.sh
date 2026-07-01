@@ -16,7 +16,11 @@ else
 fi
 
 metadata_file="$(mktemp)"
-cargo metadata --locked --offline --format-version 1 > "$metadata_file"
+cargo_metadata_args=(metadata --locked --format-version 1)
+if [[ "${KIANA_CARGO_OFFLINE:-1}" == "1" ]]; then
+  cargo_metadata_args+=(--offline)
+fi
+cargo "${cargo_metadata_args[@]}" > "$metadata_file"
 
 "$python_bin" - "$metadata_file" "$output" <<'PY'
 import json

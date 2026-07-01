@@ -21,12 +21,34 @@ fi
 out_dir="${COMPLIANCE_OUT_DIR:-dist/compliance}"
 mkdir -p "$out_dir"
 
+tool_root="${KIANA_COMPLIANCE_TOOL_ROOT:-target/compliance-tools}"
+advisory_db="${KIANA_COMPLIANCE_ADVISORY_DB:-target/compliance-advisory-db}"
+tool_cargo_home="${KIANA_COMPLIANCE_CARGO_HOME:-target/compliance-cargo-home}"
+mkdir -p "$tool_cargo_home"
+if [[ -d "$tool_root/bin" ]]; then
+  export PATH="$PWD/$tool_root/bin:$tool_root/bin:$PATH"
+fi
+
+if [[ "$mode" == "full" && "${KIANA_COMPLIANCE_AUTO_INSTALL:-}" == "1" ]]; then
+  bash scripts/install-compliance-tools.sh
+  export PATH="$PWD/$tool_root/bin:$tool_root/bin:$PATH"
+fi
+
 metadata_file="$out_dir/cargo-metadata.json"
 report_file="$out_dir/compliance-report.json"
 sbom_file="$out_dir/sbom.cdx.json"
 
-cargo metadata --locked --offline --format-version 1 > "$metadata_file"
-bash scripts/generate-sbom.sh "$sbom_file" >/dev/null
+cargo_metadata_args=(metadata --locked --format-version 1)
+if [[ "$mode" != "full" || "${KIANA_COMPLIANCE_OFFLINE:-}" == "1" ]]; then
+  cargo_metadata_args+=(--offline)
+fi
+cargo "${cargo_metadata_args[@]}" > "$metadata_file"
+
+if [[ "$mode" == "full" && "${KIANA_COMPLIANCE_OFFLINE:-}" != "1" ]]; then
+  KIANA_CARGO_OFFLINE=0 bash scripts/generate-sbom.sh "$sbom_file" >/dev/null
+else
+  KIANA_CARGO_OFFLINE=1 bash scripts/generate-sbom.sh "$sbom_file" >/dev/null
+fi
 
 "$python_bin" - "$metadata_file" "$sbom_file" "$report_file" "$mode" <<'PY'
 import json
@@ -87,16 +109,16 @@ PY
 missing_optional=0
 
 if command -v cargo-audit >/dev/null 2>&1; then
-  cargo audit --locked > "$out_dir/cargo-audit.txt"
+  CARGO_HOME="$tool_cargo_home" cargo audit --db "$advisory_db" > "$out_dir/cargo-audit.txt" 2>&1
 else
-  echo "cargo-audit is not installed" > "$out_dir/cargo-audit.txt"
+  echo "cargo-audit is not installed; run scripts/install-compliance-tools.sh or set KIANA_COMPLIANCE_AUTO_INSTALL=1" > "$out_dir/cargo-audit.txt"
   missing_optional=$((missing_optional + 1))
 fi
 
 if command -v cargo-deny >/dev/null 2>&1; then
-  cargo deny check > "$out_dir/cargo-deny.txt"
+  CARGO_HOME="$tool_cargo_home" cargo deny check > "$out_dir/cargo-deny.txt" 2>&1
 else
-  echo "cargo-deny is not installed" > "$out_dir/cargo-deny.txt"
+  echo "cargo-deny is not installed; run scripts/install-compliance-tools.sh or set KIANA_COMPLIANCE_AUTO_INSTALL=1" > "$out_dir/cargo-deny.txt"
   missing_optional=$((missing_optional + 1))
 fi
 

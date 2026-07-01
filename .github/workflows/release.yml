@@ -27,7 +27,7 @@ jobs:
 
       - name: Install compliance tools
         shell: bash
-        run: cargo install cargo-audit cargo-deny --locked
+        run: bash scripts/install-compliance-tools.sh
 
       - name: Run release smoke
         shell: bash

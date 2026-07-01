@@ -29,7 +29,7 @@ dirs = "5"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 urlencoding = "2"
 url = "2.5"
-kiana-services = { path = "../kiana-services" }
-kiana-skills = { path = "../kiana-skills" }
-kiana-types = { path = "../kiana-types" }
-kiana-query = { path = "../kiana-query" }
+kiana-services = { path = "../kiana-services", version = "0.1.0" }
+kiana-skills = { path = "../kiana-skills", version = "0.1.0" }
+kiana-types = { path = "../kiana-types", version = "0.1.0" }
+kiana-query = { path = "../kiana-query", version = "0.1.0" }

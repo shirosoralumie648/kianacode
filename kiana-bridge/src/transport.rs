@@ -190,7 +190,7 @@ impl TransportHandle {
             self.recent_posted_uuids.add(uuid);
         }
         let json = serde_json::to_string(msg)?;
-        self.write.send(Message::Text(json)).await?;
+        self.write.send(Message::Text(json.into())).await?;
         Ok(())
     }
 
@@ -1080,10 +1080,10 @@ mod tests {
             })
             .to_string();
             websocket
-                .send(Message::Text(inbound.clone()))
+                .send(Message::Text(inbound.clone().into()))
                 .await
                 .unwrap();
-            websocket.send(Message::Text(inbound)).await.unwrap();
+            websocket.send(Message::Text(inbound.into())).await.unwrap();
             websocket.close(None).await.unwrap();
         });
 

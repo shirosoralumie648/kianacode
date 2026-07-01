@@ -10043,7 +10043,7 @@ mod tests {
             };
             if let Some(response) = mock_error_mcp_response(&state, &value) {
                 websocket
-                    .send(WsMessage::Text(response.to_string()))
+                    .send(WsMessage::Text(response.to_string().into()))
                     .await
                     .map_err(std::io::Error::other)?;
             }

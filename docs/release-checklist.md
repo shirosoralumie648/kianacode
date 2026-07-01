@@ -24,11 +24,14 @@ commercial release.
   `compliance-report.json`.
 - `scripts/compliance-audit.sh` passes with `cargo-audit`, `cargo-deny`, and
   the checked-in `deny.toml` policy.
+- `scripts/install-compliance-tools.sh` installs full audit tooling under
+  ignored `target/` paths when the tools are not already available.
 
 ## Security And Compliance
 
 - `SECURITY.md`, `PRIVACY.md`, and `TELEMETRY.md` are current.
 - Dependency advisory and license review results are attached to the release.
+- Any allowed advisory warnings are listed in `deny.toml` or release notes with an owner and follow-up path.
 - SBOM output is attached or linked.
 - Release binaries are signed; macOS artifacts are notarized when applicable.
 - Private vulnerability reporting route is active.

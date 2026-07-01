@@ -4522,7 +4522,7 @@ async fn run_direct_connect_headless<W: Write>(
         "session_id": session.session_id,
     });
     websocket
-        .send(Message::Text(user_message.to_string()))
+        .send(Message::Text(user_message.to_string().into()))
         .await
         .map_err(|error| anyhow!("failed to send direct-connect prompt: {error}"))?;
 
@@ -4540,7 +4540,7 @@ async fn run_direct_connect_headless<W: Write>(
                     }
                     if let Some(response) = direct_connect_control_response(&event) {
                         websocket
-                            .send(Message::Text(response.to_string()))
+                            .send(Message::Text(response.to_string().into()))
                             .await
                             .map_err(|error| {
                                 anyhow!("failed to send direct-connect control response: {error}")
@@ -13599,7 +13599,8 @@ mod tests {
                     "parent_tool_use_id": null,
                     "session_id": session.session_id,
                 })
-                .to_string(),
+                .to_string()
+                .into(),
             ))
             .await
             .unwrap();
@@ -13640,7 +13641,8 @@ mod tests {
                                     }
                                 }
                             })
-                            .to_string(),
+                            .to_string()
+                            .into(),
                         ))
                         .await
                         .unwrap();

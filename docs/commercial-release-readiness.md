@@ -43,6 +43,8 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Added `scripts/release-preflight.sh` and `make release-preflight` to make local RC checks and full commercial release blockers executable.
 - Added CycloneDX SBOM generation and `scripts/compliance-audit.sh`; release packages now include `SBOM.cdx.json` and `docs/compliance-report.json`.
 - Added `deny.toml`; tag/manual release workflow installs `cargo-audit` and `cargo-deny` and runs full compliance mode.
+- Added `scripts/install-compliance-tools.sh` so full compliance tooling can be installed under ignored `target/` paths instead of relying on global Cargo state.
+- Full local compliance mode now passes with project-local `cargo-audit` and `cargo-deny`; current RustSec output has no vulnerability errors and retains six allowed warning advisories for upstream-only maintenance/unsoundness tracking.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
@@ -58,7 +60,7 @@ These are not solved by the local release gate and must be completed before clai
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring TUI permission, diff, history, onboarding, and resume flows to reference-level usability.
 - Harden default execution isolation and approval policy across Windows, macOS, and Linux.
-- Add dependency/compliance gates such as `cargo audit`, `cargo deny`, SBOM generation, and third-party license review.
+- Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete enterprise account/license/policy support and a private vulnerability reporting channel.
 
 ## Current Conclusion

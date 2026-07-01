@@ -6676,7 +6676,7 @@ printf '{"type":"assistant","uuid":"assistant","message":{"content":"debug ready
             };
             let _ = websocket
                 .send(tokio_tungstenite::tungstenite::Message::Text(
-                    serde_json::to_string(&user).unwrap(),
+                    serde_json::to_string(&user).unwrap().into(),
                 ))
                 .await;
 
@@ -6716,7 +6716,7 @@ printf '{"type":"assistant","uuid":"assistant","message":{"content":"debug ready
                         };
                         let _ = websocket
                             .send(tokio_tungstenite::tungstenite::Message::Text(
-                                serde_json::to_string(&response).unwrap(),
+                                serde_json::to_string(&response).unwrap().into(),
                             ))
                             .await;
                     }

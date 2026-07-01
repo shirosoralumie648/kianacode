@@ -12,6 +12,8 @@ The channels below define the commercial distribution target state.
 - Release tarballs include `SBOM.cdx.json` and `docs/compliance-report.json`.
 - GitHub Actions artifact workflow for Linux, macOS, and Windows once the real
   remote is active.
+- Release CI installs compliance tools through `scripts/install-compliance-tools.sh`
+  before running full audit mode.
 
 ## Required For Public Commercial Release
 

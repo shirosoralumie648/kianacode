@@ -184,7 +184,7 @@ impl SessionsWebSocket {
             let msg = serde_json::to_string(&ControlMessage::Response(response))
                 .map_err(|e| WebSocketError::Parse(e.to_string()))?;
             writer
-                .send(Message::Text(msg))
+                .send(Message::Text(msg.into()))
                 .await
                 .map_err(|e| WebSocketError::Connection(e.to_string()))?;
             Ok(())
@@ -214,7 +214,7 @@ impl SessionsWebSocket {
             let msg = serde_json::to_string(&ControlMessage::Request(control_request))
                 .map_err(|e| WebSocketError::Parse(e.to_string()))?;
             writer
-                .send(Message::Text(msg))
+                .send(Message::Text(msg.into()))
                 .await
                 .map_err(|e| WebSocketError::Connection(e.to_string()))?;
             Ok(())
@@ -241,7 +241,7 @@ impl SessionsWebSocket {
             let msg = serde_json::to_string(&ControlMessage::CancelRequest(cancel_request))
                 .map_err(|e| WebSocketError::Parse(e.to_string()))?;
             writer
-                .send(Message::Text(msg))
+                .send(Message::Text(msg.into()))
                 .await
                 .map_err(|e| WebSocketError::Connection(e.to_string()))?;
             Ok(())
@@ -399,7 +399,7 @@ fn start_ping_loop(writer: Arc<Mutex<Option<SessionWsWriter>>>, state: Arc<Mutex
 
             let mut writer_guard = writer.lock().await;
             if let Some(writer) = writer_guard.as_mut() {
-                let _ = writer.send(Message::Ping(vec![])).await;
+                let _ = writer.send(Message::Ping(Vec::new().into())).await;
             }
         }
     });
@@ -580,7 +580,7 @@ async fn send_control_response_with_writer(
     let msg = serde_json::to_string(&ControlMessage::Response(response))
         .map_err(|e| WebSocketError::Parse(e.to_string()))?;
     writer
-        .send(Message::Text(msg))
+        .send(Message::Text(msg.into()))
         .await
         .map_err(|e| WebSocketError::Connection(e.to_string()))
 }
@@ -624,7 +624,6 @@ mod tests {
         SessionMessage,
     };
     use futures_util::{SinkExt, StreamExt};
-    use std::borrow::Cow;
     use std::sync::{Arc, Mutex as StdMutex};
     use tokio::net::TcpListener;
     use tokio::sync::mpsc;
@@ -715,7 +714,9 @@ mod tests {
             let (stream, _) = listener.accept().await.unwrap();
             let mut ws = accept_async(stream).await.unwrap();
             ws.send(Message::Text(
-                serde_json::to_string(&SessionMessage::SDK(SDKMessage::AuthStatus)).unwrap(),
+                serde_json::to_string(&SessionMessage::SDK(SDKMessage::AuthStatus))
+                    .unwrap()
+                    .into(),
             ))
             .await
             .unwrap();
@@ -796,7 +797,8 @@ mod tests {
                         "subtype": "initialize"
                     }
                 })
-                .to_string(),
+                .to_string()
+                .into(),
             ))
             .await
             .unwrap();
@@ -852,7 +854,8 @@ mod tests {
                         "model": "claude-sonnet-4-5"
                     }
                 })
-                .to_string(),
+                .to_string()
+                .into(),
             ))
             .await
             .unwrap();
@@ -904,7 +907,8 @@ mod tests {
                         "subtype": "launch_missiles"
                     }
                 })
-                .to_string(),
+                .to_string()
+                .into(),
             ))
             .await
             .unwrap();
@@ -959,7 +963,8 @@ mod tests {
                         "input": {"command": "pwd"}
                     }
                 })
-                .to_string(),
+                .to_string()
+                .into(),
             ))
             .await
             .unwrap();
@@ -1012,7 +1017,9 @@ mod tests {
             let (stream, _) = listener.accept().await.unwrap();
             let mut ws = accept_async(stream).await.unwrap();
             ws.send(Message::Text(
-                serde_json::to_string(&SessionMessage::SDK(SDKMessage::AuthStatus)).unwrap(),
+                serde_json::to_string(&SessionMessage::SDK(SDKMessage::AuthStatus))
+                    .unwrap()
+                    .into(),
             ))
             .await
             .unwrap();
@@ -1122,7 +1129,7 @@ mod tests {
             .unwrap();
             ws.send(Message::Close(Some(CloseFrame {
                 code: CloseCode::Library(4003),
-                reason: Cow::Borrowed("unauthorized"),
+                reason: "unauthorized".into(),
             })))
             .await
             .unwrap();
@@ -1143,7 +1150,9 @@ mod tests {
             .await
             .unwrap();
             ws.send(Message::Text(
-                serde_json::to_string(&SessionMessage::SDK(SDKMessage::AuthStatus)).unwrap(),
+                serde_json::to_string(&SessionMessage::SDK(SDKMessage::AuthStatus))
+                    .unwrap()
+                    .into(),
             ))
             .await
             .unwrap();
@@ -1223,7 +1232,7 @@ mod tests {
             let mut ws = accept_async(stream).await.unwrap();
             ws.send(Message::Close(Some(CloseFrame {
                 code: CloseCode::Library(4003),
-                reason: Cow::Borrowed("unauthorized"),
+                reason: "unauthorized".into(),
             })))
             .await
             .unwrap();

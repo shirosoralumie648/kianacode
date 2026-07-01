@@ -683,7 +683,7 @@ impl WsMcpTransport {
 
     async fn write_message(&mut self, message: &Value) -> ServiceResult<()> {
         self.stream
-            .send(Message::Text(message.to_string()))
+            .send(Message::Text(message.to_string().into()))
             .await
             .map_err(|error| {
                 ServiceError::Connection(format!("failed to write MCP WS message: {}", error))
@@ -2147,7 +2147,7 @@ for line in sys.stdin:
             };
             if let Some(response) = mock_mcp_response(&value, "mock-ws") {
                 websocket
-                    .send(Message::Text(response.to_string()))
+                    .send(Message::Text(response.to_string().into()))
                     .await
                     .map_err(std::io::Error::other)?;
             }

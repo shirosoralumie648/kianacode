@@ -61,16 +61,27 @@ bash scripts/compliance-audit.sh
 
 requires complete third-party license metadata plus `cargo-audit` and
 `cargo-deny` to be installed and passing. The `cargo-deny` policy lives in
-`deny.toml`.
+`deny.toml`. Install those tools into ignored local build paths with:
+
+```bash
+bash scripts/install-compliance-tools.sh
+```
+
+For one-shot local full compliance, use:
+
+```bash
+KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
+```
 
 ## CI And Artifact Workflow
 
 - `.github/workflows/release-smoke.yml` runs the local smoke gate on push, PR,
   and manual dispatch.
-- `.github/workflows/release.yml` installs `cargo-audit` and `cargo-deny`, runs
-  the smoke gate, packages artifacts on Linux/macOS/Windows with full compliance
-  reports, verifies checksums, uploads artifacts, and creates a draft GitHub
-  Release for tag builds.
+- `.github/workflows/release.yml` installs `cargo-audit` and `cargo-deny`
+  through `scripts/install-compliance-tools.sh`, runs the smoke gate, packages
+  artifacts on Linux/macOS/Windows with full compliance reports, verifies
+  checksums, uploads artifacts, and creates a draft GitHub Release for tag
+  builds.
 
 These workflows still require a real remote repository, tag policy, release
 credentials, and signing before they become authoritative release gates.

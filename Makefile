@@ -1,4 +1,4 @@
-.PHONY: build install test clean dev release package compliance-audit sbom release-preflight release-smoke live-smoke native-computer-mcp test-native-computer-mcp help
+.PHONY: build install test clean dev release package install-compliance-tools compliance-audit sbom release-preflight release-smoke live-smoke native-computer-mcp test-native-computer-mcp help
 
 CARGO ?= cargo
 INSTALL_DIR ?= $(HOME)/.local/bin
@@ -14,6 +14,7 @@ help:
 	@echo "  make build       构建 debug 版本"
 	@echo "  make release     构建 release 版本"
 	@echo "  make release-preflight  检查商业发布前置条件"
+	@echo "  make install-compliance-tools  安装 cargo-audit/cargo-deny 到 target/"
 	@echo "  make compliance-audit   生成 SBOM 并运行合规审计"
 	@echo "  make release-smoke  运行发布前本地 smoke gate"
 	@echo "  make live-smoke     运行可选远程真实服务 smoke（需要 token）"
@@ -38,6 +39,9 @@ package:
 
 sbom:
 	bash scripts/generate-sbom.sh
+
+install-compliance-tools:
+	bash scripts/install-compliance-tools.sh
 
 compliance-audit:
 	bash scripts/compliance-audit.sh --local-rc

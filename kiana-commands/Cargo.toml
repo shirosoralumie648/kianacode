@@ -20,10 +20,10 @@ anyhow = "1.0"
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1.0", features = ["full"] }
-kiana-bootstrap = { path = "../kiana-bootstrap" }
-kiana-modifiers = { path = "../kiana-modifiers" }
-kiana-query = { path = "../kiana-query" }
-kiana-services = { path = "../kiana-services" }
-kiana-skills = { path = "../kiana-skills" }
-kiana-tools = { path = "../kiana-tools" }
-kiana-types = { path = "../kiana-types" }
+kiana-bootstrap = { path = "../kiana-bootstrap", version = "0.1.0" }
+kiana-modifiers = { path = "../kiana-modifiers", version = "0.1.0" }
+kiana-query = { path = "../kiana-query", version = "0.1.0" }
+kiana-services = { path = "../kiana-services", version = "0.1.0" }
+kiana-skills = { path = "../kiana-skills", version = "0.1.0" }
+kiana-tools = { path = "../kiana-tools", version = "0.1.0" }
+kiana-types = { path = "../kiana-types", version = "0.1.0" }

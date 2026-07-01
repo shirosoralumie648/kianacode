@@ -19,6 +19,10 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - CycloneDX SBOM generation and local RC compliance audit artifacts.
 - `deny.toml` and full release workflow steps for `cargo-audit` and
   `cargo-deny`.
+- Local compliance tool bootstrap through `scripts/install-compliance-tools.sh`.
+- Dependency hardening for the release candidate: removed `rmcp`, upgraded
+  `reqwest`/`tokio-tungstenite`/TLS stack dependencies, and replaced direct
+  `ansi_term` usage so `cargo audit` no longer reports vulnerability errors.
 
 ### Verified
 
