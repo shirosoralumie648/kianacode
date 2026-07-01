@@ -27,8 +27,8 @@ The channels below define the commercial distribution target state.
 - Commercial artifact verification runs through
   `scripts/verify-commercial-release-artifacts.sh` after all runner artifacts
   are combined; it fails on missing signatures, missing macOS notarization
-  proof, missing Windows ZIP/MSI/EXE publishable artifacts, or blocked channel
-  manifests.
+  proof, missing Windows ZIP/MSI/EXE publishable artifacts, blocked channel
+  manifests, missing live smoke proof, or missing product acceptance proof.
 - Enterprise offline bundles include
   `manifests/enterprise/offline-manifest.json`, generated from the same archive
   checksum files and validated by package lifecycle smoke against the pinned

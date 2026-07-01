@@ -462,6 +462,10 @@ mod tests {
         assert!(workflow.contains("cargo fetch --locked"));
         assert!(workflow.contains("bash scripts/sign-release-artifacts.sh"));
         assert!(workflow.contains("KIANA_SIGNING_COMMAND"));
+        assert!(workflow.contains("dist/proofs/**"));
+        assert!(workflow.contains("KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke"));
+        assert!(workflow
+            .contains("KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json"));
         assert!(workflow.contains("dist/manifests/**"));
         assert!(manifest_script.contains("offline-manifest.json"));
         assert!(manifest_script.contains("kiana.enterprise.offline-manifest.v1"));

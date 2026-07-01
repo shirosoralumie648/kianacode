@@ -52,6 +52,14 @@ require_json_pattern() {
   fi
 }
 
+require_proof_file() {
+  local file="$1"
+  local schema="$2"
+  local label="$3"
+  require_file "$file"
+  require_json_pattern "$file" "\"schema\"[[:space:]]*:[[:space:]]*\"${schema}\"" "${label} schema"
+}
+
 has_windows_publishable_artifact() {
   local package="$1"
   [[ -f "${dist_dir}/${package}.zip" ]] || \
@@ -148,6 +156,22 @@ if [[ -f "$enterprise_manifest" ]] && grep -Eq 'pending_|dry_run|blocked_' "$ent
 elif [[ -f "$enterprise_manifest" ]]; then
   pass "enterprise offline manifest contains no pending channel states"
 fi
+
+provider_catalog_proof="${dist_dir}/proofs/live-smoke/provider/model-catalog-live.json"
+provider_smoke_proof="${dist_dir}/proofs/live-smoke/provider/model-smoke-live-tools.json"
+remote_smoke_proof="${dist_dir}/proofs/live-smoke/remote/code-session-smoke.json"
+product_acceptance_proof="${dist_dir}/proofs/product/product-acceptance.json"
+
+require_proof_file "$provider_catalog_proof" "kiana.model-catalog.v1" "provider live catalog proof"
+require_json_pattern "$provider_catalog_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live catalog proof is live"
+require_proof_file "$provider_smoke_proof" "kiana.model-smoke.v1" "provider live smoke proof"
+require_json_pattern "$provider_smoke_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live smoke proof is live"
+require_json_pattern "$provider_smoke_proof" '"tools"[[:space:]]*:[[:space:]]*true' "provider live smoke proof includes tools"
+require_proof_file "$remote_smoke_proof" "kiana.remote-code-session-smoke.v1" "remote live smoke proof"
+require_json_pattern "$remote_smoke_proof" '"status"[[:space:]]*:[[:space:]]*"ok"' "remote live smoke proof status"
+require_proof_file "$product_acceptance_proof" "kiana.product-acceptance.v1" "product acceptance proof"
+require_json_pattern "$product_acceptance_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "product acceptance proof accepted"
+require_json_pattern "$product_acceptance_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "product acceptance proof accepted flag"
 
 if (( failures > 0 )); then
   echo "commercial release artifact verification failed with ${failures} issue(s)" >&2

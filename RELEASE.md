@@ -155,8 +155,10 @@ KIANA_REMOTE_ACCESS_TOKEN=<token> \
 ```
 
 This validates CCR v2 code-session creation, bridge credentials, and SDK URL
-generation against a real service. `scripts/release-preflight.sh` runs both
-live smoke scripts in full mode; local RC and ordinary smoke gates do not run
+generation against a real service, then wraps the result as
+`kiana.remote-code-session-smoke.v1`. `scripts/release-preflight.sh` runs both
+live smoke scripts in full mode and the release workflow stores their proof JSON
+under `dist/proofs/live-smoke/`; local RC and ordinary smoke gates do not run
 them without production-like credentials.
 
 ## Still Blocking Commercial GA

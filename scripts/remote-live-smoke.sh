@@ -47,15 +47,20 @@ fi
 
 remote_json="$out_dir/code-session-smoke.json"
 
-run_kiana remote-session code-session smoke --json --tag kiana-live-smoke >"$remote_json"
+raw_remote_json="${out_dir}/code-session-smoke.raw.json"
+run_kiana remote-session code-session smoke --json --tag kiana-live-smoke >"$raw_remote_json"
 
-REMOTE_LIVE_SMOKE_JSON="$remote_json" "$(python_bin)" - <<'PY'
+REMOTE_LIVE_SMOKE_RAW_JSON="$raw_remote_json" \
+REMOTE_LIVE_SMOKE_JSON="$remote_json" \
+"$(python_bin)" - <<'PY'
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
+raw_path = os.environ["REMOTE_LIVE_SMOKE_RAW_JSON"]
 path = os.environ["REMOTE_LIVE_SMOKE_JSON"]
-with open(path, "r", encoding="utf-8") as handle:
+with open(raw_path, "r", encoding="utf-8") as handle:
     report = json.load(handle)
 
 checks = [
@@ -71,5 +76,19 @@ if not all(checks):
     print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 
-print(f"remote live smoke passed: session_id={report['session_id']} proof={path}")
+proof = {
+    "schema": "kiana.remote-code-session-smoke.v1",
+    "status": "ok",
+    "checked_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "session_id": report["session_id"],
+    "api_base_url": report["api_base_url"],
+    "sdk_url": report["sdk_url"],
+    "expires_in": report["expires_in"],
+    "worker_epoch": report["worker_epoch"],
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(proof, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+
+print(f"remote live smoke passed: session_id={proof['session_id']} proof={path}")
 PY

@@ -83,7 +83,8 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Providers that do not support tools still default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`, and provider tool-call smoke remains opt-in through `--tools` or `KIANA_PROVIDER_SMOKE_TOOLS=1`.
 - `scripts/provider-live-smoke.sh --required` now turns opt-in provider reports into commercial evidence by running live catalog plus live text/tool smoke and storing proof JSON under `target/live-smoke/provider/`.
-- `scripts/remote-live-smoke.sh --required` now turns `remote-session code-session smoke --json` into a commercial evidence gate with proof JSON under `target/live-smoke/remote/`.
+- `scripts/remote-live-smoke.sh --required` now turns `remote-session code-session smoke --json` into a pinned `kiana.remote-code-session-smoke.v1` commercial evidence gate with proof JSON under `target/live-smoke/remote/`.
+- The release workflow now writes live smoke and product acceptance proof artifacts under `dist/proofs/`, uploads them, and the commercial artifact verifier checks those proof files before drafting a release.
 - `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.

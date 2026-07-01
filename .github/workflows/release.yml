@@ -53,6 +53,10 @@ jobs:
 
       - name: Run release preflight
         shell: bash
+        env:
+          KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke
+          KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json
+          KIANA_PRODUCT_ACCEPTANCE_FILE: ${{ vars.KIANA_PRODUCT_ACCEPTANCE_FILE }}
         run: KIANA_PREFLIGHT_SKIP_COMPLIANCE=1 bash scripts/release-preflight.sh
 
       - name: Run release smoke
@@ -98,6 +102,7 @@ jobs:
             dist/*.zip
             dist/*.msi
             dist/*.exe
+            dist/proofs/**
             dist/manifests/**
             dist/compliance/*
           if-no-files-found: error

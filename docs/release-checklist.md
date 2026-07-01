@@ -71,7 +71,7 @@ commercial release.
   provider for text and tool-call smoke; configured OpenAI-compatible or Ollama
   dynamic catalog lookups also pass.
 - `scripts/remote-live-smoke.sh --required` passes against production-like
-  remote/CCR services.
+  remote/CCR services and emits `kiana.remote-code-session-smoke.v1` proof.
 - Remote and bridge authentication sources are verified by `kiana auth status`
   and `kiana doctor`, including redacted OAuth token-file state when env bearer
   tokens are not used.
@@ -80,6 +80,9 @@ commercial release.
   any manual terminal acceptance.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`.
+- Release artifacts include `dist/proofs/live-smoke/**` and
+  `dist/proofs/product/product-acceptance.json`, and the commercial artifact
+  verifier checks those proof files.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
 - `kiana doctor` reports `commercial_security: ready` on target release

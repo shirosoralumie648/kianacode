@@ -79,6 +79,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   `kiana.product-acceptance.v1` schema so full commercial preflight requires an
   accepted product-shell workflow signoff instead of relying on headless smoke
   alone.
+- Release workflows now store live smoke and product acceptance proofs under
+  `dist/proofs/`, and commercial artifact verification checks those proof files,
+  including `kiana.remote-code-session-smoke.v1`.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

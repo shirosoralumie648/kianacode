@@ -47,6 +47,7 @@ for file in \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   docs/schemas/kiana-product-acceptance.v1.schema.json \
+  docs/schemas/kiana-remote-code-session-smoke.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/product-acceptance-report.sh \
@@ -192,6 +193,12 @@ else
   fail "product acceptance JSON schema is missing kiana.product-acceptance.v1 const"
 fi
 
+if grep -Fq '"const": "kiana.remote-code-session-smoke.v1"' docs/schemas/kiana-remote-code-session-smoke.v1.schema.json; then
+  pass "remote code-session smoke JSON schema version is pinned"
+else
+  fail "remote code-session smoke JSON schema is missing kiana.remote-code-session-smoke.v1 const"
+fi
+
 if grep -Fq 'KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}' .github/workflows/release.yml; then
   pass "release workflow derives package manifest URLs from the active repository and tag"
 else
@@ -202,6 +209,14 @@ if grep -Fq 'release-artifacts/**' .github/workflows/release.yml; then
   pass "GitHub release upload includes recursive artifacts"
 else
   fail "GitHub release upload does not include recursive manifest/compliance artifacts"
+fi
+
+if grep -Fq 'dist/proofs/**' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json' .github/workflows/release.yml; then
+  pass "release workflow preserves live and product proof artifacts"
+else
+  fail "release workflow does not preserve live/product proof artifacts"
 fi
 
 if grep -Fq 'verify-commercial-release-artifacts.sh' .github/workflows/release.yml; then
