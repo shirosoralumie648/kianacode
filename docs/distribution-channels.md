@@ -19,6 +19,10 @@ The channels below define the commercial distribution target state.
 - Distribution manifest dry-runs are generated through
   `scripts/generate-distribution-manifests.sh` and included beside package
   artifacts under `dist/manifests/`.
+- Enterprise offline bundles include
+  `manifests/enterprise/offline-manifest.json`, generated from the same archive
+  checksum files and validated by package lifecycle smoke against the pinned
+  `kiana.enterprise.offline-manifest.v1` schema.
 - GitHub Actions artifact workflow for Linux, macOS, and Windows once the real
   remote is active.
 - Release CI installs compliance tools through `scripts/install-compliance-tools.sh`

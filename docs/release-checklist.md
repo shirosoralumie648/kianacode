@@ -47,6 +47,9 @@ commercial release.
 - Install URLs point to the real repository and release assets.
 - Distribution manifests use the active repository/tag release URL and are
   attached with compliance artifacts.
+- Enterprise offline manifest validates against the pinned
+  `kiana.enterprise.offline-manifest.v1` contract and includes every release
+  artifact checksum.
 - Upgrade and rollback instructions are linked.
 - Package-manager channels are either published or explicitly marked as pending.
 

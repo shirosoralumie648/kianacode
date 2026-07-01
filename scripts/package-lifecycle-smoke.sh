@@ -99,6 +99,7 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
+  "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh"
@@ -151,7 +152,53 @@ run_installed license status --json | grep -Fq '"schema": "kiana.license-status.
 run_installed license status --json | grep -Fq '"status": "missing"'
 run_installed model list --json | grep -Fq '"provider_id": "openai-compatible"'
 run_installed model smoke --json | grep -Fq '"schema": "kiana.model-smoke.v1"'
+run_installed model smoke --json | grep -Fq '"tools": false'
 run_installed model smoke --json | grep -Fq '"provider_id": "fake"'
+run_installed model smoke --tools --json | grep -Fq '"tools": true'
+run_installed model smoke --tools --json | grep -Fq '"capability": "tools"'
+
+offline_manifest="$archive_dir/manifests/enterprise/offline-manifest.json"
+if [[ -f "$offline_manifest" ]]; then
+  python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  if [[ -z "$python_bin" ]]; then
+    echo "python3 or python is required to validate $offline_manifest" >&2
+    exit 1
+  fi
+  OFFLINE_MANIFEST="$offline_manifest" \
+  PACKAGE_ARCHIVE_NAME="$archive_name" \
+  PACKAGE_ARCHIVE_SHA="$(awk 'NF { print $1; exit }' "$archive_sha")" \
+  PACKAGE_VERSION="$version" \
+  "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+with open(os.environ["OFFLINE_MANIFEST"], "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+archive_name = os.environ["PACKAGE_ARCHIVE_NAME"]
+archive_sha = os.environ["PACKAGE_ARCHIVE_SHA"]
+version = os.environ["PACKAGE_VERSION"]
+artifacts = manifest.get("artifacts")
+artifact = None
+if isinstance(artifacts, list):
+    artifact = next((item for item in artifacts if item.get("archive") == archive_name), None)
+
+checks = [
+    manifest.get("schema") == "kiana.enterprise.offline-manifest.v1",
+    manifest.get("version") == version,
+    isinstance(manifest.get("release_base_url"), str) and manifest["release_base_url"],
+    artifact is not None,
+    artifact is not None and artifact.get("sha256") == archive_sha,
+    artifact is not None and archive_name in artifact.get("url", ""),
+    isinstance(manifest.get("channels"), dict),
+]
+if not all(checks):
+    print("enterprise offline manifest failed package lifecycle checks", file=sys.stderr)
+    print(json.dumps(manifest, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+fi
 
 pre_upgrade_hash="$(file_hash "$installed")"
 rollback_dir="$tmp_root/rollback"

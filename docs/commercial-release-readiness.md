@@ -48,8 +48,8 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Direct-connect Unix socket support is implemented for Unix builds through `cc+unix:///path/to/socket` and `kiana server --unix <path>`; Windows builds report the platform boundary explicitly.
 - Service-layer API key lookup now reuses the same effective config stack as CLI auth/config commands, including managed settings overrides and empty-value filtering.
 - Release smoke now enforces locked/offline Cargo test and release-build gates, and successful smoke subcommands keep their real exit status instead of relying only on output matching.
-- Release packaging now emits distribution manifest dry-runs from the same package checksums, including an enterprise offline manifest and explicit package-channel blockers when a target cannot be published yet.
-- Release package lifecycle smoke now verifies staged tarball checksums, extraction, install, repeated install, rollback restore, and uninstall behavior in a temporary install root.
+- Release packaging now emits distribution manifest dry-runs from the same package checksums, including an enterprise offline manifest, a pinned `kiana.enterprise.offline-manifest.v1` schema, and explicit package-channel blockers when a target cannot be published yet.
+- Release package lifecycle smoke now verifies staged tarball checksums, extraction, install, repeated install, rollback restore, uninstall behavior, installed model smoke tool reporting, and enterprise offline manifest artifact/checksum coverage in a temporary install root.
 - Added a `commercial` permission profile and doctor-level `commercial_security` readiness report for strict sandbox plus approval posture validation.
 - Added `kiana doctor --json` with a pinned `kiana.doctor.v1` schema and release smoke validation for schema-critical readiness fields.
 - OAuth token files can now be used as redacted remote/bridge bearer-token sources and refreshed through their stored refresh token when command-based refresh is not configured.
