@@ -25,6 +25,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Fetch locked dependencies
+        shell: bash
+        run: cargo fetch --locked
+
       - name: Install compliance tools
         shell: bash
         run: bash scripts/install-compliance-tools.sh
@@ -57,6 +61,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.sha256
+            dist/manifests/**
             dist/compliance/*
           if-no-files-found: error
 

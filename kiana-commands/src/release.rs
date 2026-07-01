@@ -340,6 +340,7 @@ mod tests {
 
         assert!(workflow.contains("name: Release Smoke"));
         assert!(workflow.contains("ubuntu-latest"));
+        assert!(workflow.contains("cargo fetch --locked"));
         assert!(workflow.contains("bash scripts/release-smoke.sh"));
     }
 
@@ -408,6 +409,39 @@ mod tests {
         assert!(!combined.contains("Phase 1"));
         assert!(!combined.contains("Phase 2"));
         assert!(!combined.contains("工具调用未启用"));
+    }
+
+    #[test]
+    fn release_package_generates_distribution_manifest_dry_runs() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap();
+        let package_script =
+            std::fs::read_to_string(root.join("scripts").join("package-release.sh"))
+                .expect("missing scripts/package-release.sh");
+        let manifest_script = std::fs::read_to_string(
+            root.join("scripts")
+                .join("generate-distribution-manifests.sh"),
+        )
+        .expect("missing scripts/generate-distribution-manifests.sh");
+        let preflight = std::fs::read_to_string(root.join("scripts").join("release-preflight.sh"))
+            .expect("missing scripts/release-preflight.sh");
+        let workflow =
+            std::fs::read_to_string(root.join(".github").join("workflows").join("release.yml"))
+                .expect("missing .github/workflows/release.yml");
+
+        assert!(package_script.contains("bash scripts/generate-distribution-manifests.sh"));
+        assert!(package_script
+            .contains("cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"));
+        assert!(preflight.contains("scripts/generate-distribution-manifests.sh"));
+        assert!(workflow.contains("cargo fetch --locked"));
+        assert!(workflow.contains("dist/manifests/**"));
+        assert!(manifest_script.contains("offline-manifest.json"));
+        assert!(manifest_script.contains("kiana.enterprise.offline-manifest.v1"));
+        assert!(manifest_script.contains("Homebrew Manifest Blocked"));
+        assert!(manifest_script.contains("winget Manifest Blocked"));
+        assert!(manifest_script.contains("blocked_until_supported_windows_installer"));
+        assert!(manifest_script.contains("KIANA_RELEASE_BASE_URL"));
     }
 
     #[test]

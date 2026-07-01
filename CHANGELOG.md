@@ -31,6 +31,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   precedence, and empty-value filtering.
 - Release smoke now enforces locked/offline Cargo test and release-build gates
   and preserves real CLI smoke exit status for expected-success commands.
+- Distribution manifest dry-runs are generated from release package checksums,
+  including an enterprise offline manifest and explicit package-channel blockers
+  when an artifact is not yet publishable by a target channel.
 
 ### Verified
 

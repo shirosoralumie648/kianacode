@@ -10,6 +10,9 @@ The channels below define the commercial distribution target state.
 - Binary tarball install through `scripts/install-release-binary.sh` after
   extracting the release archive.
 - Release tarballs include `SBOM.cdx.json` and `docs/compliance-report.json`.
+- Distribution manifest dry-runs are generated through
+  `scripts/generate-distribution-manifests.sh` and included beside package
+  artifacts under `dist/manifests/`.
 - GitHub Actions artifact workflow for Linux, macOS, and Windows once the real
   remote is active.
 - Release CI installs compliance tools through `scripts/install-compliance-tools.sh`
@@ -32,3 +35,7 @@ The channels below define the commercial distribution target state.
 
 Package-manager manifests must be generated from the same version and checksum
 set as the GitHub Release artifacts.
+
+Until Windows packaging produces a winget-supported ZIP/MSI/EXE, the winget
+manifest generator records an explicit blocker instead of pretending the tarball
+is publishable.

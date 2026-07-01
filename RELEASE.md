@@ -21,7 +21,7 @@ The gate runs:
 
 - `cargo fmt --all --check`
 - `cargo test --workspace --locked --offline --no-fail-fast`
-- `cargo build --release -p kiana-entrypoints --bin kiana`
+- `cargo build --release --locked --offline -p kiana-entrypoints --bin kiana`
 - release binary version and doctor smoke
 - help, auth, completion, plugin, MCP, and project MCP smoke checks
 - temporary source install into an isolated `INSTALL_DIR`
@@ -38,6 +38,8 @@ The package script creates:
 - `kiana-<version>-<os>-<arch>.tar.gz`
 - `kiana-<version>-<os>-<arch>.tar.gz.sha256`
 - `kiana-<version>-<os>-<arch>.binary.sha256`
+- `manifests/enterprise/offline-manifest.json`
+- package-channel dry-run files or explicit blockers under `manifests/`
 - `SBOM.cdx.json` inside the tarball
 - `docs/compliance-report.json` inside the tarball
 

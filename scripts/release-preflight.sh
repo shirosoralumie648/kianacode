@@ -43,6 +43,7 @@ for file in \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
+  scripts/generate-distribution-manifests.sh \
   .github/workflows/release-smoke.yml .github/workflows/release.yml
 do
   require_file "$file"

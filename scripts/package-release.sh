@@ -32,7 +32,7 @@ if [[ -e "$stage" || -e "$archive" ]]; then
   exit 1
 fi
 
-cargo build --release -p kiana-entrypoints --bin kiana
+cargo build --release --locked --offline -p kiana-entrypoints --bin kiana
 
 mkdir -p "$stage/docs" "$stage/scripts"
 cp "target/release/kiana${exe_ext}" "$stage/"
@@ -58,5 +58,7 @@ cp "$compliance_dir/compliance-report.json" "$stage/docs/compliance-report.json"
     echo "warning: sha256 tool not found; checksum files were not created" >&2
   fi
 )
+
+bash scripts/generate-distribution-manifests.sh
 
 echo "Created ${archive}"
