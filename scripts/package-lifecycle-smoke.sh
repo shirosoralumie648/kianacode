@@ -105,6 +105,8 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
@@ -175,6 +177,16 @@ run_installed model smoke --json | grep -Fq '"tools": false'
 run_installed model smoke --json | grep -Fq '"provider_id": "fake"'
 run_installed model smoke --tools --json | grep -Fq '"tools": true'
 run_installed model smoke --tools --json | grep -Fq '"capability": "tools"'
+context_fixture="$tmp_root/context-fixture"
+mkdir -p "$context_fixture/src"
+printf '%s\n' 'pub fn lifecycle_search() {}' '// lifecycle lifecycle search' > "$context_fixture/src/lib.rs"
+(
+  cd "$context_fixture"
+  run_installed context index --json | grep -Fq '"schema": "kiana.context-index.v1"'
+  run_installed context index --json | grep -Fq '"path": "src/lib.rs"'
+  run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
+  run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
+)
 
 offline_manifest="$archive_dir/manifests/enterprise/offline-manifest.json"
 if [[ -f "$offline_manifest" ]]; then

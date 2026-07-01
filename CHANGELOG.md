@@ -108,6 +108,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   for local repository file metadata and ranked lexical search.
 - Added pinned app-server subresponse schemas for conversations, settings,
   secrets, sandbox, and git-status release/package gates.
+- Added pinned context index/search schemas and release/package smoke checks for
+  local repository knowledge search.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

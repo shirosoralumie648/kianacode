@@ -327,6 +327,58 @@ if ollama is None or ollama.get("status") != "skipped":
 PY
 }
 
+smoke_context_index_search_json() {
+  local binary="$1"
+  local binary_path="$binary"
+  local project_dir
+  local index_output
+  local search_output
+  local python_bin
+
+  if [[ "$binary_path" != /* ]]; then
+    binary_path="$PWD/${binary_path#./}"
+  fi
+  project_dir="$(mktemp -d "$tmp_root/context-project.XXXXXX")"
+  mkdir -p "$project_dir/src"
+  printf '%s\n' 'pub fn release_context_search() {}' '// release release context search' > "$project_dir/src/lib.rs"
+  printf '%s\n' '# Context Guide' 'release context guide' > "$project_dir/README.md"
+
+  index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
+  search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
+  python_bin="$(doctor_json_python)"
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_SEARCH_JSON="$search_output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    index = json.loads(os.environ["CONTEXT_INDEX_JSON"])
+    search = json.loads(os.environ["CONTEXT_SEARCH_JSON"])
+except Exception as exc:
+    print(f"context JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("CONTEXT_INDEX_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_SEARCH_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+checks = [
+    index.get("schema") == "kiana.context-index.v1",
+    index.get("files_indexed") == 2,
+    any(item.get("path") == "src/lib.rs" and item.get("language") == "rust" for item in index.get("files", [])),
+    search.get("schema") == "kiana.context-search.v1",
+    search.get("terms") == ["release"],
+    search.get("limit") == 1,
+    len(search.get("hits", [])) == 1,
+    search.get("hits", [{}])[0].get("path") == "src/lib.rs",
+    "release" in search.get("hits", [{}])[0].get("matched_terms", []),
+]
+if not all(checks):
+    print("context index/search JSON failed smoke checks", file=sys.stderr)
+    print(json.dumps(index, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(search, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 smoke_license_status_json() {
   local binary="$1"
   local output
@@ -713,6 +765,7 @@ smoke_doctor "$release_bin"
 smoke_doctor_json "$release_bin"
 smoke_model_smoke_json "$release_bin"
 smoke_model_catalog_json "$release_bin"
+smoke_context_index_search_json "$release_bin"
 smoke_license_status_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$release_bin" "$entry"
@@ -729,6 +782,7 @@ smoke_doctor "$installed_bin"
 smoke_doctor_json "$installed_bin"
 smoke_model_smoke_json "$installed_bin"
 smoke_model_catalog_json "$installed_bin"
+smoke_context_index_search_json "$installed_bin"
 smoke_license_status_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$installed_bin" "$entry"

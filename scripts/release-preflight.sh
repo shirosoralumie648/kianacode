@@ -50,6 +50,8 @@ for file in \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
+  docs/schemas/kiana-context-index.v1.schema.json \
+  docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   docs/schemas/kiana-entitlement-proof.v1.schema.json \
@@ -148,6 +150,13 @@ else
   fail "release smoke does not exercise model catalog --json"
 fi
 
+if grep -Fq 'context index --json' scripts/release-smoke.sh &&
+  grep -Fq 'context search release --json --limit 1' scripts/release-smoke.sh; then
+  pass "context index/search JSON gates are wired"
+else
+  fail "release smoke does not exercise context index/search --json"
+fi
+
 if grep -Fq 'license status --json' scripts/release-smoke.sh; then
   pass "license status JSON gate is wired"
 else
@@ -201,6 +210,18 @@ if grep -Fq '"const": "kiana.model-catalog.v1"' docs/schemas/kiana-model-catalog
   pass "model catalog JSON schema version is pinned"
 else
   fail "model catalog JSON schema is missing kiana.model-catalog.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.context-index.v1"' docs/schemas/kiana-context-index.v1.schema.json; then
+  pass "context index JSON schema version is pinned"
+else
+  fail "context index JSON schema is missing kiana.context-index.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-search.v1.schema.json; then
+  pass "context search JSON schema version is pinned"
+else
+  fail "context search JSON schema is missing kiana.context-search.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then
