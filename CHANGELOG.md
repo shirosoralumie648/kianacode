@@ -48,6 +48,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   owner-only permissions where the platform exposes them.
 - Remote code-session create/bridge/smoke/hydrate commands retry once after an
   authentication failure by using the configured remote token refresh path.
+- Code-session auth retry now uses typed HTTP status from remote API errors,
+  with string matching retained only as a compatibility fallback.
 
 ### Verified
 

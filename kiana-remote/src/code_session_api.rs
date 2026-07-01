@@ -1,3 +1,4 @@
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -18,8 +19,30 @@ pub struct RemoteCredentials {
 pub enum CodeSessionApiError {
     #[error("{0}")]
     Message(String),
+    #[error("{action} failed: {status}{message}")]
+    HttpStatus {
+        action: String,
+        status: StatusCode,
+        message: String,
+    },
     #[error("code session request failed: {0}")]
     Request(#[from] reqwest::Error),
+}
+
+impl CodeSessionApiError {
+    pub fn http_status(&self) -> Option<StatusCode> {
+        match self {
+            Self::HttpStatus { status, .. } => Some(*status),
+            _ => None,
+        }
+    }
+
+    pub fn is_auth_failure_status(&self) -> bool {
+        matches!(
+            self.http_status(),
+            Some(StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN)
+        )
+    }
 }
 
 pub async fn create_code_session(
@@ -182,9 +205,13 @@ async fn code_session_error(response: reqwest::Response, action: &str) -> CodeSe
                 .map(str::to_string)
         })
         .filter(|message| !message.trim().is_empty());
-    CodeSessionApiError::Message(
-        api_message.unwrap_or_else(|| format!("{action} failed: {status}")),
-    )
+    CodeSessionApiError::HttpStatus {
+        action: action.to_string(),
+        status,
+        message: api_message
+            .map(|message| format!(": {message}"))
+            .unwrap_or_default(),
+    }
 }
 
 #[cfg(test)]
@@ -306,6 +333,25 @@ mod tests {
         );
         let body: Value = serde_json::from_str(&request.body).unwrap();
         assert_eq!(body, json!({}));
+    }
+
+    #[tokio::test]
+    async fn fetch_remote_credentials_reports_typed_unauthorized_status() {
+        let (base_url, _request) = spawn_mock_code_session_server(
+            401,
+            json!({ "error": { "message": "Authentication failed" } }).to_string(),
+        )
+        .await;
+
+        let error = fetch_remote_credentials(&base_url, "cse_session_1", "stale-token", None)
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.http_status(), Some(StatusCode::UNAUTHORIZED));
+        assert!(error.is_auth_failure_status());
+        let message = error.to_string();
+        assert!(message.contains("fetch remote credentials failed: 401 Unauthorized"));
+        assert!(message.contains("Authentication failed"));
     }
 
     #[test]

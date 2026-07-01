@@ -55,6 +55,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - OAuth token files that carry `expires_at` are refreshed before remote-session and bridge live calls when the token is expired or within the proactive refresh window.
 - OAuth token writes now use same-directory atomic replacement, flush before rename, and owner-only permissions on platforms with native permission bits.
 - Remote code-session create, bridge credential fetch, smoke, and hydrate commands retry once after auth failure through the same remote refresh path used by websocket reconnects.
+- Code-session auth retry now keys off typed 401/403 HTTP status from remote API errors, with text matching retained only as a compatibility fallback.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 

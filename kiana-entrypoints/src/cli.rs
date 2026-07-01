@@ -6248,7 +6248,8 @@ async fn remote_session_refresh_access_token_for_retry(
 }
 
 fn code_session_error_should_refresh(error: &kiana_remote::CodeSessionApiError) -> bool {
-    remote_session_error_looks_like_auth_failure(&error.to_string())
+    error.is_auth_failure_status()
+        || remote_session_error_looks_like_auth_failure(&error.to_string())
 }
 
 fn remote_session_api_key_misuse_error(prefix: Option<&str>) -> anyhow::Error {
