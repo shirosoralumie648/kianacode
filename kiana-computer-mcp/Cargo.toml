@@ -1,0 +1,30 @@
+[package]
+name = "kiana-computer-mcp"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+readme.workspace = true
+publish = false
+
+[features]
+default = []
+native = ["dep:arboard", "dep:base64", "dep:enigo", "dep:image", "dep:xcap"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+xcap = { workspace = true, optional = true }
+enigo = { workspace = true, optional = true }
+base64 = { version = "0.22", optional = true }
+arboard = { version = "3.4", optional = true }
+image = { version = "0.25", optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"

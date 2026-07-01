@@ -1,0 +1,74 @@
+[workspace]
+resolver = "2"
+members = [
+    "kiana-bootstrap",
+    "kiana-bridge",
+    "kiana-chrome-mcp",
+    "kiana-color-diff",
+    "kiana-commands",
+    "kiana-components",
+    "kiana-computer-input",
+    "kiana-computer-mcp",
+    "kiana-constants",
+    "kiana-coordinator",
+    "kiana-entrypoints",
+    "kiana-ink",
+    "kiana-modifiers",
+    "kiana-query",
+    "kiana-remote",
+    "kiana-screen-capture",
+    "kiana-screens",
+    "kiana-services",
+    "kiana-skills",
+    "kiana-tasks",
+    "kiana-tools",
+    "kiana-types",
+    "kiana-url-handler",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+authors = ["Kiana Project Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kiana-project/kiana"
+homepage = "https://github.com/kiana-project/kiana"
+description = "Kiana Code AI coding assistant workspace component."
+readme = "README.md"
+
+[workspace.dependencies]
+# 共享依赖
+tokio = { version = "1.44", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+async-trait = "0.1"
+futures = "0.3"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+axum = "0.8"
+clap = { version = "4.6", features = ["derive"] }
+ratatui = "0.29"
+crossterm = "0.28"
+tracing = "0.1"
+chrono = "0.4"
+uuid = { version = "1.11", features = ["v4"] }
+regex = "1.11"
+enigo = "0.6"
+rdev = "0.5"
+xcap = "0.9"
+syntect = "5.3"
+similar = "3.1"
+
+# 内部 crate
+kiana-types = { path = "kiana-types" }
+kiana-constants = { path = "kiana-constants" }
+kiana-coordinator = { path = "kiana-coordinator" }
+kiana-bootstrap = { path = "kiana-bootstrap" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

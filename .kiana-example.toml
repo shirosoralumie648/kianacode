@@ -1,0 +1,22 @@
+# Kiana Code 配置示例
+# 复制到 ~/.kiana/config.toml 并填入你的设置
+
+# Anthropic API Key（必需）
+api_key = "sk-ant-xxx"
+
+# 自定义 API Base URL（可选，用于代理或第三方兼容服务）
+# base_url = "https://api.anthropic.com"
+
+# 默认模型（可选）
+# model = "claude-sonnet-4-6"
+
+# 其他设置
+# [settings]
+# verbose = false
+
+# Bash sandbox（可选，Linux 上使用 bubblewrap/bwrap）
+# 推荐受控环境开启 fail_if_unavailable 并禁止自动降级到 unsandboxed。
+# [sandbox]
+# enabled = true
+# failIfUnavailable = true
+# allowUnsandboxedCommands = false

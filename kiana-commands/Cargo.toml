@@ -1,0 +1,29 @@
+[package]
+name = "kiana-commands"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+anyhow = "1.0"
+async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1.0", features = ["full"] }
+kiana-bootstrap = { path = "../kiana-bootstrap" }
+kiana-modifiers = { path = "../kiana-modifiers" }
+kiana-query = { path = "../kiana-query" }
+kiana-services = { path = "../kiana-services" }
+kiana-skills = { path = "../kiana-skills" }
+kiana-tools = { path = "../kiana-tools" }
+kiana-types = { path = "../kiana-types" }

@@ -1,0 +1,52 @@
+[package]
+name = "kiana-entrypoints"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+readme.workspace = true
+publish = false
+
+[features]
+default = []
+native-computer-use = ["kiana-computer-mcp/native"]
+
+[[bin]]
+name = "kiana"
+path = "src/bin/kiana.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+clap = { version = "4.6", features = ["derive"] }
+axum = { version = "0.8", features = ["ws"] }
+tokio-stream = "0.1"
+futures = "0.3"
+futures-util = "0.3"
+rustyline = "14.0"
+colored = "2"
+dirs = "5.0"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
+toml = "0.8"
+kiana-services = { path = "../kiana-services" }
+kiana-bootstrap = { path = "../kiana-bootstrap" }
+kiana-tools = { path = "../kiana-tools" }
+kiana-query = { path = "../kiana-query" }
+kiana-commands = { path = "../kiana-commands" }
+kiana-bridge = { path = "../kiana-bridge" }
+kiana-screens = { path = "../kiana-screens" }
+kiana-chrome-mcp = { path = "../kiana-chrome-mcp" }
+kiana-computer-mcp = { path = "../kiana-computer-mcp" }
+kiana-remote = { path = "../kiana-remote" }
+kiana-types = { path = "../kiana-types" }
+kiana-url-handler = { path = "../kiana-url-handler" }
+uuid = { version = "1", features = ["v4"] }
+async-trait = "0.1"
+url = "2.5"

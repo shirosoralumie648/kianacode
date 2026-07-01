@@ -1,0 +1,24 @@
+[package]
+name = "kiana-modifiers"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+readme.workspace = true
+publish = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+core-graphics = "0.23"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11-dl = "2.21"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+
+[dev-dependencies]

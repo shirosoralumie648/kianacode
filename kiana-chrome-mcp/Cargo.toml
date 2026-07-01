@@ -1,0 +1,24 @@
+[package]
+name = "kiana-chrome-mcp"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+chromiumoxide = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+futures = "0.3"
+base64 = "0.22"
+
+[dev-dependencies]
+tokio-test = "0.4"

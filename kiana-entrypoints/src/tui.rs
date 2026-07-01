@@ -1,0 +1,2904 @@
+use anyhow::{anyhow, Result};
+use kiana_commands::{
+    create_default_command_registry, CommandContext, CommandRegistry, CommandResult, CommandType,
+};
+use kiana_screens::{
+    repl::{ConversationMessage, MessageRole},
+    resume_conversation::SessionEntry,
+    App, AppAction, AppScreen,
+};
+use kiana_services::api::streaming::{ContentBlock, Delta, StreamEvent};
+use kiana_tools::tool_execution::{
+    PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
+};
+use serde_json::Value;
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use tokio::sync::{
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    oneshot, watch,
+};
+
+pub async fn run_tui() -> Result<()> {
+    ensure_tui_terminal(
+        std::io::stdin().is_terminal(),
+        std::io::stdout().is_terminal(),
+    )?;
+    let cwd = std::env::current_dir()?;
+    let runtime = Rc::new(RefCell::new(TuiRuntime::new(cwd).await?));
+    let action_runtime = Rc::clone(&runtime);
+    let tick_runtime = Rc::clone(&runtime);
+
+    kiana_screens::run_app_with_handlers(
+        move |action, app| action_runtime.borrow_mut().handle_action(action, app),
+        move |app| tick_runtime.borrow_mut().drain_events(app),
+    )
+}
+
+fn ensure_tui_terminal(stdin_is_terminal: bool, stdout_is_terminal: bool) -> Result<()> {
+    match (stdin_is_terminal, stdout_is_terminal) {
+        (true, true) => Ok(()),
+        (false, false) => Err(anyhow!(
+            "kiana tui requires an interactive terminal on stdin and stdout; run it directly from a terminal instead of a pipe or background process"
+        )),
+        (false, true) => Err(anyhow!(
+            "kiana tui requires interactive stdin; run it directly from a terminal instead of piping input"
+        )),
+        (true, false) => Err(anyhow!(
+            "kiana tui requires interactive stdout; run it directly from a terminal instead of redirecting output"
+        )),
+    }
+}
+
+struct TuiRuntime {
+    cwd: PathBuf,
+    session_id: String,
+    app_state: HashMap<String, Value>,
+    command_registry: CommandRegistry,
+    active_prompt_message_index: Option<usize>,
+    active_prompt_tool_workbenches: HashMap<String, String>,
+    active_prompt_abort: Option<watch::Sender<bool>>,
+    queued_prompts: VecDeque<String>,
+    pending_resume_session_id: Option<String>,
+    pending_permission: Option<PendingPermission>,
+    pending_permission_queue: VecDeque<PendingPermission>,
+    events_tx: UnboundedSender<TuiEvent>,
+    events_rx: UnboundedReceiver<TuiEvent>,
+}
+
+enum TuiEvent {
+    DoctorLoaded(Result<String, String>),
+    ResumeEntriesLoaded(Result<Vec<SessionEntry>, String>),
+    SlashCommandCompleted {
+        name: String,
+        command_type: CommandType,
+        result: Result<CommandResult, String>,
+        session_sync: Option<Result<ResumedSession, String>>,
+    },
+    PromptStreamDelta(String),
+    PromptStreamUsage {
+        model: Option<String>,
+        input_tokens: Option<u64>,
+        output_tokens: Option<u64>,
+    },
+    PromptToolUseStarted {
+        id: String,
+        name: String,
+        input: Value,
+    },
+    PromptToolResult {
+        id: String,
+        is_error: bool,
+        content: String,
+    },
+    PromptCompleted(Result<String, String>),
+    PromptSessionRefreshed {
+        session_id: String,
+        result: Result<ResumedSession, String>,
+    },
+    PermissionRequested {
+        request: PermissionPromptRequest,
+        respond_to: oneshot::Sender<PermissionPromptDecision>,
+    },
+    SessionResumed {
+        requested_session_id: String,
+        result: Result<ResumedSession, String>,
+    },
+    SessionCleared(Result<String, String>),
+}
+
+struct PendingPermission {
+    request: PermissionPromptRequest,
+    respond_to: oneshot::Sender<PermissionPromptDecision>,
+}
+
+struct ResumedSession {
+    session_id: String,
+    title: String,
+    messages: Vec<ConversationMessage>,
+}
+
+impl TuiRuntime {
+    async fn new(cwd: PathBuf) -> Result<Self> {
+        let session_id = create_tui_session(&cwd).await?;
+        let (events_tx, events_rx) = unbounded_channel();
+        Ok(Self {
+            cwd,
+            session_id,
+            app_state: HashMap::new(),
+            command_registry: create_default_command_registry(),
+            active_prompt_message_index: None,
+            active_prompt_tool_workbenches: HashMap::new(),
+            active_prompt_abort: None,
+            queued_prompts: VecDeque::new(),
+            pending_resume_session_id: None,
+            pending_permission: None,
+            pending_permission_queue: VecDeque::new(),
+            events_tx,
+            events_rx,
+        })
+    }
+
+    fn handle_action(&mut self, action: AppAction, app: &mut App) -> Result<()> {
+        match action {
+            AppAction::LoadDoctor => {
+                self.load_doctor(app);
+            }
+            AppAction::LoadResumeSessions => {
+                app.resume.loading = true;
+                let events_tx = self.events_tx.clone();
+                let cwd = self.cwd.clone();
+                tokio::spawn(async move {
+                    let result = load_resume_entries(&cwd)
+                        .await
+                        .map_err(|error| error.to_string());
+                    let _ = events_tx.send(TuiEvent::ResumeEntriesLoaded(result));
+                });
+            }
+            AppAction::SubmitPrompt(prompt) => {
+                self.start_prompt(prompt, app);
+            }
+            AppAction::QueuePrompt(prompt) => {
+                self.queue_prompt(prompt, app);
+            }
+            AppAction::CancelPrompt => {
+                self.cancel_active_prompt(app);
+            }
+            AppAction::RunSlashCommand { name, args } => {
+                self.handle_slash_command(name, args, app);
+            }
+            AppAction::ResumeSession(session_id) => {
+                app.repl.is_loading = true;
+                self.pending_resume_session_id = Some(session_id.clone());
+                let events_tx = self.events_tx.clone();
+                tokio::spawn(async move {
+                    let requested_session_id = session_id.clone();
+                    let result = load_resumed_session(session_id)
+                        .await
+                        .map_err(|error| error.to_string());
+                    let _ = events_tx.send(TuiEvent::SessionResumed {
+                        requested_session_id,
+                        result,
+                    });
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn load_doctor(&mut self, app: &mut App) {
+        app.doctor.set_loading();
+        let Some(command) = self.command_registry.get("doctor").cloned() else {
+            app.doctor
+                .set_error("doctor command is not registered".to_string());
+            return;
+        };
+
+        let app_state = self.command_app_state(app);
+        let events_tx = self.events_tx.clone();
+        tokio::spawn(async move {
+            let result = command
+                .execute(CommandContext {
+                    args: String::new(),
+                    app_state,
+                })
+                .await
+                .map(|result| result.value)
+                .map_err(|error| error.to_string());
+            let _ = events_tx.send(TuiEvent::DoctorLoaded(result));
+        });
+    }
+
+    fn start_prompt(&mut self, prompt: String, app: &mut App) {
+        if app.repl.is_loading {
+            app.repl.push_message(
+                MessageRole::System,
+                "A prompt is already running.".to_string(),
+            );
+            return;
+        }
+        app.repl.is_loading = true;
+        self.active_prompt_message_index = None;
+        self.active_prompt_tool_workbenches.clear();
+        let mut options = repl_prompt_options(&self.session_id, &self.cwd);
+        options.insert("execute".to_string(), Value::Bool(true));
+        options.insert(
+            "permission_prompt_tool".to_string(),
+            Value::String("stdio".to_string()),
+        );
+        let (abort_tx, abort_rx) = watch::channel(false);
+        self.active_prompt_abort = Some(abort_tx);
+        let events_tx = self.events_tx.clone();
+        tokio::spawn(async move {
+            let stream_events_tx = events_tx.clone();
+            let permission_handler = TuiPermissionPromptHandler {
+                events_tx: events_tx.clone(),
+            };
+            let result = crate::sdk::unstable_v2_prompt_streaming_with_local_events_and_permission_handler_and_abort_signal(
+                    prompt,
+                    options,
+                    move |event| {
+                        match event {
+                            crate::sdk::SdkPromptStreamEvent::Model(event) => {
+                                if let Some(delta) = prompt_text_delta_from_stream_event(&event) {
+                                    let _ = stream_events_tx.send(TuiEvent::PromptStreamDelta(delta));
+                                }
+                                if let Some(event) = prompt_usage_from_stream_event(&event) {
+                                    let _ = stream_events_tx.send(event);
+                                }
+                                if let Some(event) = prompt_tool_use_from_stream_event(&event) {
+                                    let _ = stream_events_tx.send(event);
+                                }
+                            }
+                            crate::sdk::SdkPromptStreamEvent::ToolResult {
+                                id,
+                                is_error,
+                                content,
+                                ..
+                            } => {
+                                let _ = stream_events_tx.send(TuiEvent::PromptToolResult {
+                                    id,
+                                    is_error,
+                                    content,
+                                });
+                            }
+                        }
+                        Ok(())
+                    },
+                    &permission_handler,
+                    abort_rx,
+                )
+                .await
+                .map(|result| assistant_text_from_result(&result).to_string())
+                .map_err(|error| error.to_string());
+            let _ = events_tx.send(TuiEvent::PromptCompleted(result));
+        });
+    }
+
+    fn queue_prompt(&mut self, prompt: String, app: &mut App) {
+        if prompt.trim().is_empty() {
+            return;
+        }
+        self.queued_prompts.push_back(prompt);
+        app.repl.push_message(
+            MessageRole::System,
+            "Queued prompt; it will run after the current response.".to_string(),
+        );
+    }
+
+    fn handle_slash_command(&mut self, name: String, args: String, app: &mut App) {
+        let name = if name == "quit" {
+            "exit".to_string()
+        } else {
+            name
+        };
+
+        if self.handle_permission_response_command(&name, &args, app) {
+            return;
+        }
+
+        if matches!(name.as_str(), "cancel" | "stop") {
+            self.cancel_active_prompt(app);
+            return;
+        }
+
+        if app.repl.is_loading {
+            app.repl.push_message(
+                MessageRole::System,
+                "A prompt or command is already running.".to_string(),
+            );
+            return;
+        }
+
+        if is_clear_session_command(&name, &args) {
+            self.start_clear_session(app);
+            return;
+        }
+
+        let Some(command) = self.command_registry.get(&name).cloned() else {
+            app.repl.push_message(
+                MessageRole::System,
+                format!("Unknown command: /{name}. Try /help."),
+            );
+            return;
+        };
+
+        app.repl.is_loading = true;
+        let command_type = command.command_type();
+        let app_state = self.command_app_state(app);
+        let current_session_id = self.session_id.clone();
+        let events_tx = self.events_tx.clone();
+        tokio::spawn(async move {
+            let result = command
+                .execute(CommandContext { args, app_state })
+                .await
+                .map_err(|error| error.to_string());
+            let session_sync = match &result {
+                Ok(result) => match session_sync_request(&name, result, &current_session_id) {
+                    Some(session_id) => Some(
+                        load_resumed_session(session_id)
+                            .await
+                            .map_err(|error| error.to_string()),
+                    ),
+                    None => None,
+                },
+                Err(_) => None,
+            };
+            let _ = events_tx.send(TuiEvent::SlashCommandCompleted {
+                name,
+                command_type,
+                result,
+                session_sync,
+            });
+        });
+    }
+
+    fn start_clear_session(&mut self, app: &mut App) {
+        app.repl.is_loading = true;
+        let cwd = self.cwd.clone();
+        let events_tx = self.events_tx.clone();
+        tokio::spawn(async move {
+            let result = create_tui_session(&cwd)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = events_tx.send(TuiEvent::SessionCleared(result));
+        });
+    }
+
+    fn cancel_active_prompt(&mut self, app: &mut App) {
+        let mut cancelled = false;
+        if let Some(abort_tx) = self.active_prompt_abort.take() {
+            let _ = abort_tx.send(true);
+            cancelled = true;
+        }
+        if let Some(pending) = self.pending_permission.take() {
+            let _ = pending.respond_to.send(PermissionPromptDecision::Deny(
+                "Prompt cancelled by user.".to_string(),
+            ));
+            cancelled = true;
+        }
+        if !self.pending_permission_queue.is_empty() {
+            for pending in self.pending_permission_queue.drain(..) {
+                let _ = pending.respond_to.send(PermissionPromptDecision::Deny(
+                    "Prompt cancelled by user.".to_string(),
+                ));
+            }
+            cancelled = true;
+        }
+
+        if cancelled {
+            self.active_prompt_message_index = None;
+            app.repl.permission_request_active = false;
+            app.repl.permission_request_queue_len = 0;
+            self.queued_prompts.clear();
+            app.repl.push_message(
+                MessageRole::System,
+                "Cancelling current prompt and clearing queued prompt.".to_string(),
+            );
+        } else {
+            app.repl
+                .push_message(MessageRole::System, "No prompt is running.".to_string());
+        }
+    }
+
+    fn command_app_state(&self, app: &App) -> HashMap<String, Value> {
+        let mut state = self.app_state.clone();
+        state.insert(
+            "session_id".to_string(),
+            Value::String(self.session_id.clone()),
+        );
+        state.insert(
+            "cwd".to_string(),
+            Value::String(self.cwd.to_string_lossy().to_string()),
+        );
+        state.insert(
+            "tui_permission_request_active".to_string(),
+            Value::Bool(app.repl.permission_request_active),
+        );
+        state.insert(
+            "tui_permission_request_queue_len".to_string(),
+            Value::from(app.repl.permission_request_queue_len),
+        );
+        state
+    }
+
+    fn drain_events(&mut self, app: &mut App) -> Result<()> {
+        while let Ok(event) = self.events_rx.try_recv() {
+            self.apply_event(app, event);
+        }
+        Ok(())
+    }
+
+    fn apply_event(&mut self, app: &mut App, event: TuiEvent) {
+        match event {
+            TuiEvent::DoctorLoaded(result) => match result {
+                Ok(output) => app.doctor.set_output(output),
+                Err(error) => app.doctor.set_error(error),
+            },
+            TuiEvent::ResumeEntriesLoaded(result) => {
+                app.resume.loading = false;
+                match result {
+                    Ok(entries) => app.resume.load_sessions(entries),
+                    Err(error) => {
+                        app.screen = AppScreen::Repl;
+                        app.repl.push_message(
+                            MessageRole::System,
+                            format!("Failed to load sessions: {error}"),
+                        );
+                    }
+                }
+            }
+            TuiEvent::SlashCommandCompleted {
+                name,
+                command_type,
+                result,
+                session_sync,
+            } => {
+                app.repl.is_loading = false;
+                match result {
+                    Ok(result) if result.output_type == "exit" => {
+                        if !result.value.trim().is_empty() {
+                            app.repl.push_message(MessageRole::System, result.value);
+                        }
+                        app.should_quit = true;
+                    }
+                    Ok(result) => match command_type {
+                        CommandType::Prompt => {
+                            if result.value.trim().is_empty() {
+                                app.repl.push_message(
+                                    MessageRole::System,
+                                    format!("/{name} produced an empty prompt."),
+                                );
+                            } else {
+                                app.repl.push_message(
+                                    MessageRole::System,
+                                    format!("Expanded /{name} and sent it to the assistant."),
+                                );
+                                self.start_prompt(result.value, app);
+                            }
+                        }
+                        CommandType::Local | CommandType::LocalJsx => {
+                            self.apply_local_command_result(app, result, session_sync)
+                        }
+                    },
+                    Err(error) => app
+                        .repl
+                        .push_message(MessageRole::System, format!("/{name} failed: {error}")),
+                }
+            }
+            TuiEvent::PromptStreamDelta(delta) => {
+                self.apply_prompt_stream_delta(app, delta);
+            }
+            TuiEvent::PromptStreamUsage {
+                model,
+                input_tokens,
+                output_tokens,
+            } => {
+                if let Some(model) = model {
+                    app.repl.model_name = model;
+                }
+                if let Some(input_tokens) = input_tokens {
+                    app.repl.input_tokens = input_tokens;
+                }
+                if let Some(output_tokens) = output_tokens {
+                    app.repl.output_tokens = output_tokens;
+                }
+            }
+            TuiEvent::PromptToolUseStarted { id, name, input } => {
+                self.active_prompt_message_index = None;
+                let workbench = crate::runner::default_tool_workbench(&name);
+                if let Some(workbench) = &workbench {
+                    self.active_prompt_tool_workbenches
+                        .insert(id.clone(), workbench.clone());
+                }
+                app.repl.push_message(
+                    MessageRole::Tool,
+                    format_tool_use_message(&id, &name, workbench.as_deref(), &input),
+                );
+            }
+            TuiEvent::PromptToolResult {
+                id,
+                is_error,
+                content,
+            } => {
+                let workbench = self.active_prompt_tool_workbenches.remove(&id);
+                self.apply_prompt_tool_result(app, id, is_error, workbench.as_deref(), content);
+            }
+            TuiEvent::PromptCompleted(result) => {
+                let should_wait_for_refresh = result.is_ok();
+                app.repl.is_loading = false;
+                app.repl.permission_request_active = false;
+                app.repl.permission_request_queue_len = 0;
+                self.active_prompt_abort = None;
+                self.apply_prompt_completed(app, result);
+                if !should_wait_for_refresh {
+                    self.start_queued_prompt_if_idle(app);
+                }
+            }
+            TuiEvent::PromptSessionRefreshed { session_id, result } => {
+                self.apply_prompt_session_refreshed(app, session_id, result);
+                self.start_queued_prompt_if_idle(app);
+            }
+            TuiEvent::PermissionRequested {
+                request,
+                respond_to,
+            } => {
+                self.apply_permission_requested(app, request, respond_to);
+            }
+            TuiEvent::SessionResumed {
+                requested_session_id,
+                result,
+            } => {
+                if self.pending_resume_session_id.as_deref() != Some(&requested_session_id) {
+                    return;
+                }
+                self.pending_resume_session_id = None;
+                app.repl.is_loading = false;
+                self.active_prompt_message_index = None;
+                match result {
+                    Ok(resumed) => {
+                        self.session_id = resumed.session_id.clone();
+                        app.repl.messages = resumed.messages;
+                        app.repl.push_message(
+                            MessageRole::System,
+                            format!("Resumed session {} ({})", resumed.session_id, resumed.title),
+                        );
+                    }
+                    Err(error) => app
+                        .repl
+                        .push_message(MessageRole::System, format!("Resume failed: {error}")),
+                }
+            }
+            TuiEvent::SessionCleared(result) => {
+                app.repl.is_loading = false;
+                app.repl.permission_request_active = false;
+                app.repl.permission_request_queue_len = 0;
+                self.active_prompt_message_index = None;
+                self.pending_resume_session_id = None;
+                self.queued_prompts.clear();
+                match result {
+                    Ok(session_id) => {
+                        self.session_id = session_id.clone();
+                        self.app_state.clear();
+                        app.repl.messages.clear();
+                        app.repl.scroll_offset = 0;
+                        app.repl.push_message(
+                            MessageRole::System,
+                            format!("New session: {session_id}"),
+                        );
+                    }
+                    Err(error) => app
+                        .repl
+                        .push_message(MessageRole::System, format!("Clear failed: {error}")),
+                }
+            }
+        }
+    }
+
+    fn apply_local_command_result(
+        &mut self,
+        app: &mut App,
+        result: CommandResult,
+        session_sync: Option<Result<ResumedSession, String>>,
+    ) {
+        if let Some(sync) = session_sync {
+            match sync {
+                Ok(resumed) => {
+                    self.session_id = resumed.session_id.clone();
+                    let message_count = resumed.messages.len();
+                    let status =
+                        session_sync_status_message(&result, &self.session_id, message_count);
+                    app.repl.messages = resumed.messages;
+                    app.repl.push_message(MessageRole::System, status);
+                    return;
+                }
+                Err(error) => {
+                    app.repl.push_message(
+                        MessageRole::System,
+                        format!("Session command completed but transcript refresh failed: {error}"),
+                    );
+                    return;
+                }
+            }
+        }
+
+        if !result.value.trim().is_empty() {
+            app.repl.push_message(MessageRole::System, result.value);
+        }
+    }
+
+    fn start_queued_prompt_if_idle(&mut self, app: &mut App) {
+        if app.repl.is_loading {
+            return;
+        }
+        let Some(prompt) = self.queued_prompts.pop_front() else {
+            return;
+        };
+        app.repl.push_message(MessageRole::User, prompt.clone());
+        self.start_prompt(prompt, app);
+    }
+
+    fn apply_prompt_stream_delta(&mut self, app: &mut App, delta: String) {
+        if delta.is_empty() {
+            return;
+        }
+
+        if let Some(index) = self.active_prompt_message_index {
+            if let Some(message) = app.repl.messages.get_mut(index) {
+                if message.role == MessageRole::Assistant {
+                    message.content.push_str(&delta);
+                    app.repl.scroll_offset = 0;
+                    return;
+                }
+            }
+        }
+
+        app.repl.push_message(MessageRole::Assistant, delta);
+        self.active_prompt_message_index = app.repl.messages.len().checked_sub(1);
+    }
+
+    fn apply_prompt_tool_result(
+        &mut self,
+        app: &mut App,
+        id: String,
+        is_error: bool,
+        workbench: Option<&str>,
+        content: String,
+    ) {
+        let result_message = format_tool_result_message(is_error, workbench, &content);
+        for message in app.repl.messages.iter_mut().rev() {
+            if message.role == MessageRole::Tool && tool_message_matches_id(&message.content, &id) {
+                message.content = append_or_replace_tool_result(&message.content, &result_message);
+                app.repl.scroll_offset = 0;
+                return;
+            }
+        }
+
+        app.repl.push_message(
+            MessageRole::Tool,
+            format!("tool_use_id: {id}\n{result_message}"),
+        );
+    }
+
+    fn apply_prompt_completed(&mut self, app: &mut App, result: Result<String, String>) {
+        match result {
+            Ok(text) if text.trim().is_empty() => {
+                self.active_prompt_message_index = None;
+                self.refresh_completed_prompt_session();
+            }
+            Ok(text) => {
+                let mut completed_text = Some(text);
+                if let Some(index) = self.active_prompt_message_index {
+                    if let Some(message) = app.repl.messages.get_mut(index) {
+                        if message.role == MessageRole::Assistant {
+                            message.content = completed_text.take().unwrap_or_default();
+                            app.repl.scroll_offset = 0;
+                        }
+                    }
+                }
+                if let Some(text) = completed_text {
+                    app.repl.push_message(MessageRole::Assistant, text);
+                }
+                self.active_prompt_message_index = None;
+                self.refresh_completed_prompt_session();
+            }
+            Err(error) if error.contains("assistant turn cancelled") => app
+                .repl
+                .push_message(MessageRole::System, "Prompt cancelled.".to_string()),
+            Err(error) => app
+                .repl
+                .push_message(MessageRole::System, format!("Prompt failed: {error}")),
+        }
+    }
+
+    fn refresh_completed_prompt_session(&self) {
+        let session_id = self.session_id.clone();
+        let events_tx = self.events_tx.clone();
+        tokio::spawn(async move {
+            let result = load_resumed_session(session_id.clone())
+                .await
+                .map_err(|error| error.to_string());
+            let _ = events_tx.send(TuiEvent::PromptSessionRefreshed { session_id, result });
+        });
+    }
+
+    fn apply_prompt_session_refreshed(
+        &mut self,
+        app: &mut App,
+        session_id: String,
+        result: Result<ResumedSession, String>,
+    ) {
+        if session_id != self.session_id {
+            return;
+        }
+
+        match result {
+            Ok(resumed) => {
+                app.repl.messages = resumed.messages;
+                app.repl.scroll_offset = 0;
+            }
+            Err(error) => app.repl.push_message(
+                MessageRole::System,
+                format!("Failed to refresh prompt session: {error}"),
+            ),
+        }
+    }
+
+    fn apply_permission_requested(
+        &mut self,
+        app: &mut App,
+        request: PermissionPromptRequest,
+        respond_to: oneshot::Sender<PermissionPromptDecision>,
+    ) {
+        self.active_prompt_message_index = None;
+        let pending = PendingPermission {
+            request,
+            respond_to,
+        };
+        if self.pending_permission.is_none() {
+            self.show_pending_permission(app, pending);
+        } else {
+            let tool_name = pending.request.tool_name.clone();
+            self.pending_permission_queue.push_back(pending);
+            app.repl.permission_request_queue_len = self.pending_permission_queue.len();
+            app.repl.push_message(
+                MessageRole::System,
+                format!("Queued permission request for {tool_name}."),
+            );
+        }
+    }
+
+    fn handle_permission_response_command(
+        &mut self,
+        name: &str,
+        args: &str,
+        app: &mut App,
+    ) -> bool {
+        let decision = match name {
+            "allow" | "approve" => Some(PermissionPromptDecision::Allow),
+            "deny" | "reject" => Some(PermissionPromptDecision::Deny(if args.trim().is_empty() {
+                "Permission denied in TUI.".to_string()
+            } else {
+                args.trim().to_string()
+            })),
+            _ => None,
+        };
+        let Some(decision) = decision else {
+            return false;
+        };
+
+        let Some(pending) = self.pending_permission.take() else {
+            app.repl.push_message(
+                MessageRole::System,
+                "No pending permission request.".to_string(),
+            );
+            return true;
+        };
+
+        let tool_name = pending.request.tool_name.clone();
+        let status = match &decision {
+            PermissionPromptDecision::Allow => "Approved",
+            PermissionPromptDecision::Deny(_) => "Denied",
+        };
+        match pending.respond_to.send(decision) {
+            Ok(()) => app
+                .repl
+                .push_message(MessageRole::System, format!("{status} {tool_name}.")),
+            Err(_) => app.repl.push_message(
+                MessageRole::System,
+                format!("Permission request for {tool_name} is no longer active."),
+            ),
+        }
+        self.activate_next_pending_permission(app);
+        true
+    }
+
+    fn show_pending_permission(&mut self, app: &mut App, pending: PendingPermission) {
+        app.repl.permission_request_active = true;
+        app.repl.permission_request_queue_len = self.pending_permission_queue.len();
+        app.repl.push_message(
+            MessageRole::System,
+            format_permission_request_message(&pending.request),
+        );
+        self.pending_permission = Some(pending);
+    }
+
+    fn activate_next_pending_permission(&mut self, app: &mut App) {
+        if self.pending_permission.is_some() {
+            return;
+        }
+        if let Some(pending) = self.pending_permission_queue.pop_front() {
+            self.show_pending_permission(app, pending);
+        } else {
+            app.repl.permission_request_active = false;
+            app.repl.permission_request_queue_len = 0;
+        }
+    }
+}
+
+#[derive(Clone)]
+struct TuiPermissionPromptHandler {
+    events_tx: UnboundedSender<TuiEvent>,
+}
+
+#[async_trait::async_trait]
+impl PermissionPromptHandler for TuiPermissionPromptHandler {
+    async fn prompt(
+        &self,
+        request: PermissionPromptRequest,
+    ) -> Result<PermissionPromptDecision, String> {
+        let (respond_to, response_rx) = oneshot::channel();
+        self.events_tx
+            .send(TuiEvent::PermissionRequested {
+                request,
+                respond_to,
+            })
+            .map_err(|_| "TUI permission prompt is unavailable".to_string())?;
+        response_rx
+            .await
+            .map_err(|_| "TUI permission prompt was dismissed".to_string())
+    }
+}
+
+async fn create_tui_session(cwd: &Path) -> Result<String> {
+    let mut options = HashMap::new();
+    options.insert(
+        "title".to_string(),
+        Value::String(tui_session_title(cwd).to_string()),
+    );
+    options.insert("tag".to_string(), Value::String("tui".to_string()));
+    options.insert(
+        "cwd".to_string(),
+        Value::String(cwd.to_string_lossy().to_string()),
+    );
+    let session = crate::sdk::unstable_v2_create_session(options).await?;
+    Ok(session.session_id)
+}
+
+async fn load_resume_entries(cwd: &Path) -> Result<Vec<SessionEntry>> {
+    let sessions = crate::sdk::list_sessions().await?;
+    Ok(filter_resume_sessions_for_cwd(sessions, cwd)
+        .into_iter()
+        .map(session_info_to_entry)
+        .collect())
+}
+
+fn filter_resume_sessions_for_cwd(
+    sessions: Vec<crate::sdk::SdkSessionInfo>,
+    cwd: &Path,
+) -> Vec<crate::sdk::SdkSessionInfo> {
+    let cwd = cwd.to_string_lossy();
+    let has_cwd_metadata = sessions.iter().any(|session| session.cwd.is_some());
+    let current_cwd_sessions = sessions
+        .iter()
+        .filter(|session| session.cwd.as_deref() == Some(cwd.as_ref()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !current_cwd_sessions.is_empty() || has_cwd_metadata {
+        return current_cwd_sessions;
+    }
+    sessions
+}
+
+fn session_info_to_entry(session: crate::sdk::SdkSessionInfo) -> SessionEntry {
+    SessionEntry {
+        session_id: session.session_id,
+        title: session.title.unwrap_or_else(|| "Untitled".to_string()),
+        timestamp: session.updated_at.to_string(),
+        message_count: session.message_count,
+    }
+}
+
+async fn load_resumed_session(session_id: String) -> Result<ResumedSession> {
+    let Some(info) = crate::sdk::get_session_info(session_id.clone()).await? else {
+        return Err(anyhow!("session '{}' was not found", session_id));
+    };
+    let messages = crate::sdk::get_session_messages(session_id.clone()).await?;
+    Ok(ResumedSession {
+        session_id: session_id.clone(),
+        title: info.title.unwrap_or_else(|| "untitled".to_string()),
+        messages: sdk_messages_to_conversation(&session_id, messages),
+    })
+}
+
+fn session_sync_request(
+    command_name: &str,
+    result: &CommandResult,
+    current_session_id: &str,
+) -> Option<String> {
+    if command_name != "session" {
+        return None;
+    }
+    if let Some(metadata) = &result.metadata {
+        if metadata
+            .get("session_switch_reason")
+            .is_some_and(|value| value == "fork")
+            && metadata
+                .get("session_source_id")
+                .is_some_and(|value| value == current_session_id)
+        {
+            return metadata.get("session_switch_to").cloned();
+        }
+        if metadata
+            .get("session_transcript_mutated")
+            .is_some_and(|value| value == "true")
+        {
+            return metadata
+                .get("session_id")
+                .filter(|session_id| session_id.as_str() == current_session_id)
+                .cloned();
+        }
+    }
+    let value = serde_json::from_str::<Value>(&result.value).ok()?;
+    if value.get("type").and_then(Value::as_str) != Some("sdk_prompt_recorded") {
+        return None;
+    }
+    value
+        .get("session_id")
+        .and_then(Value::as_str)
+        .filter(|session_id| !session_id.trim().is_empty())
+        .filter(|session_id| *session_id == current_session_id)
+        .map(str::to_string)
+}
+
+fn is_clear_session_command(name: &str, args: &str) -> bool {
+    name == "clear" && args.trim().is_empty()
+}
+
+fn session_sync_status_message(
+    result: &CommandResult,
+    session_id: &str,
+    message_count: usize,
+) -> String {
+    if result
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.get("session_switch_reason"))
+        .is_some_and(|value| value == "fork")
+    {
+        return result.value.replacen("Session forked", "Forked session", 1);
+    }
+    format!("Session updated\nid: {session_id}\nmessages: {message_count}")
+}
+
+fn repl_prompt_options(session_id: &str, cwd: &Path) -> HashMap<String, Value> {
+    HashMap::from([
+        (
+            "session_id".to_string(),
+            Value::String(session_id.to_string()),
+        ),
+        (
+            "cwd".to_string(),
+            Value::String(cwd.to_string_lossy().to_string()),
+        ),
+    ])
+}
+
+fn tui_session_title(cwd: &Path) -> String {
+    let name = cwd
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(".");
+    format!("TUI {}", name)
+}
+
+fn assistant_text_from_result(result: &Value) -> &str {
+    result
+        .get("assistant_text")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+fn prompt_text_delta_from_stream_event(event: &StreamEvent) -> Option<String> {
+    match event {
+        StreamEvent::ContentBlockStart {
+            content_block: ContentBlock::Text { text },
+            ..
+        }
+        | StreamEvent::ContentBlockDelta {
+            delta: Delta::TextDelta { text },
+            ..
+        } if !text.is_empty() => Some(text.clone()),
+        _ => None,
+    }
+}
+
+fn prompt_usage_from_stream_event(event: &StreamEvent) -> Option<TuiEvent> {
+    match event {
+        StreamEvent::MessageStart { message } => Some(TuiEvent::PromptStreamUsage {
+            model: Some(message.model.clone()),
+            input_tokens: Some(u64::from(message.usage.input_tokens)),
+            output_tokens: Some(u64::from(message.usage.output_tokens)),
+        }),
+        StreamEvent::MessageDelta { usage, .. } => Some(TuiEvent::PromptStreamUsage {
+            model: None,
+            input_tokens: None,
+            output_tokens: Some(u64::from(usage.output_tokens)),
+        }),
+        _ => None,
+    }
+}
+
+fn prompt_tool_use_from_stream_event(event: &StreamEvent) -> Option<TuiEvent> {
+    match event {
+        StreamEvent::ContentBlockStart {
+            content_block: ContentBlock::ToolUse(tool_use),
+            ..
+        } => Some(TuiEvent::PromptToolUseStarted {
+            id: tool_use.id.clone(),
+            name: tool_use.name.clone(),
+            input: tool_use.input.clone(),
+        }),
+        _ => None,
+    }
+}
+
+fn format_tool_use_message(id: &str, name: &str, workbench: Option<&str>, input: &Value) -> String {
+    let mut lines = vec![
+        format!("Tool requested: {name}"),
+        format!("tool_use_id: {id}"),
+    ];
+    if let Some(workbench) = non_empty_workbench(workbench) {
+        lines.push(format!("workbench: {workbench}"));
+    }
+    if let Some(summary) = format_tool_input_summary(input) {
+        lines.push(format!("input:\n{summary}"));
+    }
+    lines.join("\n")
+}
+
+fn format_tool_result_message(is_error: bool, workbench: Option<&str>, content: &str) -> String {
+    let status = if is_error { "error" } else { "success" };
+    let mut lines = vec![format!("result: {status}")];
+    if let Some(workbench) = non_empty_workbench(workbench) {
+        lines.push(format!("workbench: {workbench}"));
+    }
+    let summary = truncate_chars(content.trim().to_string(), 2000);
+    if !summary.is_empty() {
+        lines.push(summary);
+    }
+    lines.join("\n")
+}
+
+fn non_empty_workbench(workbench: Option<&str>) -> Option<&str> {
+    workbench.filter(|value| !value.trim().is_empty())
+}
+
+fn tool_message_matches_id(content: &str, id: &str) -> bool {
+    let needle = format!("tool_use_id: {id}");
+    content.lines().any(|line| line.trim() == needle)
+}
+
+fn append_or_replace_tool_result(content: &str, result_message: &str) -> String {
+    if let Some(index) = content.find("\nresult: ") {
+        return format!("{}\n{}", &content[..index], result_message);
+    }
+    format!("{content}\n{result_message}")
+}
+
+fn format_tool_input_summary(input: &Value) -> Option<String> {
+    if input.is_null() || input.as_object().is_some_and(|object| object.is_empty()) {
+        return None;
+    }
+    let text = serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
+    Some(truncate_chars(text, 1200))
+}
+
+fn truncate_chars(text: String, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text;
+    }
+    let mut truncated = text.chars().take(max_chars).collect::<String>();
+    truncated.push_str("\n...");
+    truncated
+}
+
+fn format_permission_request_message(request: &PermissionPromptRequest) -> String {
+    let mut lines = vec![
+        format!("Permission requested for {}.", request.tool_name),
+        format!("tool_use_id: {}", request.tool_use_id),
+    ];
+    if let Some(reason) = request
+        .decision_reason
+        .get("reason")
+        .and_then(Value::as_str)
+    {
+        lines.push(format!("reason: {reason}"));
+    }
+    if let Some(path) = &request.blocked_path {
+        lines.push(format!("path: {path}"));
+    }
+    lines.push(format!(
+        "input: {}",
+        truncate_for_tui(
+            serde_json::to_string_pretty(&request.input)
+                .unwrap_or_else(|_| request.input.to_string())
+                .as_str(),
+            1200,
+        )
+    ));
+    lines.push("Respond with /allow, /approve, /deny, or /reject.".to_string());
+    lines.join("\n")
+}
+
+fn truncate_for_tui(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+    let mut truncated = value.chars().take(max_chars).collect::<String>();
+    truncated.push_str("\n...");
+    truncated
+}
+
+fn sdk_messages_to_conversation(
+    session_id: &str,
+    messages: Vec<Value>,
+) -> Vec<ConversationMessage> {
+    runtime_events_to_conversation(sdk_messages_to_runtime_events(session_id, messages))
+}
+
+fn sdk_messages_to_runtime_events(
+    session_id: &str,
+    messages: Vec<Value>,
+) -> Vec<kiana_types::RuntimeEvent> {
+    messages
+        .into_iter()
+        .enumerate()
+        .map(|(index, message)| {
+            let timestamp = message_timestamp(&message);
+            kiana_types::sdk_message_to_runtime_event(
+                session_id,
+                &format!("turn-{index}"),
+                index.checked_sub(1).map(|parent| format!("turn-{parent}")),
+                index as u64,
+                &timestamp,
+                message,
+            )
+        })
+        .collect()
+}
+
+fn runtime_events_to_conversation(
+    events: Vec<kiana_types::RuntimeEvent>,
+) -> Vec<ConversationMessage> {
+    events
+        .into_iter()
+        .flat_map(runtime_event_to_conversation_messages)
+        .collect()
+}
+
+fn runtime_event_to_conversation_messages(
+    event: kiana_types::RuntimeEvent,
+) -> Vec<ConversationMessage> {
+    let timestamp = event.timestamp;
+    match event.payload {
+        kiana_types::RuntimeEventPayload::UserMessage(message)
+        | kiana_types::RuntimeEventPayload::AssistantMessage(message) => {
+            runtime_message_to_conversation_messages(message.message, timestamp)
+        }
+        kiana_types::RuntimeEventPayload::ToolCall(tool_call) => vec![ConversationMessage {
+            role: MessageRole::Tool,
+            content: format_tool_use_message(
+                &tool_call.tool_call_id,
+                &tool_call.name,
+                tool_call.workbench.as_deref(),
+                &tool_call.input,
+            ),
+            timestamp,
+        }],
+        kiana_types::RuntimeEventPayload::ToolResult(tool_result) => vec![ConversationMessage {
+            role: MessageRole::Tool,
+            content: format!(
+                "tool_use_id: {}\n{}",
+                tool_result.tool_call_id,
+                format_tool_result_message(
+                    tool_result.is_error,
+                    tool_result.workbench.as_deref(),
+                    &message_content_text(&tool_result.content),
+                )
+            ),
+            timestamp,
+        }],
+        kiana_types::RuntimeEventPayload::StreamDelta(delta) => {
+            let text = runtime_delta_text(&delta.delta);
+            if text.trim().is_empty() {
+                Vec::new()
+            } else {
+                vec![ConversationMessage {
+                    role: MessageRole::Assistant,
+                    content: text,
+                    timestamp,
+                }]
+            }
+        }
+        kiana_types::RuntimeEventPayload::PermissionRequest(permission) => {
+            vec![ConversationMessage {
+                role: MessageRole::System,
+                content: format!(
+                    "Permission requested for {}.\nrequest_id: {}\naction: {}\ninput: {}",
+                    permission.tool_name,
+                    permission.request_id,
+                    permission.action,
+                    serde_json::to_string_pretty(&permission.input)
+                        .unwrap_or_else(|_| permission.input.to_string())
+                ),
+                timestamp,
+            }]
+        }
+        kiana_types::RuntimeEventPayload::SessionEvent(session_event) => {
+            if session_event.subtype == "sdk_message" {
+                if let Some(message) = session_event.metadata.get("message").cloned() {
+                    return runtime_message_to_conversation_messages(message, timestamp);
+                }
+            }
+            vec![ConversationMessage {
+                role: MessageRole::System,
+                content: session_event
+                    .message
+                    .unwrap_or_else(|| format!("Session event: {}", session_event.subtype)),
+                timestamp,
+            }]
+        }
+        kiana_types::RuntimeEventPayload::Error(error) => vec![ConversationMessage {
+            role: MessageRole::System,
+            content: format!("Error: {}", error.message),
+            timestamp,
+        }],
+        kiana_types::RuntimeEventPayload::Result(result) => result
+            .assistant_text
+            .filter(|text| !text.trim().is_empty())
+            .map(|content| ConversationMessage {
+                role: MessageRole::Assistant,
+                content,
+                timestamp,
+            })
+            .into_iter()
+            .collect(),
+    }
+}
+
+fn runtime_delta_text(delta: &Value) -> String {
+    delta
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| message_content_text(delta))
+}
+
+fn runtime_message_to_conversation_messages(
+    message: Value,
+    event_timestamp: String,
+) -> Vec<ConversationMessage> {
+    let timestamp = if event_timestamp.is_empty() {
+        message_timestamp(&message)
+    } else {
+        event_timestamp
+    };
+    let role = message_role(&message);
+    let content = message.get("content").unwrap_or(&Value::Null);
+    let Some(blocks) = content.as_array() else {
+        return vec![ConversationMessage {
+            role,
+            content: message_content_text(content),
+            timestamp,
+        }];
+    };
+
+    let mut messages = Vec::new();
+    for block in blocks {
+        let block_role = content_block_role(block).unwrap_or_else(|| role.clone());
+        let block_content = conversation_content_block_text(block);
+        if block_content.trim().is_empty() {
+            continue;
+        }
+        messages.push(ConversationMessage {
+            role: block_role,
+            content: block_content,
+            timestamp: timestamp.clone(),
+        });
+    }
+
+    if messages.is_empty() {
+        messages.push(ConversationMessage {
+            role,
+            content: message_content_text(content),
+            timestamp,
+        });
+    }
+    messages
+}
+
+fn message_timestamp(message: &Value) -> String {
+    message
+        .get("created_at")
+        .and_then(Value::as_u64)
+        .map(|value| value.to_string())
+        .unwrap_or_default()
+}
+
+fn message_role(message: &Value) -> MessageRole {
+    match message.get("role").and_then(Value::as_str) {
+        Some("user") if message_contains_tool_result(message) => MessageRole::Tool,
+        Some("user") => MessageRole::User,
+        Some("assistant") => MessageRole::Assistant,
+        Some("tool") => MessageRole::Tool,
+        _ => MessageRole::System,
+    }
+}
+
+fn message_contains_tool_result(message: &Value) -> bool {
+    message
+        .get("content")
+        .and_then(Value::as_array)
+        .is_some_and(|blocks| {
+            blocks
+                .iter()
+                .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
+        })
+}
+
+fn content_block_role(value: &Value) -> Option<MessageRole> {
+    match value.get("type").and_then(Value::as_str) {
+        Some("tool_use") | Some("tool_result") => Some(MessageRole::Tool),
+        _ => None,
+    }
+}
+
+fn message_content_text(value: &Value) -> String {
+    if let Some(text) = value.as_str() {
+        return text.to_string();
+    }
+    if let Some(blocks) = value.as_array() {
+        return blocks
+            .iter()
+            .map(content_block_text)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_string();
+    }
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
+}
+
+fn conversation_content_block_text(value: &Value) -> String {
+    match value.get("type").and_then(Value::as_str) {
+        Some("tool_use") => format_tool_use_message(
+            value.get("id").and_then(Value::as_str).unwrap_or_default(),
+            value
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown"),
+            value.get("workbench").and_then(Value::as_str),
+            value.get("input").unwrap_or(&Value::Null),
+        ),
+        Some("tool_result") => {
+            let result_message = format_tool_result_message(
+                value
+                    .get("is_error")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+                value.get("workbench").and_then(Value::as_str),
+                &message_content_text(value.get("content").unwrap_or(&Value::Null)),
+            );
+            match value
+                .get("tool_use_id")
+                .and_then(Value::as_str)
+                .filter(|id| !id.trim().is_empty())
+            {
+                Some(id) => format!("tool_use_id: {id}\n{result_message}"),
+                None => result_message,
+            }
+        }
+        _ => content_block_text(value),
+    }
+}
+
+fn content_block_text(value: &Value) -> String {
+    match value.get("type").and_then(Value::as_str) {
+        Some("text") => value
+            .get("text")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        Some("tool_use") => format!(
+            "[tool_use:{}]",
+            value
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+        ),
+        Some("tool_result") => format!(
+            "[tool_result] {}",
+            message_content_text(value.get("content").unwrap_or(&Value::Null))
+        ),
+        _ => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    fn runtime_for_test(session_id: &str) -> TuiRuntime {
+        let (events_tx, events_rx) = unbounded_channel();
+        TuiRuntime {
+            cwd: PathBuf::from("/tmp/work"),
+            session_id: session_id.to_string(),
+            app_state: HashMap::new(),
+            command_registry: create_default_command_registry(),
+            active_prompt_message_index: None,
+            active_prompt_tool_workbenches: HashMap::new(),
+            active_prompt_abort: None,
+            queued_prompts: VecDeque::new(),
+            pending_resume_session_id: None,
+            pending_permission: None,
+            pending_permission_queue: VecDeque::new(),
+            events_tx,
+            events_rx,
+        }
+    }
+
+    fn tui_env_lock() -> &'static Mutex<()> {
+        crate::test_support::env_lock()
+    }
+
+    struct ScopedKianaHome {
+        root: PathBuf,
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl ScopedKianaHome {
+        fn new() -> Self {
+            let unique = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "kiana-tui-session-command-{}-{unique}",
+                std::process::id()
+            ));
+            let previous = std::env::var_os("KIANA_HOME");
+            std::env::set_var("KIANA_HOME", &root);
+            Self { root, previous }
+        }
+
+        fn write_session(&self, session_id: &str) {
+            self.write_session_with_cwd(session_id, None);
+        }
+
+        fn write_session_with_cwd(&self, session_id: &str, cwd: Option<&Path>) {
+            let dir = self.root.join("sdk-sessions");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join(format!("{session_id}.json")),
+                serde_json::to_string_pretty(&json!({
+                    "session_id": session_id,
+                    "title": "TUI Test",
+                    "tag": "tui",
+                    "parent_session_id": null,
+                    "created_at": 1,
+                    "updated_at": 2,
+                    "cwd": cwd.map(|path| path.to_string_lossy().to_string()),
+                    "messages": [{"role": "user", "content": "hello"}]
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+        }
+
+        fn write_compactable_session(&self, session_id: &str) {
+            let dir = self.root.join("sdk-sessions");
+            std::fs::create_dir_all(&dir).unwrap();
+            let messages = vec![
+                json!({"role": "user", "content": "first message ".repeat(80)}),
+                json!({"role": "assistant", "content": "middle one ".repeat(80)}),
+                json!({"role": "user", "content": "middle two ".repeat(80)}),
+                json!({"role": "assistant", "content": "middle three ".repeat(80)}),
+                json!({"role": "user", "content": "recent tail"}),
+            ];
+            std::fs::write(
+                dir.join(format!("{session_id}.json")),
+                serde_json::to_string_pretty(&json!({
+                    "session_id": session_id,
+                    "title": "TUI Compact Test",
+                    "tag": "tui",
+                    "parent_session_id": null,
+                    "created_at": 1,
+                    "updated_at": 2,
+                    "messages": messages
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+        }
+    }
+
+    impl Drop for ScopedKianaHome {
+        fn drop(&mut self) {
+            if let Some(previous) = self.previous.as_ref() {
+                std::env::set_var("KIANA_HOME", previous);
+            } else {
+                std::env::remove_var("KIANA_HOME");
+            }
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn permission_request_for_test() -> PermissionPromptRequest {
+        PermissionPromptRequest {
+            request_id: "perm-1".to_string(),
+            tool_name: "TodoWrite".to_string(),
+            input: json!({
+                "todos": [{
+                    "content": "verify TUI permissions",
+                    "status": "in_progress",
+                    "activeForm": "Verifying TUI permissions"
+                }]
+            }),
+            tool_use_id: "toolu_todo".to_string(),
+            permission_suggestions: Value::Null,
+            blocked_path: None,
+            decision_reason: json!({
+                "type": "other",
+                "reason": "Tool TodoWrite requires permission in ask mode."
+            }),
+            agent_id: None,
+        }
+    }
+
+    async fn drain_until_idle(runtime: &mut TuiRuntime, app: &mut App) {
+        for _ in 0..50 {
+            runtime.drain_events(app).unwrap();
+            if !app.repl.is_loading {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("TUI runtime did not become idle");
+    }
+
+    async fn drain_until_doctor_loaded(runtime: &mut TuiRuntime, app: &mut App) {
+        for _ in 0..50 {
+            runtime.drain_events(app).unwrap();
+            if !app.doctor.loading
+                && app
+                    .doctor
+                    .diagnostic_lines
+                    .iter()
+                    .any(|line| line == "Doctor")
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("TUI doctor diagnostics did not load");
+    }
+
+    async fn drain_until_resume_entries_loaded(runtime: &mut TuiRuntime, app: &mut App) {
+        for _ in 0..50 {
+            runtime.drain_events(app).unwrap();
+            if !app.resume.loading {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("TUI resume entries did not load");
+    }
+
+    async fn assert_prompt_session_refresh_queued(
+        runtime: &mut TuiRuntime,
+        expected_session_id: &str,
+    ) {
+        let event =
+            tokio::time::timeout(std::time::Duration::from_secs(1), runtime.events_rx.recv())
+                .await
+                .expect("prompt session refresh was not queued")
+                .expect("TUI event channel closed");
+        match event {
+            TuiEvent::PromptSessionRefreshed { session_id, .. } => {
+                assert_eq!(session_id, expected_session_id);
+            }
+            _ => panic!("expected prompt session refresh event"),
+        }
+    }
+
+    #[test]
+    fn formats_tui_session_title_from_cwd() {
+        assert_eq!(
+            tui_session_title(Path::new("/tmp/kianacode")),
+            "TUI kianacode"
+        );
+        assert_eq!(tui_session_title(Path::new("/")), "TUI .");
+    }
+
+    #[test]
+    fn tui_terminal_guard_accepts_interactive_stdio() {
+        ensure_tui_terminal(true, true).unwrap();
+    }
+
+    #[test]
+    fn tui_terminal_guard_rejects_non_interactive_stdio_before_session_setup() {
+        let error = ensure_tui_terminal(false, false).unwrap_err().to_string();
+
+        assert!(error.contains("requires an interactive terminal"));
+        assert!(error.contains("stdin and stdout"));
+    }
+
+    #[test]
+    fn tui_terminal_guard_names_non_interactive_stdin() {
+        let error = ensure_tui_terminal(false, true).unwrap_err().to_string();
+
+        assert!(error.contains("interactive stdin"));
+    }
+
+    #[test]
+    fn tui_terminal_guard_names_non_interactive_stdout() {
+        let error = ensure_tui_terminal(true, false).unwrap_err().to_string();
+
+        assert!(error.contains("interactive stdout"));
+    }
+
+    #[test]
+    fn extracts_text_from_sdk_content_blocks() {
+        let content = json!([
+            {"type": "text", "text": "hello"},
+            {"type": "tool_use", "name": "Read"},
+            {"type": "tool_result", "content": "done"}
+        ]);
+
+        assert_eq!(
+            message_content_text(&content),
+            "hello\n[tool_use:Read]\n[tool_result] done"
+        );
+    }
+
+    #[test]
+    fn extracts_tui_prompt_text_from_stream_events() {
+        let start = StreamEvent::ContentBlockStart {
+            index: 0,
+            content_block: ContentBlock::Text {
+                text: "hel".to_string(),
+            },
+        };
+        let delta = StreamEvent::ContentBlockDelta {
+            index: 0,
+            delta: Delta::TextDelta {
+                text: "lo".to_string(),
+            },
+        };
+        let tool_delta = StreamEvent::ContentBlockDelta {
+            index: 1,
+            delta: Delta::InputJsonDelta {
+                partial_json: "{\"cmd\"".to_string(),
+            },
+        };
+
+        assert_eq!(
+            prompt_text_delta_from_stream_event(&start),
+            Some("hel".to_string())
+        );
+        assert_eq!(
+            prompt_text_delta_from_stream_event(&delta),
+            Some("lo".to_string())
+        );
+        assert_eq!(prompt_text_delta_from_stream_event(&tool_delta), None);
+    }
+
+    #[test]
+    fn extracts_tui_usage_and_tool_use_from_stream_events() {
+        let start = StreamEvent::MessageStart {
+            message: kiana_services::api::streaming::MessageStart {
+                id: "msg_1".to_string(),
+                model: "mock-model".to_string(),
+                role: "assistant".to_string(),
+                usage: kiana_services::api::streaming::DeltaUsage {
+                    input_tokens: 11,
+                    output_tokens: 0,
+                },
+            },
+        };
+        let delta = StreamEvent::MessageDelta {
+            delta: kiana_services::api::streaming::MessageDelta { stop_reason: None },
+            usage: kiana_services::api::streaming::DeltaUsage {
+                input_tokens: 0,
+                output_tokens: 7,
+            },
+        };
+        let tool = StreamEvent::ContentBlockStart {
+            index: 1,
+            content_block: ContentBlock::ToolUse(kiana_services::api::streaming::ToolUse {
+                id: "toolu_1".to_string(),
+                name: "Read".to_string(),
+                input: json!({}),
+            }),
+        };
+
+        match prompt_usage_from_stream_event(&start).unwrap() {
+            TuiEvent::PromptStreamUsage {
+                model,
+                input_tokens,
+                output_tokens,
+            } => {
+                assert_eq!(model.as_deref(), Some("mock-model"));
+                assert_eq!(input_tokens, Some(11));
+                assert_eq!(output_tokens, Some(0));
+            }
+            _ => panic!("expected prompt usage event"),
+        }
+        match prompt_usage_from_stream_event(&delta).unwrap() {
+            TuiEvent::PromptStreamUsage {
+                model,
+                input_tokens,
+                output_tokens,
+            } => {
+                assert_eq!(model, None);
+                assert_eq!(input_tokens, None);
+                assert_eq!(output_tokens, Some(7));
+            }
+            _ => panic!("expected prompt usage event"),
+        }
+        match prompt_tool_use_from_stream_event(&tool).unwrap() {
+            TuiEvent::PromptToolUseStarted { id, name, input } => {
+                assert_eq!(id, "toolu_1");
+                assert_eq!(name, "Read");
+                assert_eq!(input, json!({}));
+            }
+            _ => panic!("expected tool use event"),
+        }
+    }
+
+    #[test]
+    fn formats_tui_permission_request_with_tool_context() {
+        let message = format_permission_request_message(&permission_request_for_test());
+
+        assert!(message.contains("Permission requested for TodoWrite."));
+        assert!(message.contains("tool_use_id: toolu_todo"));
+        assert!(message.contains("ask mode"));
+        assert!(message.contains("verify TUI permissions"));
+        assert!(message.contains("Respond with /allow"));
+    }
+
+    #[test]
+    fn maps_sdk_messages_to_conversation_messages() {
+        let messages = vec![json!({
+            "role": "assistant",
+            "content": [{"type": "text", "text": "answer"}],
+            "created_at": 123
+        })];
+
+        let conversation = sdk_messages_to_conversation("session-1", messages);
+        assert_eq!(conversation.len(), 1);
+        assert_eq!(conversation[0].role, MessageRole::Assistant);
+        assert_eq!(conversation[0].content, "answer");
+        assert_eq!(conversation[0].timestamp, "123");
+    }
+
+    #[test]
+    fn maps_runtime_events_to_conversation_messages() {
+        let events = vec![
+            kiana_types::RuntimeEvent::new(
+                "evt-1",
+                "session-1",
+                "turn-0",
+                None,
+                0,
+                "123",
+                kiana_types::RuntimeEventPayload::AssistantMessage(
+                    kiana_types::MessageRuntimeEvent {
+                        message: json!({
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "answer"}],
+                            "created_at": 123
+                        }),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-2",
+                "session-1",
+                "turn-0",
+                None,
+                1,
+                "124",
+                kiana_types::RuntimeEventPayload::ToolCall(kiana_types::RuntimeToolCallEvent {
+                    tool_call_id: "toolu_read".to_string(),
+                    name: "MCP".to_string(),
+                    workbench: Some("mcp".to_string()),
+                    input: json!({"file_path": "src/lib.rs"}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-3",
+                "session-1",
+                "turn-0",
+                None,
+                2,
+                "125",
+                kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                    tool_call_id: "toolu_read".to_string(),
+                    name: Some("MCP".to_string()),
+                    workbench: Some("mcp".to_string()),
+                    is_error: false,
+                    content: json!("pub fn main() {}"),
+                }),
+            ),
+        ];
+
+        let conversation = runtime_events_to_conversation(events);
+
+        assert_eq!(conversation.len(), 3);
+        assert_eq!(conversation[0].role, MessageRole::Assistant);
+        assert_eq!(conversation[0].content, "answer");
+        assert_eq!(conversation[0].timestamp, "123");
+        assert_eq!(conversation[1].role, MessageRole::Tool);
+        assert!(conversation[1].content.contains("Tool requested: MCP"));
+        assert!(conversation[1].content.contains("tool_use_id: toolu_read"));
+        assert!(conversation[1].content.contains("src/lib.rs"));
+        assert_eq!(conversation[1].timestamp, "124");
+        assert_eq!(conversation[2].role, MessageRole::Tool);
+        assert!(conversation[2].content.contains("tool_use_id: toolu_read"));
+        assert!(conversation[1].content.contains("workbench: mcp"));
+        assert!(conversation[2].content.contains("workbench: mcp"));
+        assert!(conversation[2].content.contains("result: success"));
+        assert!(conversation[2].content.contains("pub fn main()"));
+        assert_eq!(conversation[2].timestamp, "125");
+    }
+
+    #[test]
+    fn maps_persisted_tool_result_messages_to_tool_role() {
+        let messages = vec![
+            json!({
+                "role": "user",
+                "content": "ordinary prompt",
+                "created_at": 122
+            }),
+            json!({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_read",
+                    "content": "file content"
+                }],
+                "created_at": 123
+            }),
+            json!({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_bash",
+                    "is_error": true,
+                    "content": "command failed"
+                }],
+                "created_at": 124
+            }),
+        ];
+
+        let conversation = sdk_messages_to_conversation("session-1", messages);
+
+        assert_eq!(conversation.len(), 3);
+        assert_eq!(conversation[0].role, MessageRole::User);
+        assert_eq!(conversation[0].content, "ordinary prompt");
+        assert_eq!(conversation[1].role, MessageRole::Tool);
+        assert!(conversation[1].content.contains("tool_use_id: toolu_read"));
+        assert!(conversation[1].content.contains("result: success"));
+        assert!(conversation[1].content.contains("file content"));
+        assert_eq!(conversation[2].role, MessageRole::Tool);
+        assert!(conversation[2].content.contains("tool_use_id: toolu_bash"));
+        assert!(conversation[2].content.contains("result: error"));
+        assert!(conversation[2].content.contains("command failed"));
+    }
+
+    #[test]
+    fn maps_persisted_tool_use_blocks_to_separate_tool_messages() {
+        let messages = vec![json!({
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "checking file"},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_read",
+                    "name": "Read",
+                    "input": {"file_path": "src/lib.rs", "limit": 20}
+                }
+            ],
+            "created_at": 123
+        })];
+
+        let conversation = sdk_messages_to_conversation("session-1", messages);
+
+        assert_eq!(conversation.len(), 2);
+        assert_eq!(conversation[0].role, MessageRole::Assistant);
+        assert_eq!(conversation[0].content, "checking file");
+        assert_eq!(conversation[1].role, MessageRole::Tool);
+        assert!(conversation[1].content.contains("Tool requested: Read"));
+        assert!(conversation[1].content.contains("tool_use_id: toolu_read"));
+        assert!(conversation[1].content.contains("file_path"));
+        assert!(conversation[1].content.contains("src/lib.rs"));
+    }
+
+    #[test]
+    fn maps_session_info_to_resume_entry_without_loading_messages() {
+        let entry = session_info_to_entry(crate::sdk::SdkSessionInfo {
+            session_id: "session-1".to_string(),
+            title: None,
+            tag: Some("tui".to_string()),
+            parent_session_id: None,
+            cwd: None,
+            created_at: 10,
+            updated_at: 20,
+            message_count: 42,
+            assistant_message_count: 9,
+            last_role: Some("assistant".to_string()),
+        });
+
+        assert_eq!(entry.session_id, "session-1");
+        assert_eq!(entry.title, "Untitled");
+        assert_eq!(entry.timestamp, "20");
+        assert_eq!(entry.message_count, 42);
+    }
+
+    #[tokio::test]
+    async fn load_doctor_action_populates_screen_from_command_output() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.permission_request_active = true;
+        app.repl.permission_request_queue_len = 2;
+
+        runtime
+            .handle_action(AppAction::LoadDoctor, &mut app)
+            .unwrap();
+
+        assert!(app.doctor.loading);
+
+        drain_until_doctor_loaded(&mut runtime, &mut app).await;
+
+        assert!(!app.doctor.loading);
+        assert!(app
+            .doctor
+            .diagnostic_lines
+            .iter()
+            .any(|line| line.starts_with("cwd: ")));
+        assert!(app
+            .doctor
+            .diagnostic_lines
+            .iter()
+            .any(|line| line.starts_with("mcp_transport: ")));
+        assert!(app
+            .doctor
+            .diagnostic_lines
+            .iter()
+            .any(|line| line == "tui_permission_request: active=yes queued=2"));
+    }
+
+    #[test]
+    fn unknown_slash_command_reports_locally_without_model_submit() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "missing".to_string(),
+                    args: String::new(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        assert!(!app.repl.is_loading);
+        assert_eq!(app.repl.messages.len(), 1);
+        assert_eq!(app.repl.messages[0].role, MessageRole::System);
+        assert!(app.repl.messages[0]
+            .content
+            .contains("Unknown command: /missing"));
+    }
+
+    #[tokio::test]
+    async fn help_slash_command_renders_registry_output_in_tui() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "help".to_string(),
+                    args: String::new(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        drain_until_idle(&mut runtime, &mut app).await;
+
+        assert_eq!(app.repl.messages.len(), 1);
+        assert_eq!(app.repl.messages[0].role, MessageRole::System);
+        assert!(app.repl.messages[0]
+            .content
+            .contains("Kiana local commands"));
+        assert!(app.repl.messages[0].content.contains("/session"));
+        assert!(app.repl.messages[0].content.contains("kiana --help"));
+        assert!(!app.repl.messages[0].content.contains("Unknown command"));
+    }
+
+    #[tokio::test]
+    async fn exit_slash_command_marks_tui_for_shutdown() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "quit".to_string(),
+                    args: String::new(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        drain_until_idle(&mut runtime, &mut app).await;
+
+        assert!(app.should_quit);
+        assert_eq!(app.repl.messages[0].content, "Goodbye!");
+    }
+
+    #[tokio::test]
+    async fn session_reply_record_only_refreshes_tui_transcript_for_current_session() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+        home.write_session("session-tui-reply");
+        let mut runtime = runtime_for_test("session-tui-reply");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "session".to_string(),
+                    args: "reply current --record-only follow up from tui".to_string(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        drain_until_idle(&mut runtime, &mut app).await;
+
+        assert!(app.repl.messages.iter().any(|message| {
+            message.role == MessageRole::User && message.content == "follow up from tui"
+        }));
+        assert!(!app
+            .repl
+            .messages
+            .iter()
+            .any(|message| message.content.contains("sdk_prompt_recorded")));
+    }
+
+    #[tokio::test]
+    async fn session_compact_refreshes_tui_transcript_for_current_session() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+        home.write_compactable_session("session-tui-compact");
+        let mut runtime = runtime_for_test("session-tui-compact");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "session".to_string(),
+                    args: "compact current --threshold-tokens 10 --target-tokens 80".to_string(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        drain_until_idle(&mut runtime, &mut app).await;
+
+        assert!(app.repl.messages.len() < 5);
+        assert!(app
+            .repl
+            .messages
+            .iter()
+            .any(|message| message.content.contains("[Compacted conversation summary]")));
+        assert!(app
+            .repl
+            .messages
+            .iter()
+            .any(|message| message.role == MessageRole::User && message.content == "recent tail"));
+        assert!(!app
+            .repl
+            .messages
+            .iter()
+            .any(|message| message.content.contains("Session compacted")));
+    }
+
+    #[tokio::test]
+    async fn session_fork_switches_tui_to_forked_session() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+        home.write_session("session-tui-fork");
+        let mut runtime = runtime_for_test("session-tui-fork");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "session".to_string(),
+                    args: "fork current".to_string(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        drain_until_idle(&mut runtime, &mut app).await;
+
+        assert_ne!(runtime.session_id, "session-tui-fork");
+        assert!(app
+            .repl
+            .messages
+            .iter()
+            .any(|message| message.role == MessageRole::User && message.content == "hello"));
+        assert!(app.repl.messages.iter().any(|message| {
+            message.role == MessageRole::System
+                && message.content.contains("Forked session")
+                && message.content.contains("source: session-tui-fork")
+                && message.content.contains(&runtime.session_id)
+        }));
+    }
+
+    #[tokio::test]
+    async fn applies_prompt_completed_event_without_blocking_ui_state() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptCompleted(Ok("answer".to_string())),
+        );
+
+        assert!(!app.repl.is_loading);
+        assert_eq!(app.repl.messages.len(), 1);
+        assert_eq!(app.repl.messages[0].role, MessageRole::Assistant);
+        assert_eq!(app.repl.messages[0].content, "answer");
+        assert_prompt_session_refresh_queued(&mut runtime, "session-1").await;
+    }
+
+    #[test]
+    fn prompt_stream_delta_creates_and_updates_active_assistant_message() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl
+            .push_message(MessageRole::User, "question".to_string());
+        app.repl.is_loading = true;
+
+        runtime.apply_event(&mut app, TuiEvent::PromptStreamDelta("hel".to_string()));
+        runtime.apply_event(&mut app, TuiEvent::PromptStreamDelta("lo".to_string()));
+
+        assert_eq!(app.repl.messages.len(), 2);
+        assert_eq!(app.repl.messages[1].role, MessageRole::Assistant);
+        assert_eq!(app.repl.messages[1].content, "hello");
+        assert_eq!(runtime.active_prompt_message_index, Some(1));
+    }
+
+    #[tokio::test]
+    async fn prompt_completed_updates_streamed_message_without_duplication() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl
+            .push_message(MessageRole::User, "question".to_string());
+        app.repl.is_loading = true;
+
+        runtime.apply_event(&mut app, TuiEvent::PromptStreamDelta("draft".to_string()));
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptCompleted(Ok("final answer".to_string())),
+        );
+
+        assert!(!app.repl.is_loading);
+        assert_eq!(app.repl.messages.len(), 2);
+        assert_eq!(app.repl.messages[1].role, MessageRole::Assistant);
+        assert_eq!(app.repl.messages[1].content, "final answer");
+        assert_eq!(runtime.active_prompt_message_index, None);
+        assert_prompt_session_refresh_queued(&mut runtime, "session-1").await;
+    }
+
+    #[test]
+    fn prompt_session_refresh_replaces_transcript_without_sync_noise() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl
+            .push_message(MessageRole::Tool, "Tool requested: Read".to_string());
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptSessionRefreshed {
+                session_id: "session-1".to_string(),
+                result: Ok(ResumedSession {
+                    session_id: "session-1".to_string(),
+                    title: "Recovered".to_string(),
+                    messages: vec![
+                        ConversationMessage {
+                            role: MessageRole::User,
+                            content: "question".to_string(),
+                            timestamp: "1".to_string(),
+                        },
+                        ConversationMessage {
+                            role: MessageRole::Assistant,
+                            content: "answer".to_string(),
+                            timestamp: "2".to_string(),
+                        },
+                    ],
+                }),
+            },
+        );
+
+        assert_eq!(app.repl.messages.len(), 2);
+        assert_eq!(app.repl.messages[0].role, MessageRole::User);
+        assert_eq!(app.repl.messages[1].role, MessageRole::Assistant);
+        assert!(!app
+            .repl
+            .messages
+            .iter()
+            .any(|message| message.content.contains("Synced session")));
+    }
+
+    #[test]
+    fn prompt_stream_usage_updates_repl_status_and_tool_message() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptStreamUsage {
+                model: Some("mock-model".to_string()),
+                input_tokens: Some(12),
+                output_tokens: Some(3),
+            },
+        );
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptToolUseStarted {
+                id: "toolu_read".to_string(),
+                name: "Read".to_string(),
+                input: json!({}),
+            },
+        );
+
+        assert_eq!(app.repl.model_name, "mock-model");
+        assert_eq!(app.repl.input_tokens, 12);
+        assert_eq!(app.repl.output_tokens, 3);
+        assert_eq!(app.repl.messages.len(), 1);
+        assert_eq!(app.repl.messages[0].role, MessageRole::Tool);
+        assert!(app.repl.messages[0]
+            .content
+            .contains("Tool requested: Read"));
+        assert!(app.repl.messages[0].content.contains("toolu_read"));
+    }
+
+    #[test]
+    fn prompt_tool_use_message_includes_input_summary() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        let event = StreamEvent::ContentBlockStart {
+            index: 1,
+            content_block: ContentBlock::ToolUse(kiana_services::api::streaming::ToolUse {
+                id: "toolu_read".to_string(),
+                name: "Read".to_string(),
+                input: json!({
+                    "file_path": "src/lib.rs",
+                    "limit": 20
+                }),
+            }),
+        };
+
+        runtime.apply_event(&mut app, prompt_tool_use_from_stream_event(&event).unwrap());
+
+        assert_eq!(app.repl.messages.len(), 1);
+        assert_eq!(app.repl.messages[0].role, MessageRole::Tool);
+        assert!(app.repl.messages[0]
+            .content
+            .contains("Tool requested: Read"));
+        assert!(app.repl.messages[0].content.contains("toolu_read"));
+        assert!(app.repl.messages[0].content.contains("file_path"));
+        assert!(app.repl.messages[0].content.contains("src/lib.rs"));
+        assert!(app.repl.messages[0].content.contains("limit"));
+        assert!(app.repl.messages[0].content.contains("20"));
+    }
+
+    #[test]
+    fn prompt_tool_result_updates_matching_tool_message() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptToolUseStarted {
+                id: "toolu_read".to_string(),
+                name: "Read".to_string(),
+                input: json!({ "file_path": "src/lib.rs" }),
+            },
+        );
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptToolResult {
+                id: "toolu_read".to_string(),
+                is_error: false,
+                content: "pub fn main() {}".to_string(),
+            },
+        );
+
+        assert_eq!(app.repl.messages.len(), 1);
+        assert_eq!(app.repl.messages[0].role, MessageRole::Tool);
+        assert!(app.repl.messages[0]
+            .content
+            .contains("Tool requested: Read"));
+        assert!(app.repl.messages[0].content.contains("toolu_read"));
+        assert!(app.repl.messages[0].content.contains("result: success"));
+        assert!(app.repl.messages[0].content.contains("pub fn main()"));
+    }
+
+    #[test]
+    fn prompt_tool_lifecycle_messages_include_live_workbench_metadata() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        let event = StreamEvent::ContentBlockStart {
+            index: 1,
+            content_block: ContentBlock::ToolUse(kiana_services::api::streaming::ToolUse {
+                id: "toolu_mcp".to_string(),
+                name: "MCP".to_string(),
+                input: json!({
+                    "server_name": "filesystem",
+                    "tool_name": "read_file"
+                }),
+            }),
+        };
+
+        runtime.apply_event(&mut app, prompt_tool_use_from_stream_event(&event).unwrap());
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptToolResult {
+                id: "toolu_mcp".to_string(),
+                is_error: false,
+                content: "read ok".to_string(),
+            },
+        );
+
+        let message = &app.repl.messages[0].content;
+        assert!(message.contains("Tool requested: MCP"));
+        assert!(message.contains("result: success"));
+        assert_eq!(message.matches("workbench: mcp").count(), 2);
+    }
+
+    #[tokio::test]
+    async fn permission_request_can_be_approved_from_tui_slash_command() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        runtime.active_prompt_message_index = Some(0);
+        let (respond_to, response_rx) = oneshot::channel();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PermissionRequested {
+                request: permission_request_for_test(),
+                respond_to,
+            },
+        );
+
+        assert_eq!(runtime.active_prompt_message_index, None);
+        assert!(runtime.pending_permission.is_some());
+        assert!(app.repl.permission_request_active);
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Permission requested for TodoWrite."));
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "allow".to_string(),
+                    args: String::new(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        assert!(runtime.pending_permission.is_none());
+        assert_eq!(response_rx.await.unwrap(), PermissionPromptDecision::Allow);
+        assert!(!app.repl.permission_request_active);
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Approved TodoWrite."));
+    }
+
+    #[tokio::test]
+    async fn permission_request_can_be_denied_from_tui_slash_command() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        let (respond_to, response_rx) = oneshot::channel();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PermissionRequested {
+                request: permission_request_for_test(),
+                respond_to,
+            },
+        );
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "deny".to_string(),
+                    args: "not now".to_string(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        assert_eq!(
+            response_rx.await.unwrap(),
+            PermissionPromptDecision::Deny("not now".to_string())
+        );
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Denied TodoWrite."));
+    }
+
+    #[tokio::test]
+    async fn permission_requests_are_processed_fifo_instead_of_replacing_active_prompt() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        let (first_respond_to, mut first_rx) = oneshot::channel();
+        let (second_respond_to, second_rx) = oneshot::channel();
+        let mut second_request = permission_request_for_test();
+        second_request.request_id = "perm-2".to_string();
+        second_request.tool_name = "Bash".to_string();
+        second_request.tool_use_id = "toolu_bash".to_string();
+        second_request.input = json!({"command": "git status"});
+        second_request.decision_reason = json!({
+            "type": "other",
+            "reason": "Tool Bash requires permission in ask mode."
+        });
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PermissionRequested {
+                request: permission_request_for_test(),
+                respond_to: first_respond_to,
+            },
+        );
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PermissionRequested {
+                request: second_request,
+                respond_to: second_respond_to,
+            },
+        );
+
+        assert!(first_rx.try_recv().is_err());
+        assert_eq!(app.repl.permission_request_queue_len, 1);
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "allow".to_string(),
+                    args: String::new(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        assert_eq!(first_rx.await.unwrap(), PermissionPromptDecision::Allow);
+        assert_eq!(app.repl.permission_request_queue_len, 0);
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Permission requested for Bash."));
+
+        runtime
+            .handle_action(
+                AppAction::RunSlashCommand {
+                    name: "deny".to_string(),
+                    args: "not now".to_string(),
+                },
+                &mut app,
+            )
+            .unwrap();
+
+        assert_eq!(
+            second_rx.await.unwrap(),
+            PermissionPromptDecision::Deny("not now".to_string())
+        );
+        assert!(runtime.pending_permission.is_none());
+    }
+
+    #[test]
+    fn queue_prompt_stores_prompts_in_fifo_order_and_reports_status() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(AppAction::QueuePrompt("first queued".to_string()), &mut app)
+            .unwrap();
+        runtime
+            .handle_action(
+                AppAction::QueuePrompt("second queued".to_string()),
+                &mut app,
+            )
+            .unwrap();
+
+        let queued = runtime
+            .queued_prompts
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(queued, vec!["first queued", "second queued"]);
+        assert_eq!(app.repl.messages.len(), 2);
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Queued prompt"));
+    }
+
+    #[test]
+    fn command_app_state_includes_tui_permission_queue_state() {
+        let runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.permission_request_active = true;
+        app.repl.permission_request_queue_len = 2;
+
+        let app_state = runtime.command_app_state(&app);
+
+        assert_eq!(
+            app_state.get("tui_permission_request_active"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            app_state.get("tui_permission_request_queue_len"),
+            Some(&json!(2))
+        );
+    }
+
+    #[tokio::test]
+    async fn prompt_session_refresh_starts_queued_prompt_after_transcript_sync() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        runtime.queued_prompts.push_back("follow up".to_string());
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptSessionRefreshed {
+                session_id: "session-1".to_string(),
+                result: Ok(ResumedSession {
+                    session_id: "session-1".to_string(),
+                    title: "Recovered".to_string(),
+                    messages: vec![ConversationMessage {
+                        role: MessageRole::Assistant,
+                        content: "answer".to_string(),
+                        timestamp: "1".to_string(),
+                    }],
+                }),
+            },
+        );
+
+        assert!(runtime.queued_prompts.is_empty());
+        assert!(runtime.active_prompt_abort.is_some());
+        assert!(app.repl.is_loading);
+        assert_eq!(app.repl.messages.len(), 2);
+        assert_eq!(app.repl.messages[0].content, "answer");
+        assert_eq!(app.repl.messages[1].role, MessageRole::User);
+        assert_eq!(app.repl.messages[1].content, "follow up");
+    }
+
+    #[tokio::test]
+    async fn prompt_queue_preserves_multiple_prompts_fifo() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime
+            .handle_action(
+                AppAction::QueuePrompt("first follow up".to_string()),
+                &mut app,
+            )
+            .unwrap();
+        runtime
+            .handle_action(
+                AppAction::QueuePrompt("second follow up".to_string()),
+                &mut app,
+            )
+            .unwrap();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptSessionRefreshed {
+                session_id: "session-1".to_string(),
+                result: Ok(ResumedSession {
+                    session_id: "session-1".to_string(),
+                    title: "Recovered".to_string(),
+                    messages: vec![ConversationMessage {
+                        role: MessageRole::Assistant,
+                        content: "answer".to_string(),
+                        timestamp: "1".to_string(),
+                    }],
+                }),
+            },
+        );
+
+        assert_eq!(app.repl.messages.len(), 2);
+        assert_eq!(app.repl.messages[1].role, MessageRole::User);
+        assert_eq!(app.repl.messages[1].content, "first follow up");
+        assert_eq!(
+            runtime.queued_prompts.front().map(String::as_str),
+            Some("second follow up")
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_prompt_sends_abort_signal_and_denies_pending_permission() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        runtime.active_prompt_message_index = Some(0);
+        runtime
+            .queued_prompts
+            .push_back("queued followup".to_string());
+        let (abort_tx, abort_rx) = watch::channel(false);
+        runtime.active_prompt_abort = Some(abort_tx);
+        let (respond_to, response_rx) = oneshot::channel();
+        runtime.pending_permission = Some(PendingPermission {
+            request: permission_request_for_test(),
+            respond_to,
+        });
+        let (queued_respond_to, queued_response_rx) = oneshot::channel();
+        runtime
+            .pending_permission_queue
+            .push_back(PendingPermission {
+                request: permission_request_for_test(),
+                respond_to: queued_respond_to,
+            });
+
+        runtime
+            .handle_action(AppAction::CancelPrompt, &mut app)
+            .unwrap();
+
+        assert!(*abort_rx.borrow());
+        assert!(runtime.active_prompt_abort.is_none());
+        assert_eq!(runtime.active_prompt_message_index, None);
+        assert!(runtime.queued_prompts.is_empty());
+        assert!(runtime.pending_permission.is_none());
+        assert!(runtime.pending_permission_queue.is_empty());
+        assert_eq!(
+            response_rx.await.unwrap(),
+            PermissionPromptDecision::Deny("Prompt cancelled by user.".to_string())
+        );
+        assert_eq!(
+            queued_response_rx.await.unwrap(),
+            PermissionPromptDecision::Deny("Prompt cancelled by user.".to_string())
+        );
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("clearing queued prompt."));
+    }
+
+    #[test]
+    fn cancelled_prompt_completion_reports_cancelled_instead_of_failed() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::PromptCompleted(Err("assistant turn cancelled".to_string())),
+        );
+
+        assert!(!app.repl.is_loading);
+        assert!(runtime.active_prompt_abort.is_none());
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Prompt cancelled."));
+    }
+
+    #[test]
+    fn tui_clear_session_command_requires_no_args() {
+        assert!(is_clear_session_command("clear", ""));
+        assert!(is_clear_session_command("clear", "   "));
+        assert!(!is_clear_session_command("clear", "status"));
+        assert!(!is_clear_session_command("clear", "--help"));
+        assert!(!is_clear_session_command("status", ""));
+    }
+
+    #[test]
+    fn applies_resume_entries_event_to_resume_screen() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.screen = AppScreen::ResumeConversation;
+        app.resume.loading = true;
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::ResumeEntriesLoaded(Ok(vec![SessionEntry {
+                session_id: "session-2".to_string(),
+                title: "Existing session".to_string(),
+                timestamp: "10".to_string(),
+                message_count: 2,
+            }])),
+        );
+
+        assert!(!app.resume.loading);
+        assert_eq!(app.resume.sessions.len(), 1);
+        assert_eq!(app.resume.sessions[0].session_id, "session-2");
+    }
+
+    #[tokio::test]
+    async fn load_resume_sessions_filters_to_tui_cwd() {
+        let _guard = tui_env_lock().lock().unwrap();
+        let home = ScopedKianaHome::new();
+        let current_project = home.root.join("current-project");
+        let other_project = home.root.join("other-project");
+        std::fs::create_dir_all(&current_project).unwrap();
+        std::fs::create_dir_all(&other_project).unwrap();
+        home.write_session_with_cwd("session-current-project", Some(&current_project));
+        home.write_session_with_cwd("session-other-project", Some(&other_project));
+        let mut runtime = runtime_for_test("session-current-project");
+        runtime.cwd = current_project;
+        let mut app = App::new();
+        app.screen = AppScreen::ResumeConversation;
+
+        runtime
+            .handle_action(AppAction::LoadResumeSessions, &mut app)
+            .unwrap();
+
+        drain_until_resume_entries_loaded(&mut runtime, &mut app).await;
+
+        let session_ids = app
+            .resume
+            .sessions
+            .iter()
+            .map(|entry| entry.session_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(session_ids, vec!["session-current-project"]);
+    }
+
+    #[test]
+    fn resume_entries_error_returns_to_repl_with_visible_message() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.screen = AppScreen::ResumeConversation;
+        app.resume.loading = true;
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::ResumeEntriesLoaded(Err("session store unavailable".to_string())),
+        );
+
+        assert!(!app.resume.loading);
+        assert_eq!(app.screen, AppScreen::Repl);
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Failed to load sessions: session store unavailable"));
+    }
+
+    #[test]
+    fn applies_session_resumed_event_replaces_runtime_session() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        runtime.pending_resume_session_id = Some("session-2".to_string());
+        app.repl.push_message(MessageRole::User, "old".to_string());
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::SessionResumed {
+                requested_session_id: "session-2".to_string(),
+                result: Ok(ResumedSession {
+                    session_id: "session-2".to_string(),
+                    title: "Recovered".to_string(),
+                    messages: vec![ConversationMessage {
+                        role: MessageRole::Assistant,
+                        content: "existing answer".to_string(),
+                        timestamp: "123".to_string(),
+                    }],
+                }),
+            },
+        );
+
+        assert!(!app.repl.is_loading);
+        assert!(runtime.pending_resume_session_id.is_none());
+        assert_eq!(runtime.session_id, "session-2");
+        assert_eq!(app.repl.messages[0].content, "existing answer");
+        assert_eq!(app.repl.messages.last().unwrap().role, MessageRole::System);
+        assert!(app
+            .repl
+            .messages
+            .last()
+            .unwrap()
+            .content
+            .contains("Resumed session session-2"));
+    }
+
+    #[test]
+    fn stale_session_resumed_event_is_ignored() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.is_loading = true;
+        runtime.pending_resume_session_id = Some("session-3".to_string());
+        app.repl
+            .push_message(MessageRole::User, "current".to_string());
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::SessionResumed {
+                requested_session_id: "session-2".to_string(),
+                result: Ok(ResumedSession {
+                    session_id: "session-2".to_string(),
+                    title: "Stale".to_string(),
+                    messages: vec![ConversationMessage {
+                        role: MessageRole::Assistant,
+                        content: "stale answer".to_string(),
+                        timestamp: "123".to_string(),
+                    }],
+                }),
+            },
+        );
+
+        assert!(app.repl.is_loading);
+        assert_eq!(runtime.session_id, "session-1");
+        assert_eq!(
+            runtime.pending_resume_session_id.as_deref(),
+            Some("session-3")
+        );
+        assert_eq!(app.repl.messages[0].content, "current");
+    }
+}

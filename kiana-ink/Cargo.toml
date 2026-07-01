@@ -1,0 +1,19 @@
+[package]
+name = "kiana-ink"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+ratatui = "0.28"
+crossterm = "0.28"
+taffy = "0.5"
+anyhow = "1.0"
+unicode-width = "0.1"

@@ -1,0 +1,63 @@
+# Rust build output
+target/
+
+# Release/package output
+dist/
+*.tar.gz
+*.zip
+*.sha256
+
+# Local Kiana runtime state
+.kiana/tasks/
+.kiana/tmp/
+.kiana/logs/
+**/.kiana/tasks/
+**/.kiana/tmp/
+**/.kiana/logs/
+*kiana-post-tool-use-hook-*post-hook.json*
+
+# Local assistant/editor state
+.claude/*.local.md
+**/.claude/*.local.md
+.agents/
+
+# Secrets and environment overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Reference checkouts kept out of the product repository by default.
+# Keep curated audit notes under docs/reference_audit/ instead.
+reference/
+reference-typescript/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build caches
+.cargo/
+sccache/
+
+# Coverage and profiling
+*.profraw
+*.profdata
+coverage/
+perf.data
+flamegraph.svg
+
+# Logs
+*.log
