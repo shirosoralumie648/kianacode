@@ -78,8 +78,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Release tarballs now include a package lifecycle smoke script, and the
   packaged binary installer supports uninstalling from the selected
   `INSTALL_DIR`.
-- Added a local Ollama text provider for `/api/chat` endpoints with explicit
-  model capabilities and pre-request rejection when tools are enabled.
+- Local Ollama `/api/chat` provider now advertises tool support and maps
+  Ollama `tools`/`tool_calls` responses into Kiana `tool_use`/`tool_result`
+  loops.
 - Added headless TUI render coverage for the REPL approval panel and resume
   picker search view.
 - Added `kiana model smoke [--json] [--live]` for provider smoke reports, with

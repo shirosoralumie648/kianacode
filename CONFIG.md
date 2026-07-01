@@ -60,7 +60,7 @@ export KIANA_OLLAMA_BASE_URL="http://localhost:11434" # 可选
 export KIANA_OLLAMA_MODEL="llama3.1"                  # 可选
 ```
 
-当前 Ollama provider 只支持 text-only `/api/chat`；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
+当前 Ollama provider 支持 `/api/chat` 文本和工具循环；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会把 Kiana `tool_use`/`tool_result` 映射到 Ollama `tool_calls`/`tool` 消息。
 
 Provider smoke 默认无网络，只验证 fake provider 并报告 live provider skip reason。设置 `KIANA_PROVIDER_SMOKE_LIVE=1` 或使用 `kiana model smoke --live --json` 后，才会尝试真实 Anthropic、OpenAI-compatible 和 Ollama provider。
 

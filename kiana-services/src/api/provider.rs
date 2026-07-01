@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use futures::{stream, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -213,7 +213,7 @@ fn ollama_model_profile(model_id: &str) -> ModelProfile {
     ModelProfile {
         provider_id: OLLAMA_PROVIDER_ID.to_string(),
         model_id: model_id.to_string(),
-        supports_tools: false,
+        supports_tools: true,
         supports_streaming: true,
         supports_vision: false,
         supports_structured_output: false,
@@ -733,18 +733,16 @@ impl Provider for OllamaProvider {
 
 fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
     let mut messages = Vec::new();
+    let mut tool_names_by_id = HashMap::new();
     if let Some(system) = request.system.as_ref() {
         messages.push(json!({
             "role": "system",
             "content": ollama_message_content(system),
         }));
     }
-    messages.extend(request.messages.iter().map(|message| {
-        json!({
-            "role": message.role.clone(),
-            "content": ollama_message_content(&message.content),
-        })
-    }));
+    for message in &request.messages {
+        messages.extend(ollama_messages_from_message(message, &mut tool_names_by_id));
+    }
 
     let mut body = json!({
         "model": request.model.clone(),
@@ -757,7 +755,92 @@ fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
     if let Some(temperature) = request.temperature {
         body["options"]["temperature"] = json!(temperature);
     }
+    if let Some(tools) = request.tools.as_ref().filter(|tools| !tools.is_empty()) {
+        body["tools"] = Value::Array(tools.iter().map(openai_tool_definition).collect());
+    }
     body
+}
+
+fn ollama_messages_from_message(
+    message: &Message,
+    tool_names_by_id: &mut HashMap<String, String>,
+) -> Vec<Value> {
+    if let Some(array) = message.content.as_array() {
+        if array
+            .iter()
+            .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
+        {
+            return array
+                .iter()
+                .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
+                .map(|block| {
+                    json!({
+                        "role": "tool",
+                        "tool_name": ollama_tool_name_for_result(block, tool_names_by_id),
+                        "content": openai_tool_result_content(block.get("content").unwrap_or(&Value::Null)),
+                    })
+                })
+                .collect();
+        }
+
+        let tool_use_blocks = array
+            .iter()
+            .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_use"))
+            .collect::<Vec<_>>();
+        if !tool_use_blocks.is_empty() {
+            for block in &tool_use_blocks {
+                if let (Some(id), Some(name)) = (
+                    block.get("id").and_then(Value::as_str),
+                    block.get("name").and_then(Value::as_str),
+                ) {
+                    tool_names_by_id.insert(id.to_string(), name.to_string());
+                }
+            }
+            return vec![json!({
+                "role": message.role.clone(),
+                "content": ollama_message_content(&message.content),
+                "tool_calls": tool_use_blocks
+                    .into_iter()
+                    .map(ollama_tool_call_from_tool_use)
+                    .collect::<Vec<_>>(),
+            })];
+        }
+    }
+
+    vec![json!({
+        "role": message.role.clone(),
+        "content": ollama_message_content(&message.content),
+    })]
+}
+
+fn ollama_tool_name_for_result(
+    block: &Value,
+    tool_names_by_id: &HashMap<String, String>,
+) -> String {
+    block
+        .get("tool_name")
+        .or_else(|| block.get("name"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            block
+                .get("tool_use_id")
+                .and_then(Value::as_str)
+                .and_then(|id| tool_names_by_id.get(id).cloned())
+        })
+        .unwrap_or_else(|| "tool".to_string())
+}
+
+fn ollama_tool_call_from_tool_use(block: &Value) -> Value {
+    json!({
+        "function": {
+            "name": block
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown"),
+            "arguments": block.get("input").cloned().unwrap_or_else(|| json!({})),
+        }
+    })
 }
 
 fn ollama_message_content(content: &Value) -> String {
@@ -793,11 +876,29 @@ fn ollama_chat_response_to_messages_response(
     fallback_model: &str,
 ) -> ProviderResult<MessagesResponse> {
     let message = value.get("message").unwrap_or(&Value::Null);
+    let has_tool_calls = message
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .is_some_and(|tool_calls| !tool_calls.is_empty());
     let text = message
         .get("content")
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+    let mut content = Vec::new();
+    if !text.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": text,
+        }));
+    }
+    content.extend(ollama_tool_use_blocks_from_message(message));
+    if content.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": "",
+        }));
+    }
     Ok(MessagesResponse {
         id: value
             .get("created_at")
@@ -814,21 +915,22 @@ fn ollama_chat_response_to_messages_response(
             .and_then(Value::as_str)
             .unwrap_or("assistant")
             .to_string(),
-        content: vec![json!({
-            "type": "text",
-            "text": text,
-        })],
-        stop_reason: value
-            .get("done_reason")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .or_else(|| {
-                value
-                    .get("done")
-                    .and_then(Value::as_bool)
-                    .filter(|done| *done)
-                    .map(|_| "stop".to_string())
-            }),
+        content,
+        stop_reason: if has_tool_calls {
+            Some("tool_use".to_string())
+        } else {
+            value
+                .get("done_reason")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .or_else(|| {
+                    value
+                        .get("done")
+                        .and_then(Value::as_bool)
+                        .filter(|done| *done)
+                        .map(|_| "stop".to_string())
+                })
+        },
         usage: Usage {
             input_tokens: value
                 .get("prompt_eval_count")
@@ -840,6 +942,37 @@ fn ollama_chat_response_to_messages_response(
                 .unwrap_or_default() as u32,
         },
     })
+}
+
+fn ollama_tool_use_blocks_from_message(message: &Value) -> Vec<Value> {
+    message
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .map(|tool_calls| {
+            tool_calls
+                .iter()
+                .enumerate()
+                .filter_map(|(index, tool_call)| {
+                    let function = tool_call.get("function").unwrap_or(&Value::Null);
+                    let name = function.get("name").and_then(Value::as_str)?;
+                    let input = function
+                        .get("arguments")
+                        .cloned()
+                        .unwrap_or_else(|| json!({}));
+                    Some(json!({
+                        "type": "tool_use",
+                        "id": tool_call
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                            .unwrap_or_else(|| format!("toolu_ollama_{index}")),
+                        "name": name,
+                        "input": input,
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -1115,7 +1248,7 @@ mod tests {
         assert!(value.as_array().unwrap().iter().any(|profile| {
             profile["provider_id"].as_str() == Some(OLLAMA_PROVIDER_ID)
                 && profile["model_id"].as_str() == Some(OLLAMA_DEFAULT_MODEL_ID)
-                && profile["supports_tools"].as_bool() == Some(false)
+                && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
         }));
     }
@@ -1408,28 +1541,100 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ollama_provider_rejects_tools_before_request() {
-        let provider =
-            OllamaProvider::new("http://127.0.0.1:9".to_string(), Duration::from_secs(5)).unwrap();
+    async fn ollama_provider_maps_tools_and_tool_calls() {
+        let (base_url, mut request_rx, server) = start_mock_ollama_server(json!({
+            "model": "llama-test",
+            "created_at": "2026-07-01T00:00:00Z",
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "function": {
+                        "name": "Read",
+                        "arguments": {
+                            "file_path": "README.md"
+                        }
+                    }
+                }]
+            },
+            "done": true,
+            "done_reason": "stop",
+            "prompt_eval_count": 9,
+            "eval_count": 2
+        }))
+        .await;
+        let provider = OllamaProvider::new(base_url, Duration::from_secs(5)).unwrap();
 
-        let error = provider
+        let response = provider
             .create_message(MessagesRequest {
                 model: OLLAMA_DEFAULT_MODEL_ID.to_string(),
-                messages: vec![Message {
-                    role: "user".to_string(),
-                    content: json!("use a tool"),
-                }],
+                messages: vec![
+                    Message {
+                        role: "user".to_string(),
+                        content: json!("read the README"),
+                    },
+                    Message {
+                        role: "assistant".to_string(),
+                        content: json!([{
+                            "type": "tool_use",
+                            "id": "call_previous",
+                            "name": "Read",
+                            "input": {
+                                "file_path": "README.md"
+                            }
+                        }]),
+                    },
+                    Message {
+                        role: "user".to_string(),
+                        content: json!([{
+                            "type": "tool_result",
+                            "tool_use_id": "call_previous",
+                            "content": "README contents"
+                        }]),
+                    },
+                ],
                 max_tokens: 64,
                 system: None,
                 temperature: None,
-                tools: Some(vec![json!({"name": "Read"})]),
+                tools: Some(vec![json!({
+                    "name": "Read",
+                    "description": "Read a file",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string"}
+                        }
+                    }
+                })]),
                 thinking: None,
                 stream: None,
             })
             .await
-            .unwrap_err();
+            .unwrap();
 
-        assert_eq!(error.code(), "unsupported_tools");
+        assert_eq!(response.content[0]["type"], "tool_use");
+        assert_eq!(response.content[0]["id"], "toolu_ollama_0");
+        assert_eq!(response.content[0]["name"], "Read");
+        assert_eq!(response.content[0]["input"]["file_path"], "README.md");
+        assert_eq!(response.stop_reason.as_deref(), Some("tool_use"));
+
+        let request = request_rx.recv().await.unwrap();
+        let body: Value = serde_json::from_str(http_body(&request)).unwrap();
+        assert_eq!(body["tools"][0]["type"], "function");
+        assert_eq!(body["tools"][0]["function"]["name"], "Read");
+        assert_eq!(
+            body["messages"][1]["tool_calls"][0]["function"]["name"],
+            "Read"
+        );
+        assert_eq!(
+            body["messages"][1]["tool_calls"][0]["function"]["arguments"]["file_path"],
+            "README.md"
+        );
+        assert_eq!(body["messages"][2]["role"], "tool");
+        assert_eq!(body["messages"][2]["tool_name"], "Read");
+        assert_eq!(body["messages"][2]["content"], "README contents");
+
+        server.await.unwrap();
     }
 
     #[tokio::test]

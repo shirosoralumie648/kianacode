@@ -76,7 +76,7 @@ export KIANA_OLLAMA_MODEL="llama3.1"
 kiana -p "summarize README.md"
 ```
 
-这个 provider 当前只声明 text-only `/api/chat` 能力，不需要 API key；显式带工具运行会在请求前失败。
+这个 provider 支持 Ollama `/api/chat` 文本和工具循环，不需要 API key；`kiana model list --json` 会显示 `supports_tools=true`。如果只想走纯文本路径，可以显式传 `--tools ""`。
 
 Provider smoke report 默认只执行无网络 fake provider，并把 Anthropic、OpenAI-compatible、Ollama 标为 skipped，适合 CI/release gate：
 

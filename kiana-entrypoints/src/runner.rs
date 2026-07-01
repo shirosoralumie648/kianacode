@@ -7574,6 +7574,7 @@ mod tests {
                 ("provider".to_string(), json!("ollama")),
                 ("model".to_string(), json!("llama-test")),
                 ("base_url".to_string(), json!(base_url)),
+                ("tools".to_string(), json!("")),
             ]),
         )
         .await
@@ -7593,30 +7594,52 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_assistant_turn_ollama_rejects_tools_before_request() {
+    async fn run_assistant_turn_ollama_provider_runs_tool_loop() {
         let _guard = env_lock().lock().unwrap();
         clear_team_env();
         clear_thinking_env();
         clear_max_tokens_env();
         clear_ollama_env();
+        let (base_url, state, server) = start_mock_ollama_server().await;
 
-        let error = run_assistant_turn(
+        let result = run_assistant_turn(
             vec![json!({
                 "role": "user",
-                "content": "read the README"
+                "content": "update todos"
             })],
             &HashMap::from([
                 ("provider".to_string(), json!("ollama")),
                 ("model".to_string(), json!("llama-test")),
-                ("base_url".to_string(), json!("http://127.0.0.1:9")),
-                ("tools".to_string(), json!("default")),
+                ("base_url".to_string(), json!(base_url)),
+                ("tools".to_string(), json!("TodoWrite")),
+                ("max_iterations".to_string(), json!(2)),
             ]),
         )
         .await
-        .unwrap_err();
+        .unwrap();
 
-        let provider_error = error.downcast_ref::<ProviderError>().unwrap();
-        assert_eq!(provider_error.code(), "unsupported_tools");
+        assert_eq!(result.text, "ollama tool loop ok");
+        assert_eq!(result.iterations, 2);
+        let state = state.lock().unwrap();
+        assert_eq!(state.requests.len(), 2);
+        assert_eq!(
+            state.requests[0]["tools"][0]["function"]["name"],
+            "TodoWrite"
+        );
+        assert_eq!(state.requests[1]["messages"].as_array().unwrap().len(), 3);
+        let tool_result = &state.requests[1]["messages"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap();
+        assert_eq!(tool_result["role"], "tool");
+        assert_eq!(tool_result["tool_name"], "TodoWrite");
+        assert!(tool_result["content"]
+            .as_str()
+            .unwrap()
+            .contains("Todos have been modified successfully"));
+
+        server.abort();
     }
 
     #[tokio::test]
@@ -9332,9 +9355,41 @@ mod tests {
             .and_then(Value::as_str)
             .unwrap_or("unknown")
             .to_string();
-        {
+        let call_count = {
             let mut state = state.lock().unwrap();
-            state.requests.push(body);
+            state.requests.push(body.clone());
+            state.requests.len()
+        };
+
+        if call_count == 1 && body.get("tools").is_some_and(|tools| !tools.is_null()) {
+            return (
+                StatusCode::OK,
+                Json(json!({
+                    "model": model,
+                    "created_at": "2026-07-01T00:00:00Z",
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "function": {
+                                "name": "TodoWrite",
+                                "arguments": {
+                                    "todos": [{
+                                        "content": "verify Ollama tools",
+                                        "status": "in_progress",
+                                        "activeForm": "verifying Ollama tools"
+                                    }]
+                                }
+                            }
+                        }]
+                    },
+                    "done": true,
+                    "done_reason": "stop",
+                    "prompt_eval_count": 2,
+                    "eval_count": 3
+                })),
+            )
+                .into_response();
         }
 
         (
@@ -9344,7 +9399,7 @@ mod tests {
                 "created_at": "2026-07-01T00:00:00Z",
                 "message": {
                     "role": "assistant",
-                    "content": "ollama ok"
+                    "content": if call_count > 1 { "ollama tool loop ok" } else { "ollama ok" }
                 },
                 "done": true,
                 "done_reason": "stop",
