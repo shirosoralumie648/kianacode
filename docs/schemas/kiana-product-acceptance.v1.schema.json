@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-product-acceptance.v1.schema.json",
+  "title": "Kiana Product Acceptance v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "status",
+    "accepted",
+    "accepted_by",
+    "accepted_at",
+    "scope",
+    "workflows"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.product-acceptance.v1"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "headless_smoke_only", "blocked"]
+    },
+    "accepted": {
+      "type": "boolean"
+    },
+    "accepted_by": {
+      "type": "string"
+    },
+    "accepted_at": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

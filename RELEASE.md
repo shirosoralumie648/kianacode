@@ -117,6 +117,18 @@ each archive and binary checksum. macOS targets also require
 pre-validated `KIANA_MACOS_NOTARIZATION_PROOF_FILE`; the proof must use
 `kiana.macos-notarization.v1` with `status=accepted`.
 
+Product acceptance is explicit as well. Local RCs can record headless product
+shell coverage:
+
+```bash
+bash scripts/product-acceptance-report.sh --local-rc
+```
+
+Full commercial preflight requires `KIANA_PRODUCT_ACCEPTANCE_FILE` or
+`docs/product-acceptance/$(cat VERSION).json` with
+`schema = kiana.product-acceptance.v1`, `status = accepted`, and the required
+permission, diff, history, onboarding, resume, and settings workflows.
+
 ## Optional Live Service Gate
 
 Live provider verification requires at least one real provider target. The

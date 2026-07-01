@@ -78,6 +78,8 @@ commercial release.
 - TUI approval, diff, history, onboarding, and resume flows are accepted for the
   target customer segment; the headless product-shell smoke is passing before
   any manual terminal acceptance.
+- Product acceptance is recorded in `kiana.product-acceptance.v1` format and
+  passes `scripts/product-acceptance-report.sh full`.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
 - `kiana doctor` reports `commercial_security: ready` on target release

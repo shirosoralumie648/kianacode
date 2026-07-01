@@ -46,8 +46,10 @@ for file in \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
+  docs/schemas/kiana-product-acceptance.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
+  scripts/product-acceptance-report.sh \
   scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh \
   scripts/sign-release-artifacts.sh \
   scripts/verify-commercial-release-artifacts.sh \
@@ -184,6 +186,12 @@ else
   fail "enterprise offline manifest JSON schema is missing kiana.enterprise.offline-manifest.v1 const"
 fi
 
+if grep -Fq '"const": "kiana.product-acceptance.v1"' docs/schemas/kiana-product-acceptance.v1.schema.json; then
+  pass "product acceptance JSON schema version is pinned"
+else
+  fail "product acceptance JSON schema is missing kiana.product-acceptance.v1 const"
+fi
+
 if grep -Fq 'KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}' .github/workflows/release.yml; then
   pass "release workflow derives package manifest URLs from the active repository and tag"
 else
@@ -265,6 +273,12 @@ if [[ "$mode" == "full" ]]; then
     pass "remote live smoke passed"
   else
     fail "remote live smoke failed"
+  fi
+
+  if "$bash_bin" scripts/product-acceptance-report.sh full; then
+    pass "product acceptance gate passed"
+  else
+    fail "product acceptance gate failed"
   fi
 
   pass "full release signing/channel proof is enforced by release artifact verification"
