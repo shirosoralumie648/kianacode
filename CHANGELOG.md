@@ -57,6 +57,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - `kiana auth status --json` now reports OAuth token-file status, expiry,
   expiring/expired state, refreshability, and storage source without exposing
   token material; the service OAuth token check now rejects expired token files.
+- `kiana auth logout` now clears the configured API key and OAuth token file by
+  default, with `--api-key-only` and `--oauth-only` selectors for managed
+  environments.
 - `kiana auth status --json` now includes provider-aware readiness for
   Anthropic, OpenAI-compatible, Ollama, and fake providers, including redacted
   API key previews and local endpoint/model settings without exposing secrets.

@@ -73,6 +73,13 @@ impl OAuthTokenInspection {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthTokenDeletion {
+    pub file: String,
+    pub store: String,
+    pub removed: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
     pub client_id: String,
@@ -246,6 +253,23 @@ pub fn save_oauth_tokens(tokens: &OAuthTokens) -> crate::errors::ServiceResult<P
     let path = oauth_tokens_path();
     save_oauth_tokens_to_path(&path, tokens)?;
     Ok(path)
+}
+
+pub fn delete_oauth_tokens() -> crate::errors::ServiceResult<OAuthTokenDeletion> {
+    let path = oauth_tokens_path();
+    let removed = match fs::remove_file(&path) {
+        Ok(()) => {
+            sync_parent_dir(&path);
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    Ok(OAuthTokenDeletion {
+        file: path.display().to_string(),
+        store: "file".to_string(),
+        removed,
+    })
 }
 
 pub fn save_oauth_tokens_to_path(
@@ -501,6 +525,31 @@ mod tests {
         assert!(inspection.error.is_some());
 
         let _ = fs::remove_file(path);
+        clear_oauth_env();
+    }
+
+    #[test]
+    fn delete_oauth_tokens_removes_configured_file_and_is_idempotent() {
+        let _guard = lock_env();
+        clear_oauth_env();
+        let path = temp_path("delete");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &path);
+        save_oauth_tokens(&OAuthTokens {
+            access_token: "access-token".to_string(),
+            refresh_token: Some("refresh-token".to_string()),
+            expires_at: None,
+        })
+        .unwrap();
+
+        let deleted = delete_oauth_tokens().unwrap();
+        let deleted_again = delete_oauth_tokens().unwrap();
+
+        assert!(deleted.removed);
+        assert_eq!(deleted.file, path.display().to_string());
+        assert_eq!(deleted.store, "file");
+        assert!(!path.exists());
+        assert!(!deleted_again.removed);
+
         clear_oauth_env();
     }
 

@@ -35,6 +35,8 @@ kiana config init
 kiana login "sk-ant-xxx"
 kiana config status
 kiana auth status --json
+kiana auth logout              # clears config API key and OAuth token file
+kiana auth logout --oauth-only # clears only the OAuth token file
 ```
 
 也可以直接写入配置项：

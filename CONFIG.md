@@ -17,6 +17,9 @@ kiana model list
 kiana model list --json
 kiana model smoke --json
 kiana auth status --json
+kiana auth logout              # clears config API key and OAuth token file
+kiana auth logout --api-key-only
+kiana auth logout --oauth-only
 kiana license status --json
 ```
 
