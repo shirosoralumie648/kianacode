@@ -66,9 +66,9 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - TUI headless render tests now verify the REPL approval panel keeps queued permission context, status shortcuts, and prompt input visible, and the resume picker renders filtered search results plus resume help.
 - TUI `/history` now opens a searchable prompt-history picker backed by `KIANA_HOME/tui-history.jsonl`, dedupes newest-first prompt entries, restores the selected prompt as a draft, and has focused headless state/render coverage.
 - `scripts/product-shell-smoke.sh` now names and runs the TUI approval, diff, onboarding, resume, and prompt-history headless gates, and `scripts/release-smoke.sh` invokes it in full release mode.
-- OpenAI-compatible text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
-- Local Ollama text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
-- Text-only provider runs now default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
+- OpenAI-compatible provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; Chat Completions text and function-style tool loops are covered by local mock gates.
+- Local Ollama provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; `/api/chat` text and `tools`/`tool_calls` loops are covered by local mock gates.
+- Providers that do not support tools still default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`.
 - `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
