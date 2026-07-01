@@ -77,6 +77,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   model capabilities and pre-request rejection when tools are enabled.
 - Added headless TUI render coverage for the REPL approval panel and resume
   picker search view.
+- Added `kiana model smoke [--json] [--live]` for provider smoke reports, with
+  fake provider covered by default release gates and live providers opt-in.
 
 ### Verified
 

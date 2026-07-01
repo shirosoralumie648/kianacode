@@ -15,6 +15,7 @@ kiana config set api_key "sk-ant-xxx"
 kiana config set base_url "https://api.anthropic.com"
 kiana model list
 kiana model list --json
+kiana model smoke --json
 ```
 
 配置保存到 `~/.kiana/config.toml`，运行 `kiana config status` 可查看当前生效值。
@@ -58,6 +59,8 @@ export KIANA_OLLAMA_MODEL="llama3.1"                  # 可选
 ```
 
 当前 Ollama provider 只支持 text-only `/api/chat`；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
+
+Provider smoke 默认无网络，只验证 fake provider 并报告 live provider skip reason。设置 `KIANA_PROVIDER_SMOKE_LIVE=1` 或使用 `kiana model smoke --live --json` 后，才会尝试真实 Anthropic、OpenAI-compatible 和 Ollama provider。
 
 ### 4. 托管配置策略
 

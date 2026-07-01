@@ -34,11 +34,12 @@ fi
 
 cargo build --release --locked --offline -p kiana-entrypoints --bin kiana
 
-mkdir -p "$stage/docs" "$stage/scripts"
+mkdir -p "$stage/docs/schemas" "$stage/scripts"
 cp "target/release/kiana${exe_ext}" "$stage/"
 cp VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md SECURITY.md PRIVACY.md TELEMETRY.md "$stage/"
 cp LICENSE-MIT LICENSE-APACHE "$stage/"
 cp docs/reference-migration-roadmap.md docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md "$stage/docs/"
+cp docs/schemas/*.json "$stage/docs/schemas/"
 cp scripts/install-release-binary.sh scripts/package-lifecycle-smoke.sh "$stage/scripts/"
 
 COMPLIANCE_OUT_DIR="$compliance_dir" bash scripts/compliance-audit.sh "$compliance_mode" >/dev/null

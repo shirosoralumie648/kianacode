@@ -99,6 +99,7 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
+  "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh"
 do
   if [[ ! -f "$file" ]]; then
@@ -125,6 +126,7 @@ run_installed() {
     -u ANTHROPIC_API_KEY \
     -u ANTHROPIC_BASE_URL \
     -u ANTHROPIC_MODEL \
+    -u KIANA_PROVIDER_SMOKE_LIVE \
     -u KIANA_PROVIDER \
     -u KIANA_OPENAI_API_KEY \
     -u OPENAI_API_KEY \
@@ -138,6 +140,8 @@ INSTALL_DIR="$install_dir" bash "$installer" --install >/dev/null
 run_installed --version >/dev/null
 run_installed doctor --json | grep -Fq '"schema": "kiana.doctor.v1"'
 run_installed model list --json | grep -Fq '"provider_id": "openai-compatible"'
+run_installed model smoke --json | grep -Fq '"schema": "kiana.model-smoke.v1"'
+run_installed model smoke --json | grep -Fq '"provider_id": "fake"'
 
 pre_upgrade_hash="$(file_hash "$installed")"
 rollback_dir="$tmp_root/rollback"

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-model-smoke.v1.schema.json",
+  "title": "Kiana Model Smoke Report v1",
+  "type": "object",
+  "required": ["schema", "live", "summary", "results"],
+  "properties": {
+    "schema": {
+      "const": "kiana.model-smoke.v1"
+    },
+    "live": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["passed", "skipped", "failed"],
+      "properties": {
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "result": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "model_id",
+        "status",
+        "live",
+        "capability",
+        "message"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["passed", "skipped", "failed"]
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "capability": {
+          "type": "string",
+          "enum": ["text"]
+        },
+        "message": {
+          "type": "string"
+        },
+        "output_preview": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

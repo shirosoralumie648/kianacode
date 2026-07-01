@@ -15516,6 +15516,46 @@ mod tests {
         }));
     }
 
+    #[tokio::test]
+    async fn cli_model_smoke_json_reports_fake_pass() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&[
+            "KIANA_PROVIDER_SMOKE_LIVE",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OLLAMA_MODEL",
+            "OLLAMA_MODEL",
+        ]);
+        for key in [
+            "KIANA_PROVIDER_SMOKE_LIVE",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OLLAMA_MODEL",
+            "OLLAMA_MODEL",
+        ] {
+            std::env::remove_var(key);
+        }
+
+        let result = run_local_command(&[
+            "model".to_string(),
+            "smoke".to_string(),
+            "--json".to_string(),
+        ])
+        .await
+        .unwrap()
+        .expect("model smoke result");
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.model-smoke.v1");
+        assert_eq!(report["summary"]["passed"], 1);
+        assert!(report["results"].as_array().unwrap().iter().any(|result| {
+            result["provider_id"].as_str() == Some("fake")
+                && result["status"].as_str() == Some("passed")
+        }));
+    }
+
     #[test]
     fn reply_args_allow_record_only_mode() {
         let args = vec![

@@ -40,6 +40,7 @@ kiana config set model "claude-sonnet-4-6"
 kiana config get api_key
 kiana model list
 kiana model list --json
+kiana model smoke --json
 ```
 
 环境变量优先级高于配置文件：
@@ -70,6 +71,20 @@ kiana -p "summarize README.md"
 ```
 
 这个 provider 当前只声明 text-only `/api/chat` 能力，不需要 API key；显式带工具运行会在请求前失败。
+
+Provider smoke report 默认只执行无网络 fake provider，并把 Anthropic、OpenAI-compatible、Ollama 标为 skipped，适合 CI/release gate：
+
+```bash
+kiana model smoke --json
+```
+
+真实 provider smoke 需要显式 opt-in：
+
+```bash
+KIANA_PROVIDER_SMOKE_LIVE=1 kiana model smoke --json
+# 或
+kiana model smoke --live --json
+```
 
 ## 基础对话
 

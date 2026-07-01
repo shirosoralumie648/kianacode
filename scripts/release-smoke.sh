@@ -92,6 +92,7 @@ run_clean_kiana() {
     -u ANTHROPIC_API_KEY \
     -u ANTHROPIC_BASE_URL \
     -u ANTHROPIC_MODEL \
+    -u KIANA_PROVIDER_SMOKE_LIVE \
     -u KIANA_REMOTE_ACCESS_TOKEN \
     -u CLAUDE_ACCESS_TOKEN \
     -u KIANA_OAUTH_TOKENS_FILE \
@@ -204,6 +205,49 @@ checks = [
 ]
 if not all(checks):
     print("doctor JSON failed schema smoke checks", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+smoke_model_smoke_json() {
+  local binary="$1"
+  local output
+  local python_bin
+
+  output="$(run_clean_kiana "$binary" model smoke --json 2>&1)"
+  python_bin="$(doctor_json_python)"
+  MODEL_SMOKE_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["MODEL_SMOKE_JSON"])
+except Exception as exc:
+    print(f"model smoke JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("MODEL_SMOKE_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("schema") != "kiana.model-smoke.v1":
+    print("model smoke schema mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
+results = report.get("results")
+if not isinstance(results, list):
+    print("model smoke results missing", file=sys.stderr)
+    sys.exit(1)
+
+fake = next((item for item in results if item.get("provider_id") == "fake"), None)
+if fake is None or fake.get("status") != "passed":
+    print("fake provider smoke did not pass", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
+summary = report.get("summary", {})
+if summary.get("failed") != 0 or summary.get("passed", 0) < 1:
+    print("model smoke summary failed default gate", file=sys.stderr)
     print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 PY
@@ -495,6 +539,7 @@ installed_bin="$install_dir/kiana$(exe_ext)"
 smoke_version "$release_bin"
 smoke_doctor "$release_bin"
 smoke_doctor_json "$release_bin"
+smoke_model_smoke_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$release_bin" "$entry"
 done
@@ -508,6 +553,7 @@ install_release_binary
 smoke_version "$installed_bin"
 smoke_doctor "$installed_bin"
 smoke_doctor_json "$installed_bin"
+smoke_model_smoke_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$installed_bin" "$entry"
 done

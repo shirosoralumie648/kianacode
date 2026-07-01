@@ -14,6 +14,8 @@ The channels below define the commercial distribution target state.
   checksum, extraction, install, repeated install, rollback restore, and
   uninstall behavior for a staged tarball.
 - Release tarballs include `SBOM.cdx.json` and `docs/compliance-report.json`.
+- Release tarballs include pinned JSON schemas under `docs/schemas/`, including
+  doctor and model provider smoke reports.
 - Distribution manifest dry-runs are generated through
   `scripts/generate-distribution-manifests.sh` and included beside package
   artifacts under `dist/manifests/`.
