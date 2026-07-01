@@ -93,6 +93,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added `scripts/entitlement-proof-report.sh` plus the
   `kiana.entitlement-proof.v1` schema so full commercial preflight requires an
   accepted active enterprise entitlement proof from an external backend record.
+- Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
+  local app-server `/app` endpoints for conversations, settings, redacted
+  secrets, sandbox posture, and git status.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

@@ -5214,6 +5214,30 @@ fn direct_connect_server_state(
 fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router {
     axum::Router::new()
         .route(
+            "/app",
+            axum::routing::get(direct_connect_app_contract_handler),
+        )
+        .route(
+            "/app/conversations",
+            axum::routing::get(direct_connect_app_conversations_handler),
+        )
+        .route(
+            "/app/settings",
+            axum::routing::get(direct_connect_app_settings_handler),
+        )
+        .route(
+            "/app/secrets",
+            axum::routing::get(direct_connect_app_secrets_handler),
+        )
+        .route(
+            "/app/sandbox",
+            axum::routing::get(direct_connect_app_sandbox_handler),
+        )
+        .route(
+            "/app/git/status",
+            axum::routing::get(direct_connect_app_git_status_handler),
+        )
+        .route(
             "/sessions",
             axum::routing::post(direct_connect_create_session_handler),
         )
@@ -5222,6 +5246,165 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_ws_handler),
         )
         .with_state(state)
+}
+
+async fn direct_connect_app_contract_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let active_sessions = state.sessions.lock().await.len();
+    axum::Json(direct_connect_app_contract(&state, active_sessions)).into_response()
+}
+
+async fn direct_connect_app_conversations_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let mut conversations = state
+        .sessions
+        .lock()
+        .await
+        .values()
+        .map(|session| {
+            serde_json::json!({
+                "id": session.session_id,
+                "session_id": session.session_id,
+                "work_dir": session.work_dir.display().to_string(),
+                "dangerously_skip_permissions": session.dangerously_skip_permissions,
+                "events_url": format!("/sessions/{}/ws", session.session_id),
+            })
+        })
+        .collect::<Vec<_>>();
+    conversations.sort_by(|left, right| {
+        left.get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .cmp(right.get("id").and_then(Value::as_str).unwrap_or_default())
+    });
+
+    axum::Json(serde_json::json!({
+        "schema": "kiana.app-server.conversations.v1",
+        "count": conversations.len(),
+        "conversations": conversations,
+    }))
+    .into_response()
+}
+
+async fn direct_connect_app_settings_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let mut option_keys = state.base_options.keys().cloned().collect::<Vec<_>>();
+    option_keys.sort();
+    axum::Json(serde_json::json!({
+        "schema": "kiana.app-server.settings.v1",
+        "workspace": state.workspace.display().to_string(),
+        "idle_timeout_ms": state.idle_timeout_ms,
+        "max_sessions": state.max_sessions,
+        "auth": {
+            "type": if state.auth_token.is_some() { "bearer" } else { "none" },
+            "required": state.auth_token.is_some(),
+        },
+        "base_option_keys": option_keys,
+    }))
+    .into_response()
+}
+
+async fn direct_connect_app_secrets_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(serde_json::json!({
+        "schema": "kiana.app-server.secrets.v1",
+        "values": [],
+        "read_supported": false,
+        "write_supported": false,
+        "policy": "secret values are never returned by the local app-server contract",
+    }))
+    .into_response()
+}
+
+async fn direct_connect_app_sandbox_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(serde_json::json!({
+        "schema": "kiana.app-server.sandbox.v1",
+        "workspace": state.workspace.display().to_string(),
+        "default_permission_mode": state
+            .base_options
+            .get("permission_mode")
+            .or_else(|| state.base_options.get("permissionMode"))
+            .and_then(Value::as_str)
+            .unwrap_or("prompt"),
+        "controls": [
+            "bearer_auth",
+            "permission_prompt",
+            "exec_policy"
+        ],
+    }))
+    .into_response()
+}
+
+async fn direct_connect_app_git_status_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(direct_connect_git_status_report(&state.workspace)).into_response()
 }
 
 async fn direct_connect_create_session_handler(
@@ -5688,6 +5871,121 @@ fn direct_connect_session_work_dir(workspace: &Path, requested_cwd: Option<&str>
         path
     } else {
         workspace.join(path)
+    }
+}
+
+fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions: usize) -> Value {
+    serde_json::json!({
+        "schema": "kiana.app-server.contract.v1",
+        "transport": if state.unix_socket.is_some() { "unix" } else { "http" },
+        "workspace": state.workspace.display().to_string(),
+        "auth": {
+            "type": if state.auth_token.is_some() { "bearer" } else { "none" },
+            "required": state.auth_token.is_some(),
+        },
+        "capabilities": [
+            "conversations.read",
+            "events.websocket",
+            "settings.read",
+            "secrets.redacted",
+            "sandbox.read",
+            "git.status.read"
+        ],
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/app",
+                "schema": "kiana.app-server.contract.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/conversations",
+                "schema": "kiana.app-server.conversations.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/settings",
+                "schema": "kiana.app-server.settings.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/secrets",
+                "schema": "kiana.app-server.secrets.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/sandbox",
+                "schema": "kiana.app-server.sandbox.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/git/status",
+                "schema": "kiana.app-server.git-status.v1"
+            },
+            {
+                "method": "POST",
+                "path": "/sessions",
+                "schema": "kiana.direct-connect.session-create.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/sessions/{session_id}/ws",
+                "schema": "kiana.direct-connect.events.websocket.v1"
+            }
+        ],
+        "active_sessions": active_sessions,
+    })
+}
+
+fn direct_connect_git_status_report(workspace: &Path) -> Value {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .arg("status")
+        .arg("--porcelain=v1")
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let files = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(|line| Value::String(line.to_string()))
+                .collect::<Vec<_>>();
+            serde_json::json!({
+                "schema": "kiana.app-server.git-status.v1",
+                "workspace": workspace.display().to_string(),
+                "repository": {
+                    "detected": true,
+                    "source": "git status --porcelain=v1"
+                },
+                "dirty": !files.is_empty(),
+                "files": files,
+            })
+        }
+        Ok(output) => serde_json::json!({
+            "schema": "kiana.app-server.git-status.v1",
+            "workspace": workspace.display().to_string(),
+            "repository": {
+                "detected": false,
+                "source": "git status --porcelain=v1"
+            },
+            "dirty": null,
+            "files": [],
+            "error": String::from_utf8_lossy(&output.stderr).trim(),
+        }),
+        Err(error) => serde_json::json!({
+            "schema": "kiana.app-server.git-status.v1",
+            "workspace": workspace.display().to_string(),
+            "repository": {
+                "detected": false,
+                "source": "git status --porcelain=v1"
+            },
+            "dirty": null,
+            "files": [],
+            "error": error.to_string(),
+        }),
     }
 }
 
@@ -14631,6 +14929,166 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+        server.abort();
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn direct_connect_app_contract_exposes_product_shell_endpoints() {
+        let workspace =
+            std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&workspace).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server_args = DirectConnectServerArgs {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            auth_token: Some("secret".to_string()),
+            unix_socket: None,
+            workspace: Some(workspace.clone()),
+            idle_timeout_ms: 1000,
+            max_sessions: 32,
+        };
+        let state = direct_connect_server_state(
+            server_args,
+            addr,
+            Some("secret".to_string()),
+            HashMap::from([
+                (
+                    "api_key".to_string(),
+                    Value::String("must-not-leak".to_string()),
+                ),
+                (
+                    "permission_mode".to_string(),
+                    Value::String("ask".to_string()),
+                ),
+            ]),
+        )
+        .unwrap();
+        let app = direct_connect_server_router(state);
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let client = reqwest::Client::new();
+
+        let unauthorized = client
+            .get(format!("http://{addr}/app"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+        let session: Value = client
+            .post(format!("http://{addr}/sessions"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "cwd": workspace.display().to_string()
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let session_id = session["session_id"].as_str().unwrap();
+
+        let contract: Value = client
+            .get(format!("http://{addr}/app"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(contract["schema"], "kiana.app-server.contract.v1");
+        assert_eq!(contract["transport"], "http");
+        assert_eq!(contract["active_sessions"], 1);
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("conversations.read".to_string())));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/conversations"
+                    && endpoint["schema"] == "kiana.app-server.conversations.v1"
+            }));
+
+        let conversations: Value = client
+            .get(format!("http://{addr}/app/conversations"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(conversations["schema"], "kiana.app-server.conversations.v1");
+        assert_eq!(conversations["count"], 1);
+        assert_eq!(conversations["conversations"][0]["id"], session_id);
+        assert_eq!(
+            conversations["conversations"][0]["events_url"],
+            format!("/sessions/{session_id}/ws")
+        );
+
+        let settings: Value = client
+            .get(format!("http://{addr}/app/settings"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(settings["schema"], "kiana.app-server.settings.v1");
+        assert_eq!(settings["auth"]["type"], "bearer");
+        assert_eq!(
+            settings["base_option_keys"],
+            serde_json::json!(["api_key", "permission_mode"])
+        );
+        assert!(!settings.to_string().contains("must-not-leak"));
+
+        let secrets: Value = client
+            .get(format!("http://{addr}/app/secrets"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(secrets["schema"], "kiana.app-server.secrets.v1");
+        assert_eq!(secrets["values"], serde_json::json!([]));
+        assert_eq!(secrets["read_supported"], false);
+
+        let sandbox: Value = client
+            .get(format!("http://{addr}/app/sandbox"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(sandbox["schema"], "kiana.app-server.sandbox.v1");
+        assert_eq!(sandbox["default_permission_mode"], "ask");
+
+        let git_status: Value = client
+            .get(format!("http://{addr}/app/git/status"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(git_status["schema"], "kiana.app-server.git-status.v1");
+        assert_eq!(git_status["workspace"], workspace.display().to_string());
 
         server.abort();
         let _ = std::fs::remove_dir_all(workspace);

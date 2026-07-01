@@ -42,6 +42,7 @@ for file in \
   VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
+  docs/schemas/kiana-app-server-contract.v1.schema.json \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
@@ -159,6 +160,12 @@ if grep -Fq 'provider-live-smoke.sh' RELEASE.md &&
   pass "live provider and remote smoke gates are documented and wired into full preflight"
 else
   fail "live provider and remote smoke gates are not fully documented or wired"
+fi
+
+if grep -Fq '"const": "kiana.app-server.contract.v1"' docs/schemas/kiana-app-server-contract.v1.schema.json; then
+  pass "app-server contract JSON schema version is pinned"
+else
+  fail "app-server contract JSON schema is missing kiana.app-server.contract.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.json; then

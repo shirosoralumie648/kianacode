@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-contract.v1.schema.json",
+  "title": "Kiana App Server Contract v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "transport",
+    "workspace",
+    "auth",
+    "capabilities",
+    "endpoints"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.contract.v1"
+    },
+    "transport": {
+      "type": "string",
+      "enum": ["http", "unix"]
+    },
+    "workspace": {
+      "type": "string"
+    },
+    "auth": {
+      "type": "object",
+      "required": ["type", "required"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bearer", "none"]
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["method", "path", "schema"],
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "active_sessions": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

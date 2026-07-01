@@ -99,6 +99,7 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
+  "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \

@@ -23,6 +23,9 @@ commercial release.
 - `scripts/release-smoke.sh` passes on Linux, macOS, and Windows runners.
 - `scripts/product-shell-smoke.sh` passes and remains wired into
   `scripts/release-smoke.sh`.
+- Local app-server `/app` contract returns `kiana.app-server.contract.v1` and
+  exposes bearer-protected conversations, settings, redacted secrets, sandbox,
+  and git-status endpoints.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - Windows `scripts/package-release.sh` runs produce a portable ZIP plus
   checksum for winget submission.
@@ -84,6 +87,8 @@ commercial release.
 - TUI approval, diff, history, onboarding, and resume flows are accepted for the
   target customer segment; the headless product-shell smoke is passing before
   any manual terminal acceptance.
+- Local app-server contract endpoints are accepted for the target customer
+  segment before Web or IDE clients are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`.
 - Enterprise entitlement acceptance is recorded in

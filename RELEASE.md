@@ -24,6 +24,7 @@ The gate runs:
 - `cargo build --release --locked --offline -p kiana-entrypoints --bin kiana`
 - release binary version plus doctor text and `kiana.doctor.v1` JSON smoke
 - help, auth, completion, plugin, MCP, and project MCP smoke checks
+- product shell smoke, including the local app-server contract endpoint
 - temporary source install into an isolated `INSTALL_DIR`
 - installed binary version, doctor text/JSON, help, auth, plugin, and MCP smoke checks
 
@@ -204,7 +205,8 @@ them without production-like credentials.
 - Live remote/CCR/Session Ingress/token refresh end-to-end verification.
 - Live provider text/tool smoke and live dynamic model-catalog proof against
   production-like credentials or daemons.
-- Reference-level TUI permission, diff, history, onboarding, and resume flows.
+- Reference-level TUI permission, diff, history, onboarding, resume, and
+  app-server client flows.
 - Hardened default sandbox and approval policy across Windows, macOS, and Linux.
 - Enterprise account/license backend and real entitlement proof configuration.
 
