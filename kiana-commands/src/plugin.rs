@@ -161,6 +161,12 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
             source_info.errors.join("; ")
         ));
     }
+    if source.policy.is_not_available() {
+        return Err(anyhow!(
+            "plugin '{}' is marked not available by marketplace policy and cannot be installed",
+            source_info.display_name()
+        ));
+    }
 
     let install_name = safe_plugin_dir_name(source_info.display_name())?;
     let install_root = plugin_root_dir(context);
@@ -193,6 +199,9 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
         lines.push(format!("marketplace: {marketplace}"));
     } else {
         lines.push(format!("source: {}", source_info.root.display()));
+    }
+    if !source.policy.is_empty() {
+        lines.push(format!("policy: {}", source.policy.summary()));
     }
     lines.push(format!("state: {}", state_path.display()));
     lines.push("LSP runtime: restarted on next use".into());
@@ -620,6 +629,7 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
         return Ok(InstallSource {
             root: plugin_root_from_target(&path),
             marketplace: None,
+            policy: MarketplacePluginPolicy::default(),
         });
     }
 
@@ -643,8 +653,9 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
             MarketplaceSource::Directory { path } => {
                 if let Some(root) = find_plugin_in_marketplace_dir(Path::new(path), &plugin_name)? {
                     return Ok(InstallSource {
-                        root,
+                        root: root.root,
                         marketplace: Some(entry.name),
+                        policy: root.policy,
                     });
                 }
             }
@@ -652,8 +663,9 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
                 if let Some(root) = find_plugin_in_marketplace_file(Path::new(path), &plugin_name)?
                 {
                     return Ok(InstallSource {
-                        root,
+                        root: root.root,
                         marketplace: Some(entry.name),
+                        policy: root.policy,
                     });
                 }
             }
@@ -662,8 +674,9 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
             | MarketplaceSource::Github { .. } => {
                 if let Some(root) = find_plugin_in_remote_marketplace(&entry, &plugin_name).await? {
                     return Ok(InstallSource {
-                        root,
+                        root: root.root,
                         marketplace: Some(entry.name),
+                        policy: root.policy,
                     });
                 }
             }
@@ -686,7 +699,7 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
 async fn find_plugin_in_remote_marketplace(
     entry: &MarketplaceListEntry,
     plugin_name: &str,
-) -> Result<Option<PathBuf>> {
+) -> Result<Option<MarketplacePluginResolution>> {
     let manifest_path = match entry.install_location.as_ref() {
         Some(path) if path.is_file() => path.clone(),
         Some(path) if path.is_dir() => find_marketplace_manifest_path(path).ok_or_else(|| {
@@ -722,7 +735,7 @@ async fn find_plugin_from_remote_marketplace_manifest_file(
     manifest_path: &Path,
     plugin_name: &str,
     local_base: Option<&Path>,
-) -> Result<Option<PathBuf>> {
+) -> Result<Option<MarketplacePluginResolution>> {
     let contents = std::fs::read_to_string(manifest_path)?;
     let manifest: LocalMarketplaceManifest = serde_json::from_str(&contents)?;
     let marketplace_name = manifest.name.clone().unwrap_or_else(|| {
@@ -759,7 +772,10 @@ async fn find_plugin_from_remote_marketplace_manifest_file(
                 plugin_root.display()
             ));
         }
-        return Ok(Some(plugin_root));
+        return Ok(Some(MarketplacePluginResolution {
+            root: plugin_root,
+            policy: MarketplacePluginPolicy::from_entry(&entry),
+        }));
     }
     Ok(None)
 }
@@ -999,16 +1015,22 @@ async fn run_git_command(args: &[String], cwd: Option<&Path>) -> Result<()> {
 fn find_plugin_in_marketplace_dir(
     marketplace_root: &Path,
     plugin_name: &str,
-) -> Result<Option<PathBuf>> {
+) -> Result<Option<MarketplacePluginResolution>> {
     if let Some(path) = find_plugin_from_marketplace_manifest(marketplace_root, plugin_name)? {
         return Ok(Some(path));
     }
     if plugin_dir_matches(marketplace_root, plugin_name)? {
-        return Ok(Some(marketplace_root.to_path_buf()));
+        return Ok(Some(MarketplacePluginResolution {
+            root: marketplace_root.to_path_buf(),
+            policy: MarketplacePluginPolicy::default(),
+        }));
     }
     for plugin_root in all_plugin_roots_in(marketplace_root) {
         if plugin_dir_matches(&plugin_root, plugin_name)? {
-            return Ok(Some(plugin_root));
+            return Ok(Some(MarketplacePluginResolution {
+                root: plugin_root,
+                policy: MarketplacePluginPolicy::default(),
+            }));
         }
     }
     Ok(None)
@@ -1017,14 +1039,14 @@ fn find_plugin_in_marketplace_dir(
 fn find_plugin_in_marketplace_file(
     marketplace_file: &Path,
     plugin_name: &str,
-) -> Result<Option<PathBuf>> {
+) -> Result<Option<MarketplacePluginResolution>> {
     find_plugin_from_marketplace_manifest_file(marketplace_file, plugin_name)
 }
 
 fn find_plugin_from_marketplace_manifest(
     marketplace_root: &Path,
     plugin_name: &str,
-) -> Result<Option<PathBuf>> {
+) -> Result<Option<MarketplacePluginResolution>> {
     for path in [
         marketplace_root
             .join(".codex-plugin")
@@ -1048,7 +1070,7 @@ fn find_plugin_from_marketplace_manifest(
 fn find_plugin_from_marketplace_manifest_file(
     manifest_path: &Path,
     plugin_name: &str,
-) -> Result<Option<PathBuf>> {
+) -> Result<Option<MarketplacePluginResolution>> {
     let contents = std::fs::read_to_string(manifest_path)?;
     let manifest: LocalMarketplaceManifest = serde_json::from_str(&contents)?;
     let base = marketplace_manifest_base_dir(manifest_path)?;
@@ -1071,7 +1093,10 @@ fn find_plugin_from_marketplace_manifest_file(
                 plugin_root.display()
             ));
         }
-        return Ok(Some(plugin_root));
+        return Ok(Some(MarketplacePluginResolution {
+            root: plugin_root,
+            policy: MarketplacePluginPolicy::from_entry(&entry),
+        }));
     }
     Ok(None)
 }
@@ -1611,6 +1636,7 @@ struct PluginActionArgs {
 struct InstallSource {
     root: PathBuf,
     marketplace: Option<String>,
+    policy: MarketplacePluginPolicy,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1625,6 +1651,97 @@ struct LocalMarketplaceManifest {
 struct LocalMarketplacePluginEntry {
     name: String,
     source: Value,
+    #[serde(default)]
+    interface: Option<Value>,
+    #[serde(default)]
+    policy: MarketplacePluginPolicy,
+    #[serde(default, alias = "installPolicy", alias = "install-policy")]
+    install_policy: Option<String>,
+    #[serde(default, alias = "authPolicy", alias = "auth-policy")]
+    auth_policy: Option<String>,
+    #[serde(default)]
+    availability: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MarketplacePluginPolicy {
+    #[serde(
+        default,
+        alias = "install_policy",
+        alias = "install-policy",
+        skip_serializing_if = "Option::is_none"
+    )]
+    install_policy: Option<String>,
+    #[serde(
+        default,
+        alias = "auth_policy",
+        alias = "auth-policy",
+        skip_serializing_if = "Option::is_none"
+    )]
+    auth_policy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    availability: Option<String>,
+}
+
+impl MarketplacePluginPolicy {
+    fn from_entry(entry: &LocalMarketplacePluginEntry) -> Self {
+        let mut policy = entry.policy.clone();
+        if policy.install_policy.is_none() {
+            policy.install_policy = entry.install_policy.clone();
+        }
+        if policy.auth_policy.is_none() {
+            policy.auth_policy = entry.auth_policy.clone();
+        }
+        if policy.availability.is_none() {
+            policy.availability = entry.availability.clone();
+        }
+        policy
+    }
+
+    fn availability_key(&self) -> Option<String> {
+        self.availability
+            .as_deref()
+            .map(|value| value.trim().replace(['-', ' '], "_").to_ascii_lowercase())
+    }
+
+    fn is_not_available(&self) -> bool {
+        self.availability_key()
+            .is_some_and(|availability| availability == "not_available")
+    }
+
+    fn is_empty(&self) -> bool {
+        self.install_policy.is_none() && self.auth_policy.is_none() && self.availability.is_none()
+    }
+
+    fn summary(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(value) = &self.availability {
+            parts.push(format!("availability={value}"));
+        }
+        if let Some(value) = &self.install_policy {
+            parts.push(format!("installPolicy={value}"));
+        }
+        if let Some(value) = &self.auth_policy {
+            parts.push(format!("authPolicy={value}"));
+        }
+        parts.join(" ")
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MarketplacePluginSummary {
+    name: String,
+    source: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    interface: Option<Value>,
+    policy: MarketplacePluginPolicy,
+}
+
+#[derive(Debug)]
+struct MarketplacePluginResolution {
+    root: PathBuf,
+    policy: MarketplacePluginPolicy,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1774,6 +1891,8 @@ struct MarketplaceListEntry {
     config_file: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
     install_location: Option<PathBuf>,
+    #[serde(default)]
+    plugins: Vec<MarketplacePluginSummary>,
 }
 
 fn read_marketplace_config(path: &Path) -> Result<MarketplaceConfig> {
@@ -1812,12 +1931,15 @@ fn load_marketplace_entries(context: &CommandContext) -> Result<Vec<MarketplaceL
         let file = marketplace_config_file(context, scope);
         let config = read_marketplace_config(&file)?;
         for (name, entry) in config.marketplaces {
+            let plugins =
+                marketplace_plugin_summaries(&entry.source, entry.install_location.as_deref())?;
             entries.push(MarketplaceListEntry {
                 name,
                 scope,
                 source: entry.source,
                 config_file: file.clone(),
                 install_location: entry.install_location,
+                plugins,
             });
         }
     }
@@ -1827,6 +1949,45 @@ fn load_marketplace_entries(context: &CommandContext) -> Result<Vec<MarketplaceL
             .then(a.scope.as_str().cmp(b.scope.as_str()))
     });
     Ok(entries)
+}
+
+fn marketplace_plugin_summaries(
+    source: &MarketplaceSource,
+    install_location: Option<&Path>,
+) -> Result<Vec<MarketplacePluginSummary>> {
+    let manifest_path = match source {
+        MarketplaceSource::Directory { path } => find_marketplace_manifest_path(Path::new(path)),
+        MarketplaceSource::File { path } => Some(PathBuf::from(path)),
+        MarketplaceSource::Url { .. }
+        | MarketplaceSource::Git { .. }
+        | MarketplaceSource::Github { .. } => install_location.and_then(|path| {
+            if path.is_file() {
+                Some(path.to_path_buf())
+            } else if path.is_dir() {
+                find_marketplace_manifest_path(path)
+            } else {
+                None
+            }
+        }),
+    };
+    let Some(manifest_path) = manifest_path else {
+        return Ok(Vec::new());
+    };
+    let contents = std::fs::read_to_string(manifest_path)?;
+    let manifest: LocalMarketplaceManifest = serde_json::from_str(&contents)?;
+    Ok(manifest
+        .plugins
+        .into_iter()
+        .map(|entry| {
+            let policy = MarketplacePluginPolicy::from_entry(&entry);
+            MarketplacePluginSummary {
+                name: entry.name,
+                source: entry.source,
+                interface: entry.interface,
+                policy,
+            }
+        })
+        .collect())
 }
 
 fn marketplace_config_file(context: &CommandContext, scope: MarketplaceScope) -> PathBuf {
@@ -2333,6 +2494,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn plugin_marketplace_list_surfaces_plugin_interface_and_policy() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("marketplace-policy-list");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let marketplace_root = root.join("marketplaces").join("policy-marketplace");
+        let marketplace_manifest_dir = marketplace_root.join(".codex-plugin");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&marketplace_manifest_dir).unwrap();
+        fs::write(
+            marketplace_manifest_dir.join("marketplace.json"),
+            serde_json::to_string_pretty(&json!({
+                "name": "policy-marketplace",
+                "plugins": [
+                    {
+                        "name": "review-tools",
+                        "source": "./review-tools",
+                        "interface": {
+                            "kind": "agent-pack",
+                            "shareContext": true
+                        },
+                        "policy": {
+                            "availability": "available",
+                            "installPolicy": "on_install",
+                            "authPolicy": "on_use"
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let listed = PluginCommand
+            .execute(context("marketplace list --json", &cwd))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&listed.value).unwrap();
+        assert_eq!(value[0]["plugins"][0]["name"], "review-tools");
+        assert_eq!(value[0]["plugins"][0]["interface"]["kind"], "agent-pack");
+        assert_eq!(
+            value[0]["plugins"][0]["policy"]["availability"],
+            "available"
+        );
+        assert_eq!(
+            value[0]["plugins"][0]["policy"]["installPolicy"],
+            "on_install"
+        );
+        assert_eq!(value[0]["plugins"][0]["policy"]["authPolicy"], "on_use");
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
     async fn plugin_install_and_uninstall_from_local_marketplace_directory() {
         let _guard = env_lock().lock().unwrap();
         let previous_home = std::env::var_os("KIANA_HOME");
@@ -2390,6 +2619,67 @@ mod tests {
 
         let list_after = PluginCommand.execute(context("list", &cwd)).await.unwrap();
         assert!(list_after.value.contains("No plugins."));
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_rejects_not_available_marketplace_policy() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("marketplace-policy-install");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("policy-marketplace");
+        let marketplace_manifest_dir = marketplace_root.join(".codex-plugin");
+        let source_plugin = marketplace_root.join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&marketplace_manifest_dir).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::write(
+            marketplace_manifest_dir.join("marketplace.json"),
+            serde_json::to_string_pretty(&json!({
+                "name": "policy-marketplace",
+                "plugins": [
+                    {
+                        "name": "review-tools",
+                        "source": "./review-tools",
+                        "policy": {
+                            "availability": "not_available",
+                            "installPolicy": "blocked"
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let error = PluginCommand
+            .execute(context("install review-tools@policy-marketplace", &cwd))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("plugin 'review-tools' is marked not available by marketplace policy")
+        );
+        assert!(!plugins_dir.join("review-tools").exists());
 
         match previous_home {
             Some(value) => std::env::set_var("KIANA_HOME", value),

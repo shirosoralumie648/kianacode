@@ -3227,19 +3227,8 @@ fn dirs_next_home() -> Option<PathBuf> {
 }
 
 fn discover_plugin_agents() -> Result<Vec<DiscoveredAgent>> {
-    let Some(plugins_dir) = std::env::var_os("KIANA_PLUGINS_DIR").map(PathBuf::from) else {
-        return Ok(Vec::new());
-    };
     let mut agents = Vec::new();
-    if !plugins_dir.is_dir() {
-        return Ok(agents);
-    }
-    for entry in std::fs::read_dir(&plugins_dir)? {
-        let entry = entry?;
-        let root = entry.path();
-        if !root.is_dir() {
-            continue;
-        }
+    for root in kiana_types::plugin::installed_plugin_roots() {
         let plugin_name = root
             .file_name()
             .and_then(|value| value.to_str())
@@ -13000,6 +12989,7 @@ mod tests {
         std::fs::create_dir_all(project.join(".kiana").join("agents")).unwrap();
         std::fs::create_dir_all(project.join(".claude").join("agents-local")).unwrap();
         std::fs::create_dir_all(plugins.join("alpha").join("agents")).unwrap();
+        std::fs::create_dir_all(plugins.join("beta").join("agents")).unwrap();
         std::fs::write(
             kiana_home.join("agents").join("reviewer.md"),
             "---\nname: reviewer\ndescription: user reviewer\nmodel: sonnet\n---\nReview code.",
@@ -13023,6 +13013,15 @@ mod tests {
             r#"{"name":"planner","description":"plans work","prompt":"Plan work.","model":"inherit"}"#,
         )
         .unwrap();
+        std::fs::write(
+            plugins
+                .join("beta")
+                .join("agents")
+                .join("disabled-planner.json"),
+            r#"{"name":"disabled-planner","description":"disabled","prompt":"Do not load."}"#,
+        )
+        .unwrap();
+        kiana_types::plugin::set_plugin_enabled(&plugins, "beta", false).unwrap();
 
         std::env::set_var("HOME", &home);
         std::env::set_var("KIANA_HOME", &kiana_home);
@@ -13054,6 +13053,7 @@ mod tests {
                 && agent.source == AgentSource::Plugin
                 && agent.plugin.as_deref() == Some("alpha")
         }));
+        assert!(!agents.iter().any(|agent| agent.name == "disabled-planner"));
         let text = format_agents_text(&agents);
         assert!(text.contains("CLI arg agents:"));
         assert!(text.contains("(shadowed by flag) reviewer"));

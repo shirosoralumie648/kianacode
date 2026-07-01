@@ -101,6 +101,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   of relying only on string markers.
 - Release artifact workflow now runs package lifecycle smoke after packaging and
   before signing artifacts.
+- Plugin marketplace JSON now surfaces plugin interface/policy metadata, rejects
+  `not_available` entries during install, and hides disabled plugin agents from
+  discovery.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.
