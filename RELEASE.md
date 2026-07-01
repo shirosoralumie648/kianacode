@@ -92,9 +92,10 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   creates a draft GitHub Release for tag builds only after the commercial
   artifact proof gate passes.
 
-The release workflow stores live smoke, entitlement, product acceptance, and
-release ops proofs under `dist/proofs/`; the combined commercial artifact
-verifier requires those proof files before drafting a release.
+The release workflow stores live smoke, entitlement, product acceptance,
+release ops, and platform security proofs under `dist/proofs/`; the combined
+commercial artifact verifier requires those proof files before drafting a
+release.
 
 These workflows still require a real remote repository, tag policy, release
 credentials, and signing before they become authoritative release gates.
@@ -170,6 +171,21 @@ Full commercial preflight requires `KIANA_RELEASE_OPS_FILE` or
 reporting route, release credential owner, support contact, artifact/log
 retention policy, and accepted credential review.
 
+Platform security acceptance is recorded separately for each release runner.
+Local RCs can record the current platform posture:
+
+```bash
+bash scripts/platform-security-proof-report.sh --local-rc
+```
+
+Full commercial preflight requires `KIANA_PLATFORM_SECURITY_PROOF_FILE` or
+`docs/platform-security/$(cat VERSION)-<platform>.json` with
+`schema = kiana.platform-security-proof.v1`, `status = accepted`,
+`doctor_status = ready`, the expected platform isolation
+(`linux_bwrap`, `macos_exec_policy`, or `windows_exec_policy`), and non-empty
+runner/evidence fields. The combined artifact verifier requires accepted
+Linux, macOS, and Windows platform security proofs before drafting a release.
+
 ## Optional Live Service Gate
 
 Live provider verification requires at least one real provider target. The
@@ -206,14 +222,14 @@ them without production-like credentials.
 
 - Real git remote, release tags, and active CI.
 - Stable install URLs and package-manager channels.
-- Binary signing, macOS notarization, release ops acceptance proof, full
-  dependency audit, and third-party license review signoff.
+- Binary signing, macOS notarization, release ops acceptance proof, platform
+  security proof on real release runners, full dependency audit, and
+  third-party license review signoff.
 - Live remote/CCR/Session Ingress/token refresh end-to-end verification.
 - Live provider text/tool smoke and live dynamic model-catalog proof against
   production-like credentials or daemons.
 - Reference-level TUI permission, diff, history, onboarding, resume, and
   app-server client flows.
-- Hardened default sandbox and approval policy across Windows, macOS, and Linux.
 - Enterprise account/license backend and real entitlement proof configuration.
 
 ## Related Documents

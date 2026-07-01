@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-platform-security-proof.v1.schema.json",
+  "title": "Kiana Platform Security Proof v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "status",
+    "accepted",
+    "accepted_by",
+    "accepted_at",
+    "platform",
+    "runner",
+    "isolation",
+    "controls",
+    "doctor_status",
+    "evidence"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": true
+          },
+          "accepted_by": {
+            "minLength": 1
+          },
+          "accepted_at": {
+            "minLength": 1
+          },
+          "runner": {
+            "minLength": 1
+          },
+          "doctor_status": {
+            "const": "ready"
+          },
+          "controls": {
+            "minItems": 1
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "accepted": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["local_rc_only", "blocked"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.platform-security-proof.v1"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "local_rc_only", "blocked"]
+    },
+    "accepted": {
+      "type": "boolean"
+    },
+    "accepted_by": {
+      "type": "string"
+    },
+    "accepted_at": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string",
+      "enum": ["linux", "macos", "windows"]
+    },
+    "runner": {
+      "type": "string"
+    },
+    "isolation": {
+      "type": "string",
+      "enum": ["linux_bwrap", "macos_exec_policy", "windows_exec_policy"]
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "doctor_status": {
+      "type": "string",
+      "enum": ["ready", "warning", "unknown"]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "value"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -62,6 +62,9 @@ jobs:
           KIANA_PRODUCT_ACCEPTANCE_FILE: ${{ vars.KIANA_PRODUCT_ACCEPTANCE_FILE }}
           KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json
           KIANA_RELEASE_OPS_FILE: ${{ vars.KIANA_RELEASE_OPS_FILE }}
+          KIANA_PLATFORM_SECURITY_PROOF_OUT: dist/proofs/platform-security/platform-security-${{ runner.os }}.json
+          KIANA_PLATFORM_SECURITY_PROOF_DIR: ${{ vars.KIANA_PLATFORM_SECURITY_PROOF_DIR }}
+          KIANA_PLATFORM_SECURITY_PROOF_FILE: ${{ vars.KIANA_PLATFORM_SECURITY_PROOF_FILE }}
         run: KIANA_PREFLIGHT_SKIP_COMPLIANCE=1 bash scripts/release-preflight.sh
 
       - name: Run release smoke

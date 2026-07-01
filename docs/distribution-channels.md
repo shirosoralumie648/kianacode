@@ -30,7 +30,8 @@ The channels below define the commercial distribution target state.
   `scripts/verify-commercial-release-artifacts.sh` after all runner artifacts
   are combined; it fails on missing or unverifiable signatures, missing macOS notarization
   proof, missing Windows ZIP/MSI/EXE publishable artifacts, blocked channel
-  manifests, missing live smoke proof, or missing product acceptance proof.
+  manifests, missing live smoke proof, missing product acceptance proof, or
+  missing Linux/macOS/Windows platform security proof.
 - `scripts/release-signature-verification-smoke.sh` runs an offline fixture
   against the commercial verifier so invalid signatures, blocked channels, and
   missing proof artifacts cannot regress silently.

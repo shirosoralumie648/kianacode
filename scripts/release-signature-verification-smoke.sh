@@ -126,6 +126,7 @@ mkdir -p \
   "$dist_dir/proofs/entitlement" \
   "$dist_dir/proofs/product" \
   "$dist_dir/proofs/release-ops" \
+  "$dist_dir/proofs/platform-security" \
   "$manifest_dir/homebrew" \
   "$manifest_dir/winget/Kiana/${version}" \
   "$manifest_dir/enterprise"
@@ -256,6 +257,35 @@ cat > "$dist_dir/proofs/release-ops/release-ops.json" <<EOF
   }
 }
 EOF
+
+for platform in linux macos windows; do
+  case "$platform" in
+    linux) isolation="linux_bwrap" ;;
+    macos) isolation="macos_exec_policy" ;;
+    windows) isolation="windows_exec_policy" ;;
+  esac
+  cat > "$dist_dir/proofs/platform-security/platform-security-${platform}.json" <<EOF
+{
+  "schema": "kiana.platform-security-proof.v1",
+  "version": "$version",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "security engineering",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "platform": "$platform",
+  "runner": "${platform}-release-runner",
+  "isolation": "$isolation",
+  "controls": ["permission_profile:commercial", "permission_mode:ask"],
+  "doctor_status": "ready",
+  "evidence": [
+    {
+      "label": "fixture",
+      "value": "${platform} platform security accepted"
+    }
+  ]
+}
+EOF
+done
 
 linux_package="kiana-${version}-linux-x86_64"
 linux_archive_name="${linux_package}.tar.gz"

@@ -59,6 +59,7 @@ for file in \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   docs/schemas/kiana-entitlement-proof.v1.schema.json \
   docs/schemas/kiana-product-acceptance.v1.schema.json \
+  docs/schemas/kiana-platform-security-proof.v1.schema.json \
   docs/schemas/kiana-remote-code-session-smoke.v1.schema.json \
   docs/schemas/kiana-release-signature.v1.schema.json \
   docs/schemas/kiana-macos-notarization.v1.schema.json \
@@ -68,6 +69,7 @@ for file in \
   scripts/entitlement-proof-report.sh \
   scripts/product-acceptance-report.sh \
   scripts/release-ops-report.sh \
+  scripts/platform-security-proof-report.sh \
   scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh \
   scripts/sign-release-artifacts.sh \
   scripts/verify-commercial-release-artifacts.sh \
@@ -312,6 +314,22 @@ else
   fail "product acceptance accepted-state schema contract is not pinned"
 fi
 
+if grep -Fq '"const": "kiana.platform-security-proof.v1"' docs/schemas/kiana-platform-security-proof.v1.schema.json; then
+  pass "platform security proof JSON schema version is pinned"
+else
+  fail "platform security proof JSON schema is missing kiana.platform-security-proof.v1 const"
+fi
+
+if grep -Fq '"const": "accepted"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"doctor_status"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"linux_bwrap"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"windows_exec_policy"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"macos_exec_policy"' docs/schemas/kiana-platform-security-proof.v1.schema.json; then
+  pass "platform security accepted-state schema contract is pinned"
+else
+  fail "platform security accepted-state schema contract is not pinned"
+fi
+
 if grep -Fq '"const": "kiana.remote-code-session-smoke.v1"' docs/schemas/kiana-remote-code-session-smoke.v1.schema.json; then
   pass "remote code-session smoke JSON schema version is pinned"
 else
@@ -377,10 +395,11 @@ if grep -Fq 'dist/proofs/**' .github/workflows/release.yml &&
   grep -Fq 'KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke' .github/workflows/release.yml &&
   grep -Fq 'KIANA_ENTITLEMENT_PROOF_OUT: dist/proofs/entitlement/entitlement-proof.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json' .github/workflows/release.yml &&
-  grep -Fq 'KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json' .github/workflows/release.yml; then
-  pass "release workflow preserves live, entitlement, product, and ops proof artifacts"
+  grep -Fq 'KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_PLATFORM_SECURITY_PROOF_OUT: dist/proofs/platform-security/platform-security-${{ runner.os }}.json' .github/workflows/release.yml; then
+  pass "release workflow preserves live, entitlement, product, ops, and platform proof artifacts"
 else
-  fail "release workflow does not preserve live/entitlement/product/ops proof artifacts"
+  fail "release workflow does not preserve live/entitlement/product/ops/platform proof artifacts"
 fi
 
 if grep -Fq 'verify-commercial-release-artifacts.sh' .github/workflows/release.yml; then
@@ -473,6 +492,12 @@ if [[ "$mode" == "full" ]]; then
     fail "release ops gate failed"
   fi
 
+  if "$bash_bin" scripts/platform-security-proof-report.sh full; then
+    pass "platform security proof gate passed"
+  else
+    fail "platform security proof gate failed"
+  fi
+
   pass "full release signing/channel proof is enforced by release artifact verification"
 else
   if "$bash_bin" scripts/product-acceptance-report.sh --local-rc; then
@@ -491,6 +516,12 @@ else
     pass "local RC release ops report generated"
   else
     fail "local RC release ops report failed"
+  fi
+
+  if "$bash_bin" scripts/platform-security-proof-report.sh --local-rc; then
+    pass "local RC platform security proof report generated"
+  else
+    fail "local RC platform security proof report failed"
   fi
 
   pass "local RC mode: git remote, HEAD, clean tracked tree, and signing checks skipped"

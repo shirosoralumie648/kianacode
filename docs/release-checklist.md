@@ -107,7 +107,8 @@ commercial release.
 - Release artifacts include `dist/proofs/live-smoke/**`,
   `dist/proofs/entitlement/entitlement-proof.json`,
   `dist/proofs/product/product-acceptance.json`, and
-  `dist/proofs/release-ops/release-ops.json`; the commercial artifact verifier
+  `dist/proofs/release-ops/release-ops.json`, plus Linux/macOS/Windows
+  `dist/proofs/platform-security/*.json`; the commercial artifact verifier
   checks those proof files.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.

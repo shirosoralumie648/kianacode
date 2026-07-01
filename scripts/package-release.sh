@@ -41,7 +41,7 @@ cp VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRA
 cp LICENSE-MIT LICENSE-APACHE "$stage/"
 cp docs/reference-migration-roadmap.md docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md "$stage/docs/"
 cp docs/schemas/*.json "$stage/docs/schemas/"
-cp scripts/install-release-binary.sh scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh scripts/entitlement-proof-report.sh scripts/product-acceptance-report.sh scripts/release-ops-report.sh scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh scripts/sign-release-artifacts.sh scripts/verify-commercial-release-artifacts.sh scripts/release-signature-verification-smoke.sh "$stage/scripts/"
+cp scripts/install-release-binary.sh scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh scripts/entitlement-proof-report.sh scripts/product-acceptance-report.sh scripts/release-ops-report.sh scripts/platform-security-proof-report.sh scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh scripts/sign-release-artifacts.sh scripts/verify-commercial-release-artifacts.sh scripts/release-signature-verification-smoke.sh "$stage/scripts/"
 
 COMPLIANCE_OUT_DIR="$compliance_dir" bash scripts/compliance-audit.sh "$compliance_mode" >/dev/null
 cp "$compliance_dir/sbom.cdx.json" "$stage/SBOM.cdx.json"

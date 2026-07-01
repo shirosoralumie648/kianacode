@@ -258,6 +258,79 @@ PY
   fi
 }
 
+require_platform_security_contract() {
+  local file="$1"
+  local expected_version="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate platform security proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" <<'PY'
+import json
+import sys
+
+path, expected_version = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+platform = report.get("platform")
+expected_isolation = {
+    "linux": "linux_bwrap",
+    "macos": "macos_exec_policy",
+    "windows": "windows_exec_policy",
+}.get(platform)
+controls = report.get("controls")
+evidence = report.get("evidence")
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+)
+
+def filled(key):
+    value = report.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(key):
+    value = report.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
+checks = [
+    report.get("schema") == "kiana.platform-security-proof.v1",
+    report.get("version") == expected_version,
+    report.get("status") == "accepted",
+    report.get("accepted") is True,
+    filled("accepted_by"),
+    filled("accepted_at"),
+    filled("runner"),
+    not_placeholder("accepted_by"),
+    not_placeholder("runner"),
+    platform in {"linux", "macos", "windows"},
+    report.get("isolation") == expected_isolation,
+    report.get("doctor_status") == "ready",
+    isinstance(controls, list) and len(controls) > 0,
+    isinstance(evidence, list) and len(evidence) > 0,
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "platform security proof commercial contract"
+  else
+    fail "platform security proof failed commercial contract"
+  fi
+}
+
 require_release_signature_contract() {
   local file="$1"
   local expected_target="$2"
@@ -474,6 +547,7 @@ remote_smoke_proof="${dist_dir}/proofs/live-smoke/remote/code-session-smoke.json
 entitlement_proof="${dist_dir}/proofs/entitlement/entitlement-proof.json"
 product_acceptance_proof="${dist_dir}/proofs/product/product-acceptance.json"
 release_ops_proof="${dist_dir}/proofs/release-ops/release-ops.json"
+platform_security_proofs=("${dist_dir}/proofs/platform-security/"*.json)
 
 require_proof_file "$provider_catalog_proof" "kiana.model-catalog.v1" "provider live catalog proof"
 require_json_pattern "$provider_catalog_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live catalog proof is live"
@@ -502,6 +576,45 @@ require_json_pattern "$release_ops_proof" '"artifact_retention_days"[[:space:]]*
 require_json_pattern "$release_ops_proof" '"log_retention_days"[[:space:]]*:' "release ops proof has log retention"
 require_json_pattern "$release_ops_proof" '"credential_review"[[:space:]]*:' "release ops proof has credential review"
 require_release_ops_contract "$release_ops_proof" "$version"
+
+seen_platform_linux=0
+seen_platform_macos=0
+seen_platform_windows=0
+if (( ${#platform_security_proofs[@]} == 0 )); then
+  fail "missing platform security proofs in ${dist_dir}/proofs/platform-security"
+fi
+for proof in "${platform_security_proofs[@]}"; do
+  [[ -f "$proof" ]] || continue
+  require_proof_file "$proof" "kiana.platform-security-proof.v1" "platform security proof"
+  require_json_pattern "$proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "platform security proof accepted"
+  require_json_pattern "$proof" '"accepted"[[:space:]]*:[[:space:]]*true' "platform security proof accepted flag"
+  require_json_pattern "$proof" '"doctor_status"[[:space:]]*:[[:space:]]*"ready"' "platform security proof doctor ready"
+  require_platform_security_contract "$proof" "$version"
+  if grep -Eq '"platform"[[:space:]]*:[[:space:]]*"linux"' "$proof"; then
+    seen_platform_linux=1
+  fi
+  if grep -Eq '"platform"[[:space:]]*:[[:space:]]*"macos"' "$proof"; then
+    seen_platform_macos=1
+  fi
+  if grep -Eq '"platform"[[:space:]]*:[[:space:]]*"windows"' "$proof"; then
+    seen_platform_windows=1
+  fi
+done
+if (( seen_platform_linux == 1 )); then
+  pass "Linux platform security proof present"
+else
+  fail "Linux platform security proof missing"
+fi
+if (( seen_platform_macos == 1 )); then
+  pass "macOS platform security proof present"
+else
+  fail "macOS platform security proof missing"
+fi
+if (( seen_platform_windows == 1 )); then
+  pass "Windows platform security proof present"
+else
+  fail "Windows platform security proof missing"
+fi
 
 if (( failures > 0 )); then
   echo "commercial release artifact verification failed with ${failures} issue(s)" >&2

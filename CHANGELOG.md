@@ -101,6 +101,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Entitlement, product acceptance, and release-ops proof schemas now pin
   accepted-state contracts so accepted reports require non-empty approval
   fields, active/accepted status, and required operational review fields.
+- Added platform security proof reports and schema so full commercial preflight
+  and combined artifact verification require accepted Linux/macOS/Windows
+  release-runner security evidence.
 - Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
   local app-server `/app` endpoints for conversations, settings, redacted
   secrets, sandbox posture, and git status.

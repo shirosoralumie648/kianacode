@@ -116,6 +116,7 @@ for file in \
   "$package_root/docs/schemas/kiana-macos-notarization.v1.schema.json" \
   "$package_root/docs/schemas/kiana-plugin-install-receipt.v1.schema.json" \
   "$package_root/docs/schemas/kiana-product-acceptance.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-platform-security-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-release-signature.v1.schema.json" \
   "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-release-ops.v1.schema.json" \
@@ -123,6 +124,7 @@ for file in \
   "$package_root/scripts/entitlement-proof-report.sh" \
   "$package_root/scripts/product-acceptance-report.sh" \
   "$package_root/scripts/release-ops-report.sh" \
+  "$package_root/scripts/platform-security-proof-report.sh" \
   "$package_root/scripts/provider-live-smoke.sh" \
   "$package_root/scripts/remote-live-smoke.sh" \
   "$package_root/scripts/sign-release-artifacts.sh" \
