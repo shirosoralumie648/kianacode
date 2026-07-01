@@ -16,6 +16,7 @@ kiana config set base_url "https://api.anthropic.com"
 kiana model list
 kiana model list --json
 kiana model smoke --json
+kiana auth status --json
 kiana license status --json
 ```
 

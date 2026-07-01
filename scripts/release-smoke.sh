@@ -446,11 +446,18 @@ smoke_auth_config() {
   local binary="$1"
   local output
 
-  output="$(run_clean_kiana "$binary" auth status --json)"
+  output="$(
+    unset KIANA_OPENAI_API_KEY OPENAI_API_KEY KIANA_OPENAI_BASE_URL OPENAI_BASE_URL
+    unset KIANA_OPENAI_MODEL OPENAI_MODEL KIANA_OLLAMA_BASE_URL OLLAMA_BASE_URL
+    unset KIANA_OLLAMA_MODEL OLLAMA_MODEL
+    run_clean_kiana "$binary" auth status --json
+  )"
   grep -Fq -- '"api_key": "missing"' <<<"$output"
   grep -Fq -- '"source": "none"' <<<"$output"
   grep -Fq -- '"access_token": "missing"' <<<"$output"
   grep -Fq -- '"refresh_token": "missing"' <<<"$output"
+  grep -Fq -- '"provider_id": "openai-compatible"' <<<"$output"
+  grep -Fq -- '"auth": "not_required"' <<<"$output"
 
   output="$(run_clean_kiana "$binary" auth login sk-ant-smoke-auth-key)"
   grep -Fq -- "Login updated" <<<"$output"
@@ -463,11 +470,29 @@ smoke_auth_config() {
   output="$(run_clean_kiana "$binary" auth logout)"
   grep -Fq -- "Logout complete" <<<"$output"
 
-  output="$(run_clean_kiana "$binary" auth status --json)"
+  output="$(
+    unset KIANA_OPENAI_API_KEY OPENAI_API_KEY KIANA_OPENAI_BASE_URL OPENAI_BASE_URL
+    unset KIANA_OPENAI_MODEL OPENAI_MODEL KIANA_OLLAMA_BASE_URL OLLAMA_BASE_URL
+    unset KIANA_OLLAMA_MODEL OLLAMA_MODEL
+    run_clean_kiana "$binary" auth status --json
+  )"
   grep -Fq -- '"api_key": "missing"' <<<"$output"
   grep -Fq -- '"source": "none"' <<<"$output"
   grep -Fq -- '"access_token": "missing"' <<<"$output"
   grep -Fq -- '"refresh_token": "missing"' <<<"$output"
+
+  output="$(
+    KIANA_OPENAI_API_KEY="smoke-openai-secret-4242" \
+    KIANA_OPENAI_MODEL="gpt-smoke" \
+    run_clean_kiana "$binary" auth status --json
+  )"
+  grep -Fq -- '"provider_id": "openai-compatible"' <<<"$output"
+  grep -Fq -- '"status": "configured"' <<<"$output"
+  grep -Fq -- '"key_preview": "redacted-4242"' <<<"$output"
+  if grep -Fq -- "smoke-openai-secret" <<<"$output"; then
+    echo "auth status leaked OpenAI-compatible API key" >&2
+    exit 1
+  fi
 }
 
 smoke_completion_scripts() {

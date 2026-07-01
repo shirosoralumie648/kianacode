@@ -30,6 +30,7 @@ cargo run -p kiana-entrypoints --bin kiana -- -p "hello"
 kiana config init
 kiana login "sk-ant-xxx"
 kiana config status
+kiana auth status --json
 ```
 
 也可以直接写入配置项：

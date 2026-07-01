@@ -57,6 +57,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - `kiana auth status --json` now reports OAuth token-file status, expiry,
   expiring/expired state, refreshability, and storage source without exposing
   token material; the service OAuth token check now rejects expired token files.
+- `kiana auth status --json` now includes provider-aware readiness for
+  Anthropic, OpenAI-compatible, Ollama, and fake providers, including redacted
+  API key previews and local endpoint/model settings without exposing secrets.
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and
   the TUI surfaces a one-time onboarding message when no API key or usable OAuth
   token is configured.

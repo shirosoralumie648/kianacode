@@ -59,6 +59,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Code-session auth retry now keys off typed 401/403 HTTP status from remote API errors, with text matching retained only as a compatibility fallback.
 - Tag release workflow now enforces `v$(VERSION)` alignment, derives package manifest URLs from the active GitHub repository/tag, runs full release preflight before packaging, and recursively uploads manifest/compliance artifacts into the draft GitHub Release.
 - `kiana auth status --json` now exposes redacted OAuth token-file status, expiry, expiring/expired state, refreshability, and storage source; service-level OAuth token checks reject expired token files instead of using a placeholder false result.
+- `kiana auth status --json` now exposes provider-aware readiness for Anthropic, OpenAI-compatible, Ollama, and fake providers, including redacted API key previews plus endpoint/model settings without exposing secrets.
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and TUI startup shows a one-time onboarding message when no API key or usable OAuth token is configured.
 - TUI `/diff --json` and `/diff --last-assistant --json` now render structured diff previews with file lists, stats, and assistant patch snippets instead of raw JSON transcript output.
 - TUI permission requests now carry structured approval panel state with tool, reason, blocked path, input preview, suggestions, and queue context while preserving `/allow` and `/deny` command handling.
@@ -82,7 +83,7 @@ These are not solved by the local release gate and must be completed before clai
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists but needs release-channel execution.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring TUI permission, diff, history, onboarding, and resume flows to reference-level usability.
-- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama text paths, including tool-capable OpenAI-compatible/Ollama operation and running opt-in live provider smoke reports against production-like credentials/daemons.
+- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama text paths, including tool-capable OpenAI-compatible/Ollama operation and running opt-in live provider smoke reports against production-like credentials/daemons; provider credential readiness is visible through `auth status`, but live provider operation is not proven by default gates.
 - Harden default execution isolation and approval policy across Windows, macOS, and Linux.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.

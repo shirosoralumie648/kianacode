@@ -4,6 +4,7 @@ use crate::logout::LogoutCommand;
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
+use kiana_services::auth::ProviderAuthStatus;
 use serde_json::json;
 
 pub struct AuthCommand;
@@ -67,8 +68,14 @@ fn auth_status(rest: &str) -> anyhow::Result<CommandResult> {
 
 fn auth_status_text() -> String {
     let state = auth_state();
+    let provider_lines = state
+        .providers
+        .iter()
+        .map(format_provider_status_line)
+        .collect::<Vec<_>>()
+        .join("\n");
     format!(
-        "Auth status\napi_key: {}\nsource: {}\nconfig_file: {}\noauth_status: {}\noauth_access_token: {}\noauth_refresh_token: {}\noauth_expires_at: {}\noauth_expired: {}\noauth_expiring: {}\noauth_refreshable: {}\noauth_store: {}\noauth_file: {}\n{}usage: kiana auth status [--json|--text]",
+        "Auth status\napi_key: {}\nsource: {}\nconfig_file: {}\noauth_status: {}\noauth_access_token: {}\noauth_refresh_token: {}\noauth_expires_at: {}\noauth_expired: {}\noauth_expiring: {}\noauth_refreshable: {}\noauth_store: {}\noauth_file: {}\n{}providers:\n{}\nusage: kiana auth status [--json|--text]",
         state.api_key,
         state.source,
         state.config_file,
@@ -85,7 +92,8 @@ fn auth_status_text() -> String {
             .oauth_error
             .as_ref()
             .map(|error| format!("oauth_error: {error}\n"))
-            .unwrap_or_default()
+            .unwrap_or_default(),
+        provider_lines
     )
 }
 
@@ -106,7 +114,8 @@ fn auth_status_json() -> anyhow::Result<String> {
             "expiring": state.oauth_expiring,
             "refreshable": state.oauth_refreshable,
             "error": state.oauth_error,
-        }
+        },
+        "providers": state.providers,
     }))?)
 }
 
@@ -118,6 +127,7 @@ fn auth_state() -> AuthState {
         .api_key
         .as_deref()
         .is_some_and(|value| !value.trim().is_empty());
+    let effective_config = kiana_bootstrap::config::load_config();
     let oauth = oauth_state();
     AuthState {
         api_key: if env_key || file_key {
@@ -143,6 +153,7 @@ fn auth_state() -> AuthState {
         oauth_expiring: oauth.expiring,
         oauth_refreshable: oauth.refreshable,
         oauth_error: oauth.error,
+        providers: kiana_services::auth::provider_auth_statuses(&effective_config),
     }
 }
 
@@ -160,6 +171,7 @@ struct AuthState {
     oauth_expiring: bool,
     oauth_refreshable: bool,
     oauth_error: Option<String>,
+    providers: Vec<ProviderAuthStatus>,
 }
 
 fn oauth_state() -> OAuthAuthState {
@@ -219,6 +231,25 @@ fn yes_no(value: bool) -> &'static str {
     } else {
         "no"
     }
+}
+
+fn format_provider_status_line(status: &ProviderAuthStatus) -> String {
+    let base_url = status.base_url.as_deref().unwrap_or("none");
+    let issues = if status.issues.is_empty() {
+        "none".to_string()
+    } else {
+        status.issues.join("; ")
+    };
+    format!(
+        "  {}: status={} auth={} source={} model={} base_url={} issues={}",
+        status.provider_id,
+        status.status,
+        status.auth,
+        status.auth_source,
+        status.model_id,
+        base_url,
+        issues
+    )
 }
 
 fn usage() -> &'static str {
@@ -296,6 +327,16 @@ mod tests {
         let config_path_str = config_path.to_string_lossy().to_string();
         let _guard = EnvGuard::set(&[
             ("ANTHROPIC_API_KEY", None),
+            ("KIANA_OPENAI_API_KEY", None),
+            ("OPENAI_API_KEY", None),
+            ("KIANA_OPENAI_BASE_URL", None),
+            ("OPENAI_BASE_URL", None),
+            ("KIANA_OPENAI_MODEL", None),
+            ("OPENAI_MODEL", None),
+            ("KIANA_OLLAMA_BASE_URL", None),
+            ("OLLAMA_BASE_URL", None),
+            ("KIANA_OLLAMA_MODEL", None),
+            ("OLLAMA_MODEL", None),
             ("KIANA_CONFIG_FILE", Some(&config_path_str)),
             ("KIANA_OAUTH_TOKENS_FILE", Some(&token_path_str)),
         ]);
@@ -319,10 +360,71 @@ mod tests {
         assert_eq!(value["oauth"]["expired"], false);
         assert_eq!(value["oauth"]["expiring"], false);
         assert_eq!(value["oauth"]["refreshable"], true);
+        assert_eq!(value["providers"][0]["provider_id"], "anthropic");
+        assert!(value["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| {
+                provider["provider_id"] == "openai-compatible" && provider["status"] == "missing"
+            }));
+        assert!(value["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| {
+                provider["provider_id"] == "ollama" && provider["auth"] == "not_required"
+            }));
         assert!(!output.contains("oauth-access-secret"));
         assert!(!output.contains("oauth-refresh-secret"));
 
         let _ = fs::remove_file(token_path);
+        let _ = fs::remove_file(config_path);
+    }
+
+    #[test]
+    fn auth_status_json_reports_provider_credentials_without_leaking_keys() {
+        let _lock = env_lock().lock().unwrap();
+        let config_path = temp_path("config.toml");
+        let config_path_str = config_path.to_string_lossy().to_string();
+        let _guard = EnvGuard::set(&[
+            ("ANTHROPIC_API_KEY", None),
+            ("KIANA_CONFIG_FILE", Some(&config_path_str)),
+            ("KIANA_OPENAI_API_KEY", Some("openai-command-secret-9876")),
+            ("OPENAI_API_KEY", None),
+            ("KIANA_OPENAI_BASE_URL", Some("https://openai.example/v1")),
+            ("OPENAI_BASE_URL", None),
+            ("KIANA_OPENAI_MODEL", Some("gpt-command")),
+            ("OPENAI_MODEL", None),
+            ("KIANA_OLLAMA_BASE_URL", Some("http://127.0.0.1:11434")),
+            ("OLLAMA_BASE_URL", None),
+            ("KIANA_OLLAMA_MODEL", Some("llama-command")),
+            ("OLLAMA_MODEL", None),
+            ("KIANA_OAUTH_TOKENS_FILE", None),
+        ]);
+
+        let output = auth_status_json().unwrap();
+        let value: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let providers = value["providers"].as_array().unwrap();
+        let openai = providers
+            .iter()
+            .find(|provider| provider["provider_id"] == "openai-compatible")
+            .unwrap();
+        let ollama = providers
+            .iter()
+            .find(|provider| provider["provider_id"] == "ollama")
+            .unwrap();
+
+        assert_eq!(openai["status"], "configured");
+        assert_eq!(openai["auth_source"], "KIANA_OPENAI_API_KEY");
+        assert_eq!(openai["key_preview"], "redacted-9876");
+        assert_eq!(openai["base_url"], "https://openai.example/v1");
+        assert_eq!(openai["model_id"], "gpt-command");
+        assert_eq!(ollama["status"], "configured");
+        assert_eq!(ollama["auth"], "not_required");
+        assert_eq!(ollama["model_id"], "llama-command");
+        assert!(!output.contains("openai-command-secret"));
+
         let _ = fs::remove_file(config_path);
     }
 }
