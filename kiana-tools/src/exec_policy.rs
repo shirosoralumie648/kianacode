@@ -25,7 +25,7 @@ fn validate_bash_command_with_depth(command: &str, depth: usize) -> Result<(), S
         return Err(deny_reason("fork bomb pattern"));
     }
 
-    for segment in shell_command_segments(command) {
+    for segment in bash_command_segments(command) {
         let Some(command_index) = command_index(&segment) else {
             continue;
         };
@@ -61,6 +61,9 @@ fn validate_bash_command_with_depth(command: &str, depth: usize) -> Result<(), S
                 "recursive world-writable chmod on filesystem root",
             ));
         }
+        if command_name == "rsync" && bash_rsync_deletes_root(&segment[command_index + 1..]) {
+            return Err(deny_reason("destructive rsync delete into filesystem root"));
+        }
     }
 
     Ok(())
@@ -77,7 +80,7 @@ fn validate_powershell_command_with_depth(command: &str, depth: usize) -> Result
         ));
     }
 
-    for segment in shell_command_segments(command) {
+    for segment in powershell_command_segments(command) {
         let Some(command_index) = command_index(&segment) else {
             continue;
         };
@@ -108,6 +111,11 @@ fn validate_powershell_command_with_depth(command: &str, depth: usize) -> Result
                 "recursive force removal of a filesystem root or drive root",
             ));
         }
+        if command_name == "robocopy"
+            && powershell_robocopy_mirrors_root(&segment[command_index + 1..])
+        {
+            return Err(deny_reason("destructive robocopy mirror into drive root"));
+        }
     }
 
     Ok(())
@@ -117,7 +125,15 @@ fn deny_reason(reason: &str) -> String {
     format!("exec policy denied command: {reason}")
 }
 
-fn shell_command_segments(command: &str) -> Vec<Vec<ShellToken>> {
+fn bash_command_segments(command: &str) -> Vec<Vec<ShellToken>> {
+    shell_command_segments(command, true)
+}
+
+fn powershell_command_segments(command: &str) -> Vec<Vec<ShellToken>> {
+    shell_command_segments(command, false)
+}
+
+fn shell_command_segments(command: &str, backslash_escapes: bool) -> Vec<Vec<ShellToken>> {
     let mut segments = Vec::new();
     let mut segment = Vec::new();
     let mut current = String::new();
@@ -147,7 +163,7 @@ fn shell_command_segments(command: &str) -> Vec<Vec<ShellToken>> {
                     quote = None;
                     started = true;
                 }
-                '\\' => {
+                '\\' if backslash_escapes => {
                     escaped = true;
                     started = true;
                 }
@@ -169,7 +185,7 @@ fn shell_command_segments(command: &str) -> Vec<Vec<ShellToken>> {
                     quote = Some(QuoteKind::Double);
                     started = true;
                 }
-                '\\' => {
+                '\\' if backslash_escapes => {
                     escaped = true;
                     started = true;
                 }
@@ -192,7 +208,7 @@ fn shell_command_segments(command: &str) -> Vec<Vec<ShellToken>> {
         }
     }
 
-    if escaped {
+    if escaped && backslash_escapes {
         current.push('\\');
         started = true;
     }
@@ -358,12 +374,35 @@ fn bash_chmod_recursive_world_writable_root(args: &[ShellToken]) -> bool {
     recursive && world_writable && args.iter().any(|token| bash_root_target(&token.text))
 }
 
+fn bash_rsync_deletes_root(args: &[ShellToken]) -> bool {
+    let delete = args
+        .iter()
+        .any(|token| token.text == "--delete" || token.text.starts_with("--delete-"));
+    let destination = args
+        .iter()
+        .rev()
+        .find(|token| !token.text.starts_with('-') && !assignment_word(&token.text));
+    delete && destination.is_some_and(|token| bash_root_target(&token.text))
+}
+
 fn powershell_remove_item_recursive_force_root(args: &[ShellToken]) -> bool {
     let recursive = args
         .iter()
         .any(|token| matches!(token.text.as_str(), "-recurse" | "-r"));
     let force = args.iter().any(|token| token.text == "-force");
     recursive && force && args.iter().any(|token| powershell_root_target(&token.text))
+}
+
+fn powershell_robocopy_mirrors_root(args: &[ShellToken]) -> bool {
+    let destructive_sync = args
+        .iter()
+        .any(|token| matches!(token.text.as_str(), "/mir" | "/purge"));
+    let mut positional = args
+        .iter()
+        .filter(|token| !token.text.starts_with('/') && !token.text.starts_with('-'));
+    let _source = positional.next();
+    let destination = positional.next();
+    destructive_sync && destination.is_some_and(|token| powershell_root_target(&token.text))
 }
 
 fn bash_root_target(token: &str) -> bool {

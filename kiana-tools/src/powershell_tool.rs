@@ -400,7 +400,9 @@ mod tests {
             "Clear-Disk -Number 0 -RemoveData",
             "Restart-Computer -Force",
             "Format-Volume -DriveLetter C",
-            "pwsh -Command \"Remove-Item -Recurse -Force C:\\\\\"",
+            "pwsh -Command 'Remove-Item -Recurse -Force C:\\'",
+            "robocopy C:\\src C:\\ /MIR",
+            "powershell -Command 'robocopy C:\\src C:\\ /MIR'",
         ] {
             let result = tool
                 .validate_input(&json!({ "command": command }), &context)
@@ -425,6 +427,20 @@ mod tests {
             )
             .await;
         assert!(allowed_literal.result, "{:?}", allowed_literal.message);
+
+        for command in [
+            "robocopy C:\\src C:\\tmp\\dest /MIR",
+            "Write-Output \"robocopy C:\\src C:\\\\ /MIR\"",
+        ] {
+            let allowed = tool
+                .validate_input(&json!({ "command": command }), &context)
+                .await;
+            assert!(
+                allowed.result,
+                "{command} should be allowed: {:?}",
+                allowed.message
+            );
+        }
     }
 
     #[tokio::test]

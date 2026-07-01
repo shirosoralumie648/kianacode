@@ -85,7 +85,7 @@ These are not solved by the local release gate and must be completed before clai
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring TUI permission, diff, onboarding, resume, and live terminal walkthroughs to reference-level usability; prompt history now has persisted/searchable local coverage, but broader interactive acceptance is still pending.
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls are covered by local mock gates, and provider credential readiness is visible through `auth status`, but live provider operation is not proven by default gates.
-- Harden default execution isolation and approval policy across Windows, macOS, and Linux.
+- Continue hardening platform-specific execution isolation and approval policy across Windows, macOS, and Linux; shell policy now blocks additional destructive root-sync shapes such as `rsync --delete ... /` and `robocopy ... C:\ /MIR`, but OS-level sandbox depth still needs platform runner proof.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.
 

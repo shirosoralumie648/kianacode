@@ -1223,6 +1223,8 @@ mod tests {
             "dd if=/dev/zero of=/dev/sda bs=1M",
             "mkfs.ext4 /dev/sda1",
             "chmod -R 777 /",
+            "rsync -a --delete ./ /",
+            "bash -c 'rsync -a --delete ./ /'",
         ] {
             let result = tool
                 .validate_input(&json!({ "command": command }), &context)
@@ -1240,7 +1242,12 @@ mod tests {
             .await;
         assert!(allowed.result, "{:?}", allowed.message);
 
-        for command in [r#"echo "rm -rf /""#, r#"printf '%s\n' 'sudo apt update'"#] {
+        for command in [
+            r#"echo "rm -rf /""#,
+            r#"printf '%s\n' 'sudo apt update'"#,
+            "rsync -a --delete ./ /tmp/kiana-target",
+            r#"echo "rsync -a --delete ./ /""#,
+        ] {
             let allowed = tool
                 .validate_input(&json!({ "command": command }), &context)
                 .await;

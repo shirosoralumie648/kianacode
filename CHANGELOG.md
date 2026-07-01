@@ -54,6 +54,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   manifest URLs from the active GitHub repository/tag, run full release
   preflight before packaging, and recursively attach manifest/compliance
   artifacts to draft GitHub Releases.
+- Exec policy now rejects destructive sync-to-root shapes such as
+  `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
+  wrapper invocations, while preserving safe literal examples.
 - `kiana auth status --json` now reports OAuth token-file status, expiry,
   expiring/expired state, refreshability, and storage source without exposing
   token material; the service OAuth token check now rejects expired token files.
