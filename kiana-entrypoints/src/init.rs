@@ -202,7 +202,6 @@ fn record_first_start() {
         Ok(FirstStartRecordResult::Existing) => set_first_start_status("existing"),
         Err(error) => {
             set_first_start_status(&format!("error:{error}"));
-            eprintln!("first-start state error: {error}");
         }
     }
 }
@@ -708,6 +707,31 @@ mod tests {
         assert_eq!(value["onboarding"]["status"], "complete");
 
         clear_remote_settings_env();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn first_start_write_error_is_recorded_without_failing_init() {
+        let _guard = crate::test_support::env_lock().lock().unwrap();
+        clear_remote_settings_env();
+        std::env::remove_var(FIRST_START_STATUS_ENV);
+        let root = temp_root("first-start-error");
+        let blocking_parent = root.join("blocking-parent");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&blocking_parent, b"not a directory").unwrap();
+        std::env::set_var(
+            FIRST_START_FILE_ENV,
+            blocking_parent.join("first-start.json"),
+        );
+
+        record_first_start();
+
+        assert!(std::env::var(FIRST_START_STATUS_ENV)
+            .unwrap()
+            .starts_with("error:"));
+
+        std::env::remove_var(FIRST_START_FILE_ENV);
+        std::env::remove_var(FIRST_START_STATUS_ENV);
         let _ = std::fs::remove_dir_all(root);
     }
 
