@@ -290,10 +290,26 @@ else
   fail "entitlement proof JSON schema is missing kiana.entitlement-proof.v1 const"
 fi
 
+if grep -Fq '"allOf"' docs/schemas/kiana-entitlement-proof.v1.schema.json &&
+  grep -Fq '"const": "accepted"' docs/schemas/kiana-entitlement-proof.v1.schema.json &&
+  grep -Fq '"const": true' docs/schemas/kiana-entitlement-proof.v1.schema.json; then
+  pass "entitlement proof accepted-state schema contract is pinned"
+else
+  fail "entitlement proof accepted-state schema contract is not pinned"
+fi
+
 if grep -Fq '"const": "kiana.product-acceptance.v1"' docs/schemas/kiana-product-acceptance.v1.schema.json; then
   pass "product acceptance JSON schema version is pinned"
 else
   fail "product acceptance JSON schema is missing kiana.product-acceptance.v1 const"
+fi
+
+if grep -Fq '"allOf"' docs/schemas/kiana-product-acceptance.v1.schema.json &&
+  grep -Fq '"const": "accepted"' docs/schemas/kiana-product-acceptance.v1.schema.json &&
+  grep -Fq '"minItems": 1' docs/schemas/kiana-product-acceptance.v1.schema.json; then
+  pass "product acceptance accepted-state schema contract is pinned"
+else
+  fail "product acceptance accepted-state schema contract is not pinned"
 fi
 
 if grep -Fq '"const": "kiana.remote-code-session-smoke.v1"' docs/schemas/kiana-remote-code-session-smoke.v1.schema.json; then
@@ -326,6 +342,15 @@ if grep -Fq '"const": "kiana.release-ops.v1"' docs/schemas/kiana-release-ops.v1.
   pass "release ops JSON schema version is pinned"
 else
   fail "release ops JSON schema is missing kiana.release-ops.v1 const"
+fi
+
+if grep -Fq '"allOf"' docs/schemas/kiana-release-ops.v1.schema.json &&
+  grep -Fq '"const": "accepted"' docs/schemas/kiana-release-ops.v1.schema.json &&
+  grep -Fq '"artifact_retention_days"' docs/schemas/kiana-release-ops.v1.schema.json &&
+  grep -Fq '"credential_review"' docs/schemas/kiana-release-ops.v1.schema.json; then
+  pass "release ops accepted-state schema contract is pinned"
+else
+  fail "release ops accepted-state schema contract is not pinned"
 fi
 
 if grep -Fq 'KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}' .github/workflows/release.yml; then

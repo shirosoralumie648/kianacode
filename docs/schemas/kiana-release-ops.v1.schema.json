@@ -18,6 +18,90 @@
     "log_retention_days",
     "credential_review"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": true
+          },
+          "accepted_by": {
+            "minLength": 1
+          },
+          "accepted_at": {
+            "minLength": 1
+          },
+          "security_contact": {
+            "minLength": 1
+          },
+          "vulnerability_report_channel": {
+            "minLength": 1
+          },
+          "release_credentials_owner": {
+            "minLength": 1
+          },
+          "support_contact": {
+            "minLength": 1
+          },
+          "credential_review": {
+            "properties": {
+              "status": {
+                "const": "accepted"
+              },
+              "reviewed_by": {
+                "minLength": 1
+              },
+              "reviewed_at": {
+                "minLength": 1
+              },
+              "scope": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "accepted": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["local_rc_only", "blocked"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema": {
       "const": "kiana.release-ops.v1"

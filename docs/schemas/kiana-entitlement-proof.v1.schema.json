@@ -19,6 +19,99 @@
     "support_contact",
     "backend"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": true
+          },
+          "accepted_by": {
+            "minLength": 1
+          },
+          "accepted_at": {
+            "minLength": 1
+          },
+          "account_id": {
+            "minLength": 1
+          },
+          "organization": {
+            "minLength": 1
+          },
+          "plan": {
+            "minLength": 1
+          },
+          "license_status": {
+            "const": "active"
+          },
+          "entitlements": {
+            "minItems": 1
+          },
+          "license_key_fingerprint": {
+            "minLength": 1
+          },
+          "support_contact": {
+            "minLength": 1
+          },
+          "backend": {
+            "properties": {
+              "name": {
+                "minLength": 1
+              },
+              "environment": {
+                "minLength": 1
+              },
+              "checked_at": {
+                "minLength": 1
+              },
+              "request_id": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "accepted": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["local_rc_only", "blocked"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema": {
       "const": "kiana.entitlement-proof.v1"

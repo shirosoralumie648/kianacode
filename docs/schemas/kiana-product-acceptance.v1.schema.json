@@ -13,6 +13,68 @@
     "scope",
     "workflows"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": true
+          },
+          "accepted_by": {
+            "minLength": 1
+          },
+          "accepted_at": {
+            "minLength": 1
+          },
+          "scope": {
+            "minLength": 1
+          },
+          "workflows": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "accepted": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "accepted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["headless_smoke_only", "blocked"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "accepted": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema": {
       "const": "kiana.product-acceptance.v1"

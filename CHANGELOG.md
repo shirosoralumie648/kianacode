@@ -98,6 +98,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added `scripts/entitlement-proof-report.sh` plus the
   `kiana.entitlement-proof.v1` schema so full commercial preflight requires an
   accepted active enterprise entitlement proof from an external backend record.
+- Entitlement, product acceptance, and release-ops proof schemas now pin
+  accepted-state contracts so accepted reports require non-empty approval
+  fields, active/accepted status, and required operational review fields.
 - Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
   local app-server `/app` endpoints for conversations, settings, redacted
   secrets, sandbox posture, and git status.
