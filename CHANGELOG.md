@@ -147,6 +147,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   secrets, sandbox, and git-status release/package gates.
 - Added a bearer-protected `/app/plugins` app-server endpoint and pinned
   `kiana.app-server.plugins.v1` schema for product clients.
+- Added a bearer-protected `/app/conversations/{session_id}/events` app-server
+  endpoint and pinned `kiana.app-server.events.v1` schema so product clients can
+  read bounded runtime-event snapshots without direct JSONL access.
 - Added pinned context index/search schemas and release/package smoke checks for
   local repository knowledge search.
 - Product acceptance reports now require local app-server and context-search

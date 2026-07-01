@@ -27,8 +27,8 @@ commercial release.
 - `scripts/product-shell-smoke.sh` passes and remains wired into
   `scripts/release-smoke.sh`.
 - Local app-server `/app` contract returns `kiana.app-server.contract.v1` and
-  exposes bearer-protected conversations, settings, redacted secrets, sandbox,
-  and git-status endpoints.
+  exposes bearer-protected conversations, session event snapshots, settings,
+  redacted secrets, sandbox, and git-status endpoints.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - `scripts/package-lifecycle-smoke.sh` runs on each release runner after
   packaging and before artifact signing.
@@ -104,6 +104,8 @@ commercial release.
   passing before any manual terminal acceptance.
 - Local app-server contract endpoints are accepted for the target customer
   segment before Web or IDE clients are promoted as supported surfaces.
+- App-server session event snapshots return `kiana.app-server.events.v1` without
+  requiring clients to read local JSONL files directly.
 - App-server plugin visibility returns `kiana.app-server.plugins.v1` without
   exposing plugin secrets or bypassing managed plugin policy.
 - Local context index/search workflows are accepted for repository knowledge

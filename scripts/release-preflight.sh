@@ -49,6 +49,7 @@ for file in \
   docs/proof-templates/platform-security.example.json \
   docs/schemas/kiana-app-server-contract.v1.schema.json \
   docs/schemas/kiana-app-server-conversations.v1.schema.json \
+  docs/schemas/kiana-app-server-events.v1.schema.json \
   docs/schemas/kiana-app-server-settings.v1.schema.json \
   docs/schemas/kiana-app-server-secrets.v1.schema.json \
   docs/schemas/kiana-app-server-sandbox.v1.schema.json \
@@ -232,7 +233,7 @@ else
   fail "app-server contract JSON schema is missing kiana.app-server.contract.v1 const"
 fi
 
-for app_schema in conversations settings secrets sandbox plugins git-status; do
+for app_schema in conversations events settings secrets sandbox plugins git-status; do
   schema_file="docs/schemas/kiana-app-server-${app_schema}.v1.schema.json"
   schema_name="kiana.app-server.${app_schema}.v1"
   if grep -Fq "\"const\": \"${schema_name}\"" "$schema_file"; then
@@ -278,7 +279,8 @@ else
   fail "commercial release blockers JSON schema is missing kiana.commercial-release-blockers.v1 const"
 fi
 
-if "$bash_bin" scripts/commercial-release-blockers-report.sh --json | grep -Fq '"schema": "kiana.commercial-release-blockers.v1"'; then
+blockers_json="$("$bash_bin" scripts/commercial-release-blockers-report.sh --json || true)"
+if printf '%s\n' "$blockers_json" | grep -Fq '"schema": "kiana.commercial-release-blockers.v1"'; then
   pass "commercial release blockers report JSON gate is wired"
 else
   fail "commercial release blockers report JSON gate is not wired"

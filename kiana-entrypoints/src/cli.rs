@@ -5211,6 +5211,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_conversations_handler),
         )
         .route(
+            "/app/conversations/{session_id}/events",
+            axum::routing::get(direct_connect_app_conversation_events_handler),
+        )
+        .route(
             "/app/settings",
             axum::routing::get(direct_connect_app_settings_handler),
         )
@@ -5283,6 +5287,7 @@ async fn direct_connect_app_conversations_handler(
                 "work_dir": session.work_dir.display().to_string(),
                 "dangerously_skip_permissions": session.dangerously_skip_permissions,
                 "events_url": format!("/sessions/{}/ws", session.session_id),
+                "events_snapshot_url": format!("/app/conversations/{}/events", session.session_id),
             })
         })
         .collect::<Vec<_>>();
@@ -5299,6 +5304,53 @@ async fn direct_connect_app_conversations_handler(
         "conversations": conversations,
     }))
     .into_response()
+}
+
+async fn direct_connect_app_conversation_events_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+    if let Err(error) = direct_connect_validate_session_id(&session_id) {
+        return direct_connect_json_error(axum::http::StatusCode::BAD_REQUEST, error.to_string());
+    }
+
+    let active_session = {
+        let sessions = state.sessions.lock().await;
+        sessions.get(&session_id).cloned()
+    };
+    let report =
+        match direct_connect_app_conversation_events_report(&session_id, active_session.as_ref()) {
+            Ok(report) => report,
+            Err(error) => {
+                return direct_connect_json_error(
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("failed to load session events: {error}"),
+                )
+            }
+        };
+    if active_session.is_none()
+        && !report
+            .get("event_source")
+            .and_then(|source| source.get("available"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    {
+        return direct_connect_json_error(
+            axum::http::StatusCode::NOT_FOUND,
+            "direct-connect conversation events not found",
+        );
+    }
+
+    axum::Json(report).into_response()
 }
 
 async fn direct_connect_app_settings_handler(
@@ -5905,6 +5957,100 @@ fn direct_connect_session_work_dir(workspace: &Path, requested_cwd: Option<&str>
     }
 }
 
+const DIRECT_CONNECT_APP_EVENTS_LIMIT: usize = 200;
+
+fn direct_connect_app_conversation_events_report(
+    session_id: &str,
+    active_session: Option<&DirectConnectServerSession>,
+) -> Result<Value> {
+    direct_connect_validate_session_id(session_id)?;
+    let event_values = direct_connect_read_runtime_event_values(session_id)?;
+    let source_available = event_values.is_some();
+    let mut events = event_values.unwrap_or_default();
+    let total_events = events.len();
+    let truncated = total_events > DIRECT_CONNECT_APP_EVENTS_LIMIT;
+    if truncated {
+        events = events.split_off(total_events - DIRECT_CONNECT_APP_EVENTS_LIMIT);
+    }
+
+    Ok(serde_json::json!({
+        "schema": "kiana.app-server.events.v1",
+        "session_id": session_id,
+        "active": active_session.is_some(),
+        "work_dir": active_session
+            .map(|session| session.work_dir.display().to_string()),
+        "live_url": format!("/sessions/{session_id}/ws"),
+        "event_source": {
+            "type": "sdk-session-tree",
+            "available": source_available,
+        },
+        "limit": DIRECT_CONNECT_APP_EVENTS_LIMIT,
+        "total_events": total_events,
+        "count": events.len(),
+        "truncated": truncated,
+        "events": events,
+    }))
+}
+
+fn direct_connect_read_runtime_event_values(session_id: &str) -> Result<Option<Vec<Value>>> {
+    direct_connect_validate_session_id(session_id)?;
+    let path = direct_connect_sdk_sessions_dir()
+        .join(session_id)
+        .join("events.jsonl");
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let contents = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    let mut events = Vec::new();
+    for (line_index, line) in contents.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let event: kiana_types::RuntimeEvent = serde_json::from_str(line).with_context(|| {
+            format!(
+                "failed to parse runtime event {} in {}",
+                line_index + 1,
+                path.display()
+            )
+        })?;
+        if event.session_id != session_id {
+            return Err(anyhow!(
+                "runtime event {} belongs to another session",
+                line_index + 1
+            ));
+        }
+        events.push(serde_json::to_value(event)?);
+    }
+    Ok(Some(events))
+}
+
+fn direct_connect_sdk_sessions_dir() -> PathBuf {
+    if let Ok(path) = std::env::var("KIANA_SDK_SESSIONS_DIR") {
+        return PathBuf::from(path);
+    }
+    if let Ok(path) = std::env::var("KIANA_HOME") {
+        return PathBuf::from(path).join("sdk-sessions");
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".kiana").join("sdk-sessions");
+    }
+    PathBuf::from(".kiana").join("sdk-sessions")
+}
+
+fn direct_connect_validate_session_id(session_id: &str) -> Result<()> {
+    if session_id.trim().is_empty()
+        || session_id.chars().any(char::is_whitespace)
+        || session_id.contains('/')
+        || session_id.contains('\\')
+        || session_id.contains("..")
+    {
+        return Err(anyhow!("session id contains invalid path characters"));
+    }
+    Ok(())
+}
+
 fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions: usize) -> Value {
     serde_json::json!({
         "schema": "kiana.app-server.contract.v1",
@@ -5916,6 +6062,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
         },
         "capabilities": [
             "conversations.read",
+            "events.snapshot.read",
             "events.websocket",
             "settings.read",
             "secrets.redacted",
@@ -5933,6 +6080,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/conversations",
                 "schema": "kiana.app-server.conversations.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/conversations/{session_id}/events",
+                "schema": "kiana.app-server.events.v1"
             },
             {
                 "method": "GET",
@@ -14985,11 +15137,13 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn direct_connect_app_contract_exposes_product_shell_endpoints() {
         let _guard = env_lock().lock().unwrap();
-        let _env = EnvSnapshot::take(&["KIANA_HOME", "KIANA_PLUGINS_DIR"]);
+        let _env =
+            EnvSnapshot::take(&["KIANA_HOME", "KIANA_PLUGINS_DIR", "KIANA_SDK_SESSIONS_DIR"]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&workspace).unwrap();
         let plugins_dir = workspace.join(".plugins");
+        let sessions_dir = workspace.join(".sdk-sessions");
         let plugin_manifest_dir = plugins_dir.join("app-tools").join(".codex-plugin");
         std::fs::create_dir_all(&plugin_manifest_dir).unwrap();
         std::fs::write(
@@ -15003,6 +15157,7 @@ mod tests {
         )
         .unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server_args = DirectConnectServerArgs {
@@ -15056,6 +15211,54 @@ mod tests {
             .await
             .unwrap();
         let session_id = session["session_id"].as_str().unwrap();
+        let session_event_dir = sessions_dir.join(session_id);
+        std::fs::create_dir_all(&session_event_dir).unwrap();
+        let events = vec![
+            kiana_types::RuntimeEvent::new(
+                "event-0",
+                session_id,
+                "turn-0",
+                None,
+                0,
+                "2026-07-02T00:00:00Z",
+                kiana_types::RuntimeEventPayload::UserMessage(kiana_types::MessageRuntimeEvent {
+                    message: serde_json::json!({
+                        "role": "user",
+                        "content": "hello from app"
+                    }),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "event-1",
+                session_id,
+                "turn-0",
+                None,
+                1,
+                "2026-07-02T00:00:01Z",
+                kiana_types::RuntimeEventPayload::AssistantMessage(
+                    kiana_types::MessageRuntimeEvent {
+                        message: serde_json::json!({
+                            "role": "assistant",
+                            "content": [{
+                                "type": "text",
+                                "text": "hello from kiana"
+                            }]
+                        }),
+                    },
+                ),
+            ),
+        ];
+        let event_contents = events
+            .iter()
+            .map(serde_json::to_string)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap()
+            .join("\n");
+        std::fs::write(
+            session_event_dir.join("events.jsonl"),
+            format!("{event_contents}\n"),
+        )
+        .unwrap();
 
         let contract: Value = client
             .get(format!("http://{addr}/app"))
@@ -15076,6 +15279,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("events.snapshot.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("plugins.read".to_string())));
         assert!(contract["endpoints"]
             .as_array()
@@ -15085,6 +15292,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/conversations"
                     && endpoint["schema"] == "kiana.app-server.conversations.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/conversations/{session_id}/events"
+                    && endpoint["schema"] == "kiana.app-server.events.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -15111,6 +15327,33 @@ mod tests {
         assert_eq!(
             conversations["conversations"][0]["events_url"],
             format!("/sessions/{session_id}/ws")
+        );
+        assert_eq!(
+            conversations["conversations"][0]["events_snapshot_url"],
+            format!("/app/conversations/{session_id}/events")
+        );
+
+        let event_snapshot: Value = client
+            .get(format!(
+                "http://{addr}/app/conversations/{session_id}/events"
+            ))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(event_snapshot["schema"], "kiana.app-server.events.v1");
+        assert_eq!(event_snapshot["session_id"], session_id);
+        assert_eq!(event_snapshot["active"], true);
+        assert_eq!(event_snapshot["event_source"]["available"], true);
+        assert_eq!(event_snapshot["count"], 2);
+        assert_eq!(event_snapshot["total_events"], 2);
+        assert_eq!(event_snapshot["events"][0]["type"], "user_message");
+        assert_eq!(
+            event_snapshot["events"][1]["message"]["content"][0]["text"],
+            "hello from kiana"
         );
 
         let settings: Value = client

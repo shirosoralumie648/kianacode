@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-events.v1.schema.json",
+  "title": "Kiana App Server Events v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "session_id",
+    "active",
+    "work_dir",
+    "live_url",
+    "event_source",
+    "limit",
+    "total_events",
+    "count",
+    "truncated",
+    "events"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.events.v1"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "work_dir": {
+      "type": ["string", "null"]
+    },
+    "live_url": {
+      "type": "string",
+      "pattern": "^/sessions/.+/ws$"
+    },
+    "event_source": {
+      "type": "object",
+      "required": ["type", "available"],
+      "properties": {
+        "type": {
+          "const": "sdk-session-tree"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "total_events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": false
+}

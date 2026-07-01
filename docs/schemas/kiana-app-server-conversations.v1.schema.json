@@ -21,7 +21,8 @@
           "session_id",
           "work_dir",
           "dangerously_skip_permissions",
-          "events_url"
+          "events_url",
+          "events_snapshot_url"
         ],
         "properties": {
           "id": {
@@ -42,6 +43,10 @@
           "events_url": {
             "type": "string",
             "pattern": "^/sessions/.+/ws$"
+          },
+          "events_snapshot_url": {
+            "type": "string",
+            "pattern": "^/app/conversations/.+/events$"
           }
         },
         "additionalProperties": false
