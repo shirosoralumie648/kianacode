@@ -22,6 +22,8 @@ pub const FAKE_MODEL_ID: &str = "fake-model";
 pub const FAKE_TEXT_ONLY_MODEL_ID: &str = "fake-text-only";
 pub const OPENAI_COMPATIBLE_PROVIDER_ID: &str = "openai-compatible";
 pub const OPENAI_COMPATIBLE_DEFAULT_MODEL_ID: &str = "gpt-4.1";
+pub const OLLAMA_PROVIDER_ID: &str = "ollama";
+pub const OLLAMA_DEFAULT_MODEL_ID: &str = "llama3.1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelProfile {
@@ -138,6 +140,7 @@ pub fn built_in_model_profiles() -> Vec<ModelProfile> {
         anthropic_model_profile("claude-opus-4-1"),
         anthropic_model_profile("claude-haiku-4-5"),
         openai_compatible_model_profile(OPENAI_COMPATIBLE_DEFAULT_MODEL_ID),
+        ollama_model_profile(OLLAMA_DEFAULT_MODEL_ID),
         fake_model_profile(FAKE_MODEL_ID),
         ModelProfile {
             provider_id: FAKE_PROVIDER_ID.to_string(),
@@ -155,6 +158,7 @@ pub fn model_profile(provider_id: &str, model_id: &str) -> Option<ModelProfile> 
     match provider_id {
         ANTHROPIC_PROVIDER_ID => Some(anthropic_model_profile(model_id)),
         OPENAI_COMPATIBLE_PROVIDER_ID => Some(openai_compatible_model_profile(model_id)),
+        OLLAMA_PROVIDER_ID => Some(ollama_model_profile(model_id)),
         FAKE_PROVIDER_ID if model_id == FAKE_TEXT_ONLY_MODEL_ID => Some(ModelProfile {
             provider_id: FAKE_PROVIDER_ID.to_string(),
             model_id: model_id.to_string(),
@@ -196,6 +200,18 @@ fn fake_model_profile(model_id: &str) -> ModelProfile {
 fn openai_compatible_model_profile(model_id: &str) -> ModelProfile {
     ModelProfile {
         provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+        model_id: model_id.to_string(),
+        supports_tools: false,
+        supports_streaming: true,
+        supports_vision: false,
+        supports_structured_output: false,
+        context_window: 128_000,
+    }
+}
+
+fn ollama_model_profile(model_id: &str) -> ModelProfile {
+    ModelProfile {
+        provider_id: OLLAMA_PROVIDER_ID.to_string(),
         model_id: model_id.to_string(),
         supports_tools: false,
         supports_streaming: true,
@@ -475,6 +491,190 @@ fn openai_chat_response_to_messages_response(
     })
 }
 
+pub struct OllamaProvider {
+    client: reqwest::Client,
+    base_url: String,
+}
+
+impl OllamaProvider {
+    pub fn new(base_url: String, timeout: Duration) -> ProviderResult<Self> {
+        let client = reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|error| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "client_build_failed".to_string(),
+                message: error.to_string(),
+            })?;
+        Ok(Self {
+            client,
+            base_url: base_url.trim_end_matches('/').to_string(),
+        })
+    }
+
+    fn chat_url(&self) -> String {
+        format!("{}/api/chat", self.base_url)
+    }
+}
+
+#[async_trait]
+impl Provider for OllamaProvider {
+    fn provider_id(&self) -> &str {
+        OLLAMA_PROVIDER_ID
+    }
+
+    fn model_profile(&self, model_id: &str) -> ModelProfile {
+        ollama_model_profile(model_id)
+    }
+
+    async fn create_message(&self, request: MessagesRequest) -> ProviderResult<MessagesResponse> {
+        self.ensure_request_supported(&request)?;
+        let body = ollama_chat_request_body(&request, false);
+        let response = self
+            .client
+            .post(self.chat_url())
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "request_failed".to_string(),
+                message: error.to_string(),
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ollama_error_from_response(response).await);
+        }
+
+        let value = response
+            .json::<Value>()
+            .await
+            .map_err(|error| ProviderError::Provider {
+                provider_id: OLLAMA_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: error.to_string(),
+            })?;
+        ollama_chat_response_to_messages_response(value, &request.model)
+    }
+
+    async fn stream_message(&self, request: MessagesRequest) -> ProviderResult<ProviderStream> {
+        let response = self.create_message(request).await?;
+        let events = stream_events_from_response(&response);
+        Ok(Box::pin(stream::iter(events.into_iter().map(Ok))))
+    }
+}
+
+fn ollama_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
+    let mut messages = Vec::new();
+    if let Some(system) = request.system.as_ref() {
+        messages.push(json!({
+            "role": "system",
+            "content": ollama_message_content(system),
+        }));
+    }
+    messages.extend(request.messages.iter().map(|message| {
+        json!({
+            "role": message.role.clone(),
+            "content": ollama_message_content(&message.content),
+        })
+    }));
+
+    let mut body = json!({
+        "model": request.model.clone(),
+        "messages": messages,
+        "stream": stream,
+        "options": {
+            "num_predict": request.max_tokens,
+        },
+    });
+    if let Some(temperature) = request.temperature {
+        body["options"]["temperature"] = json!(temperature);
+    }
+    body
+}
+
+fn ollama_message_content(content: &Value) -> String {
+    match openai_message_content(content) {
+        Value::String(text) => text,
+        value => value.to_string(),
+    }
+}
+
+async fn ollama_error_from_response(response: reqwest::Response) -> ProviderError {
+    let status = response.status();
+    let value = response.json::<Value>().await.unwrap_or_else(|_| json!({}));
+    let message = value
+        .get("error")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            value
+                .get("error")
+                .and_then(|error| error.get("message"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_else(|| status.canonical_reason().unwrap_or("request failed"))
+        .to_string();
+    ProviderError::Provider {
+        provider_id: OLLAMA_PROVIDER_ID.to_string(),
+        code: "ollama_error".to_string(),
+        message,
+    }
+}
+
+fn ollama_chat_response_to_messages_response(
+    value: Value,
+    fallback_model: &str,
+) -> ProviderResult<MessagesResponse> {
+    let message = value.get("message").unwrap_or(&Value::Null);
+    let text = message
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    Ok(MessagesResponse {
+        id: value
+            .get("created_at")
+            .and_then(Value::as_str)
+            .unwrap_or("ollama-message")
+            .to_string(),
+        model: value
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or(fallback_model)
+            .to_string(),
+        role: message
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("assistant")
+            .to_string(),
+        content: vec![json!({
+            "type": "text",
+            "text": text,
+        })],
+        stop_reason: value
+            .get("done_reason")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                value
+                    .get("done")
+                    .and_then(Value::as_bool)
+                    .filter(|done| *done)
+                    .map(|_| "stop".to_string())
+            }),
+        usage: Usage {
+            input_tokens: value
+                .get("prompt_eval_count")
+                .and_then(Value::as_u64)
+                .unwrap_or_default() as u32,
+            output_tokens: value
+                .get("eval_count")
+                .and_then(Value::as_u64)
+                .unwrap_or_default() as u32,
+        },
+    })
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FakeProviderStep {
@@ -745,6 +945,12 @@ mod tests {
                 && profile["supports_tools"].as_bool() == Some(false)
                 && profile["supports_streaming"].as_bool() == Some(true)
         }));
+        assert!(value.as_array().unwrap().iter().any(|profile| {
+            profile["provider_id"].as_str() == Some(OLLAMA_PROVIDER_ID)
+                && profile["model_id"].as_str() == Some(OLLAMA_DEFAULT_MODEL_ID)
+                && profile["supports_tools"].as_bool() == Some(false)
+                && profile["supports_streaming"].as_bool() == Some(true)
+        }));
     }
 
     #[tokio::test]
@@ -887,6 +1093,89 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ollama_provider_sends_chat_request() {
+        let (base_url, mut request_rx, server) = start_mock_ollama_server(json!({
+            "model": "llama-test",
+            "created_at": "2026-07-01T00:00:00Z",
+            "message": {
+                "role": "assistant",
+                "content": "hello from ollama"
+            },
+            "done": true,
+            "done_reason": "stop",
+            "prompt_eval_count": 7,
+            "eval_count": 4
+        }))
+        .await;
+        let provider =
+            OllamaProvider::new(base_url, Duration::from_secs(5)).expect("provider builds");
+
+        let response = provider
+            .create_message(MessagesRequest {
+                model: "llama-test".to_string(),
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: json!("hello"),
+                }],
+                max_tokens: 64,
+                system: Some(json!("system prompt")),
+                temperature: Some(0.1),
+                tools: None,
+                thinking: None,
+                stream: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response.id, "2026-07-01T00:00:00Z");
+        assert_eq!(response.model, "llama-test");
+        assert_eq!(response.role, "assistant");
+        assert_eq!(response.content[0]["text"], "hello from ollama");
+        assert_eq!(response.stop_reason.as_deref(), Some("stop"));
+        assert_eq!(response.usage.input_tokens, 7);
+        assert_eq!(response.usage.output_tokens, 4);
+
+        let request = request_rx.recv().await.unwrap();
+        assert!(request.starts_with("POST /api/chat HTTP/1.1"));
+        let body: Value = serde_json::from_str(http_body(&request)).unwrap();
+        assert_eq!(body["model"], "llama-test");
+        assert_eq!(body["stream"], false);
+        assert_eq!(body["options"]["num_predict"], 64);
+        assert!((body["options"]["temperature"].as_f64().unwrap() - 0.1).abs() < 0.000_001);
+        assert_eq!(body["messages"][0]["role"], "system");
+        assert_eq!(body["messages"][0]["content"], "system prompt");
+        assert_eq!(body["messages"][1]["role"], "user");
+        assert_eq!(body["messages"][1]["content"], "hello");
+
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn ollama_provider_rejects_tools_before_request() {
+        let provider =
+            OllamaProvider::new("http://127.0.0.1:9".to_string(), Duration::from_secs(5)).unwrap();
+
+        let error = provider
+            .create_message(MessagesRequest {
+                model: OLLAMA_DEFAULT_MODEL_ID.to_string(),
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: json!("use a tool"),
+                }],
+                max_tokens: 64,
+                system: None,
+                temperature: None,
+                tools: Some(vec![json!({"name": "Read"})]),
+                thinking: None,
+                stream: None,
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), "unsupported_tools");
+    }
+
+    #[tokio::test]
     async fn fake_provider_returns_assistant_text() {
         let provider = FakeProvider::new(
             FAKE_MODEL_ID.to_string(),
@@ -1008,6 +1297,30 @@ mod tests {
             };
             let raw = format!(
                 "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(raw.as_bytes()).await.unwrap();
+        });
+        (format!("http://{addr}"), request_rx, server)
+    }
+
+    async fn start_mock_ollama_server(
+        response: Value,
+    ) -> (
+        String,
+        tokio::sync::mpsc::UnboundedReceiver<String>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let request = read_http_request(&mut socket).await;
+            request_tx.send(request).unwrap();
+            let body = serde_json::to_string(&response).unwrap();
+            let raw = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
                 body.len()
             );
             socket.write_all(raw.as_bytes()).await.unwrap();

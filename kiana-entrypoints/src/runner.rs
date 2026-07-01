@@ -4,9 +4,10 @@ use kiana_services::api::{
     errors::{ApiError, ApiErrorKind},
     messages::{Message, MessagesRequest},
     provider::{
-        AnthropicProvider, FakeProvider, OpenAiCompatibleProvider, Provider, ProviderError,
-        ProviderStream, ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
-        OPENAI_COMPATIBLE_DEFAULT_MODEL_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
+        AnthropicProvider, FakeProvider, OllamaProvider, OpenAiCompatibleProvider, Provider,
+        ProviderError, ProviderStream, ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
+        OLLAMA_DEFAULT_MODEL_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_DEFAULT_MODEL_ID,
+        OPENAI_COMPATIBLE_PROVIDER_ID,
     },
     streaming::{ContentBlock as StreamContentBlock, Delta, StreamEvent},
 };
@@ -3879,6 +3880,10 @@ fn model_option(
                 std::env::var("KIANA_OPENAI_MODEL")
                     .ok()
                     .or_else(|| std::env::var("OPENAI_MODEL").ok())
+            } else if provider_id == OLLAMA_PROVIDER_ID {
+                std::env::var("KIANA_OLLAMA_MODEL")
+                    .ok()
+                    .or_else(|| std::env::var("OLLAMA_MODEL").ok())
             } else {
                 None
             }
@@ -3897,6 +3902,8 @@ fn model_option(
                 FAKE_MODEL_ID.to_string()
             } else if provider_id == OPENAI_COMPATIBLE_PROVIDER_ID {
                 OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string()
+            } else if provider_id == OLLAMA_PROVIDER_ID {
+                OLLAMA_DEFAULT_MODEL_ID.to_string()
             } else {
                 config.model.clone()
             }
@@ -3959,6 +3966,15 @@ fn build_provider(
                 base_url,
                 api_timeout,
             )?))
+        }
+        OLLAMA_PROVIDER_ID => {
+            let base_url = string_option(options, "base_url")
+                .or_else(|| string_option(options, "ollama_base_url"))
+                .or_else(|| string_option(options, "ollamaBaseUrl"))
+                .or_else(|| std::env::var("KIANA_OLLAMA_BASE_URL").ok())
+                .or_else(|| std::env::var("OLLAMA_BASE_URL").ok())
+                .unwrap_or_else(|| "http://localhost:11434".to_string());
+            Ok(Box::new(OllamaProvider::new(base_url, api_timeout)?))
         }
         other => Err(anyhow!("unknown provider: {other}")),
     }
@@ -4777,6 +4793,17 @@ mod tests {
             "OPENAI_BASE_URL",
             "KIANA_OPENAI_MODEL",
             "OPENAI_MODEL",
+        ] {
+            std::env::remove_var(key);
+        }
+    }
+
+    fn clear_ollama_env() {
+        for key in [
+            "KIANA_OLLAMA_BASE_URL",
+            "OLLAMA_BASE_URL",
+            "KIANA_OLLAMA_MODEL",
+            "OLLAMA_MODEL",
         ] {
             std::env::remove_var(key);
         }
@@ -7506,6 +7533,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_assistant_turn_ollama_provider_returns_text() {
+        let _guard = env_lock().lock().unwrap();
+        clear_team_env();
+        clear_thinking_env();
+        clear_max_tokens_env();
+        clear_ollama_env();
+        let (base_url, state, server) = start_mock_ollama_server().await;
+
+        let result = run_assistant_turn(
+            vec![json!({
+                "role": "user",
+                "content": "say hello"
+            })],
+            &HashMap::from([
+                ("provider".to_string(), json!("ollama")),
+                ("model".to_string(), json!("llama-test")),
+                ("base_url".to_string(), json!(base_url)),
+            ]),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.text, "ollama ok");
+        assert_eq!(result.iterations, 1);
+        let state = state.lock().unwrap();
+        assert_eq!(state.requests.len(), 1);
+        assert_eq!(state.requests[0]["model"], "llama-test");
+        assert_eq!(state.requests[0]["stream"], false);
+        assert_eq!(state.requests[0]["messages"][0]["role"], "user");
+        assert_eq!(state.requests[0]["messages"][0]["content"], "say hello");
+        assert!(state.requests[0]["tools"].is_null());
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn run_assistant_turn_ollama_rejects_tools_before_request() {
+        let _guard = env_lock().lock().unwrap();
+        clear_team_env();
+        clear_thinking_env();
+        clear_max_tokens_env();
+        clear_ollama_env();
+
+        let error = run_assistant_turn(
+            vec![json!({
+                "role": "user",
+                "content": "read the README"
+            })],
+            &HashMap::from([
+                ("provider".to_string(), json!("ollama")),
+                ("model".to_string(), json!("llama-test")),
+                ("base_url".to_string(), json!("http://127.0.0.1:9")),
+                ("tools".to_string(), json!("default")),
+            ]),
+        )
+        .await
+        .unwrap_err();
+
+        let provider_error = error.downcast_ref::<ProviderError>().unwrap();
+        assert_eq!(provider_error.code(), "unsupported_tools");
+    }
+
+    #[tokio::test]
     async fn run_assistant_turn_fake_provider_reads_file_then_returns_final_answer() {
         let _guard = env_lock().lock().unwrap();
         clear_team_env();
@@ -8988,6 +9078,11 @@ mod tests {
     }
 
     #[derive(Debug, Default)]
+    struct MockOllamaState {
+        requests: Vec<Value>,
+    }
+
+    #[derive(Debug, Default)]
     struct MockToolLoopState {
         write_path: String,
         requests: Vec<Value>,
@@ -9060,6 +9155,19 @@ mod tests {
                 "/chat/completions",
                 post(handle_mock_openai_compatible_request),
             )
+            .with_state(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{}", addr), state, server)
+    }
+
+    async fn start_mock_ollama_server() -> (String, Arc<Mutex<MockOllamaState>>, JoinHandle<()>) {
+        let state = Arc::new(Mutex::new(MockOllamaState::default()));
+        let app = Router::new()
+            .route("/api/chat", post(handle_mock_ollama_request))
             .with_state(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -9155,6 +9263,38 @@ mod tests {
                     "prompt_tokens": 2,
                     "completion_tokens": 3
                 }
+            })),
+        )
+            .into_response()
+    }
+
+    async fn handle_mock_ollama_request(
+        State(state): State<Arc<Mutex<MockOllamaState>>>,
+        Json(body): Json<Value>,
+    ) -> impl IntoResponse {
+        let model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        {
+            let mut state = state.lock().unwrap();
+            state.requests.push(body);
+        }
+
+        (
+            StatusCode::OK,
+            Json(json!({
+                "model": model,
+                "created_at": "2026-07-01T00:00:00Z",
+                "message": {
+                    "role": "assistant",
+                    "content": "ollama ok"
+                },
+                "done": true,
+                "done_reason": "stop",
+                "prompt_eval_count": 2,
+                "eval_count": 3
             })),
         )
             .into_response()

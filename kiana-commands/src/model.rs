@@ -217,5 +217,11 @@ mod tests {
                 && profile["supports_tools"].as_bool() == Some(false)
                 && profile["supports_streaming"].as_bool() == Some(true)
         }));
+        assert!(profiles.iter().any(|profile| {
+            profile["provider_id"].as_str() == Some("ollama")
+                && profile["model_id"].as_str() == Some("llama3.1")
+                && profile["supports_tools"].as_bool() == Some(false)
+                && profile["supports_streaming"].as_bool() == Some(true)
+        }));
     }
 }

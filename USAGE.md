@@ -60,6 +60,17 @@ kiana -p "summarize README.md"
 
 这个 provider 当前只声明 text-only 能力；`kiana model list --json` 会显示 `supports_tools=false`。未显式配置 tools 时会自动走空工具集，显式带工具运行会在请求前失败。
 
+本地 Ollama 文本 provider：
+
+```bash
+export KIANA_PROVIDER="ollama"
+export KIANA_OLLAMA_BASE_URL="http://localhost:11434"
+export KIANA_OLLAMA_MODEL="llama3.1"
+kiana -p "summarize README.md"
+```
+
+这个 provider 当前只声明 text-only `/api/chat` 能力，不需要 API key；显式带工具运行会在请求前失败。
+
 ## 基础对话
 
 ```bash

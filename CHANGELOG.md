@@ -73,6 +73,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Release tarballs now include a package lifecycle smoke script, and the
   packaged binary installer supports uninstalling from the selected
   `INSTALL_DIR`.
+- Added a local Ollama text provider for `/api/chat` endpoints with explicit
+  model capabilities and pre-request rejection when tools are enabled.
 
 ### Verified
 

@@ -49,6 +49,16 @@ export KIANA_OPENAI_MODEL="gpt-4.1"                      # 可选
 
 当前 OpenAI-compatible provider 只支持 text-only chat/completions；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
 
+本地 Ollama 文本 provider 不需要 API key：
+
+```bash
+export KIANA_PROVIDER="ollama"
+export KIANA_OLLAMA_BASE_URL="http://localhost:11434" # 可选
+export KIANA_OLLAMA_MODEL="llama3.1"                  # 可选
+```
+
+当前 Ollama provider 只支持 text-only `/api/chat`；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
+
 ### 4. 托管配置策略
 
 管理员或受控运行环境可以提供最终配置 overlay：
