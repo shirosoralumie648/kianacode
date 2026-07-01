@@ -107,6 +107,9 @@ commercial release.
   checks those proof files.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
+- Installed plugins include `kiana.plugin-install-receipt.v1` receipts with
+  source, marketplace policy, file count, and stable content hashes; enterprise
+  deployments layer signed/admin allow-deny policy on top of those receipts.
 - `kiana doctor` reports `commercial_security: ready` on target release
   environments, or release notes explicitly scope unsupported platforms.
 - Enterprise account, license, policy, and support expectations are documented;

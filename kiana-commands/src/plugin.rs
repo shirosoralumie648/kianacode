@@ -13,6 +13,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+const PLUGIN_INSTALL_RECEIPT_SCHEMA: &str = "kiana.plugin-install-receipt.v1";
+const PLUGIN_INSTALL_RECEIPT_FILE: &str = ".kiana-install-receipt.json";
+
 pub struct PluginCommand;
 
 #[async_trait]
@@ -187,6 +190,7 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
     }
 
     copy_plugin_dir(&source_info.root, &destination)?;
+    let receipt_path = write_plugin_install_receipt(&source_info, &source, &destination)?;
     let state_path = set_plugin_enabled(&install_root, source_info.display_name(), true)
         .map_err(anyhow::Error::msg)?;
     kiana_tools::lsp_tool::shutdown_lsp_clients().await;
@@ -203,6 +207,7 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
     if !source.policy.is_empty() {
         lines.push(format!("policy: {}", source.policy.summary()));
     }
+    lines.push(format!("receipt: {}", receipt_path.display()));
     lines.push(format!("state: {}", state_path.display()));
     lines.push("LSP runtime: restarted on next use".into());
     Ok(CommandResult::text(lines.join("\n")))
@@ -1334,6 +1339,102 @@ fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
+fn write_plugin_install_receipt(
+    source_info: &PluginInfo,
+    source: &InstallSource,
+    destination: &Path,
+) -> Result<PathBuf> {
+    let files = collect_plugin_receipt_files(destination)?;
+    let receipt = PluginInstallReceipt {
+        schema: PLUGIN_INSTALL_RECEIPT_SCHEMA,
+        name: source_info.display_name().to_string(),
+        version: source_info.version.clone(),
+        source_type: if source.marketplace.is_some() {
+            "marketplace"
+        } else {
+            "path"
+        },
+        source_path: source_info.root.display().to_string(),
+        install_path: destination.display().to_string(),
+        marketplace: source.marketplace.clone(),
+        policy: source.policy.clone(),
+        file_count: files.len(),
+        content_hash: aggregate_receipt_hash(&files),
+        files,
+    };
+    let receipt_path = destination.join(PLUGIN_INSTALL_RECEIPT_FILE);
+    let contents = serde_json::to_string_pretty(&receipt)?;
+    std::fs::write(&receipt_path, format!("{contents}\n"))?;
+    Ok(receipt_path)
+}
+
+fn collect_plugin_receipt_files(root: &Path) -> Result<Vec<PluginReceiptFile>> {
+    let mut files = Vec::new();
+    collect_plugin_receipt_files_recursive(root, root, &mut files)?;
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(files)
+}
+
+fn collect_plugin_receipt_files_recursive(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<PluginReceiptFile>,
+) -> Result<()> {
+    for entry in std::fs::read_dir(current)? {
+        let entry = entry?;
+        let path = entry.path();
+        let metadata = std::fs::metadata(&path)?;
+        if metadata.is_dir() {
+            collect_plugin_receipt_files_recursive(root, &path, files)?;
+        } else if metadata.is_file() {
+            let relative = plugin_receipt_relative_path(root, &path)?;
+            if relative == PLUGIN_INSTALL_RECEIPT_FILE {
+                continue;
+            }
+            let bytes = std::fs::read(&path)?;
+            files.push(PluginReceiptFile {
+                path: relative,
+                bytes: metadata.len(),
+                content_hash: stable_hash(&bytes),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn plugin_receipt_relative_path(root: &Path, path: &Path) -> Result<String> {
+    Ok(path
+        .strip_prefix(root)?
+        .to_string_lossy()
+        .replace('\\', "/"))
+}
+
+fn aggregate_receipt_hash(files: &[PluginReceiptFile]) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for file in files {
+        update_stable_hash(&mut hash, file.path.as_bytes());
+        update_stable_hash(&mut hash, &[0]);
+        update_stable_hash(&mut hash, file.bytes.to_string().as_bytes());
+        update_stable_hash(&mut hash, &[0]);
+        update_stable_hash(&mut hash, file.content_hash.as_bytes());
+        update_stable_hash(&mut hash, &[0]);
+    }
+    format!("{hash:016x}")
+}
+
+fn stable_hash(bytes: &[u8]) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    update_stable_hash(&mut hash, bytes);
+    format!("{hash:016x}")
+}
+
+fn update_stable_hash(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(0x100000001b3);
+    }
+}
+
 fn resolve_plugin(context: &CommandContext, target: &str) -> Result<PluginInfo> {
     let path = resolve_path(context, target);
     if path.exists() {
@@ -1378,6 +1479,7 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
     let mut manifest_name = None;
     let mut version = None;
     let mut description = None;
+    let install_receipt = read_plugin_install_receipt(&root, &mut warnings);
 
     match manifest_path.as_ref() {
         Some(path) => match std::fs::read_to_string(path) {
@@ -1444,7 +1546,28 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
         errors,
         warnings,
         manifest,
+        install_receipt,
     })
+}
+
+fn read_plugin_install_receipt(root: &Path, warnings: &mut Vec<String>) -> Option<Value> {
+    let receipt_path = root.join(PLUGIN_INSTALL_RECEIPT_FILE);
+    if !receipt_path.is_file() {
+        return None;
+    }
+    match std::fs::read_to_string(&receipt_path)
+        .ok()
+        .and_then(|contents| serde_json::from_str::<Value>(&contents).ok())
+    {
+        Some(receipt) => Some(receipt),
+        None => {
+            warnings.push(format!(
+                "{} is present but is not valid JSON",
+                PLUGIN_INSTALL_RECEIPT_FILE
+            ));
+            None
+        }
+    }
 }
 
 fn plugin_root_from_target(path: &Path) -> PathBuf {
@@ -1744,6 +1867,30 @@ struct MarketplacePluginResolution {
     policy: MarketplacePluginPolicy,
 }
 
+#[derive(Debug, Serialize)]
+struct PluginInstallReceipt {
+    schema: &'static str,
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    source_type: &'static str,
+    source_path: String,
+    install_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    marketplace: Option<String>,
+    policy: MarketplacePluginPolicy,
+    file_count: usize,
+    content_hash: String,
+    files: Vec<PluginReceiptFile>,
+}
+
+#[derive(Debug, Serialize)]
+struct PluginReceiptFile {
+    path: String,
+    bytes: u64,
+    content_hash: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct PluginInfo {
     id: String,
@@ -1758,6 +1905,8 @@ struct PluginInfo {
     errors: Vec<String>,
     warnings: Vec<String>,
     manifest: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    install_receipt: Option<Value>,
 }
 
 impl PluginInfo {
@@ -2591,11 +2740,28 @@ mod tests {
             .await
             .unwrap();
         assert!(installed.value.contains("Installed plugin: review-tools"));
+        assert!(installed.value.contains("receipt: "));
         assert!(plugins_dir
             .join("review-tools")
             .join("commands")
             .join("audit.md")
             .is_file());
+        let receipt_path = plugins_dir
+            .join("review-tools")
+            .join(".kiana-install-receipt.json");
+        let receipt: Value =
+            serde_json::from_str(&fs::read_to_string(&receipt_path).unwrap()).unwrap();
+        assert_eq!(receipt["schema"], "kiana.plugin-install-receipt.v1");
+        assert_eq!(receipt["name"], "review-tools");
+        assert_eq!(receipt["version"], "1.2.3");
+        assert_eq!(receipt["source_type"], "marketplace");
+        assert_eq!(receipt["marketplace"], "tools-marketplace");
+        assert_eq!(receipt["file_count"], 2);
+        assert_eq!(receipt["content_hash"].as_str().unwrap().len(), 16);
+        assert!(receipt["files"].as_array().unwrap().iter().any(|file| {
+            file["path"] == "commands/audit.md"
+                && file["content_hash"].as_str().unwrap().len() == 16
+        }));
 
         let list = PluginCommand
             .execute(context("list review-tools", &cwd))
@@ -2603,6 +2769,15 @@ mod tests {
             .unwrap();
         assert!(list.value.contains("review-tools@1.2.3 [valid enabled]"));
         assert!(list.value.contains("commands=1"));
+        let shown = PluginCommand
+            .execute(context("show review-tools", &cwd))
+            .await
+            .unwrap();
+        let shown_json: Value = serde_json::from_str(&shown.value).unwrap();
+        assert_eq!(
+            shown_json["install_receipt"]["schema"],
+            "kiana.plugin-install-receipt.v1"
+        );
 
         PluginCommand
             .execute(context("disable review-tools", &cwd))

@@ -53,6 +53,7 @@ for file in \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
+  docs/schemas/kiana-plugin-install-receipt.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   docs/schemas/kiana-entitlement-proof.v1.schema.json \
   docs/schemas/kiana-product-acceptance.v1.schema.json \
@@ -169,6 +170,13 @@ else
   fail "release smoke does not exercise product shell smoke"
 fi
 
+if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
+  grep -Fq '.kiana-install-receipt.json' scripts/release-smoke.sh; then
+  pass "plugin install receipt smoke gate is wired"
+else
+  fail "release smoke does not exercise plugin install receipts"
+fi
+
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
   grep -Fq '"context-search"' scripts/product-acceptance-report.sh &&
   grep -Fq 'cargo test -p kiana-commands --locked --offline context_search' scripts/product-acceptance-report.sh; then
@@ -230,6 +238,12 @@ if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-sear
   pass "context search JSON schema version is pinned"
 else
   fail "context search JSON schema is missing kiana.context-search.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.plugin-install-receipt.v1"' docs/schemas/kiana-plugin-install-receipt.v1.schema.json; then
+  pass "plugin install receipt JSON schema version is pinned"
+else
+  fail "plugin install receipt JSON schema is missing kiana.plugin-install-receipt.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then
