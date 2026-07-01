@@ -4233,6 +4233,7 @@ struct DirectConnectTarget {
     server_url: String,
     auth_token: Option<String>,
     transport: DirectConnectTransport,
+    unix_socket: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4368,12 +4369,14 @@ fn parse_direct_connect_url(raw_url: &str) -> Result<DirectConnectTarget> {
                 server_url: format!("unix:{socket_path}"),
                 auth_token: direct_connect_auth_token(&parsed),
                 transport: DirectConnectTransport::Unix,
+                unix_socket: Some(PathBuf::from(socket_path)),
             })
         }
         "http" | "https" => Ok(DirectConnectTarget {
             server_url: raw_url.trim_end_matches('/').to_string(),
             auth_token: direct_connect_auth_token(&parsed),
             transport: DirectConnectTransport::Http,
+            unix_socket: None,
         }),
         other => Err(anyhow!(
             "unsupported direct-connect URL scheme '{}'; expected cc://, cc+unix://, http://, or https://",
@@ -4414,6 +4417,7 @@ fn parse_http_direct_connect_url(parsed: url::Url) -> Result<DirectConnectTarget
         server_url: format!("{server_scheme}://{host}{port}{base_path}"),
         auth_token: direct_connect_auth_token(&parsed),
         transport: DirectConnectTransport::Http,
+        unix_socket: None,
     })
 }
 
@@ -4444,12 +4448,6 @@ async fn direct_connect_open_with_writer<W: Write>(
     open_args: &DirectConnectOpenArgs,
     writer: &mut W,
 ) -> Result<()> {
-    if matches!(open_args.target.transport, DirectConnectTransport::Unix) {
-        return Err(anyhow!(
-            "cc+unix direct-connect URLs are parsed but not implemented in this build"
-        ));
-    }
-
     let session = create_direct_connect_session(open_args).await?;
     run_direct_connect_headless(open_args, &session, writer).await
 }
@@ -4457,6 +4455,10 @@ async fn direct_connect_open_with_writer<W: Write>(
 async fn create_direct_connect_session(
     open_args: &DirectConnectOpenArgs,
 ) -> Result<DirectConnectSessionResponse> {
+    if matches!(open_args.target.transport, DirectConnectTransport::Unix) {
+        return create_direct_connect_unix_session(open_args).await;
+    }
+
     let url = format!(
         "{}/sessions",
         open_args.target.server_url.trim_end_matches('/')
@@ -4491,12 +4493,111 @@ async fn create_direct_connect_session(
         .context("direct-connect session response was not valid JSON")
 }
 
+#[cfg(unix)]
+async fn create_direct_connect_unix_session(
+    open_args: &DirectConnectOpenArgs,
+) -> Result<DirectConnectSessionResponse> {
+    let cwd = std::env::current_dir()?;
+    let mut body = serde_json::json!({
+        "cwd": cwd.to_string_lossy(),
+    });
+    if open_args.dangerously_skip_permissions {
+        body["dangerously_skip_permissions"] = Value::Bool(true);
+    }
+    let body = serde_json::to_vec(&body)?;
+    let response = direct_connect_unix_http_json(
+        direct_connect_unix_socket_path(&open_args.target)?,
+        "POST",
+        "/sessions",
+        open_args.target.auth_token.as_deref(),
+        &body,
+    )
+    .await?;
+    serde_json::from_slice::<DirectConnectSessionResponse>(&response)
+        .context("direct-connect Unix session response was not valid JSON")
+}
+
+#[cfg(not(unix))]
+async fn create_direct_connect_unix_session(
+    _open_args: &DirectConnectOpenArgs,
+) -> Result<DirectConnectSessionResponse> {
+    Err(anyhow!(
+        "cc+unix direct-connect URLs require Unix socket support on this platform"
+    ))
+}
+
+#[cfg(unix)]
+async fn direct_connect_unix_http_json(
+    socket_path: &Path,
+    method: &str,
+    path: &str,
+    auth_token: Option<&str>,
+    body: &[u8],
+) -> Result<Vec<u8>> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut stream = tokio::net::UnixStream::connect(socket_path)
+        .await
+        .with_context(|| {
+            format!(
+                "failed to connect to direct-connect Unix socket at {}",
+                socket_path.display()
+            )
+        })?;
+    let mut request = format!(
+        "{method} {path} HTTP/1.1\r\nHost: kiana.local\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
+        body.len()
+    );
+    if let Some(token) = auth_token {
+        request.push_str(&format!("Authorization: Bearer {token}\r\n"));
+    }
+    request.push_str("\r\n");
+    stream.write_all(request.as_bytes()).await?;
+    stream.write_all(body).await?;
+    stream.shutdown().await?;
+
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).await?;
+    direct_connect_parse_http_response(&response)
+}
+
+#[cfg(unix)]
+fn direct_connect_parse_http_response(response: &[u8]) -> Result<Vec<u8>> {
+    let header_end = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or_else(|| anyhow!("direct-connect Unix HTTP response was missing headers"))?;
+    let headers = std::str::from_utf8(&response[..header_end])
+        .context("direct-connect Unix HTTP response headers were not UTF-8")?;
+    let mut lines = headers.lines();
+    let status_line = lines
+        .next()
+        .ok_or_else(|| anyhow!("direct-connect Unix HTTP response was empty"))?;
+    let status_code = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse::<u16>().ok())
+        .ok_or_else(|| anyhow!("direct-connect Unix HTTP response had invalid status line"))?;
+    let body = response[(header_end + 4)..].to_vec();
+    if !(200..300).contains(&status_code) {
+        let text = String::from_utf8_lossy(&body);
+        return Err(anyhow!(
+            "failed direct-connect Unix HTTP request: status={} body={}",
+            status_code,
+            text.trim()
+        ));
+    }
+    Ok(body)
+}
+
 async fn run_direct_connect_headless<W: Write>(
     open_args: &DirectConnectOpenArgs,
     session: &DirectConnectSessionResponse,
     writer: &mut W,
 ) -> Result<()> {
-    use futures_util::{SinkExt, StreamExt};
+    if matches!(open_args.target.transport, DirectConnectTransport::Unix) {
+        return run_direct_connect_unix_headless(open_args, session, writer).await;
+    }
 
     let mut request = session
         .ws_url
@@ -4511,6 +4612,66 @@ async fn run_direct_connect_headless<W: Write>(
     let (mut websocket, _) = tokio_tungstenite::connect_async(request)
         .await
         .map_err(|error| anyhow!("failed to connect direct-connect websocket: {error}"))?;
+    run_direct_connect_websocket(open_args, session, &mut websocket, writer).await
+}
+
+#[cfg(unix)]
+async fn run_direct_connect_unix_headless<W: Write>(
+    open_args: &DirectConnectOpenArgs,
+    session: &DirectConnectSessionResponse,
+    writer: &mut W,
+) -> Result<()> {
+    let path = format!("/sessions/{}/ws", session.session_id);
+    let mut request = format!("ws://kiana.local{path}")
+        .into_client_request()
+        .map_err(|error| anyhow!("invalid direct-connect Unix websocket path: {error}"))?;
+    if let Some(token) = &open_args.target.auth_token {
+        let header = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|error| anyhow!("invalid direct-connect auth token: {error}"))?;
+        request.headers_mut().insert(AUTHORIZATION, header);
+    }
+    let stream =
+        tokio::net::UnixStream::connect(direct_connect_unix_socket_path(&open_args.target)?)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to connect direct-connect Unix websocket at {}",
+                    open_args
+                        .target
+                        .unix_socket
+                        .as_deref()
+                        .unwrap_or_else(|| Path::new("<missing>"))
+                        .display()
+                )
+            })?;
+    let (mut websocket, _) = tokio_tungstenite::client_async(request, stream)
+        .await
+        .map_err(|error| anyhow!("failed to connect direct-connect Unix websocket: {error}"))?;
+    run_direct_connect_websocket(open_args, session, &mut websocket, writer).await
+}
+
+#[cfg(not(unix))]
+async fn run_direct_connect_unix_headless<W: Write>(
+    _open_args: &DirectConnectOpenArgs,
+    _session: &DirectConnectSessionResponse,
+    _writer: &mut W,
+) -> Result<()> {
+    Err(anyhow!(
+        "cc+unix direct-connect URLs require Unix socket support on this platform"
+    ))
+}
+
+async fn run_direct_connect_websocket<W, S>(
+    open_args: &DirectConnectOpenArgs,
+    session: &DirectConnectSessionResponse,
+    websocket: &mut tokio_tungstenite::WebSocketStream<S>,
+    writer: &mut W,
+) -> Result<()>
+where
+    W: Write,
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use futures_util::{SinkExt, StreamExt};
 
     let user_message = serde_json::json!({
         "type": "user",
@@ -4606,6 +4767,14 @@ async fn run_direct_connect_headless<W: Write>(
     Ok(())
 }
 
+#[cfg(unix)]
+fn direct_connect_unix_socket_path(target: &DirectConnectTarget) -> Result<&Path> {
+    target
+        .unix_socket
+        .as_deref()
+        .ok_or_else(|| anyhow!("cc+unix direct-connect target is missing a socket path"))
+}
+
 fn direct_connect_control_response(event: &Value) -> Option<Value> {
     if event.get("type").and_then(Value::as_str) != Some("control_request") {
         return None;
@@ -4692,6 +4861,7 @@ struct DirectConnectServerSession {
 #[derive(Debug, Clone)]
 struct DirectConnectServerState {
     public_addr: SocketAddr,
+    unix_socket: Option<PathBuf>,
     auth_token: Option<String>,
     workspace: PathBuf,
     idle_timeout_ms: u64,
@@ -4714,11 +4884,8 @@ async fn direct_connect_server_main(args: &[String]) -> Result<()> {
         return Ok(());
     }
     let parsed = parse_direct_connect_server_args(args)?;
-    if let Some(path) = &parsed.unix_socket {
-        return Err(anyhow!(
-            "kiana server --unix {} is parsed but not implemented in this build",
-            path.display()
-        ));
+    if let Some(path) = parsed.unix_socket.clone() {
+        return direct_connect_unix_server_main(parsed, path).await;
     }
 
     let bind_addr: SocketAddr = format!("{}:{}", parsed.host, parsed.port)
@@ -4751,6 +4918,97 @@ async fn direct_connect_server_main(args: &[String]) -> Result<()> {
     }
 
     axum::serve(listener, direct_connect_server_router(state)).await?;
+    Ok(())
+}
+
+#[cfg(unix)]
+async fn direct_connect_unix_server_main(
+    parsed: DirectConnectServerArgs,
+    socket_path: PathBuf,
+) -> Result<()> {
+    prepare_direct_connect_unix_socket(&socket_path)?;
+    let listener = tokio::net::UnixListener::bind(&socket_path).with_context(|| {
+        format!(
+            "failed to bind direct-connect Unix socket at {}",
+            socket_path.display()
+        )
+    })?;
+    let auth_token = parsed
+        .auth_token
+        .clone()
+        .or_else(|| Some(format!("sk-kiana-cc-{}", uuid::Uuid::new_v4().simple())));
+    let state = direct_connect_server_state(
+        parsed,
+        SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0)),
+        auth_token,
+        HashMap::new(),
+    )?;
+
+    eprintln!(
+        "Kiana direct-connect server listening at unix:{}",
+        socket_path.display()
+    );
+    if let Some(token) = &state.auth_token {
+        eprintln!(
+            "Connect with: kiana open {} -p <prompt>",
+            direct_connect_server_cc_unix_url(&socket_path, token)
+        );
+    }
+
+    axum::serve(listener, direct_connect_server_router(state)).await?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+async fn direct_connect_unix_server_main(
+    _parsed: DirectConnectServerArgs,
+    socket_path: PathBuf,
+) -> Result<()> {
+    Err(anyhow!(
+        "kiana server --unix {} requires Unix socket support on this platform",
+        socket_path.display()
+    ))
+}
+
+#[cfg(unix)]
+fn prepare_direct_connect_unix_socket(socket_path: &Path) -> Result<()> {
+    use std::os::unix::fs::FileTypeExt;
+
+    if let Some(parent) = socket_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create direct-connect socket directory {}",
+                parent.display()
+            )
+        })?;
+    }
+    match std::fs::symlink_metadata(socket_path) {
+        Ok(metadata) if metadata.file_type().is_socket() => {
+            std::fs::remove_file(socket_path).with_context(|| {
+                format!(
+                    "failed to remove stale direct-connect socket {}",
+                    socket_path.display()
+                )
+            })?;
+        }
+        Ok(_) => {
+            return Err(anyhow!(
+                "refusing to overwrite non-socket path for direct-connect Unix socket: {}",
+                socket_path.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(anyhow!(
+                "failed to inspect direct-connect Unix socket path {}: {}",
+                socket_path.display(),
+                error
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -4905,6 +5163,7 @@ fn direct_connect_server_state(
     let workspace = args.workspace.unwrap_or(std::env::current_dir()?);
     Ok(DirectConnectServerState {
         public_addr,
+        unix_socket: args.unix_socket,
         auth_token,
         workspace,
         idle_timeout_ms: args.idle_timeout_ms,
@@ -4962,7 +5221,7 @@ async fn direct_connect_create_session_handler(
 
     axum::Json(serde_json::json!({
         "session_id": session_id,
-        "ws_url": direct_connect_server_ws_url(state.public_addr, &session_id),
+        "ws_url": direct_connect_server_ws_url_for_state(&state, &session_id),
         "work_dir": work_dir.display().to_string(),
     }))
     .into_response()
@@ -5402,6 +5661,21 @@ fn direct_connect_server_cc_url(addr: SocketAddr, token: &str) -> String {
     format!("cc://{}?token={}", direct_connect_display_addr(addr), token)
 }
 
+#[cfg(unix)]
+fn direct_connect_server_cc_unix_url(socket_path: &Path, token: &str) -> String {
+    format!("cc+unix://{}?token={}", socket_path.display(), token)
+}
+
+fn direct_connect_server_ws_url_for_state(
+    state: &DirectConnectServerState,
+    session_id: &str,
+) -> String {
+    if let Some(socket_path) = &state.unix_socket {
+        return format!("unix:{}:/sessions/{}/ws", socket_path.display(), session_id);
+    }
+    direct_connect_server_ws_url(state.public_addr, session_id)
+}
+
 fn direct_connect_server_ws_url(addr: SocketAddr, session_id: &str) -> String {
     format!(
         "ws://{}/sessions/{}/ws",
@@ -5437,7 +5711,7 @@ fn print_direct_connect_open_help() {
 }
 
 fn direct_connect_server_usage() -> &'static str {
-    "Usage: kiana server [--host <host>] [--port <port>] [--auth-token <token>] [--workspace <dir>] [--idle-timeout <ms>] [--max-sessions <n>]"
+    "Usage: kiana server [--host <host>] [--port <port>] [--auth-token <token>] [--unix <path>] [--workspace <dir>] [--idle-timeout <ms>] [--max-sessions <n>]"
 }
 
 fn print_direct_connect_server_help() {
@@ -5449,7 +5723,7 @@ fn print_direct_connect_server_help() {
     println!("  --host <host>          Bind address (default: 0.0.0.0)");
     println!("  --port <port>          HTTP port (default: 0)");
     println!("  --auth-token <token>   Bearer token for HTTP and websocket auth");
-    println!("  --unix <path>          Parsed for reference parity; not implemented yet");
+    println!("  --unix <path>          Bind a Unix domain socket instead of TCP (Unix only)");
     println!("  --workspace <dir>      Default working directory for sessions");
     println!("  --idle-timeout <ms>    Websocket idle timeout in milliseconds (default: 600000, 0 disables)");
     println!("  --max-sessions <n>     Maximum concurrent sessions (default: 32, 0 unlimited)");
@@ -13343,6 +13617,17 @@ mod tests {
         assert_eq!(target.server_url, "https://127.0.0.1:7777/work");
         assert_eq!(target.auth_token.as_deref(), Some("abc"));
         assert_eq!(target.transport, DirectConnectTransport::Http);
+        assert_eq!(target.unix_socket, None);
+
+        let unix_target =
+            parse_direct_connect_url("cc+unix:///tmp/kiana.sock?token=unix-secret").unwrap();
+        assert_eq!(unix_target.server_url, "unix:/tmp/kiana.sock");
+        assert_eq!(unix_target.auth_token.as_deref(), Some("unix-secret"));
+        assert_eq!(unix_target.transport, DirectConnectTransport::Unix);
+        assert_eq!(
+            unix_target.unix_socket.as_deref(),
+            Some(Path::new("/tmp/kiana.sock"))
+        );
 
         let args = parse_direct_connect_open_args(&[
             "open".to_string(),
@@ -13404,6 +13689,25 @@ mod tests {
             unix_args.unix_socket.as_deref(),
             Some(Path::new("/tmp/kiana.sock"))
         );
+    }
+
+    #[cfg(not(unix))]
+    #[tokio::test(flavor = "current_thread")]
+    async fn direct_connect_open_reports_unix_socket_platform_boundary() {
+        let open_args = parse_direct_connect_open_args(&[
+            "open".to_string(),
+            "cc+unix:///tmp/kiana.sock?token=abc".to_string(),
+            "-p".to_string(),
+            "hello".to_string(),
+        ])
+        .unwrap();
+        let mut output = Vec::new();
+        let error = direct_connect_open_with_writer(&open_args, &mut output)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("require Unix socket support"));
+        assert!(output.is_empty());
     }
 
     #[tokio::test(flavor = "current_thread")]

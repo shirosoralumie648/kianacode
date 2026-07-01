@@ -23,6 +23,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Dependency hardening for the release candidate: removed `rmcp`, upgraded
   `reqwest`/`tokio-tungstenite`/TLS stack dependencies, and replaced direct
   `ansi_term` usage so `cargo audit` no longer reports vulnerability errors.
+- Direct-connect reference parity: `cc+unix:///path/to/socket` open targets and
+  `kiana server --unix <path>` now have Unix-domain-socket implementations on
+  Unix platforms, with explicit unsupported-platform errors on Windows.
 
 ### Verified
 

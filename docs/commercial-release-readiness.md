@@ -45,6 +45,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Added `deny.toml`; tag/manual release workflow installs `cargo-audit` and `cargo-deny` and runs full compliance mode.
 - Added `scripts/install-compliance-tools.sh` so full compliance tooling can be installed under ignored `target/` paths instead of relying on global Cargo state.
 - Full local compliance mode now passes with project-local `cargo-audit` and `cargo-deny`; current RustSec output has no vulnerability errors and retains six allowed warning advisories for upstream-only maintenance/unsoundness tracking.
+- Direct-connect Unix socket support is implemented for Unix builds through `cc+unix:///path/to/socket` and `kiana server --unix <path>`; Windows builds report the platform boundary explicitly.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
