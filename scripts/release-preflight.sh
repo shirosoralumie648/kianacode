@@ -462,9 +462,9 @@ else
 fi
 
 if "$bash_bin" scripts/release-signature-verification-smoke.sh; then
-  pass "release signature verification smoke passed"
+  pass "commercial release verifier smoke passed"
 else
-  fail "release signature verification smoke failed"
+  fail "commercial release verifier smoke failed"
 fi
 
 if (( failures > 0 )); then

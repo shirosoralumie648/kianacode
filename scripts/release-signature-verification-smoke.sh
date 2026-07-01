@@ -42,13 +42,14 @@ write_signature_proof() {
   local target="$1"
   local archive_name="$2"
   local package="$3"
+  local signer="${4:-kiana release engineering}"
   cat > "$dist_dir/${package}.signature.json" <<EOF
 {
   "schema": "kiana.release-signature.v1",
   "target": "$target",
   "archive": "$archive_name",
   "signed_at": "2026-01-01T00:00:00Z",
-  "signer": "kiana release engineering",
+  "signer": "$signer",
   "signature_files": {
     "archive": "${archive_name}.sig",
     "binary": "${package}.binary.sig"
@@ -61,6 +62,13 @@ write_signature_proof() {
   }
 }
 EOF
+}
+
+run_commercial_verifier() {
+  DIST_DIR="$dist_dir" \
+    MANIFEST_DIR="$manifest_dir" \
+    KIANA_SIGNATURE_VERIFY_COMMAND="$verify_command" \
+    bash scripts/verify-commercial-release-artifacts.sh
 }
 
 cat > "$verify_command" <<'EOF'
@@ -249,22 +257,59 @@ cat > "$dist_dir/proofs/release-ops/release-ops.json" <<EOF
 }
 EOF
 
-bad_signature="$dist_dir/kiana-${version}-linux-x86_64.tar.gz.sig"
+linux_package="kiana-${version}-linux-x86_64"
+linux_archive_name="${linux_package}.tar.gz"
+bad_signature="$dist_dir/${linux_archive_name}.sig"
 good_signature="$(cat "$bad_signature")"
 printf 'sha256:not-a-valid-signature\n' > "$bad_signature"
-if DIST_DIR="$dist_dir" \
-  MANIFEST_DIR="$manifest_dir" \
-  KIANA_SIGNATURE_VERIFY_COMMAND="$verify_command" \
-  bash scripts/verify-commercial-release-artifacts.sh >/dev/null 2>&1
-then
-  echo "commercial verifier accepted an invalid archive signature" >&2
+write_signature_proof "linux-x86_64" "$linux_archive_name" "$linux_package" "external-release-signer"
+touch "$manifest_dir/homebrew/BLOCKED.md"
+windows_zip="$dist_dir/kiana-${version}-windows-x86_64.zip"
+mv "$windows_zip" "${windows_zip}.missing"
+for proof in \
+  "$dist_dir/proofs/entitlement/entitlement-proof.json" \
+  "$dist_dir/proofs/product/product-acceptance.json" \
+  "$dist_dir/proofs/release-ops/release-ops.json"
+do
+  mv "$proof" "${proof}.missing"
+done
+
+set +e
+negative_output="$(run_commercial_verifier 2>&1)"
+negative_status=$?
+set -e
+if [[ "$negative_status" -eq 0 ]]; then
+  echo "commercial verifier accepted a multi-fault release fixture" >&2
   exit 1
 fi
+for expected in \
+  "archive signature failed verification" \
+  "default release signer placeholder" \
+  "Homebrew channel manifest is still blocked" \
+  "Windows target windows-x86_64 lacks" \
+  "entitlement-proof.json" \
+  "product-acceptance.json" \
+  "release-ops.json"
+do
+  if ! grep -Fq "$expected" <<<"$negative_output"; then
+    echo "commercial verifier multi-fault output missing: $expected" >&2
+    echo "$negative_output" >&2
+    exit 1
+  fi
+done
 
 printf '%s\n' "$good_signature" > "$bad_signature"
-DIST_DIR="$dist_dir" \
-  MANIFEST_DIR="$manifest_dir" \
-  KIANA_SIGNATURE_VERIFY_COMMAND="$verify_command" \
-  bash scripts/verify-commercial-release-artifacts.sh >/dev/null
+write_signature_proof "linux-x86_64" "$linux_archive_name" "$linux_package"
+rm -f "$manifest_dir/homebrew/BLOCKED.md"
+mv "${windows_zip}.missing" "$windows_zip"
+for proof in \
+  "$dist_dir/proofs/entitlement/entitlement-proof.json" \
+  "$dist_dir/proofs/product/product-acceptance.json" \
+  "$dist_dir/proofs/release-ops/release-ops.json"
+do
+  mv "${proof}.missing" "$proof"
+done
 
-echo "release signature verification smoke passed"
+run_commercial_verifier >/dev/null
+
+echo "commercial release verifier smoke passed"

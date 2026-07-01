@@ -31,6 +31,9 @@ The channels below define the commercial distribution target state.
   are combined; it fails on missing or unverifiable signatures, missing macOS notarization
   proof, missing Windows ZIP/MSI/EXE publishable artifacts, blocked channel
   manifests, missing live smoke proof, or missing product acceptance proof.
+- `scripts/release-signature-verification-smoke.sh` runs an offline fixture
+  against the commercial verifier so invalid signatures, blocked channels, and
+  missing proof artifacts cannot regress silently.
 - Enterprise offline bundles include
   `manifests/enterprise/offline-manifest.json`, generated from the same archive
   checksum files and validated by package lifecycle smoke against the pinned

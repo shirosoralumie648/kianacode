@@ -93,7 +93,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Commercial artifact signing and verification now require
   `KIANA_SIGNATURE_VERIFY_COMMAND`, record verified archive/binary-checksum
   signature status, and include an offline smoke that rejects invalid
-  signatures.
+  signatures, blocked channels, missing Windows publishable artifacts, and
+  missing entitlement/product/ops proofs.
 - Added `scripts/entitlement-proof-report.sh` plus the
   `kiana.entitlement-proof.v1` schema so full commercial preflight requires an
   accepted active enterprise entitlement proof from an external backend record.
