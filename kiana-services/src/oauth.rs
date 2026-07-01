@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use uuid::Uuid;
 
+pub const DEFAULT_OAUTH_EXPIRY_SKEW: Duration = Duration::from_secs(300);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokens {
     pub access_token: String,
@@ -30,6 +32,44 @@ impl OAuthTokens {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthTokenFileStatus {
+    Missing,
+    Valid,
+    Invalid,
+}
+
+impl OAuthTokenFileStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::Valid => "valid",
+            Self::Invalid => "invalid",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthTokenInspection {
+    pub file: String,
+    pub store: String,
+    pub status: OAuthTokenFileStatus,
+    pub access_token: bool,
+    pub refresh_token: bool,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub expired: bool,
+    pub expiring: bool,
+    pub refreshable: bool,
+    pub error: Option<String>,
+}
+
+impl OAuthTokenInspection {
+    pub fn has_usable_access_token(&self) -> bool {
+        self.status == OAuthTokenFileStatus::Valid && self.access_token && !self.expired
     }
 }
 
@@ -135,6 +175,54 @@ pub fn oauth_tokens_path() -> PathBuf {
 
 pub fn load_oauth_tokens() -> crate::errors::ServiceResult<Option<OAuthTokens>> {
     load_oauth_tokens_from_path(&oauth_tokens_path())
+}
+
+pub fn inspect_oauth_tokens(skew: Duration) -> OAuthTokenInspection {
+    let path = oauth_tokens_path();
+    let file = path.display().to_string();
+    match load_oauth_tokens_from_path(&path) {
+        Ok(Some(tokens)) => {
+            let expired = tokens.expires_within(Duration::from_secs(0));
+            let expiring = tokens.expires_within(skew);
+            let refresh_token = tokens.refresh_token_value().is_some();
+            OAuthTokenInspection {
+                file,
+                store: "file".to_string(),
+                status: OAuthTokenFileStatus::Valid,
+                access_token: true,
+                refresh_token,
+                expires_at: tokens.expires_at,
+                expired,
+                expiring,
+                refreshable: refresh_token,
+                error: None,
+            }
+        }
+        Ok(None) => OAuthTokenInspection {
+            file,
+            store: "file".to_string(),
+            status: OAuthTokenFileStatus::Missing,
+            access_token: false,
+            refresh_token: false,
+            expires_at: None,
+            expired: false,
+            expiring: false,
+            refreshable: false,
+            error: None,
+        },
+        Err(error) => OAuthTokenInspection {
+            file,
+            store: "file".to_string(),
+            status: OAuthTokenFileStatus::Invalid,
+            access_token: false,
+            refresh_token: false,
+            expires_at: None,
+            expired: false,
+            expiring: false,
+            refreshable: false,
+            error: Some(error.to_string()),
+        },
+    }
 }
 
 pub fn load_oauth_tokens_from_path(
@@ -311,12 +399,15 @@ mod tests {
     use serde_json::json;
     use std::io::{Read, Write};
     use std::net::TcpListener;
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::{Mutex, MutexGuard, PoisonError};
     use uuid::Uuid;
 
     fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
+        crate::env_test_lock()
+    }
+
+    fn lock_env() -> MutexGuard<'static, ()> {
+        env_lock().lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn temp_path(name: &str) -> PathBuf {
@@ -343,7 +434,7 @@ mod tests {
 
     #[test]
     fn load_and_save_oauth_tokens_use_configured_path() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = lock_env();
         clear_oauth_env();
         let path = temp_path("store");
         std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &path);
@@ -359,6 +450,55 @@ mod tests {
         assert_eq!(saved, path);
         assert_eq!(loaded.access_token, "access-token");
         assert_eq!(loaded.refresh_token.as_deref(), Some("refresh-token"));
+
+        let _ = fs::remove_file(path);
+        clear_oauth_env();
+    }
+
+    #[test]
+    fn inspect_oauth_tokens_reports_expiring_refreshable_file_without_secrets() {
+        let _guard = lock_env();
+        clear_oauth_env();
+        let path = temp_path("inspect");
+        let expires_at = Utc::now() + ChronoDuration::seconds(30);
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &path);
+        save_oauth_tokens(&OAuthTokens {
+            access_token: "access-secret".to_string(),
+            refresh_token: Some("refresh-secret".to_string()),
+            expires_at: Some(expires_at),
+        })
+        .unwrap();
+
+        let inspection = inspect_oauth_tokens(Duration::from_secs(300));
+        let serialized = serde_json::to_string(&inspection).unwrap();
+
+        assert_eq!(inspection.status, OAuthTokenFileStatus::Valid);
+        assert!(inspection.access_token);
+        assert!(inspection.refresh_token);
+        assert!(inspection.refreshable);
+        assert!(!inspection.expired);
+        assert!(inspection.expiring);
+        assert_eq!(inspection.expires_at, Some(expires_at));
+        assert!(!serialized.contains("access-secret"));
+        assert!(!serialized.contains("refresh-secret"));
+
+        let _ = fs::remove_file(path);
+        clear_oauth_env();
+    }
+
+    #[test]
+    fn inspect_oauth_tokens_reports_invalid_file_error() {
+        let _guard = lock_env();
+        clear_oauth_env();
+        let path = temp_path("invalid");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &path);
+        fs::write(&path, "{}").unwrap();
+
+        let inspection = inspect_oauth_tokens(Duration::from_secs(300));
+
+        assert_eq!(inspection.status, OAuthTokenFileStatus::Invalid);
+        assert!(!inspection.access_token);
+        assert!(inspection.error.is_some());
 
         let _ = fs::remove_file(path);
         clear_oauth_env();
@@ -425,7 +565,7 @@ mod tests {
 
     #[tokio::test]
     async fn refresh_stored_oauth_tokens_posts_refresh_grant_and_preserves_refresh_token() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = lock_env();
         clear_oauth_env();
         let token_path = temp_path("refresh");
         std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
@@ -463,7 +603,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_oauth_tokens_refreshing_if_expiring_keeps_fresh_token() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = lock_env();
         clear_oauth_env();
         let token_path = temp_path("fresh");
         std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
@@ -488,7 +628,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_oauth_tokens_refreshing_if_expiring_refreshes_near_expiry() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = lock_env();
         clear_oauth_env();
         let token_path = temp_path("expiring");
         std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);

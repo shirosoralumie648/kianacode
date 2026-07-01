@@ -68,12 +68,18 @@ fn auth_status(rest: &str) -> anyhow::Result<CommandResult> {
 fn auth_status_text() -> String {
     let state = auth_state();
     format!(
-        "Auth status\napi_key: {}\nsource: {}\nconfig_file: {}\noauth_access_token: {}\noauth_refresh_token: {}\noauth_file: {}\n{}usage: kiana auth status [--json|--text]",
+        "Auth status\napi_key: {}\nsource: {}\nconfig_file: {}\noauth_status: {}\noauth_access_token: {}\noauth_refresh_token: {}\noauth_expires_at: {}\noauth_expired: {}\noauth_expiring: {}\noauth_refreshable: {}\noauth_store: {}\noauth_file: {}\n{}usage: kiana auth status [--json|--text]",
         state.api_key,
         state.source,
         state.config_file,
+        state.oauth_status,
         state.oauth_access_token,
         state.oauth_refresh_token,
+        state.oauth_expires_at.as_deref().unwrap_or("none"),
+        yes_no(state.oauth_expired),
+        yes_no(state.oauth_expiring),
+        yes_no(state.oauth_refreshable),
+        state.oauth_store,
         state.oauth_file,
         state
             .oauth_error
@@ -90,9 +96,15 @@ fn auth_status_json() -> anyhow::Result<String> {
         "source": state.source,
         "config_file": state.config_file,
         "oauth": {
+            "status": state.oauth_status,
             "access_token": state.oauth_access_token,
             "refresh_token": state.oauth_refresh_token,
             "file": state.oauth_file,
+            "store": state.oauth_store,
+            "expires_at": state.oauth_expires_at,
+            "expired": state.oauth_expired,
+            "expiring": state.oauth_expiring,
+            "refreshable": state.oauth_refreshable,
             "error": state.oauth_error,
         }
     }))?)
@@ -121,9 +133,15 @@ fn auth_state() -> AuthState {
             "none".to_string()
         },
         config_file: config_path().display().to_string(),
+        oauth_status: oauth.status,
         oauth_access_token: oauth.access_token,
         oauth_refresh_token: oauth.refresh_token,
         oauth_file: oauth.file,
+        oauth_store: oauth.store,
+        oauth_expires_at: oauth.expires_at,
+        oauth_expired: oauth.expired,
+        oauth_expiring: oauth.expiring,
+        oauth_refreshable: oauth.refreshable,
         oauth_error: oauth.error,
     }
 }
@@ -132,52 +150,75 @@ struct AuthState {
     api_key: String,
     source: String,
     config_file: String,
+    oauth_status: String,
     oauth_access_token: String,
     oauth_refresh_token: String,
     oauth_file: String,
+    oauth_store: String,
+    oauth_expires_at: Option<String>,
+    oauth_expired: bool,
+    oauth_expiring: bool,
+    oauth_refreshable: bool,
     oauth_error: Option<String>,
 }
 
 fn oauth_state() -> OAuthAuthState {
-    let file = kiana_services::oauth::oauth_tokens_path()
-        .display()
-        .to_string();
-    match kiana_services::oauth::load_oauth_tokens() {
-        Ok(Some(tokens)) => OAuthAuthState {
-            access_token: "set".to_string(),
-            refresh_token: if tokens
-                .refresh_token
-                .as_deref()
-                .map(str::trim)
-                .is_some_and(|value| !value.is_empty())
-            {
-                "set".to_string()
-            } else {
-                "missing".to_string()
-            },
-            file,
-            error: None,
-        },
-        Ok(None) => OAuthAuthState {
-            access_token: "missing".to_string(),
-            refresh_token: "missing".to_string(),
-            file,
-            error: None,
-        },
-        Err(error) => OAuthAuthState {
-            access_token: "invalid".to_string(),
-            refresh_token: "invalid".to_string(),
-            file,
-            error: Some(error.to_string()),
-        },
+    let inspection = kiana_services::oauth::inspect_oauth_tokens(
+        kiana_services::oauth::DEFAULT_OAUTH_EXPIRY_SKEW,
+    );
+    let (access_token, refresh_token) = match inspection.status {
+        kiana_services::oauth::OAuthTokenFileStatus::Valid => (
+            presence(inspection.access_token),
+            presence(inspection.refresh_token),
+        ),
+        kiana_services::oauth::OAuthTokenFileStatus::Missing => {
+            ("missing".to_string(), "missing".to_string())
+        }
+        kiana_services::oauth::OAuthTokenFileStatus::Invalid => {
+            ("invalid".to_string(), "invalid".to_string())
+        }
+    };
+    OAuthAuthState {
+        status: inspection.status.as_str().to_string(),
+        access_token,
+        refresh_token,
+        file: inspection.file,
+        store: inspection.store,
+        expires_at: inspection.expires_at.map(|value| value.to_rfc3339()),
+        expired: inspection.expired,
+        expiring: inspection.expiring,
+        refreshable: inspection.refreshable,
+        error: inspection.error,
     }
 }
 
 struct OAuthAuthState {
+    status: String,
     access_token: String,
     refresh_token: String,
     file: String,
+    store: String,
+    expires_at: Option<String>,
+    expired: bool,
+    expiring: bool,
+    refreshable: bool,
     error: Option<String>,
+}
+
+fn presence(present: bool) -> String {
+    if present {
+        "set".to_string()
+    } else {
+        "missing".to_string()
+    }
+}
+
+fn yes_no(value: bool) -> &'static str {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
 }
 
 fn usage() -> &'static str {
@@ -269,9 +310,15 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&output).unwrap();
 
         assert_eq!(value["api_key"], "missing");
+        assert_eq!(value["oauth"]["status"], "valid");
         assert_eq!(value["oauth"]["access_token"], "set");
         assert_eq!(value["oauth"]["refresh_token"], "set");
         assert_eq!(value["oauth"]["file"], token_path_str);
+        assert_eq!(value["oauth"]["store"], "file");
+        assert_eq!(value["oauth"]["expires_at"], serde_json::Value::Null);
+        assert_eq!(value["oauth"]["expired"], false);
+        assert_eq!(value["oauth"]["expiring"], false);
+        assert_eq!(value["oauth"]["refreshable"], true);
         assert!(!output.contains("oauth-access-secret"));
         assert!(!output.contains("oauth-refresh-secret"));
 

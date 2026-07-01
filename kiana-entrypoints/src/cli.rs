@@ -5987,7 +5987,7 @@ struct RemoteSessionAccessToken {
 }
 
 fn oauth_proactive_refresh_skew() -> std::time::Duration {
-    std::time::Duration::from_secs(300)
+    kiana_services::oauth::DEFAULT_OAUTH_EXPIRY_SKEW
 }
 
 fn remote_session_access_token_details() -> Option<RemoteSessionAccessToken> {

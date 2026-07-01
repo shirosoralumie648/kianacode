@@ -25,8 +25,8 @@ pub fn get_api_key() -> Option<ApiKey> {
 }
 
 pub fn check_oauth_tokens() -> bool {
-    // Placeholder for OAuth token validation
-    false
+    crate::oauth::inspect_oauth_tokens(crate::oauth::DEFAULT_OAUTH_EXPIRY_SKEW)
+        .has_usable_access_token()
 }
 
 fn non_empty(value: String) -> Option<String> {
@@ -40,15 +40,15 @@ fn non_empty(value: String) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_api_key, KeySource};
+    use super::{check_oauth_tokens, get_api_key, KeySource};
+    use chrono::{Duration as ChronoDuration, Utc};
     use std::fs;
     use std::path::PathBuf;
     use std::sync::{Mutex, MutexGuard, PoisonError};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn env_lock() -> &'static Mutex<()> {
-        static LOCK: Mutex<()> = Mutex::new(());
-        &LOCK
+        crate::env_test_lock()
     }
 
     fn lock_env() -> MutexGuard<'static, ()> {
@@ -77,6 +77,9 @@ mod tests {
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_BASE_URL",
             "ANTHROPIC_MODEL",
+            "KIANA_OAUTH_TOKENS_FILE",
+            "CLAUDE_CODE_OAUTH_TOKENS_FILE",
+            "KIANA_HOME",
         ] {
             std::env::remove_var(key);
         }
@@ -139,6 +142,44 @@ mod tests {
 
         assert!(get_api_key().is_none());
 
+        clear_auth_env();
+    }
+
+    #[test]
+    fn oauth_token_check_accepts_unexpired_token_file() {
+        let _guard = lock_env();
+        clear_auth_env();
+        let path = temp_path("oauth-valid", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &path);
+        crate::oauth::save_oauth_tokens(&crate::oauth::OAuthTokens {
+            access_token: "oauth-access".to_string(),
+            refresh_token: Some("oauth-refresh".to_string()),
+            expires_at: Some(Utc::now() + ChronoDuration::hours(1)),
+        })
+        .unwrap();
+
+        assert!(check_oauth_tokens());
+
+        let _ = fs::remove_file(path);
+        clear_auth_env();
+    }
+
+    #[test]
+    fn oauth_token_check_rejects_expired_token_file() {
+        let _guard = lock_env();
+        clear_auth_env();
+        let path = temp_path("oauth-expired", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &path);
+        crate::oauth::save_oauth_tokens(&crate::oauth::OAuthTokens {
+            access_token: "oauth-access".to_string(),
+            refresh_token: Some("oauth-refresh".to_string()),
+            expires_at: Some(Utc::now() - ChronoDuration::minutes(1)),
+        })
+        .unwrap();
+
+        assert!(!check_oauth_tokens());
+
+        let _ = fs::remove_file(path);
         clear_auth_env();
     }
 }

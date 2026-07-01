@@ -11,6 +11,12 @@ pub mod oauth;
 pub use errors::{ServiceError, ServiceResult};
 
 #[cfg(test)]
+pub(crate) fn env_test_lock() -> &'static std::sync::Mutex<()> {
+    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+}
+
+#[cfg(test)]
 mod network_policy_tests {
     use crate::network_policy::{validate_http_redirect, validate_http_url, HttpNetworkSurface};
     use url::Url;
