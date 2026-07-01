@@ -2,7 +2,10 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokens {
@@ -151,11 +154,92 @@ pub fn save_oauth_tokens_to_path(
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
     {
+        let parent_existed = parent.exists();
         fs::create_dir_all(parent)?;
+        if !parent_existed {
+            restrict_oauth_dir_permissions(parent)?;
+        }
     }
     let contents = serde_json::to_string_pretty(tokens)?;
-    fs::write(path, contents)?;
+    write_oauth_tokens_atomically(path, contents.as_bytes())?;
     Ok(())
+}
+
+fn write_oauth_tokens_atomically(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let temp_path = oauth_tokens_temp_path(path);
+    let write_result = (|| {
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        set_owner_only_create_mode(&mut options);
+        let mut file = options.open(&temp_path)?;
+        file.write_all(contents)?;
+        file.sync_all()?;
+        drop(file);
+        restrict_oauth_file_permissions(&temp_path)?;
+        fs::rename(&temp_path, path)?;
+        restrict_oauth_file_permissions(path)?;
+        sync_parent_dir(path);
+        Ok(())
+    })();
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    write_result
+}
+
+fn oauth_tokens_temp_path(path: &Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "oauth.json".into());
+    path.with_file_name(format!(".{file_name}.{}.tmp", Uuid::new_v4()))
+}
+
+#[cfg(unix)]
+fn set_owner_only_create_mode(options: &mut OpenOptions) {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    options.mode(0o600);
+}
+
+#[cfg(not(unix))]
+fn set_owner_only_create_mode(_options: &mut OpenOptions) {}
+
+#[cfg(unix)]
+fn restrict_oauth_file_permissions(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn restrict_oauth_file_permissions(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn restrict_oauth_dir_permissions(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(not(unix))]
+fn restrict_oauth_dir_permissions(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+fn sync_parent_dir(path: &Path) {
+    let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    else {
+        return;
+    };
+    if let Ok(dir) = fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
 }
 
 pub async fn refresh_stored_oauth_tokens() -> crate::errors::ServiceResult<Option<OAuthTokens>> {
@@ -206,6 +290,10 @@ mod tests {
         std::env::temp_dir().join(format!("kiana-oauth-{name}-{}.json", Uuid::new_v4()))
     }
 
+    fn temp_dir(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("kiana-oauth-{name}-{}", Uuid::new_v4()))
+    }
+
     fn clear_oauth_env() {
         for key in [
             "KIANA_OAUTH_TOKENS_FILE",
@@ -241,6 +329,65 @@ mod tests {
 
         let _ = fs::remove_file(path);
         clear_oauth_env();
+    }
+
+    #[test]
+    fn save_oauth_tokens_replaces_existing_file_without_temp_leftovers() {
+        let root = temp_dir("atomic");
+        let path = root.join("oauth.json");
+        let original = OAuthTokens {
+            access_token: "old-access".to_string(),
+            refresh_token: Some("old-refresh".to_string()),
+            expires_at: None,
+        };
+        let replacement = OAuthTokens {
+            access_token: "new-access".to_string(),
+            refresh_token: Some("new-refresh".to_string()),
+            expires_at: None,
+        };
+
+        save_oauth_tokens_to_path(&path, &original).unwrap();
+        save_oauth_tokens_to_path(&path, &replacement).unwrap();
+
+        let loaded = load_oauth_tokens_from_path(&path).unwrap().unwrap();
+        let entries = fs::read_dir(&root)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(loaded.access_token, "new-access");
+        assert_eq!(loaded.refresh_token.as_deref(), Some("new-refresh"));
+        assert_eq!(entries, vec!["oauth.json".to_string()]);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_oauth_tokens_sets_owner_only_unix_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_dir("permissions");
+        let path = root.join("nested").join("oauth.json");
+        let tokens = OAuthTokens {
+            access_token: "access-token".to_string(),
+            refresh_token: Some("refresh-token".to_string()),
+            expires_at: None,
+        };
+
+        save_oauth_tokens_to_path(&path, &tokens).unwrap();
+
+        let dir_mode = fs::metadata(path.parent().unwrap())
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        let file_mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+
+        assert_eq!(dir_mode, 0o700);
+        assert_eq!(file_mode, 0o600);
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[tokio::test]
