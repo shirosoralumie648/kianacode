@@ -665,7 +665,7 @@ fn permission_panel_height(state: &ReplState, area_width: u16, area_height: u16)
         .lines()
         .map(|line| wrap_text(line, content_width).len().max(1))
         .sum::<usize>();
-    let preferred = (content_rows as u16).saturating_add(2).clamp(4, 9);
+    let preferred = (content_rows as u16).saturating_add(2).clamp(4, 12);
     let available = area_height.saturating_sub(5).max(4);
     preferred.min(available)
 }
@@ -744,6 +744,24 @@ fn chrono_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::{backend::TestBackend, Terminal};
+
+    fn render_repl_to_text(state: &mut ReplState, width: u16, height: u16) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| ReplScreen::draw(frame, state))
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .fold(String::new(), |mut output, cell| {
+                output.push_str(cell.symbol());
+                output
+            })
+    }
 
     #[test]
     fn cursor_display_width_handles_cjk_input() {
@@ -855,6 +873,39 @@ mod tests {
         assert!(text.contains("Queued: 2"));
         assert!(text.contains("Ctrl-Y allow"));
         assert!(permission_panel_height(&state, 80, 24) >= 4);
+    }
+
+    #[test]
+    fn repl_render_keeps_approval_status_and_prompt_visible() {
+        let mut state = ReplState::default();
+        state.is_loading = true;
+        state.model_name = "llama3.1".to_string();
+        state.input = "follow up".to_string();
+        state.cursor = state.input.len();
+        state.push_message(MessageRole::Assistant, "Previous answer".to_string());
+        state.set_permission_request(
+            ReplPermissionPanel {
+                tool_name: "Bash".to_string(),
+                tool_use_id: "toolu_bash".to_string(),
+                reason: Some("Command requires approval in ask mode.".to_string()),
+                blocked_path: Some("src/main.rs".to_string()),
+                input_preview: Some("{\"command\":\"git status\"}".to_string()),
+                suggestions_preview: Some("[\"allow once\"]".to_string()),
+            },
+            1,
+        );
+
+        let rendered = render_repl_to_text(&mut state, 120, 24);
+
+        assert!(rendered.contains("Kiana"));
+        assert!(rendered.contains("Previous answer"));
+        assert!(rendered.contains("Approval"));
+        assert!(rendered.contains("Tool: Bash"));
+        assert!(rendered.contains("Path: src/main.rs"));
+        assert!(rendered.contains("Queued: 1"));
+        assert!(rendered.contains("[Ctrl-Y allow]"));
+        assert!(rendered.contains("Prompt"));
+        assert!(rendered.contains("> follow up"));
     }
 
     #[test]

@@ -62,6 +62,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and TUI startup shows a one-time onboarding message when no API key or usable OAuth token is configured.
 - TUI `/diff --json` and `/diff --last-assistant --json` now render structured diff previews with file lists, stats, and assistant patch snippets instead of raw JSON transcript output.
 - TUI permission requests now carry structured approval panel state with tool, reason, blocked path, input preview, suggestions, and queue context while preserving `/allow` and `/deny` command handling.
+- TUI headless render tests now verify the REPL approval panel keeps queued permission context, status shortcuts, and prompt input visible, and the resume picker renders filtered search results plus resume help.
 - OpenAI-compatible text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
 - Local Ollama text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
 - Text-only provider runs now default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.

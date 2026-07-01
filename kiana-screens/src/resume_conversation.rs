@@ -312,6 +312,7 @@ impl ResumeScreen {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::{backend::TestBackend, Terminal};
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -338,6 +339,23 @@ mod tests {
             },
         ]);
         state
+    }
+
+    fn render_resume_to_text(state: &mut ResumeState, width: u16, height: u16) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| ResumeScreen::draw(frame, state))
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .fold(String::new(), |mut output, cell| {
+                output.push_str(cell.symbol());
+                output
+            })
     }
 
     #[test]
@@ -411,6 +429,25 @@ mod tests {
             state.handle_key(key(KeyCode::Esc)),
             Some(ResumeEvent::SwitchScreen(AppScreen::Repl))
         );
+    }
+
+    #[test]
+    fn resume_render_shows_search_result_selection_and_help() {
+        let mut state = sample_state();
+        state.handle_key(key(KeyCode::Char('/')));
+        for c in "tui".chars() {
+            state.handle_key(key(KeyCode::Char(c)));
+        }
+
+        let rendered = render_resume_to_text(&mut state, 80, 16);
+
+        assert!(rendered.contains("Resume Conversation /tui"));
+        assert!(rendered.contains("Polish TUI resume"));
+        assert!(rendered.contains("session-beta"));
+        assert!(rendered.contains("2026-06-15"));
+        assert!(rendered.contains("4 messages"));
+        assert!(rendered.contains("Enter: resume"));
+        assert!(!rendered.contains("Refactor remote bridge"));
     }
 
     #[test]

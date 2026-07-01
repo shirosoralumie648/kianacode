@@ -75,6 +75,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   `INSTALL_DIR`.
 - Added a local Ollama text provider for `/api/chat` endpoints with explicit
   model capabilities and pre-request rejection when tools are enabled.
+- Added headless TUI render coverage for the REPL approval panel and resume
+  picker search view.
 
 ### Verified
 
