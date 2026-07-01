@@ -127,6 +127,8 @@ for file in \
   "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-release-ops.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh" \
+  "$package_root/scripts/validate-json-schema.py" \
+  "$package_root/scripts/schema-contract-smoke.sh" \
   "$package_root/scripts/commercial-release-blockers-report.sh" \
   "$package_root/scripts/entitlement-proof-report.sh" \
   "$package_root/scripts/product-acceptance-report.sh" \
@@ -143,6 +145,13 @@ do
     exit 1
   fi
 done
+
+package_python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+if [[ -z "$package_python_bin" ]]; then
+  echo "python3 or python is required to validate packaged JSON schema contracts" >&2
+  exit 1
+fi
+bash "$package_root/scripts/schema-contract-smoke.sh" >/dev/null
 
 install_dir="$tmp_root/install"
 home_dir="$tmp_root/home"

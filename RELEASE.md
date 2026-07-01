@@ -15,6 +15,10 @@ bash scripts/release-preflight.sh --local-rc
 bash scripts/release-smoke.sh
 ```
 
+```bash
+bash scripts/schema-contract-smoke.sh
+```
+
 `make release-smoke` calls the same script when `make` is available.
 
 The gate runs:
@@ -25,6 +29,7 @@ The gate runs:
 - release binary version plus doctor text and `kiana.doctor.v1` JSON smoke
 - help, auth, completion, plugin, MCP, and project MCP smoke checks
 - product shell smoke, including the local app-server contract endpoint
+- schema contract smoke for proof templates and commercial blocker reports
 - temporary source install into an isolated `INSTALL_DIR`
 - installed binary version, doctor text/JSON, help, auth, plugin, and MCP smoke checks
 

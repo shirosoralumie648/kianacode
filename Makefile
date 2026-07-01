@@ -1,4 +1,4 @@
-.PHONY: build install test clean dev release package install-compliance-tools compliance-audit sbom release-preflight release-preflight-local commercial-blockers release-smoke live-smoke provider-live-smoke remote-live-smoke verify-commercial-artifacts native-computer-mcp test-native-computer-mcp help
+.PHONY: build install test clean dev release package install-compliance-tools compliance-audit sbom schema-contract-smoke release-preflight release-preflight-local commercial-blockers release-smoke live-smoke provider-live-smoke remote-live-smoke verify-commercial-artifacts native-computer-mcp test-native-computer-mcp help
 
 CARGO ?= cargo
 INSTALL_DIR ?= $(HOME)/.local/bin
@@ -45,6 +45,9 @@ install-compliance-tools:
 
 compliance-audit:
 	bash scripts/compliance-audit.sh --local-rc
+
+schema-contract-smoke:
+	bash scripts/schema-contract-smoke.sh
 
 commercial-blockers:
 	bash scripts/commercial-release-blockers-report.sh

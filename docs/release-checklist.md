@@ -39,6 +39,9 @@ commercial release.
   release artifact set before a draft GitHub Release is created.
 - `scripts/compliance-audit.sh --local-rc` produces `SBOM.cdx.json` and
   `compliance-report.json`.
+- `scripts/schema-contract-smoke.sh` passes and validates proof templates plus
+  the commercial blocker report against the pinned schemas using the packaged
+  schema validator.
 - `scripts/compliance-audit.sh` passes with `cargo-audit`, `cargo-deny`, and
   the checked-in `deny.toml` policy.
 - `scripts/install-compliance-tools.sh` installs full audit tooling under

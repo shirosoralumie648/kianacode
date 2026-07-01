@@ -72,6 +72,7 @@ for file in \
   docs/schemas/kiana-release-ops.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
+  scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
   scripts/commercial-release-blockers-report.sh \
   scripts/entitlement-proof-report.sh \
   scripts/product-acceptance-report.sh \
@@ -281,6 +282,12 @@ if "$bash_bin" scripts/commercial-release-blockers-report.sh --json | grep -Fq '
   pass "commercial release blockers report JSON gate is wired"
 else
   fail "commercial release blockers report JSON gate is not wired"
+fi
+
+if "$bash_bin" scripts/schema-contract-smoke.sh; then
+  pass "schema contract smoke passed"
+else
+  fail "schema contract smoke failed"
 fi
 
 if grep -Fq '"const": "kiana.plugin-install-receipt.v1"' docs/schemas/kiana-plugin-install-receipt.v1.schema.json; then

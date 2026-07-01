@@ -110,6 +110,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   `kiana.commercial-release-blockers.v1` schema so release owners can list
   remaining local and external commercial blockers without rerunning heavyweight
   build, live-service, signing, or channel-publication gates.
+- Added a dependency-free JSON Schema subset validator and
+  `scripts/schema-contract-smoke.sh` so proof templates and blocker reports are
+  checked against pinned schemas in local preflight and packaged releases.
 - Added non-accepted proof templates under `docs/proof-templates/` for product
   acceptance, entitlement, release operations, and platform security evidence.
 - Clarified the `0.1.0` commercial GA distribution scope as GitHub Releases,
