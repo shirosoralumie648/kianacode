@@ -326,6 +326,55 @@ PY
   fi
 }
 
+require_remote_smoke_contract() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate remote live smoke proof"
+    return
+  fi
+  if "$python" - "$file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+allowed_keys = {
+    "schema",
+    "status",
+    "checked_at",
+    "session_id",
+    "api_base_url",
+    "sdk_url",
+    "expires_in",
+    "worker_epoch",
+}
+checks = [
+    set(report).issubset(allowed_keys),
+    report.get("schema") == "kiana.remote-code-session-smoke.v1",
+    report.get("status") == "ok",
+    isinstance(report.get("checked_at"), str) and bool(report["checked_at"].strip()),
+    isinstance(report.get("session_id"), str) and report["session_id"].startswith("cse_"),
+    isinstance(report.get("api_base_url"), str) and report["api_base_url"].startswith(("http://", "https://")),
+    isinstance(report.get("sdk_url"), str) and report["sdk_url"].startswith(("http://", "https://")),
+    isinstance(report.get("expires_in"), int) and report["expires_in"] > 0,
+    isinstance(report.get("worker_epoch"), int) and report["worker_epoch"] >= 0,
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "remote live smoke proof commercial contract"
+  else
+    fail "remote live smoke proof failed commercial contract"
+  fi
+}
+
 require_platform_security_contract() {
   local file="$1"
   local expected_version="$2"
@@ -745,6 +794,7 @@ require_json_pattern "$provider_smoke_proof" '"live"[[:space:]]*:[[:space:]]*tru
 require_json_pattern "$provider_smoke_proof" '"tools"[[:space:]]*:[[:space:]]*true' "provider live smoke proof includes tools"
 require_proof_file "$remote_smoke_proof" "kiana.remote-code-session-smoke.v1" "remote live smoke proof"
 require_json_pattern "$remote_smoke_proof" '"status"[[:space:]]*:[[:space:]]*"ok"' "remote live smoke proof status"
+require_remote_smoke_contract "$remote_smoke_proof"
 require_proof_file "$entitlement_proof" "kiana.entitlement-proof.v1" "entitlement proof"
 require_json_pattern "$entitlement_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "entitlement proof accepted"
 require_json_pattern "$entitlement_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "entitlement proof accepted flag"

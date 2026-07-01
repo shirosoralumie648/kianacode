@@ -148,6 +148,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   workflow coverage, including local RC proof generation.
 - Commercial artifact verification now enforces the full product acceptance
   contract, including approval fields, scope, and required workflow coverage.
+- Commercial artifact verification now enforces the full remote code-session
+  live smoke proof contract, including session id, API/SDK URLs, expiry, and
+  worker epoch.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

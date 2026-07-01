@@ -120,7 +120,8 @@ commercial release.
   `dist/proofs/product/product-acceptance.json`, and
   `dist/proofs/release-ops/release-ops.json`, plus Linux/macOS/Windows
   `dist/proofs/platform-security/*.json`; the commercial artifact verifier
-  checks those proof files.
+  checks those proof files, including the remote code-session session id,
+  service URLs, expiry, and worker epoch contract.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
 - Installed plugins include `kiana.plugin-install-receipt.v1` receipts with

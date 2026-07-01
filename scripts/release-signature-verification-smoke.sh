@@ -230,7 +230,13 @@ EOF
 cat > "$dist_dir/proofs/live-smoke/remote/code-session-smoke.json" <<'EOF'
 {
   "schema": "kiana.remote-code-session-smoke.v1",
-  "status": "ok"
+  "status": "ok",
+  "checked_at": "2026-01-01T00:00:00Z",
+  "session_id": "cse_fixture",
+  "api_base_url": "https://remote.kiana.local/api",
+  "sdk_url": "https://remote.kiana.local/sdk/cse_fixture",
+  "expires_in": 3600,
+  "worker_epoch": 1
 }
 EOF
 
