@@ -151,6 +151,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Commercial artifact verification now enforces the full remote code-session
   live smoke proof contract, including session id, API/SDK URLs, expiry, and
   worker epoch.
+- Commercial artifact verification now enforces provider live catalog and smoke
+  contracts, including at least one real live text provider and one real live
+  tool-call provider.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

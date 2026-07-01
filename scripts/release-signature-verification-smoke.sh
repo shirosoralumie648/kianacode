@@ -215,7 +215,27 @@ EOF
 cat > "$dist_dir/proofs/live-smoke/provider/model-catalog-live.json" <<'EOF'
 {
   "schema": "kiana.model-catalog.v1",
-  "live": true
+  "live": true,
+  "summary": {
+    "providers": 1,
+    "discovered_models": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "providers": [
+    {
+      "provider_id": "openai-compatible",
+      "display_name": "OpenAI-compatible",
+      "protocol": "open_ai_chat_completions",
+      "models_source": "user_configured",
+      "status": "passed",
+      "live": true,
+      "model_ids": ["gpt-fixture"],
+      "discovered_model_ids": ["gpt-fixture"],
+      "message": "fixture live catalog passed",
+      "base_url": "https://provider.kiana.local/v1"
+    }
+  ]
 }
 EOF
 
@@ -223,7 +243,32 @@ cat > "$dist_dir/proofs/live-smoke/provider/model-smoke-live-tools.json" <<'EOF'
 {
   "schema": "kiana.model-smoke.v1",
   "live": true,
-  "tools": true
+  "tools": true,
+  "summary": {
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "provider_id": "openai-compatible",
+      "model_id": "gpt-fixture",
+      "status": "passed",
+      "live": true,
+      "capability": "text",
+      "message": "fixture text smoke passed",
+      "output_preview": "ok"
+    },
+    {
+      "provider_id": "openai-compatible",
+      "model_id": "gpt-fixture",
+      "status": "passed",
+      "live": true,
+      "capability": "tools",
+      "message": "fixture tool smoke passed",
+      "output_preview": "tool_call"
+    }
+  ]
 }
 EOF
 

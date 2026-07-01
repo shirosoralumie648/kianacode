@@ -375,6 +375,102 @@ PY
   fi
 }
 
+require_provider_live_contract() {
+  local catalog_file="$1"
+  local smoke_file="$2"
+  if [[ ! -f "$catalog_file" || ! -f "$smoke_file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate provider live proofs"
+    return
+  fi
+  if "$python" - "$catalog_file" "$smoke_file" <<'PY'
+import json
+import sys
+
+catalog_path, smoke_path = sys.argv[1:3]
+with open(catalog_path, "r", encoding="utf-8") as handle:
+    catalog = json.load(handle)
+with open(smoke_path, "r", encoding="utf-8") as handle:
+    smoke = json.load(handle)
+
+catalog_summary = catalog.get("summary")
+if not isinstance(catalog_summary, dict):
+    catalog_summary = {}
+providers = catalog.get("providers")
+if not isinstance(providers, list):
+    providers = []
+smoke_summary = smoke.get("summary")
+if not isinstance(smoke_summary, dict):
+    smoke_summary = {}
+results = smoke.get("results")
+if not isinstance(results, list):
+    results = []
+
+live_text_passed = any(
+    isinstance(item, dict)
+    and item.get("provider_id") != "fake"
+    and item.get("live") is True
+    and item.get("capability") == "text"
+    and item.get("status") == "passed"
+    for item in results
+)
+live_tools_passed = any(
+    isinstance(item, dict)
+    and item.get("provider_id") != "fake"
+    and item.get("live") is True
+    and item.get("capability") == "tools"
+    and item.get("status") == "passed"
+    for item in results
+)
+provider_rows_valid = all(
+    isinstance(item, dict)
+    and isinstance(item.get("provider_id"), str)
+    and bool(item["provider_id"].strip())
+    and isinstance(item.get("status"), str)
+    and isinstance(item.get("live"), bool)
+    and isinstance(item.get("model_ids"), list)
+    and isinstance(item.get("discovered_model_ids"), list)
+    for item in providers
+)
+result_rows_valid = all(
+    isinstance(item, dict)
+    and isinstance(item.get("provider_id"), str)
+    and bool(item["provider_id"].strip())
+    and item.get("status") in {"passed", "skipped", "failed"}
+    and isinstance(item.get("live"), bool)
+    and item.get("capability") in {"text", "tools"}
+    for item in results
+)
+checks = [
+    catalog.get("schema") == "kiana.model-catalog.v1",
+    catalog.get("live") is True,
+    isinstance(catalog.get("providers"), list) and len(providers) > 0,
+    isinstance(catalog_summary.get("providers"), int) and catalog_summary["providers"] > 0,
+    isinstance(catalog_summary.get("failed"), int) and catalog_summary["failed"] == 0,
+    provider_rows_valid,
+    smoke.get("schema") == "kiana.model-smoke.v1",
+    smoke.get("live") is True,
+    smoke.get("tools") is True,
+    isinstance(smoke.get("results"), list) and len(results) > 0,
+    isinstance(smoke_summary.get("failed"), int) and smoke_summary["failed"] == 0,
+    isinstance(smoke_summary.get("passed"), int) and smoke_summary["passed"] >= 2,
+    result_rows_valid,
+    live_text_passed,
+    live_tools_passed,
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "provider live proof commercial contract"
+  else
+    fail "provider live proof failed commercial contract"
+  fi
+}
+
 require_platform_security_contract() {
   local file="$1"
   local expected_version="$2"
@@ -792,6 +888,7 @@ require_json_pattern "$provider_catalog_proof" '"live"[[:space:]]*:[[:space:]]*t
 require_proof_file "$provider_smoke_proof" "kiana.model-smoke.v1" "provider live smoke proof"
 require_json_pattern "$provider_smoke_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live smoke proof is live"
 require_json_pattern "$provider_smoke_proof" '"tools"[[:space:]]*:[[:space:]]*true' "provider live smoke proof includes tools"
+require_provider_live_contract "$provider_catalog_proof" "$provider_smoke_proof"
 require_proof_file "$remote_smoke_proof" "kiana.remote-code-session-smoke.v1" "remote live smoke proof"
 require_json_pattern "$remote_smoke_proof" '"status"[[:space:]]*:[[:space:]]*"ok"' "remote live smoke proof status"
 require_remote_smoke_contract "$remote_smoke_proof"
