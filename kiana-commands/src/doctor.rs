@@ -148,6 +148,9 @@ struct BashSandboxReport {
 struct CommercialSecurityReport {
     ready: bool,
     status: String,
+    platform: String,
+    isolation: String,
+    controls: Vec<String>,
     issues: Vec<String>,
 }
 
@@ -164,7 +167,7 @@ fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport>
     let sandbox_state = sandbox_diagnostic_app_state(&context.app_state, config.sandbox.as_ref());
     let bash_sandbox = bash_sandbox_diagnostic(&sandbox_state);
     let tool_permissions = effective_tool_permissions(&context.app_state);
-    let commercial_security_issues = commercial_security_issues(&tool_permissions, &bash_sandbox);
+    let commercial_security = commercial_security_report(&tool_permissions, &bash_sandbox);
     let api_key_set = config
         .api_key
         .as_deref()
@@ -216,8 +219,7 @@ fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport>
         );
     }
 
-    let commercial_ready = commercial_security_issues.is_empty();
-    let status = if commercial_ready && warnings.is_empty() {
+    let status = if commercial_security.ready && warnings.is_empty() {
         "ready".to_string()
     } else {
         "warning".to_string()
@@ -290,15 +292,7 @@ fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport>
             allow_unsandboxed_commands: bash_sandbox.allow_unsandboxed_commands,
             bwrap: bash_sandbox.bwrap_label(),
         },
-        commercial_security: CommercialSecurityReport {
-            ready: commercial_ready,
-            status: if commercial_ready {
-                "ready".to_string()
-            } else {
-                "not_ready".to_string()
-            },
-            issues: commercial_security_issues,
-        },
+        commercial_security,
         warnings,
     })
 }
@@ -371,7 +365,7 @@ fn render_doctor_text(report: &DoctorReport) -> String {
             report.bash_sandbox.bwrap
         ),
         format!(
-            "commercial_security: {}",
+            "commercial_security: {} platform={} isolation={}",
             if report.commercial_security.ready {
                 "ready".to_string()
             } else {
@@ -379,7 +373,9 @@ fn render_doctor_text(report: &DoctorReport) -> String {
                     "not_ready({} issue(s))",
                     report.commercial_security.issues.len()
                 )
-            }
+            },
+            report.commercial_security.platform,
+            report.commercial_security.isolation
         ),
     ];
 
@@ -496,30 +492,103 @@ fn sandbox_diagnostic_app_state(
     state
 }
 
-fn commercial_security_issues(
+fn commercial_security_report(
     permissions: &EffectiveToolPermissions,
     bash_sandbox: &kiana_tools::bash_sandbox::BashSandboxDiagnostic,
-) -> Vec<String> {
+) -> CommercialSecurityReport {
+    commercial_security_report_for_values(
+        std::env::consts::OS,
+        &permissions.profile,
+        &permissions.mode,
+        bash_sandbox,
+    )
+}
+
+fn commercial_security_report_for_values(
+    platform: &str,
+    permission_profile: &str,
+    permission_mode: &str,
+    bash_sandbox: &kiana_tools::bash_sandbox::BashSandboxDiagnostic,
+) -> CommercialSecurityReport {
+    let isolation = commercial_security_isolation(platform);
+    let controls = commercial_security_controls(isolation);
     let mut issues = Vec::new();
-    if permissions.profile != "commercial" {
+    if permission_profile != "commercial" {
         issues.push("set `kiana permissions profile commercial`".to_string());
     }
-    if permissions.mode != "ask" {
+    if permission_mode != "ask" {
         issues.push("commercial profile must resolve to ask permission mode".to_string());
     }
-    if !bash_sandbox.enabled {
-        issues.push("enable bash sandbox in config sandbox.enabled=true".to_string());
+
+    match isolation {
+        "linux_bwrap" => {
+            if !bash_sandbox.enabled {
+                issues.push("enable bash sandbox in config sandbox.enabled=true".to_string());
+            }
+            if bash_sandbox.status != BashSandboxStatus::Ready {
+                issues.push("install/configure bubblewrap (bwrap) for bash sandbox".to_string());
+            }
+            if !bash_sandbox.fail_if_unavailable {
+                issues.push("set sandbox.failIfUnavailable=true".to_string());
+            }
+            if bash_sandbox.allow_unsandboxed_commands {
+                issues.push("set sandbox.allowUnsandboxedCommands=false".to_string());
+            }
+        }
+        "windows_exec_policy" | "macos_exec_policy" => {}
+        _ => issues.push(format!(
+            "commercial security platform isolation is not defined for {platform}"
+        )),
     }
-    if bash_sandbox.status != BashSandboxStatus::Ready {
-        issues.push("install/configure bubblewrap (bwrap) for bash sandbox".to_string());
+
+    let ready = issues.is_empty();
+    CommercialSecurityReport {
+        ready,
+        status: if ready {
+            "ready".to_string()
+        } else {
+            "not_ready".to_string()
+        },
+        platform: platform.to_string(),
+        isolation: isolation.to_string(),
+        controls,
+        issues,
     }
-    if !bash_sandbox.fail_if_unavailable {
-        issues.push("set sandbox.failIfUnavailable=true".to_string());
+}
+
+fn commercial_security_isolation(platform: &str) -> &'static str {
+    match platform {
+        "linux" => "linux_bwrap",
+        "windows" => "windows_exec_policy",
+        "macos" => "macos_exec_policy",
+        _ => "unsupported_platform",
     }
-    if bash_sandbox.allow_unsandboxed_commands {
-        issues.push("set sandbox.allowUnsandboxedCommands=false".to_string());
+}
+
+fn commercial_security_controls(isolation: &str) -> Vec<String> {
+    let mut controls = vec![
+        "permission_profile:commercial".to_string(),
+        "permission_mode:ask".to_string(),
+        "exec_policy:bash+powershell".to_string(),
+        "exec_policy:destructive-root-sync-deny".to_string(),
+    ];
+    match isolation {
+        "linux_bwrap" => {
+            controls.push("bash_sandbox:enabled".to_string());
+            controls.push("bash_sandbox:fail_if_unavailable".to_string());
+            controls.push("bash_sandbox:deny_unsandboxed_fallback".to_string());
+        }
+        "windows_exec_policy" => {
+            controls.push("platform_shell:windows-powershell-policy".to_string());
+        }
+        "macos_exec_policy" => {
+            controls.push("platform_shell:macos-exec-policy".to_string());
+        }
+        _ => {
+            controls.push("platform_shell:unsupported".to_string());
+        }
     }
-    issues
+    controls
 }
 
 fn bridge_access_token_configured() -> bool {
@@ -613,9 +682,10 @@ fn remote_settings_file_label() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::DoctorCommand;
+    use super::{commercial_security_report_for_values, DoctorCommand};
     use crate::local_state::env_lock;
     use crate::{Command, CommandContext};
+    use kiana_tools::bash_sandbox::{BashSandboxDiagnostic, BashSandboxStatus};
     use serde_json::json;
     use std::collections::HashMap;
     use std::fs;
@@ -662,6 +732,75 @@ mod tests {
             "kiana-doctor-{name}-{}-{unique}",
             std::process::id()
         ))
+    }
+
+    fn sandbox(enabled: bool, status: BashSandboxStatus) -> BashSandboxDiagnostic {
+        BashSandboxDiagnostic {
+            enabled,
+            fail_if_unavailable: enabled,
+            allow_unsandboxed_commands: !enabled,
+            bwrap_path: None,
+            status,
+        }
+    }
+
+    #[test]
+    fn commercial_security_linux_requires_strict_bwrap_controls() {
+        let report = commercial_security_report_for_values(
+            "linux",
+            "commercial",
+            "ask",
+            &sandbox(false, BashSandboxStatus::Disabled),
+        );
+
+        assert!(!report.ready);
+        assert_eq!(report.platform, "linux");
+        assert_eq!(report.isolation, "linux_bwrap");
+        assert!(report
+            .controls
+            .contains(&"bash_sandbox:fail_if_unavailable".to_string()));
+        assert!(report
+            .issues
+            .contains(&"enable bash sandbox in config sandbox.enabled=true".to_string()));
+        assert!(report
+            .issues
+            .contains(&"install/configure bubblewrap (bwrap) for bash sandbox".to_string()));
+    }
+
+    #[test]
+    fn commercial_security_windows_uses_exec_policy_without_bwrap_requirement() {
+        let report = commercial_security_report_for_values(
+            "windows",
+            "commercial",
+            "ask",
+            &sandbox(false, BashSandboxStatus::Disabled),
+        );
+
+        assert!(report.ready);
+        assert_eq!(report.status, "ready");
+        assert_eq!(report.platform, "windows");
+        assert_eq!(report.isolation, "windows_exec_policy");
+        assert!(report
+            .controls
+            .contains(&"platform_shell:windows-powershell-policy".to_string()));
+        assert!(!report
+            .issues
+            .iter()
+            .any(|issue| issue.contains("bubblewrap") || issue.contains("bash sandbox")));
+    }
+
+    #[test]
+    fn commercial_security_rejects_unknown_platform_model() {
+        let report = commercial_security_report_for_values(
+            "solaris",
+            "commercial",
+            "ask",
+            &sandbox(false, BashSandboxStatus::Disabled),
+        );
+
+        assert!(!report.ready);
+        assert_eq!(report.isolation, "unsupported_platform");
+        assert!(report.issues.iter().any(|issue| issue.contains("solaris")));
     }
 
     #[tokio::test]
@@ -738,6 +877,9 @@ mod tests {
         assert_eq!(report["remote_code_session"]["live_smoke_token"], "no");
         assert_eq!(report["oauth_token_file"]["status"], "missing");
         assert!(report["bash_sandbox"]["enabled"].is_boolean());
+        assert!(report["commercial_security"]["platform"].is_string());
+        assert!(report["commercial_security"]["isolation"].is_string());
+        assert!(report["commercial_security"]["controls"].is_array());
         assert!(report["commercial_security"]["issues"].is_array());
         assert!(report["warnings"].is_array());
     }
@@ -951,10 +1093,19 @@ mod tests {
         assert!(result.value.contains("commercial_security: not_ready"));
         assert!(result
             .value
-            .contains("commercial_security_issue: set `kiana permissions profile commercial`"));
+            .contains(&format!("platform={}", std::env::consts::OS)));
         assert!(result
             .value
-            .contains("commercial_security_issue: enable bash sandbox"));
+            .contains("commercial_security_issue: set `kiana permissions profile commercial`"));
+        if std::env::consts::OS == "linux" {
+            assert!(result
+                .value
+                .contains("commercial_security_issue: enable bash sandbox"));
+        } else {
+            assert!(!result
+                .value
+                .contains("commercial_security_issue: enable bash sandbox"));
+        }
 
         let _ = fs::remove_dir_all(path_dir);
     }

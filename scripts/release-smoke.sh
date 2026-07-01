@@ -204,6 +204,14 @@ checks = [
     isinstance(report.get("remote_code_session", {}).get("live_smoke_token"), str),
     isinstance(report.get("oauth_token_file", {}).get("status"), str),
     isinstance(report.get("bash_sandbox", {}).get("enabled"), bool),
+    isinstance(report.get("commercial_security", {}).get("platform"), str),
+    report.get("commercial_security", {}).get("isolation") in [
+        "linux_bwrap",
+        "windows_exec_policy",
+        "macos_exec_policy",
+        "unsupported_platform",
+    ],
+    isinstance(report.get("commercial_security", {}).get("controls"), list),
     isinstance(report.get("commercial_security", {}).get("issues"), list),
 ]
 if not all(checks):

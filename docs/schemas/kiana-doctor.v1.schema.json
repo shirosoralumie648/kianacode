@@ -207,7 +207,7 @@
     },
     "commercial_security": {
       "type": "object",
-      "required": ["ready", "status", "issues"],
+      "required": ["ready", "status", "platform", "isolation", "controls", "issues"],
       "properties": {
         "ready": {
           "type": "boolean"
@@ -215,6 +215,24 @@
         "status": {
           "type": "string",
           "enum": ["ready", "not_ready"]
+        },
+        "platform": {
+          "type": "string"
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "linux_bwrap",
+            "windows_exec_policy",
+            "macos_exec_policy",
+            "unsupported_platform"
+          ]
+        },
+        "controls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "issues": {
           "type": "array",

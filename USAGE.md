@@ -179,7 +179,7 @@ kiana doctor
 kiana release
 ```
 
-`doctor` 会报告本地配置、bridge、remote-session、live smoke token 等状态。`ANTHROPIC_AUTH_TOKEN=sk-*` 会被标记为 remote live smoke 的 token 误用，因为它是 Anthropic API key，不是 Claude/remote bearer token。
+`doctor` 会报告本地配置、bridge、remote-session、live smoke token 等状态。`commercial_security` 会显示当前平台的商业安全模型：Linux 要求 strict `bwrap` Bash sandbox，Windows/macOS 使用权限审批加 shell exec policy 的平台模型。`ANTHROPIC_AUTH_TOKEN=sk-*` 会被标记为 remote live smoke 的 token 误用，因为它是 Anthropic API key，不是 Claude/remote bearer token。
 
 `release` 会列出发布前 gate：
 

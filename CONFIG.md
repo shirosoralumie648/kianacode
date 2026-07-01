@@ -140,7 +140,7 @@ failIfUnavailable = true
 allowUnsandboxedCommands = false
 ```
 
-`enabled` 为真时，Bash 命令默认走 `bwrap` 沙箱；`failIfUnavailable` 要求沙箱不可用时直接失败；`allowUnsandboxedCommands` 允许在明确要求 `require_escalated` 时退回到非沙箱执行。`kiana config set sandbox` 接受 JSON 对象，runner 也会把配置文件里的 `sandbox = true` 规范化成 `{"enabled": true}`。运行 `kiana doctor` 可以查看 `bash_sandbox` 的 enabled/status/runtime、`bwrap` 路径和不可用 warning。
+`enabled` 为真时，Bash 命令默认走 `bwrap` 沙箱；`failIfUnavailable` 要求沙箱不可用时直接失败；`allowUnsandboxedCommands` 允许在明确要求 `require_escalated` 时退回到非沙箱执行。`kiana config set sandbox` 接受 JSON 对象，runner 也会把配置文件里的 `sandbox = true` 规范化成 `{"enabled": true}`。运行 `kiana doctor` 可以查看 `bash_sandbox` 的 enabled/status/runtime、`bwrap` 路径和不可用 warning；`commercial_security` 会按平台解释发布安全模型，其中 Linux 要求 strict `bwrap`，Windows/macOS 依赖商业权限审批和 shell exec policy。
 
 ## 🌐 Base URL 使用场景
 

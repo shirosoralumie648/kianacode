@@ -1,6 +1,6 @@
 # Kiana Commercial Release Readiness
 
-Date: 2026-07-01
+Date: 2026-07-02
 
 ## Verified Local Release Candidate Gates
 
@@ -52,6 +52,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Release package lifecycle smoke now verifies staged tarball checksums, extraction, install, repeated install, rollback restore, uninstall behavior, installed model smoke tool reporting, and enterprise offline manifest artifact/checksum coverage in a temporary install root.
 - Added a `commercial` permission profile and doctor-level `commercial_security` readiness report for strict sandbox plus approval posture validation.
 - Added `kiana doctor --json` with a pinned `kiana.doctor.v1` schema and release smoke validation for schema-critical readiness fields.
+- `kiana doctor --json` now reports platform-aware commercial security posture with `platform`, `isolation`, and `controls`; Linux keeps the strict `bwrap` sandbox gate, while Windows/macOS report the approval plus shell exec-policy model instead of a false `bwrap` blocker.
 - OAuth token files can now be used as redacted remote/bridge bearer-token sources and refreshed through their stored refresh token when command-based refresh is not configured.
 - OAuth token files that carry `expires_at` are refreshed before remote-session and bridge live calls when the token is expired or within the proactive refresh window.
 - OAuth token writes now use same-directory atomic replacement, flush before rename, and owner-only permissions on platforms with native permission bits.
@@ -90,7 +91,7 @@ These are not solved by the local release gate and must be completed before clai
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring live terminal walkthroughs for TUI permission, diff, onboarding, resume, history, and settings readiness to reference-level usability; the named product-shell headless smoke is now wired into release gates, but target-customer interactive acceptance is still pending.
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, and provider credential/readiness metadata is visible through `auth status`, but live provider operation is not proven by default gates.
-- Continue hardening platform-specific execution isolation and approval policy across Windows, macOS, and Linux; shell policy now blocks additional destructive root-sync shapes such as `rsync --delete ... /` and `robocopy ... C:\ /MIR`, but OS-level sandbox depth still needs platform runner proof.
+- Repeat platform-specific execution-isolation proof on real Windows, macOS, and Linux release runners; local doctor now distinguishes Linux `bwrap` from Windows/macOS exec-policy isolation, but release-runner acceptance evidence is still required.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.
 

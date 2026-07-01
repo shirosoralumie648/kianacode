@@ -39,6 +39,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   posture validation.
 - `kiana doctor --json` now emits the stable `kiana.doctor.v1` report shape,
   and release gates validate the schema-critical fields.
+- `kiana doctor --json` commercial security output now includes `platform`,
+  `isolation`, and `controls`, with Linux retaining strict `bwrap` sandbox
+  readiness and Windows/macOS using the approval plus shell exec-policy model.
 - OAuth token files can now supply remote/bridge bearer tokens, refresh through
   the stored refresh token, and surface redacted status in `kiana auth status`
   and `kiana doctor`.
