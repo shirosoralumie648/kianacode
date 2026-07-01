@@ -235,6 +235,11 @@ if report.get("schema") != "kiana.model-smoke.v1":
     print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 
+if report.get("tools") is not False:
+    print("default model smoke should not run tool smoke unless --tools is set", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
 results = report.get("results")
 if not isinstance(results, list):
     print("model smoke results missing", file=sys.stderr)

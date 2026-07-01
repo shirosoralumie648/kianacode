@@ -114,12 +114,14 @@ fn model_list_text() -> String {
 struct ModelSmokeOptions {
     json: bool,
     live: bool,
+    tools: bool,
 }
 
 #[derive(Debug, Serialize)]
 struct ModelSmokeReport {
     schema: &'static str,
     live: bool,
+    tools: bool,
     summary: ModelSmokeSummary,
     results: Vec<ModelSmokeResult>,
 }
@@ -145,7 +147,7 @@ struct ModelSmokeResult {
 
 async fn model_smoke_command(args: &str) -> anyhow::Result<CommandResult> {
     let options = parse_model_smoke_options(args)?;
-    let report = model_smoke_report(options.live).await;
+    let report = model_smoke_report(options.live, options.tools).await;
     if options.json {
         return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
     }
@@ -156,11 +158,13 @@ fn parse_model_smoke_options(args: &str) -> anyhow::Result<ModelSmokeOptions> {
     let mut options = ModelSmokeOptions {
         json: false,
         live: env_flag("KIANA_PROVIDER_SMOKE_LIVE"),
+        tools: env_flag("KIANA_PROVIDER_SMOKE_TOOLS"),
     };
     for token in args.split_whitespace() {
         match token {
             "--json" => options.json = true,
             "--live" => options.live = true,
+            "--tools" => options.tools = true,
             "" => {}
             other => {
                 return Err(anyhow!(
@@ -174,12 +178,18 @@ fn parse_model_smoke_options(args: &str) -> anyhow::Result<ModelSmokeOptions> {
     Ok(options)
 }
 
-async fn model_smoke_report(live: bool) -> ModelSmokeReport {
+async fn model_smoke_report(live: bool, tools: bool) -> ModelSmokeReport {
     let mut results = Vec::new();
     results.push(smoke_fake_provider().await);
     results.push(smoke_anthropic_provider(live).await);
     results.push(smoke_openai_compatible_provider(live).await);
     results.push(smoke_ollama_provider(live).await);
+    if tools {
+        results.push(smoke_fake_provider_tools().await);
+        results.push(smoke_anthropic_provider_tools(live).await);
+        results.push(smoke_openai_compatible_provider_tools(live).await);
+        results.push(smoke_ollama_provider_tools(live).await);
+    }
     let summary = ModelSmokeSummary {
         passed: results
             .iter()
@@ -197,6 +207,7 @@ async fn model_smoke_report(live: bool) -> ModelSmokeReport {
     ModelSmokeReport {
         schema: "kiana.model-smoke.v1",
         live,
+        tools,
         summary,
         results,
     }
@@ -212,6 +223,19 @@ async fn smoke_fake_provider() -> ModelSmokeResult {
     run_provider_smoke(FAKE_PROVIDER_ID, FAKE_MODEL_ID, false, Box::new(provider)).await
 }
 
+async fn smoke_fake_provider_tools() -> ModelSmokeResult {
+    let provider = FakeProvider::new(
+        FAKE_MODEL_ID.to_string(),
+        vec![FakeProviderStep::ToolCall {
+            id: Some("toolu_provider_smoke".to_string()),
+            name: "ProviderSmoke".to_string(),
+            input: json!({ "status": "ok" }),
+            text: None,
+        }],
+    );
+    run_provider_tool_smoke(FAKE_PROVIDER_ID, FAKE_MODEL_ID, false, Box::new(provider)).await
+}
+
 async fn smoke_anthropic_provider(live: bool) -> ModelSmokeResult {
     let model_id = std::env::var("ANTHROPIC_MODEL")
         .ok()
@@ -222,6 +246,7 @@ async fn smoke_anthropic_provider(live: bool) -> ModelSmokeResult {
             ANTHROPIC_PROVIDER_ID,
             &model_id,
             false,
+            "text",
             "live provider smoke disabled; pass --live or set KIANA_PROVIDER_SMOKE_LIVE=1",
         );
     }
@@ -230,12 +255,51 @@ async fn smoke_anthropic_provider(live: bool) -> ModelSmokeResult {
             ANTHROPIC_PROVIDER_ID,
             &model_id,
             true,
+            "text",
             "ANTHROPIC_API_KEY is not set",
         );
     };
     let base_url =
         env_string("ANTHROPIC_BASE_URL").unwrap_or_else(|| "https://api.anthropic.com".to_string());
     run_provider_smoke(
+        ANTHROPIC_PROVIDER_ID,
+        &model_id,
+        true,
+        Box::new(AnthropicProvider::new(
+            api_key,
+            base_url,
+            Duration::from_secs(30),
+        )),
+    )
+    .await
+}
+
+async fn smoke_anthropic_provider_tools(live: bool) -> ModelSmokeResult {
+    let model_id = std::env::var("ANTHROPIC_MODEL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| kiana_bootstrap::config::Config::default().model);
+    if !live {
+        return skipped_provider_smoke(
+            ANTHROPIC_PROVIDER_ID,
+            &model_id,
+            false,
+            "tools",
+            "live provider tool smoke disabled; pass --live --tools or set KIANA_PROVIDER_SMOKE_LIVE=1 and KIANA_PROVIDER_SMOKE_TOOLS=1",
+        );
+    }
+    let Some(api_key) = env_string("ANTHROPIC_API_KEY") else {
+        return skipped_provider_smoke(
+            ANTHROPIC_PROVIDER_ID,
+            &model_id,
+            true,
+            "tools",
+            "ANTHROPIC_API_KEY is not set",
+        );
+    };
+    let base_url =
+        env_string("ANTHROPIC_BASE_URL").unwrap_or_else(|| "https://api.anthropic.com".to_string());
+    run_provider_tool_smoke(
         ANTHROPIC_PROVIDER_ID,
         &model_id,
         true,
@@ -257,6 +321,7 @@ async fn smoke_openai_compatible_provider(live: bool) -> ModelSmokeResult {
             OPENAI_COMPATIBLE_PROVIDER_ID,
             &model_id,
             false,
+            "text",
             "live provider smoke disabled; pass --live or set KIANA_PROVIDER_SMOKE_LIVE=1",
         );
     }
@@ -266,6 +331,7 @@ async fn smoke_openai_compatible_provider(live: bool) -> ModelSmokeResult {
             OPENAI_COMPATIBLE_PROVIDER_ID,
             &model_id,
             true,
+            "text",
             "KIANA_OPENAI_API_KEY or OPENAI_API_KEY is not set",
         );
     };
@@ -275,10 +341,63 @@ async fn smoke_openai_compatible_provider(live: bool) -> ModelSmokeResult {
     let provider = match OpenAiCompatibleProvider::new(api_key, base_url, Duration::from_secs(30)) {
         Ok(provider) => provider,
         Err(error) => {
-            return failed_provider_smoke(OPENAI_COMPATIBLE_PROVIDER_ID, &model_id, true, error)
+            return failed_provider_smoke(
+                OPENAI_COMPATIBLE_PROVIDER_ID,
+                &model_id,
+                true,
+                "text",
+                error,
+            )
         }
     };
     run_provider_smoke(
+        OPENAI_COMPATIBLE_PROVIDER_ID,
+        &model_id,
+        true,
+        Box::new(provider),
+    )
+    .await
+}
+
+async fn smoke_openai_compatible_provider_tools(live: bool) -> ModelSmokeResult {
+    let model_id = env_string("KIANA_OPENAI_MODEL")
+        .or_else(|| env_string("OPENAI_MODEL"))
+        .unwrap_or_else(|| OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string());
+    if !live {
+        return skipped_provider_smoke(
+            OPENAI_COMPATIBLE_PROVIDER_ID,
+            &model_id,
+            false,
+            "tools",
+            "live provider tool smoke disabled; pass --live --tools or set KIANA_PROVIDER_SMOKE_LIVE=1 and KIANA_PROVIDER_SMOKE_TOOLS=1",
+        );
+    }
+    let Some(api_key) = env_string("KIANA_OPENAI_API_KEY").or_else(|| env_string("OPENAI_API_KEY"))
+    else {
+        return skipped_provider_smoke(
+            OPENAI_COMPATIBLE_PROVIDER_ID,
+            &model_id,
+            true,
+            "tools",
+            "KIANA_OPENAI_API_KEY or OPENAI_API_KEY is not set",
+        );
+    };
+    let base_url = env_string("KIANA_OPENAI_BASE_URL")
+        .or_else(|| env_string("OPENAI_BASE_URL"))
+        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+    let provider = match OpenAiCompatibleProvider::new(api_key, base_url, Duration::from_secs(30)) {
+        Ok(provider) => provider,
+        Err(error) => {
+            return failed_provider_smoke(
+                OPENAI_COMPATIBLE_PROVIDER_ID,
+                &model_id,
+                true,
+                "tools",
+                error,
+            )
+        }
+    };
+    run_provider_tool_smoke(
         OPENAI_COMPATIBLE_PROVIDER_ID,
         &model_id,
         true,
@@ -296,6 +415,7 @@ async fn smoke_ollama_provider(live: bool) -> ModelSmokeResult {
             OLLAMA_PROVIDER_ID,
             &model_id,
             false,
+            "text",
             "live provider smoke disabled; pass --live or set KIANA_PROVIDER_SMOKE_LIVE=1",
         );
     }
@@ -304,9 +424,36 @@ async fn smoke_ollama_provider(live: bool) -> ModelSmokeResult {
         .unwrap_or_else(|| "http://localhost:11434".to_string());
     let provider = match OllamaProvider::new(base_url, Duration::from_secs(30)) {
         Ok(provider) => provider,
-        Err(error) => return failed_provider_smoke(OLLAMA_PROVIDER_ID, &model_id, true, error),
+        Err(error) => {
+            return failed_provider_smoke(OLLAMA_PROVIDER_ID, &model_id, true, "text", error)
+        }
     };
     run_provider_smoke(OLLAMA_PROVIDER_ID, &model_id, true, Box::new(provider)).await
+}
+
+async fn smoke_ollama_provider_tools(live: bool) -> ModelSmokeResult {
+    let model_id = env_string("KIANA_OLLAMA_MODEL")
+        .or_else(|| env_string("OLLAMA_MODEL"))
+        .unwrap_or_else(|| OLLAMA_DEFAULT_MODEL_ID.to_string());
+    if !live {
+        return skipped_provider_smoke(
+            OLLAMA_PROVIDER_ID,
+            &model_id,
+            false,
+            "tools",
+            "live provider tool smoke disabled; pass --live --tools or set KIANA_PROVIDER_SMOKE_LIVE=1 and KIANA_PROVIDER_SMOKE_TOOLS=1",
+        );
+    }
+    let base_url = env_string("KIANA_OLLAMA_BASE_URL")
+        .or_else(|| env_string("OLLAMA_BASE_URL"))
+        .unwrap_or_else(|| "http://localhost:11434".to_string());
+    let provider = match OllamaProvider::new(base_url, Duration::from_secs(30)) {
+        Ok(provider) => provider,
+        Err(error) => {
+            return failed_provider_smoke(OLLAMA_PROVIDER_ID, &model_id, true, "tools", error)
+        }
+    };
+    run_provider_tool_smoke(OLLAMA_PROVIDER_ID, &model_id, true, Box::new(provider)).await
 }
 
 async fn run_provider_smoke(
@@ -361,14 +508,91 @@ async fn run_provider_smoke(
                 }
             }
         }
-        Err(error) => failed_provider_smoke(provider_id, model_id, live, error),
+        Err(error) => failed_provider_smoke(provider_id, model_id, live, "text", error),
     }
+}
+
+async fn run_provider_tool_smoke(
+    provider_id: &str,
+    model_id: &str,
+    live: bool,
+    provider: Box<dyn Provider>,
+) -> ModelSmokeResult {
+    let response = provider
+        .create_message(MessagesRequest {
+            model: model_id.to_string(),
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: json!(
+                    "Call the ProviderSmoke tool with status ok. Do not answer in plain text."
+                ),
+            }],
+            max_tokens: 128,
+            system: None,
+            temperature: Some(0.0),
+            tools: Some(vec![provider_smoke_tool_definition()]),
+            thinking: None,
+            stream: None,
+        })
+        .await;
+    match response {
+        Ok(response) => {
+            let tool_use = response.content.iter().find(|block| {
+                block.get("type").and_then(Value::as_str) == Some("tool_use")
+                    && block.get("name").and_then(Value::as_str) == Some("ProviderSmoke")
+            });
+            if let Some(tool_use) = tool_use {
+                ModelSmokeResult {
+                    provider_id: provider_id.to_string(),
+                    model_id: response.model,
+                    status: "passed".to_string(),
+                    live,
+                    capability: "tools",
+                    message: "provider returned ProviderSmoke tool_use".to_string(),
+                    output_preview: tool_use
+                        .get("input")
+                        .map(|input| truncate_smoke_preview(&input.to_string())),
+                }
+            } else {
+                ModelSmokeResult {
+                    provider_id: provider_id.to_string(),
+                    model_id: response.model,
+                    status: "failed".to_string(),
+                    live,
+                    capability: "tools",
+                    message: "provider did not return ProviderSmoke tool_use".to_string(),
+                    output_preview: Some(truncate_smoke_preview(
+                        &serde_json::to_string(&response.content).unwrap_or_default(),
+                    )),
+                }
+            }
+        }
+        Err(error) => failed_provider_smoke(provider_id, model_id, live, "tools", error),
+    }
+}
+
+fn provider_smoke_tool_definition() -> Value {
+    json!({
+        "name": "ProviderSmoke",
+        "description": "Report that the provider can emit a tool call.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["ok"]
+                }
+            },
+            "required": ["status"]
+        }
+    })
 }
 
 fn skipped_provider_smoke(
     provider_id: &str,
     model_id: &str,
     live: bool,
+    capability: &'static str,
     message: &str,
 ) -> ModelSmokeResult {
     ModelSmokeResult {
@@ -376,7 +600,7 @@ fn skipped_provider_smoke(
         model_id: model_id.to_string(),
         status: "skipped".to_string(),
         live,
-        capability: "text",
+        capability,
         message: message.to_string(),
         output_preview: None,
     }
@@ -386,6 +610,7 @@ fn failed_provider_smoke(
     provider_id: &str,
     model_id: &str,
     live: bool,
+    capability: &'static str,
     error: impl std::fmt::Display,
 ) -> ModelSmokeResult {
     ModelSmokeResult {
@@ -393,7 +618,7 @@ fn failed_provider_smoke(
         model_id: model_id.to_string(),
         status: "failed".to_string(),
         live,
-        capability: "text",
+        capability,
         message: error.to_string(),
         output_preview: None,
     }
@@ -416,8 +641,12 @@ fn model_smoke_text(report: &ModelSmokeReport) -> String {
     let mut lines = vec![
         "Model provider smoke".to_string(),
         format!(
-            "summary: passed={} skipped={} failed={} live={}",
-            report.summary.passed, report.summary.skipped, report.summary.failed, report.live
+            "summary: passed={} skipped={} failed={} live={} tools={}",
+            report.summary.passed,
+            report.summary.skipped,
+            report.summary.failed,
+            report.live,
+            report.tools
         ),
         "provider\tmodel\tcapability\tstatus\tmessage".to_string(),
     ];
@@ -461,7 +690,7 @@ fn save_model(model: String) -> anyhow::Result<CommandResult> {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana model <model-name>\n       kiana model status\n       kiana model list [--json]\n       kiana model smoke [--json] [--live]\n       kiana model reset"
+    "Usage: kiana model <model-name>\n       kiana model status\n       kiana model list [--json]\n       kiana model smoke [--json] [--live] [--tools]\n       kiana model reset"
 }
 
 #[cfg(test)]
@@ -507,6 +736,7 @@ mod tests {
     fn clear_model_smoke_env() {
         for key in [
             "KIANA_PROVIDER_SMOKE_LIVE",
+            "KIANA_PROVIDER_SMOKE_TOOLS",
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_MODEL",
             "KIANA_OPENAI_API_KEY",
@@ -603,6 +833,7 @@ mod tests {
 
         assert_eq!(value["schema"], "kiana.model-smoke.v1");
         assert_eq!(value["live"], false);
+        assert_eq!(value["tools"], false);
         assert_eq!(value["summary"]["passed"], 1);
         assert_eq!(value["summary"]["skipped"], 3);
         assert_eq!(value["summary"]["failed"], 0);
@@ -626,6 +857,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn model_smoke_tools_json_reports_fake_tool_pass_and_live_tool_skips() {
+        let _guard = lock_env();
+        clear_model_smoke_env();
+
+        let result = ModelCommand
+            .execute(context("smoke --json --tools"))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&result.value).unwrap();
+        let results = value["results"].as_array().unwrap();
+
+        assert_eq!(value["schema"], "kiana.model-smoke.v1");
+        assert_eq!(value["live"], false);
+        assert_eq!(value["tools"], true);
+        assert_eq!(value["summary"]["passed"], 2);
+        assert_eq!(value["summary"]["skipped"], 6);
+        assert_eq!(value["summary"]["failed"], 0);
+        assert!(results.iter().any(|result| {
+            result["provider_id"].as_str() == Some("fake")
+                && result["capability"].as_str() == Some("tools")
+                && result["status"].as_str() == Some("passed")
+                && result["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("ProviderSmoke tool_use")
+        }));
+        assert!(results.iter().any(|result| {
+            result["provider_id"].as_str() == Some("openai-compatible")
+                && result["capability"].as_str() == Some("tools")
+                && result["status"].as_str() == Some("skipped")
+                && result["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("live provider tool smoke disabled")
+        }));
+        assert!(results.iter().any(|result| {
+            result["provider_id"].as_str() == Some("ollama")
+                && result["capability"].as_str() == Some("tools")
+                && result["status"].as_str() == Some("skipped")
+        }));
+    }
+
+    #[tokio::test]
     async fn model_smoke_text_reports_summary() {
         let _guard = lock_env();
         clear_model_smoke_env();
@@ -635,7 +909,7 @@ mod tests {
         assert!(result.value.contains("Model provider smoke"));
         assert!(result
             .value
-            .contains("summary: passed=1 skipped=3 failed=0 live=false"));
+            .contains("summary: passed=1 skipped=3 failed=0 live=false tools=false"));
         assert!(result.value.contains("fake\tfake-model\ttext\tpassed"));
         assert!(result.value.contains("ollama\tllama3.1\ttext\tskipped"));
     }

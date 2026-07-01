@@ -94,6 +94,13 @@ KIANA_PROVIDER_SMOKE_LIVE=1 kiana model smoke --json
 kiana model smoke --live --json
 ```
 
+工具调用 smoke 也是显式 opt-in；默认 release gate 不联网也不要求真实 provider 支持工具调用：
+
+```bash
+kiana model smoke --tools --json
+KIANA_PROVIDER_SMOKE_LIVE=1 KIANA_PROVIDER_SMOKE_TOOLS=1 kiana model smoke --json
+```
+
 ## 基础对话
 
 Enterprise license readiness is local and offline by default. It reports whether

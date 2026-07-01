@@ -60,6 +60,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added `scripts/product-shell-smoke.sh` and wired it into release smoke and
   release packaging so TUI approval, diff, onboarding, resume, and prompt
   history headless coverage is a named product-shell gate.
+- `kiana model smoke` now supports opt-in tool-call smoke through `--tools` or
+  `KIANA_PROVIDER_SMOKE_TOOLS=1`; the default no-network gate remains text-only,
+  while `--live --tools` can verify live provider tool-call behavior.
 - `kiana auth status --json` now reports OAuth token-file status, expiry,
   expiring/expired state, refreshability, and storage source without exposing
   token material; the service OAuth token check now rejects expired token files.

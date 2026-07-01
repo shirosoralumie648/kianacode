@@ -3,12 +3,15 @@
   "$id": "https://kiana.local/schemas/kiana-model-smoke.v1.schema.json",
   "title": "Kiana Model Smoke Report v1",
   "type": "object",
-  "required": ["schema", "live", "summary", "results"],
+  "required": ["schema", "live", "tools", "summary", "results"],
   "properties": {
     "schema": {
       "const": "kiana.model-smoke.v1"
     },
     "live": {
+      "type": "boolean"
+    },
+    "tools": {
       "type": "boolean"
     },
     "summary": {
@@ -67,7 +70,7 @@
         },
         "capability": {
           "type": "string",
-          "enum": ["text"]
+          "enum": ["text", "tools"]
         },
         "message": {
           "type": "string"
