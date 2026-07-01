@@ -21,6 +21,8 @@ commercial release.
 - `kiana doctor --json` conforms to `docs/schemas/kiana-doctor.v1.schema.json`
   through the release smoke gate.
 - `scripts/release-smoke.sh` passes on Linux, macOS, and Windows runners.
+- `scripts/product-shell-smoke.sh` passes and remains wired into
+  `scripts/release-smoke.sh`.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - Checksum verification passes before upload.
 - `scripts/compliance-audit.sh --local-rc` produces `SBOM.cdx.json` and
@@ -55,7 +57,8 @@ commercial release.
   and `kiana doctor`, including redacted OAuth token-file state when env bearer
   tokens are not used.
 - TUI approval, diff, history, onboarding, and resume flows are accepted for the
-  target customer segment.
+  target customer segment; the headless product-shell smoke is passing before
+  any manual terminal acceptance.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
 - `kiana doctor` reports `commercial_security: ready` on target release

@@ -44,7 +44,7 @@ for file in \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
-  scripts/package-lifecycle-smoke.sh \
+  scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
   scripts/generate-distribution-manifests.sh \
   .github/workflows/release-smoke.yml .github/workflows/release.yml
@@ -125,6 +125,12 @@ if grep -Fq 'license status --json' scripts/release-smoke.sh; then
   pass "license status JSON gate is wired"
 else
   fail "release smoke does not exercise license status --json"
+fi
+
+if grep -Fq 'product-shell-smoke.sh' scripts/release-smoke.sh; then
+  pass "product shell smoke gate is wired"
+else
+  fail "release smoke does not exercise product shell smoke"
 fi
 
 if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.json; then

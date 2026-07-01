@@ -65,6 +65,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - TUI permission requests now carry structured approval panel state with tool, reason, blocked path, input preview, suggestions, and queue context while preserving `/allow` and `/deny` command handling.
 - TUI headless render tests now verify the REPL approval panel keeps queued permission context, status shortcuts, and prompt input visible, and the resume picker renders filtered search results plus resume help.
 - TUI `/history` now opens a searchable prompt-history picker backed by `KIANA_HOME/tui-history.jsonl`, dedupes newest-first prompt entries, restores the selected prompt as a draft, and has focused headless state/render coverage.
+- `scripts/product-shell-smoke.sh` now names and runs the TUI approval, diff, onboarding, resume, and prompt-history headless gates, and `scripts/release-smoke.sh` invokes it in full release mode.
 - OpenAI-compatible text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
 - Local Ollama text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
 - Text-only provider runs now default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
@@ -83,7 +84,7 @@ These are not solved by the local release gate and must be completed before clai
 - Provide real install URLs and distribution channels such as GitHub Releases, Homebrew, winget, npm, apt, or an enterprise installer.
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists but needs release-channel execution.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
-- Bring TUI permission, diff, onboarding, resume, and live terminal walkthroughs to reference-level usability; prompt history now has persisted/searchable local coverage, but broader interactive acceptance is still pending.
+- Bring live terminal walkthroughs for TUI permission, diff, onboarding, resume, and history to reference-level usability; the named product-shell headless smoke is now wired into release gates, but target-customer interactive acceptance is still pending.
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls are covered by local mock gates, and provider credential readiness is visible through `auth status`, but live provider operation is not proven by default gates.
 - Continue hardening platform-specific execution isolation and approval policy across Windows, macOS, and Linux; shell policy now blocks additional destructive root-sync shapes such as `rsync --delete ... /` and `robocopy ... C:\ /MIR`, but OS-level sandbox depth still needs platform runner proof.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.

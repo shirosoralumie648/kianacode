@@ -57,6 +57,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.
+- Added `scripts/product-shell-smoke.sh` and wired it into release smoke and
+  release packaging so TUI approval, diff, onboarding, resume, and prompt
+  history headless coverage is a named product-shell gate.
 - `kiana auth status --json` now reports OAuth token-file status, expiry,
   expiring/expired state, refreshability, and storage source without exposing
   token material; the service OAuth token check now rejects expired token files.
