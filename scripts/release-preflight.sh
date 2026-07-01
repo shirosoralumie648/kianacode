@@ -169,6 +169,14 @@ else
   fail "release smoke does not exercise product shell smoke"
 fi
 
+if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
+  grep -Fq '"context-search"' scripts/product-acceptance-report.sh &&
+  grep -Fq 'cargo test -p kiana-commands --locked --offline context_search' scripts/product-acceptance-report.sh; then
+  pass "product acceptance requires app-server and context-search workflows"
+else
+  fail "product acceptance does not require app-server and context-search workflows"
+fi
+
 if grep -Fq 'provider-live-smoke.sh' RELEASE.md &&
   grep -Fq 'remote-live-smoke.sh' RELEASE.md &&
   grep -Fq 'provider-live-smoke.sh --required' scripts/release-preflight.sh &&
@@ -393,6 +401,12 @@ if [[ "$mode" == "full" ]]; then
 
   pass "full release signing/channel proof is enforced by release artifact verification"
 else
+  if "$bash_bin" scripts/product-acceptance-report.sh --local-rc; then
+    pass "local RC product acceptance report generated"
+  else
+    fail "local RC product acceptance report failed"
+  fi
+
   if "$bash_bin" scripts/entitlement-proof-report.sh --local-rc; then
     pass "local RC entitlement proof report generated"
   else

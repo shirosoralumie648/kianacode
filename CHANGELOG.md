@@ -110,6 +110,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   secrets, sandbox, and git-status release/package gates.
 - Added pinned context index/search schemas and release/package smoke checks for
   local repository knowledge search.
+- Product acceptance reports now require local app-server and context-search
+  workflow coverage, including local RC proof generation.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

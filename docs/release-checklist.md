@@ -87,11 +87,13 @@ commercial release.
 - Remote and bridge authentication sources are verified by `kiana auth status`
   and `kiana doctor`, including redacted OAuth token-file state when env bearer
   tokens are not used.
-- TUI approval, diff, history, onboarding, and resume flows are accepted for the
-  target customer segment; the headless product-shell smoke is passing before
-  any manual terminal acceptance.
+- TUI approval, diff, history, onboarding, resume, and settings flows are
+  accepted for the target customer segment; the headless product-shell smoke is
+  passing before any manual terminal acceptance.
 - Local app-server contract endpoints are accepted for the target customer
   segment before Web or IDE clients are promoted as supported surfaces.
+- Local context index/search workflows are accepted for repository knowledge
+  lookup before richer RAG features are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`.
 - Enterprise entitlement acceptance is recorded in
