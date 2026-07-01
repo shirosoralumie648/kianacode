@@ -49,6 +49,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Service-layer API key lookup now reuses the same effective config stack as CLI auth/config commands, including managed settings overrides and empty-value filtering.
 - Release smoke now enforces locked/offline Cargo test and release-build gates, and successful smoke subcommands keep their real exit status instead of relying only on output matching.
 - Release packaging now emits distribution manifest dry-runs from the same package checksums, including an enterprise offline manifest and explicit package-channel blockers when a target cannot be published yet.
+- Release package lifecycle smoke now verifies staged tarball checksums, extraction, install, repeated install, rollback restore, and uninstall behavior in a temporary install root.
 - Added a `commercial` permission profile and doctor-level `commercial_security` readiness report for strict sandbox plus approval posture validation.
 - Added `kiana doctor --json` with a pinned `kiana.doctor.v1` schema and release smoke validation for schema-critical readiness fields.
 - OAuth token files can now be used as redacted remote/bridge bearer-token sources and refreshed through their stored refresh token when command-based refresh is not configured.
@@ -74,7 +75,7 @@ These are not solved by the local release gate and must be completed before clai
 - Push the local product commit to the real remote, then create an immutable release tag from a reviewed clean tree.
 - Activate the release workflow on the real remote, then add signing, notarization where applicable, release credential review, and retention policy review.
 - Provide real install URLs and distribution channels such as GitHub Releases, Homebrew, winget, npm, apt, or an enterprise installer.
-- Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation now exists but needs release-channel execution.
+- Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists but needs release-channel execution.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring TUI permission, diff, history, onboarding, and resume flows to reference-level usability.
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible text paths, including tool-capable OpenAI-compatible operation, local/Ollama-style providers, and opt-in live provider smoke reports.

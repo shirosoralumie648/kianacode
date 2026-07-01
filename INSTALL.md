@@ -34,6 +34,26 @@ cargo build --release -p kiana-entrypoints --bin kiana
 cp target/release/kiana ~/.local/bin/
 ```
 
+### 方式 4: 发布 tarball
+
+```bash
+tar -xzf kiana-<version>-<target>.tar.gz
+cd kiana-<version>-<target>
+INSTALL_DIR="$HOME/.local/bin" bash scripts/install-release-binary.sh
+```
+
+卸载 tarball 安装的二进制：
+
+```bash
+INSTALL_DIR="$HOME/.local/bin" bash scripts/install-release-binary.sh --uninstall
+```
+
+发布包交付前可以运行生命周期 smoke，验证 checksum、安装、重复安装、回滚恢复和卸载路径：
+
+```bash
+DIST_DIR="/path/to/dist" bash scripts/package-lifecycle-smoke.sh
+```
+
 ## 系统要求
 
 ### 最低要求

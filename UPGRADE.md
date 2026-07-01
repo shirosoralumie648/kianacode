@@ -18,7 +18,14 @@ automatic background updates.
    ```
 
 5. Run one non-destructive prompt with the intended provider configuration.
-6. Replace the production binary only after the staging checks pass.
+6. For release tarballs, run the package lifecycle smoke against the staged
+   artifact:
+
+   ```bash
+   DIST_DIR="/path/to/dist" bash scripts/package-lifecycle-smoke.sh
+   ```
+
+7. Replace the production binary only after the staging checks pass.
 
 ## Rollback
 
@@ -33,6 +40,13 @@ kiana doctor
 
 On Windows, use `kiana.exe` and the installation directory selected during
 install.
+
+For tarball installs, the packaged install script also supports uninstalling
+the selected `INSTALL_DIR` target:
+
+```bash
+INSTALL_DIR="$HOME/.local/bin" bash scripts/install-release-binary.sh --uninstall
+```
 
 ## Config Compatibility
 

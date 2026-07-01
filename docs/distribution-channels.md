@@ -9,6 +9,10 @@ The channels below define the commercial distribution target state.
 - Local release tarball through `scripts/package-release.sh`.
 - Binary tarball install through `scripts/install-release-binary.sh` after
   extracting the release archive.
+- Binary tarball uninstall through `scripts/install-release-binary.sh --uninstall`.
+- Package lifecycle smoke through `scripts/package-lifecycle-smoke.sh` verifies
+  checksum, extraction, install, repeated install, rollback restore, and
+  uninstall behavior for a staged tarball.
 - Release tarballs include `SBOM.cdx.json` and `docs/compliance-report.json`.
 - Distribution manifest dry-runs are generated through
   `scripts/generate-distribution-manifests.sh` and included beside package
@@ -24,7 +28,8 @@ The channels below define the commercial distribution target state.
 - Signed Windows and Linux binaries.
 - Signed and notarized macOS binaries.
 - A stable install URL that does not depend on a moving branch.
-- Upgrade, rollback, and uninstall instructions linked from release notes.
+- Real public release notes that link the existing install, upgrade, rollback,
+  and uninstall instructions for the shipped artifact.
 
 ## Planned Package Managers
 

@@ -70,6 +70,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   explicit model capabilities and pre-request rejection when tools are enabled.
 - Text-only providers now default to an empty tool set when the user has not
   explicitly configured tools, while explicit tool requests still fail fast.
+- Release tarballs now include a package lifecycle smoke script, and the
+  packaged binary installer supports uninstalling from the selected
+  `INSTALL_DIR`.
 
 ### Verified
 
