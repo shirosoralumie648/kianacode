@@ -62,6 +62,10 @@ minor versions may include breaking CLI, config, or storage changes. Use
   artifacts for signatures, macOS notarization proof, publishable Windows
   packaging, and non-blocked channel manifests before a draft GitHub Release is
   created.
+- `stream-json` init events now expose visible skill and plugin capability
+  summaries instead of empty placeholder arrays; plugin skills and plugin slash
+  commands disappear from the visible capability set when the plugin is
+  disabled.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

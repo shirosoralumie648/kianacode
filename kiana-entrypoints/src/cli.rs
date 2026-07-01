@@ -865,7 +865,8 @@ async fn print_main(print_args: PrintArgs, runtime_flags: &RuntimeFlags) -> Resu
         &print_args.output_format,
         started.elapsed().as_millis() as u64,
         &replay_events,
-    )?;
+    )
+    .await?;
     if !output.is_empty() {
         println!("{}", output);
     }
@@ -1446,7 +1447,7 @@ async fn print_streaming_partial_result(
     let session_id = ensure_prompt_session_id(&mut options);
     let started = Instant::now();
     let mut stdout = std::io::stdout();
-    write_json_line(&mut stdout, &stream_json_init_event(&session_id)?)?;
+    write_json_line(&mut stdout, &stream_json_init_event(&session_id).await?)?;
     for event in replay_events {
         write_json_line(
             &mut stdout,
@@ -1539,11 +1540,11 @@ fn write_json_line<W: Write>(writer: &mut W, event: &Value) -> Result<()> {
 }
 
 #[cfg(test)]
-fn format_print_result(result: &Value, output_format: &PrintOutputFormat) -> Result<String> {
-    format_print_result_with_duration(result, output_format, 0, &[])
+async fn format_print_result(result: &Value, output_format: &PrintOutputFormat) -> Result<String> {
+    format_print_result_with_duration(result, output_format, 0, &[]).await
 }
 
-fn format_print_result_with_duration(
+async fn format_print_result_with_duration(
     result: &Value,
     output_format: &PrintOutputFormat,
     duration_ms: u64,
@@ -1554,7 +1555,7 @@ fn format_print_result_with_duration(
     }
 
     if matches!(output_format, PrintOutputFormat::StreamJson) {
-        return format_stream_json_result(result, duration_ms, replay_events);
+        return format_stream_json_result(result, duration_ms, replay_events).await;
     }
 
     if let Some(structured_output) = result.get("structured_output") {
@@ -1568,7 +1569,7 @@ fn format_print_result_with_duration(
     Ok(serde_json::to_string_pretty(result)?)
 }
 
-fn format_stream_json_result(
+async fn format_stream_json_result(
     result: &Value,
     duration_ms: u64,
     replay_events: &[Value],
@@ -1582,7 +1583,7 @@ fn format_stream_json_result(
         .get("assistant_text")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let mut events = vec![stream_json_init_event(&session_id)?];
+    let mut events = vec![stream_json_init_event(&session_id).await?];
     events.extend(
         replay_events
             .iter()
@@ -1655,7 +1656,7 @@ fn stream_json_result_event(result: &Value, duration_ms: u64) -> Value {
     result_event
 }
 
-fn stream_json_init_event(session_id: &str) -> Result<Value> {
+async fn stream_json_init_event(session_id: &str) -> Result<Value> {
     let mut tool_names: Vec<String> = kiana_tools::create_default_registry()
         .list_tools()
         .into_iter()
@@ -1672,6 +1673,8 @@ fn stream_json_init_event(session_id: &str) -> Result<Value> {
     let cwd = std::env::current_dir()?;
     let output_style = kiana_commands::output_style::selected_output_style_name(&cwd);
     let available_output_styles = kiana_commands::output_style::available_output_style_names(&cwd);
+    let skills = stream_json_skill_summaries(&cwd).await;
+    let plugins = stream_json_plugin_summaries(&cwd)?;
 
     Ok(serde_json::json!({
         "type": "system",
@@ -1686,12 +1689,47 @@ fn stream_json_init_event(session_id: &str) -> Result<Value> {
         "slash_commands": slash_commands,
         "output_style": output_style,
         "available_output_styles": available_output_styles,
-        "skills": [],
-        "plugins": [],
+        "skills": skills,
+        "plugins": plugins,
         "fast_mode_state": "off",
         "uuid": uuid::Uuid::new_v4().to_string(),
         "session_id": session_id,
     }))
+}
+
+async fn stream_json_skill_summaries(cwd: &Path) -> Value {
+    kiana_skills::clear_caches();
+    let mut skills =
+        kiana_skills::load_all_skills_with_trust(cwd, kiana_types::ProjectTrust::Trusted).await;
+    skills.retain(|skill| skill.user_invocable);
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    Value::Array(
+        skills
+            .into_iter()
+            .map(|skill| {
+                serde_json::json!({
+                    "name": skill.name,
+                    "display_name": skill.display_name,
+                    "description": skill.description,
+                    "when_to_use": skill.when_to_use,
+                    "argument_hint": skill.argument_hint,
+                    "allowed_tools": skill.allowed_tools,
+                    "model": skill.model,
+                    "source": skill.source,
+                    "loaded_from": skill.loaded_from,
+                    "root": skill.skill_root.map(|path| path.display().to_string()),
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn stream_json_plugin_summaries(cwd: &Path) -> Result<Value> {
+    let context = CommandContext {
+        args: String::new(),
+        app_state: HashMap::from([("cwd".to_string(), Value::String(cwd.display().to_string()))]),
+    };
+    kiana_commands::plugin::installed_plugin_summaries(&context)
 }
 
 fn normalize_stream_json_replay_event(mut event: Value, session_id: &str) -> Value {
@@ -8300,7 +8338,8 @@ async fn resume_cli_main(args: ResumeCliArgs, runtime_flags: &RuntimeFlags) -> R
             &args.output_format,
             started.elapsed().as_millis() as u64,
             &[],
-        )?;
+        )
+        .await?;
         if !output.is_empty() {
             println!("{}", output);
         }
@@ -8405,7 +8444,8 @@ async fn session_main(args: &[String]) -> Result<()> {
                 &PrintOutputFormat::Text,
                 started.elapsed().as_millis() as u64,
                 &[],
-            )?;
+            )
+            .await?;
             if !output.is_empty() {
                 println!("{}", output);
             }
@@ -13053,8 +13093,8 @@ mod tests {
         clear_mcp_servers_env();
     }
 
-    #[test]
-    fn stream_json_init_reports_mcp_servers_from_env() {
+    #[tokio::test]
+    async fn stream_json_init_reports_mcp_servers_from_env() {
         let _guard = env_lock().lock().unwrap();
         clear_mcp_servers_env();
         std::env::set_var(
@@ -13062,14 +13102,14 @@ mod tests {
             r#"{"docs":{"command":"docs-mcp"}}"#,
         );
 
-        let init = stream_json_init_event("session-1").unwrap();
+        let init = stream_json_init_event("session-1").await.unwrap();
 
         assert_eq!(init["mcp_servers"]["docs"]["command"], "docs-mcp");
         clear_mcp_servers_env();
     }
 
-    #[test]
-    fn stream_json_init_reports_output_styles() {
+    #[tokio::test]
+    async fn stream_json_init_reports_output_styles() {
         let _guard = env_lock().lock().unwrap();
         clear_settings_env();
         let root = std::env::temp_dir().join(format!(
@@ -13098,7 +13138,7 @@ mod tests {
             r#"{"settings":{"output_style":"Local"}}"#,
         );
 
-        let init = stream_json_init_event("session-1").unwrap();
+        let init = stream_json_init_event("session-1").await.unwrap();
 
         assert_eq!(init["output_style"], "Local");
         assert!(init["available_output_styles"]
@@ -13115,6 +13155,122 @@ mod tests {
         std::env::set_current_dir(previous_cwd).unwrap();
         std::env::remove_var("KIANA_PLUGINS_DIR");
         clear_settings_env();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn stream_json_init_reports_visible_skills_and_plugins() {
+        let _guard = env_lock().lock().unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-stream-json-capabilities-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
+        let project = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-tools");
+        let previous_cwd = std::env::current_dir().unwrap();
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_PLUGINS_DIR",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+        ]);
+
+        std::fs::create_dir_all(project.join(".claude").join("skills").join("project-audit"))
+            .unwrap();
+        std::fs::write(
+            project
+                .join(".claude")
+                .join("skills")
+                .join("project-audit")
+                .join("SKILL.md"),
+            "---\ndescription: Audit this project\n---\nUse this project skill.\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            plugin_root.join(".codex-plugin").join("plugin.json"),
+            r#"{"name":"review-tools","version":"1.0.0","description":"Review helpers"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join("skills").join("code-audit")).unwrap();
+        std::fs::write(
+            plugin_root
+                .join("skills")
+                .join("code-audit")
+                .join("SKILL.md"),
+            "---\ndescription: Audit code from plugin\n---\nUse this plugin skill.\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join("commands")).unwrap();
+        std::fs::write(
+            plugin_root.join("commands").join("review.md"),
+            "---\ndescription: Review command\n---\nReview this code.\n",
+        )
+        .unwrap();
+
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_current_dir(&project).unwrap();
+
+        let init = stream_json_init_event("session-1").await.unwrap();
+        let skill_names = init["skills"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|skill| skill.get("name").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(skill_names.contains(&"project-audit"));
+        assert!(skill_names.contains(&"review-tools:code-audit"));
+        assert!(init["slash_commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|command| command.as_str() == Some("review-tools:review")));
+        let plugin = init["plugins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|plugin| plugin.get("name").and_then(Value::as_str) == Some("review-tools"))
+            .expect("plugin summary visible");
+        assert_eq!(plugin["enabled"], true);
+        assert_eq!(plugin["valid"], true);
+        assert_eq!(plugin["components"]["skills"], 1);
+        assert_eq!(plugin["components"]["commands"], 1);
+
+        kiana_types::plugin::set_plugin_enabled(&plugins_dir, "review-tools", false).unwrap();
+        kiana_skills::clear_caches();
+        let disabled_init = stream_json_init_event("session-1").await.unwrap();
+        let disabled_plugin = disabled_init["plugins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|plugin| plugin.get("name").and_then(Value::as_str) == Some("review-tools"))
+            .expect("disabled plugin summary visible");
+        assert_eq!(disabled_plugin["enabled"], false);
+        assert!(!disabled_init["skills"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|skill| skill.get("name").and_then(Value::as_str)
+                == Some("review-tools:code-audit")));
+        assert!(!disabled_init["slash_commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|command| command.as_str() == Some("review-tools:review")));
+
+        std::env::set_current_dir(previous_cwd).unwrap();
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -15223,21 +15379,23 @@ mod tests {
         assert!(error.contains("--json-schema must be valid JSON"));
     }
 
-    #[test]
-    fn format_print_result_returns_assistant_text_in_text_mode() {
+    #[tokio::test]
+    async fn format_print_result_returns_assistant_text_in_text_mode() {
         let result = serde_json::json!({
             "type": "sdk_prompt_completed",
             "assistant_text": "done",
         });
 
         assert_eq!(
-            format_print_result(&result, &PrintOutputFormat::Text).unwrap(),
+            format_print_result(&result, &PrintOutputFormat::Text)
+                .await
+                .unwrap(),
             "done"
         );
     }
 
-    #[test]
-    fn format_print_result_returns_structured_output_in_text_mode() {
+    #[tokio::test]
+    async fn format_print_result_returns_structured_output_in_text_mode() {
         let result = serde_json::json!({
             "type": "sdk_prompt_completed",
             "assistant_text": "ignored",
@@ -15247,13 +15405,15 @@ mod tests {
         });
 
         assert_eq!(
-            format_print_result(&result, &PrintOutputFormat::Text).unwrap(),
+            format_print_result(&result, &PrintOutputFormat::Text)
+                .await
+                .unwrap(),
             "{\n  \"answer\": \"done\"\n}"
         );
     }
 
-    #[test]
-    fn format_print_result_returns_full_result_in_json_mode() {
+    #[tokio::test]
+    async fn format_print_result_returns_full_result_in_json_mode() {
         let result = serde_json::json!({
             "type": "sdk_prompt_completed",
             "assistant_text": "done",
@@ -15262,7 +15422,9 @@ mod tests {
             },
         });
 
-        let formatted = format_print_result(&result, &PrintOutputFormat::Json).unwrap();
+        let formatted = format_print_result(&result, &PrintOutputFormat::Json)
+            .await
+            .unwrap();
         let parsed: Value = serde_json::from_str(&formatted).unwrap();
 
         assert_eq!(parsed["type"], "sdk_prompt_completed");
@@ -15270,8 +15432,8 @@ mod tests {
         assert_eq!(parsed["structured_output"]["answer"], "done");
     }
 
-    #[test]
-    fn format_print_result_returns_stream_json_events() {
+    #[tokio::test]
+    async fn format_print_result_returns_stream_json_events() {
         let result = serde_json::json!({
             "type": "sdk_prompt_completed",
             "session_id": "session-1",
@@ -15284,6 +15446,7 @@ mod tests {
 
         let formatted =
             format_print_result_with_duration(&result, &PrintOutputFormat::StreamJson, 42, &[])
+                .await
                 .unwrap();
         let events = formatted
             .lines()
@@ -15365,8 +15528,8 @@ mod tests {
         assert_eq!(lifecycle[0]["content"], "denied by fake server");
     }
 
-    #[test]
-    fn format_print_result_stream_json_handles_record_only_result() {
+    #[tokio::test]
+    async fn format_print_result_stream_json_handles_record_only_result() {
         let result = serde_json::json!({
             "type": "sdk_prompt_recorded",
             "session_id": "session-1",
@@ -15375,6 +15538,7 @@ mod tests {
 
         let formatted =
             format_print_result_with_duration(&result, &PrintOutputFormat::StreamJson, 0, &[])
+                .await
                 .unwrap();
         let events = formatted
             .lines()
@@ -15388,8 +15552,8 @@ mod tests {
         assert_eq!(events[1]["num_turns"], 0);
     }
 
-    #[test]
-    fn format_stream_json_replays_user_messages() {
+    #[tokio::test]
+    async fn format_stream_json_replays_user_messages() {
         let result = serde_json::json!({
             "type": "sdk_prompt_recorded",
             "session_id": "session-1",
@@ -15426,6 +15590,7 @@ mod tests {
 
         let formatted =
             format_print_result_with_duration(&result, &PrintOutputFormat::StreamJson, 0, &replay)
+                .await
                 .unwrap();
         let events = formatted
             .lines()

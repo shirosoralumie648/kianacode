@@ -118,6 +118,14 @@ fn plugins_json(context: &CommandContext, query: &str) -> Result<CommandResult> 
     Ok(CommandResult::text(serde_json::to_string_pretty(&plugins)?))
 }
 
+pub fn installed_plugin_summaries(context: &CommandContext) -> Result<Value> {
+    let root = plugin_root_dir(context);
+    let plugins = load_installed_plugins(&root)?;
+    Ok(Value::Array(
+        plugins.iter().map(plugin_init_summary).collect::<Vec<_>>(),
+    ))
+}
+
 fn show_plugin(context: &CommandContext, rest: &str) -> Result<CommandResult> {
     let target = rest.trim();
     if target.is_empty() {
@@ -1513,6 +1521,21 @@ fn format_validation(plugin: &PluginInfo) -> String {
         "Validation failed".into()
     });
     lines.join("\n")
+}
+
+fn plugin_init_summary(plugin: &PluginInfo) -> Value {
+    serde_json::json!({
+        "id": &plugin.id,
+        "name": plugin.display_name(),
+        "version": &plugin.version,
+        "description": &plugin.description,
+        "root": plugin.root.display().to_string(),
+        "enabled": plugin.enabled,
+        "valid": plugin.valid,
+        "components": &plugin.components,
+        "errors": &plugin.errors,
+        "warnings": &plugin.warnings,
+    })
 }
 
 fn plugin_root_dir(context: &CommandContext) -> PathBuf {

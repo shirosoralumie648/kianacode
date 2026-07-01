@@ -42,7 +42,7 @@ cargo build --release -p kiana-entrypoints --bin kiana
   - Write - 写入文件
   - Bash - 执行命令
 - **配置系统** - 支持环境变量和配置文件
-- **API 集成** - Anthropic Messages API 主链路已接入；OpenAI-compatible 和 Ollama provider 已支持 text-only 路径，工具调用能力仍需后续补齐
+- **API 集成** - Anthropic Messages API 主链路已接入；OpenAI-compatible 和 Ollama provider 已支持文本与工具调用路径，streaming 当前通过 synthetic stream-event fallback 暴露，live provider smoke 仍需真实凭据/daemon 显式 opt-in
 - **TUI 骨架** - 支持本地 slash command 路由、真实 doctor 诊断、session resume 和基础对话视图；resume 列表会优先限定到当前工作目录，`/session reply current --record-only ...` 和 `/session compact current ...` 会同步刷新当前转录，`/session fork current` 会切到 forked session 继续工作，不再只显示内部 JSON/命令报告，仍需继续补齐 reference 级交互体验
 - **本地会话管理** - `kiana session list/status/show/reply --record-only/rename/tag/fork/delete/export/compact` 走同源 session command，列表会显示消息数、tag、更新时间和后续操作提示；`kiana session reply <id> <msg>` 默认输出 assistant 文本，`kiana --continue` 会优先继续当前工作目录最近的本地 SDK session
 - **Bridge/CCR v2** - mock 服务下已覆盖 Session Ingress 与 CCR v2 worker transport 的关键闭环；CCR v2 收到远端 user event 会上报 `running`，permission lifecycle 会按 reference 上报 `requires_action`、`running`、`idle` worker state，并对连续同状态更新去重；stream-json 输入和 SDK URL bridge child loop 会按 reference 处理 `end_session`，bridge 父层和 child 层会响应 `mcp_status` 并返回 `mcpServers` 数组
@@ -96,7 +96,7 @@ kiana-services/
 
 ### 功能扩展
 - **kiana-skills** - 动态技能加载系统
-- **kiana-plugins** - 插件系统
+- **kiana-commands::plugin / plugin_commands** - 插件管理、marketplace 和插件 slash command 系统
 
 ### UI 层（终端）
 - **kiana-components** - ratatui UI 组件

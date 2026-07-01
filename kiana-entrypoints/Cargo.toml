@@ -38,6 +38,7 @@ toml = "0.8"
 kiana-services = { path = "../kiana-services", version = "0.1.0" }
 kiana-bootstrap = { path = "../kiana-bootstrap", version = "0.1.0" }
 kiana-tools = { path = "../kiana-tools", version = "0.1.0" }
+kiana-skills = { path = "../kiana-skills", version = "0.1.0" }
 kiana-query = { path = "../kiana-query", version = "0.1.0" }
 kiana-commands = { path = "../kiana-commands", version = "0.1.0" }
 kiana-bridge = { path = "../kiana-bridge", version = "0.1.0" }

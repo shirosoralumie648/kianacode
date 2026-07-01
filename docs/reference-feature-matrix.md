@@ -4,6 +4,10 @@ Date: 2026-06-24
 
 This matrix tracks migration progress from `reference/` projects into Kiana. A row is only `complete` when the listed tests and evidence cover the behavior, not merely because a similarly named command or module exists.
 
+## Recent Commercial Hardening
+
+- Skills/plugins/project automation: `stream-json` init events now report visible user/project/plugin skills and installed plugin summaries instead of empty placeholders. Disabled plugins remain visible in plugin status summaries, while their skills and slash commands disappear from active init surfaces. Covered by `cargo test -p kiana-entrypoints stream_json_init_reports --locked` and `cargo test -p kiana-commands plugin --locked`.
+
 | Domain | Reference | Kiana owner path | Status | Tests | Risk notes |
 | --- | --- | --- | --- | --- | --- |
 | Runtime event schema | Codex, Cline, Pi, `claude-code-rev-main` | `kiana-types/src/runtime.rs`, `kiana-types/tests/runtime_event_schema.rs` | Complete for Phase 1 | `cargo test -p kiana-types --test runtime_event_schema`; `cargo test -p kiana-types`; `bash scripts/release-smoke.sh` | Schema covers Phase 1 event variants and is consumed by SDK, local runner, remote, bridge, TUI transcript rendering, and CLI text export. |

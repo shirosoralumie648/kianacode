@@ -2530,6 +2530,7 @@ dependencies = [
  "kiana-remote",
  "kiana-screens",
  "kiana-services",
+ "kiana-skills",
  "kiana-tools",
  "kiana-types",
  "kiana-url-handler",
