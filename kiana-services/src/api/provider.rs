@@ -17,20 +17,105 @@ use std::sync::{
 use std::time::Duration;
 
 pub const ANTHROPIC_PROVIDER_ID: &str = "anthropic";
+pub const ANTHROPIC_DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub const FAKE_PROVIDER_ID: &str = "fake";
 pub const FAKE_MODEL_ID: &str = "fake-model";
 pub const FAKE_TEXT_ONLY_MODEL_ID: &str = "fake-text-only";
 pub const OPENAI_COMPATIBLE_PROVIDER_ID: &str = "openai-compatible";
 pub const OPENAI_COMPATIBLE_DEFAULT_MODEL_ID: &str = "gpt-4.1";
+pub const OPENAI_COMPATIBLE_DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
 pub const OLLAMA_PROVIDER_ID: &str = "ollama";
 pub const OLLAMA_DEFAULT_MODEL_ID: &str = "llama3.1";
+pub const OLLAMA_DEFAULT_BASE_URL: &str = "http://localhost:11434";
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderAuthMethod {
+    ApiKey,
+    NotRequired,
+}
+
+impl ProviderAuthMethod {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ProviderAuthMethod::ApiKey => "api_key",
+            ProviderAuthMethod::NotRequired => "not_required",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StreamingMode {
+    Native,
+    Synthetic,
+    None,
+}
+
+impl StreamingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StreamingMode::Native => "native",
+            StreamingMode::Synthetic => "synthetic",
+            StreamingMode::None => "none",
+        }
+    }
+
+    pub fn supports_streaming(self) -> bool {
+        self != StreamingMode::None
+    }
+
+    pub fn is_native(self) -> bool {
+        self == StreamingMode::Native
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderProtocol {
+    AnthropicMessages,
+    OpenAiChatCompletions,
+    OllamaChat,
+    Fake,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelsSource {
+    StaticTable,
+    UserConfigured,
+    LocalService,
+    DeterministicTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProviderRegistryEntry {
+    pub provider_id: String,
+    pub display_name: String,
+    pub protocol: ProviderProtocol,
+    pub auth_method: ProviderAuthMethod,
+    pub api_key_option_aliases: Vec<String>,
+    pub api_key_env_vars: Vec<String>,
+    pub model_option_aliases: Vec<String>,
+    pub model_env_vars: Vec<String>,
+    pub base_url_option_aliases: Vec<String>,
+    pub base_url_env_vars: Vec<String>,
+    pub default_model_id: String,
+    pub default_base_url: Option<String>,
+    pub models_source: ModelsSource,
+    pub streaming_mode: StreamingMode,
+    pub live_smoke_required: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelProfile {
     pub provider_id: String,
+    pub provider_display_name: String,
     pub model_id: String,
     pub supports_tools: bool,
     pub supports_streaming: bool,
+    pub streaming_mode: StreamingMode,
+    pub native_streaming: bool,
     pub supports_vision: bool,
     pub supports_structured_output: bool,
     pub context_window: u32,
@@ -134,6 +219,106 @@ pub trait Provider: Send + Sync {
     async fn stream_message(&self, request: MessagesRequest) -> ProviderResult<ProviderStream>;
 }
 
+pub fn built_in_provider_registry() -> Vec<ProviderRegistryEntry> {
+    vec![
+        ProviderRegistryEntry {
+            provider_id: ANTHROPIC_PROVIDER_ID.to_string(),
+            display_name: "Anthropic".to_string(),
+            protocol: ProviderProtocol::AnthropicMessages,
+            auth_method: ProviderAuthMethod::ApiKey,
+            api_key_option_aliases: vec!["api_key".to_string()],
+            api_key_env_vars: vec!["ANTHROPIC_API_KEY".to_string()],
+            model_option_aliases: vec!["model".to_string()],
+            model_env_vars: vec!["ANTHROPIC_MODEL".to_string()],
+            base_url_option_aliases: vec!["base_url".to_string()],
+            base_url_env_vars: vec!["ANTHROPIC_BASE_URL".to_string()],
+            default_model_id: "claude-sonnet-4-6".to_string(),
+            default_base_url: Some(ANTHROPIC_DEFAULT_BASE_URL.to_string()),
+            models_source: ModelsSource::StaticTable,
+            streaming_mode: StreamingMode::Native,
+            live_smoke_required: true,
+        },
+        ProviderRegistryEntry {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            display_name: "OpenAI-compatible".to_string(),
+            protocol: ProviderProtocol::OpenAiChatCompletions,
+            auth_method: ProviderAuthMethod::ApiKey,
+            api_key_option_aliases: vec![
+                "api_key".to_string(),
+                "openai_api_key".to_string(),
+                "openaiApiKey".to_string(),
+            ],
+            api_key_env_vars: vec![
+                "KIANA_OPENAI_API_KEY".to_string(),
+                "OPENAI_API_KEY".to_string(),
+            ],
+            model_option_aliases: vec!["model".to_string()],
+            model_env_vars: vec!["KIANA_OPENAI_MODEL".to_string(), "OPENAI_MODEL".to_string()],
+            base_url_option_aliases: vec![
+                "base_url".to_string(),
+                "openai_base_url".to_string(),
+                "openaiBaseUrl".to_string(),
+            ],
+            base_url_env_vars: vec![
+                "KIANA_OPENAI_BASE_URL".to_string(),
+                "OPENAI_BASE_URL".to_string(),
+            ],
+            default_model_id: OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string(),
+            default_base_url: Some(OPENAI_COMPATIBLE_DEFAULT_BASE_URL.to_string()),
+            models_source: ModelsSource::UserConfigured,
+            streaming_mode: StreamingMode::Synthetic,
+            live_smoke_required: true,
+        },
+        ProviderRegistryEntry {
+            provider_id: OLLAMA_PROVIDER_ID.to_string(),
+            display_name: "Ollama".to_string(),
+            protocol: ProviderProtocol::OllamaChat,
+            auth_method: ProviderAuthMethod::NotRequired,
+            api_key_option_aliases: Vec::new(),
+            api_key_env_vars: Vec::new(),
+            model_option_aliases: vec!["model".to_string()],
+            model_env_vars: vec!["KIANA_OLLAMA_MODEL".to_string(), "OLLAMA_MODEL".to_string()],
+            base_url_option_aliases: vec![
+                "base_url".to_string(),
+                "ollama_base_url".to_string(),
+                "ollamaBaseUrl".to_string(),
+            ],
+            base_url_env_vars: vec![
+                "KIANA_OLLAMA_BASE_URL".to_string(),
+                "OLLAMA_BASE_URL".to_string(),
+            ],
+            default_model_id: OLLAMA_DEFAULT_MODEL_ID.to_string(),
+            default_base_url: Some(OLLAMA_DEFAULT_BASE_URL.to_string()),
+            models_source: ModelsSource::LocalService,
+            streaming_mode: StreamingMode::Synthetic,
+            live_smoke_required: true,
+        },
+        ProviderRegistryEntry {
+            provider_id: FAKE_PROVIDER_ID.to_string(),
+            display_name: "Fake provider".to_string(),
+            protocol: ProviderProtocol::Fake,
+            auth_method: ProviderAuthMethod::NotRequired,
+            api_key_option_aliases: Vec::new(),
+            api_key_env_vars: Vec::new(),
+            model_option_aliases: vec!["model".to_string()],
+            model_env_vars: vec!["KIANA_FAKE_MODEL".to_string()],
+            base_url_option_aliases: Vec::new(),
+            base_url_env_vars: Vec::new(),
+            default_model_id: FAKE_MODEL_ID.to_string(),
+            default_base_url: None,
+            models_source: ModelsSource::DeterministicTest,
+            streaming_mode: StreamingMode::Synthetic,
+            live_smoke_required: false,
+        },
+    ]
+}
+
+pub fn provider_registry_entry(provider_id: &str) -> Option<ProviderRegistryEntry> {
+    built_in_provider_registry()
+        .into_iter()
+        .find(|entry| entry.provider_id == provider_id)
+}
+
 pub fn built_in_model_profiles() -> Vec<ModelProfile> {
     vec![
         anthropic_model_profile("claude-sonnet-4-6"),
@@ -144,9 +329,12 @@ pub fn built_in_model_profiles() -> Vec<ModelProfile> {
         fake_model_profile(FAKE_MODEL_ID),
         ModelProfile {
             provider_id: FAKE_PROVIDER_ID.to_string(),
+            provider_display_name: provider_display_name(FAKE_PROVIDER_ID),
             model_id: FAKE_TEXT_ONLY_MODEL_ID.to_string(),
             supports_tools: false,
-            supports_streaming: true,
+            supports_streaming: streaming_mode(FAKE_PROVIDER_ID).supports_streaming(),
+            streaming_mode: streaming_mode(FAKE_PROVIDER_ID),
+            native_streaming: streaming_mode(FAKE_PROVIDER_ID).is_native(),
             supports_vision: false,
             supports_structured_output: false,
             context_window: 8_192,
@@ -161,9 +349,12 @@ pub fn model_profile(provider_id: &str, model_id: &str) -> Option<ModelProfile> 
         OLLAMA_PROVIDER_ID => Some(ollama_model_profile(model_id)),
         FAKE_PROVIDER_ID if model_id == FAKE_TEXT_ONLY_MODEL_ID => Some(ModelProfile {
             provider_id: FAKE_PROVIDER_ID.to_string(),
+            provider_display_name: provider_display_name(FAKE_PROVIDER_ID),
             model_id: model_id.to_string(),
             supports_tools: false,
-            supports_streaming: true,
+            supports_streaming: streaming_mode(FAKE_PROVIDER_ID).supports_streaming(),
+            streaming_mode: streaming_mode(FAKE_PROVIDER_ID),
+            native_streaming: streaming_mode(FAKE_PROVIDER_ID).is_native(),
             supports_vision: false,
             supports_structured_output: false,
             context_window: 8_192,
@@ -174,51 +365,61 @@ pub fn model_profile(provider_id: &str, model_id: &str) -> Option<ModelProfile> 
 }
 
 fn anthropic_model_profile(model_id: &str) -> ModelProfile {
-    ModelProfile {
-        provider_id: ANTHROPIC_PROVIDER_ID.to_string(),
-        model_id: model_id.to_string(),
-        supports_tools: true,
-        supports_streaming: true,
-        supports_vision: true,
-        supports_structured_output: false,
-        context_window: 200_000,
-    }
+    model_profile_from_registry(ANTHROPIC_PROVIDER_ID, model_id, true, true, false, 200_000)
 }
 
 fn fake_model_profile(model_id: &str) -> ModelProfile {
-    ModelProfile {
-        provider_id: FAKE_PROVIDER_ID.to_string(),
-        model_id: model_id.to_string(),
-        supports_tools: true,
-        supports_streaming: true,
-        supports_vision: false,
-        supports_structured_output: true,
-        context_window: 8_192,
-    }
+    model_profile_from_registry(FAKE_PROVIDER_ID, model_id, true, false, true, 8_192)
 }
 
 fn openai_compatible_model_profile(model_id: &str) -> ModelProfile {
-    ModelProfile {
-        provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
-        model_id: model_id.to_string(),
-        supports_tools: true,
-        supports_streaming: true,
-        supports_vision: false,
-        supports_structured_output: false,
-        context_window: 128_000,
-    }
+    model_profile_from_registry(
+        OPENAI_COMPATIBLE_PROVIDER_ID,
+        model_id,
+        true,
+        false,
+        false,
+        128_000,
+    )
 }
 
 fn ollama_model_profile(model_id: &str) -> ModelProfile {
+    model_profile_from_registry(OLLAMA_PROVIDER_ID, model_id, true, false, false, 128_000)
+}
+
+fn model_profile_from_registry(
+    provider_id: &str,
+    model_id: &str,
+    supports_tools: bool,
+    supports_vision: bool,
+    supports_structured_output: bool,
+    context_window: u32,
+) -> ModelProfile {
+    let streaming_mode = streaming_mode(provider_id);
     ModelProfile {
-        provider_id: OLLAMA_PROVIDER_ID.to_string(),
+        provider_id: provider_id.to_string(),
+        provider_display_name: provider_display_name(provider_id),
         model_id: model_id.to_string(),
-        supports_tools: true,
-        supports_streaming: true,
-        supports_vision: false,
-        supports_structured_output: false,
-        context_window: 128_000,
+        supports_tools,
+        supports_streaming: streaming_mode.supports_streaming(),
+        streaming_mode,
+        native_streaming: streaming_mode.is_native(),
+        supports_vision,
+        supports_structured_output,
+        context_window,
     }
+}
+
+fn provider_display_name(provider_id: &str) -> String {
+    provider_registry_entry(provider_id)
+        .map(|entry| entry.display_name)
+        .unwrap_or_else(|| provider_id.to_string())
+}
+
+fn streaming_mode(provider_id: &str) -> StreamingMode {
+    provider_registry_entry(provider_id)
+        .map(|entry| entry.streaming_mode)
+        .unwrap_or(StreamingMode::None)
 }
 
 pub struct AnthropicProvider {
@@ -1230,6 +1431,9 @@ mod tests {
         let profiles = built_in_model_profiles();
         let value = serde_json::to_value(&profiles).unwrap();
         assert_eq!(value[0]["provider_id"], ANTHROPIC_PROVIDER_ID);
+        assert_eq!(value[0]["provider_display_name"], "Anthropic");
+        assert_eq!(value[0]["streaming_mode"], "native");
+        assert_eq!(value[0]["native_streaming"], true);
         assert!(value
             .as_array()
             .unwrap()
@@ -1244,12 +1448,16 @@ mod tests {
                 && profile["model_id"].as_str() == Some(OPENAI_COMPATIBLE_DEFAULT_MODEL_ID)
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
+                && profile["streaming_mode"].as_str() == Some("synthetic")
+                && profile["native_streaming"].as_bool() == Some(false)
         }));
         assert!(value.as_array().unwrap().iter().any(|profile| {
             profile["provider_id"].as_str() == Some(OLLAMA_PROVIDER_ID)
                 && profile["model_id"].as_str() == Some(OLLAMA_DEFAULT_MODEL_ID)
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
+                && profile["streaming_mode"].as_str() == Some("synthetic")
+                && profile["native_streaming"].as_bool() == Some(false)
         }));
     }
 

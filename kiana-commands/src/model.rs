@@ -5,10 +5,9 @@ use async_trait::async_trait;
 use kiana_services::api::{
     messages::{Message, MessagesRequest},
     provider::{
-        AnthropicProvider, FakeProvider, FakeProviderStep, OllamaProvider,
-        OpenAiCompatibleProvider, Provider, ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
-        OLLAMA_DEFAULT_MODEL_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_DEFAULT_MODEL_ID,
-        OPENAI_COMPATIBLE_PROVIDER_ID,
+        provider_registry_entry, AnthropicProvider, FakeProvider, FakeProviderStep, OllamaProvider,
+        OpenAiCompatibleProvider, Provider, ProviderRegistryEntry, ANTHROPIC_PROVIDER_ID,
+        FAKE_MODEL_ID, FAKE_PROVIDER_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
     },
 };
 use serde::Serialize;
@@ -93,15 +92,18 @@ fn model_list_json() -> anyhow::Result<String> {
 fn model_list_text() -> String {
     let mut lines = vec![
         "Available model profiles".to_string(),
-        "provider\tmodel\ttools\tstreaming\tvision\tstructured_output\tcontext_window".to_string(),
+        "provider\tprovider_name\tmodel\ttools\tstreaming\tstreaming_mode\tnative_streaming\tvision\tstructured_output\tcontext_window".to_string(),
     ];
     for profile in kiana_services::api::provider::built_in_model_profiles() {
         lines.push(format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             profile.provider_id,
+            profile.provider_display_name,
             profile.model_id,
             profile.supports_tools,
             profile.supports_streaming,
+            profile.streaming_mode.as_str(),
+            profile.native_streaming,
             profile.supports_vision,
             profile.supports_structured_output,
             profile.context_window
@@ -237,10 +239,7 @@ async fn smoke_fake_provider_tools() -> ModelSmokeResult {
 }
 
 async fn smoke_anthropic_provider(live: bool) -> ModelSmokeResult {
-    let model_id = std::env::var("ANTHROPIC_MODEL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| kiana_bootstrap::config::Config::default().model);
+    let model_id = provider_model_id(ANTHROPIC_PROVIDER_ID);
     if !live {
         return skipped_provider_smoke(
             ANTHROPIC_PROVIDER_ID,
@@ -250,17 +249,16 @@ async fn smoke_anthropic_provider(live: bool) -> ModelSmokeResult {
             "live provider smoke disabled; pass --live or set KIANA_PROVIDER_SMOKE_LIVE=1",
         );
     }
-    let Some(api_key) = env_string("ANTHROPIC_API_KEY") else {
+    let Some(api_key) = provider_api_key(ANTHROPIC_PROVIDER_ID) else {
         return skipped_provider_smoke(
             ANTHROPIC_PROVIDER_ID,
             &model_id,
             true,
             "text",
-            "ANTHROPIC_API_KEY is not set",
+            &missing_api_key_message(ANTHROPIC_PROVIDER_ID),
         );
     };
-    let base_url =
-        env_string("ANTHROPIC_BASE_URL").unwrap_or_else(|| "https://api.anthropic.com".to_string());
+    let base_url = provider_base_url(ANTHROPIC_PROVIDER_ID).unwrap_or_default();
     run_provider_smoke(
         ANTHROPIC_PROVIDER_ID,
         &model_id,
@@ -275,10 +273,7 @@ async fn smoke_anthropic_provider(live: bool) -> ModelSmokeResult {
 }
 
 async fn smoke_anthropic_provider_tools(live: bool) -> ModelSmokeResult {
-    let model_id = std::env::var("ANTHROPIC_MODEL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| kiana_bootstrap::config::Config::default().model);
+    let model_id = provider_model_id(ANTHROPIC_PROVIDER_ID);
     if !live {
         return skipped_provider_smoke(
             ANTHROPIC_PROVIDER_ID,
@@ -288,17 +283,16 @@ async fn smoke_anthropic_provider_tools(live: bool) -> ModelSmokeResult {
             "live provider tool smoke disabled; pass --live --tools or set KIANA_PROVIDER_SMOKE_LIVE=1 and KIANA_PROVIDER_SMOKE_TOOLS=1",
         );
     }
-    let Some(api_key) = env_string("ANTHROPIC_API_KEY") else {
+    let Some(api_key) = provider_api_key(ANTHROPIC_PROVIDER_ID) else {
         return skipped_provider_smoke(
             ANTHROPIC_PROVIDER_ID,
             &model_id,
             true,
             "tools",
-            "ANTHROPIC_API_KEY is not set",
+            &missing_api_key_message(ANTHROPIC_PROVIDER_ID),
         );
     };
-    let base_url =
-        env_string("ANTHROPIC_BASE_URL").unwrap_or_else(|| "https://api.anthropic.com".to_string());
+    let base_url = provider_base_url(ANTHROPIC_PROVIDER_ID).unwrap_or_default();
     run_provider_tool_smoke(
         ANTHROPIC_PROVIDER_ID,
         &model_id,
@@ -313,9 +307,7 @@ async fn smoke_anthropic_provider_tools(live: bool) -> ModelSmokeResult {
 }
 
 async fn smoke_openai_compatible_provider(live: bool) -> ModelSmokeResult {
-    let model_id = env_string("KIANA_OPENAI_MODEL")
-        .or_else(|| env_string("OPENAI_MODEL"))
-        .unwrap_or_else(|| OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string());
+    let model_id = provider_model_id(OPENAI_COMPATIBLE_PROVIDER_ID);
     if !live {
         return skipped_provider_smoke(
             OPENAI_COMPATIBLE_PROVIDER_ID,
@@ -325,19 +317,16 @@ async fn smoke_openai_compatible_provider(live: bool) -> ModelSmokeResult {
             "live provider smoke disabled; pass --live or set KIANA_PROVIDER_SMOKE_LIVE=1",
         );
     }
-    let Some(api_key) = env_string("KIANA_OPENAI_API_KEY").or_else(|| env_string("OPENAI_API_KEY"))
-    else {
+    let Some(api_key) = provider_api_key(OPENAI_COMPATIBLE_PROVIDER_ID) else {
         return skipped_provider_smoke(
             OPENAI_COMPATIBLE_PROVIDER_ID,
             &model_id,
             true,
             "text",
-            "KIANA_OPENAI_API_KEY or OPENAI_API_KEY is not set",
+            &missing_api_key_message(OPENAI_COMPATIBLE_PROVIDER_ID),
         );
     };
-    let base_url = env_string("KIANA_OPENAI_BASE_URL")
-        .or_else(|| env_string("OPENAI_BASE_URL"))
-        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+    let base_url = provider_base_url(OPENAI_COMPATIBLE_PROVIDER_ID).unwrap_or_default();
     let provider = match OpenAiCompatibleProvider::new(api_key, base_url, Duration::from_secs(30)) {
         Ok(provider) => provider,
         Err(error) => {
@@ -360,9 +349,7 @@ async fn smoke_openai_compatible_provider(live: bool) -> ModelSmokeResult {
 }
 
 async fn smoke_openai_compatible_provider_tools(live: bool) -> ModelSmokeResult {
-    let model_id = env_string("KIANA_OPENAI_MODEL")
-        .or_else(|| env_string("OPENAI_MODEL"))
-        .unwrap_or_else(|| OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string());
+    let model_id = provider_model_id(OPENAI_COMPATIBLE_PROVIDER_ID);
     if !live {
         return skipped_provider_smoke(
             OPENAI_COMPATIBLE_PROVIDER_ID,
@@ -372,19 +359,16 @@ async fn smoke_openai_compatible_provider_tools(live: bool) -> ModelSmokeResult 
             "live provider tool smoke disabled; pass --live --tools or set KIANA_PROVIDER_SMOKE_LIVE=1 and KIANA_PROVIDER_SMOKE_TOOLS=1",
         );
     }
-    let Some(api_key) = env_string("KIANA_OPENAI_API_KEY").or_else(|| env_string("OPENAI_API_KEY"))
-    else {
+    let Some(api_key) = provider_api_key(OPENAI_COMPATIBLE_PROVIDER_ID) else {
         return skipped_provider_smoke(
             OPENAI_COMPATIBLE_PROVIDER_ID,
             &model_id,
             true,
             "tools",
-            "KIANA_OPENAI_API_KEY or OPENAI_API_KEY is not set",
+            &missing_api_key_message(OPENAI_COMPATIBLE_PROVIDER_ID),
         );
     };
-    let base_url = env_string("KIANA_OPENAI_BASE_URL")
-        .or_else(|| env_string("OPENAI_BASE_URL"))
-        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+    let base_url = provider_base_url(OPENAI_COMPATIBLE_PROVIDER_ID).unwrap_or_default();
     let provider = match OpenAiCompatibleProvider::new(api_key, base_url, Duration::from_secs(30)) {
         Ok(provider) => provider,
         Err(error) => {
@@ -407,9 +391,7 @@ async fn smoke_openai_compatible_provider_tools(live: bool) -> ModelSmokeResult 
 }
 
 async fn smoke_ollama_provider(live: bool) -> ModelSmokeResult {
-    let model_id = env_string("KIANA_OLLAMA_MODEL")
-        .or_else(|| env_string("OLLAMA_MODEL"))
-        .unwrap_or_else(|| OLLAMA_DEFAULT_MODEL_ID.to_string());
+    let model_id = provider_model_id(OLLAMA_PROVIDER_ID);
     if !live {
         return skipped_provider_smoke(
             OLLAMA_PROVIDER_ID,
@@ -419,9 +401,7 @@ async fn smoke_ollama_provider(live: bool) -> ModelSmokeResult {
             "live provider smoke disabled; pass --live or set KIANA_PROVIDER_SMOKE_LIVE=1",
         );
     }
-    let base_url = env_string("KIANA_OLLAMA_BASE_URL")
-        .or_else(|| env_string("OLLAMA_BASE_URL"))
-        .unwrap_or_else(|| "http://localhost:11434".to_string());
+    let base_url = provider_base_url(OLLAMA_PROVIDER_ID).unwrap_or_default();
     let provider = match OllamaProvider::new(base_url, Duration::from_secs(30)) {
         Ok(provider) => provider,
         Err(error) => {
@@ -432,9 +412,7 @@ async fn smoke_ollama_provider(live: bool) -> ModelSmokeResult {
 }
 
 async fn smoke_ollama_provider_tools(live: bool) -> ModelSmokeResult {
-    let model_id = env_string("KIANA_OLLAMA_MODEL")
-        .or_else(|| env_string("OLLAMA_MODEL"))
-        .unwrap_or_else(|| OLLAMA_DEFAULT_MODEL_ID.to_string());
+    let model_id = provider_model_id(OLLAMA_PROVIDER_ID);
     if !live {
         return skipped_provider_smoke(
             OLLAMA_PROVIDER_ID,
@@ -444,9 +422,7 @@ async fn smoke_ollama_provider_tools(live: bool) -> ModelSmokeResult {
             "live provider tool smoke disabled; pass --live --tools or set KIANA_PROVIDER_SMOKE_LIVE=1 and KIANA_PROVIDER_SMOKE_TOOLS=1",
         );
     }
-    let base_url = env_string("KIANA_OLLAMA_BASE_URL")
-        .or_else(|| env_string("OLLAMA_BASE_URL"))
-        .unwrap_or_else(|| "http://localhost:11434".to_string());
+    let base_url = provider_base_url(OLLAMA_PROVIDER_ID).unwrap_or_default();
     let provider = match OllamaProvider::new(base_url, Duration::from_secs(30)) {
         Ok(provider) => provider,
         Err(error) => {
@@ -666,6 +642,34 @@ fn env_string(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn provider_model_id(provider_id: &str) -> String {
+    let entry = provider_entry(provider_id);
+    first_env_value(&entry.model_env_vars).unwrap_or(entry.default_model_id)
+}
+
+fn provider_api_key(provider_id: &str) -> Option<String> {
+    let entry = provider_entry(provider_id);
+    first_env_value(&entry.api_key_env_vars)
+}
+
+fn provider_base_url(provider_id: &str) -> Option<String> {
+    let entry = provider_entry(provider_id);
+    first_env_value(&entry.base_url_env_vars).or(entry.default_base_url)
+}
+
+fn missing_api_key_message(provider_id: &str) -> String {
+    let entry = provider_entry(provider_id);
+    format!("{} is not set", entry.api_key_env_vars.join(" or "))
+}
+
+fn first_env_value(keys: &[String]) -> Option<String> {
+    keys.iter().find_map(|key| env_string(key))
+}
+
+fn provider_entry(provider_id: &str) -> ProviderRegistryEntry {
+    provider_registry_entry(provider_id).expect("built-in provider registry entry should exist")
+}
+
 fn env_flag(name: &str) -> bool {
     std::env::var(name)
         .ok()
@@ -801,6 +805,8 @@ mod tests {
                 && profile["model_id"].as_str() == Some("claude-sonnet-4-6")
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
+                && profile["streaming_mode"].as_str() == Some("native")
+                && profile["native_streaming"].as_bool() == Some(true)
         }));
         assert!(profiles.iter().any(|profile| {
             profile["provider_id"].as_str() == Some("fake")
@@ -813,12 +819,16 @@ mod tests {
                 && profile["model_id"].as_str() == Some("gpt-4.1")
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
+                && profile["streaming_mode"].as_str() == Some("synthetic")
+                && profile["native_streaming"].as_bool() == Some(false)
         }));
         assert!(profiles.iter().any(|profile| {
             profile["provider_id"].as_str() == Some("ollama")
                 && profile["model_id"].as_str() == Some("llama3.1")
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
+                && profile["streaming_mode"].as_str() == Some("synthetic")
+                && profile["native_streaming"].as_bool() == Some(false)
         }));
     }
 

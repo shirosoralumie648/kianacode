@@ -417,11 +417,15 @@ mod tests {
 
         assert_eq!(openai["status"], "configured");
         assert_eq!(openai["auth_source"], "KIANA_OPENAI_API_KEY");
+        assert_eq!(openai["protocol"], "open_ai_chat_completions");
+        assert_eq!(openai["models_source"], "user_configured");
         assert_eq!(openai["key_preview"], "redacted-9876");
         assert_eq!(openai["base_url"], "https://openai.example/v1");
         assert_eq!(openai["model_id"], "gpt-command");
         assert_eq!(ollama["status"], "configured");
         assert_eq!(ollama["auth"], "not_required");
+        assert_eq!(ollama["protocol"], "ollama_chat");
+        assert_eq!(ollama["models_source"], "local_service");
         assert_eq!(ollama["model_id"], "llama-command");
         assert!(!output.contains("openai-command-secret"));
 

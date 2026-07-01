@@ -4,10 +4,9 @@ use kiana_services::api::{
     errors::{ApiError, ApiErrorKind},
     messages::{Message, MessagesRequest},
     provider::{
-        AnthropicProvider, FakeProvider, OllamaProvider, OpenAiCompatibleProvider, Provider,
-        ProviderError, ProviderStream, ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
-        OLLAMA_DEFAULT_MODEL_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_DEFAULT_MODEL_ID,
-        OPENAI_COMPATIBLE_PROVIDER_ID,
+        provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
+        OpenAiCompatibleProvider, Provider, ProviderError, ProviderProtocol, ProviderStream,
+        ANTHROPIC_PROVIDER_ID,
     },
     streaming::{ContentBlock as StreamContentBlock, Delta, StreamEvent},
 };
@@ -3857,6 +3856,23 @@ fn string_option(options: &HashMap<String, Value>, key: &str) -> Option<String> 
         .filter(|value| !value.trim().is_empty())
 }
 
+fn first_string_option(options: &HashMap<String, Value>, keys: &[String]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        string_option(options, key)
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    })
+}
+
+fn first_env_string(keys: &[String]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        std::env::var(key)
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    })
+}
+
 fn provider_id_option(options: &HashMap<String, Value>) -> String {
     string_option(options, "provider")
         .or_else(|| string_option(options, "provider_id"))
@@ -3872,40 +3888,16 @@ fn model_option(
     config: &kiana_bootstrap::config::Config,
     provider_id: &str,
 ) -> String {
-    string_option(options, "model")
-        .or_else(|| {
-            if provider_id == FAKE_PROVIDER_ID {
-                std::env::var("KIANA_FAKE_MODEL").ok()
-            } else if provider_id == OPENAI_COMPATIBLE_PROVIDER_ID {
-                std::env::var("KIANA_OPENAI_MODEL")
-                    .ok()
-                    .or_else(|| std::env::var("OPENAI_MODEL").ok())
-            } else if provider_id == OLLAMA_PROVIDER_ID {
-                std::env::var("KIANA_OLLAMA_MODEL")
-                    .ok()
-                    .or_else(|| std::env::var("OLLAMA_MODEL").ok())
-            } else {
-                None
-            }
-        })
-        .or_else(|| {
-            if provider_id == ANTHROPIC_PROVIDER_ID {
-                std::env::var("ANTHROPIC_MODEL").ok()
-            } else {
-                None
-            }
-        })
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+    let Some(entry) = provider_registry_entry(provider_id) else {
+        return string_option(options, "model").unwrap_or_else(|| config.model.clone());
+    };
+    first_string_option(options, &entry.model_option_aliases)
+        .or_else(|| first_env_string(&entry.model_env_vars))
         .unwrap_or_else(|| {
-            if provider_id == FAKE_PROVIDER_ID {
-                FAKE_MODEL_ID.to_string()
-            } else if provider_id == OPENAI_COMPATIBLE_PROVIDER_ID {
-                OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string()
-            } else if provider_id == OLLAMA_PROVIDER_ID {
-                OLLAMA_DEFAULT_MODEL_ID.to_string()
-            } else {
+            if provider_id == ANTHROPIC_PROVIDER_ID {
                 config.model.clone()
+            } else {
+                entry.default_model_id
             }
         })
 }
@@ -3917,8 +3909,10 @@ fn build_provider(
     config: &kiana_bootstrap::config::Config,
     api_timeout: Duration,
 ) -> Result<Box<dyn Provider>> {
-    match provider_id {
-        FAKE_PROVIDER_ID => Ok(Box::new(
+    let entry = provider_registry_entry(provider_id)
+        .ok_or_else(|| anyhow!("unknown provider: {provider_id}"))?;
+    match entry.protocol {
+        ProviderProtocol::Fake => Ok(Box::new(
             FakeProvider::from_script_value(
                 model.to_string(),
                 options
@@ -3927,56 +3921,54 @@ fn build_provider(
             )
             .map_err(anyhow::Error::from)?,
         )),
-        ANTHROPIC_PROVIDER_ID => {
-            let api_key = string_option(options, "api_key")
+        ProviderProtocol::AnthropicMessages => {
+            let api_key = first_string_option(options, &entry.api_key_option_aliases)
                 .or_else(|| config.api_key.clone())
-                .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+                .or_else(|| first_env_string(&entry.api_key_env_vars))
                 .ok_or_else(|| {
-                    anyhow!("API key not found. Set ANTHROPIC_API_KEY or pass api_key.")
+                    anyhow!(
+                        "API key not found. Set {}, configure api_key, or pass api_key.",
+                        entry.api_key_env_vars.join(" or ")
+                    )
                 })?;
-            let base_url = string_option(options, "base_url")
-                .or_else(|| std::env::var("ANTHROPIC_BASE_URL").ok())
+            let base_url = first_string_option(options, &entry.base_url_option_aliases)
+                .or_else(|| first_env_string(&entry.base_url_env_vars))
                 .or_else(|| config.base_url.clone())
-                .unwrap_or_else(|| "https://api.anthropic.com".to_string());
+                .or(entry.default_base_url)
+                .unwrap_or_default();
             Ok(Box::new(AnthropicProvider::new(
                 api_key,
                 base_url,
                 api_timeout,
             )))
         }
-        OPENAI_COMPATIBLE_PROVIDER_ID => {
-            let api_key = string_option(options, "api_key")
-                .or_else(|| string_option(options, "openai_api_key"))
-                .or_else(|| string_option(options, "openaiApiKey"))
-                .or_else(|| std::env::var("KIANA_OPENAI_API_KEY").ok())
-                .or_else(|| std::env::var("OPENAI_API_KEY").ok())
+        ProviderProtocol::OpenAiChatCompletions => {
+            let api_key = first_string_option(options, &entry.api_key_option_aliases)
+                .or_else(|| first_env_string(&entry.api_key_env_vars))
                 .ok_or_else(|| {
                     anyhow!(
-                        "OpenAI-compatible API key not found. Set KIANA_OPENAI_API_KEY or OPENAI_API_KEY, or pass api_key."
+                        "OpenAI-compatible API key not found. Set {}, or pass {}.",
+                        entry.api_key_env_vars.join(" or "),
+                        entry.api_key_option_aliases.join(" or ")
                     )
                 })?;
-            let base_url = string_option(options, "base_url")
-                .or_else(|| string_option(options, "openai_base_url"))
-                .or_else(|| string_option(options, "openaiBaseUrl"))
-                .or_else(|| std::env::var("KIANA_OPENAI_BASE_URL").ok())
-                .or_else(|| std::env::var("OPENAI_BASE_URL").ok())
-                .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            let base_url = first_string_option(options, &entry.base_url_option_aliases)
+                .or_else(|| first_env_string(&entry.base_url_env_vars))
+                .or(entry.default_base_url)
+                .unwrap_or_default();
             Ok(Box::new(OpenAiCompatibleProvider::new(
                 api_key,
                 base_url,
                 api_timeout,
             )?))
         }
-        OLLAMA_PROVIDER_ID => {
-            let base_url = string_option(options, "base_url")
-                .or_else(|| string_option(options, "ollama_base_url"))
-                .or_else(|| string_option(options, "ollamaBaseUrl"))
-                .or_else(|| std::env::var("KIANA_OLLAMA_BASE_URL").ok())
-                .or_else(|| std::env::var("OLLAMA_BASE_URL").ok())
-                .unwrap_or_else(|| "http://localhost:11434".to_string());
+        ProviderProtocol::OllamaChat => {
+            let base_url = first_string_option(options, &entry.base_url_option_aliases)
+                .or_else(|| first_env_string(&entry.base_url_env_vars))
+                .or(entry.default_base_url)
+                .unwrap_or_default();
             Ok(Box::new(OllamaProvider::new(base_url, api_timeout)?))
         }
-        other => Err(anyhow!("unknown provider: {other}")),
     }
 }
 

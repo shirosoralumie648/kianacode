@@ -77,6 +77,14 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - `kiana auth status --json` now includes provider-aware readiness for
   Anthropic, OpenAI-compatible, Ollama, and fake providers, including redacted
   API key previews and local endpoint/model settings without exposing secrets.
+- Built-in provider registry metadata now centralizes provider display name,
+  protocol, auth method, option aliases, env vars, default model/base URL,
+  model source category, streaming mode, and live-smoke requirement for model
+  listing, auth readiness, and runner provider construction.
+- `kiana model list --json` now reports `streaming_mode` and
+  `native_streaming`, distinguishing Anthropic native streaming from the
+  synthetic stream-event fallback used by OpenAI-compatible, Ollama, and fake
+  providers.
 - OpenAI-compatible providers now advertise tool support and map Chat
   Completions `tools`/`tool_calls` to Kiana `tool_use`/`tool_result` loops.
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and

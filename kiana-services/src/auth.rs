@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api::provider::{
-    ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID, OLLAMA_DEFAULT_MODEL_ID,
-    OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_DEFAULT_MODEL_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
+    provider_registry_entry, ModelsSource, ProviderProtocol, ProviderRegistryEntry,
+    ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,12 +37,21 @@ pub fn check_oauth_tokens() -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderAuthStatus {
     pub provider_id: String,
+    pub display_name: String,
+    pub protocol: ProviderProtocol,
     pub status: String,
     pub auth: String,
     pub auth_source: String,
     pub model_id: String,
+    pub default_model_id: String,
     pub base_url: Option<String>,
+    pub default_base_url: Option<String>,
     pub key_preview: Option<String>,
+    pub api_key_env_vars: Vec<String>,
+    pub model_env_vars: Vec<String>,
+    pub base_url_env_vars: Vec<String>,
+    pub models_source: ModelsSource,
+    pub live_smoke_required: bool,
     pub issues: Vec<String>,
 }
 
@@ -56,49 +65,57 @@ pub fn provider_auth_statuses(config: &kiana_bootstrap::config::Config) -> Vec<P
 }
 
 fn anthropic_provider_auth_status(config: &kiana_bootstrap::config::Config) -> ProviderAuthStatus {
+    let entry = provider_entry(ANTHROPIC_PROVIDER_ID);
     let api_key = get_api_key();
     let source = api_key
         .as_ref()
         .map(|api_key| match api_key.source {
-            KeySource::Environment => "ANTHROPIC_API_KEY",
-            KeySource::Config => "config",
-            KeySource::Helper => "helper",
+            KeySource::Environment => entry
+                .api_key_env_vars
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "environment".to_string()),
+            KeySource::Config => "config".to_string(),
+            KeySource::Helper => "helper".to_string(),
         })
-        .unwrap_or("none");
+        .unwrap_or_else(|| "none".to_string());
     let key_preview = api_key
         .as_ref()
         .map(|api_key| redacted_preview(&api_key.key));
-    let base_url = std::env::var("ANTHROPIC_BASE_URL")
-        .ok()
-        .and_then(non_empty)
+    let base_url = first_env_value(&entry.base_url_env_vars)
+        .map(|(_, value)| value)
         .or_else(|| config.base_url.clone().and_then(non_empty))
-        .unwrap_or_else(|| "https://api.anthropic.com".to_string());
-    let model_id = std::env::var("ANTHROPIC_MODEL")
-        .ok()
-        .and_then(non_empty)
+        .or_else(|| entry.default_base_url.clone())
+        .unwrap_or_default();
+    let model_id = first_env_value(&entry.model_env_vars)
+        .map(|(_, value)| value)
         .unwrap_or_else(|| config.model.clone());
     let mut issues = Vec::new();
     if api_key.is_none() {
-        issues.push("set ANTHROPIC_API_KEY or configure api_key".to_string());
+        issues.push(format!(
+            "set {} or configure api_key",
+            entry.api_key_env_vars.join(" or ")
+        ));
     }
-    ProviderAuthStatus {
-        provider_id: ANTHROPIC_PROVIDER_ID.to_string(),
-        status: if issues.is_empty() {
-            "configured".to_string()
-        } else {
-            "missing".to_string()
-        },
-        auth: "api_key".to_string(),
-        auth_source: source.to_string(),
+    let status = if issues.is_empty() {
+        "configured"
+    } else {
+        "missing"
+    };
+    provider_auth_status(
+        entry,
+        status,
+        &source,
         model_id,
-        base_url: Some(base_url),
+        Some(base_url),
         key_preview,
         issues,
-    }
+    )
 }
 
 fn openai_provider_auth_status() -> ProviderAuthStatus {
-    let api_key = first_env_value(&["KIANA_OPENAI_API_KEY", "OPENAI_API_KEY"]);
+    let entry = provider_entry(OPENAI_COMPATIBLE_PROVIDER_ID);
+    let api_key = first_env_value(&entry.api_key_env_vars);
     let source = api_key
         .as_ref()
         .map(|(source, _)| source.to_string())
@@ -106,72 +123,109 @@ fn openai_provider_auth_status() -> ProviderAuthStatus {
     let key_preview = api_key
         .as_ref()
         .map(|(_, api_key)| redacted_preview(api_key));
-    let base_url = first_env_value(&["KIANA_OPENAI_BASE_URL", "OPENAI_BASE_URL"])
+    let base_url = first_env_value(&entry.base_url_env_vars)
         .map(|(_, value)| value)
-        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
-    let model_id = first_env_value(&["KIANA_OPENAI_MODEL", "OPENAI_MODEL"])
+        .or_else(|| entry.default_base_url.clone())
+        .unwrap_or_default();
+    let model_id = first_env_value(&entry.model_env_vars)
         .map(|(_, value)| value)
-        .unwrap_or_else(|| OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string());
+        .unwrap_or_else(|| entry.default_model_id.clone());
     let mut issues = Vec::new();
     if api_key.is_none() {
-        issues.push("set KIANA_OPENAI_API_KEY or OPENAI_API_KEY".to_string());
+        issues.push(format!("set {}", entry.api_key_env_vars.join(" or ")));
     }
-    ProviderAuthStatus {
-        provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
-        status: if issues.is_empty() {
-            "configured".to_string()
-        } else {
-            "missing".to_string()
-        },
-        auth: "api_key".to_string(),
-        auth_source: source,
+    let status = if issues.is_empty() {
+        "configured"
+    } else {
+        "missing"
+    };
+    provider_auth_status(
+        entry,
+        status,
+        &source,
         model_id,
-        base_url: Some(base_url),
+        Some(base_url),
         key_preview,
+        issues,
+    )
+}
+
+fn ollama_provider_auth_status() -> ProviderAuthStatus {
+    let entry = provider_entry(OLLAMA_PROVIDER_ID);
+    let base_url = first_env_value(&entry.base_url_env_vars)
+        .map(|(_, value)| value)
+        .or_else(|| entry.default_base_url.clone())
+        .unwrap_or_default();
+    let model_id = first_env_value(&entry.model_env_vars)
+        .map(|(_, value)| value)
+        .unwrap_or_else(|| entry.default_model_id.clone());
+    provider_auth_status(
+        entry,
+        "configured",
+        "none",
+        model_id,
+        Some(base_url),
+        None,
+        vec![
+            "daemon reachability is not checked by auth status; run model smoke --live".to_string(),
+        ],
+    )
+}
+
+fn fake_provider_auth_status() -> ProviderAuthStatus {
+    let entry = provider_entry(FAKE_PROVIDER_ID);
+    let model_id = entry.default_model_id.clone();
+    provider_auth_status(
+        entry,
+        "configured",
+        "none",
+        model_id,
+        None,
+        None,
+        Vec::new(),
+    )
+}
+
+fn provider_entry(provider_id: &str) -> ProviderRegistryEntry {
+    provider_registry_entry(provider_id).expect("built-in provider registry entry should exist")
+}
+
+fn provider_auth_status(
+    entry: ProviderRegistryEntry,
+    status: &str,
+    auth_source: &str,
+    model_id: String,
+    base_url: Option<String>,
+    key_preview: Option<String>,
+    issues: Vec<String>,
+) -> ProviderAuthStatus {
+    ProviderAuthStatus {
+        provider_id: entry.provider_id,
+        display_name: entry.display_name,
+        protocol: entry.protocol,
+        status: status.to_string(),
+        auth: entry.auth_method.as_str().to_string(),
+        auth_source: auth_source.to_string(),
+        model_id,
+        default_model_id: entry.default_model_id,
+        base_url,
+        default_base_url: entry.default_base_url,
+        key_preview,
+        api_key_env_vars: entry.api_key_env_vars,
+        model_env_vars: entry.model_env_vars,
+        base_url_env_vars: entry.base_url_env_vars,
+        models_source: entry.models_source,
+        live_smoke_required: entry.live_smoke_required,
         issues,
     }
 }
 
-fn ollama_provider_auth_status() -> ProviderAuthStatus {
-    let base_url = first_env_value(&["KIANA_OLLAMA_BASE_URL", "OLLAMA_BASE_URL"])
-        .map(|(_, value)| value)
-        .unwrap_or_else(|| "http://localhost:11434".to_string());
-    let model_id = first_env_value(&["KIANA_OLLAMA_MODEL", "OLLAMA_MODEL"])
-        .map(|(_, value)| value)
-        .unwrap_or_else(|| OLLAMA_DEFAULT_MODEL_ID.to_string());
-    ProviderAuthStatus {
-        provider_id: OLLAMA_PROVIDER_ID.to_string(),
-        status: "configured".to_string(),
-        auth: "not_required".to_string(),
-        auth_source: "none".to_string(),
-        model_id,
-        base_url: Some(base_url),
-        key_preview: None,
-        issues: vec![
-            "daemon reachability is not checked by auth status; run model smoke --live".to_string(),
-        ],
-    }
-}
-
-fn fake_provider_auth_status() -> ProviderAuthStatus {
-    ProviderAuthStatus {
-        provider_id: FAKE_PROVIDER_ID.to_string(),
-        status: "configured".to_string(),
-        auth: "not_required".to_string(),
-        auth_source: "none".to_string(),
-        model_id: FAKE_MODEL_ID.to_string(),
-        base_url: None,
-        key_preview: None,
-        issues: Vec::new(),
-    }
-}
-
-fn first_env_value(keys: &[&'static str]) -> Option<(&'static str, String)> {
+fn first_env_value(keys: &[String]) -> Option<(String, String)> {
     keys.iter().find_map(|key| {
         std::env::var(key)
             .ok()
             .and_then(non_empty)
-            .map(|value| (*key, value))
+            .map(|value| (key.clone(), value))
     })
 }
 
