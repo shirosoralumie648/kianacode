@@ -40,6 +40,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - OAuth token files can now supply remote/bridge bearer tokens, refresh through
   the stored refresh token, and surface redacted status in `kiana auth status`
   and `kiana doctor`.
+- Remote code-session create/bridge/smoke/hydrate commands retry once after an
+  authentication failure by using the configured remote token refresh path.
 
 ### Verified
 

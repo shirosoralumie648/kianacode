@@ -6130,6 +6130,82 @@ fn remote_session_code_session_auth_error(
     }
 }
 
+async fn remote_session_create_code_session_with_auth_retry(
+    config: &RemoteSessionCliConfig,
+    access_token: &mut RemoteSessionAccessToken,
+    title: &str,
+    tags: &[String],
+) -> Result<String> {
+    match kiana_remote::create_code_session(&config.api_base_url, &access_token.value, title, tags)
+        .await
+    {
+        Ok(session_id) => Ok(session_id),
+        Err(error) if code_session_error_should_refresh(&error) => {
+            if remote_session_refresh_access_token_for_retry(access_token).await? {
+                kiana_remote::create_code_session(
+                    &config.api_base_url,
+                    &access_token.value,
+                    title,
+                    tags,
+                )
+                .await
+                .map_err(|error| remote_session_code_session_auth_error(error, access_token))
+            } else {
+                Err(remote_session_code_session_auth_error(error, access_token))
+            }
+        }
+        Err(error) => Err(remote_session_code_session_auth_error(error, access_token)),
+    }
+}
+
+async fn remote_session_fetch_credentials_with_auth_retry(
+    config: &RemoteSessionCliConfig,
+    access_token: &mut RemoteSessionAccessToken,
+    session_id: &str,
+    trusted_device_token: Option<&str>,
+) -> Result<kiana_remote::RemoteCredentials> {
+    match kiana_remote::fetch_remote_credentials(
+        &config.api_base_url,
+        session_id,
+        &access_token.value,
+        trusted_device_token,
+    )
+    .await
+    {
+        Ok(credentials) => Ok(credentials),
+        Err(error) if code_session_error_should_refresh(&error) => {
+            if remote_session_refresh_access_token_for_retry(access_token).await? {
+                kiana_remote::fetch_remote_credentials(
+                    &config.api_base_url,
+                    session_id,
+                    &access_token.value,
+                    trusted_device_token,
+                )
+                .await
+                .map_err(|error| remote_session_code_session_auth_error(error, access_token))
+            } else {
+                Err(remote_session_code_session_auth_error(error, access_token))
+            }
+        }
+        Err(error) => Err(remote_session_code_session_auth_error(error, access_token)),
+    }
+}
+
+async fn remote_session_refresh_access_token_for_retry(
+    access_token: &mut RemoteSessionAccessToken,
+) -> Result<bool> {
+    let Some(fresh_token) = refresh_remote_session_access_token(&access_token.value).await? else {
+        return Ok(false);
+    };
+    access_token.value = fresh_token;
+    access_token.source = "refreshed";
+    Ok(true)
+}
+
+fn code_session_error_should_refresh(error: &kiana_remote::CodeSessionApiError) -> bool {
+    remote_session_error_looks_like_auth_failure(&error.to_string())
+}
+
 fn remote_session_api_key_misuse_error(prefix: Option<&str>) -> anyhow::Error {
     let hint = "ANTHROPIC_AUTH_TOKEN looks like an Anthropic API key, but remote-session live calls need a Claude/remote access token. Set KIANA_REMOTE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN to the remote bearer token, or unset ANTHROPIC_AUTH_TOKEN before running live smoke.";
     match prefix {
@@ -6482,16 +6558,19 @@ async fn remote_session_code_session(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_code_session_create(args: &[String]) -> Result<()> {
-    let (config, access_token) =
+    let (config, mut access_token) =
         remote_session_code_session_credentials(args, "code-session create")?;
     let title = remote_session_option_or_env(args, "--title", &["KIANA_REMOTE_CODE_SESSION_TITLE"])
         .or_else(|| remote_session_join_positionals(remote_session_code_session_positionals(args)))
         .unwrap_or_else(|| "Kiana remote code session".to_string());
     let tags = remote_session_code_session_tags(args);
-    let session_id =
-        kiana_remote::create_code_session(&config.api_base_url, &access_token.value, &title, &tags)
-            .await
-            .map_err(|error| remote_session_code_session_auth_error(error, &access_token))?;
+    let session_id = remote_session_create_code_session_with_auth_retry(
+        &config,
+        &mut access_token,
+        &title,
+        &tags,
+    )
+    .await?;
 
     if remote_session_has_flag(args, "--json") {
         let sdk_url = kiana_remote::build_ccr_v2_sdk_url(&config.api_base_url, &session_id)?;
@@ -6510,7 +6589,7 @@ async fn remote_session_code_session_create(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_code_session_bridge(args: &[String]) -> Result<()> {
-    let (config, access_token) =
+    let (config, mut access_token) =
         remote_session_code_session_credentials(args, "code-session bridge")?;
     let session_id = remote_session_code_session_id_from_args(args, &config).ok_or_else(|| {
         anyhow!("remote-session code-session bridge requires --session-id, KIANA_REMOTE_SESSION_ID, or a cse_* session ID argument")
@@ -6523,14 +6602,13 @@ async fn remote_session_code_session_bridge(args: &[String]) -> Result<()> {
             "CLAUDE_TRUSTED_DEVICE_TOKEN",
         ],
     );
-    let credentials = kiana_remote::fetch_remote_credentials(
-        &config.api_base_url,
+    let credentials = remote_session_fetch_credentials_with_auth_retry(
+        &config,
+        &mut access_token,
         &session_id,
-        &access_token.value,
         trusted_device_token.as_deref(),
     )
-    .await
-    .map_err(|error| remote_session_code_session_auth_error(error, &access_token))?;
+    .await?;
 
     if remote_session_has_flag(args, "--json") {
         println!("{}", serde_json::to_string_pretty(&credentials)?);
@@ -6545,16 +6623,19 @@ async fn remote_session_code_session_bridge(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_code_session_smoke(args: &[String]) -> Result<()> {
-    let (config, access_token) =
+    let (config, mut access_token) =
         remote_session_code_session_credentials(args, "code-session smoke")?;
     let title = remote_session_option_or_env(args, "--title", &["KIANA_REMOTE_CODE_SESSION_TITLE"])
         .or_else(|| remote_session_join_positionals(remote_session_code_session_positionals(args)))
         .unwrap_or_else(|| "Kiana CCR v2 live smoke".to_string());
     let tags = remote_session_code_session_tags(args);
-    let session_id =
-        kiana_remote::create_code_session(&config.api_base_url, &access_token.value, &title, &tags)
-            .await
-            .map_err(|error| remote_session_code_session_auth_error(error, &access_token))?;
+    let session_id = remote_session_create_code_session_with_auth_retry(
+        &config,
+        &mut access_token,
+        &title,
+        &tags,
+    )
+    .await?;
     let trusted_device_token = remote_session_option_or_env(
         args,
         "--trusted-device-token",
@@ -6563,14 +6644,13 @@ async fn remote_session_code_session_smoke(args: &[String]) -> Result<()> {
             "CLAUDE_TRUSTED_DEVICE_TOKEN",
         ],
     );
-    let credentials = kiana_remote::fetch_remote_credentials(
-        &config.api_base_url,
+    let credentials = remote_session_fetch_credentials_with_auth_retry(
+        &config,
+        &mut access_token,
         &session_id,
-        &access_token.value,
         trusted_device_token.as_deref(),
     )
-    .await
-    .map_err(|error| remote_session_code_session_auth_error(error, &access_token))?;
+    .await?;
     let sdk_url = kiana_remote::build_ccr_v2_sdk_url(&credentials.api_base_url, &session_id)?;
 
     if remote_session_has_flag(args, "--json") {
@@ -6598,7 +6678,7 @@ async fn remote_session_code_session_smoke(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_code_session_hydrate(args: &[String]) -> Result<()> {
-    let (config, access_token) =
+    let (config, mut access_token) =
         remote_session_code_session_credentials(args, "code-session hydrate")?;
     let session_id = remote_session_code_session_id_from_args(args, &config).ok_or_else(|| {
         anyhow!("remote-session code-session hydrate requires --session-id, KIANA_REMOTE_SESSION_ID, or a cse_* session ID argument")
@@ -6611,14 +6691,13 @@ async fn remote_session_code_session_hydrate(args: &[String]) -> Result<()> {
             "CLAUDE_TRUSTED_DEVICE_TOKEN",
         ],
     );
-    let credentials = kiana_remote::fetch_remote_credentials(
-        &config.api_base_url,
+    let credentials = remote_session_fetch_credentials_with_auth_retry(
+        &config,
+        &mut access_token,
         &session_id,
-        &access_token.value,
         trusted_device_token.as_deref(),
     )
-    .await
-    .map_err(|error| remote_session_code_session_auth_error(error, &access_token))?;
+    .await?;
     let session_url = kiana_remote::build_ccr_v2_sdk_url(&credentials.api_base_url, &session_id)?;
     let client = kiana_remote::CcrV2WorkerClient::new(
         session_url,
@@ -9588,6 +9667,14 @@ mod tests {
         assert_eq!(parse_bridge_refresh_token("   "), None);
     }
 
+    fn refresh_command(token: &str) -> String {
+        if cfg!(windows) {
+            format!("echo {token}")
+        } else {
+            format!("printf {token}")
+        }
+    }
+
     fn temp_file_path(name: &str, extension: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
             "kiana-{name}-{}.{}",
@@ -9988,6 +10075,162 @@ mod tests {
         );
         let body: Value = serde_json::from_str(&request.body).unwrap();
         assert_eq!(body, serde_json::json!({}));
+
+        server.abort();
+        clear_remote_session_env();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn remote_session_code_session_smoke_refreshes_after_create_unauthorized() {
+        let _guard = env_lock().lock().unwrap();
+        clear_remote_session_env();
+        std::env::set_var("KIANA_REMOTE_ACCESS_TOKEN", "stale-token");
+        std::env::set_var(
+            "KIANA_REMOTE_REFRESH_COMMAND",
+            refresh_command("fresh-token"),
+        );
+        let (request_tx, mut request_rx) =
+            tokio::sync::mpsc::unbounded_channel::<RemoteSessionSendRequest>();
+        let state = RemoteCodeSessionRetryState {
+            requests: request_tx,
+            create_count: StdArc::new(AtomicUsize::new(0)),
+            bridge_count: StdArc::new(AtomicUsize::new(0)),
+        };
+
+        let app = axum::Router::new()
+            .route(
+                "/v1/code/sessions",
+                axum::routing::post(handle_remote_code_session_retry_create_request),
+            )
+            .route(
+                "/v1/code/sessions/cse_session_1/bridge",
+                axum::routing::post(handle_remote_code_session_retry_bridge_request),
+            )
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        remote_session_main(&[
+            "remote-session".to_string(),
+            "code-session".to_string(),
+            "smoke".to_string(),
+            "--api-base-url".to_string(),
+            format!("http://{addr}"),
+            "--json".to_string(),
+        ])
+        .await
+        .unwrap();
+
+        let first_create =
+            tokio::time::timeout(std::time::Duration::from_secs(1), request_rx.recv())
+                .await
+                .unwrap()
+                .unwrap();
+        let retried_create =
+            tokio::time::timeout(std::time::Duration::from_secs(1), request_rx.recv())
+                .await
+                .unwrap()
+                .unwrap();
+        let bridge_request =
+            tokio::time::timeout(std::time::Duration::from_secs(1), request_rx.recv())
+                .await
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(first_create.path, "/v1/code/sessions");
+        assert_eq!(
+            first_create.authorization.as_deref(),
+            Some("Bearer stale-token")
+        );
+        assert_eq!(retried_create.path, "/v1/code/sessions");
+        assert_eq!(
+            retried_create.authorization.as_deref(),
+            Some("Bearer fresh-token")
+        );
+        assert_eq!(
+            bridge_request.path,
+            "/v1/code/sessions/cse_session_1/bridge"
+        );
+        assert_eq!(
+            bridge_request.authorization.as_deref(),
+            Some("Bearer fresh-token")
+        );
+        assert_eq!(
+            std::env::var("KIANA_REMOTE_ACCESS_TOKEN").ok().as_deref(),
+            Some("fresh-token")
+        );
+
+        server.abort();
+        clear_remote_session_env();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn remote_session_code_session_bridge_refreshes_after_credentials_unauthorized() {
+        let _guard = env_lock().lock().unwrap();
+        clear_remote_session_env();
+        std::env::set_var("KIANA_REMOTE_ACCESS_TOKEN", "stale-token");
+        std::env::set_var(
+            "KIANA_REMOTE_REFRESH_COMMAND",
+            refresh_command("fresh-token"),
+        );
+        let (request_tx, mut request_rx) =
+            tokio::sync::mpsc::unbounded_channel::<RemoteSessionSendRequest>();
+        let state = RemoteCodeSessionRetryState {
+            requests: request_tx,
+            create_count: StdArc::new(AtomicUsize::new(0)),
+            bridge_count: StdArc::new(AtomicUsize::new(0)),
+        };
+
+        let app = axum::Router::new()
+            .route(
+                "/v1/code/sessions/cse_session_1/bridge",
+                axum::routing::post(handle_remote_code_session_retry_bridge_request),
+            )
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        remote_session_main(&[
+            "remote-session".to_string(),
+            "code-session".to_string(),
+            "bridge".to_string(),
+            "cse_session_1".to_string(),
+            "--api-base-url".to_string(),
+            format!("http://{addr}"),
+        ])
+        .await
+        .unwrap();
+
+        let first_bridge =
+            tokio::time::timeout(std::time::Duration::from_secs(1), request_rx.recv())
+                .await
+                .unwrap()
+                .unwrap();
+        let retried_bridge =
+            tokio::time::timeout(std::time::Duration::from_secs(1), request_rx.recv())
+                .await
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(first_bridge.path, "/v1/code/sessions/cse_session_1/bridge");
+        assert_eq!(
+            first_bridge.authorization.as_deref(),
+            Some("Bearer stale-token")
+        );
+        assert_eq!(
+            retried_bridge.path,
+            "/v1/code/sessions/cse_session_1/bridge"
+        );
+        assert_eq!(
+            retried_bridge.authorization.as_deref(),
+            Some("Bearer fresh-token")
+        );
 
         server.abort();
         clear_remote_session_env();
@@ -10619,6 +10862,96 @@ mod tests {
                 "error": {
                     "message": "Authentication failed"
                 }
+            })),
+        )
+            .into_response()
+    }
+
+    #[derive(Clone)]
+    struct RemoteCodeSessionRetryState {
+        requests: tokio::sync::mpsc::UnboundedSender<RemoteSessionSendRequest>,
+        create_count: StdArc<AtomicUsize>,
+        bridge_count: StdArc<AtomicUsize>,
+    }
+
+    async fn handle_remote_code_session_retry_create_request(
+        State(state): State<RemoteCodeSessionRetryState>,
+        headers: axum::http::HeaderMap,
+        body: String,
+    ) -> impl IntoResponse {
+        let authorization = header_value(&headers, "authorization");
+        let request = RemoteSessionSendRequest {
+            method: "POST".to_string(),
+            path: "/v1/code/sessions".to_string(),
+            authorization: authorization.clone(),
+            anthropic_version: header_value(&headers, "anthropic-version"),
+            anthropic_beta: header_value(&headers, "anthropic-beta"),
+            organization_uuid: header_value(&headers, "x-organization-uuid"),
+            content_type: header_value(&headers, "content-type"),
+            trusted_device_token: header_value(&headers, "x-trusted-device-token"),
+            body,
+        };
+        let _ = state.requests.send(request);
+        let count = state.create_count.fetch_add(1, Ordering::SeqCst);
+        if count == 0 && authorization.as_deref() == Some("Bearer stale-token") {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": {
+                        "message": "Authentication failed"
+                    }
+                })),
+            )
+                .into_response();
+        }
+        (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "session": {
+                    "id": "cse_session_1"
+                }
+            })),
+        )
+            .into_response()
+    }
+
+    async fn handle_remote_code_session_retry_bridge_request(
+        State(state): State<RemoteCodeSessionRetryState>,
+        headers: axum::http::HeaderMap,
+        body: String,
+    ) -> impl IntoResponse {
+        let authorization = header_value(&headers, "authorization");
+        let request = RemoteSessionSendRequest {
+            method: "POST".to_string(),
+            path: "/v1/code/sessions/cse_session_1/bridge".to_string(),
+            authorization: authorization.clone(),
+            anthropic_version: header_value(&headers, "anthropic-version"),
+            anthropic_beta: header_value(&headers, "anthropic-beta"),
+            organization_uuid: header_value(&headers, "x-organization-uuid"),
+            content_type: header_value(&headers, "content-type"),
+            trusted_device_token: header_value(&headers, "x-trusted-device-token"),
+            body,
+        };
+        let _ = state.requests.send(request);
+        let count = state.bridge_count.fetch_add(1, Ordering::SeqCst);
+        if count == 0 && authorization.as_deref() == Some("Bearer stale-token") {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": {
+                        "message": "Authentication failed"
+                    }
+                })),
+            )
+                .into_response();
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "worker_jwt": "worker-token",
+                "api_base_url": "https://worker.example",
+                "expires_in": 3600,
+                "worker_epoch": 42
             })),
         )
             .into_response()
