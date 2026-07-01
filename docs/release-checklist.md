@@ -76,7 +76,9 @@ commercial release.
   `kiana.enterprise.offline-manifest.v1` contract and includes every release
   artifact checksum.
 - Upgrade and rollback instructions are linked.
-- Package-manager channels are either published or explicitly marked as pending.
+- `0.1.0` package-manager channels are published for the supported scope:
+  Homebrew for macOS/Linux, winget for Windows, and the enterprise offline
+  bundle.
 - Commercial GA requires published channels; pending/dry-run/blocked channel
   state is allowed only for source-build RCs, not for full commercial release.
 - Combined release artifacts include generated Homebrew formulae and winget

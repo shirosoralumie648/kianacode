@@ -58,22 +58,34 @@ The channels below define the commercial distribution target state.
 - macOS notarization proof artifacts using `kiana.macos-notarization.v1` with
   `status=accepted`.
 
-## Planned Package Managers
+## 0.1.0 Commercial GA Channels
 
-- Homebrew tap for macOS and Linux.
-- winget package for Windows.
-- apt/yum repository or signed `.deb`/`.rpm` packages for Linux.
+Full commercial verification for `0.1.0` is scoped to these generated and
+verified channels:
+
+- GitHub Releases with signed tarballs, checksums, and proof files.
+- Homebrew formulae for macOS and Linux tarballs.
+- winget manifests for the Windows portable ZIP.
 - Enterprise offline bundle for managed environments.
 
-Package-manager manifests must be generated from the same version and checksum
-set as the GitHub Release artifacts.
+Those manifests must be generated from the same version and checksum set as the
+GitHub Release artifacts. The commercial verifier treats missing Homebrew,
+winget, or enterprise bundle metadata as a hard failure.
 
-Until Windows packaging produces a winget-supported ZIP/MSI/EXE, the winget
-manifest generator records an explicit blocker instead of pretending the tarball
-is publishable. Windows release packaging now emits a portable ZIP; full
-commercial verification still requires that ZIP to be present in the combined
-release artifact set before the winget blocker is removed.
+Windows release packaging emits a portable ZIP; full commercial verification
+requires that ZIP to be present in the combined release artifact set before the
+winget blocker is removed.
 
 Full commercial release verification treats those blockers as hard failures.
 Use local RC mode for source-build release candidates that intentionally ship
 before signing, notarization, or package-manager publication is complete.
+
+## Post-GA Channel Candidates
+
+The following channels are outside the `0.1.0` commercial GA verifier scope and
+must not be represented as available until matching manifest generation,
+signature, publication, and artifact-verification gates exist:
+
+- apt repository or signed `.deb` package for Linux.
+- yum/dnf repository or signed `.rpm` package for Linux.
+- npm or other language-package-manager wrapper distribution.

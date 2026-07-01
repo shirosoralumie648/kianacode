@@ -110,6 +110,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   build, live-service, signing, or channel-publication gates.
 - Added non-accepted proof templates under `docs/proof-templates/` for product
   acceptance, entitlement, release operations, and platform security evidence.
+- Clarified the `0.1.0` commercial GA distribution scope as GitHub Releases,
+  Homebrew, winget, and enterprise offline bundles; apt/yum/npm-style channels
+  remain post-GA candidates until generator and verifier gates exist.
 - Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
   local app-server `/app` endpoints for conversations, settings, redacted
   secrets, sandbox posture, and git status.
