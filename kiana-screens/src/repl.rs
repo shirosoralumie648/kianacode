@@ -44,6 +44,16 @@ pub enum MessageRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplPermissionPanel {
+    pub tool_name: String,
+    pub tool_use_id: String,
+    pub reason: Option<String>,
+    pub blocked_path: Option<String>,
+    pub input_preview: Option<String>,
+    pub suggestions_preview: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplEvent {
     SwitchScreen(AppScreen),
     SubmitPrompt(String),
@@ -98,6 +108,8 @@ pub struct ReplState {
     pub permission_request_active: bool,
     /// Number of permission requests waiting behind the active request.
     pub permission_request_queue_len: usize,
+    /// Structured details for the active permission request.
+    pub permission_panel: Option<ReplPermissionPanel>,
     /// Spinner tick counter.
     pub spinner_tick: usize,
     /// Scroll offset in the message list (items from bottom).
@@ -126,6 +138,7 @@ impl Default for ReplState {
             is_loading: false,
             permission_request_active: false,
             permission_request_queue_len: 0,
+            permission_panel: None,
             spinner_tick: 0,
             scroll_offset: 0,
             list_state,
@@ -320,6 +333,18 @@ impl ReplState {
         self.spinner_tick = (self.spinner_tick + 1) % SPINNER_FRAMES.len();
     }
 
+    pub fn set_permission_request(&mut self, panel: ReplPermissionPanel, queued_count: usize) {
+        self.permission_request_active = true;
+        self.permission_request_queue_len = queued_count;
+        self.permission_panel = Some(panel);
+    }
+
+    pub fn clear_permission_request(&mut self) {
+        self.permission_request_active = false;
+        self.permission_request_queue_len = 0;
+        self.permission_panel = None;
+    }
+
     fn insert_char(&mut self, c: char) {
         self.input.insert(self.cursor, c);
         self.cursor += c.len_utf8();
@@ -354,21 +379,42 @@ pub struct ReplScreen;
 impl ReplScreen {
     pub fn draw(frame: &mut Frame, state: &mut ReplState) {
         let area = frame.area();
-        let input_height = input_panel_height(state, area.width, area.height);
+        let permission_height = permission_panel_height(state, area.width, area.height);
+        let input_height = input_panel_height(
+            state,
+            area.width,
+            area.height.saturating_sub(permission_height),
+        );
 
-        // Layout: [message list | status bar | prompt input]
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(3),    // message list
-                Constraint::Length(1), // status line
-                Constraint::Length(input_height),
-            ])
-            .split(area);
+        if state.permission_panel.is_some() {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(3),
+                    Constraint::Length(permission_height),
+                    Constraint::Length(1),
+                    Constraint::Length(input_height),
+                ])
+                .split(area);
 
-        Self::draw_messages(frame, state, chunks[0]);
-        Self::draw_status(frame, state, chunks[1]);
-        Self::draw_input(frame, state, chunks[2]);
+            Self::draw_messages(frame, state, chunks[0]);
+            Self::draw_permission_panel(frame, state, chunks[1]);
+            Self::draw_status(frame, state, chunks[2]);
+            Self::draw_input(frame, state, chunks[3]);
+        } else {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(3),    // message list
+                    Constraint::Length(1), // status line
+                    Constraint::Length(input_height),
+                ])
+                .split(area);
+
+            Self::draw_messages(frame, state, chunks[0]);
+            Self::draw_status(frame, state, chunks[1]);
+            Self::draw_input(frame, state, chunks[2]);
+        }
     }
 
     fn draw_messages(frame: &mut Frame, state: &mut ReplState, area: Rect) {
@@ -411,6 +457,19 @@ impl ReplScreen {
 
     fn draw_status(frame: &mut Frame, state: &ReplState, area: Rect) {
         let para = Paragraph::new(status_text(state)).style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(para, area);
+    }
+
+    fn draw_permission_panel(frame: &mut Frame, state: &ReplState, area: Rect) {
+        let para = Paragraph::new(permission_panel_text(state))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Approval ")
+                    .border_style(Style::default().fg(Color::Yellow)),
+            )
+            .wrap(Wrap { trim: false })
+            .style(Style::default().fg(Color::White));
         frame.render_widget(para, area);
     }
 
@@ -556,6 +615,59 @@ fn status_text(state: &ReplState) -> String {
         state.session_cost,
         key_hint,
     )
+}
+
+fn permission_panel_text(state: &ReplState) -> String {
+    let Some(panel) = &state.permission_panel else {
+        return String::new();
+    };
+    let mut lines = vec![
+        format!("Tool: {}", panel.tool_name),
+        format!("tool_use_id: {}", panel.tool_use_id),
+    ];
+    if let Some(reason) = panel.reason.as_deref().filter(|value| !value.is_empty()) {
+        lines.push(format!("Reason: {reason}"));
+    }
+    if let Some(path) = panel
+        .blocked_path
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("Path: {path}"));
+    }
+    if let Some(input) = panel
+        .input_preview
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("Input: {input}"));
+    }
+    if let Some(suggestions) = panel
+        .suggestions_preview
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("Suggestions: {suggestions}"));
+    }
+    lines.push("[Ctrl-Y allow] [Ctrl-N deny] [Ctrl-C cancel]".to_string());
+    if state.permission_request_queue_len > 0 {
+        lines.push(format!("Queued: {}", state.permission_request_queue_len));
+    }
+    lines.join("\n")
+}
+
+fn permission_panel_height(state: &ReplState, area_width: u16, area_height: u16) -> u16 {
+    if state.permission_panel.is_none() {
+        return 0;
+    }
+    let content_width = area_width.saturating_sub(2) as usize;
+    let content_rows = permission_panel_text(state)
+        .lines()
+        .map(|line| wrap_text(line, content_width).len().max(1))
+        .sum::<usize>();
+    let preferred = (content_rows as u16).saturating_add(2).clamp(4, 9);
+    let available = area_height.saturating_sub(5).max(4);
+    preferred.min(available)
 }
 
 fn input_panel_height(state: &ReplState, area_width: u16, area_height: u16) -> u16 {
@@ -715,5 +827,56 @@ mod tests {
 
         assert!(status.contains("[Ctrl-Y allow]"));
         assert!(status.contains("queued permissions: 2"));
+    }
+
+    #[test]
+    fn permission_panel_text_renders_structured_request_context() {
+        let mut state = ReplState::default();
+        state.set_permission_request(
+            ReplPermissionPanel {
+                tool_name: "Bash".to_string(),
+                tool_use_id: "toolu_bash".to_string(),
+                reason: Some("Command requires approval in ask mode.".to_string()),
+                blocked_path: Some("src/main.rs".to_string()),
+                input_preview: Some("{\"command\":\"git status\"}".to_string()),
+                suggestions_preview: Some("[\"allow once\"]".to_string()),
+            },
+            2,
+        );
+
+        let text = permission_panel_text(&state);
+
+        assert!(text.contains("Tool: Bash"));
+        assert!(text.contains("tool_use_id: toolu_bash"));
+        assert!(text.contains("Reason: Command requires approval"));
+        assert!(text.contains("Path: src/main.rs"));
+        assert!(text.contains("Input: {\"command\":\"git status\"}"));
+        assert!(text.contains("Suggestions: [\"allow once\"]"));
+        assert!(text.contains("Queued: 2"));
+        assert!(text.contains("Ctrl-Y allow"));
+        assert!(permission_panel_height(&state, 80, 24) >= 4);
+    }
+
+    #[test]
+    fn clear_permission_request_removes_panel_state() {
+        let mut state = ReplState::default();
+        state.set_permission_request(
+            ReplPermissionPanel {
+                tool_name: "Read".to_string(),
+                tool_use_id: "toolu_read".to_string(),
+                reason: None,
+                blocked_path: None,
+                input_preview: None,
+                suggestions_preview: None,
+            },
+            0,
+        );
+
+        state.clear_permission_request();
+
+        assert!(!state.permission_request_active);
+        assert_eq!(state.permission_request_queue_len, 0);
+        assert!(state.permission_panel.is_none());
+        assert_eq!(permission_panel_height(&state, 80, 24), 0);
     }
 }

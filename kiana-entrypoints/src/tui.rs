@@ -3,7 +3,7 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandRegistry, CommandResult, CommandType,
 };
 use kiana_screens::{
-    repl::{ConversationMessage, MessageRole},
+    repl::{ConversationMessage, MessageRole, ReplPermissionPanel},
     resume_conversation::SessionEntry,
     App, AppAction, AppScreen,
 };
@@ -393,8 +393,7 @@ impl TuiRuntime {
 
         if cancelled {
             self.active_prompt_message_index = None;
-            app.repl.permission_request_active = false;
-            app.repl.permission_request_queue_len = 0;
+            app.repl.clear_permission_request();
             self.queued_prompts.clear();
             app.repl.push_message(
                 MessageRole::System,
@@ -550,8 +549,7 @@ impl TuiRuntime {
             TuiEvent::PromptCompleted(result) => {
                 let should_wait_for_refresh = result.is_ok();
                 app.repl.is_loading = false;
-                app.repl.permission_request_active = false;
-                app.repl.permission_request_queue_len = 0;
+                app.repl.clear_permission_request();
                 self.active_prompt_abort = None;
                 self.apply_prompt_completed(app, result);
                 if !should_wait_for_refresh {
@@ -594,8 +592,7 @@ impl TuiRuntime {
             }
             TuiEvent::SessionCleared(result) => {
                 app.repl.is_loading = false;
-                app.repl.permission_request_active = false;
-                app.repl.permission_request_queue_len = 0;
+                app.repl.clear_permission_request();
                 self.active_prompt_message_index = None;
                 self.pending_resume_session_id = None;
                 self.queued_prompts.clear();
@@ -843,8 +840,9 @@ impl TuiRuntime {
     }
 
     fn show_pending_permission(&mut self, app: &mut App, pending: PendingPermission) {
-        app.repl.permission_request_active = true;
-        app.repl.permission_request_queue_len = self.pending_permission_queue.len();
+        let panel = permission_panel_from_request(&pending.request);
+        app.repl
+            .set_permission_request(panel, self.pending_permission_queue.len());
         app.repl.push_message(
             MessageRole::System,
             format_permission_request_message(&pending.request),
@@ -859,8 +857,7 @@ impl TuiRuntime {
         if let Some(pending) = self.pending_permission_queue.pop_front() {
             self.show_pending_permission(app, pending);
         } else {
-            app.repl.permission_request_active = false;
-            app.repl.permission_request_queue_len = 0;
+            app.repl.clear_permission_request();
         }
     }
 }
@@ -1289,6 +1286,33 @@ fn format_permission_request_message(request: &PermissionPromptRequest) -> Strin
     ));
     lines.push("Respond with /allow, /approve, /deny, or /reject.".to_string());
     lines.join("\n")
+}
+
+fn permission_panel_from_request(request: &PermissionPromptRequest) -> ReplPermissionPanel {
+    ReplPermissionPanel {
+        tool_name: request.tool_name.clone(),
+        tool_use_id: request.tool_use_id.clone(),
+        reason: request
+            .decision_reason
+            .get("reason")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        blocked_path: request.blocked_path.clone(),
+        input_preview: permission_value_preview(&request.input),
+        suggestions_preview: permission_value_preview(&request.permission_suggestions),
+    }
+}
+
+fn permission_value_preview(value: &Value) -> Option<String> {
+    if value.is_null() || value.as_object().is_some_and(|object| object.is_empty()) {
+        return None;
+    }
+    Some(truncate_for_tui(
+        serde_json::to_string_pretty(value)
+            .unwrap_or_else(|_| value.to_string())
+            .as_str(),
+        1200,
+    ))
 }
 
 fn truncate_for_tui(value: &str, max_chars: usize) -> String {
@@ -2076,6 +2100,35 @@ mod tests {
     }
 
     #[test]
+    fn maps_permission_request_to_structured_tui_panel() {
+        let mut request = permission_request_for_test();
+        request.blocked_path = Some("src/main.rs".to_string());
+        request.permission_suggestions = json!([
+            {"decision": "allow", "scope": "once"}
+        ]);
+
+        let panel = permission_panel_from_request(&request);
+
+        assert_eq!(panel.tool_name, "TodoWrite");
+        assert_eq!(panel.tool_use_id, "toolu_todo");
+        assert_eq!(
+            panel.reason.as_deref(),
+            Some("Tool TodoWrite requires permission in ask mode.")
+        );
+        assert_eq!(panel.blocked_path.as_deref(), Some("src/main.rs"));
+        assert!(panel
+            .input_preview
+            .as_deref()
+            .unwrap()
+            .contains("verify TUI permissions"));
+        assert!(panel
+            .suggestions_preview
+            .as_deref()
+            .unwrap()
+            .contains("allow"));
+    }
+
+    #[test]
     fn maps_sdk_messages_to_conversation_messages() {
         let messages = vec![json!({
             "role": "assistant",
@@ -2703,6 +2756,13 @@ mod tests {
         assert_eq!(runtime.active_prompt_message_index, None);
         assert!(runtime.pending_permission.is_some());
         assert!(app.repl.permission_request_active);
+        assert_eq!(
+            app.repl
+                .permission_panel
+                .as_ref()
+                .map(|panel| panel.tool_name.as_str()),
+            Some("TodoWrite")
+        );
         assert!(app
             .repl
             .messages
@@ -2724,6 +2784,7 @@ mod tests {
         assert!(runtime.pending_permission.is_none());
         assert_eq!(response_rx.await.unwrap(), PermissionPromptDecision::Allow);
         assert!(!app.repl.permission_request_active);
+        assert!(app.repl.permission_panel.is_none());
         assert!(app
             .repl
             .messages
@@ -2804,6 +2865,13 @@ mod tests {
 
         assert!(first_rx.try_recv().is_err());
         assert_eq!(app.repl.permission_request_queue_len, 1);
+        assert_eq!(
+            app.repl
+                .permission_panel
+                .as_ref()
+                .map(|panel| panel.tool_name.as_str()),
+            Some("TodoWrite")
+        );
         runtime
             .handle_action(
                 AppAction::RunSlashCommand {
@@ -2816,6 +2884,13 @@ mod tests {
 
         assert_eq!(first_rx.await.unwrap(), PermissionPromptDecision::Allow);
         assert_eq!(app.repl.permission_request_queue_len, 0);
+        assert_eq!(
+            app.repl
+                .permission_panel
+                .as_ref()
+                .map(|panel| panel.tool_name.as_str()),
+            Some("Bash")
+        );
         assert!(app
             .repl
             .messages
@@ -2839,6 +2914,7 @@ mod tests {
             PermissionPromptDecision::Deny("not now".to_string())
         );
         assert!(runtime.pending_permission.is_none());
+        assert!(app.repl.permission_panel.is_none());
     }
 
     #[test]
@@ -2999,6 +3075,7 @@ mod tests {
         assert!(runtime.queued_prompts.is_empty());
         assert!(runtime.pending_permission.is_none());
         assert!(runtime.pending_permission_queue.is_empty());
+        assert!(app.repl.permission_panel.is_none());
         assert_eq!(
             response_rx.await.unwrap(),
             PermissionPromptDecision::Deny("Prompt cancelled by user.".to_string())

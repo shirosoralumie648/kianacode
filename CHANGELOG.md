@@ -63,6 +63,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - TUI `/diff --json` and `/diff --last-assistant --json` now render structured
   diff previews with file lists, stats, and assistant patch snippets instead of
   raw JSON transcript output.
+- TUI permission requests now maintain structured approval panel state with
+  tool, reason, blocked path, input preview, suggestions, and queue context
+  while preserving `/allow` and `/deny` command handling.
 
 ### Verified
 
