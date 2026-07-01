@@ -104,6 +104,12 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added platform security proof reports and schema so full commercial preflight
   and combined artifact verification require accepted Linux/macOS/Windows
   release-runner security evidence.
+- Added `scripts/commercial-release-blockers-report.sh` plus the
+  `kiana.commercial-release-blockers.v1` schema so release owners can list
+  remaining local and external commercial blockers without rerunning heavyweight
+  build, live-service, signing, or channel-publication gates.
+- Added non-accepted proof templates under `docs/proof-templates/` for product
+  acceptance, entitlement, release operations, and platform security evidence.
 - Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
   local app-server `/app` endpoints for conversations, settings, redacted
   secrets, sandbox posture, and git status.

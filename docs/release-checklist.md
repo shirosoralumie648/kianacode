@@ -11,6 +11,9 @@ commercial release.
   `v$(cat VERSION)`.
 - `reference/`, local task state, logs, secrets, and build output are not part of
   the product repository.
+- `bash scripts/commercial-release-blockers-report.sh --json` produces
+  `kiana.commercial-release-blockers.v1`; any remaining blocking checks are
+  assigned before the full preflight is requested.
 - `bash scripts/release-preflight.sh` passes in full mode.
 
 ## Build And Test
@@ -100,6 +103,9 @@ commercial release.
   lookup before richer RAG features are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`.
+- Non-accepted example templates under `docs/proof-templates/` are used only as
+  authoring aids; accepted proof files are supplied through the documented
+  full-preflight paths or environment variables.
 - Enterprise entitlement acceptance is recorded in
   `kiana.entitlement-proof.v1` format and passes
   `scripts/entitlement-proof-report.sh full` with the required commercial

@@ -99,6 +99,11 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
+  "$package_root/docs/proof-templates/README.md" \
+  "$package_root/docs/proof-templates/product-acceptance.example.json" \
+  "$package_root/docs/proof-templates/entitlement-proof.example.json" \
+  "$package_root/docs/proof-templates/release-ops.example.json" \
+  "$package_root/docs/proof-templates/platform-security.example.json" \
   "$package_root/docs/schemas/kiana-app-server-conversations.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-git-status.v1.schema.json" \
@@ -108,6 +113,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-commercial-release-blockers.v1.schema.json" \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
@@ -121,6 +127,7 @@ for file in \
   "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-release-ops.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh" \
+  "$package_root/scripts/commercial-release-blockers-report.sh" \
   "$package_root/scripts/entitlement-proof-report.sh" \
   "$package_root/scripts/product-acceptance-report.sh" \
   "$package_root/scripts/release-ops-report.sh" \

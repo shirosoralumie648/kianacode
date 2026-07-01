@@ -1,4 +1,4 @@
-.PHONY: build install test clean dev release package install-compliance-tools compliance-audit sbom release-preflight release-smoke live-smoke native-computer-mcp test-native-computer-mcp help
+.PHONY: build install test clean dev release package install-compliance-tools compliance-audit sbom release-preflight release-preflight-local commercial-blockers release-smoke live-smoke provider-live-smoke remote-live-smoke verify-commercial-artifacts native-computer-mcp test-native-computer-mcp help
 
 CARGO ?= cargo
 INSTALL_DIR ?= $(HOME)/.local/bin
@@ -46,8 +46,14 @@ install-compliance-tools:
 compliance-audit:
 	bash scripts/compliance-audit.sh --local-rc
 
+commercial-blockers:
+	bash scripts/commercial-release-blockers-report.sh
+
 release-preflight:
 	bash scripts/release-preflight.sh
+
+release-preflight-local:
+	bash scripts/release-preflight.sh --local-rc
 
 release-smoke:
 	@echo "🚦 运行发布前 smoke gate..."
@@ -55,7 +61,17 @@ release-smoke:
 
 live-smoke:
 	@echo "🌐 运行可选远程真实服务 smoke..."
+	bash scripts/provider-live-smoke.sh --required
 	bash scripts/remote-live-smoke.sh --required
+
+provider-live-smoke:
+	bash scripts/provider-live-smoke.sh --required
+
+remote-live-smoke:
+	bash scripts/remote-live-smoke.sh --required
+
+verify-commercial-artifacts:
+	bash scripts/verify-commercial-release-artifacts.sh
 
 install: release
 	@echo "📦 安装到 $(INSTALL_DIR)..."

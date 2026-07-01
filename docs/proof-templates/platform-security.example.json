@@ -1,0 +1,26 @@
+{
+  "accepted": false,
+  "accepted_at": "",
+  "accepted_by": "",
+  "controls": [
+    "permission_profile:commercial",
+    "permission_mode:ask",
+    "network_policy:explicit-provider-credentials"
+  ],
+  "doctor_status": "unknown",
+  "evidence": [
+    {
+      "label": "example",
+      "value": "replace with real release-runner evidence"
+    }
+  ],
+  "isolation": "windows_exec_policy",
+  "notes": [
+    "Example only. Replace platform/isolation/evidence with accepted Linux, macOS, or Windows release-runner proof before moving to docs/platform-security/<version>-<platform>.json."
+  ],
+  "platform": "windows",
+  "runner": "",
+  "schema": "kiana.platform-security-proof.v1",
+  "status": "blocked",
+  "version": "0.1.0"
+}

@@ -106,6 +106,22 @@ Before cutting a real release tag, run the full preflight:
 bash scripts/release-preflight.sh
 ```
 
+For a faster status pass that does not run Cargo, network, signing, or package
+publication gates, generate the commercial blocker report:
+
+```bash
+bash scripts/commercial-release-blockers-report.sh
+bash scripts/commercial-release-blockers-report.sh --json
+```
+
+The JSON form uses `kiana.commercial-release-blockers.v1` and separates local
+source-tree blockers from external release inputs such as remote repository,
+tag, signing configuration, combined platform artifacts, publishable channel
+manifests, live smoke proofs, product acceptance, entitlement, release
+operations, and platform security evidence. Example proof templates live under
+`docs/proof-templates/`; they are intentionally `status=blocked` examples and
+must not be treated as accepted release evidence.
+
 The full preflight no longer accepts a manual signing confirmation variable.
 Commercial release tags must produce signed artifacts, macOS notarization proof,
 publishable channel manifests, and no blocked channel state before the draft

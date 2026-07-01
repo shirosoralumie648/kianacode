@@ -42,6 +42,11 @@ for file in \
   VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
+  docs/proof-templates/README.md \
+  docs/proof-templates/product-acceptance.example.json \
+  docs/proof-templates/entitlement-proof.example.json \
+  docs/proof-templates/release-ops.example.json \
+  docs/proof-templates/platform-security.example.json \
   docs/schemas/kiana-app-server-contract.v1.schema.json \
   docs/schemas/kiana-app-server-conversations.v1.schema.json \
   docs/schemas/kiana-app-server-settings.v1.schema.json \
@@ -53,6 +58,7 @@ for file in \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-managed-plugin-policy.v1.schema.json \
   docs/schemas/kiana-plugin-install-receipt.v1.schema.json \
@@ -66,6 +72,7 @@ for file in \
   docs/schemas/kiana-release-ops.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
+  scripts/commercial-release-blockers-report.sh \
   scripts/entitlement-proof-report.sh \
   scripts/product-acceptance-report.sh \
   scripts/release-ops-report.sh \
@@ -208,6 +215,16 @@ else
   fail "live provider and remote smoke gates are not fully documented or wired"
 fi
 
+if grep -Fq '"status": "blocked"' docs/proof-templates/product-acceptance.example.json &&
+  grep -Fq '"status": "blocked"' docs/proof-templates/entitlement-proof.example.json &&
+  grep -Fq '"status": "blocked"' docs/proof-templates/release-ops.example.json &&
+  grep -Fq '"status": "blocked"' docs/proof-templates/platform-security.example.json &&
+  ! grep -Fq '"status": "accepted"' docs/proof-templates/*.example.json; then
+  pass "commercial proof templates are explicitly non-accepted examples"
+else
+  fail "commercial proof templates must remain blocked examples, not accepted release proofs"
+fi
+
 if grep -Fq '"const": "kiana.app-server.contract.v1"' docs/schemas/kiana-app-server-contract.v1.schema.json; then
   pass "app-server contract JSON schema version is pinned"
 else
@@ -252,6 +269,18 @@ if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-sear
   pass "context search JSON schema version is pinned"
 else
   fail "context search JSON schema is missing kiana.context-search.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json; then
+  pass "commercial release blockers JSON schema version is pinned"
+else
+  fail "commercial release blockers JSON schema is missing kiana.commercial-release-blockers.v1 const"
+fi
+
+if "$bash_bin" scripts/commercial-release-blockers-report.sh --json | grep -Fq '"schema": "kiana.commercial-release-blockers.v1"'; then
+  pass "commercial release blockers report JSON gate is wired"
+else
+  fail "commercial release blockers report JSON gate is not wired"
 fi
 
 if grep -Fq '"const": "kiana.plugin-install-receipt.v1"' docs/schemas/kiana-plugin-install-receipt.v1.schema.json; then
