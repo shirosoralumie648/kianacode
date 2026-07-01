@@ -116,6 +116,12 @@ kiana model smoke --tools --json
 KIANA_PROVIDER_SMOKE_LIVE=1 KIANA_PROVIDER_SMOKE_TOOLS=1 kiana model smoke --json
 ```
 
+商业发布证据用 wrapper 脚本，它会把 live catalog、文本 smoke 和工具调用 smoke 的 JSON 证明保存在 `target/live-smoke/provider/`：
+
+```bash
+ANTHROPIC_API_KEY=<key> bash scripts/provider-live-smoke.sh --required
+```
+
 ## 基础对话
 
 Enterprise license readiness is local and offline by default. It reports whether
@@ -209,6 +215,12 @@ kiana remote-session status
 KIANA_REMOTE_ACCESS_TOKEN=<token> kiana remote-session listen \
   --session-id <id> --org-uuid <uuid> --permission-mode deny
 kiana remote-session code-session smoke --json
+```
+
+商业发布证据用 wrapper 脚本，它会把 CCR v2 code-session smoke JSON 证明保存在 `target/live-smoke/remote/`：
+
+```bash
+KIANA_REMOTE_ACCESS_TOKEN=<token> bash scripts/remote-live-smoke.sh --required
 ```
 
 没有真实 token 时，优先使用 `kiana doctor` / `kiana release` 看诊断，不要把 `ANTHROPIC_AUTH_TOKEN=sk-*` 当作 remote token。

@@ -105,22 +105,33 @@ GitHub Release step can run.
 
 ## Optional Live Service Gate
 
-Real remote session verification requires a remote bearer token:
+Live provider verification requires at least one real provider target. The
+script stores proof JSON under `target/live-smoke/provider/` by default:
 
 ```bash
-KIANA_REMOTE_ACCESS_TOKEN=<token> make live-smoke
+ANTHROPIC_API_KEY=<key> \
+  bash scripts/provider-live-smoke.sh --required
 ```
 
-or:
+OpenAI-compatible and Ollama live targets can also be verified with
+`KIANA_OPENAI_API_KEY`/`OPENAI_API_KEY` plus optional
+`KIANA_OPENAI_BASE_URL`, or explicit `KIANA_OLLAMA_BASE_URL`/`OLLAMA_BASE_URL`
+plus model env. The provider script runs `kiana model catalog --live --json`
+and `kiana model smoke --live --tools --json`, then requires at least one real
+text provider and one real tool-call provider to pass in `--required` mode.
+
+Real remote session verification requires a remote bearer token and stores proof
+JSON under `target/live-smoke/remote/` by default:
 
 ```bash
 KIANA_REMOTE_ACCESS_TOKEN=<token> \
-  ./target/debug/kiana remote-session code-session smoke --json
+  bash scripts/remote-live-smoke.sh --required
 ```
 
 This validates CCR v2 code-session creation, bridge credentials, and SDK URL
-generation against a real service. It is intentionally not part of default CI
-without production-like credentials.
+generation against a real service. `scripts/release-preflight.sh` runs both
+live smoke scripts in full mode; local RC and ordinary smoke gates do not run
+them without production-like credentials.
 
 ## Still Blocking Commercial GA
 
@@ -129,6 +140,8 @@ without production-like credentials.
 - Binary signing, macOS notarization, retention policy, full dependency audit,
   and third-party license review signoff.
 - Live remote/CCR/Session Ingress/token refresh end-to-end verification.
+- Live provider text/tool smoke and live dynamic model-catalog proof against
+  production-like credentials or daemons.
 - Reference-level TUI permission, diff, history, onboarding, and resume flows.
 - Hardened default sandbox and approval policy across Windows, macOS, and Linux.
 - Enterprise account, license, managed policy, and support workflows.

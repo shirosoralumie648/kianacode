@@ -55,7 +55,7 @@ release-smoke:
 
 live-smoke:
 	@echo "🌐 运行可选远程真实服务 smoke..."
-	$(CARGO) run -p kiana-entrypoints --bin $(BIN_NAME) -- remote-session code-session smoke --json
+	bash scripts/remote-live-smoke.sh --required
 
 install: release
 	@echo "📦 安装到 $(INSTALL_DIR)..."

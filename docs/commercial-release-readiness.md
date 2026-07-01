@@ -21,6 +21,7 @@ The gate covers:
 - Help, auth, completion, plugin marketplace, MCP config, and project MCP smoke.
 - Temporary source install into an isolated `INSTALL_DIR`.
 - Installed binary version, doctor, help, auth, plugin, and MCP smoke.
+- Commercial full preflight also invokes opt-in live provider and remote smoke wrappers when production-like credentials or daemons are available; local RC mode keeps those checks external.
 
 The package script also produced a local tarball and checksums in a temporary `DIST_DIR`:
 
@@ -78,6 +79,8 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - `stream-json` init now exposes visible `skills` and `plugins` capability summaries, including plugin skills and plugin slash commands when enabled; disabled plugins remain reported as disabled while their skills/commands disappear from the active capability lists.
 - Providers that do not support tools still default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`, and provider tool-call smoke remains opt-in through `--tools` or `KIANA_PROVIDER_SMOKE_TOOLS=1`.
+- `scripts/provider-live-smoke.sh --required` now turns opt-in provider reports into commercial evidence by running live catalog plus live text/tool smoke and storing proof JSON under `target/live-smoke/provider/`.
+- `scripts/remote-live-smoke.sh --required` now turns `remote-session code-session smoke --json` into a commercial evidence gate with proof JSON under `target/live-smoke/remote/`.
 - `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
@@ -91,9 +94,9 @@ These are not solved by the local release gate and must be completed before clai
 - Activate the release workflow on the real remote, then add real signing, notarization where applicable, release credential review, and retention policy review so `scripts/verify-commercial-release-artifacts.sh` can pass instead of blocking the draft release.
 - Provide real install URLs and distribution channels such as GitHub Releases, Homebrew, winget, npm, apt, or an enterprise installer.
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists, and full commercial verification now fails while Homebrew/winget/enterprise channel state remains pending, dry-run, or blocked.
-- Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
+- Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services; full preflight now invokes `scripts/remote-live-smoke.sh --required`, but credentials and hosted service readiness remain external blockers.
 - Bring live terminal walkthroughs for TUI permission, diff, onboarding, resume, history, and settings readiness to reference-level usability; the named product-shell headless smoke is now wired into release gates, but target-customer interactive acceptance is still pending.
-- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, stream-json capability visibility now includes skills/plugins, and provider credential/readiness metadata is visible through `auth status`, but live provider operation is not proven by default gates.
+- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, stream-json capability visibility now includes skills/plugins, provider credential/readiness metadata is visible through `auth status`, and full preflight now requires `scripts/provider-live-smoke.sh --required`, but real credentials/daemons are still external blockers.
 - Repeat platform-specific execution-isolation proof on real Windows, macOS, and Linux release runners; local doctor now distinguishes Linux `bwrap` from Windows/macOS exec-policy isolation, but release-runner acceptance evidence is still required.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.

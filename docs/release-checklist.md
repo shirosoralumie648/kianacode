@@ -61,7 +61,11 @@ commercial release.
 
 ## Product Readiness
 
-- Live remote session smoke passes against production-like services.
+- `scripts/provider-live-smoke.sh --required` passes against at least one real
+  provider for text and tool-call smoke; configured OpenAI-compatible or Ollama
+  dynamic catalog lookups also pass.
+- `scripts/remote-live-smoke.sh --required` passes against production-like
+  remote/CCR services.
 - Remote and bridge authentication sources are verified by `kiana auth status`
   and `kiana doctor`, including redacted OAuth token-file state when env bearer
   tokens are not used.

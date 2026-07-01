@@ -66,6 +66,10 @@ minor versions may include breaking CLI, config, or storage changes. Use
   summaries instead of empty placeholder arrays; plugin skills and plugin slash
   commands disappear from the visible capability set when the plugin is
   disabled.
+- Added commercial live smoke wrappers for provider and remote evidence:
+  `scripts/provider-live-smoke.sh --required` stores live catalog/text/tool
+  proof JSON, `scripts/remote-live-smoke.sh --required` stores CCR v2 code
+  session proof JSON, and full release preflight now runs both gates.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.
