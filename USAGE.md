@@ -47,6 +47,7 @@ kiana config set model "claude-sonnet-4-6"
 kiana config get api_key
 kiana model list
 kiana model list --json
+kiana model catalog --json
 kiana model smoke --json
 kiana license status --json
 ```
@@ -84,6 +85,20 @@ Provider smoke report 默认只执行无网络 fake provider，并把 Anthropic�
 
 ```bash
 kiana model smoke --json
+```
+
+Model catalog report 默认不联网，输出内置模型目录并把需要 live 查询的 OpenAI-compatible、Ollama 标为 skipped：
+
+```bash
+kiana model catalog --json
+```
+
+需要刷新动态 provider 模型目录时显式 opt-in；OpenAI-compatible 会请求 `<base_url>/models`，Ollama 会请求 `<base_url>/api/tags`：
+
+```bash
+KIANA_MODEL_CATALOG_LIVE=1 kiana model catalog --json
+# 或
+kiana model catalog --live --json
 ```
 
 真实 provider smoke 需要显式 opt-in：

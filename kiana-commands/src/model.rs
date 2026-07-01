@@ -5,9 +5,10 @@ use async_trait::async_trait;
 use kiana_services::api::{
     messages::{Message, MessagesRequest},
     provider::{
-        provider_registry_entry, AnthropicProvider, FakeProvider, FakeProviderStep, OllamaProvider,
-        OpenAiCompatibleProvider, Provider, ProviderRegistryEntry, ANTHROPIC_PROVIDER_ID,
-        FAKE_MODEL_ID, FAKE_PROVIDER_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
+        built_in_provider_registry, provider_registry_entry, AnthropicProvider, FakeProvider,
+        FakeProviderStep, ModelsSource, OllamaProvider, OpenAiCompatibleProvider, Provider,
+        ProviderProtocol, ProviderRegistryEntry, ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID,
+        FAKE_PROVIDER_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
     },
 };
 use serde::Serialize;
@@ -47,6 +48,7 @@ impl Command for ModelCommand {
             "list" if rest.is_empty() => return Ok(CommandResult::text(model_list_text())),
             "list" if rest == "--json" => return Ok(CommandResult::text(model_list_json()?)),
             "list" => return Err(anyhow!("unknown model command '{}'\n\n{}", arg, usage())),
+            "catalog" => return model_catalog_command(rest).await,
             "smoke" => return model_smoke_command(rest).await,
             "help" | "--help" | "-h" if rest.is_empty() => return Ok(CommandResult::text(usage())),
             "help" | "--help" | "-h" => {
@@ -77,7 +79,7 @@ impl Command for ModelCommand {
 fn model_status() -> String {
     let config = kiana_bootstrap::config::load_config();
     format!(
-        "Model status\nmodel: {}\nconfig_file: {}\nusage: kiana model <model-name>\nlist: kiana model list --json",
+        "Model status\nmodel: {}\nconfig_file: {}\nusage: kiana model <model-name>\nlist: kiana model list --json\ncatalog: kiana model catalog --json",
         config.model,
         config_path().display()
     )
@@ -107,6 +109,353 @@ fn model_list_text() -> String {
             profile.supports_vision,
             profile.supports_structured_output,
             profile.context_window
+        ));
+    }
+    lines.join("\n")
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ModelCatalogOptions {
+    json: bool,
+    live: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct ModelCatalogReport {
+    schema: &'static str,
+    live: bool,
+    summary: ModelCatalogSummary,
+    providers: Vec<ModelCatalogProvider>,
+}
+
+#[derive(Debug, Serialize)]
+struct ModelCatalogSummary {
+    providers: usize,
+    discovered_models: usize,
+    skipped: usize,
+    failed: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ModelCatalogProvider {
+    provider_id: String,
+    display_name: String,
+    protocol: ProviderProtocol,
+    models_source: ModelsSource,
+    status: String,
+    live: bool,
+    model_ids: Vec<String>,
+    discovered_model_ids: Vec<String>,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base_url: Option<String>,
+}
+
+async fn model_catalog_command(args: &str) -> anyhow::Result<CommandResult> {
+    let options = parse_model_catalog_options(args)?;
+    let report = model_catalog_report(options.live).await;
+    if options.json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
+    }
+    Ok(CommandResult::text(model_catalog_text(&report)))
+}
+
+fn parse_model_catalog_options(args: &str) -> anyhow::Result<ModelCatalogOptions> {
+    let mut options = ModelCatalogOptions {
+        json: false,
+        live: env_flag("KIANA_MODEL_CATALOG_LIVE"),
+    };
+    for token in args.split_whitespace() {
+        match token {
+            "--json" => options.json = true,
+            "--live" => options.live = true,
+            "" => {}
+            other => {
+                return Err(anyhow!(
+                    "unknown model catalog option '{}'\n\n{}",
+                    other,
+                    usage()
+                ))
+            }
+        }
+    }
+    Ok(options)
+}
+
+async fn model_catalog_report(live: bool) -> ModelCatalogReport {
+    let mut providers = Vec::new();
+    for entry in built_in_provider_registry() {
+        providers.push(model_catalog_provider(entry, live).await);
+    }
+    let summary = ModelCatalogSummary {
+        providers: providers.len(),
+        discovered_models: providers
+            .iter()
+            .map(|provider| provider.discovered_model_ids.len())
+            .sum(),
+        skipped: providers
+            .iter()
+            .filter(|provider| provider.status == "skipped")
+            .count(),
+        failed: providers
+            .iter()
+            .filter(|provider| provider.status == "failed")
+            .count(),
+    };
+    ModelCatalogReport {
+        schema: "kiana.model-catalog.v1",
+        live,
+        summary,
+        providers,
+    }
+}
+
+async fn model_catalog_provider(entry: ProviderRegistryEntry, live: bool) -> ModelCatalogProvider {
+    let built_in_ids = built_in_model_ids(&entry.provider_id);
+    match entry.protocol {
+        ProviderProtocol::AnthropicMessages | ProviderProtocol::Fake => ModelCatalogProvider {
+            provider_id: entry.provider_id,
+            display_name: entry.display_name,
+            protocol: entry.protocol,
+            models_source: entry.models_source,
+            status: "static".to_string(),
+            live: false,
+            model_ids: built_in_ids,
+            discovered_model_ids: Vec::new(),
+            message: "built-in static model catalog".to_string(),
+            base_url: entry.default_base_url,
+        },
+        ProviderProtocol::OpenAiChatCompletions => {
+            openai_catalog_provider(entry, built_in_ids, live).await
+        }
+        ProviderProtocol::OllamaChat => ollama_catalog_provider(entry, built_in_ids, live).await,
+    }
+}
+
+async fn openai_catalog_provider(
+    entry: ProviderRegistryEntry,
+    built_in_ids: Vec<String>,
+    live: bool,
+) -> ModelCatalogProvider {
+    let base_url = provider_base_url(&entry.provider_id);
+    if !live {
+        return skipped_catalog_provider(
+            entry,
+            built_in_ids,
+            base_url,
+            "live model catalog disabled; pass --live or set KIANA_MODEL_CATALOG_LIVE=1",
+        );
+    }
+    let Some(api_key) = provider_api_key(&entry.provider_id) else {
+        let message = missing_api_key_message(&entry.provider_id);
+        return skipped_catalog_provider(entry, built_in_ids, base_url, &message);
+    };
+    match fetch_openai_model_ids(base_url.as_deref().unwrap_or_default(), &api_key).await {
+        Ok(discovered) => passed_catalog_provider(
+            entry,
+            built_in_ids,
+            discovered,
+            base_url,
+            "fetched provider /models catalog",
+        ),
+        Err(message) => failed_catalog_provider(entry, built_in_ids, base_url, message),
+    }
+}
+
+async fn ollama_catalog_provider(
+    entry: ProviderRegistryEntry,
+    built_in_ids: Vec<String>,
+    live: bool,
+) -> ModelCatalogProvider {
+    let base_url = provider_base_url(&entry.provider_id);
+    if !live {
+        return skipped_catalog_provider(
+            entry,
+            built_in_ids,
+            base_url,
+            "live model catalog disabled; pass --live or set KIANA_MODEL_CATALOG_LIVE=1",
+        );
+    }
+    match fetch_ollama_model_ids(base_url.as_deref().unwrap_or_default()).await {
+        Ok(discovered) => passed_catalog_provider(
+            entry,
+            built_in_ids,
+            discovered,
+            base_url,
+            "fetched Ollama /api/tags catalog",
+        ),
+        Err(message) => failed_catalog_provider(entry, built_in_ids, base_url, message),
+    }
+}
+
+async fn fetch_openai_model_ids(base_url: &str, api_key: &str) -> Result<Vec<String>, String> {
+    let url = format!("{}/models", base_url.trim_end_matches('/'));
+    let response = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|error| error.to_string())?
+        .get(url)
+        .bearer_auth(api_key)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "provider models endpoint returned HTTP {}",
+            response.status()
+        ));
+    }
+    let value = response
+        .json::<Value>()
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(value
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|model| model.get("id").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default())
+}
+
+async fn fetch_ollama_model_ids(base_url: &str) -> Result<Vec<String>, String> {
+    let url = format!("{}/api/tags", base_url.trim_end_matches('/'));
+    let response = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|error| error.to_string())?
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Ollama tags endpoint returned HTTP {}",
+            response.status()
+        ));
+    }
+    let value = response
+        .json::<Value>()
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(value
+        .get("models")
+        .and_then(Value::as_array)
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|model| model.get("name").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default())
+}
+
+fn skipped_catalog_provider(
+    entry: ProviderRegistryEntry,
+    built_in_ids: Vec<String>,
+    base_url: Option<String>,
+    message: &str,
+) -> ModelCatalogProvider {
+    ModelCatalogProvider {
+        provider_id: entry.provider_id,
+        display_name: entry.display_name,
+        protocol: entry.protocol,
+        models_source: entry.models_source,
+        status: "skipped".to_string(),
+        live: false,
+        model_ids: built_in_ids,
+        discovered_model_ids: Vec::new(),
+        message: message.to_string(),
+        base_url,
+    }
+}
+
+fn passed_catalog_provider(
+    entry: ProviderRegistryEntry,
+    built_in_ids: Vec<String>,
+    discovered_model_ids: Vec<String>,
+    base_url: Option<String>,
+    message: &str,
+) -> ModelCatalogProvider {
+    let model_ids = merged_model_ids(&built_in_ids, &discovered_model_ids);
+    ModelCatalogProvider {
+        provider_id: entry.provider_id,
+        display_name: entry.display_name,
+        protocol: entry.protocol,
+        models_source: entry.models_source,
+        status: "passed".to_string(),
+        live: true,
+        model_ids,
+        discovered_model_ids,
+        message: message.to_string(),
+        base_url,
+    }
+}
+
+fn failed_catalog_provider(
+    entry: ProviderRegistryEntry,
+    built_in_ids: Vec<String>,
+    base_url: Option<String>,
+    message: String,
+) -> ModelCatalogProvider {
+    ModelCatalogProvider {
+        provider_id: entry.provider_id,
+        display_name: entry.display_name,
+        protocol: entry.protocol,
+        models_source: entry.models_source,
+        status: "failed".to_string(),
+        live: true,
+        model_ids: built_in_ids,
+        discovered_model_ids: Vec::new(),
+        message,
+        base_url,
+    }
+}
+
+fn built_in_model_ids(provider_id: &str) -> Vec<String> {
+    kiana_services::api::provider::built_in_model_profiles()
+        .into_iter()
+        .filter(|profile| profile.provider_id == provider_id)
+        .map(|profile| profile.model_id)
+        .collect()
+}
+
+fn merged_model_ids(built_in_ids: &[String], discovered_model_ids: &[String]) -> Vec<String> {
+    let mut model_ids = built_in_ids.to_vec();
+    for model_id in discovered_model_ids {
+        if !model_ids.contains(model_id) {
+            model_ids.push(model_id.clone());
+        }
+    }
+    model_ids
+}
+
+fn model_catalog_text(report: &ModelCatalogReport) -> String {
+    let mut lines = vec![
+        "Model catalog".to_string(),
+        format!(
+            "summary: providers={} discovered_models={} skipped={} failed={} live={}",
+            report.summary.providers,
+            report.summary.discovered_models,
+            report.summary.skipped,
+            report.summary.failed,
+            report.live
+        ),
+        "provider\tstatus\tmodels\tdiscovered\tmessage".to_string(),
+    ];
+    for provider in &report.providers {
+        lines.push(format!(
+            "{}\t{}\t{}\t{}\t{}",
+            provider.provider_id,
+            provider.status,
+            provider.model_ids.join(","),
+            provider.discovered_model_ids.join(","),
+            provider.message
         ));
     }
     lines.join("\n")
@@ -694,7 +1043,7 @@ fn save_model(model: String) -> anyhow::Result<CommandResult> {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana model <model-name>\n       kiana model status\n       kiana model list [--json]\n       kiana model smoke [--json] [--live] [--tools]\n       kiana model reset"
+    "Usage: kiana model <model-name>\n       kiana model status\n       kiana model list [--json]\n       kiana model catalog [--json] [--live]\n       kiana model smoke [--json] [--live] [--tools]\n       kiana model reset"
 }
 
 #[cfg(test)]
@@ -707,6 +1056,7 @@ mod tests {
     use std::fs;
     use std::sync::{MutexGuard, PoisonError};
     use std::time::{SystemTime, UNIX_EPOCH};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     fn temp_config_path() -> std::path::PathBuf {
         let unique = SystemTime::now()
@@ -739,6 +1089,7 @@ mod tests {
 
     fn clear_model_smoke_env() {
         for key in [
+            "KIANA_MODEL_CATALOG_LIVE",
             "KIANA_PROVIDER_SMOKE_LIVE",
             "KIANA_PROVIDER_SMOKE_TOOLS",
             "ANTHROPIC_API_KEY",
@@ -752,6 +1103,45 @@ mod tests {
         ] {
             std::env::remove_var(key);
         }
+    }
+
+    async fn start_mock_json_server(
+        status: u16,
+        response: Value,
+    ) -> (
+        String,
+        tokio::sync::mpsc::UnboundedReceiver<String>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0_u8; 4096];
+            let mut request = Vec::new();
+            loop {
+                let read = socket.read(&mut buf).await.unwrap();
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&buf[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let request = String::from_utf8_lossy(&request).to_string();
+            tx.send(request).unwrap();
+            let body = response.to_string();
+            let reason = if status == 200 { "OK" } else { "ERROR" };
+            let response = format!(
+                "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        (format!("http://{}", addr), rx, server)
     }
 
     fn file_contains(path: &std::path::Path, needle: &str) -> bool {
@@ -830,6 +1220,118 @@ mod tests {
                 && profile["streaming_mode"].as_str() == Some("synthetic")
                 && profile["native_streaming"].as_bool() == Some(false)
         }));
+    }
+
+    #[tokio::test]
+    async fn model_catalog_json_reports_static_and_live_skips_by_default() {
+        let _guard = lock_env();
+        clear_model_smoke_env();
+
+        let result = ModelCommand
+            .execute(context("catalog --json"))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&result.value).unwrap();
+        let providers = value["providers"].as_array().unwrap();
+
+        assert_eq!(value["schema"], "kiana.model-catalog.v1");
+        assert_eq!(value["live"], false);
+        assert_eq!(value["summary"]["providers"], 4);
+        assert_eq!(value["summary"]["skipped"], 2);
+        assert!(providers.iter().any(|provider| {
+            provider["provider_id"].as_str() == Some("anthropic")
+                && provider["status"].as_str() == Some("static")
+                && provider["model_ids"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|model| model.as_str() == Some("claude-sonnet-4-6"))
+        }));
+        assert!(providers.iter().any(|provider| {
+            provider["provider_id"].as_str() == Some("openai-compatible")
+                && provider["status"].as_str() == Some("skipped")
+                && provider["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("live model catalog disabled")
+        }));
+        assert!(providers.iter().any(|provider| {
+            provider["provider_id"].as_str() == Some("ollama")
+                && provider["status"].as_str() == Some("skipped")
+        }));
+
+        clear_model_smoke_env();
+    }
+
+    #[tokio::test]
+    async fn model_catalog_live_fetches_openai_and_ollama_models() {
+        let _guard = lock_env();
+        clear_model_smoke_env();
+        let (openai_base_url, mut openai_rx, openai_server) = start_mock_json_server(
+            200,
+            serde_json::json!({
+                "data": [
+                    { "id": "gpt-live" },
+                    { "id": "gpt-4.1" }
+                ]
+            }),
+        )
+        .await;
+        let (ollama_base_url, mut ollama_rx, ollama_server) = start_mock_json_server(
+            200,
+            serde_json::json!({
+                "models": [
+                    { "name": "llama-live:latest" }
+                ]
+            }),
+        )
+        .await;
+        std::env::set_var("KIANA_OPENAI_API_KEY", "catalog-secret-1234");
+        std::env::set_var("KIANA_OPENAI_BASE_URL", &openai_base_url);
+        std::env::set_var("KIANA_OLLAMA_BASE_URL", &ollama_base_url);
+
+        let result = ModelCommand
+            .execute(context("catalog --json --live"))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&result.value).unwrap();
+        let providers = value["providers"].as_array().unwrap();
+        let openai = providers
+            .iter()
+            .find(|provider| provider["provider_id"] == "openai-compatible")
+            .unwrap();
+        let ollama = providers
+            .iter()
+            .find(|provider| provider["provider_id"] == "ollama")
+            .unwrap();
+
+        assert_eq!(value["live"], true);
+        assert_eq!(value["summary"]["failed"], 0);
+        assert_eq!(value["summary"]["discovered_models"], 3);
+        assert_eq!(openai["status"], "passed");
+        assert!(openai["discovered_model_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|model| model.as_str() == Some("gpt-live")));
+        assert_eq!(ollama["status"], "passed");
+        assert!(ollama["discovered_model_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|model| model.as_str() == Some("llama-live:latest")));
+        assert!(!result.value.contains("catalog-secret"));
+
+        let openai_request = openai_rx.recv().await.unwrap();
+        assert!(openai_request.starts_with("GET /models HTTP/1.1"));
+        assert!(openai_request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer catalog-secret-1234"));
+        let ollama_request = ollama_rx.recv().await.unwrap();
+        assert!(ollama_request.starts_with("GET /api/tags HTTP/1.1"));
+        openai_server.await.unwrap();
+        ollama_server.await.unwrap();
+        clear_model_smoke_env();
     }
 
     #[tokio::test]

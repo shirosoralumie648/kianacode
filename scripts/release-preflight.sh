@@ -42,6 +42,7 @@ for file in \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
+  docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
@@ -122,6 +123,12 @@ else
   fail "release smoke does not exercise model smoke --json"
 fi
 
+if grep -Fq 'model catalog --json' scripts/release-smoke.sh; then
+  pass "model catalog JSON gate is wired"
+else
+  fail "release smoke does not exercise model catalog --json"
+fi
+
 if grep -Fq 'license status --json' scripts/release-smoke.sh; then
   pass "license status JSON gate is wired"
 else
@@ -144,6 +151,12 @@ if grep -Fq '"const": "kiana.model-smoke.v1"' docs/schemas/kiana-model-smoke.v1.
   pass "model smoke JSON schema version is pinned"
 else
   fail "model smoke JSON schema is missing kiana.model-smoke.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.model-catalog.v1"' docs/schemas/kiana-model-catalog.v1.schema.json; then
+  pass "model catalog JSON schema version is pinned"
+else
+  fail "model catalog JSON schema is missing kiana.model-catalog.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then

@@ -15,6 +15,7 @@ kiana config set api_key "sk-ant-xxx"
 kiana config set base_url "https://api.anthropic.com"
 kiana model list
 kiana model list --json
+kiana model catalog --json
 kiana model smoke --json
 kiana auth status --json
 kiana auth logout              # clears config API key and OAuth token file
@@ -64,6 +65,8 @@ export KIANA_OLLAMA_MODEL="llama3.1"                  # 可选
 ```
 
 当前 Ollama provider 支持 `/api/chat` 文本和工具循环；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会把 Kiana `tool_use`/`tool_result` 映射到 Ollama `tool_calls`/`tool` 消息。
+
+Model catalog 默认无网络，只输出内置目录和 live lookup skip reason。设置 `KIANA_MODEL_CATALOG_LIVE=1` 或使用 `kiana model catalog --live --json` 后，OpenAI-compatible 会请求 `<base_url>/models`，Ollama 会请求 `<base_url>/api/tags`，用于刷新动态模型目录。
 
 Provider smoke 默认无网络，只验证 fake provider 文本路径并报告 live provider skip reason。设置 `KIANA_PROVIDER_SMOKE_LIVE=1` 或使用 `kiana model smoke --live --json` 后，才会尝试真实 Anthropic、OpenAI-compatible 和 Ollama provider；设置 `KIANA_PROVIDER_SMOKE_TOOLS=1` 或传 `--tools` 后，报告会额外覆盖工具调用能力。
 

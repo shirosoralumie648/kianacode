@@ -94,6 +94,8 @@ run_clean_kiana() {
     -u ANTHROPIC_BASE_URL \
     -u ANTHROPIC_MODEL \
     -u KIANA_PROVIDER_SMOKE_LIVE \
+    -u KIANA_PROVIDER_SMOKE_TOOLS \
+    -u KIANA_MODEL_CATALOG_LIVE \
     -u KIANA_REMOTE_ACCESS_TOKEN \
     -u CLAUDE_ACCESS_TOKEN \
     -u KIANA_OAUTH_TOKENS_FILE \
@@ -254,6 +256,64 @@ if fake is None or fake.get("status") != "passed":
 summary = report.get("summary", {})
 if summary.get("failed") != 0 or summary.get("passed", 0) < 1:
     print("model smoke summary failed default gate", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+smoke_model_catalog_json() {
+  local binary="$1"
+  local output
+  local python_bin
+
+  output="$(run_clean_kiana "$binary" model catalog --json 2>&1)"
+  python_bin="$(doctor_json_python)"
+  MODEL_CATALOG_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["MODEL_CATALOG_JSON"])
+except Exception as exc:
+    print(f"model catalog JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("MODEL_CATALOG_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("schema") != "kiana.model-catalog.v1":
+    print("model catalog schema mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("live") is not False:
+    print("default model catalog should stay offline unless --live is set", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
+providers = report.get("providers")
+if not isinstance(providers, list):
+    print("model catalog providers missing", file=sys.stderr)
+    sys.exit(1)
+
+summary = report.get("summary", {})
+if summary.get("failed") != 0 or summary.get("providers") != 4:
+    print("model catalog summary failed default gate", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
+fake = next((item for item in providers if item.get("provider_id") == "fake"), None)
+openai = next((item for item in providers if item.get("provider_id") == "openai-compatible"), None)
+ollama = next((item for item in providers if item.get("provider_id") == "ollama"), None)
+if fake is None or fake.get("status") != "static":
+    print("fake provider catalog should be static", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if openai is None or openai.get("status") != "skipped":
+    print("openai-compatible catalog should skip live lookup by default", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if ollama is None or ollama.get("status") != "skipped":
+    print("ollama catalog should skip live lookup by default", file=sys.stderr)
     print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 PY
@@ -644,6 +704,7 @@ smoke_version "$release_bin"
 smoke_doctor "$release_bin"
 smoke_doctor_json "$release_bin"
 smoke_model_smoke_json "$release_bin"
+smoke_model_catalog_json "$release_bin"
 smoke_license_status_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$release_bin" "$entry"
@@ -659,6 +720,7 @@ smoke_version "$installed_bin"
 smoke_doctor "$installed_bin"
 smoke_doctor_json "$installed_bin"
 smoke_model_smoke_json "$installed_bin"
+smoke_model_catalog_json "$installed_bin"
 smoke_license_status_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$installed_bin" "$entry"

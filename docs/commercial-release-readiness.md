@@ -17,7 +17,7 @@ The gate covers:
 - `cargo fmt --all --check`
 - `cargo test --workspace --locked --offline --no-fail-fast`
 - `cargo build --release --locked --offline -p kiana-entrypoints --bin kiana`
-- Release binary version and doctor smoke.
+- Release binary version, doctor, model smoke, model catalog, and license status smoke.
 - Help, auth, completion, plugin marketplace, MCP config, and project MCP smoke.
 - Temporary source install into an isolated `INSTALL_DIR`.
 - Installed binary version, doctor, help, auth, plugin, and MCP smoke.
@@ -71,6 +71,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Local Ollama provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; `/api/chat` text and `tools`/`tool_calls` loops are covered by local mock gates.
 - Built-in provider registry metadata now centralizes provider display name, protocol, auth method, option aliases, env vars, default model/base URL, model source category, streaming mode, and live-smoke requirement for `model list`, `auth status`, and runner provider construction.
 - `kiana model list --json` now distinguishes native provider streaming from synthetic stream-event fallback through `streaming_mode` and `native_streaming`, preventing OpenAI-compatible and Ollama paths from being presented as native streaming implementations.
+- `kiana model catalog --json` now emits a pinned `kiana.model-catalog.v1` report that stays offline by default; `--live` opt-in refreshes OpenAI-compatible `/models` and Ollama `/api/tags` against configured endpoints, and release smoke validates the default offline JSON gate.
 - Providers that do not support tools still default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`, and provider tool-call smoke remains opt-in through `--tools` or `KIANA_PROVIDER_SMOKE_TOOLS=1`.
 - `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
@@ -88,7 +89,7 @@ These are not solved by the local release gate and must be completed before clai
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists but needs release-channel execution.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring live terminal walkthroughs for TUI permission, diff, onboarding, resume, history, and settings readiness to reference-level usability; the named product-shell headless smoke is now wired into release gates, but target-customer interactive acceptance is still pending.
-- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including dynamic model catalog refresh and opt-in live provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls are covered by local mock gates, opt-in model smoke can now report provider tool-call results, and provider credential/readiness metadata is visible through `auth status`, but live provider operation is not proven by default gates.
+- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, and provider credential/readiness metadata is visible through `auth status`, but live provider operation is not proven by default gates.
 - Continue hardening platform-specific execution isolation and approval policy across Windows, macOS, and Linux; shell policy now blocks additional destructive root-sync shapes such as `rsync --delete ... /` and `robocopy ... C:\ /MIR`, but OS-level sandbox depth still needs platform runner proof.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.

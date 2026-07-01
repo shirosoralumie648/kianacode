@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-model-catalog.v1.schema.json",
+  "title": "Kiana Model Catalog Report v1",
+  "type": "object",
+  "required": ["schema", "live", "summary", "providers"],
+  "properties": {
+    "schema": {
+      "const": "kiana.model-catalog.v1"
+    },
+    "live": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["providers", "discovered_models", "skipped", "failed"],
+      "properties": {
+        "providers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "discovered_models": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "provider": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "display_name",
+        "protocol",
+        "models_source",
+        "status",
+        "live",
+        "model_ids",
+        "discovered_model_ids",
+        "message"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "anthropic_messages",
+            "open_ai_chat_completions",
+            "ollama_chat",
+            "fake"
+          ]
+        },
+        "models_source": {
+          "type": "string",
+          "enum": [
+            "static_table",
+            "user_configured",
+            "local_service",
+            "deterministic_test"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["static", "passed", "skipped", "failed"]
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "model_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "discovered_model_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "message": {
+          "type": "string"
+        },
+        "base_url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

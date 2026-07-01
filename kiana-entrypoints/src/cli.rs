@@ -15508,6 +15508,8 @@ mod tests {
                 && profile["model_id"].as_str() == Some("gpt-4.1")
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
+                && profile["streaming_mode"].as_str() == Some("synthetic")
+                && profile["native_streaming"].as_bool() == Some(false)
         }));
         assert!(profiles.as_array().unwrap().iter().any(|profile| {
             profile["provider_id"].as_str() == Some("ollama")
@@ -15515,6 +15517,61 @@ mod tests {
                 && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
         }));
+    }
+
+    #[tokio::test]
+    async fn cli_model_catalog_json_reports_default_offline_catalog() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&[
+            "KIANA_MODEL_CATALOG_LIVE",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OPENAI_BASE_URL",
+            "OPENAI_BASE_URL",
+            "KIANA_OLLAMA_BASE_URL",
+            "OLLAMA_BASE_URL",
+        ]);
+        for key in [
+            "KIANA_MODEL_CATALOG_LIVE",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OPENAI_BASE_URL",
+            "OPENAI_BASE_URL",
+            "KIANA_OLLAMA_BASE_URL",
+            "OLLAMA_BASE_URL",
+        ] {
+            std::env::remove_var(key);
+        }
+
+        let result = run_local_command(&[
+            "model".to_string(),
+            "catalog".to_string(),
+            "--json".to_string(),
+        ])
+        .await
+        .unwrap()
+        .expect("model catalog result");
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.model-catalog.v1");
+        assert_eq!(report["live"], false);
+        assert_eq!(report["summary"]["failed"], 0);
+        assert!(report["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| {
+                provider["provider_id"].as_str() == Some("openai-compatible")
+                    && provider["status"].as_str() == Some("skipped")
+            }));
+        assert!(report["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| {
+                provider["provider_id"].as_str() == Some("fake")
+                    && provider["status"].as_str() == Some("static")
+            }));
     }
 
     #[tokio::test]
