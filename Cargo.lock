@@ -2634,6 +2634,7 @@ dependencies = [
  "chrono",
  "eventsource-stream",
  "futures",
+ "kiana-bootstrap",
  "rand 0.8.6",
  "regex",
  "reqwest",

@@ -257,8 +257,8 @@ mod tests {
             .contains("smoke_script: scripts/release-smoke.sh (found)"));
         for gate in [
             "cargo fmt --all --check",
-            "cargo test --workspace --no-fail-fast",
-            "cargo build --release -p kiana-entrypoints --bin kiana",
+            "cargo test --workspace --locked --offline --no-fail-fast",
+            "cargo build --release --locked --offline -p kiana-entrypoints --bin kiana",
             "./target/release/kiana --version",
             "./target/release/kiana doctor",
         ] {

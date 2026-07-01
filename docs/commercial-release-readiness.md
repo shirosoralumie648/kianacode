@@ -15,8 +15,8 @@ CARGO_NET_GIT_FETCH_WITH_CLI=true \
 The gate covers:
 
 - `cargo fmt --all --check`
-- `cargo test --workspace --no-fail-fast`
-- `cargo build --release -p kiana-entrypoints --bin kiana`
+- `cargo test --workspace --locked --offline --no-fail-fast`
+- `cargo build --release --locked --offline -p kiana-entrypoints --bin kiana`
 - Release binary version and doctor smoke.
 - Help, auth, completion, plugin marketplace, MCP config, and project MCP smoke.
 - Temporary source install into an isolated `INSTALL_DIR`.
@@ -46,6 +46,8 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Added `scripts/install-compliance-tools.sh` so full compliance tooling can be installed under ignored `target/` paths instead of relying on global Cargo state.
 - Full local compliance mode now passes with project-local `cargo-audit` and `cargo-deny`; current RustSec output has no vulnerability errors and retains six allowed warning advisories for upstream-only maintenance/unsoundness tracking.
 - Direct-connect Unix socket support is implemented for Unix builds through `cc+unix:///path/to/socket` and `kiana server --unix <path>`; Windows builds report the platform boundary explicitly.
+- Service-layer API key lookup now reuses the same effective config stack as CLI auth/config commands, including managed settings overrides and empty-value filtering.
+- Release smoke now enforces locked/offline Cargo test and release-build gates, and successful smoke subcommands keep their real exit status instead of relying only on output matching.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 

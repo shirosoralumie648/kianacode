@@ -5,8 +5,8 @@ cd "$(dirname "$0")/.."
 
 if [[ "${KIANA_RELEASE_SMOKE_SKIP_BUILD_GATES:-0}" != "1" ]]; then
   cargo fmt --all --check
-  cargo test --workspace --no-fail-fast
-  cargo build --release -p kiana-entrypoints --bin kiana
+  cargo test --workspace --locked --offline --no-fail-fast
+  cargo build --release --locked --offline -p kiana-entrypoints --bin kiana
 fi
 
 exe_ext() {
@@ -96,10 +96,7 @@ run_clean_kiana() {
     -u CLAUDE_ACCESS_TOKEN \
     "$@" || status=$?
 
-  case "${1:-}" in
-    make|bash) return "$status" ;;
-    *) return 0 ;;
-  esac
+  return "$status"
 }
 
 install_release_binary() {

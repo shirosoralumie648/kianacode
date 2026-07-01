@@ -49,8 +49,11 @@ impl Command for ReleaseCommand {
             }
         ));
         lines.push("gate: cargo fmt --all --check".to_string());
-        lines.push("gate: cargo test --workspace --no-fail-fast".to_string());
-        lines.push("gate: cargo build --release -p kiana-entrypoints --bin kiana".to_string());
+        lines.push("gate: cargo test --workspace --locked --offline --no-fail-fast".to_string());
+        lines.push(
+            "gate: cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"
+                .to_string(),
+        );
         lines.push("gate: ./target/release/kiana --version".to_string());
         lines.push("gate: ./target/release/kiana doctor".to_string());
         lines.push("gate: temp INSTALL_DIR make install + installed kiana doctor".to_string());
@@ -285,10 +288,10 @@ mod tests {
         assert!(result.value.contains("gate: cargo fmt --all --check"));
         assert!(result
             .value
-            .contains("gate: cargo test --workspace --no-fail-fast"));
-        assert!(result
-            .value
-            .contains("gate: cargo build --release -p kiana-entrypoints --bin kiana"));
+            .contains("gate: cargo test --workspace --locked --offline --no-fail-fast"));
+        assert!(result.value.contains(
+            "gate: cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"
+        ));
         assert!(result
             .value
             .contains("gate: ./target/release/kiana --version"));
@@ -416,10 +419,15 @@ mod tests {
             .expect("missing scripts/release-smoke.sh");
 
         assert!(smoke.contains("mktemp -d"));
+        assert!(smoke.contains("cargo test --workspace --locked --offline --no-fail-fast"));
+        assert!(smoke
+            .contains("cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"));
         assert!(smoke.contains("real_cargo_home="));
         assert!(smoke.contains("real_rustup_home="));
         assert!(smoke.contains("smoke_home="));
         assert!(smoke.contains("run_clean_kiana"));
+        assert!(smoke.contains(r#"return "$status""#));
+        assert!(!smoke.contains(r#"*) return 0 ;;"#));
         assert!(smoke.contains("CARGO_HOME=\"$real_cargo_home\""));
         assert!(smoke.contains("RUSTUP_HOME=\"$real_rustup_home\""));
         assert!(smoke.contains("KIANA_CONFIG_FILE=\"$smoke_home/.kiana/config.toml\""));

@@ -26,6 +26,11 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Direct-connect reference parity: `cc+unix:///path/to/socket` open targets and
   `kiana server --unix <path>` now have Unix-domain-socket implementations on
   Unix platforms, with explicit unsupported-platform errors on Windows.
+- Service-layer API key resolution now uses the same effective config stack as
+  the CLI, including config files, overlays, managed policy, environment
+  precedence, and empty-value filtering.
+- Release smoke now enforces locked/offline Cargo test and release-build gates
+  and preserves real CLI smoke exit status for expected-success commands.
 
 ### Verified
 
