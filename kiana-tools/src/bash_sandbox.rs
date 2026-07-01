@@ -172,7 +172,7 @@ pub fn find_on_path(binary: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::env_lock;
+    use crate::test_support::lock_env;
     use serde_json::json;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn diagnostic_uses_sandbox_object_and_env_fallbacks() {
-        let _lock = env_lock().lock().unwrap();
+        let _lock = lock_env();
         let bwrap = temp_path("bwrap");
         fs::write(&bwrap, "#!/bin/sh\n").unwrap();
         let _guard = EnvGuard::set(&[
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn diagnostic_accepts_boolean_sandbox_as_enabled_shorthand() {
-        let _lock = env_lock().lock().unwrap();
+        let _lock = lock_env();
         let path_dir = temp_path("empty-path");
         fs::create_dir_all(&path_dir).unwrap();
         let _guard = EnvGuard::set(&[

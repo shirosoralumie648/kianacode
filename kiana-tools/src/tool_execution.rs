@@ -1452,7 +1452,7 @@ mod tests {
 
     #[tokio::test]
     async fn pre_tool_use_hook_blocks_mutating_tool_before_call() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         clear_hook_env();
         std::env::set_var(
             "KIANA_PRE_TOOL_USE_HOOKS",
@@ -1492,7 +1492,7 @@ mod tests {
 
     #[tokio::test]
     async fn pre_tool_use_hook_denies_mutating_tool_before_call() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         clear_hook_env();
         std::env::set_var(
             "KIANA_PRE_TOOL_USE_HOOKS",
@@ -1532,7 +1532,7 @@ mod tests {
 
     #[tokio::test]
     async fn pre_tool_use_hook_updates_tool_input_before_call() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         clear_hook_env();
         std::env::set_var(
             "KIANA_PRE_TOOL_USE_HOOKS",
@@ -1578,7 +1578,7 @@ mod tests {
 
     #[tokio::test]
     async fn pre_tool_use_hook_ask_requests_permission_before_call() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         clear_hook_env();
         std::env::set_var(
             "KIANA_PRE_TOOL_USE_HOOKS",
@@ -1629,7 +1629,7 @@ mod tests {
 
     #[tokio::test]
     async fn pre_tool_use_hook_ask_honors_permission_denial() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         clear_hook_env();
         std::env::set_var(
             "KIANA_PRE_TOOL_USE_HOOKS",
@@ -1674,7 +1674,7 @@ mod tests {
 
     #[tokio::test]
     async fn post_tool_use_hook_runs_after_successful_tool_call() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         clear_hook_env();
         let root =
             std::env::temp_dir().join(format!("kiana-post-tool-use-hook-{}", uuid::Uuid::new_v4()));

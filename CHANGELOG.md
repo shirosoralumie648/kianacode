@@ -34,6 +34,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Distribution manifest dry-runs are generated from release package checksums,
   including an enterprise offline manifest and explicit package-channel blockers
   when an artifact is not yet publishable by a target channel.
+- Added a `commercial` permission profile and `kiana doctor`
+  `commercial_security` readiness report for strict sandbox plus approval
+  posture validation.
 
 ### Verified
 

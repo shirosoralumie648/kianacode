@@ -3879,7 +3879,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_runs_foreground_runner_command() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'agent saw: %s\\n' \"$KIANA_AGENT_PROMPT\"",
@@ -3909,7 +3909,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_runs_listed_built_in_agent_definitions() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&[
             "HOME",
             "KIANA_HOME",
@@ -3973,7 +3973,7 @@ mod tests {
 
     #[tokio::test]
     async fn claude_code_guide_includes_dynamic_project_context() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         kiana_skills::clear_caches();
         let _env = EnvSnapshot::take(&[
             "HOME",
@@ -4060,7 +4060,7 @@ mod tests {
 
     #[tokio::test]
     async fn claude_code_guide_hides_project_agents_when_project_is_untrusted() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         kiana_skills::clear_caches();
         let _env = EnvSnapshot::take(&["HOME", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
         let root = std::env::temp_dir().join(format!("kiana-guide-trust-{}", Uuid::new_v4()));
@@ -4094,7 +4094,7 @@ mod tests {
 
     #[test]
     fn agent_resolution_uses_kiana_dirs_and_local_precedence() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&["HOME", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
         let root = std::env::temp_dir().join(format!("kiana-agent-dirs-{}", Uuid::new_v4()));
         let home = root.join("home");
@@ -4137,7 +4137,7 @@ mod tests {
 
     #[tokio::test]
     async fn untrusted_project_does_not_resolve_project_agent_definition() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&["HOME", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
         let root = std::env::temp_dir().join(format!("kiana-agent-trust-{}", Uuid::new_v4()));
         let home = root.join("home");
@@ -4191,7 +4191,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_registers_foreground_teammate_with_team_context_and_env() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'team=%s name=%s id=%s tasklist=%s plan=%s prompt=%s\\n' \"$KIANA_TEAM_NAME\" \"$KIANA_AGENT_NAME\" \"$KIANA_AGENT_ID\" \"$KIANA_TASK_LIST_ID\" \"$KIANA_PLAN_MODE_REQUIRED\" \"$KIANA_AGENT_PROMPT\"",
@@ -4263,7 +4263,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_loads_project_agent_definition_for_subagent_type() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         kiana_skills::clear_caches();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
@@ -4332,7 +4332,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_memory_frontmatter_appends_prompt_and_injects_tools() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&[
             "HOME",
             "KIANA_HOME",
@@ -4397,7 +4397,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_frontmatter_lifecycle_hooks_add_context_and_run_subagent_stop() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&[
             "HOME",
             "KIANA_HOME",
@@ -4472,7 +4472,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_lifecycle_hooks_ignore_project_hooks_file_when_project_is_untrusted() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&[
             "HOME",
             "KIANA_HOME",
@@ -4537,7 +4537,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_lifecycle_hooks_load_project_hooks_alongside_home_hooks_when_trusted() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&[
             "HOME",
             "KIANA_HOME",
@@ -4604,7 +4604,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_loads_plugin_agent_definition_for_subagent_type() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         kiana_skills::clear_caches();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
@@ -4712,7 +4712,7 @@ mod tests {
 
     #[tokio::test]
     async fn plugin_agent_manifest_paths_load_and_reject_traversal() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let root = std::env::temp_dir().join(format!(
             "kiana-plugin-agent-manifest-test-{}",
             Uuid::new_v4()
@@ -4750,7 +4750,7 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_plugin_agent_definition_is_not_resolved() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let root = std::env::temp_dir().join(format!(
             "kiana-plugin-agent-disabled-test-{}",
             Uuid::new_v4()
@@ -4874,7 +4874,7 @@ mod tests {
 
     #[test]
     fn team_background_agent_runner_script_uses_resident_teammate_mode() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::remove_var("KIANA_AGENT_COMMAND");
         let root =
             std::env::temp_dir().join(format!("kiana-agent-resident-script-{}", Uuid::new_v4()));
@@ -4925,7 +4925,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_definition_can_force_background_execution() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'forced background type=%s system=%s prompt=%s\\n' \"$KIANA_AGENT_TYPE\" \"$KIANA_AGENT_SYSTEM_PROMPT\" \"$KIANA_AGENT_PROMPT\"",
@@ -5038,7 +5038,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_frontmatter_isolation_runs_in_snapshot_copy() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'pwd=%s isolation=%s path=%s strategy=%s file=%s\\n' \"$PWD\" \"$KIANA_AGENT_ISOLATION\" \"$KIANA_AGENT_WORKTREE_PATH\" \"$KIANA_AGENT_WORKTREE_STRATEGY\" \"$(cat repo.txt)\"",
@@ -5097,7 +5097,7 @@ mod tests {
 
     #[tokio::test]
     async fn background_agent_records_isolation_metadata() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'background isolation=%s path=%s strategy=%s file=%s\\n' \"$KIANA_AGENT_ISOLATION\" \"$KIANA_AGENT_WORKTREE_PATH\" \"$KIANA_AGENT_WORKTREE_STRATEGY\" \"$(cat repo.txt)\"",
@@ -5162,7 +5162,7 @@ mod tests {
 
     #[tokio::test]
     async fn background_agent_registers_teammate_and_inherits_team_env() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'bg team=%s name=%s id=%s tasklist=%s mailbox=%s prompt=%s\\n' \"$KIANA_TEAM_NAME\" \"$KIANA_AGENT_NAME\" \"$KIANA_AGENT_ID\" \"$KIANA_TASK_LIST_ID\" \"$KIANA_TEAM_MAILBOX\" \"$KIANA_AGENT_PROMPT\"",
@@ -5240,7 +5240,7 @@ mod tests {
 
     #[tokio::test]
     async fn background_agent_output_is_readable_with_task_output() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         std::env::set_var(
             "KIANA_AGENT_COMMAND",
             "printf 'background agent saw: %s\\n' \"$KIANA_AGENT_PROMPT\"",

@@ -3017,7 +3017,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_enabled_plugin_lsp_servers_with_reference_priority() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("plugin-priority");
         let plugins_dir = root.join("plugins");
         let plugin_root = plugins_dir.join("review-lsp");
@@ -3135,7 +3135,7 @@ mod tests {
 
     #[tokio::test]
     async fn lsp_tool_uses_plugin_server_for_symbols_diagnostics_and_locations() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         super::shutdown_lsp_clients().await;
         super::reset_all_lsp_diagnostic_state();
         let root = temp_root("plugin-runtime");
@@ -3384,7 +3384,7 @@ mod tests {
 
     #[tokio::test]
     async fn lsp_runtime_accepts_manifest_lifecycle_fields() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         super::shutdown_lsp_clients().await;
         super::reset_all_lsp_diagnostic_state();
         let root = temp_root("plugin-lifecycle-fields");
@@ -3442,7 +3442,7 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_plugin_lsp_servers_are_not_returned() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("plugin-disabled");
         let plugins_dir = root.join("plugins");
         let plugin_root = plugins_dir.join("review-lsp");

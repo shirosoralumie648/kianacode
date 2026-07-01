@@ -784,7 +784,7 @@ mod tests {
             env: HashMap::new(),
             initialization_options: json!({}),
             settings: None,
-            startup_timeout_ms: None,
+            startup_timeout_ms: Some(30_000),
             shutdown_timeout_ms: None,
             restart_on_crash: false,
             max_restarts: None,

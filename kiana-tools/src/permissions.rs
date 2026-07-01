@@ -564,6 +564,7 @@ fn normalized_profile(value: Option<&str>) -> Option<String> {
     let normalized = match value {
         "read-only" | "readonly" | "read_only" => "read-only",
         "workspace" | "default" => "workspace",
+        "commercial" | "commercial-security" | "commercial_security" => "commercial",
         "full" | "bypassPermissions" | "bypass-permissions" | "bypass_permissions" => "full",
         "ask" => "ask",
         "plan" => "plan",
@@ -576,6 +577,7 @@ fn profile_default_mode(profile: &str) -> String {
     match profile {
         "read-only" | "plan" => "plan".to_string(),
         "full" => "bypassPermissions".to_string(),
+        "commercial" => "ask".to_string(),
         "ask" => "ask".to_string(),
         _ => "default".to_string(),
     }
@@ -872,6 +874,24 @@ mod tests {
             assert!(matches!(
                 permission_check_for_tool("Bash", false, &json!({"command": "pwd"}), &app_state),
                 ToolPermissionCheck::Deny(_)
+            ));
+            assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
+        });
+    }
+
+    #[test]
+    fn commercial_profile_requires_permission_for_mutating_tools() {
+        with_isolated_permission_env("commercial-profile", |_| {
+            let app_state =
+                HashMap::from([("permission_profile".to_string(), json!("commercial"))]);
+
+            let settings = effective_tool_permissions(&app_state);
+            assert_eq!(settings.profile, "commercial");
+            assert_eq!(settings.mode, "ask");
+
+            assert!(matches!(
+                permission_check_for_tool("Bash", false, &json!({"command": "pwd"}), &app_state),
+                ToolPermissionCheck::Ask(_)
             ));
             assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
         });

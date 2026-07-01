@@ -1179,7 +1179,7 @@ mod tests {
 
     #[test]
     fn configured_mcp_servers_merges_parent_project_mcp_json_files() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let root = temp_root("project-parent");
         let child = root.join("packages").join("app");
@@ -1226,7 +1226,7 @@ mod tests {
 
     #[test]
     fn resolve_server_config_uses_project_mcp_json_without_app_state() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let root = temp_root("project-resolve");
         fs::create_dir_all(&root).unwrap();
@@ -1289,7 +1289,7 @@ mod tests {
 
     #[test]
     fn untrusted_project_mcp_json_is_ignored_for_server_resolution() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let root = temp_root("project-trust");
         fs::create_dir_all(&root).unwrap();
@@ -1353,7 +1353,7 @@ mod tests {
 
     #[test]
     fn project_mcp_json_expands_environment_variables_and_defaults() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let root = temp_root("project-env-expansion");
         fs::create_dir_all(&root).unwrap();
@@ -1636,7 +1636,7 @@ mod tests {
 
     #[test]
     fn resolves_plugin_mcp_servers_with_reference_priority() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("plugin-priority");
         let plugins_dir = root.join("plugins");
         let plugin_root = plugins_dir.join("review-mcp");
@@ -1797,7 +1797,7 @@ mod tests {
 
     #[test]
     fn disabled_plugin_mcp_servers_are_not_resolved() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("plugin-disabled");
         let plugins_dir = root.join("plugins");
         let plugin_root = plugins_dir.join("review-mcp");

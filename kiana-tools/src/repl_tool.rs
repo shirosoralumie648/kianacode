@@ -387,7 +387,7 @@ mod tests {
 
     #[tokio::test]
     async fn uses_mcp_permission_prompt_tool_for_primitive_calls() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let _guard = crate::test_support::lock_env();
         let (url, state, handle) = start_mock_permission_mcp_server(json!({"decision":"allow"}));
         let root = std::env::temp_dir().join(format!("kiana-repl-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
@@ -505,6 +505,7 @@ mod tests {
             while Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        stream.set_nonblocking(false).unwrap();
                         last_request = Instant::now();
                         handle_mock_permission_mcp_request(&mut stream, &server_state);
                     }

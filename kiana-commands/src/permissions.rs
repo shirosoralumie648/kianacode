@@ -253,10 +253,19 @@ fn set_profile(profile: &str) -> Result<CommandResult> {
     }
     if !matches!(
         profile,
-        "read-only" | "readonly" | "read_only" | "workspace" | "full" | "ask" | "plan"
+        "read-only"
+            | "readonly"
+            | "read_only"
+            | "workspace"
+            | "commercial"
+            | "commercial-security"
+            | "commercial_security"
+            | "full"
+            | "ask"
+            | "plan"
     ) {
         return Err(anyhow!(
-            "invalid permission profile '{}'; expected read-only, workspace, full, ask, or plan",
+            "invalid permission profile '{}'; expected read-only, workspace, commercial, full, ask, or plan",
             profile
         ));
     }
@@ -296,13 +305,14 @@ fn format_rules(rules: &[String]) -> String {
 }
 
 fn usage() -> &'static str {
-    "Usage:\n  kiana permissions [status]\n  kiana permissions allow <ToolName|Tool(pattern)>\n  kiana permissions deny <ToolName|Tool(pattern)>\n  kiana permissions remove <ToolName|Tool(pattern)>\n  kiana permissions profile <read-only|workspace|full|ask|plan>\n  kiana permissions mode <default|ask|plan|auto|acceptEdits|bypassPermissions|dontAsk>"
+    "Usage:\n  kiana permissions [status]\n  kiana permissions allow <ToolName|Tool(pattern)>\n  kiana permissions deny <ToolName|Tool(pattern)>\n  kiana permissions remove <ToolName|Tool(pattern)>\n  kiana permissions profile <read-only|workspace|commercial|full|ask|plan>\n  kiana permissions mode <default|ask|plan|auto|acceptEdits|bypassPermissions|dontAsk>"
 }
 
 fn normalize_profile(profile: &str) -> String {
     match profile.trim() {
         "read-only" | "readonly" | "read_only" => "read-only".to_string(),
         "workspace" | "default" => "workspace".to_string(),
+        "commercial" | "commercial-security" | "commercial_security" => "commercial".to_string(),
         "full" => "full".to_string(),
         "ask" => "ask".to_string(),
         "plan" => "plan".to_string(),
@@ -314,6 +324,7 @@ fn profile_default_mode(profile: &str) -> &'static str {
     match profile {
         "read-only" | "plan" => "plan",
         "full" => "bypassPermissions",
+        "commercial" => "ask",
         "ask" => "ask",
         _ => "default",
     }
@@ -470,6 +481,28 @@ mod tests {
         let saved: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(saved["profile"], "read-only");
+
+        let _ = std::fs::remove_file(&path);
+        clear_permission_env();
+    }
+
+    #[tokio::test]
+    async fn commercial_profile_defaults_to_ask_mode() {
+        let _guard = lock_env();
+        clear_permission_env();
+        let path = temp_permissions_path();
+        std::env::set_var("KIANA_PERMISSIONS_FILE", &path);
+
+        let profile = PermissionsCommand
+            .execute(context("profile commercial"))
+            .await
+            .unwrap();
+        assert!(profile.value.contains("profile: commercial"));
+        assert!(profile.value.contains("mode: ask"));
+
+        let status = PermissionsCommand.execute(context("status")).await.unwrap();
+        assert!(status.value.contains("profile: commercial"));
+        assert!(status.value.contains("mode: ask"));
 
         let _ = std::fs::remove_file(&path);
         clear_permission_env();

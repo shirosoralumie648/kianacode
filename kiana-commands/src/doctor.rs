@@ -2,6 +2,7 @@ use crate::local_state::{bool_label, config_path, sdk_sessions_dir};
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use async_trait::async_trait;
 use kiana_tools::bash_sandbox::{bash_sandbox_diagnostic, BashSandboxStatus};
+use kiana_tools::permissions::{effective_tool_permissions, EffectiveToolPermissions};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::process::Command as ProcessCommand;
@@ -49,6 +50,9 @@ impl Command for DoctorCommand {
         let sandbox_state =
             sandbox_diagnostic_app_state(&context.app_state, config.sandbox.as_ref());
         let bash_sandbox = bash_sandbox_diagnostic(&sandbox_state);
+        let tool_permissions = effective_tool_permissions(&context.app_state);
+        let commercial_security_issues =
+            commercial_security_issues(&tool_permissions, &bash_sandbox);
 
         let mut lines = vec![
             "Doctor".to_string(),
@@ -123,6 +127,14 @@ impl Command for DoctorCommand {
                 bool_label(bash_sandbox.allow_unsandboxed_commands),
                 bash_sandbox.bwrap_label()
             ),
+            format!(
+                "commercial_security: {}",
+                if commercial_security_issues.is_empty() {
+                    "ready".to_string()
+                } else {
+                    format!("not_ready({} issue(s))", commercial_security_issues.len())
+                }
+            ),
         ];
 
         if config
@@ -164,6 +176,9 @@ impl Command for DoctorCommand {
                 "warning: bash sandbox enabled but bubblewrap (bwrap) is not available; Bash may run unsandboxed if allowed"
                     .to_string(),
             );
+        }
+        for issue in commercial_security_issues {
+            lines.push(format!("commercial_security_issue: {issue}"));
         }
 
         Ok(CommandResult::text(lines.join("\n")))
@@ -232,6 +247,32 @@ fn sandbox_diagnostic_app_state(
         }
     }
     state
+}
+
+fn commercial_security_issues(
+    permissions: &EffectiveToolPermissions,
+    bash_sandbox: &kiana_tools::bash_sandbox::BashSandboxDiagnostic,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+    if permissions.profile != "commercial" {
+        issues.push("set `kiana permissions profile commercial`".to_string());
+    }
+    if permissions.mode != "ask" {
+        issues.push("commercial profile must resolve to ask permission mode".to_string());
+    }
+    if !bash_sandbox.enabled {
+        issues.push("enable bash sandbox in config sandbox.enabled=true".to_string());
+    }
+    if bash_sandbox.status != BashSandboxStatus::Ready {
+        issues.push("install/configure bubblewrap (bwrap) for bash sandbox".to_string());
+    }
+    if !bash_sandbox.fail_if_unavailable {
+        issues.push("set sandbox.failIfUnavailable=true".to_string());
+    }
+    if bash_sandbox.allow_unsandboxed_commands {
+        issues.push("set sandbox.allowUnsandboxedCommands=false".to_string());
+    }
+    issues
 }
 
 fn bridge_access_token_configured() -> bool {
@@ -484,6 +525,82 @@ mod tests {
         assert!(result.value.contains(
             "warning: bash sandbox enabled with failIfUnavailable=true, but bubblewrap (bwrap) is not available"
         ));
+
+        let _ = fs::remove_dir_all(path_dir);
+    }
+
+    #[tokio::test]
+    async fn doctor_reports_commercial_security_ready() {
+        let _lock = env_lock().lock().unwrap();
+        let bwrap = temp_path("commercial-bwrap");
+        fs::write(&bwrap, "#!/bin/sh\n").unwrap();
+        let settings = json!({
+            "sandbox": {
+                "enabled": true,
+                "failIfUnavailable": true,
+                "allowUnsandboxedCommands": false,
+                "bwrapPath": bwrap,
+            }
+        })
+        .to_string();
+        let _guard = EnvGuard::set(&[
+            ("KIANA_SETTINGS_JSON", Some(&settings)),
+            ("KIANA_PERMISSION_PROFILE", Some("commercial")),
+            ("KIANA_PERMISSION_MODE", None),
+            ("KIANA_BASH_SANDBOX", None),
+            ("KIANA_BASH_SANDBOX_FAIL_IF_UNAVAILABLE", None),
+            ("KIANA_BASH_SANDBOX_ALLOW_UNSANDBOXED", None),
+            ("KIANA_BWRAP_PATH", None),
+        ]);
+
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: String::new(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(result.value.contains("commercial_security: ready"));
+        assert!(!result.value.contains("commercial_security_issue:"));
+
+        let _ = fs::remove_file(bwrap);
+    }
+
+    #[tokio::test]
+    async fn doctor_reports_commercial_security_gaps() {
+        let _lock = env_lock().lock().unwrap();
+        let path_dir = temp_path("commercial-empty-path");
+        fs::create_dir_all(&path_dir).unwrap();
+        let _guard = EnvGuard::set(&[
+            (
+                "KIANA_SETTINGS_JSON",
+                Some(r#"{"sandbox":{"enabled":false}}"#),
+            ),
+            ("KIANA_PERMISSION_PROFILE", Some("workspace")),
+            ("KIANA_PERMISSION_MODE", None),
+            ("PATH", Some(path_dir.to_str().unwrap())),
+            ("KIANA_BASH_SANDBOX", None),
+            ("KIANA_BASH_SANDBOX_FAIL_IF_UNAVAILABLE", None),
+            ("KIANA_BASH_SANDBOX_ALLOW_UNSANDBOXED", None),
+            ("KIANA_BWRAP_PATH", None),
+        ]);
+
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: String::new(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(result.value.contains("commercial_security: not_ready"));
+        assert!(result
+            .value
+            .contains("commercial_security_issue: set `kiana permissions profile commercial`"));
+        assert!(result
+            .value
+            .contains("commercial_security_issue: enable bash sandbox"));
 
         let _ = fs::remove_dir_all(path_dir);
     }
