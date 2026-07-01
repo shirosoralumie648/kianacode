@@ -1,6 +1,6 @@
 use super::client::AnthropicClient;
 use super::errors::{ApiError, ApiErrorKind};
-use super::messages::{MessagesRequest, MessagesResponse, Usage};
+use super::messages::{Message, MessagesRequest, MessagesResponse, Usage};
 use super::streaming::{
     ContentBlock as StreamContentBlock, Delta, DeltaUsage, MessageDelta, MessageStart, StreamEvent,
 };
@@ -201,7 +201,7 @@ fn openai_compatible_model_profile(model_id: &str) -> ModelProfile {
     ModelProfile {
         provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
         model_id: model_id.to_string(),
-        supports_tools: false,
+        supports_tools: true,
         supports_streaming: true,
         supports_vision: false,
         supports_structured_output: false,
@@ -358,12 +358,9 @@ fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
             "content": openai_message_content(system),
         }));
     }
-    messages.extend(request.messages.iter().map(|message| {
-        json!({
-            "role": message.role.clone(),
-            "content": openai_message_content(&message.content),
-        })
-    }));
+    for message in &request.messages {
+        messages.extend(openai_messages_from_message(message));
+    }
 
     let mut body = json!({
         "model": request.model.clone(),
@@ -374,12 +371,69 @@ fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
     if let Some(temperature) = request.temperature {
         body["temperature"] = json!(temperature);
     }
+    if let Some(tools) = request.tools.as_ref().filter(|tools| !tools.is_empty()) {
+        body["tools"] = Value::Array(tools.iter().map(openai_tool_definition).collect());
+        body["tool_choice"] = json!("auto");
+    }
     body
 }
 
+fn openai_messages_from_message(message: &Message) -> Vec<Value> {
+    if let Some(array) = message.content.as_array() {
+        if array
+            .iter()
+            .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
+        {
+            return array
+                .iter()
+                .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_result"))
+                .map(|block| {
+                    json!({
+                        "role": "tool",
+                        "tool_call_id": block
+                            .get("tool_use_id")
+                            .and_then(Value::as_str)
+                            .unwrap_or("toolu_unknown"),
+                        "content": openai_tool_result_content(block.get("content").unwrap_or(&Value::Null)),
+                    })
+                })
+                .collect();
+        }
+
+        let tool_use_blocks = array
+            .iter()
+            .filter(|block| block.get("type").and_then(Value::as_str) == Some("tool_use"))
+            .collect::<Vec<_>>();
+        if !tool_use_blocks.is_empty() {
+            let text = openai_message_text_content(&message.content);
+            return vec![json!({
+                "role": message.role.clone(),
+                "content": if text.is_empty() { Value::Null } else { Value::String(text) },
+                "tool_calls": tool_use_blocks
+                    .into_iter()
+                    .map(openai_tool_call_from_tool_use)
+                    .collect::<Vec<_>>(),
+            })];
+        }
+    }
+
+    vec![json!({
+        "role": message.role.clone(),
+        "content": openai_message_content(&message.content),
+    })]
+}
+
 fn openai_message_content(content: &Value) -> Value {
+    let text = openai_message_text_content(content);
+    if !text.is_empty() {
+        return Value::String(text);
+    }
+    Value::String(content.to_string())
+}
+
+fn openai_message_text_content(content: &Value) -> String {
     if let Some(text) = content.as_str() {
-        return Value::String(text.to_string());
+        return text.to_string();
     }
     if let Some(array) = content.as_array() {
         let text = array
@@ -395,11 +449,75 @@ fn openai_message_content(content: &Value) -> Value {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        if !text.is_empty() {
-            return Value::String(text);
-        }
+        return text;
     }
-    Value::String(content.to_string())
+    String::new()
+}
+
+fn openai_tool_definition(tool: &Value) -> Value {
+    if tool.get("type").and_then(Value::as_str) == Some("function") {
+        return tool.clone();
+    }
+    let name = tool
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("tool")
+        .to_string();
+    let description = tool
+        .get("description")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let parameters = tool
+        .get("input_schema")
+        .or_else(|| tool.get("inputSchema"))
+        .or_else(|| tool.get("parameters"))
+        .cloned()
+        .unwrap_or_else(|| json!({"type": "object", "properties": {}}));
+    json!({
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        }
+    })
+}
+
+fn openai_tool_call_from_tool_use(block: &Value) -> Value {
+    let input = block.get("input").cloned().unwrap_or_else(|| json!({}));
+    json!({
+        "id": block
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("toolu_unknown"),
+        "type": "function",
+        "function": {
+            "name": block
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown"),
+            "arguments": serde_json::to_string(&input).unwrap_or_else(|_| "{}".to_string()),
+        }
+    })
+}
+
+fn openai_tool_result_content(content: &Value) -> String {
+    match content {
+        Value::String(text) => text.clone(),
+        Value::Array(parts) => parts
+            .iter()
+            .filter_map(|part| {
+                part.get("text")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .or_else(|| part.as_str().map(str::to_string))
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Value::Null => String::new(),
+        value => value.to_string(),
+    }
 }
 
 async fn openai_error_from_response(response: reqwest::Response) -> ProviderError {
@@ -454,6 +572,24 @@ fn openai_chat_response_to_messages_response(
         .unwrap_or_default()
         .to_string();
     let usage = value.get("usage").unwrap_or(&Value::Null);
+    let mut content = Vec::new();
+    if !text.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": text,
+        }));
+    }
+    content.extend(openai_tool_use_blocks_from_message(message));
+    if content.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": "",
+        }));
+    }
+    let finish_reason = choice
+        .get("finish_reason")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     Ok(MessagesResponse {
         id: value
             .get("id")
@@ -470,14 +606,14 @@ fn openai_chat_response_to_messages_response(
             .and_then(Value::as_str)
             .unwrap_or("assistant")
             .to_string(),
-        content: vec![json!({
-            "type": "text",
-            "text": text,
-        })],
-        stop_reason: choice
-            .get("finish_reason")
-            .and_then(Value::as_str)
-            .map(str::to_string),
+        content,
+        stop_reason: finish_reason.map(|reason| {
+            if reason == "tool_calls" {
+                "tool_use".to_string()
+            } else {
+                reason
+            }
+        }),
         usage: Usage {
             input_tokens: usage
                 .get("prompt_tokens")
@@ -489,6 +625,37 @@ fn openai_chat_response_to_messages_response(
                 .unwrap_or_default() as u32,
         },
     })
+}
+
+fn openai_tool_use_blocks_from_message(message: &Value) -> Vec<Value> {
+    message
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .map(|tool_calls| {
+            tool_calls
+                .iter()
+                .filter_map(|tool_call| {
+                    let function = tool_call.get("function").unwrap_or(&Value::Null);
+                    let name = function.get("name").and_then(Value::as_str)?;
+                    let arguments = function
+                        .get("arguments")
+                        .and_then(Value::as_str)
+                        .unwrap_or("{}");
+                    let input =
+                        serde_json::from_str::<Value>(arguments).unwrap_or_else(|_| json!({}));
+                    Some(json!({
+                        "type": "tool_use",
+                        "id": tool_call
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .unwrap_or("toolu_openai"),
+                        "name": name,
+                        "input": input,
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub struct OllamaProvider {
@@ -942,7 +1109,7 @@ mod tests {
         assert!(value.as_array().unwrap().iter().any(|profile| {
             profile["provider_id"].as_str() == Some(OPENAI_COMPATIBLE_PROVIDER_ID)
                 && profile["model_id"].as_str() == Some(OPENAI_COMPATIBLE_DEFAULT_MODEL_ID)
-                && profile["supports_tools"].as_bool() == Some(false)
+                && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
         }));
         assert!(value.as_array().unwrap().iter().any(|profile| {
@@ -1064,32 +1231,122 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openai_compatible_provider_rejects_tools_before_request() {
+    async fn openai_compatible_provider_maps_tools_and_tool_calls() {
+        let (base_url, mut request_rx, server) = start_mock_openai_compatible_server(
+            200,
+            json!({
+                "id": "chatcmpl_tool",
+                "model": "gpt-test",
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "I'll inspect it.",
+                        "tool_calls": [{
+                            "id": "call_read",
+                            "type": "function",
+                            "function": {
+                                "name": "Read",
+                                "arguments": "{\"file_path\":\"README.md\"}"
+                            }
+                        }]
+                    },
+                    "finish_reason": "tool_calls"
+                }],
+                "usage": {
+                    "prompt_tokens": 12,
+                    "completion_tokens": 4
+                }
+            }),
+        )
+        .await;
         let provider = OpenAiCompatibleProvider::new(
-            "key".to_string(),
-            "http://127.0.0.1:9".to_string(),
+            "openai-test-key".to_string(),
+            base_url,
             Duration::from_secs(5),
         )
         .unwrap();
 
-        let error = provider
+        let response = provider
             .create_message(MessagesRequest {
-                model: OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string(),
-                messages: vec![Message {
-                    role: "user".to_string(),
-                    content: json!("use a tool"),
-                }],
+                model: "gpt-test".to_string(),
+                messages: vec![
+                    Message {
+                        role: "user".to_string(),
+                        content: json!("read the README"),
+                    },
+                    Message {
+                        role: "assistant".to_string(),
+                        content: json!([
+                            {
+                                "type": "text",
+                                "text": "Calling Read"
+                            },
+                            {
+                                "type": "tool_use",
+                                "id": "call_previous",
+                                "name": "Read",
+                                "input": {
+                                    "file_path": "README.md"
+                                }
+                            }
+                        ]),
+                    },
+                    Message {
+                        role: "user".to_string(),
+                        content: json!([{
+                            "type": "tool_result",
+                            "tool_use_id": "call_previous",
+                            "content": "README contents"
+                        }]),
+                    },
+                ],
                 max_tokens: 64,
                 system: None,
                 temperature: None,
-                tools: Some(vec![json!({"name": "Read"})]),
+                tools: Some(vec![json!({
+                    "name": "Read",
+                    "description": "Read a file",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string"}
+                        },
+                        "required": ["file_path"]
+                    }
+                })]),
                 thinking: None,
                 stream: None,
             })
             .await
-            .unwrap_err();
+            .unwrap();
 
-        assert_eq!(error.code(), "unsupported_tools");
+        assert_eq!(response.stop_reason.as_deref(), Some("tool_use"));
+        assert_eq!(response.content[0]["type"], "text");
+        assert_eq!(response.content[0]["text"], "I'll inspect it.");
+        assert_eq!(response.content[1]["type"], "tool_use");
+        assert_eq!(response.content[1]["id"], "call_read");
+        assert_eq!(response.content[1]["name"], "Read");
+        assert_eq!(response.content[1]["input"]["file_path"], "README.md");
+
+        let request = request_rx.recv().await.unwrap();
+        let body: Value = serde_json::from_str(http_body(&request)).unwrap();
+        assert_eq!(body["tools"][0]["type"], "function");
+        assert_eq!(body["tools"][0]["function"]["name"], "Read");
+        assert_eq!(
+            body["tools"][0]["function"]["parameters"]["properties"]["file_path"]["type"],
+            "string"
+        );
+        assert_eq!(body["tool_choice"], "auto");
+        assert_eq!(body["messages"][1]["tool_calls"][0]["id"], "call_previous");
+        assert_eq!(
+            body["messages"][1]["tool_calls"][0]["function"]["arguments"],
+            "{\"file_path\":\"README.md\"}"
+        );
+        assert_eq!(body["messages"][2]["role"], "tool");
+        assert_eq!(body["messages"][2]["tool_call_id"], "call_previous");
+        assert_eq!(body["messages"][2]["content"], "README contents");
+
+        server.await.unwrap();
     }
 
     #[tokio::test]

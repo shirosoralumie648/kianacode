@@ -50,7 +50,7 @@ export KIANA_OPENAI_BASE_URL="https://api.openai.com/v1" # 可选
 export KIANA_OPENAI_MODEL="gpt-4.1"                      # 可选
 ```
 
-当前 OpenAI-compatible provider 只支持 text-only chat/completions；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
+当前 OpenAI-compatible provider 支持 Chat Completions 文本与 function-style tools；如果只想走纯文本路径，可以显式传 `--tools ""`。
 
 本地 Ollama 文本 provider 不需要 API key：
 

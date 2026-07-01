@@ -581,7 +581,7 @@ mod tests {
         assert!(profiles.iter().any(|profile| {
             profile["provider_id"].as_str() == Some("openai-compatible")
                 && profile["model_id"].as_str() == Some("gpt-4.1")
-                && profile["supports_tools"].as_bool() == Some(false)
+                && profile["supports_tools"].as_bool() == Some(true)
                 && profile["supports_streaming"].as_bool() == Some(true)
         }));
         assert!(profiles.iter().any(|profile| {

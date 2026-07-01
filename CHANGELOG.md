@@ -60,6 +60,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - `kiana auth status --json` now includes provider-aware readiness for
   Anthropic, OpenAI-compatible, Ollama, and fake providers, including redacted
   API key previews and local endpoint/model settings without exposing secrets.
+- OpenAI-compatible providers now advertise tool support and map Chat
+  Completions `tools`/`tool_calls` to Kiana `tool_use`/`tool_result` loops.
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and
   the TUI surfaces a one-time onboarding message when no API key or usable OAuth
   token is configured.

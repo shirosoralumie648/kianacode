@@ -7486,6 +7486,7 @@ mod tests {
                 ("model".to_string(), json!("gpt-test")),
                 ("api_key".to_string(), json!("openai-test-key")),
                 ("base_url".to_string(), json!(base_url)),
+                ("tools".to_string(), json!("")),
             ]),
         )
         .await
@@ -7505,31 +7506,54 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_assistant_turn_openai_compatible_rejects_tools_before_request() {
+    async fn run_assistant_turn_openai_compatible_provider_runs_tool_loop() {
         let _guard = env_lock().lock().unwrap();
         clear_team_env();
         clear_thinking_env();
         clear_max_tokens_env();
         clear_openai_compatible_env();
+        let (base_url, state, server) = start_mock_openai_compatible_server().await;
 
-        let error = run_assistant_turn(
+        let result = run_assistant_turn(
             vec![json!({
                 "role": "user",
-                "content": "read the README"
+                "content": "update todos"
             })],
             &HashMap::from([
                 ("provider".to_string(), json!("openai-compatible")),
                 ("model".to_string(), json!("gpt-test")),
                 ("api_key".to_string(), json!("openai-test-key")),
-                ("base_url".to_string(), json!("http://127.0.0.1:9")),
-                ("tools".to_string(), json!("default")),
+                ("base_url".to_string(), json!(base_url)),
+                ("tools".to_string(), json!("TodoWrite")),
+                ("max_iterations".to_string(), json!(2)),
             ]),
         )
         .await
-        .unwrap_err();
+        .unwrap();
 
-        let provider_error = error.downcast_ref::<ProviderError>().unwrap();
-        assert_eq!(provider_error.code(), "unsupported_tools");
+        assert_eq!(result.text, "openai tool loop ok");
+        assert_eq!(result.iterations, 2);
+        let state = state.lock().unwrap();
+        assert_eq!(state.requests.len(), 2);
+        assert_eq!(
+            state.requests[0]["tools"][0]["function"]["name"],
+            "TodoWrite"
+        );
+        assert_eq!(state.requests[0]["tool_choice"], "auto");
+        assert_eq!(state.requests[1]["messages"].as_array().unwrap().len(), 3);
+        let tool_result = &state.requests[1]["messages"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap();
+        assert_eq!(tool_result["role"], "tool");
+        assert_eq!(tool_result["tool_call_id"], "call_todo");
+        assert!(tool_result["content"]
+            .as_str()
+            .unwrap()
+            .contains("Todos have been modified successfully"));
+
+        server.abort();
     }
 
     #[tokio::test]
@@ -9241,10 +9265,41 @@ mod tests {
             .and_then(Value::as_str)
             .unwrap_or("unknown")
             .to_string();
-        {
+        let call_count = {
             let mut state = state.lock().unwrap();
             state.auth_headers.push(auth_header);
-            state.requests.push(body);
+            state.requests.push(body.clone());
+            state.requests.len()
+        };
+
+        if call_count == 1 && body.get("tools").is_some_and(|tools| !tools.is_null()) {
+            return (
+                StatusCode::OK,
+                Json(json!({
+                    "id": "chatcmpl_tool_mock",
+                    "model": model,
+                    "choices": [{
+                        "message": {
+                            "role": "assistant",
+                            "content": null,
+                            "tool_calls": [{
+                                "id": "call_todo",
+                                "type": "function",
+                                "function": {
+                                    "name": "TodoWrite",
+                                    "arguments": "{\"todos\":[{\"content\":\"verify OpenAI-compatible tools\",\"status\":\"in_progress\",\"activeForm\":\"verifying OpenAI-compatible tools\"}]}"
+                                }
+                            }]
+                        },
+                        "finish_reason": "tool_calls"
+                    }],
+                    "usage": {
+                        "prompt_tokens": 2,
+                        "completion_tokens": 3
+                    }
+                })),
+            )
+                .into_response();
         }
 
         (
@@ -9255,7 +9310,7 @@ mod tests {
                 "choices": [{
                     "message": {
                         "role": "assistant",
-                        "content": "openai compatible ok"
+                        "content": if call_count > 1 { "openai tool loop ok" } else { "openai compatible ok" }
                     },
                     "finish_reason": "stop"
                 }],
