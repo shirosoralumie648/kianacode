@@ -683,6 +683,8 @@ JSON
   test -f "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   grep -Fq -- '"schema": "kiana.plugin-install-receipt.v1"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   grep -Fq -- '"path": "commands/audit.md"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  grep -Fq -- '"integrity": {' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  grep -Fq -- '"method": "stable-hash-v1"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
 
   output="$(run_clean_kiana "$binary" plugin list review-tools)"
   grep -Fq -- "review-tools@1.0.0 [valid enabled]" <<<"$output"
@@ -690,6 +692,13 @@ JSON
   output="$(run_clean_kiana "$binary" plugin show review-tools)"
   grep -Fq -- '"install_receipt": {' <<<"$output"
   grep -Fq -- '"schema": "kiana.plugin-install-receipt.v1"' <<<"$output"
+  grep -Fq -- '"install_receipt_integrity": {' <<<"$output"
+  grep -Fq -- '"status": "verified"' <<<"$output"
+
+  printf '\n# tampered\n' >> "$smoke_home/.kiana/plugins/review-tools/commands/audit.md"
+  output="$(run_clean_kiana "$binary" plugin show review-tools)"
+  grep -Fq -- '"install_receipt_integrity": {' <<<"$output"
+  grep -Fq -- '"status": "tampered"' <<<"$output"
 
   output="$(run_clean_kiana "$binary" plugin disable review-tools)"
   grep -Fq -- "Plugin disabled: review-tools" <<<"$output"

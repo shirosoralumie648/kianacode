@@ -12,7 +12,8 @@
     "policy",
     "file_count",
     "content_hash",
-    "files"
+    "files",
+    "integrity"
   ],
   "properties": {
     "schema": {
@@ -105,6 +106,20 @@
         },
         "additionalProperties": false
       }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["method", "payload_hash"],
+      "properties": {
+        "method": {
+          "const": "stable-hash-v1"
+        },
+        "payload_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

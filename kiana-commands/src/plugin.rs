@@ -8,7 +8,7 @@ use kiana_types::plugin::{
 };
 use kiana_types::project_trust_from_app_state;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -1372,7 +1372,18 @@ fn write_plugin_install_receipt(
         files,
     };
     let receipt_path = destination.join(PLUGIN_INSTALL_RECEIPT_FILE);
-    let contents = serde_json::to_string_pretty(&receipt)?;
+    let mut receipt_value = serde_json::to_value(&receipt)?;
+    let payload_hash = plugin_receipt_payload_hash(&receipt_value);
+    if let Some(object) = receipt_value.as_object_mut() {
+        object.insert(
+            "integrity".to_string(),
+            json!({
+                "method": "stable-hash-v1",
+                "payload_hash": payload_hash,
+            }),
+        );
+    }
+    let contents = serde_json::to_string_pretty(&receipt_value)?;
     std::fs::write(&receipt_path, format!("{contents}\n"))?;
     Ok(receipt_path)
 }
@@ -1429,6 +1440,55 @@ fn aggregate_receipt_hash(files: &[PluginReceiptFile]) -> String {
         update_stable_hash(&mut hash, &[0]);
     }
     format!("{hash:016x}")
+}
+
+fn plugin_receipt_payload_hash(receipt: &Value) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    update_stable_json_hash(&mut hash, receipt, true);
+    format!("{hash:016x}")
+}
+
+fn update_stable_json_hash(hash: &mut u64, value: &Value, skip_integrity: bool) {
+    match value {
+        Value::Null => update_stable_hash(hash, b"n"),
+        Value::Bool(value) => {
+            update_stable_hash(hash, b"b");
+            update_stable_hash(hash, value.to_string().as_bytes());
+        }
+        Value::Number(value) => {
+            update_stable_hash(hash, b"#");
+            update_stable_hash(hash, value.to_string().as_bytes());
+        }
+        Value::String(value) => {
+            update_stable_hash(hash, b"s");
+            update_stable_hash(hash, value.as_bytes());
+        }
+        Value::Array(values) => {
+            update_stable_hash(hash, b"[");
+            for value in values {
+                update_stable_json_hash(hash, value, skip_integrity);
+                update_stable_hash(hash, &[0]);
+            }
+            update_stable_hash(hash, b"]");
+        }
+        Value::Object(object) => {
+            update_stable_hash(hash, b"{");
+            let mut keys = object.keys().collect::<Vec<_>>();
+            keys.sort();
+            for key in keys {
+                if skip_integrity && key == "integrity" {
+                    continue;
+                }
+                update_stable_hash(hash, key.as_bytes());
+                update_stable_hash(hash, &[0]);
+                if let Some(value) = object.get(key) {
+                    update_stable_json_hash(hash, value, skip_integrity);
+                }
+                update_stable_hash(hash, &[0]);
+            }
+            update_stable_hash(hash, b"}");
+        }
+    }
 }
 
 fn stable_hash(bytes: &[u8]) -> String {
@@ -1537,7 +1597,8 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
     let mut manifest_name = None;
     let mut version = None;
     let mut description = None;
-    let install_receipt = read_plugin_install_receipt(&root, &mut warnings);
+    let (install_receipt, install_receipt_integrity) =
+        read_plugin_install_receipt(&root, &mut warnings);
 
     match manifest_path.as_ref() {
         Some(path) => match std::fs::read_to_string(path) {
@@ -1605,26 +1666,110 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
         warnings,
         manifest,
         install_receipt,
+        install_receipt_integrity,
     })
 }
 
-fn read_plugin_install_receipt(root: &Path, warnings: &mut Vec<String>) -> Option<Value> {
+fn read_plugin_install_receipt(
+    root: &Path,
+    warnings: &mut Vec<String>,
+) -> (Option<Value>, Option<PluginInstallReceiptIntegrityStatus>) {
     let receipt_path = root.join(PLUGIN_INSTALL_RECEIPT_FILE);
     if !receipt_path.is_file() {
-        return None;
+        return (None, None);
     }
     match std::fs::read_to_string(&receipt_path)
         .ok()
         .and_then(|contents| serde_json::from_str::<Value>(&contents).ok())
     {
-        Some(receipt) => Some(receipt),
+        Some(receipt) => {
+            let integrity = verify_plugin_install_receipt(root, &receipt);
+            if integrity.status != "verified" {
+                warnings.push(format!(
+                    "plugin install receipt integrity {}: {}",
+                    integrity.status,
+                    integrity.summary()
+                ));
+            }
+            (Some(receipt), Some(integrity))
+        }
         None => {
             warnings.push(format!(
                 "{} is present but is not valid JSON",
                 PLUGIN_INSTALL_RECEIPT_FILE
             ));
-            None
+            (None, None)
         }
+    }
+}
+
+fn verify_plugin_install_receipt(
+    root: &Path,
+    receipt: &Value,
+) -> PluginInstallReceiptIntegrityStatus {
+    let method = receipt
+        .get("integrity")
+        .and_then(|integrity| integrity.get("method"))
+        .and_then(Value::as_str)
+        .unwrap_or("missing")
+        .to_string();
+    let expected_payload_hash = receipt
+        .get("integrity")
+        .and_then(|integrity| integrity.get("payload_hash"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let actual_payload_hash = plugin_receipt_payload_hash(receipt);
+    let expected_content_hash = receipt
+        .get("content_hash")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let expected_file_count = receipt
+        .get("file_count")
+        .and_then(Value::as_u64)
+        .map(|value| value as usize)
+        .unwrap_or_default();
+
+    match collect_plugin_receipt_files(root) {
+        Ok(files) => {
+            let actual_content_hash = aggregate_receipt_hash(&files);
+            let payload_hash_matches =
+                method == "stable-hash-v1" && expected_payload_hash == actual_payload_hash;
+            let content_hash_matches =
+                expected_content_hash == actual_content_hash && expected_file_count == files.len();
+            let status = if method == "missing" {
+                "unsigned"
+            } else if payload_hash_matches && content_hash_matches {
+                "verified"
+            } else {
+                "tampered"
+            };
+            PluginInstallReceiptIntegrityStatus {
+                method,
+                status: status.to_string(),
+                payload_hash_matches,
+                content_hash_matches,
+                expected_payload_hash,
+                actual_payload_hash,
+                expected_content_hash,
+                actual_content_hash,
+                expected_file_count,
+                actual_file_count: files.len(),
+            }
+        }
+        Err(error) => PluginInstallReceiptIntegrityStatus {
+            method,
+            status: "error".to_string(),
+            payload_hash_matches: false,
+            content_hash_matches: false,
+            expected_payload_hash,
+            actual_payload_hash,
+            expected_content_hash,
+            actual_content_hash: format!("error: {error}"),
+            expected_file_count,
+            actual_file_count: 0,
+        },
     }
 }
 
@@ -1951,6 +2096,32 @@ struct PluginReceiptFile {
     content_hash: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct PluginInstallReceiptIntegrityStatus {
+    method: String,
+    status: String,
+    payload_hash_matches: bool,
+    content_hash_matches: bool,
+    expected_payload_hash: String,
+    actual_payload_hash: String,
+    expected_content_hash: String,
+    actual_content_hash: String,
+    expected_file_count: usize,
+    actual_file_count: usize,
+}
+
+impl PluginInstallReceiptIntegrityStatus {
+    fn summary(&self) -> String {
+        format!(
+            "payload_hash_matches={} content_hash_matches={} expected_files={} actual_files={}",
+            self.payload_hash_matches,
+            self.content_hash_matches,
+            self.expected_file_count,
+            self.actual_file_count
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 struct ManagedPluginPolicyDecision {
     source: PathBuf,
@@ -2111,6 +2282,8 @@ struct PluginInfo {
     manifest: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     install_receipt: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    install_receipt_integrity: Option<PluginInstallReceiptIntegrityStatus>,
 }
 
 impl PluginInfo {
@@ -2962,6 +3135,11 @@ mod tests {
         assert_eq!(receipt["marketplace"], "tools-marketplace");
         assert_eq!(receipt["file_count"], 2);
         assert_eq!(receipt["content_hash"].as_str().unwrap().len(), 16);
+        assert_eq!(receipt["integrity"]["method"], "stable-hash-v1");
+        assert_eq!(
+            receipt["integrity"]["payload_hash"].as_str().unwrap().len(),
+            16
+        );
         assert!(receipt["files"].as_array().unwrap().iter().any(|file| {
             file["path"] == "commands/audit.md"
                 && file["content_hash"].as_str().unwrap().len() == 16
@@ -2982,6 +3160,48 @@ mod tests {
             shown_json["install_receipt"]["schema"],
             "kiana.plugin-install-receipt.v1"
         );
+        assert_eq!(
+            shown_json["install_receipt_integrity"]["status"],
+            "verified"
+        );
+        assert_eq!(
+            shown_json["install_receipt_integrity"]["payload_hash_matches"],
+            true
+        );
+        assert_eq!(
+            shown_json["install_receipt_integrity"]["content_hash_matches"],
+            true
+        );
+
+        fs::write(
+            plugins_dir
+                .join("review-tools")
+                .join("commands")
+                .join("audit.md"),
+            "# audit\n# tampered",
+        )
+        .unwrap();
+        let tampered = PluginCommand
+            .execute(context("show review-tools", &cwd))
+            .await
+            .unwrap();
+        let tampered_json: Value = serde_json::from_str(&tampered.value).unwrap();
+        assert_eq!(
+            tampered_json["install_receipt_integrity"]["status"],
+            "tampered"
+        );
+        assert_eq!(
+            tampered_json["install_receipt_integrity"]["content_hash_matches"],
+            false
+        );
+        assert!(tampered_json["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|warning| warning
+                .as_str()
+                .unwrap()
+                .contains("plugin install receipt integrity tampered")));
 
         PluginCommand
             .execute(context("disable review-tools", &cwd))

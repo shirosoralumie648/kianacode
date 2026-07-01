@@ -174,10 +174,12 @@ else
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
-  grep -Fq '.kiana-install-receipt.json' scripts/release-smoke.sh; then
-  pass "plugin install receipt smoke gate is wired"
+  grep -Fq '.kiana-install-receipt.json' scripts/release-smoke.sh &&
+  grep -Fq 'install_receipt_integrity' scripts/release-smoke.sh &&
+  grep -Fq '"status": "tampered"' scripts/release-smoke.sh; then
+  pass "plugin install receipt integrity smoke gate is wired"
 else
-  fail "release smoke does not exercise plugin install receipts"
+  fail "release smoke does not exercise plugin install receipt integrity"
 fi
 
 if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
@@ -254,6 +256,14 @@ if grep -Fq '"const": "kiana.plugin-install-receipt.v1"' docs/schemas/kiana-plug
   pass "plugin install receipt JSON schema version is pinned"
 else
   fail "plugin install receipt JSON schema is missing kiana.plugin-install-receipt.v1 const"
+fi
+
+if grep -Fq '"const": "stable-hash-v1"' docs/schemas/kiana-plugin-install-receipt.v1.schema.json &&
+  grep -Fq 'plugin_receipt_payload_hash' kiana-commands/src/plugin.rs &&
+  grep -Fq 'install_receipt_integrity' kiana-commands/src/plugin.rs; then
+  pass "plugin install receipt integrity is sealed and exposed"
+else
+  fail "plugin install receipt integrity is not sealed and exposed"
 fi
 
 if grep -Fq '"const": "kiana.managed-plugin-policy.v1"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json; then
