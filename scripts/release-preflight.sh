@@ -43,6 +43,11 @@ for file in \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   docs/schemas/kiana-app-server-contract.v1.schema.json \
+  docs/schemas/kiana-app-server-conversations.v1.schema.json \
+  docs/schemas/kiana-app-server-settings.v1.schema.json \
+  docs/schemas/kiana-app-server-secrets.v1.schema.json \
+  docs/schemas/kiana-app-server-sandbox.v1.schema.json \
+  docs/schemas/kiana-app-server-git-status.v1.schema.json \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
@@ -169,6 +174,16 @@ if grep -Fq '"const": "kiana.app-server.contract.v1"' docs/schemas/kiana-app-ser
 else
   fail "app-server contract JSON schema is missing kiana.app-server.contract.v1 const"
 fi
+
+for app_schema in conversations settings secrets sandbox git-status; do
+  schema_file="docs/schemas/kiana-app-server-${app_schema}.v1.schema.json"
+  schema_name="kiana.app-server.${app_schema}.v1"
+  if grep -Fq "\"const\": \"${schema_name}\"" "$schema_file"; then
+    pass "app-server ${app_schema} JSON schema version is pinned"
+  else
+    fail "app-server ${app_schema} JSON schema is missing ${schema_name} const"
+  fi
+done
 
 if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.json; then
   pass "doctor JSON schema version is pinned"

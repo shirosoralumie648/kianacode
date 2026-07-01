@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-settings.v1.schema.json",
+  "title": "Kiana App Server Settings v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "workspace",
+    "idle_timeout_ms",
+    "max_sessions",
+    "auth",
+    "base_option_keys"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.settings.v1"
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idle_timeout_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_sessions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "auth": {
+      "type": "object",
+      "required": ["type", "required"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bearer", "none"]
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "base_option_keys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false
+}

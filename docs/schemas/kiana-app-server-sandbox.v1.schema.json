@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-sandbox.v1.schema.json",
+  "title": "Kiana App Server Sandbox v1",
+  "type": "object",
+  "required": ["schema", "workspace", "default_permission_mode", "controls"],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.sandbox.v1"
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_permission_mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["bearer_auth", "permission_prompt", "exec_policy"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-conversations.v1.schema.json",
+  "title": "Kiana App Server Conversations v1",
+  "type": "object",
+  "required": ["schema", "count", "conversations"],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.conversations.v1"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "conversations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "work_dir",
+          "dangerously_skip_permissions",
+          "events_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "session_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "work_dir": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dangerously_skip_permissions": {
+            "type": "boolean"
+          },
+          "events_url": {
+            "type": "string",
+            "pattern": "^/sessions/.+/ws$"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
