@@ -38,6 +38,17 @@ export ANTHROPIC_MODEL="claude-sonnet-4-6"          # 可选
 
 这些环境变量高于普通配置文件和 settings overlay，但会被托管配置策略覆盖。
 
+OpenAI-compatible 文本 provider 需要显式选择 provider，并使用独立环境变量，避免误用 Anthropic key：
+
+```bash
+export KIANA_PROVIDER="openai-compatible"
+export KIANA_OPENAI_API_KEY="sk-xxx"
+export KIANA_OPENAI_BASE_URL="https://api.openai.com/v1" # 可选
+export KIANA_OPENAI_MODEL="gpt-4.1"                      # 可选
+```
+
+当前 OpenAI-compatible provider 只支持 text-only chat/completions；启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
+
 ### 4. 托管配置策略
 
 管理员或受控运行环境可以提供最终配置 overlay：

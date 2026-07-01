@@ -20,6 +20,8 @@ pub const ANTHROPIC_PROVIDER_ID: &str = "anthropic";
 pub const FAKE_PROVIDER_ID: &str = "fake";
 pub const FAKE_MODEL_ID: &str = "fake-model";
 pub const FAKE_TEXT_ONLY_MODEL_ID: &str = "fake-text-only";
+pub const OPENAI_COMPATIBLE_PROVIDER_ID: &str = "openai-compatible";
+pub const OPENAI_COMPATIBLE_DEFAULT_MODEL_ID: &str = "gpt-4.1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelProfile {
@@ -135,6 +137,7 @@ pub fn built_in_model_profiles() -> Vec<ModelProfile> {
         anthropic_model_profile("claude-sonnet-4-6"),
         anthropic_model_profile("claude-opus-4-1"),
         anthropic_model_profile("claude-haiku-4-5"),
+        openai_compatible_model_profile(OPENAI_COMPATIBLE_DEFAULT_MODEL_ID),
         fake_model_profile(FAKE_MODEL_ID),
         ModelProfile {
             provider_id: FAKE_PROVIDER_ID.to_string(),
@@ -151,6 +154,7 @@ pub fn built_in_model_profiles() -> Vec<ModelProfile> {
 pub fn model_profile(provider_id: &str, model_id: &str) -> Option<ModelProfile> {
     match provider_id {
         ANTHROPIC_PROVIDER_ID => Some(anthropic_model_profile(model_id)),
+        OPENAI_COMPATIBLE_PROVIDER_ID => Some(openai_compatible_model_profile(model_id)),
         FAKE_PROVIDER_ID if model_id == FAKE_TEXT_ONLY_MODEL_ID => Some(ModelProfile {
             provider_id: FAKE_PROVIDER_ID.to_string(),
             model_id: model_id.to_string(),
@@ -186,6 +190,18 @@ fn fake_model_profile(model_id: &str) -> ModelProfile {
         supports_vision: false,
         supports_structured_output: true,
         context_window: 8_192,
+    }
+}
+
+fn openai_compatible_model_profile(model_id: &str) -> ModelProfile {
+    ModelProfile {
+        provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+        model_id: model_id.to_string(),
+        supports_tools: false,
+        supports_streaming: true,
+        supports_vision: false,
+        supports_structured_output: false,
+        context_window: 128_000,
     }
 }
 
@@ -240,6 +256,223 @@ fn provider_error_from_anyhow(error: anyhow::Error) -> ProviderError {
             message: error.to_string(),
         },
     }
+}
+
+pub struct OpenAiCompatibleProvider {
+    client: reqwest::Client,
+    api_key: String,
+    base_url: String,
+}
+
+impl OpenAiCompatibleProvider {
+    pub fn new(api_key: String, base_url: String, timeout: Duration) -> ProviderResult<Self> {
+        let client = reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|error| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "client_build_failed".to_string(),
+                message: error.to_string(),
+            })?;
+        Ok(Self {
+            client,
+            api_key,
+            base_url: base_url.trim_end_matches('/').to_string(),
+        })
+    }
+
+    fn completions_url(&self) -> String {
+        format!("{}/chat/completions", self.base_url)
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiCompatibleProvider {
+    fn provider_id(&self) -> &str {
+        OPENAI_COMPATIBLE_PROVIDER_ID
+    }
+
+    fn model_profile(&self, model_id: &str) -> ModelProfile {
+        openai_compatible_model_profile(model_id)
+    }
+
+    async fn create_message(&self, request: MessagesRequest) -> ProviderResult<MessagesResponse> {
+        self.ensure_request_supported(&request)?;
+        let body = openai_chat_request_body(&request, false);
+        let response = self
+            .client
+            .post(self.completions_url())
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "request_failed".to_string(),
+                message: error.to_string(),
+            })?;
+
+        if !response.status().is_success() {
+            return Err(openai_error_from_response(response).await);
+        }
+
+        let value = response
+            .json::<Value>()
+            .await
+            .map_err(|error| ProviderError::Provider {
+                provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+                code: "invalid_response".to_string(),
+                message: error.to_string(),
+            })?;
+        openai_chat_response_to_messages_response(value, &request.model)
+    }
+
+    async fn stream_message(&self, request: MessagesRequest) -> ProviderResult<ProviderStream> {
+        let response = self.create_message(request).await?;
+        let events = stream_events_from_response(&response);
+        Ok(Box::pin(stream::iter(events.into_iter().map(Ok))))
+    }
+}
+
+fn openai_chat_request_body(request: &MessagesRequest, stream: bool) -> Value {
+    let mut messages = Vec::new();
+    if let Some(system) = request.system.as_ref() {
+        messages.push(json!({
+            "role": "system",
+            "content": openai_message_content(system),
+        }));
+    }
+    messages.extend(request.messages.iter().map(|message| {
+        json!({
+            "role": message.role.clone(),
+            "content": openai_message_content(&message.content),
+        })
+    }));
+
+    let mut body = json!({
+        "model": request.model.clone(),
+        "messages": messages,
+        "max_tokens": request.max_tokens,
+        "stream": stream,
+    });
+    if let Some(temperature) = request.temperature {
+        body["temperature"] = json!(temperature);
+    }
+    body
+}
+
+fn openai_message_content(content: &Value) -> Value {
+    if let Some(text) = content.as_str() {
+        return Value::String(text.to_string());
+    }
+    if let Some(array) = content.as_array() {
+        let text = array
+            .iter()
+            .filter_map(|part| {
+                if let Some(text) = part.get("text").and_then(Value::as_str) {
+                    Some(text.to_string())
+                } else if let Some(text) = part.as_str() {
+                    Some(text.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !text.is_empty() {
+            return Value::String(text);
+        }
+    }
+    Value::String(content.to_string())
+}
+
+async fn openai_error_from_response(response: reqwest::Response) -> ProviderError {
+    let status = response.status();
+    let value = response.json::<Value>().await.unwrap_or_else(|_| json!({}));
+    let message = value
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| status.canonical_reason().unwrap_or("request failed"))
+        .to_string();
+    if matches!(
+        status,
+        reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN
+    ) {
+        ProviderError::Auth {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            message,
+        }
+    } else {
+        let code = value
+            .get("error")
+            .and_then(|error| error.get("code"))
+            .and_then(Value::as_str)
+            .unwrap_or("openai_compatible_error")
+            .to_string();
+        ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code,
+            message,
+        }
+    }
+}
+
+fn openai_chat_response_to_messages_response(
+    value: Value,
+    fallback_model: &str,
+) -> ProviderResult<MessagesResponse> {
+    let choice = value
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|choices| choices.first())
+        .ok_or_else(|| ProviderError::Provider {
+            provider_id: OPENAI_COMPATIBLE_PROVIDER_ID.to_string(),
+            code: "invalid_response".to_string(),
+            message: "OpenAI-compatible response missing choices[0]".to_string(),
+        })?;
+    let message = choice.get("message").unwrap_or(&Value::Null);
+    let text = message
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let usage = value.get("usage").unwrap_or(&Value::Null);
+    Ok(MessagesResponse {
+        id: value
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("openai-compatible-message")
+            .to_string(),
+        model: value
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or(fallback_model)
+            .to_string(),
+        role: message
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("assistant")
+            .to_string(),
+        content: vec![json!({
+            "type": "text",
+            "text": text,
+        })],
+        stop_reason: choice
+            .get("finish_reason")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        usage: Usage {
+            input_tokens: usage
+                .get("prompt_tokens")
+                .and_then(Value::as_u64)
+                .unwrap_or_default() as u32,
+            output_tokens: usage
+                .get("completion_tokens")
+                .and_then(Value::as_u64)
+                .unwrap_or_default() as u32,
+        },
+    })
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -488,7 +721,9 @@ fn stream_events_from_response(response: &MessagesResponse) -> Vec<StreamEvent> 
 
 #[cfg(test)]
 mod tests {
+    use super::super::messages::Message;
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn model_profiles_are_serializable() {
@@ -504,6 +739,151 @@ mod tests {
                     && profile["model_id"].as_str() == Some(FAKE_MODEL_ID)
                     && profile["supports_tools"].as_bool() == Some(true)
             ));
+        assert!(value.as_array().unwrap().iter().any(|profile| {
+            profile["provider_id"].as_str() == Some(OPENAI_COMPATIBLE_PROVIDER_ID)
+                && profile["model_id"].as_str() == Some(OPENAI_COMPATIBLE_DEFAULT_MODEL_ID)
+                && profile["supports_tools"].as_bool() == Some(false)
+                && profile["supports_streaming"].as_bool() == Some(true)
+        }));
+    }
+
+    #[tokio::test]
+    async fn openai_compatible_provider_sends_chat_completions_request() {
+        let (base_url, mut request_rx, server) = start_mock_openai_compatible_server(
+            200,
+            json!({
+                "id": "chatcmpl_test",
+                "model": "gpt-test",
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "hello from openai"
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 11,
+                    "completion_tokens": 3
+                }
+            }),
+        )
+        .await;
+        let provider = OpenAiCompatibleProvider::new(
+            "openai-test-key".to_string(),
+            base_url,
+            Duration::from_secs(5),
+        )
+        .unwrap();
+
+        let response = provider
+            .create_message(MessagesRequest {
+                model: "gpt-test".to_string(),
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: json!("hello"),
+                }],
+                max_tokens: 64,
+                system: Some(json!("system prompt")),
+                temperature: Some(0.2),
+                tools: None,
+                thinking: None,
+                stream: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response.id, "chatcmpl_test");
+        assert_eq!(response.model, "gpt-test");
+        assert_eq!(response.role, "assistant");
+        assert_eq!(response.content[0]["text"], "hello from openai");
+        assert_eq!(response.stop_reason.as_deref(), Some("stop"));
+        assert_eq!(response.usage.input_tokens, 11);
+        assert_eq!(response.usage.output_tokens, 3);
+
+        let request = request_rx.recv().await.unwrap();
+        assert!(request.starts_with("POST /chat/completions HTTP/1.1"));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer openai-test-key"));
+        let body: Value = serde_json::from_str(http_body(&request)).unwrap();
+        assert_eq!(body["model"], "gpt-test");
+        assert_eq!(body["max_tokens"], 64);
+        assert_eq!(body["stream"], false);
+        assert!((body["temperature"].as_f64().unwrap() - 0.2).abs() < 0.000_001);
+        assert_eq!(body["messages"][0]["role"], "system");
+        assert_eq!(body["messages"][0]["content"], "system prompt");
+        assert_eq!(body["messages"][1]["role"], "user");
+        assert_eq!(body["messages"][1]["content"], "hello");
+
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn openai_compatible_provider_maps_auth_errors() {
+        let (base_url, mut request_rx, server) = start_mock_openai_compatible_server(
+            401,
+            json!({
+                "error": {
+                    "code": "invalid_api_key",
+                    "message": "invalid key"
+                }
+            }),
+        )
+        .await;
+        let provider =
+            OpenAiCompatibleProvider::new("bad-key".to_string(), base_url, Duration::from_secs(5))
+                .unwrap();
+
+        let error = provider
+            .create_message(MessagesRequest {
+                model: "gpt-test".to_string(),
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: json!("hello"),
+                }],
+                max_tokens: 64,
+                system: None,
+                temperature: None,
+                tools: None,
+                thinking: None,
+                stream: None,
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), "auth_error");
+        assert!(error.to_string().contains("invalid key"));
+        assert!(request_rx.recv().await.is_some());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn openai_compatible_provider_rejects_tools_before_request() {
+        let provider = OpenAiCompatibleProvider::new(
+            "key".to_string(),
+            "http://127.0.0.1:9".to_string(),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+
+        let error = provider
+            .create_message(MessagesRequest {
+                model: OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string(),
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: json!("use a tool"),
+                }],
+                max_tokens: 64,
+                system: None,
+                temperature: None,
+                tools: Some(vec![json!({"name": "Read"})]),
+                thinking: None,
+                stream: None,
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), "unsupported_tools");
     }
 
     #[tokio::test]
@@ -602,5 +982,80 @@ mod tests {
 
         assert_eq!(error.code(), "unsupported_tools");
         assert_eq!(provider.steps.lock().unwrap().len(), 1);
+    }
+
+    async fn start_mock_openai_compatible_server(
+        status: u16,
+        response: Value,
+    ) -> (
+        String,
+        tokio::sync::mpsc::UnboundedReceiver<String>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let request = read_http_request(&mut socket).await;
+            request_tx.send(request).unwrap();
+            let body = serde_json::to_string(&response).unwrap();
+            let reason = match status {
+                200 => "OK",
+                401 => "Unauthorized",
+                403 => "Forbidden",
+                _ => "Error",
+            };
+            let raw = format!(
+                "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(raw.as_bytes()).await.unwrap();
+        });
+        (format!("http://{addr}"), request_rx, server)
+    }
+
+    async fn read_http_request(socket: &mut tokio::net::TcpStream) -> String {
+        let mut buffer = Vec::new();
+        let mut chunk = [0_u8; 1024];
+        loop {
+            let read = socket.read(&mut chunk).await.unwrap();
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+            if let Some(expected_len) = expected_http_request_len(&buffer) {
+                if buffer.len() >= expected_len {
+                    break;
+                }
+            }
+        }
+        String::from_utf8(buffer).unwrap()
+    }
+
+    fn expected_http_request_len(buffer: &[u8]) -> Option<usize> {
+        let header_end = find_header_end(buffer)?;
+        let headers = std::str::from_utf8(&buffer[..header_end]).ok()?;
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().ok())
+                    .flatten()
+            })
+            .unwrap_or(0);
+        Some(header_end + 4 + content_length)
+    }
+
+    fn find_header_end(buffer: &[u8]) -> Option<usize> {
+        buffer.windows(4).position(|window| window == b"\r\n\r\n")
+    }
+
+    fn http_body(request: &str) -> &str {
+        request
+            .split_once("\r\n\r\n")
+            .map(|(_, body)| body)
+            .unwrap()
     }
 }

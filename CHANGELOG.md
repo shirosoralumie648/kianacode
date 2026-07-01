@@ -66,6 +66,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - TUI permission requests now maintain structured approval panel state with
   tool, reason, blocked path, input preview, suggestions, and queue context
   while preserving `/allow` and `/deny` command handling.
+- Added an OpenAI-compatible text provider for chat/completions endpoints with
+  explicit model capabilities and pre-request rejection when tools are enabled.
 
 ### Verified
 

@@ -5,8 +5,13 @@
 ## 当前状态
 
 ```bash
-# 设置 API key
+# 默认 Anthropic provider
 export ANTHROPIC_API_KEY="your-key-here"
+
+# 或选择 OpenAI-compatible 文本 provider
+export KIANA_PROVIDER="openai-compatible"
+export KIANA_OPENAI_API_KEY="sk-..."
+export KIANA_OPENAI_BASE_URL="https://api.openai.com/v1" # optional
 
 # 运行
 cargo run -p kiana-entrypoints --bin kiana
@@ -32,7 +37,7 @@ cargo build --release -p kiana-entrypoints --bin kiana
   - Write - 写入文件
   - Bash - 执行命令
 - **配置系统** - 支持环境变量和配置文件
-- **API 集成** - Anthropic Messages API 主链路已接入，仍需继续对齐 reference 的边界行为
+- **API 集成** - Anthropic Messages API 主链路已接入；OpenAI-compatible provider 已支持 text-only chat/completions 路径，工具调用能力仍需后续补齐
 - **TUI 骨架** - 支持本地 slash command 路由、真实 doctor 诊断、session resume 和基础对话视图；resume 列表会优先限定到当前工作目录，`/session reply current --record-only ...` 和 `/session compact current ...` 会同步刷新当前转录，`/session fork current` 会切到 forked session 继续工作，不再只显示内部 JSON/命令报告，仍需继续补齐 reference 级交互体验
 - **本地会话管理** - `kiana session list/status/show/reply --record-only/rename/tag/fork/delete/export/compact` 走同源 session command，列表会显示消息数、tag、更新时间和后续操作提示；`kiana session reply <id> <msg>` 默认输出 assistant 文本，`kiana --continue` 会优先继续当前工作目录最近的本地 SDK session
 - **Bridge/CCR v2** - mock 服务下已覆盖 Session Ingress 与 CCR v2 worker transport 的关键闭环；CCR v2 收到远端 user event 会上报 `running`，permission lifecycle 会按 reference 上报 `requires_action`、`running`、`idle` worker state，并对连续同状态更新去重；stream-json 输入和 SDK URL bridge child loop 会按 reference 处理 `end_session`，bridge 父层和 child 层会响应 `mcp_status` 并返回 `mcpServers` 数组

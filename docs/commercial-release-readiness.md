@@ -61,6 +61,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and TUI startup shows a one-time onboarding message when no API key or usable OAuth token is configured.
 - TUI `/diff --json` and `/diff --last-assistant --json` now render structured diff previews with file lists, stats, and assistant patch snippets instead of raw JSON transcript output.
 - TUI permission requests now carry structured approval panel state with tool, reason, blocked path, input preview, suggestions, and queue context while preserving `/allow` and `/deny` command handling.
+- OpenAI-compatible text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
@@ -75,6 +76,7 @@ These are not solved by the local release gate and must be completed before clai
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation now exists but needs release-channel execution.
 - Run real remote/CCR/Session Ingress/token refresh end-to-end gates against production-like services.
 - Bring TUI permission, diff, history, onboarding, and resume flows to reference-level usability.
+- Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible text paths, including tool-capable OpenAI-compatible operation, local/Ollama-style providers, and opt-in live provider smoke reports.
 - Harden default execution isolation and approval policy across Windows, macOS, and Linux.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
 - Complete enterprise account/license/policy support and a private vulnerability reporting channel.

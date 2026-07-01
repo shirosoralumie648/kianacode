@@ -4,8 +4,9 @@ use kiana_services::api::{
     errors::{ApiError, ApiErrorKind},
     messages::{Message, MessagesRequest},
     provider::{
-        AnthropicProvider, FakeProvider, Provider, ProviderError, ProviderStream,
-        ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
+        AnthropicProvider, FakeProvider, OpenAiCompatibleProvider, Provider, ProviderError,
+        ProviderStream, ANTHROPIC_PROVIDER_ID, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
+        OPENAI_COMPATIBLE_DEFAULT_MODEL_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
     },
     streaming::{ContentBlock as StreamContentBlock, Delta, StreamEvent},
 };
@@ -3864,6 +3865,10 @@ fn model_option(
         .or_else(|| {
             if provider_id == FAKE_PROVIDER_ID {
                 std::env::var("KIANA_FAKE_MODEL").ok()
+            } else if provider_id == OPENAI_COMPATIBLE_PROVIDER_ID {
+                std::env::var("KIANA_OPENAI_MODEL")
+                    .ok()
+                    .or_else(|| std::env::var("OPENAI_MODEL").ok())
             } else {
                 None
             }
@@ -3880,6 +3885,8 @@ fn model_option(
         .unwrap_or_else(|| {
             if provider_id == FAKE_PROVIDER_ID {
                 FAKE_MODEL_ID.to_string()
+            } else if provider_id == OPENAI_COMPATIBLE_PROVIDER_ID {
+                OPENAI_COMPATIBLE_DEFAULT_MODEL_ID.to_string()
             } else {
                 config.model.clone()
             }
@@ -3919,6 +3926,29 @@ fn build_provider(
                 base_url,
                 api_timeout,
             )))
+        }
+        OPENAI_COMPATIBLE_PROVIDER_ID => {
+            let api_key = string_option(options, "api_key")
+                .or_else(|| string_option(options, "openai_api_key"))
+                .or_else(|| string_option(options, "openaiApiKey"))
+                .or_else(|| std::env::var("KIANA_OPENAI_API_KEY").ok())
+                .or_else(|| std::env::var("OPENAI_API_KEY").ok())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "OpenAI-compatible API key not found. Set KIANA_OPENAI_API_KEY or OPENAI_API_KEY, or pass api_key."
+                    )
+                })?;
+            let base_url = string_option(options, "base_url")
+                .or_else(|| string_option(options, "openai_base_url"))
+                .or_else(|| string_option(options, "openaiBaseUrl"))
+                .or_else(|| std::env::var("KIANA_OPENAI_BASE_URL").ok())
+                .or_else(|| std::env::var("OPENAI_BASE_URL").ok())
+                .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            Ok(Box::new(OpenAiCompatibleProvider::new(
+                api_key,
+                base_url,
+                api_timeout,
+            )?))
         }
         other => Err(anyhow!("unknown provider: {other}")),
     }
@@ -4629,7 +4659,7 @@ mod tests {
     use crate::test_support::env_lock;
     use axum::{
         extract::State,
-        http::StatusCode,
+        http::{HeaderMap, StatusCode},
         response::IntoResponse,
         routing::{get, post},
         Json, Router,
@@ -4708,6 +4738,19 @@ mod tests {
         std::env::remove_var("KIANA_MAX_TOKENS");
         std::env::remove_var("ANTHROPIC_MAX_TOKENS");
         std::env::remove_var("MAX_OUTPUT_TOKENS");
+    }
+
+    fn clear_openai_compatible_env() {
+        for key in [
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OPENAI_BASE_URL",
+            "OPENAI_BASE_URL",
+            "KIANA_OPENAI_MODEL",
+            "OPENAI_MODEL",
+        ] {
+            std::env::remove_var(key);
+        }
     }
 
     #[test]
@@ -7369,6 +7412,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_assistant_turn_openai_compatible_provider_returns_text() {
+        let _guard = env_lock().lock().unwrap();
+        clear_team_env();
+        clear_thinking_env();
+        clear_max_tokens_env();
+        clear_openai_compatible_env();
+        let (base_url, state, server) = start_mock_openai_compatible_server().await;
+
+        let result = run_assistant_turn(
+            vec![json!({
+                "role": "user",
+                "content": "say hello"
+            })],
+            &HashMap::from([
+                ("provider".to_string(), json!("openai-compatible")),
+                ("model".to_string(), json!("gpt-test")),
+                ("api_key".to_string(), json!("openai-test-key")),
+                ("base_url".to_string(), json!(base_url)),
+                ("tools".to_string(), json!("")),
+            ]),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.text, "openai compatible ok");
+        assert_eq!(result.iterations, 1);
+        let state = state.lock().unwrap();
+        assert_eq!(state.auth_headers, vec!["Bearer openai-test-key"]);
+        assert_eq!(state.requests.len(), 1);
+        assert_eq!(state.requests[0]["model"], "gpt-test");
+        assert_eq!(state.requests[0]["messages"][0]["role"], "user");
+        assert_eq!(state.requests[0]["messages"][0]["content"], "say hello");
+        assert!(state.requests[0]["tools"].is_null());
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn run_assistant_turn_openai_compatible_rejects_tools_before_request() {
+        let _guard = env_lock().lock().unwrap();
+        clear_team_env();
+        clear_thinking_env();
+        clear_max_tokens_env();
+        clear_openai_compatible_env();
+
+        let error = run_assistant_turn(
+            vec![json!({
+                "role": "user",
+                "content": "read the README"
+            })],
+            &HashMap::from([
+                ("provider".to_string(), json!("openai-compatible")),
+                ("model".to_string(), json!("gpt-test")),
+                ("api_key".to_string(), json!("openai-test-key")),
+                ("base_url".to_string(), json!("http://127.0.0.1:9")),
+                ("tools".to_string(), json!("Read")),
+            ]),
+        )
+        .await
+        .unwrap_err();
+
+        let provider_error = error.downcast_ref::<ProviderError>().unwrap();
+        assert_eq!(provider_error.code(), "unsupported_tools");
+    }
+
+    #[tokio::test]
     async fn run_assistant_turn_fake_provider_reads_file_then_returns_final_answer() {
         let _guard = env_lock().lock().unwrap();
         clear_team_env();
@@ -8845,6 +8954,12 @@ mod tests {
     }
 
     #[derive(Debug, Default)]
+    struct MockOpenAiCompatibleState {
+        auth_headers: Vec<String>,
+        requests: Vec<Value>,
+    }
+
+    #[derive(Debug, Default)]
     struct MockToolLoopState {
         write_path: String,
         requests: Vec<Value>,
@@ -8906,6 +9021,26 @@ mod tests {
         (format!("http://{}", addr), state, server)
     }
 
+    async fn start_mock_openai_compatible_server() -> (
+        String,
+        Arc<Mutex<MockOpenAiCompatibleState>>,
+        JoinHandle<()>,
+    ) {
+        let state = Arc::new(Mutex::new(MockOpenAiCompatibleState::default()));
+        let app = Router::new()
+            .route(
+                "/chat/completions",
+                post(handle_mock_openai_compatible_request),
+            )
+            .with_state(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{}", addr), state, server)
+    }
+
     async fn handle_mock_messages_request(
         State(state): State<Arc<Mutex<MockMessagesState>>>,
         Json(body): Json<Value>,
@@ -8949,6 +9084,48 @@ mod tests {
                 "usage": {
                     "input_tokens": 1,
                     "output_tokens": 1
+                }
+            })),
+        )
+            .into_response()
+    }
+
+    async fn handle_mock_openai_compatible_request(
+        State(state): State<Arc<Mutex<MockOpenAiCompatibleState>>>,
+        headers: HeaderMap,
+        Json(body): Json<Value>,
+    ) -> impl IntoResponse {
+        let auth_header = headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        let model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        {
+            let mut state = state.lock().unwrap();
+            state.auth_headers.push(auth_header);
+            state.requests.push(body);
+        }
+
+        (
+            StatusCode::OK,
+            Json(json!({
+                "id": "chatcmpl_mock",
+                "model": model,
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "openai compatible ok"
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 2,
+                    "completion_tokens": 3
                 }
             })),
         )
