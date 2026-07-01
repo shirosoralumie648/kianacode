@@ -113,6 +113,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Clarified the `0.1.0` commercial GA distribution scope as GitHub Releases,
   Homebrew, winget, and enterprise offline bundles; apt/yum/npm-style channels
   remain post-GA candidates until generator and verifier gates exist.
+- Tightened enterprise offline manifest verification so full commercial artifact
+  checks reject placeholder release URLs, empty artifact lists, and non-generated
+  Homebrew or winget channel state.
 - Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
   local app-server `/app` endpoints for conversations, settings, redacted
   secrets, sandbox posture, and git status.

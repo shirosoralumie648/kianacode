@@ -290,13 +290,31 @@ add_check(
 
 enterprise_manifest = manifest_dir / "enterprise" / "offline-manifest.json"
 enterprise, enterprise_error = load_json(enterprise_manifest)
+enterprise_base_url = enterprise.get("release_base_url") if isinstance(enterprise, dict) else ""
+enterprise_channels = enterprise.get("channels") if isinstance(enterprise, dict) else {}
+enterprise_channels = enterprise_channels if isinstance(enterprise_channels, dict) else {}
+enterprise_payload = json.dumps(enterprise) if isinstance(enterprise, dict) else ""
+enterprise_placeholder_markers = (
+    "github.com/kiana-project/kiana",
+    "example.com",
+    "example.test",
+    "localhost",
+    "127.0.0.1",
+    "pending_",
+    "blocked_",
+    "dry_run",
+)
 enterprise_ok = (
     isinstance(enterprise, dict)
     and enterprise.get("schema") == "kiana.enterprise.offline-manifest.v1"
     and enterprise.get("version") == VERSION
-    and "pending_" not in json.dumps(enterprise)
-    and "dry_run" not in json.dumps(enterprise)
-    and "blocked_" not in json.dumps(enterprise)
+    and isinstance(enterprise_base_url, str)
+    and enterprise_base_url.startswith("https://")
+    and not any(marker in enterprise_base_url.lower() for marker in enterprise_placeholder_markers)
+    and not any(marker in enterprise_payload.lower() for marker in ("pending_", "blocked_", "dry_run"))
+    and enterprise_channels.get("github_releases") == "generated_from_release_base_url"
+    and enterprise_channels.get("homebrew") == "generated"
+    and enterprise_channels.get("winget") == "generated"
 )
 add_check(
     id="distribution.enterprise-offline-manifest",

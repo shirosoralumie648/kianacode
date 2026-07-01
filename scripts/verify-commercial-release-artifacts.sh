@@ -480,6 +480,85 @@ PY
   fi
 }
 
+require_enterprise_manifest_contract() {
+  local file="$1"
+  local expected_version="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate enterprise offline manifest"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" <<'PY'
+import json
+import sys
+
+path, expected_version = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+base_url = manifest.get("release_base_url")
+artifacts = manifest.get("artifacts")
+channels = manifest.get("channels")
+placeholder_markers = (
+    "github.com/kiana-project/kiana",
+    "example.com",
+    "example.test",
+    "localhost",
+    "127.0.0.1",
+    "pending_",
+    "blocked_",
+    "dry_run",
+)
+
+def real_url(value):
+    return (
+        isinstance(value, str)
+        and value.startswith("https://")
+        and not any(marker in value.lower() for marker in placeholder_markers)
+    )
+
+def filled(item, key):
+    value = item.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+artifact_checks = []
+if isinstance(artifacts, list):
+    for item in artifacts:
+        if not isinstance(item, dict):
+            artifact_checks.append(False)
+            continue
+        url = item.get("url")
+        artifact_checks.append(
+            all(filled(item, key) for key in ["target", "archive", "url", "sha256", "binary_sha256"])
+            and real_url(url)
+            and isinstance(base_url, str)
+            and url.startswith(base_url)
+        )
+
+checks = [
+    manifest.get("schema") == "kiana.enterprise.offline-manifest.v1",
+    manifest.get("version") == expected_version,
+    real_url(base_url),
+    isinstance(artifacts, list) and len(artifacts) > 0,
+    bool(artifact_checks) and all(artifact_checks),
+    isinstance(channels, dict),
+    isinstance(channels, dict) and channels.get("github_releases") == "generated_from_release_base_url",
+    isinstance(channels, dict) and channels.get("homebrew") == "generated",
+    isinstance(channels, dict) and channels.get("winget") == "generated",
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "enterprise offline manifest commercial contract"
+  else
+    fail "enterprise offline manifest failed commercial contract"
+  fi
+}
+
 has_windows_publishable_artifact() {
   local package="$1"
   [[ -f "${dist_dir}/${package}.zip" ]] || \
@@ -581,6 +660,7 @@ if [[ -f "$enterprise_manifest" ]] && grep -Eq 'pending_|dry_run|blocked_' "$ent
 elif [[ -f "$enterprise_manifest" ]]; then
   pass "enterprise offline manifest contains no pending channel states"
 fi
+require_enterprise_manifest_contract "$enterprise_manifest" "$version"
 
 provider_catalog_proof="${dist_dir}/proofs/live-smoke/provider/model-catalog-live.json"
 provider_smoke_proof="${dist_dir}/proofs/live-smoke/provider/model-smoke-live-tools.json"

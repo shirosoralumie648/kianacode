@@ -180,7 +180,35 @@ cat > "$manifest_dir/enterprise/offline-manifest.json" <<EOF
 {
   "schema": "kiana.enterprise.offline-manifest.v1",
   "version": "$version",
-  "artifacts": []
+  "release_base_url": "https://github.com/acme/kiana/releases/download/v${version}",
+  "artifacts": [
+    {
+      "target": "linux-x86_64",
+      "archive": "kiana-${version}-linux-x86_64.tar.gz",
+      "url": "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-linux-x86_64.tar.gz",
+      "sha256": "fixture-linux-archive-sha",
+      "binary_sha256": "fixture-linux-binary-sha"
+    },
+    {
+      "target": "macos-x86_64",
+      "archive": "kiana-${version}-macos-x86_64.tar.gz",
+      "url": "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-macos-x86_64.tar.gz",
+      "sha256": "fixture-macos-archive-sha",
+      "binary_sha256": "fixture-macos-binary-sha"
+    },
+    {
+      "target": "windows-x86_64",
+      "archive": "kiana-${version}-windows-x86_64.tar.gz",
+      "url": "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-windows-x86_64.tar.gz",
+      "sha256": "fixture-windows-archive-sha",
+      "binary_sha256": "fixture-windows-binary-sha"
+    }
+  ],
+  "channels": {
+    "github_releases": "generated_from_release_base_url",
+    "homebrew": "generated",
+    "winget": "generated"
+  }
 }
 EOF
 

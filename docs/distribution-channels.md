@@ -71,7 +71,9 @@ verified channels:
 
 Those manifests must be generated from the same version and checksum set as the
 GitHub Release artifacts. The commercial verifier treats missing Homebrew,
-winget, or enterprise bundle metadata as a hard failure.
+winget, or enterprise bundle metadata as a hard failure. The enterprise offline
+manifest must use a real HTTPS release URL, include non-empty artifact checksum
+entries, and report generated Homebrew and winget channel state.
 
 Windows release packaging emits a portable ZIP; full commercial verification
 requires that ZIP to be present in the combined release artifact set before the
