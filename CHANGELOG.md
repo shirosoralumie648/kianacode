@@ -99,6 +99,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added pinned release-signature and macOS-notarization proof schemas, and made
   commercial artifact verification validate signature proof structure instead
   of relying only on string markers.
+- Release artifact workflow now runs package lifecycle smoke after packaging and
+  before signing artifacts.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

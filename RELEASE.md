@@ -84,10 +84,11 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   through `scripts/install-compliance-tools.sh`, validates `v$(VERSION)` tag
   alignment, derives manifest URLs from the active repository/tag, runs full
   preflight, runs the smoke gate, packages artifacts on Linux/macOS/Windows
-  with full compliance reports, runs `scripts/sign-release-artifacts.sh` using
-  release signing/notarization commands, verifies checksums, preserves signing
-  and notarization proof artifacts, regenerates combined distribution manifests,
-  runs `scripts/verify-commercial-release-artifacts.sh`, uploads artifacts, and
+  with full compliance reports, runs package lifecycle smoke before signing,
+  runs `scripts/sign-release-artifacts.sh` using release signing/notarization
+  commands, verifies checksums, preserves signing and notarization proof
+  artifacts, regenerates combined distribution manifests, runs
+  `scripts/verify-commercial-release-artifacts.sh`, uploads artifacts, and
   creates a draft GitHub Release for tag builds only after the commercial
   artifact proof gate passes.
 

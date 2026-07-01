@@ -27,6 +27,8 @@ commercial release.
   exposes bearer-protected conversations, settings, redacted secrets, sandbox,
   and git-status endpoints.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
+- `scripts/package-lifecycle-smoke.sh` runs on each release runner after
+  packaging and before artifact signing.
 - Windows `scripts/package-release.sh` runs produce a portable ZIP plus
   checksum for winget submission.
 - Checksum verification passes before upload.

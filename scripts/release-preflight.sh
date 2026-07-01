@@ -248,6 +248,14 @@ else
   fail "GitHub release upload does not include recursive manifest/compliance artifacts"
 fi
 
+package_lifecycle_line="$(grep -n 'scripts/package-lifecycle-smoke.sh' .github/workflows/release.yml | head -n 1 | cut -d: -f1 || true)"
+sign_artifacts_line="$(grep -n 'scripts/sign-release-artifacts.sh' .github/workflows/release.yml | head -n 1 | cut -d: -f1 || true)"
+if [[ -n "$package_lifecycle_line" && -n "$sign_artifacts_line" && "$package_lifecycle_line" -lt "$sign_artifacts_line" ]]; then
+  pass "release workflow validates package lifecycle before signing"
+else
+  fail "release workflow does not run package lifecycle smoke before signing"
+fi
+
 if grep -Fq 'dist/proofs/**' .github/workflows/release.yml &&
   grep -Fq 'KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke' .github/workflows/release.yml &&
   grep -Fq 'KIANA_ENTITLEMENT_PROOF_OUT: dist/proofs/entitlement/entitlement-proof.json' .github/workflows/release.yml &&

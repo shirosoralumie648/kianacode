@@ -72,6 +72,10 @@ jobs:
         shell: bash
         run: KIANA_PACKAGE_COMPLIANCE_MODE=full bash scripts/package-release.sh
 
+      - name: Run package lifecycle smoke
+        shell: bash
+        run: bash scripts/package-lifecycle-smoke.sh
+
       - name: Sign release artifacts
         shell: bash
         env:
