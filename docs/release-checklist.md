@@ -86,7 +86,12 @@ commercial release.
   any manual terminal acceptance.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`.
+- Enterprise entitlement acceptance is recorded in
+  `kiana.entitlement-proof.v1` format and passes
+  `scripts/entitlement-proof-report.sh full` with the required commercial
+  entitlements and an active backend check.
 - Release artifacts include `dist/proofs/live-smoke/**`,
+  `dist/proofs/entitlement/entitlement-proof.json`,
   `dist/proofs/product/product-acceptance.json`, and
   `dist/proofs/release-ops/release-ops.json`; the commercial artifact verifier
   checks those proof files.
@@ -94,6 +99,6 @@ commercial release.
   posture on Windows, macOS, and Linux.
 - `kiana doctor` reports `commercial_security: ready` on target release
   environments, or release notes explicitly scope unsupported platforms.
-- Enterprise account, license, policy, and support expectations are documented,
-  and `kiana license status --json` reports the intended release posture without
-  exposing raw license keys.
+- Enterprise account, license, policy, and support expectations are documented;
+  `kiana license status --json` reports local posture without exposing raw keys,
+  and entitlement proof records the external backend acceptance.

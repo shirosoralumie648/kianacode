@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-entitlement-proof.v1.schema.json",
+  "title": "Kiana Entitlement Proof v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "status",
+    "accepted",
+    "accepted_by",
+    "accepted_at",
+    "account_id",
+    "organization",
+    "plan",
+    "license_status",
+    "entitlements",
+    "license_key_fingerprint",
+    "support_contact",
+    "backend"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.entitlement-proof.v1"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["accepted", "local_rc_only", "blocked"]
+    },
+    "accepted": {
+      "type": "boolean"
+    },
+    "accepted_by": {
+      "type": "string"
+    },
+    "accepted_at": {
+      "type": "string"
+    },
+    "account_id": {
+      "type": "string"
+    },
+    "organization": {
+      "type": "string"
+    },
+    "plan": {
+      "type": "string"
+    },
+    "license_status": {
+      "type": "string",
+      "enum": ["active", "trial", "suspended", "expired", "missing", "blocked"]
+    },
+    "entitlements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "license_key_fingerprint": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string"
+    },
+    "support_contact": {
+      "type": "string"
+    },
+    "backend": {
+      "type": "object",
+      "required": ["name", "environment", "checked_at", "request_id"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "checked_at": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

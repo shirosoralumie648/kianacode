@@ -90,6 +90,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   support contact, retention policy, and credential review.
 - Commercial artifact verification now rejects release signature proofs that
   still use the default `external-release-signer` placeholder.
+- Added `scripts/entitlement-proof-report.sh` plus the
+  `kiana.entitlement-proof.v1` schema so full commercial preflight requires an
+  accepted active enterprise entitlement proof from an external backend record.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

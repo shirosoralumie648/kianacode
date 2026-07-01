@@ -90,9 +90,9 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
   creates a draft GitHub Release for tag builds only after the commercial
   artifact proof gate passes.
 
-The release workflow stores live smoke, product acceptance, and release ops
-proofs under `dist/proofs/`; the combined commercial artifact verifier requires
-those proof files before drafting a release.
+The release workflow stores live smoke, entitlement, product acceptance, and
+release ops proofs under `dist/proofs/`; the combined commercial artifact
+verifier requires those proof files before drafting a release.
 
 These workflows still require a real remote repository, tag policy, release
 credentials, and signing before they become authoritative release gates.
@@ -134,6 +134,21 @@ Full commercial preflight requires `KIANA_PRODUCT_ACCEPTANCE_FILE` or
 `docs/product-acceptance/$(cat VERSION).json` with
 `schema = kiana.product-acceptance.v1`, `status = accepted`, and the required
 permission, diff, history, onboarding, resume, and settings workflows.
+
+Enterprise entitlement acceptance is separate from local license configuration.
+Local RCs can record that the external entitlement proof is still missing:
+
+```bash
+bash scripts/entitlement-proof-report.sh --local-rc
+```
+
+Full commercial preflight requires `KIANA_ENTITLEMENT_PROOF_FILE` or
+`docs/entitlements/$(cat VERSION).json` with
+`schema = kiana.entitlement-proof.v1`, `status = accepted`,
+`license_status = active`, a backend request id, support contact, license key
+fingerprint, and required entitlements. By default the required entitlements are
+`commercial-use`, `enterprise-support`, and `managed-policy`; override them with
+`KIANA_REQUIRED_ENTITLEMENTS` only when the release scope is explicitly narrower.
 
 Release operations acceptance is explicit as well. Local RCs can record that
 the proof is still missing:
@@ -191,7 +206,7 @@ them without production-like credentials.
   production-like credentials or daemons.
 - Reference-level TUI permission, diff, history, onboarding, and resume flows.
 - Hardened default sandbox and approval policy across Windows, macOS, and Linux.
-- Enterprise account, license, managed policy, and support workflows.
+- Enterprise account/license backend and real entitlement proof configuration.
 
 ## Related Documents
 

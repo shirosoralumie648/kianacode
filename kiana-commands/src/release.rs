@@ -61,6 +61,7 @@ impl Command for ReleaseCommand {
         lines.push("commercial_gate: bash scripts/provider-live-smoke.sh --required".to_string());
         lines.push("commercial_gate: bash scripts/remote-live-smoke.sh --required".to_string());
         lines.push("commercial_gate: bash scripts/sign-release-artifacts.sh".to_string());
+        lines.push("commercial_gate: bash scripts/entitlement-proof-report.sh full".to_string());
         lines.push("commercial_gate: bash scripts/product-acceptance-report.sh full".to_string());
         lines.push("commercial_gate: bash scripts/release-ops-report.sh full".to_string());
         lines.push(
@@ -319,6 +320,9 @@ mod tests {
             .contains("commercial_gate: bash scripts/sign-release-artifacts.sh"));
         assert!(result
             .value
+            .contains("commercial_gate: bash scripts/entitlement-proof-report.sh full"));
+        assert!(result
+            .value
             .contains("commercial_gate: bash scripts/product-acceptance-report.sh full"));
         assert!(result
             .value
@@ -462,6 +466,7 @@ mod tests {
             .contains("cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"));
         assert!(preflight.contains("scripts/generate-distribution-manifests.sh"));
         assert!(preflight.contains("scripts/sign-release-artifacts.sh"));
+        assert!(preflight.contains("scripts/entitlement-proof-report.sh"));
         assert!(preflight.contains("scripts/product-acceptance-report.sh"));
         assert!(preflight.contains("scripts/release-ops-report.sh"));
         assert!(workflow.contains("cargo fetch --locked"));
@@ -469,6 +474,9 @@ mod tests {
         assert!(workflow.contains("KIANA_SIGNING_COMMAND"));
         assert!(workflow.contains("dist/proofs/**"));
         assert!(workflow.contains("KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke"));
+        assert!(workflow.contains(
+            "KIANA_ENTITLEMENT_PROOF_OUT: dist/proofs/entitlement/entitlement-proof.json"
+        ));
         assert!(workflow
             .contains("KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json"));
         assert!(

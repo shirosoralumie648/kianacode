@@ -46,11 +46,13 @@ for file in \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
+  docs/schemas/kiana-entitlement-proof.v1.schema.json \
   docs/schemas/kiana-product-acceptance.v1.schema.json \
   docs/schemas/kiana-remote-code-session-smoke.v1.schema.json \
   docs/schemas/kiana-release-ops.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
+  scripts/entitlement-proof-report.sh \
   scripts/product-acceptance-report.sh \
   scripts/release-ops-report.sh \
   scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh \
@@ -189,6 +191,12 @@ else
   fail "enterprise offline manifest JSON schema is missing kiana.enterprise.offline-manifest.v1 const"
 fi
 
+if grep -Fq '"const": "kiana.entitlement-proof.v1"' docs/schemas/kiana-entitlement-proof.v1.schema.json; then
+  pass "entitlement proof JSON schema version is pinned"
+else
+  fail "entitlement proof JSON schema is missing kiana.entitlement-proof.v1 const"
+fi
+
 if grep -Fq '"const": "kiana.product-acceptance.v1"' docs/schemas/kiana-product-acceptance.v1.schema.json; then
   pass "product acceptance JSON schema version is pinned"
 else
@@ -221,11 +229,12 @@ fi
 
 if grep -Fq 'dist/proofs/**' .github/workflows/release.yml &&
   grep -Fq 'KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_ENTITLEMENT_PROOF_OUT: dist/proofs/entitlement/entitlement-proof.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json' .github/workflows/release.yml; then
-  pass "release workflow preserves live, product, and ops proof artifacts"
+  pass "release workflow preserves live, entitlement, product, and ops proof artifacts"
 else
-  fail "release workflow does not preserve live/product/ops proof artifacts"
+  fail "release workflow does not preserve live/entitlement/product/ops proof artifacts"
 fi
 
 if grep -Fq 'verify-commercial-release-artifacts.sh' .github/workflows/release.yml; then
@@ -305,6 +314,12 @@ if [[ "$mode" == "full" ]]; then
     fail "product acceptance gate failed"
   fi
 
+  if "$bash_bin" scripts/entitlement-proof-report.sh full; then
+    pass "entitlement proof gate passed"
+  else
+    fail "entitlement proof gate failed"
+  fi
+
   if "$bash_bin" scripts/release-ops-report.sh full; then
     pass "release ops gate passed"
   else
@@ -313,6 +328,12 @@ if [[ "$mode" == "full" ]]; then
 
   pass "full release signing/channel proof is enforced by release artifact verification"
 else
+  if "$bash_bin" scripts/entitlement-proof-report.sh --local-rc; then
+    pass "local RC entitlement proof report generated"
+  else
+    fail "local RC entitlement proof report failed"
+  fi
+
   if "$bash_bin" scripts/release-ops-report.sh --local-rc; then
     pass "local RC release ops report generated"
   else

@@ -85,8 +85,9 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`, and provider tool-call smoke remains opt-in through `--tools` or `KIANA_PROVIDER_SMOKE_TOOLS=1`.
 - `scripts/provider-live-smoke.sh --required` now turns opt-in provider reports into commercial evidence by running live catalog plus live text/tool smoke and storing proof JSON under `target/live-smoke/provider/`.
 - `scripts/remote-live-smoke.sh --required` now turns `remote-session code-session smoke --json` into a pinned `kiana.remote-code-session-smoke.v1` commercial evidence gate with proof JSON under `target/live-smoke/remote/`.
-- The release workflow now writes live smoke, product acceptance, and release ops proof artifacts under `dist/proofs/`, uploads them, and the commercial artifact verifier checks those proof files before drafting a release.
+- The release workflow now writes live smoke, entitlement, product acceptance, and release ops proof artifacts under `dist/proofs/`, uploads them, and the commercial artifact verifier checks those proof files before drafting a release.
 - `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
+- Added `scripts/entitlement-proof-report.sh` and the pinned `kiana.entitlement-proof.v1` schema; full commercial preflight now requires an accepted active entitlement proof from the external license/account backend instead of relying only on local license configuration.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
@@ -104,7 +105,7 @@ These are not solved by the local release gate and must be completed before clai
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama paths, including opt-in live model catalog and provider smoke reports against production-like credentials/daemons; OpenAI-compatible and Ollama tool calls plus live catalog parsing are covered by local mock gates, stream-json capability visibility now includes skills/plugins, provider credential/readiness metadata is visible through `auth status`, and full preflight now requires `scripts/provider-live-smoke.sh --required`, but real credentials/daemons are still external blockers.
 - Repeat platform-specific execution-isolation proof on real Windows, macOS, and Linux release runners; local doctor now distinguishes Linux `bwrap` from Windows/macOS exec-policy isolation, but release-runner acceptance evidence is still required.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
-- Complete real enterprise account/license backend validation and policy support; release ops now has a proof contract for the private vulnerability route and support ownership, but production entitlement verification is not wired.
+- Complete real enterprise account/license backend deployment and policy support; entitlement proof now has a release contract, but the real production backend proof file remains an external release input.
 
 ## Current Conclusion
 

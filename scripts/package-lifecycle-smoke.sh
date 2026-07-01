@@ -100,12 +100,14 @@ for file in \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-product-acceptance.v1.schema.json" \
   "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-release-ops.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh" \
+  "$package_root/scripts/entitlement-proof-report.sh" \
   "$package_root/scripts/product-acceptance-report.sh" \
   "$package_root/scripts/release-ops-report.sh" \
   "$package_root/scripts/provider-live-smoke.sh" \

@@ -159,6 +159,83 @@ PY
   fi
 }
 
+require_entitlement_contract() {
+  local file="$1"
+  local expected_version="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate entitlement proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" "${KIANA_REQUIRED_ENTITLEMENTS:-commercial-use,enterprise-support,managed-policy}" <<'PY'
+import json
+import sys
+
+path, expected_version, required_raw = sys.argv[1:4]
+required = {item.strip() for item in required_raw.split(",") if item.strip()}
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+backend = report.get("backend")
+if not isinstance(backend, dict):
+    backend = {}
+
+required_strings = [
+    "accepted_by",
+    "accepted_at",
+    "account_id",
+    "organization",
+    "plan",
+    "license_key_fingerprint",
+    "support_contact",
+]
+backend_strings = ["name", "environment", "checked_at", "request_id"]
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+)
+
+def filled(mapping, key):
+    value = mapping.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(mapping, key):
+    value = mapping.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
+entitlements = set(report.get("entitlements") or [])
+checks = [
+    report.get("schema") == "kiana.entitlement-proof.v1",
+    report.get("version") == expected_version,
+    report.get("status") == "accepted",
+    report.get("accepted") is True,
+    report.get("license_status") == "active",
+    all(filled(report, key) for key in required_strings),
+    all(not_placeholder(report, key) for key in required_strings),
+    required.issubset(entitlements),
+    all(filled(backend, key) for key in backend_strings),
+    all(not_placeholder(backend, key) for key in backend_strings),
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "entitlement proof commercial contract"
+  else
+    fail "entitlement proof failed commercial contract"
+  fi
+}
+
 has_windows_publishable_artifact() {
   local package="$1"
   [[ -f "${dist_dir}/${package}.zip" ]] || \
@@ -260,6 +337,7 @@ fi
 provider_catalog_proof="${dist_dir}/proofs/live-smoke/provider/model-catalog-live.json"
 provider_smoke_proof="${dist_dir}/proofs/live-smoke/provider/model-smoke-live-tools.json"
 remote_smoke_proof="${dist_dir}/proofs/live-smoke/remote/code-session-smoke.json"
+entitlement_proof="${dist_dir}/proofs/entitlement/entitlement-proof.json"
 product_acceptance_proof="${dist_dir}/proofs/product/product-acceptance.json"
 release_ops_proof="${dist_dir}/proofs/release-ops/release-ops.json"
 
@@ -270,6 +348,13 @@ require_json_pattern "$provider_smoke_proof" '"live"[[:space:]]*:[[:space:]]*tru
 require_json_pattern "$provider_smoke_proof" '"tools"[[:space:]]*:[[:space:]]*true' "provider live smoke proof includes tools"
 require_proof_file "$remote_smoke_proof" "kiana.remote-code-session-smoke.v1" "remote live smoke proof"
 require_json_pattern "$remote_smoke_proof" '"status"[[:space:]]*:[[:space:]]*"ok"' "remote live smoke proof status"
+require_proof_file "$entitlement_proof" "kiana.entitlement-proof.v1" "entitlement proof"
+require_json_pattern "$entitlement_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "entitlement proof accepted"
+require_json_pattern "$entitlement_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "entitlement proof accepted flag"
+require_json_pattern "$entitlement_proof" '"license_status"[[:space:]]*:[[:space:]]*"active"' "entitlement proof license active"
+require_json_pattern "$entitlement_proof" '"entitlements"[[:space:]]*:' "entitlement proof has entitlements"
+require_json_pattern "$entitlement_proof" '"backend"[[:space:]]*:' "entitlement proof has backend"
+require_entitlement_contract "$entitlement_proof" "$version"
 require_proof_file "$product_acceptance_proof" "kiana.product-acceptance.v1" "product acceptance proof"
 require_json_pattern "$product_acceptance_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "product acceptance proof accepted"
 require_json_pattern "$product_acceptance_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "product acceptance proof accepted flag"
