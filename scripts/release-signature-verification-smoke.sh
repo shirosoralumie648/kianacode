@@ -110,6 +110,23 @@ sign_archive="$sign_dist_dir/${sign_package}.tar.gz"
 sign_binary_sha="$sign_dist_dir/${sign_package}.binary.sha256"
 printf 'signing fixture archive\n' > "$sign_archive"
 printf 'signing fixture binary checksum\n' > "$sign_binary_sha"
+
+set +e
+missing_signer_output="$(
+  DIST_DIR="$sign_dist_dir" \
+    KIANA_SIGNING_COMMAND="$sign_command" \
+    KIANA_SIGNATURE_VERIFY_COMMAND="$verify_command" \
+    bash scripts/sign-release-artifacts.sh 2>&1
+)"
+missing_signer_status=$?
+set -e
+if [[ "$missing_signer_status" -eq 0 ]] ||
+  ! grep -Fq 'KIANA_RELEASE_SIGNER is required' <<<"$missing_signer_output"; then
+  echo "signing script accepted a missing release signer" >&2
+  echo "$missing_signer_output" >&2
+  exit 1
+fi
+
 DIST_DIR="$sign_dist_dir" \
   KIANA_RELEASE_SIGNER="kiana release engineering" \
   KIANA_SIGNING_COMMAND="$sign_command" \

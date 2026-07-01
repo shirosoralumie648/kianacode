@@ -55,7 +55,8 @@ commercial release.
   and `KIANA_SIGNATURE_VERIFY_COMMAND` inputs and, on macOS, real notarization
   proof input.
 - `KIANA_RELEASE_SIGNER` is set to a reviewed signer identity and is not the
-  default `external-release-signer` placeholder.
+  default `external-release-signer` placeholder; signing fails before proof
+  generation if this identity is missing.
 - Signing proof files use `kiana.release-signature.v1` and validate the target,
   archive, signer, archive/binary signature file names, and verified signature
   status; macOS notarization proof files use `kiana.macos-notarization.v1` with

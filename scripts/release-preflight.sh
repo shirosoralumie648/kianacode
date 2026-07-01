@@ -453,6 +453,13 @@ else
   fail "release workflow does not run explicit artifact signing and signature verification"
 fi
 
+if grep -Fq 'KIANA_RELEASE_SIGNER is required' scripts/sign-release-artifacts.sh &&
+  grep -Fq 'external-release-signer' scripts/sign-release-artifacts.sh; then
+  pass "release signing requires a reviewed signer identity before proof generation"
+else
+  fail "release signing does not require a reviewed signer identity before proof generation"
+fi
+
 if grep -Fq 'dist/*.signature.json' .github/workflows/release.yml &&
   grep -Fq 'dist/*.notarization.json' .github/workflows/release.yml &&
   grep -Fq 'dist/*.sig' .github/workflows/release.yml; then

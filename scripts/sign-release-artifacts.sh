@@ -19,6 +19,10 @@ signer="${KIANA_RELEASE_SIGNER:-external-release-signer}"
 signing_command="${KIANA_SIGNING_COMMAND:-}"
 signature_verify_command="${KIANA_SIGNATURE_VERIFY_COMMAND:-}"
 
+if [[ -z "${KIANA_RELEASE_SIGNER:-}" || "$signer" == "external-release-signer" ]]; then
+  echo "KIANA_RELEASE_SIGNER is required and must not be external-release-signer" >&2
+  exit 1
+fi
 if [[ -z "$signing_command" ]]; then
   echo "KIANA_SIGNING_COMMAND is required to sign release artifacts" >&2
   echo 'example: KIANA_SIGNING_COMMAND='\''gpg --batch --yes --armor --detach-sign --output "$KIANA_SIGN_OUTPUT" "$KIANA_SIGN_INPUT"'\''' >&2

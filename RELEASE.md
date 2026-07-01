@@ -145,8 +145,9 @@ release verification. macOS targets also require
 pre-validated `KIANA_MACOS_NOTARIZATION_PROOF_FILE`; the proof must use
 `kiana.macos-notarization.v1` with `status=accepted`, target/archive binding,
 accepted timestamp, authority, and notarization id. Set
-`KIANA_RELEASE_SIGNER` to the audited release signer; the commercial artifact
-verifier rejects the default `external-release-signer` placeholder.
+`KIANA_RELEASE_SIGNER` to the audited release signer; signing fails before proof
+generation when it is missing or still set to the default
+`external-release-signer` placeholder.
 
 Product acceptance is explicit as well. Local RCs can record headless product
 shell coverage:
