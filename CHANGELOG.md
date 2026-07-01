@@ -37,6 +37,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added a `commercial` permission profile and `kiana doctor`
   `commercial_security` readiness report for strict sandbox plus approval
   posture validation.
+- `kiana doctor --json` now emits the stable `kiana.doctor.v1` report shape,
+  and release gates validate the schema-critical fields.
 - OAuth token files can now supply remote/bridge bearer tokens, refresh through
   the stored refresh token, and surface redacted status in `kiana auth status`
   and `kiana doctor`.

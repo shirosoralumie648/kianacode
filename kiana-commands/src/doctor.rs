@@ -3,11 +3,14 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use async_trait::async_trait;
 use kiana_tools::bash_sandbox::{bash_sandbox_diagnostic, BashSandboxStatus};
 use kiana_tools::permissions::{effective_tool_permissions, EffectiveToolPermissions};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::process::Command as ProcessCommand;
 
 pub struct DoctorCommand;
+
+const DOCTOR_SCHEMA: &str = "kiana.doctor.v1";
 
 #[async_trait]
 impl Command for DoctorCommand {
@@ -28,173 +31,366 @@ impl Command for DoctorCommand {
     }
 
     async fn execute(&self, context: CommandContext) -> anyhow::Result<CommandResult> {
-        match context.args.trim() {
-            "" => {}
+        let json = match context.args.trim() {
+            "" => false,
+            "--json" => true,
             "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
             _ => return Err(anyhow::anyhow!(usage())),
-        }
-
-        let config = kiana_bootstrap::config::load_config();
-        let config_path = config_path();
-        let sdk_dir = sdk_sessions_dir();
-        let cwd = std::env::current_dir()?;
-        let cargo_status = command_first_line("cargo", &["--version"]);
-        let git_status = command_first_line("git", &["rev-parse", "--show-toplevel"]);
-        let modifier_status = kiana_modifiers::get_modifier_status();
-        let modifier_keys = if modifier_status.modifiers.is_empty() {
-            "none".to_string()
-        } else {
-            modifier_status.modifiers.join(",")
         };
-        let code_session_token_status = code_session_live_smoke_token_status();
-        let oauth_token_file_status = oauth_token_file_status();
-        let sandbox_state =
-            sandbox_diagnostic_app_state(&context.app_state, config.sandbox.as_ref());
-        let bash_sandbox = bash_sandbox_diagnostic(&sandbox_state);
-        let tool_permissions = effective_tool_permissions(&context.app_state);
-        let commercial_security_issues =
-            commercial_security_issues(&tool_permissions, &bash_sandbox);
 
-        let mut lines = vec![
-            "Doctor".to_string(),
-            format!("cwd: {}", cwd.display()),
-            format!(
-                "cargo: {}",
-                cargo_status.unwrap_or_else(|| "missing".to_string())
-            ),
-            format!(
-                "git_root: {}",
-                git_status.unwrap_or_else(|| "not a git repository".to_string())
-            ),
-            format!(
-                "config_file: {} ({})",
-                config_path.display(),
-                if config_path.is_file() {
-                    "found"
-                } else {
-                    "missing"
-                }
-            ),
-            format!(
-                "sdk_sessions_dir: {} ({})",
-                sdk_dir.display(),
-                if sdk_dir.is_dir() { "found" } else { "missing" }
-            ),
-            format!(
-                "api_key_set: {}",
-                bool_label(
-                    config
-                        .api_key
-                        .as_deref()
-                        .is_some_and(|v| !v.trim().is_empty())
-                )
-            ),
-            format!("model: {}", config.model),
-            format!(
-                "remote_settings: status={} file={}",
-                remote_settings_status(),
-                remote_settings_file_label()
-            ),
-            format!(
-                "tui_permission_request: active={} queued={}",
-                bool_label(app_state_bool(
-                    &context.app_state,
-                    "tui_permission_request_active"
-                )),
-                app_state_usize(&context.app_state, "tui_permission_request_queue_len")
-            ),
-            "mcp_transport: stdio,http,sse,ws wired; surfaces: tools,resources,resource_templates,prompts".to_string(),
-            format!(
-                "modifiers: platform={} backend={} available={} current={}",
-                modifier_status.platform,
-                modifier_status.backend,
-                bool_label(modifier_status.available),
-                modifier_keys
-            ),
-            format!(
-                "remote_bridge: start command wired with SDK runner; token_configured: {}",
-                bool_label(bridge_access_token_configured())
-            ),
-            format!(
-                "remote_code_session: live_smoke_token={}",
-                code_session_token_status.label()
-            ),
-            format!(
-                "oauth_token_file: {}",
-                oauth_token_file_status.label()
-            ),
-            format!(
-                "bash_sandbox: enabled={} status={} runtime={} fail_if_unavailable={} allow_unsandboxed_commands={} bwrap={}",
-                bool_label(bash_sandbox.enabled),
-                bash_sandbox.status.as_str(),
-                bash_sandbox.runtime_label(),
-                bool_label(bash_sandbox.fail_if_unavailable),
-                bool_label(bash_sandbox.allow_unsandboxed_commands),
-                bash_sandbox.bwrap_label()
-            ),
-            format!(
-                "commercial_security: {}",
-                if commercial_security_issues.is_empty() {
-                    "ready".to_string()
-                } else {
-                    format!("not_ready({} issue(s))", commercial_security_issues.len())
-                }
-            ),
-        ];
-
-        if config
-            .api_key
-            .as_deref()
-            .is_none_or(|v| v.trim().is_empty())
-        {
-            lines.push("warning: set ANTHROPIC_API_KEY or ~/.kiana/config.toml before sending model prompts".to_string());
+        let report = build_doctor_report(&context)?;
+        if json {
+            Ok(CommandResult::text(serde_json::to_string_pretty(&report)?))
+        } else {
+            Ok(CommandResult::text(render_doctor_text(&report)))
         }
-        if !bridge_access_token_configured() {
-            lines.push("warning: remote bridge start requires KIANA_BRIDGE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN".to_string());
-        }
-        if let Some(warning) = code_session_token_status.warning() {
-            lines.push(warning);
-        }
-        if let Some(warning) = oauth_token_file_status.warning() {
-            lines.push(warning);
-        }
-        if !modifier_status.available {
-            let reason = modifier_status
-                .message
-                .unwrap_or_else(|| "modifier polling is unavailable".to_string());
-            lines.push(format!(
-                "warning: modifier key polling unavailable: {reason}"
-            ));
-        }
-        if bash_sandbox.status == BashSandboxStatus::Unavailable && bash_sandbox.fail_if_unavailable
-        {
-            lines.push(
-                "warning: bash sandbox enabled with failIfUnavailable=true, but bubblewrap (bwrap) is not available"
-                    .to_string(),
-            );
-        } else if bash_sandbox.status == BashSandboxStatus::Unavailable
-            && !bash_sandbox.allow_unsandboxed_commands
-        {
-            lines.push(
-                "warning: bash sandbox enabled but unavailable and allowUnsandboxedCommands=false; Bash commands will fail"
-                    .to_string(),
-            );
-        } else if bash_sandbox.status == BashSandboxStatus::Unavailable {
-            lines.push(
-                "warning: bash sandbox enabled but bubblewrap (bwrap) is not available; Bash may run unsandboxed if allowed"
-                    .to_string(),
-            );
-        }
-        for issue in commercial_security_issues {
-            lines.push(format!("commercial_security_issue: {issue}"));
-        }
-
-        Ok(CommandResult::text(lines.join("\n")))
     }
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana doctor"
+    "Usage: kiana doctor [--json]"
+}
+
+#[derive(Debug, Serialize)]
+struct DoctorReport {
+    schema: &'static str,
+    status: String,
+    cwd: String,
+    cargo: ProbeReport,
+    git_root: ProbeReport,
+    config_file: PathReport,
+    sdk_sessions_dir: PathReport,
+    api_key_set: bool,
+    model: String,
+    remote_settings: RemoteSettingsReport,
+    tui_permission_request: TuiPermissionRequestReport,
+    mcp_transport: McpTransportReport,
+    modifiers: ModifiersReport,
+    remote_bridge: RemoteBridgeReport,
+    remote_code_session: RemoteCodeSessionReport,
+    oauth_token_file: OAuthTokenFileReport,
+    bash_sandbox: BashSandboxReport,
+    commercial_security: CommercialSecurityReport,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ProbeReport {
+    available: bool,
+    value: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PathReport {
+    path: String,
+    found: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteSettingsReport {
+    status: String,
+    file: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TuiPermissionRequestReport {
+    active: bool,
+    queued: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct McpTransportReport {
+    wired: bool,
+    transports: Vec<&'static str>,
+    surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct ModifiersReport {
+    platform: String,
+    backend: String,
+    available: bool,
+    current: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteBridgeReport {
+    start_command_wired: bool,
+    token_configured: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteCodeSessionReport {
+    live_smoke_token: String,
+    configured: bool,
+    source: Option<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct OAuthTokenFileReport {
+    status: String,
+    valid: bool,
+    refreshable: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct BashSandboxReport {
+    enabled: bool,
+    status: String,
+    runtime: String,
+    fail_if_unavailable: bool,
+    allow_unsandboxed_commands: bool,
+    bwrap: String,
+}
+
+#[derive(Debug, Serialize)]
+struct CommercialSecurityReport {
+    ready: bool,
+    status: String,
+    issues: Vec<String>,
+}
+
+fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport> {
+    let config = kiana_bootstrap::config::load_config();
+    let config_path = config_path();
+    let sdk_dir = sdk_sessions_dir();
+    let cwd = std::env::current_dir()?;
+    let cargo_status = command_first_line("cargo", &["--version"]);
+    let git_status = command_first_line("git", &["rev-parse", "--show-toplevel"]);
+    let modifier_status = kiana_modifiers::get_modifier_status();
+    let code_session_token_status = code_session_live_smoke_token_status();
+    let oauth_token_file_status = oauth_token_file_status();
+    let sandbox_state = sandbox_diagnostic_app_state(&context.app_state, config.sandbox.as_ref());
+    let bash_sandbox = bash_sandbox_diagnostic(&sandbox_state);
+    let tool_permissions = effective_tool_permissions(&context.app_state);
+    let commercial_security_issues = commercial_security_issues(&tool_permissions, &bash_sandbox);
+    let api_key_set = config
+        .api_key
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty());
+    let remote_bridge_token_configured = bridge_access_token_configured();
+
+    let mut warnings = Vec::new();
+    if !api_key_set {
+        warnings.push(
+            "set ANTHROPIC_API_KEY or ~/.kiana/config.toml before sending model prompts"
+                .to_string(),
+        );
+    }
+    if !remote_bridge_token_configured {
+        warnings.push(
+            "remote bridge start requires KIANA_BRIDGE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN"
+                .to_string(),
+        );
+    }
+    if let Some(warning) = code_session_token_status.warning() {
+        warnings.push(warning.trim_start_matches("warning: ").to_string());
+    }
+    if let Some(warning) = oauth_token_file_status.warning() {
+        warnings.push(warning.trim_start_matches("warning: ").to_string());
+    }
+    if !modifier_status.available {
+        let reason = modifier_status
+            .message
+            .clone()
+            .unwrap_or_else(|| "modifier polling is unavailable".to_string());
+        warnings.push(format!("modifier key polling unavailable: {reason}"));
+    }
+    if bash_sandbox.status == BashSandboxStatus::Unavailable && bash_sandbox.fail_if_unavailable {
+        warnings.push(
+            "bash sandbox enabled with failIfUnavailable=true, but bubblewrap (bwrap) is not available"
+                .to_string(),
+        );
+    } else if bash_sandbox.status == BashSandboxStatus::Unavailable
+        && !bash_sandbox.allow_unsandboxed_commands
+    {
+        warnings.push(
+            "bash sandbox enabled but unavailable and allowUnsandboxedCommands=false; Bash commands will fail"
+                .to_string(),
+        );
+    } else if bash_sandbox.status == BashSandboxStatus::Unavailable {
+        warnings.push(
+            "bash sandbox enabled but bubblewrap (bwrap) is not available; Bash may run unsandboxed if allowed"
+                .to_string(),
+        );
+    }
+
+    let commercial_ready = commercial_security_issues.is_empty();
+    let status = if commercial_ready && warnings.is_empty() {
+        "ready".to_string()
+    } else {
+        "warning".to_string()
+    };
+
+    Ok(DoctorReport {
+        schema: DOCTOR_SCHEMA,
+        status,
+        cwd: cwd.display().to_string(),
+        cargo: ProbeReport {
+            available: cargo_status.is_some(),
+            value: cargo_status.unwrap_or_else(|| "missing".to_string()),
+        },
+        git_root: ProbeReport {
+            available: git_status.is_some(),
+            value: git_status.unwrap_or_else(|| "not a git repository".to_string()),
+        },
+        config_file: PathReport {
+            path: config_path.display().to_string(),
+            found: config_path.is_file(),
+        },
+        sdk_sessions_dir: PathReport {
+            path: sdk_dir.display().to_string(),
+            found: sdk_dir.is_dir(),
+        },
+        api_key_set,
+        model: config.model,
+        remote_settings: RemoteSettingsReport {
+            status: remote_settings_status(),
+            file: remote_settings_file_label(),
+        },
+        tui_permission_request: TuiPermissionRequestReport {
+            active: app_state_bool(&context.app_state, "tui_permission_request_active"),
+            queued: app_state_usize(&context.app_state, "tui_permission_request_queue_len"),
+        },
+        mcp_transport: McpTransportReport {
+            wired: true,
+            transports: vec!["stdio", "http", "sse", "ws"],
+            surfaces: vec!["tools", "resources", "resource_templates", "prompts"],
+        },
+        modifiers: ModifiersReport {
+            platform: modifier_status.platform.to_string(),
+            backend: modifier_status.backend.to_string(),
+            available: modifier_status.available,
+            current: modifier_status.modifiers,
+        },
+        remote_bridge: RemoteBridgeReport {
+            start_command_wired: true,
+            token_configured: remote_bridge_token_configured,
+        },
+        remote_code_session: RemoteCodeSessionReport {
+            live_smoke_token: code_session_token_status.label(),
+            configured: matches!(
+                code_session_token_status,
+                CodeSessionLiveSmokeTokenStatus::Configured(_)
+            ),
+            source: code_session_token_status.source(),
+        },
+        oauth_token_file: OAuthTokenFileReport {
+            status: oauth_token_file_status.label(),
+            valid: !matches!(oauth_token_file_status, OAuthTokenFileStatus::Invalid(_)),
+            refreshable: matches!(oauth_token_file_status, OAuthTokenFileStatus::Refreshable),
+            error: oauth_token_file_status.error(),
+        },
+        bash_sandbox: BashSandboxReport {
+            enabled: bash_sandbox.enabled,
+            status: bash_sandbox.status.as_str().to_string(),
+            runtime: bash_sandbox.runtime_label().to_string(),
+            fail_if_unavailable: bash_sandbox.fail_if_unavailable,
+            allow_unsandboxed_commands: bash_sandbox.allow_unsandboxed_commands,
+            bwrap: bash_sandbox.bwrap_label(),
+        },
+        commercial_security: CommercialSecurityReport {
+            ready: commercial_ready,
+            status: if commercial_ready {
+                "ready".to_string()
+            } else {
+                "not_ready".to_string()
+            },
+            issues: commercial_security_issues,
+        },
+        warnings,
+    })
+}
+
+fn render_doctor_text(report: &DoctorReport) -> String {
+    let modifier_keys = if report.modifiers.current.is_empty() {
+        "none".to_string()
+    } else {
+        report.modifiers.current.join(",")
+    };
+    let mut lines = vec![
+        "Doctor".to_string(),
+        format!("cwd: {}", report.cwd),
+        format!("cargo: {}", report.cargo.value),
+        format!("git_root: {}", report.git_root.value),
+        format!(
+            "config_file: {} ({})",
+            report.config_file.path,
+            if report.config_file.found {
+                "found"
+            } else {
+                "missing"
+            }
+        ),
+        format!(
+            "sdk_sessions_dir: {} ({})",
+            report.sdk_sessions_dir.path,
+            if report.sdk_sessions_dir.found {
+                "found"
+            } else {
+                "missing"
+            }
+        ),
+        format!("api_key_set: {}", bool_label(report.api_key_set)),
+        format!("model: {}", report.model),
+        format!(
+            "remote_settings: status={} file={}",
+            report.remote_settings.status, report.remote_settings.file
+        ),
+        format!(
+            "tui_permission_request: active={} queued={}",
+            bool_label(report.tui_permission_request.active),
+            report.tui_permission_request.queued
+        ),
+        "mcp_transport: stdio,http,sse,ws wired; surfaces: tools,resources,resource_templates,prompts"
+            .to_string(),
+        format!(
+            "modifiers: platform={} backend={} available={} current={}",
+            report.modifiers.platform,
+            report.modifiers.backend,
+            bool_label(report.modifiers.available),
+            modifier_keys
+        ),
+        format!(
+            "remote_bridge: start command wired with SDK runner; token_configured: {}",
+            bool_label(report.remote_bridge.token_configured)
+        ),
+        format!(
+            "remote_code_session: live_smoke_token={}",
+            report.remote_code_session.live_smoke_token
+        ),
+        format!("oauth_token_file: {}", report.oauth_token_file.status),
+        format!(
+            "bash_sandbox: enabled={} status={} runtime={} fail_if_unavailable={} allow_unsandboxed_commands={} bwrap={}",
+            bool_label(report.bash_sandbox.enabled),
+            report.bash_sandbox.status,
+            report.bash_sandbox.runtime,
+            bool_label(report.bash_sandbox.fail_if_unavailable),
+            bool_label(report.bash_sandbox.allow_unsandboxed_commands),
+            report.bash_sandbox.bwrap
+        ),
+        format!(
+            "commercial_security: {}",
+            if report.commercial_security.ready {
+                "ready".to_string()
+            } else {
+                format!(
+                    "not_ready({} issue(s))",
+                    report.commercial_security.issues.len()
+                )
+            }
+        ),
+    ];
+
+    for warning in &report.warnings {
+        lines.push(format!("warning: {warning}"));
+    }
+    for issue in &report.commercial_security.issues {
+        lines.push(format!("commercial_security_issue: {issue}"));
+    }
+
+    lines.join("\n")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -230,6 +426,14 @@ impl CodeSessionLiveSmokeTokenStatus {
             CodeSessionLiveSmokeTokenStatus::Configured(_) => None,
         }
     }
+
+    fn source(self) -> Option<&'static str> {
+        match self {
+            CodeSessionLiveSmokeTokenStatus::Configured(source) => Some(source),
+            CodeSessionLiveSmokeTokenStatus::Missing
+            | CodeSessionLiveSmokeTokenStatus::AnthropicApiKeyMisuse => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,6 +459,13 @@ impl OAuthTokenFileStatus {
             OAuthTokenFileStatus::Invalid(error) => {
                 Some(format!("warning: OAuth token file is invalid: {error}"))
             }
+            _ => None,
+        }
+    }
+
+    fn error(&self) -> Option<String> {
+        match self {
+            OAuthTokenFileStatus::Invalid(error) => Some(error.clone()),
             _ => None,
         }
     }
@@ -489,6 +700,46 @@ mod tests {
         assert!(result
             .value
             .contains("tui_permission_request: active=yes queued=2"));
+    }
+
+    #[tokio::test]
+    async fn doctor_json_reports_stable_contract() {
+        let _lock = env_lock().lock().unwrap();
+        let token_path = temp_path("missing-oauth-token-file");
+        let token_path_str = token_path.to_string_lossy().to_string();
+        let _guard = EnvGuard::set(&[
+            ("KIANA_REMOTE_ACCESS_TOKEN", None),
+            ("KIANA_BRIDGE_ACCESS_TOKEN", None),
+            ("CLAUDE_ACCESS_TOKEN", None),
+            ("ANTHROPIC_AUTH_TOKEN", None),
+            ("KIANA_OAUTH_TOKENS_FILE", Some(&token_path_str)),
+        ]);
+        let mut app_state = HashMap::new();
+        app_state.insert("tui_permission_request_active".to_string(), json!(true));
+        app_state.insert("tui_permission_request_queue_len".to_string(), json!(2));
+
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: "--json".to_string(),
+                app_state,
+            })
+            .await
+            .unwrap();
+        let report: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.doctor.v1");
+        assert!(report["status"].is_string());
+        assert!(report["cargo"]["available"].is_boolean());
+        assert!(report["git_root"]["value"].is_string());
+        assert_eq!(report["tui_permission_request"]["active"], true);
+        assert_eq!(report["tui_permission_request"]["queued"], 2);
+        assert_eq!(report["mcp_transport"]["wired"], true);
+        assert!(report["remote_bridge"]["token_configured"].is_boolean());
+        assert_eq!(report["remote_code_session"]["live_smoke_token"], "no");
+        assert_eq!(report["oauth_token_file"]["status"], "missing");
+        assert!(report["bash_sandbox"]["enabled"].is_boolean());
+        assert!(report["commercial_security"]["issues"].is_array());
+        assert!(report["warnings"].is_array());
     }
 
     #[tokio::test]

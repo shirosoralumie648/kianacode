@@ -17,6 +17,8 @@ commercial release.
 - `cargo fmt --all --check` passes.
 - `bash scripts/release-preflight.sh --local-rc` passes.
 - `cargo test --workspace --locked --offline --no-fail-fast` passes.
+- `kiana doctor --json` conforms to `docs/schemas/kiana-doctor.v1.schema.json`
+  through the release smoke gate.
 - `scripts/release-smoke.sh` passes on Linux, macOS, and Windows runners.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - Checksum verification passes before upload.

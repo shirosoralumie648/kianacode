@@ -41,6 +41,7 @@ for file in \
   VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
+  docs/schemas/kiana-doctor.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
   scripts/generate-distribution-manifests.sh \
@@ -105,6 +106,18 @@ for manifest in kiana-*/Cargo.toml; do
   require_manifest_field "$manifest" '^rust-version[.]workspace = true$'
   require_manifest_field "$manifest" '^publish = false$'
 done
+
+if grep -Fq 'doctor --json' scripts/release-smoke.sh; then
+  pass "doctor JSON smoke gate is wired"
+else
+  fail "release smoke does not exercise doctor --json"
+fi
+
+if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.json; then
+  pass "doctor JSON schema version is pinned"
+else
+  fail "doctor JSON schema is missing kiana.doctor.v1 const"
+fi
 
 if [[ "$mode" == "full" ]]; then
   if git rev-parse --verify HEAD >/dev/null 2>&1; then

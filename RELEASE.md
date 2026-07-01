@@ -22,10 +22,10 @@ The gate runs:
 - `cargo fmt --all --check`
 - `cargo test --workspace --locked --offline --no-fail-fast`
 - `cargo build --release --locked --offline -p kiana-entrypoints --bin kiana`
-- release binary version and doctor smoke
+- release binary version plus doctor text and `kiana.doctor.v1` JSON smoke
 - help, auth, completion, plugin, MCP, and project MCP smoke checks
 - temporary source install into an isolated `INSTALL_DIR`
-- installed binary version, doctor, help, auth, plugin, and MCP smoke checks
+- installed binary version, doctor text/JSON, help, auth, plugin, and MCP smoke checks
 
 ## Package Gate
 

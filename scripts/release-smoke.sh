@@ -151,6 +151,64 @@ smoke_doctor() {
   done
 }
 
+doctor_json_python() {
+  command -v python3 2>/dev/null || command -v python 2>/dev/null || {
+    echo "doctor JSON smoke requires python3 or python" >&2
+    exit 1
+  }
+}
+
+smoke_doctor_json() {
+  local binary="$1"
+  local output
+  local python_bin
+
+  output="$(run_clean_kiana "$binary" doctor --json 2>&1)"
+  python_bin="$(doctor_json_python)"
+  DOCTOR_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["DOCTOR_JSON"])
+except Exception as exc:
+    print(f"doctor JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("DOCTOR_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+required = [
+    "schema",
+    "status",
+    "cargo",
+    "git_root",
+    "remote_code_session",
+    "oauth_token_file",
+    "bash_sandbox",
+    "commercial_security",
+    "warnings",
+]
+missing = [key for key in required if key not in report]
+if missing:
+    print(f"doctor JSON missing keys: {missing}", file=sys.stderr)
+    sys.exit(1)
+
+checks = [
+    report.get("schema") == "kiana.doctor.v1",
+    isinstance(report.get("warnings"), list),
+    isinstance(report.get("cargo", {}).get("available"), bool),
+    isinstance(report.get("remote_code_session", {}).get("live_smoke_token"), str),
+    isinstance(report.get("oauth_token_file", {}).get("status"), str),
+    isinstance(report.get("bash_sandbox", {}).get("enabled"), bool),
+    isinstance(report.get("commercial_security", {}).get("issues"), list),
+]
+if not all(checks):
+    print("doctor JSON failed schema smoke checks", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 smoke_version() {
   local binary="$1"
   local output
@@ -436,6 +494,7 @@ installed_bin="$install_dir/kiana$(exe_ext)"
 
 smoke_version "$release_bin"
 smoke_doctor "$release_bin"
+smoke_doctor_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$release_bin" "$entry"
 done
@@ -448,6 +507,7 @@ smoke_mcp_project_config "$release_bin"
 install_release_binary
 smoke_version "$installed_bin"
 smoke_doctor "$installed_bin"
+smoke_doctor_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$installed_bin" "$entry"
 done
