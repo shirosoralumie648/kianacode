@@ -236,6 +236,107 @@ PY
   fi
 }
 
+require_release_signature_contract() {
+  local file="$1"
+  local expected_target="$2"
+  local expected_archive="$3"
+  local expected_archive_sig="$4"
+  local expected_binary_sig="$5"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate release signature proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_target" "$expected_archive" "$expected_archive_sig" "$expected_binary_sig" <<'PY'
+import json
+import sys
+
+path, expected_target, expected_archive, expected_archive_sig, expected_binary_sig = sys.argv[1:6]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+signature_files = report.get("signature_files")
+if not isinstance(signature_files, dict):
+    signature_files = {}
+
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+    "external-release-signer",
+)
+
+def filled(mapping, key):
+    value = mapping.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(value):
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
+checks = [
+    report.get("schema") == "kiana.release-signature.v1",
+    report.get("target") == expected_target,
+    report.get("archive") == expected_archive,
+    filled(report, "signed_at"),
+    filled(report, "signer"),
+    not_placeholder(report.get("signer")),
+    signature_files.get("archive") == expected_archive_sig,
+    signature_files.get("binary") == expected_binary_sig,
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "release signature proof commercial contract"
+  else
+    fail "release signature proof failed commercial contract"
+  fi
+}
+
+require_macos_notarization_contract() {
+  local file="$1"
+  local expected_target="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate macOS notarization proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_target" <<'PY'
+import json
+import sys
+
+path, expected_target = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+target = report.get("target")
+checks = [
+    report.get("schema") == "kiana.macos-notarization.v1",
+    report.get("status") == "accepted",
+    target is None or target == expected_target,
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "macOS notarization proof commercial contract"
+  else
+    fail "macOS notarization proof failed commercial contract"
+  fi
+}
+
 has_windows_publishable_artifact() {
   local package="$1"
   [[ -f "${dist_dir}/${package}.zip" ]] || \
@@ -270,12 +371,14 @@ for archive in "${archives[@]}"; do
   require_json_pattern "$signature_proof" "\"target\"[[:space:]]*:[[:space:]]*\"${target}\"" "release signature target matches"
   require_json_pattern "$signature_proof" "\"archive\"[[:space:]]*:[[:space:]]*\"${filename}\"" "release signature archive matches"
   reject_json_pattern "$signature_proof" '"signer"[[:space:]]*:[[:space:]]*"external-release-signer"' "default release signer placeholder"
+  require_release_signature_contract "$signature_proof" "$target" "$filename" "${filename}.sig" "${package}.binary.sig"
 
   if [[ "$target" == macos-* ]]; then
     notarization_proof="${dist_dir}/${package}.notarization.json"
     require_file "$notarization_proof"
     require_json_pattern "$notarization_proof" '"schema"[[:space:]]*:[[:space:]]*"kiana.macos-notarization.v1"' "macOS notarization proof schema"
     require_json_pattern "$notarization_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "macOS notarization accepted"
+    require_macos_notarization_contract "$notarization_proof" "$target"
   fi
 
   if [[ "$target" == windows-* ]]; then

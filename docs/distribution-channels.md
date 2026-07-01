@@ -16,7 +16,8 @@ The channels below define the commercial distribution target state.
   release proof scripts and pinned proof schemas are packaged.
 - Release tarballs include `SBOM.cdx.json` and `docs/compliance-report.json`.
 - Release tarballs include pinned JSON schemas under `docs/schemas/`, including
-  doctor, model provider smoke, and license readiness reports.
+  doctor, model provider smoke, license readiness, release signature, and macOS
+  notarization reports.
 - Distribution manifest dry-runs are generated through
   `scripts/generate-distribution-manifests.sh` and included beside package
   artifacts under `dist/manifests/`.
@@ -48,7 +49,8 @@ The channels below define the commercial distribution target state.
 - Real public release notes that link the existing install, upgrade, rollback,
   and uninstall instructions for the shipped artifact.
 - Signing proof artifacts using `kiana.release-signature.v1` beside every
-  archive and binary checksum.
+  archive and binary checksum, validated against the target archive and
+  signature file names.
 - macOS notarization proof artifacts using `kiana.macos-notarization.v1` with
   `status=accepted`.
 

@@ -96,6 +96,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added a pinned `kiana.app-server.contract.v1` schema and bearer-protected
   local app-server `/app` endpoints for conversations, settings, redacted
   secrets, sandbox posture, and git status.
+- Added pinned release-signature and macOS-notarization proof schemas, and made
+  commercial artifact verification validate signature proof structure instead
+  of relying only on string markers.
 - Exec policy now rejects destructive sync-to-root shapes such as
   `rsync --delete ... /` and `robocopy ... C:\ /MIR`, including nested shell
   wrapper invocations, while preserving safe literal examples.

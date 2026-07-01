@@ -50,6 +50,8 @@ for file in \
   docs/schemas/kiana-entitlement-proof.v1.schema.json \
   docs/schemas/kiana-product-acceptance.v1.schema.json \
   docs/schemas/kiana-remote-code-session-smoke.v1.schema.json \
+  docs/schemas/kiana-release-signature.v1.schema.json \
+  docs/schemas/kiana-macos-notarization.v1.schema.json \
   docs/schemas/kiana-release-ops.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
@@ -214,6 +216,18 @@ if grep -Fq '"const": "kiana.remote-code-session-smoke.v1"' docs/schemas/kiana-r
   pass "remote code-session smoke JSON schema version is pinned"
 else
   fail "remote code-session smoke JSON schema is missing kiana.remote-code-session-smoke.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.release-signature.v1"' docs/schemas/kiana-release-signature.v1.schema.json; then
+  pass "release signature JSON schema version is pinned"
+else
+  fail "release signature JSON schema is missing kiana.release-signature.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.macos-notarization.v1"' docs/schemas/kiana-macos-notarization.v1.schema.json; then
+  pass "macOS notarization JSON schema version is pinned"
+else
+  fail "macOS notarization JSON schema is missing kiana.macos-notarization.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.release-ops.v1"' docs/schemas/kiana-release-ops.v1.schema.json; then

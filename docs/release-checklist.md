@@ -50,7 +50,8 @@ commercial release.
   and, on macOS, real notarization proof input.
 - `KIANA_RELEASE_SIGNER` is set to a reviewed signer identity and is not the
   default `external-release-signer` placeholder.
-- Signing proof files use `kiana.release-signature.v1`; macOS notarization
+- Signing proof files use `kiana.release-signature.v1` and validate the target,
+  archive, signer, and archive/binary signature file names; macOS notarization
   proof files use `kiana.macos-notarization.v1` with `status=accepted`.
 - `scripts/release-ops-report.sh full` passes with `kiana.release-ops.v1`
   proof covering private vulnerability reporting, release credential ownership,

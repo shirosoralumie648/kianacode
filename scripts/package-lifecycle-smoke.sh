@@ -104,7 +104,9 @@ for file in \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-macos-notarization.v1.schema.json" \
   "$package_root/docs/schemas/kiana-product-acceptance.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-release-signature.v1.schema.json" \
   "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-release-ops.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh" \

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-release-signature.v1.schema.json",
+  "title": "Kiana Release Signature v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "target",
+    "archive",
+    "signed_at",
+    "signer",
+    "signature_files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.release-signature.v1"
+    },
+    "target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "archive": {
+      "type": "string",
+      "pattern": "^kiana-.+[.]tar[.]gz$"
+    },
+    "signed_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature_files": {
+      "type": "object",
+      "required": ["archive", "binary"],
+      "properties": {
+        "archive": {
+          "type": "string",
+          "pattern": "^[^/]+[.]tar[.]gz[.]sig$"
+        },
+        "binary": {
+          "type": "string",
+          "pattern": "^[^/]+[.]binary[.]sig$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
