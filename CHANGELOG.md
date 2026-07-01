@@ -60,6 +60,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and
   the TUI surfaces a one-time onboarding message when no API key or usable OAuth
   token is configured.
+- TUI `/diff --json` and `/diff --last-assistant --json` now render structured
+  diff previews with file lists, stats, and assistant patch snippets instead of
+  raw JSON transcript output.
 
 ### Verified
 

@@ -501,7 +501,7 @@ impl TuiRuntime {
                             }
                         }
                         CommandType::Local | CommandType::LocalJsx => {
-                            self.apply_local_command_result(app, result, session_sync)
+                            self.apply_local_command_result(app, &name, result, session_sync)
                         }
                     },
                     Err(error) => app
@@ -621,6 +621,7 @@ impl TuiRuntime {
     fn apply_local_command_result(
         &mut self,
         app: &mut App,
+        command_name: &str,
         result: CommandResult,
         session_sync: Option<Result<ResumedSession, String>>,
     ) {
@@ -643,6 +644,11 @@ impl TuiRuntime {
                     return;
                 }
             }
+        }
+
+        if let Some(preview) = format_tui_diff_preview(command_name, &result.value) {
+            app.repl.push_message(MessageRole::System, preview);
+            return;
         }
 
         if !result.value.trim().is_empty() {
@@ -1125,6 +1131,127 @@ fn format_tool_input_summary(input: &Value) -> Option<String> {
     }
     let text = serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
     Some(truncate_chars(text, 1200))
+}
+
+fn format_tui_diff_preview(command_name: &str, output: &str) -> Option<String> {
+    if command_name != "diff" {
+        return None;
+    }
+    let value: Value = serde_json::from_str(output).ok()?;
+    if value.get("schema").and_then(Value::as_str) == Some("kiana.diff.from_checkpoint.v1") {
+        return Some(format_checkpoint_diff_preview(&value));
+    }
+    if value
+        .get("inside_git_repo")
+        .and_then(Value::as_bool)
+        .is_some()
+    {
+        return Some(format_git_diff_preview(&value));
+    }
+    None
+}
+
+fn format_git_diff_preview(value: &Value) -> String {
+    if !value
+        .get("inside_git_repo")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return "Diff preview\nNot inside a git repository.".to_string();
+    }
+
+    let dirty = value.get("dirty").and_then(Value::as_bool).unwrap_or(false);
+    let mut lines = vec![format!(
+        "Diff preview\nstatus: {}",
+        if dirty { "changes present" } else { "clean" }
+    )];
+    let files = value
+        .get("files")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if files.is_empty() {
+        lines.push("files: none".to_string());
+    } else {
+        lines.push(format!("files: {}", files.len()));
+        for file in files.iter().take(20) {
+            let path = file
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or("<unknown>");
+            let index = file.get("index").and_then(Value::as_str).unwrap_or(" ");
+            let worktree = file.get("worktree").and_then(Value::as_str).unwrap_or(" ");
+            lines.push(format!("- {path} index={index} worktree={worktree}"));
+        }
+        if files.len() > 20 {
+            lines.push(format!("- ... {} more files", files.len() - 20));
+        }
+    }
+    push_diff_stat(&mut lines, "staged", value.get("staged"));
+    push_diff_stat(&mut lines, "unstaged", value.get("unstaged"));
+    lines.join("\n")
+}
+
+fn format_checkpoint_diff_preview(value: &Value) -> String {
+    let changed = value
+        .get("changed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mut lines = vec![format!(
+        "Assistant diff preview\nstatus: {}",
+        if changed { "changes present" } else { "clean" }
+    )];
+    if let Some(checkpoint_id) = value
+        .get("checkpoint")
+        .and_then(|checkpoint| checkpoint.get("id"))
+        .and_then(Value::as_str)
+    {
+        lines.push(format!("checkpoint: {checkpoint_id}"));
+    }
+    let files = value
+        .get("files")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if files.is_empty() {
+        lines.push("files: none".to_string());
+    } else {
+        lines.push(format!("files: {}", files.len()));
+        for file in files.iter().take(20) {
+            let path = file
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or("<unknown>");
+            lines.push(format!("- {path}"));
+        }
+        if files.len() > 20 {
+            lines.push(format!("- ... {} more files", files.len() - 20));
+        }
+    }
+    if let Some(patch) = value
+        .get("patch")
+        .and_then(Value::as_str)
+        .filter(|patch| !patch.trim().is_empty())
+    {
+        lines.push(String::new());
+        lines.push("patch preview:".to_string());
+        lines.push(truncate_for_tui(patch, 4000));
+    }
+    lines.join("\n")
+}
+
+fn push_diff_stat(lines: &mut Vec<String>, label: &str, section: Option<&Value>) {
+    let Some(stat) = section
+        .and_then(|section| section.get("stat"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|stat| !stat.is_empty())
+    else {
+        return;
+    };
+    lines.push(String::new());
+    lines.push(format!("{label} stat:"));
+    lines.push(stat.to_string());
 }
 
 fn truncate_chars(text: String, max_chars: usize) -> String {
@@ -1758,6 +1885,74 @@ mod tests {
         assert!(app.repl.messages[0].content.contains("/doctor"));
 
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn tui_diff_json_result_renders_file_preview() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::SlashCommandCompleted {
+                name: "diff".to_string(),
+                command_type: CommandType::Local,
+                result: Ok(CommandResult::text(
+                    json!({
+                        "root": "/repo",
+                        "inside_git_repo": true,
+                        "dirty": true,
+                        "files": [
+                            {"path": "src/main.rs", "index": " ", "worktree": "M"}
+                        ],
+                        "staged": {"changed": false, "stat": ""},
+                        "unstaged": {"changed": true, "stat": " src/main.rs | 2 +-"}
+                    })
+                    .to_string(),
+                )),
+                session_sync: None,
+            },
+        );
+
+        let message = &app.repl.messages.last().unwrap().content;
+        assert!(message.contains("Diff preview"));
+        assert!(message.contains("changes present"));
+        assert!(message.contains("src/main.rs"));
+        assert!(message.contains("unstaged stat:"));
+        assert!(!message.contains("\"inside_git_repo\""));
+    }
+
+    #[test]
+    fn tui_last_assistant_diff_json_result_renders_patch_preview() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::SlashCommandCompleted {
+                name: "diff".to_string(),
+                command_type: CommandType::Local,
+                result: Ok(CommandResult::text(
+                    json!({
+                        "schema": "kiana.diff.from_checkpoint.v1",
+                        "changed": true,
+                        "checkpoint": {"id": "checkpoint-1"},
+                        "files": [{"path": "src/lib.rs"}],
+                        "patch": "diff --git a/src/lib.rs b/src/lib.rs\n+new line"
+                    })
+                    .to_string(),
+                )),
+                session_sync: None,
+            },
+        );
+
+        let message = &app.repl.messages.last().unwrap().content;
+        assert!(message.contains("Assistant diff preview"));
+        assert!(message.contains("checkpoint-1"));
+        assert!(message.contains("src/lib.rs"));
+        assert!(message.contains("patch preview:"));
+        assert!(message.contains("+new line"));
+        assert!(!message.contains("\"schema\""));
     }
 
     #[test]

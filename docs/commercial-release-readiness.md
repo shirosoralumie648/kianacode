@@ -59,6 +59,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Tag release workflow now enforces `v$(VERSION)` alignment, derives package manifest URLs from the active GitHub repository/tag, runs full release preflight before packaging, and recursively uploads manifest/compliance artifacts into the draft GitHub Release.
 - `kiana auth status --json` now exposes redacted OAuth token-file status, expiry, expiring/expired state, refreshability, and storage source; service-level OAuth token checks reject expired token files instead of using a placeholder false result.
 - Startup now records a first-start onboarding sentinel under `KIANA_HOME`, and TUI startup shows a one-time onboarding message when no API key or usable OAuth token is configured.
+- TUI `/diff --json` and `/diff --last-assistant --json` now render structured diff previews with file lists, stats, and assistant patch snippets instead of raw JSON transcript output.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
