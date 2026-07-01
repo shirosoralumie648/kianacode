@@ -190,6 +190,7 @@ impl ReplState {
                     return match name.as_str() {
                         "doctor" => Some(ReplEvent::SwitchScreen(AppScreen::Doctor)),
                         "resume" => Some(ReplEvent::SwitchScreen(AppScreen::ResumeConversation)),
+                        "settings" => Some(ReplEvent::SwitchScreen(AppScreen::Settings)),
                         _ => Some(ReplEvent::RunSlashCommand { name, args }),
                     };
                 }
@@ -639,7 +640,7 @@ fn status_text(state: &ReplState) -> String {
     };
 
     format!(
-        "{}model: {}  in: {}  out: {}  cost: ${:.4}  [/doctor] [/resume] [/history] {}",
+        "{}model: {}  in: {}  out: {}  cost: ${:.4}  [/doctor] [/resume] [/history] [/settings] {}",
         spinner,
         state.model_name,
         state.input_tokens,

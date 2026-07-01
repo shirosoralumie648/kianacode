@@ -15,6 +15,7 @@ use crate::doctor::{DoctorScreen, DoctorState};
 use crate::history::{HistoryScreen, HistoryState};
 use crate::repl::{ReplScreen, ReplState};
 use crate::resume_conversation::{ResumeScreen, ResumeState};
+use crate::settings::{SettingsScreen, SettingsState};
 
 /// Which screen is currently active.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +28,8 @@ pub enum AppScreen {
     ResumeConversation,
     /// Prompt history picker screen (`/history`).
     History,
+    /// Read-only settings and readiness hub (`/settings`).
+    Settings,
 }
 
 /// Actions emitted by the UI that must be handled by the application shell.
@@ -35,6 +38,7 @@ pub enum AppAction {
     LoadDoctor,
     LoadResumeSessions,
     LoadPromptHistory,
+    LoadSettings,
     SubmitPrompt(String),
     QueuePrompt(String),
     CancelPrompt,
@@ -49,6 +53,7 @@ pub struct App {
     pub doctor: DoctorState,
     pub resume: ResumeState,
     pub history: HistoryState,
+    pub settings: SettingsState,
     pub should_quit: bool,
     actions: Vec<AppAction>,
 }
@@ -61,6 +66,7 @@ impl App {
             doctor: DoctorState::default(),
             resume: ResumeState::default(),
             history: HistoryState::default(),
+            settings: SettingsState::default(),
             should_quit: false,
             actions: Vec::new(),
         }
@@ -117,6 +123,10 @@ impl App {
                                 self.history.loading = true;
                                 self.actions.push(AppAction::LoadPromptHistory);
                             }
+                            if next == AppScreen::Settings {
+                                self.settings.set_loading();
+                                self.actions.push(AppAction::LoadSettings);
+                            }
                             self.screen = next;
                         }
                         crate::repl::ReplEvent::SubmitPrompt(prompt) => {
@@ -163,6 +173,11 @@ impl App {
                     }
                 }
             }
+            AppScreen::Settings => {
+                if self.settings.handle_key(key) {
+                    self.screen = AppScreen::Repl;
+                }
+            }
         }
     }
 
@@ -177,6 +192,7 @@ impl App {
             AppScreen::Doctor => DoctorScreen::draw(frame, &self.doctor),
             AppScreen::ResumeConversation => ResumeScreen::draw(frame, &mut self.resume),
             AppScreen::History => HistoryScreen::draw(frame, &mut self.history),
+            AppScreen::Settings => SettingsScreen::draw(frame, &mut self.settings),
         }
     }
 
@@ -434,6 +450,19 @@ mod tests {
         assert!(app.history.search_query.is_empty());
         assert_eq!(app.take_actions(), vec![AppAction::LoadPromptHistory]);
         assert!(app.repl.input.is_empty());
+    }
+
+    #[test]
+    fn repl_settings_command_switches_screen_and_requests_load() {
+        let mut app = App::new();
+        app.repl.input = "/settings".to_string();
+        app.repl.cursor = app.repl.input.len();
+
+        app.handle_key(key(KeyCode::Enter));
+
+        assert_eq!(app.screen, AppScreen::Settings);
+        assert!(app.settings.loading);
+        assert_eq!(app.take_actions(), vec![AppAction::LoadSettings]);
     }
 
     #[test]

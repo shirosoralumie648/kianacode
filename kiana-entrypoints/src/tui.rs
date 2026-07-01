@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Result};
 use kiana_commands::{
-    create_default_command_registry, CommandContext, CommandRegistry, CommandResult, CommandType,
+    create_default_command_registry, Command, CommandContext, CommandRegistry, CommandResult,
+    CommandType,
 };
 use kiana_screens::{
     history::{normalize_history_entries, HistoryEntry},
     repl::{ConversationMessage, MessageRole, ReplPermissionPanel},
     resume_conversation::SessionEntry,
+    settings::{SettingsRow, SettingsSection},
     App, AppAction, AppScreen,
 };
 use kiana_services::api::streaming::{ContentBlock, Delta, StreamEvent};
@@ -19,6 +21,7 @@ use std::fs;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
@@ -82,6 +85,7 @@ struct TuiRuntime {
 enum TuiEvent {
     DoctorLoaded(Result<String, String>),
     ResumeEntriesLoaded(Result<Vec<SessionEntry>, String>),
+    SettingsLoaded(Result<Vec<SettingsSection>, String>),
     SlashCommandCompleted {
         name: String,
         command_type: CommandType,
@@ -178,6 +182,9 @@ impl TuiRuntime {
             AppAction::LoadPromptHistory => {
                 self.load_prompt_history(app);
             }
+            AppAction::LoadSettings => {
+                self.load_settings(app);
+            }
             AppAction::SubmitPrompt(prompt) => {
                 self.record_prompt_history(&prompt, app);
                 self.start_prompt(prompt, app);
@@ -264,6 +271,29 @@ impl TuiRuntime {
                 .map(|result| result.value)
                 .map_err(|error| error.to_string());
             let _ = events_tx.send(TuiEvent::DoctorLoaded(result));
+        });
+    }
+
+    fn load_settings(&mut self, app: &mut App) {
+        app.settings.set_loading();
+        let auth_command = self.command_registry.get("auth").cloned();
+        let model_command = self.command_registry.get("model").cloned();
+        let permissions_command = self.command_registry.get("permissions").cloned();
+        let mcp_command = self.command_registry.get("mcp").cloned();
+        let doctor_command = self.command_registry.get("doctor").cloned();
+        let app_state = self.command_app_state(app);
+        let events_tx = self.events_tx.clone();
+        tokio::spawn(async move {
+            let result = load_settings_sections(
+                auth_command,
+                model_command,
+                permissions_command,
+                mcp_command,
+                doctor_command,
+                app_state,
+            )
+            .await;
+            let _ = events_tx.send(TuiEvent::SettingsLoaded(result));
         });
     }
 
@@ -535,6 +565,10 @@ impl TuiRuntime {
                     }
                 }
             }
+            TuiEvent::SettingsLoaded(result) => match result {
+                Ok(sections) => app.settings.set_sections(sections),
+                Err(error) => app.settings.set_error(error),
+            },
             TuiEvent::SlashCommandCompleted {
                 name,
                 command_type,
@@ -925,6 +959,298 @@ impl TuiRuntime {
             app.repl.clear_permission_request();
         }
     }
+}
+
+async fn load_settings_sections(
+    auth_command: Option<Arc<dyn Command>>,
+    model_command: Option<Arc<dyn Command>>,
+    permissions_command: Option<Arc<dyn Command>>,
+    mcp_command: Option<Arc<dyn Command>>,
+    doctor_command: Option<Arc<dyn Command>>,
+    app_state: HashMap<String, Value>,
+) -> std::result::Result<Vec<SettingsSection>, String> {
+    let auth = execute_settings_command("auth", auth_command, "status --json", &app_state).await;
+    let model = execute_settings_command("model", model_command, "list --json", &app_state).await;
+    let permissions =
+        execute_settings_command("permissions", permissions_command, "status", &app_state).await;
+    let mcp = execute_settings_command("mcp", mcp_command, "status", &app_state).await;
+    let doctor = execute_settings_command("doctor", doctor_command, "--json", &app_state).await;
+
+    Ok(vec![
+        auth_settings_section(auth),
+        model_settings_section(model),
+        permissions_settings_section(permissions),
+        mcp_settings_section(mcp),
+        doctor_settings_section(doctor),
+    ])
+}
+
+async fn execute_settings_command(
+    name: &'static str,
+    command: Option<Arc<dyn Command>>,
+    args: &'static str,
+    app_state: &HashMap<String, Value>,
+) -> std::result::Result<String, String> {
+    let Some(command) = command else {
+        return Err(format!("{name} command is not registered"));
+    };
+    command
+        .execute(CommandContext {
+            args: args.to_string(),
+            app_state: app_state.clone(),
+        })
+        .await
+        .map(|result| result.value)
+        .map_err(|error| error.to_string())
+}
+
+fn auth_settings_section(result: std::result::Result<String, String>) -> SettingsSection {
+    let title = "Account/Auth";
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => return command_error_section(title, error),
+    };
+    let value: Value = match serde_json::from_str(&output) {
+        Ok(value) => value,
+        Err(error) => return command_error_section(title, format!("invalid auth JSON: {error}")),
+    };
+
+    let mut rows = vec![
+        SettingsRow::new("api_key", json_path_display(&value, &["api_key"])),
+        SettingsRow::new("source", json_path_display(&value, &["source"])),
+        SettingsRow::new("oauth", json_path_display(&value, &["oauth", "status"])),
+        SettingsRow::new(
+            "oauth_refreshable",
+            json_path_display(&value, &["oauth", "refreshable"]),
+        ),
+    ];
+    if let Some(providers) = value.get("providers").and_then(Value::as_array) {
+        rows.push(SettingsRow::new("providers", providers.len().to_string()));
+        for provider in providers {
+            let provider_id = json_path_display(provider, &["provider_id"]);
+            let status = json_path_display(provider, &["status"]);
+            let model = json_path_display(provider, &["model_id"]);
+            let auth = json_path_display(provider, &["auth"]);
+            let auth_source = json_path_display(provider, &["auth_source"]);
+            let issues = provider
+                .get("issues")
+                .and_then(Value::as_array)
+                .map(|issues| issues.len())
+                .unwrap_or_default();
+            let issue_suffix = if issues == 0 {
+                "ready".to_string()
+            } else {
+                format!("issues={issues}")
+            };
+            rows.push(SettingsRow::new(
+                provider_id,
+                format!("{status} model={model} auth={auth}/{auth_source} {issue_suffix}"),
+            ));
+        }
+    }
+
+    SettingsSection::new(title, rows)
+}
+
+fn model_settings_section(result: std::result::Result<String, String>) -> SettingsSection {
+    let title = "Provider/Model";
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => return command_error_section(title, error),
+    };
+    let profiles: Value = match serde_json::from_str(&output) {
+        Ok(value) => value,
+        Err(error) => return command_error_section(title, format!("invalid model JSON: {error}")),
+    };
+    let Some(profiles) = profiles.as_array() else {
+        return command_error_section(title, "model list JSON was not an array".to_string());
+    };
+
+    let tool_capable = profiles
+        .iter()
+        .filter(|profile| json_path_bool(profile, &["supports_tools"]))
+        .count();
+    let streaming_capable = profiles
+        .iter()
+        .filter(|profile| json_path_bool(profile, &["supports_streaming"]))
+        .count();
+    let mut rows = vec![
+        SettingsRow::new("profiles", profiles.len().to_string()),
+        SettingsRow::new("tool_capable", tool_capable.to_string()),
+        SettingsRow::new("streaming_capable", streaming_capable.to_string()),
+    ];
+    for profile in profiles {
+        let label = format!(
+            "{}/{}",
+            json_path_display(profile, &["provider_id"]),
+            json_path_display(profile, &["model_id"])
+        );
+        rows.push(SettingsRow::new(
+            label,
+            format!(
+                "tools={} streaming={} vision={} structured={} context={}",
+                json_path_display(profile, &["supports_tools"]),
+                json_path_display(profile, &["supports_streaming"]),
+                json_path_display(profile, &["supports_vision"]),
+                json_path_display(profile, &["supports_structured_output"]),
+                json_path_display(profile, &["context_window"])
+            ),
+        ));
+    }
+
+    SettingsSection::new(title, rows)
+}
+
+fn permissions_settings_section(result: std::result::Result<String, String>) -> SettingsSection {
+    let title = "Permissions";
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => return command_error_section(title, error),
+    };
+    SettingsSection::new(
+        title,
+        text_status_rows(
+            &output,
+            &[
+                "profile",
+                "mode",
+                "managed_policy_status",
+                "sources",
+                "allowed_tools",
+                "disallowed_tools",
+                "managed_disallowed_tools",
+                "managed_ask_tools",
+            ],
+        ),
+    )
+}
+
+fn mcp_settings_section(result: std::result::Result<String, String>) -> SettingsSection {
+    let title = "MCP";
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => return command_error_section(title, error),
+    };
+    SettingsSection::new(
+        title,
+        text_status_rows(
+            &output,
+            &[
+                "client_stdio",
+                "client_http",
+                "client_sse",
+                "client_ws",
+                "server_transport",
+                "protocol_surfaces",
+                "error_states",
+                "registered_session_invocations",
+            ],
+        ),
+    )
+}
+
+fn doctor_settings_section(result: std::result::Result<String, String>) -> SettingsSection {
+    let title = "Remote/Diagnostics";
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => return command_error_section(title, error),
+    };
+    let value: Value = match serde_json::from_str(&output) {
+        Ok(value) => value,
+        Err(error) => return command_error_section(title, format!("invalid doctor JSON: {error}")),
+    };
+
+    let remote_bridge = format!(
+        "start_command={} token={}",
+        json_path_display(&value, &["remote_bridge", "start_command_wired"]),
+        json_path_display(&value, &["remote_bridge", "token_configured"])
+    );
+    let remote_session = format!(
+        "configured={} token={} source={}",
+        json_path_display(&value, &["remote_code_session", "configured"]),
+        json_path_display(&value, &["remote_code_session", "live_smoke_token"]),
+        json_path_display(&value, &["remote_code_session", "source"])
+    );
+    let warnings = value
+        .get("warnings")
+        .and_then(Value::as_array)
+        .map(|warnings| warnings.len())
+        .unwrap_or_default();
+
+    SettingsSection::new(
+        title,
+        vec![
+            SettingsRow::new("status", json_path_display(&value, &["status"])),
+            SettingsRow::new("model", json_path_display(&value, &["model"])),
+            SettingsRow::new("remote_bridge", remote_bridge),
+            SettingsRow::new("remote_code_session", remote_session),
+            SettingsRow::new(
+                "oauth_token_file",
+                json_path_display(&value, &["oauth_token_file", "status"]),
+            ),
+            SettingsRow::new(
+                "bash_sandbox",
+                json_path_display(&value, &["bash_sandbox", "status"]),
+            ),
+            SettingsRow::new(
+                "commercial_security",
+                json_path_display(&value, &["commercial_security", "status"]),
+            ),
+            SettingsRow::new("warnings", warnings.to_string()),
+        ],
+    )
+}
+
+fn command_error_section(title: impl Into<String>, error: String) -> SettingsSection {
+    SettingsSection::new(
+        title,
+        vec![
+            SettingsRow::new("status", "error"),
+            SettingsRow::new("error", error),
+        ],
+    )
+}
+
+fn text_status_rows(output: &str, keys: &[&str]) -> Vec<SettingsRow> {
+    keys.iter()
+        .filter_map(|key| text_status_value(output, key).map(|value| SettingsRow::new(*key, value)))
+        .collect()
+}
+
+fn text_status_value(output: &str, key: &str) -> Option<String> {
+    let prefix = format!("{key}: ");
+    output
+        .lines()
+        .find_map(|line| line.strip_prefix(&prefix).map(str::to_string))
+}
+
+fn json_path_display(value: &Value, path: &[&str]) -> String {
+    let Some(value) = json_path(value, path) else {
+        return "unknown".to_string();
+    };
+    match value {
+        Value::Null => "none".to_string(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::String(value) if value.trim().is_empty() => "empty".to_string(),
+        Value::String(value) => value.clone(),
+        Value::Array(value) => value.len().to_string(),
+        Value::Object(_) => "object".to_string(),
+    }
+}
+
+fn json_path_bool(value: &Value, path: &[&str]) -> bool {
+    json_path(value, path)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn json_path<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
+    let mut current = value;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    Some(current)
 }
 
 #[derive(Clone)]
@@ -2063,6 +2389,23 @@ mod tests {
         panic!("TUI doctor diagnostics did not load");
     }
 
+    async fn drain_until_settings_loaded(runtime: &mut TuiRuntime, app: &mut App) {
+        for _ in 0..50 {
+            runtime.drain_events(app).unwrap();
+            if !app.settings.loading
+                && app
+                    .settings
+                    .sections
+                    .iter()
+                    .any(|section| section.title == "Account/Auth")
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("TUI settings did not load");
+    }
+
     async fn drain_until_resume_entries_loaded(runtime: &mut TuiRuntime, app: &mut App) {
         for _ in 0..50 {
             runtime.drain_events(app).unwrap();
@@ -2605,6 +2948,47 @@ mod tests {
             .diagnostic_lines
             .iter()
             .any(|line| line == "tui_permission_request: active=yes queued=2"));
+    }
+
+    #[tokio::test]
+    async fn load_settings_action_populates_readiness_hub() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+        app.repl.permission_request_active = true;
+        app.repl.permission_request_queue_len = 1;
+
+        runtime
+            .handle_action(AppAction::LoadSettings, &mut app)
+            .unwrap();
+
+        assert!(app.settings.loading);
+
+        drain_until_settings_loaded(&mut runtime, &mut app).await;
+
+        assert!(!app.settings.loading);
+        let section_titles = app
+            .settings
+            .sections
+            .iter()
+            .map(|section| section.title.as_str())
+            .collect::<Vec<_>>();
+        assert!(section_titles.contains(&"Account/Auth"));
+        assert!(section_titles.contains(&"Provider/Model"));
+        assert!(section_titles.contains(&"Permissions"));
+        assert!(section_titles.contains(&"MCP"));
+        assert!(section_titles.contains(&"Remote/Diagnostics"));
+        assert!(app
+            .settings
+            .sections
+            .iter()
+            .flat_map(|section| section.rows.iter())
+            .any(|row| row.label == "anthropic"));
+        assert!(app
+            .settings
+            .sections
+            .iter()
+            .flat_map(|section| section.rows.iter())
+            .any(|row| row.label == "commercial_security"));
     }
 
     #[test]

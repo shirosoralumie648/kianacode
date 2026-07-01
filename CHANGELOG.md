@@ -60,6 +60,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added `scripts/product-shell-smoke.sh` and wired it into release smoke and
   release packaging so TUI approval, diff, onboarding, resume, and prompt
   history headless coverage is a named product-shell gate.
+- Added a TUI `/settings` readiness hub that surfaces account/auth, provider
+  model capability, permissions, MCP, remote, and diagnostics status from the
+  existing command registry.
 - `kiana model smoke` now supports opt-in tool-call smoke through `--tools` or
   `KIANA_PROVIDER_SMOKE_TOOLS=1`; the default no-network gate remains text-only,
   while `--live --tools` can verify live provider tool-call behavior.
