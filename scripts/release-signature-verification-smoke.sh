@@ -263,7 +263,20 @@ cat > "$dist_dir/proofs/product/product-acceptance.json" <<EOF
   "schema": "kiana.product-acceptance.v1",
   "version": "$version",
   "status": "accepted",
-  "accepted": true
+  "accepted": true,
+  "accepted_by": "target customer acceptance lead",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "scope": "terminal product shell, local app-server, and context-search acceptance",
+  "workflows": [
+    "permission",
+    "diff",
+    "history",
+    "onboarding",
+    "resume",
+    "settings",
+    "app-server",
+    "context-search"
+  ]
 }
 EOF
 

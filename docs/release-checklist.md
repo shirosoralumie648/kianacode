@@ -105,7 +105,9 @@ commercial release.
 - Local context index/search workflows are accepted for repository knowledge
   lookup before richer RAG features are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
-  passes `scripts/product-acceptance-report.sh full`.
+  passes `scripts/product-acceptance-report.sh full`; combined artifact
+  verification also checks accepted_by, accepted_at, scope, and required
+  workflow coverage.
 - Non-accepted example templates under `docs/proof-templates/` are used only as
   authoring aids; accepted proof files are supplied through the documented
   full-preflight paths or environment variables.

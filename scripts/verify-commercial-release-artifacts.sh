@@ -258,6 +258,74 @@ PY
   fi
 }
 
+require_product_acceptance_contract() {
+  local file="$1"
+  local expected_version="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate product acceptance proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" <<'PY'
+import json
+import sys
+
+path, expected_version = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as handle:
+    report = json.load(handle)
+
+required_workflows = {
+    "permission",
+    "diff",
+    "history",
+    "onboarding",
+    "resume",
+    "settings",
+    "app-server",
+    "context-search",
+}
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+)
+
+def filled(key):
+    value = report.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(key):
+    value = report.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
+workflows = set(report.get("workflows") or [])
+checks = [
+    report.get("schema") == "kiana.product-acceptance.v1",
+    report.get("version") == expected_version,
+    report.get("status") == "accepted",
+    report.get("accepted") is True,
+    all(filled(key) and not_placeholder(key) for key in ["accepted_by", "accepted_at", "scope"]),
+    required_workflows.issubset(workflows),
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "product acceptance proof commercial contract"
+  else
+    fail "product acceptance proof failed commercial contract"
+  fi
+}
+
 require_platform_security_contract() {
   local file="$1"
   local expected_version="$2"
@@ -687,6 +755,7 @@ require_entitlement_contract "$entitlement_proof" "$version"
 require_proof_file "$product_acceptance_proof" "kiana.product-acceptance.v1" "product acceptance proof"
 require_json_pattern "$product_acceptance_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "product acceptance proof accepted"
 require_json_pattern "$product_acceptance_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "product acceptance proof accepted flag"
+require_product_acceptance_contract "$product_acceptance_proof" "$version"
 require_proof_file "$release_ops_proof" "kiana.release-ops.v1" "release ops proof"
 require_json_pattern "$release_ops_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "release ops proof accepted"
 require_json_pattern "$release_ops_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "release ops proof accepted flag"
