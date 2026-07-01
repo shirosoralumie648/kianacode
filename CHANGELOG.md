@@ -50,6 +50,10 @@ minor versions may include breaking CLI, config, or storage changes. Use
   authentication failure by using the configured remote token refresh path.
 - Code-session auth retry now uses typed HTTP status from remote API errors,
   with string matching retained only as a compatibility fallback.
+- Tag release workflows now enforce `v$(VERSION)` tag alignment, derive
+  manifest URLs from the active GitHub repository/tag, run full release
+  preflight before packaging, and recursively attach manifest/compliance
+  artifacts to draft GitHub Releases.
 
 ### Verified
 

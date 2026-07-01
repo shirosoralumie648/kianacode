@@ -80,10 +80,11 @@ KIANA_COMPLIANCE_AUTO_INSTALL=1 bash scripts/compliance-audit.sh
 - `.github/workflows/release-smoke.yml` runs the local smoke gate on push, PR,
   and manual dispatch.
 - `.github/workflows/release.yml` installs `cargo-audit` and `cargo-deny`
-  through `scripts/install-compliance-tools.sh`, runs the smoke gate, packages
-  artifacts on Linux/macOS/Windows with full compliance reports, verifies
-  checksums, uploads artifacts, and creates a draft GitHub Release for tag
-  builds.
+  through `scripts/install-compliance-tools.sh`, validates `v$(VERSION)` tag
+  alignment, derives manifest URLs from the active repository/tag, runs full
+  preflight, runs the smoke gate, packages artifacts on Linux/macOS/Windows
+  with full compliance reports, verifies checksums, uploads artifacts, and
+  creates a draft GitHub Release for tag builds.
 
 These workflows still require a real remote repository, tag policy, release
 credentials, and signing before they become authoritative release gates.

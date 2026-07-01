@@ -7,7 +7,8 @@ commercial release.
 
 - A real git remote is configured.
 - `HEAD` resolves to a signed or reviewed commit.
-- The release tag is immutable and follows `vMAJOR.MINOR.PATCH`.
+- The release tag is immutable, follows `vMAJOR.MINOR.PATCH`, and matches
+  `v$(cat VERSION)`.
 - `reference/`, local task state, logs, secrets, and build output are not part of
   the product repository.
 - `bash scripts/release-preflight.sh` passes in full mode.
@@ -42,6 +43,8 @@ commercial release.
 
 - GitHub Release draft contains all artifacts and checksum files.
 - Install URLs point to the real repository and release assets.
+- Distribution manifests use the active repository/tag release URL and are
+  attached with compliance artifacts.
 - Upgrade and rollback instructions are linked.
 - Package-manager channels are either published or explicitly marked as pending.
 

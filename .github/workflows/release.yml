@@ -20,6 +20,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag and URL
+        shell: bash
+        run: |
+          version="$(tr -d '\r\n' < VERSION)"
+          expected_tag="v${version}"
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" && "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "release tag ${GITHUB_REF_NAME} does not match VERSION ${version}; expected ${expected_tag}" >&2
+            exit 1
+          fi
+          release_tag="${GITHUB_REF_NAME:-${expected_tag}}"
+          if [[ "${GITHUB_REF_TYPE:-}" != "tag" ]]; then
+            release_tag="${expected_tag}"
+          fi
+          echo "KIANA_RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
+          echo "KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -32,6 +50,12 @@ jobs:
       - name: Install compliance tools
         shell: bash
         run: bash scripts/install-compliance-tools.sh
+
+      - name: Run release preflight
+        shell: bash
+        run: KIANA_PREFLIGHT_SKIP_COMPLIANCE=1 bash scripts/release-preflight.sh
+        env:
+          KIANA_RELEASE_SIGNING_CONFIRMED: ${{ secrets.KIANA_RELEASE_SIGNING_CONFIRMED }}
 
       - name: Run release smoke
         shell: bash
@@ -83,4 +107,4 @@ jobs:
         with:
           draft: true
           generate_release_notes: true
-          files: release-artifacts/*
+          files: release-artifacts/**

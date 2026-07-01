@@ -119,7 +119,20 @@ else
   fail "doctor JSON schema is missing kiana.doctor.v1 const"
 fi
 
+if grep -Fq 'KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}' .github/workflows/release.yml; then
+  pass "release workflow derives package manifest URLs from the active repository and tag"
+else
+  fail "release workflow does not derive KIANA_RELEASE_BASE_URL from the active repository and tag"
+fi
+
+if grep -Fq 'release-artifacts/**' .github/workflows/release.yml; then
+  pass "GitHub release upload includes recursive artifacts"
+else
+  fail "GitHub release upload does not include recursive manifest/compliance artifacts"
+fi
+
 if [[ "$mode" == "full" ]]; then
+  expected_tag="v${workspace_version}"
   if git rev-parse --verify HEAD >/dev/null 2>&1; then
     pass "git HEAD exists"
   else
@@ -136,6 +149,18 @@ if [[ "$mode" == "full" ]]; then
     pass "tracked worktree is clean"
   else
     fail "tracked worktree has uncommitted changes"
+  fi
+
+  if git tag --points-at HEAD | grep -Fxq "$expected_tag"; then
+    pass "HEAD is tagged with ${expected_tag}"
+  else
+    fail "HEAD is not tagged with ${expected_tag}"
+  fi
+
+  if [[ -z "${KIANA_RELEASE_TAG:-}" || "${KIANA_RELEASE_TAG}" == "$expected_tag" ]]; then
+    pass "release tag matches VERSION"
+  else
+    fail "KIANA_RELEASE_TAG=${KIANA_RELEASE_TAG} does not match expected ${expected_tag}"
   fi
 
   if [[ "${KIANA_RELEASE_SIGNING_CONFIRMED:-}" == "1" ]]; then

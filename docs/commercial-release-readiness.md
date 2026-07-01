@@ -56,6 +56,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - OAuth token writes now use same-directory atomic replacement, flush before rename, and owner-only permissions on platforms with native permission bits.
 - Remote code-session create, bridge credential fetch, smoke, and hydrate commands retry once after auth failure through the same remote refresh path used by websocket reconnects.
 - Code-session auth retry now keys off typed 401/403 HTTP status from remote API errors, with text matching retained only as a compatibility fallback.
+- Tag release workflow now enforces `v$(VERSION)` alignment, derives package manifest URLs from the active GitHub repository/tag, runs full release preflight before packaging, and recursively uploads manifest/compliance artifacts into the draft GitHub Release.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
