@@ -47,6 +47,7 @@ impl Command for DoctorCommand {
             modifier_status.modifiers.join(",")
         };
         let code_session_token_status = code_session_live_smoke_token_status();
+        let oauth_token_file_status = oauth_token_file_status();
         let sandbox_state =
             sandbox_diagnostic_app_state(&context.app_state, config.sandbox.as_ref());
         let bash_sandbox = bash_sandbox_diagnostic(&sandbox_state);
@@ -119,6 +120,10 @@ impl Command for DoctorCommand {
                 code_session_token_status.label()
             ),
             format!(
+                "oauth_token_file: {}",
+                oauth_token_file_status.label()
+            ),
+            format!(
                 "bash_sandbox: enabled={} status={} runtime={} fail_if_unavailable={} allow_unsandboxed_commands={} bwrap={}",
                 bool_label(bash_sandbox.enabled),
                 bash_sandbox.status.as_str(),
@@ -148,6 +153,9 @@ impl Command for DoctorCommand {
             lines.push("warning: remote bridge start requires KIANA_BRIDGE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN".to_string());
         }
         if let Some(warning) = code_session_token_status.warning() {
+            lines.push(warning);
+        }
+        if let Some(warning) = oauth_token_file_status.warning() {
             lines.push(warning);
         }
         if !modifier_status.available {
@@ -216,10 +224,38 @@ impl CodeSessionLiveSmokeTokenStatus {
                     .to_string(),
             ),
             CodeSessionLiveSmokeTokenStatus::Missing => Some(
-                "warning: live smoke requires KIANA_REMOTE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN"
+                "warning: live smoke requires KIANA_REMOTE_ACCESS_TOKEN, CLAUDE_ACCESS_TOKEN, or an OAuth token file"
                     .to_string(),
             ),
             CodeSessionLiveSmokeTokenStatus::Configured(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OAuthTokenFileStatus {
+    Missing,
+    AccessOnly,
+    Refreshable,
+    Invalid(String),
+}
+
+impl OAuthTokenFileStatus {
+    fn label(&self) -> String {
+        match self {
+            OAuthTokenFileStatus::Missing => "missing".to_string(),
+            OAuthTokenFileStatus::AccessOnly => "access_only".to_string(),
+            OAuthTokenFileStatus::Refreshable => "refreshable".to_string(),
+            OAuthTokenFileStatus::Invalid(_) => "invalid".to_string(),
+        }
+    }
+
+    fn warning(&self) -> Option<String> {
+        match self {
+            OAuthTokenFileStatus::Invalid(error) => {
+                Some(format!("warning: OAuth token file is invalid: {error}"))
+            }
+            _ => None,
         }
     }
 }
@@ -280,6 +316,10 @@ fn bridge_access_token_configured() -> bool {
         .or_else(|_| std::env::var("CLAUDE_ACCESS_TOKEN"))
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false)
+        || matches!(
+            oauth_token_file_status(),
+            OAuthTokenFileStatus::AccessOnly | OAuthTokenFileStatus::Refreshable
+        )
 }
 
 fn code_session_live_smoke_token_status() -> CodeSessionLiveSmokeTokenStatus {
@@ -300,7 +340,32 @@ fn code_session_live_smoke_token_status() -> CodeSessionLiveSmokeTokenStatus {
         }
         return CodeSessionLiveSmokeTokenStatus::Configured(source);
     }
+    if matches!(
+        oauth_token_file_status(),
+        OAuthTokenFileStatus::AccessOnly | OAuthTokenFileStatus::Refreshable
+    ) {
+        return CodeSessionLiveSmokeTokenStatus::Configured("oauth_file");
+    }
     CodeSessionLiveSmokeTokenStatus::Missing
+}
+
+fn oauth_token_file_status() -> OAuthTokenFileStatus {
+    match kiana_services::oauth::load_oauth_tokens() {
+        Ok(Some(tokens)) => {
+            if tokens
+                .refresh_token
+                .as_deref()
+                .map(str::trim)
+                .is_some_and(|value| !value.is_empty())
+            {
+                OAuthTokenFileStatus::Refreshable
+            } else {
+                OAuthTokenFileStatus::AccessOnly
+            }
+        }
+        Ok(None) => OAuthTokenFileStatus::Missing,
+        Err(error) => OAuthTokenFileStatus::Invalid(error.to_string()),
+    }
 }
 
 fn command_first_line(program: &str, args: &[&str]) -> Option<String> {
@@ -449,6 +514,44 @@ mod tests {
         assert!(result.value.contains(
             "warning: live smoke requires KIANA_REMOTE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN; ANTHROPIC_AUTH_TOKEN=sk-* is an API key, not a remote access token"
         ));
+    }
+
+    #[tokio::test]
+    async fn doctor_reports_oauth_file_as_remote_token_source() {
+        let _lock = env_lock().lock().unwrap();
+        let token_path = temp_path("oauth-token-file");
+        let token_path_str = token_path.to_string_lossy().to_string();
+        let _guard = EnvGuard::set(&[
+            ("KIANA_REMOTE_ACCESS_TOKEN", None),
+            ("KIANA_BRIDGE_ACCESS_TOKEN", None),
+            ("CLAUDE_ACCESS_TOKEN", None),
+            ("ANTHROPIC_AUTH_TOKEN", None),
+            ("KIANA_OAUTH_TOKENS_FILE", Some(&token_path_str)),
+        ]);
+        kiana_services::oauth::save_oauth_tokens(&kiana_services::oauth::OAuthTokens {
+            access_token: "oauth-access-token".to_string(),
+            refresh_token: Some("oauth-refresh-token".to_string()),
+            expires_at: None,
+        })
+        .unwrap();
+
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: String::new(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(result
+            .value
+            .contains("remote_bridge: start command wired with SDK runner; token_configured: yes"));
+        assert!(result
+            .value
+            .contains("remote_code_session: live_smoke_token=yes (oauth_file)"));
+        assert!(result.value.contains("oauth_token_file: refreshable"));
+
+        let _ = fs::remove_file(token_path);
     }
 
     #[tokio::test]

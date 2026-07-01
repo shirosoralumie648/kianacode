@@ -46,6 +46,9 @@ commercial release.
 ## Product Readiness
 
 - Live remote session smoke passes against production-like services.
+- Remote and bridge authentication sources are verified by `kiana auth status`
+  and `kiana doctor`, including redacted OAuth token-file state when env bearer
+  tokens are not used.
 - TUI approval, diff, history, onboarding, and resume flows are accepted for the
   target customer segment.
 - Sandbox and permission defaults match the documented commercial security

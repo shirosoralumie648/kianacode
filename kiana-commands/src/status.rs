@@ -172,6 +172,10 @@ fn bridge_access_token_configured() -> bool {
         .or_else(|_| std::env::var("CLAUDE_ACCESS_TOKEN"))
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false)
+        || kiana_services::oauth::load_oauth_tokens()
+            .ok()
+            .flatten()
+            .is_some_and(|tokens| !tokens.access_token.trim().is_empty())
 }
 
 fn remote_settings_status() -> String {

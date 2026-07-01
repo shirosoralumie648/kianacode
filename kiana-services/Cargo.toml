@@ -32,3 +32,4 @@ regex = "1.0"
 eventsource-stream = "0.2"
 bytes = "1.0"
 kiana-bootstrap = { path = "../kiana-bootstrap", version = "0.1.0" }
+kiana-constants = { path = "../kiana-constants", version = "0.1.0" }

@@ -6003,6 +6003,22 @@ fn remote_session_access_token_details() -> Option<RemoteSessionAccessToken> {
             }
         })
     })
+    .or_else(|| {
+        kiana_services::oauth::load_oauth_tokens()
+            .ok()
+            .flatten()
+            .and_then(|tokens| {
+                let value = tokens.access_token.trim().to_string();
+                if value.is_empty() {
+                    None
+                } else {
+                    Some(RemoteSessionAccessToken {
+                        value,
+                        source: "oauth_file",
+                    })
+                }
+            })
+    })
 }
 
 fn remote_session_live_access_token(command: &str) -> Result<RemoteSessionAccessToken> {
@@ -6032,45 +6048,50 @@ fn remote_session_token_status() -> RemoteSessionTokenStatus {
 }
 
 async fn refresh_remote_session_access_token(stale_access_token: &str) -> Result<Option<String>> {
-    let Some(command_line) = std::env::var("KIANA_REMOTE_REFRESH_COMMAND")
+    if let Some(command_line) = std::env::var("KIANA_REMOTE_REFRESH_COMMAND")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-    else {
-        return Ok(None);
-    };
+    {
+        let mut command = if cfg!(windows) {
+            let mut command = tokio::process::Command::new("cmd");
+            command.args(["/C", &command_line]);
+            command
+        } else {
+            let mut command = tokio::process::Command::new("sh");
+            command.arg("-lc").arg(&command_line);
+            command
+        };
+        let output = command
+            .env("KIANA_REMOTE_STALE_ACCESS_TOKEN", stale_access_token)
+            .output()
+            .await?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow!(
+                "remote refresh command failed with status {}{}",
+                output.status,
+                if stderr.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", stderr.trim())
+                }
+            ));
+        }
 
-    let mut command = if cfg!(windows) {
-        let mut command = tokio::process::Command::new("cmd");
-        command.args(["/C", &command_line]);
-        command
-    } else {
-        let mut command = tokio::process::Command::new("sh");
-        command.arg("-lc").arg(&command_line);
-        command
-    };
-    let output = command
-        .env("KIANA_REMOTE_STALE_ACCESS_TOKEN", stale_access_token)
-        .output()
-        .await?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!(
-            "remote refresh command failed with status {}{}",
-            output.status,
-            if stderr.trim().is_empty() {
-                String::new()
-            } else {
-                format!(": {}", stderr.trim())
-            }
-        ));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let token = parse_bridge_refresh_token(&stdout)
+            .ok_or_else(|| anyhow!("remote refresh command did not output an access token"))?;
+        std::env::set_var("KIANA_REMOTE_ACCESS_TOKEN", &token);
+        return Ok(Some(token));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let token = parse_bridge_refresh_token(&stdout)
-        .ok_or_else(|| anyhow!("remote refresh command did not output an access token"))?;
-    std::env::set_var("KIANA_REMOTE_ACCESS_TOKEN", &token);
-    Ok(Some(token))
+    if let Some(tokens) = kiana_services::oauth::refresh_stored_oauth_tokens().await? {
+        std::env::set_var("KIANA_REMOTE_ACCESS_TOKEN", &tokens.access_token);
+        Ok(Some(tokens.access_token))
+    } else {
+        Ok(None)
+    }
 }
 
 fn remote_session_api_credentials(
@@ -7601,6 +7622,13 @@ fn bridge_access_token() -> Option<String> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+        .or_else(|| {
+            kiana_services::oauth::load_oauth_tokens()
+                .ok()
+                .flatten()
+                .map(|tokens| tokens.access_token.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
 }
 
 struct CliBridgeAuthProvider;
@@ -7612,45 +7640,50 @@ impl BridgeAuthProvider for CliBridgeAuthProvider {
     }
 
     async fn refresh_after_unauthorized(&self, stale_access_token: &str) -> Result<bool> {
-        let Some(command_line) = std::env::var("KIANA_BRIDGE_REFRESH_COMMAND")
+        if let Some(command_line) = std::env::var("KIANA_BRIDGE_REFRESH_COMMAND")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
-        else {
-            return Ok(false);
-        };
+        {
+            let mut command = if cfg!(windows) {
+                let mut command = tokio::process::Command::new("cmd");
+                command.args(["/C", &command_line]);
+                command
+            } else {
+                let mut command = tokio::process::Command::new("sh");
+                command.arg("-lc").arg(&command_line);
+                command
+            };
+            let output = command
+                .env("KIANA_BRIDGE_STALE_ACCESS_TOKEN", stale_access_token)
+                .output()
+                .await?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(anyhow!(
+                    "bridge refresh command failed with status {}{}",
+                    output.status,
+                    if stderr.trim().is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {}", stderr.trim())
+                    }
+                ));
+            }
 
-        let mut command = if cfg!(windows) {
-            let mut command = tokio::process::Command::new("cmd");
-            command.args(["/C", &command_line]);
-            command
-        } else {
-            let mut command = tokio::process::Command::new("sh");
-            command.arg("-lc").arg(&command_line);
-            command
-        };
-        let output = command
-            .env("KIANA_BRIDGE_STALE_ACCESS_TOKEN", stale_access_token)
-            .output()
-            .await?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!(
-                "bridge refresh command failed with status {}{}",
-                output.status,
-                if stderr.trim().is_empty() {
-                    String::new()
-                } else {
-                    format!(": {}", stderr.trim())
-                }
-            ));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let token = parse_bridge_refresh_token(&stdout)
+                .ok_or_else(|| anyhow!("bridge refresh command did not output an access token"))?;
+            std::env::set_var("KIANA_BRIDGE_ACCESS_TOKEN", token);
+            return Ok(true);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let token = parse_bridge_refresh_token(&stdout)
-            .ok_or_else(|| anyhow!("bridge refresh command did not output an access token"))?;
-        std::env::set_var("KIANA_BRIDGE_ACCESS_TOKEN", token);
-        Ok(true)
+        if let Some(tokens) = kiana_services::oauth::refresh_stored_oauth_tokens().await? {
+            std::env::set_var("KIANA_BRIDGE_ACCESS_TOKEN", tokens.access_token);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -9368,6 +9401,76 @@ mod tests {
         clear_bridge_env();
     }
 
+    #[test]
+    fn bridge_access_token_uses_oauth_file_when_env_tokens_are_missing() {
+        let _guard = env_lock().lock().unwrap();
+        clear_bridge_env();
+        let token_path = temp_file_path("bridge-oauth-token", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        kiana_services::oauth::save_oauth_tokens(&kiana_services::oauth::OAuthTokens {
+            access_token: "bridge-oauth-access".to_string(),
+            refresh_token: Some("bridge-oauth-refresh".to_string()),
+            expires_at: None,
+        })
+        .unwrap();
+
+        assert_eq!(
+            bridge_access_token().as_deref(),
+            Some("bridge-oauth-access")
+        );
+
+        let _ = std::fs::remove_file(token_path);
+        clear_bridge_env();
+    }
+
+    #[tokio::test]
+    async fn cli_bridge_auth_provider_refreshes_from_oauth_file_without_refresh_command() {
+        let _guard = env_lock().lock().unwrap();
+        clear_bridge_env();
+        let token_path = temp_file_path("bridge-oauth-refresh", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        std::env::set_var("KIANA_OAUTH_CLIENT_ID", "bridge-client");
+        kiana_services::oauth::save_oauth_tokens(&kiana_services::oauth::OAuthTokens {
+            access_token: "stale-bridge-oauth".to_string(),
+            refresh_token: Some("refresh-bridge-oauth".to_string()),
+            expires_at: None,
+        })
+        .unwrap();
+        let (url, requests, server) = start_oauth_token_server(serde_json::json!({
+            "access_token": "fresh-bridge-oauth",
+            "expires_in": 3600
+        }))
+        .await;
+        std::env::set_var("KIANA_OAUTH_TOKEN_URL", url);
+
+        let provider = CliBridgeAuthProvider;
+        assert!(provider
+            .refresh_after_unauthorized("stale-bridge-oauth")
+            .await
+            .unwrap());
+
+        assert_eq!(
+            std::env::var("KIANA_BRIDGE_ACCESS_TOKEN").ok().as_deref(),
+            Some("fresh-bridge-oauth")
+        );
+        let persisted = kiana_services::oauth::load_oauth_tokens().unwrap().unwrap();
+        assert_eq!(persisted.access_token, "fresh-bridge-oauth");
+        assert_eq!(
+            persisted.refresh_token.as_deref(),
+            Some("refresh-bridge-oauth")
+        );
+        let body = requests.lock().unwrap().join("\n");
+        assert!(
+            body.contains("refresh_token=refresh-bridge-oauth"),
+            "{body}"
+        );
+        assert!(body.contains("client_id=bridge-client"), "{body}");
+
+        server.abort();
+        let _ = std::fs::remove_file(token_path);
+        clear_bridge_env();
+    }
+
     #[tokio::test]
     async fn remote_session_cli_refresh_command_updates_listen_token() {
         let _guard = env_lock().lock().unwrap();
@@ -9404,6 +9507,75 @@ mod tests {
     }
 
     #[test]
+    fn remote_session_access_token_uses_oauth_file_when_env_tokens_are_missing() {
+        let _guard = env_lock().lock().unwrap();
+        clear_remote_session_env();
+        let token_path = temp_file_path("remote-oauth-token", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        kiana_services::oauth::save_oauth_tokens(&kiana_services::oauth::OAuthTokens {
+            access_token: "oauth-access-token".to_string(),
+            refresh_token: Some("oauth-refresh-token".to_string()),
+            expires_at: None,
+        })
+        .unwrap();
+
+        let token = remote_session_access_token_details().unwrap();
+
+        assert_eq!(token.value, "oauth-access-token");
+        assert_eq!(token.source, "oauth_file");
+
+        let _ = std::fs::remove_file(token_path);
+        clear_remote_session_env();
+    }
+
+    #[tokio::test]
+    async fn remote_session_refresh_uses_oauth_file_when_refresh_command_is_missing() {
+        let _guard = env_lock().lock().unwrap();
+        clear_remote_session_env();
+        let token_path = temp_file_path("remote-oauth-refresh", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        std::env::set_var("KIANA_OAUTH_CLIENT_ID", "client-remote");
+        kiana_services::oauth::save_oauth_tokens(&kiana_services::oauth::OAuthTokens {
+            access_token: "stale-oauth-token".to_string(),
+            refresh_token: Some("refresh-oauth-token".to_string()),
+            expires_at: None,
+        })
+        .unwrap();
+        let (url, requests, server) = start_oauth_token_server(serde_json::json!({
+            "access_token": "fresh-oauth-token",
+            "refresh_token": "fresh-refresh-token",
+            "expires_in": 3600
+        }))
+        .await;
+        std::env::set_var("KIANA_OAUTH_TOKEN_URL", url);
+
+        let refreshed = refresh_remote_session_access_token("stale-oauth-token")
+            .await
+            .unwrap()
+            .unwrap();
+        let persisted = kiana_services::oauth::load_oauth_tokens().unwrap().unwrap();
+
+        assert_eq!(refreshed, "fresh-oauth-token");
+        assert_eq!(
+            std::env::var("KIANA_REMOTE_ACCESS_TOKEN").ok().as_deref(),
+            Some("fresh-oauth-token")
+        );
+        assert_eq!(persisted.access_token, "fresh-oauth-token");
+        assert_eq!(
+            persisted.refresh_token.as_deref(),
+            Some("fresh-refresh-token")
+        );
+        let body = requests.lock().unwrap().join("\n");
+        assert!(body.contains("grant_type=refresh_token"), "{body}");
+        assert!(body.contains("refresh_token=refresh-oauth-token"), "{body}");
+        assert!(body.contains("client_id=client-remote"), "{body}");
+
+        server.abort();
+        let _ = std::fs::remove_file(token_path);
+        clear_remote_session_env();
+    }
+
+    #[test]
     fn parse_bridge_refresh_token_accepts_json_or_plain_output() {
         assert_eq!(
             parse_bridge_refresh_token(r#"{"access_token":"json-token"}"#).as_deref(),
@@ -9414,6 +9586,51 @@ mod tests {
             Some("plain-token")
         );
         assert_eq!(parse_bridge_refresh_token("   "), None);
+    }
+
+    fn temp_file_path(name: &str, extension: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "kiana-{name}-{}.{}",
+            uuid::Uuid::new_v4(),
+            extension
+        ))
+    }
+
+    #[derive(Clone)]
+    struct OAuthTokenMockState {
+        response: Value,
+        requests: StdArc<StdMutex<Vec<String>>>,
+    }
+
+    async fn start_oauth_token_server(
+        response: Value,
+    ) -> (
+        String,
+        StdArc<StdMutex<Vec<String>>>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        async fn handle(
+            State(state): State<OAuthTokenMockState>,
+            body: String,
+        ) -> impl IntoResponse {
+            state.requests.lock().unwrap().push(body);
+            (StatusCode::OK, Json(state.response)).into_response()
+        }
+
+        let requests = StdArc::new(StdMutex::new(Vec::new()));
+        let state = OAuthTokenMockState {
+            response,
+            requests: requests.clone(),
+        };
+        let app = axum::Router::new()
+            .route("/oauth/token", axum::routing::post(handle))
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{}/oauth/token", addr), requests, server)
     }
 
     #[test]
@@ -11435,6 +11652,12 @@ mod tests {
             "KIANA_REMOTE_CODE_SESSION_TAGS",
             "KIANA_REMOTE_TRUSTED_DEVICE_TOKEN",
             "CLAUDE_TRUSTED_DEVICE_TOKEN",
+            "KIANA_OAUTH_TOKENS_FILE",
+            "CLAUDE_CODE_OAUTH_TOKENS_FILE",
+            "KIANA_OAUTH_CLIENT_ID",
+            "KIANA_OAUTH_AUTH_URL",
+            "KIANA_OAUTH_TOKEN_URL",
+            "KIANA_OAUTH_REDIRECT_URI",
             "KIANA_SDK_SESSIONS_DIR",
         ] {
             std::env::remove_var(key);
@@ -11462,6 +11685,12 @@ mod tests {
             "KIANA_BRIDGE_ACCESS_TOKEN",
             "CLAUDE_ACCESS_TOKEN",
             "KIANA_BRIDGE_REFRESH_COMMAND",
+            "KIANA_OAUTH_TOKENS_FILE",
+            "CLAUDE_CODE_OAUTH_TOKENS_FILE",
+            "KIANA_OAUTH_CLIENT_ID",
+            "KIANA_OAUTH_AUTH_URL",
+            "KIANA_OAUTH_TOKEN_URL",
+            "KIANA_OAUTH_REDIRECT_URI",
             "KIANA_BRIDGE_DEBUG_FILE",
             "KIANA_BRIDGE_PERMISSION_MODE",
             "KIANA_PERMISSION_MODE",

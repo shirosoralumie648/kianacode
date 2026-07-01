@@ -50,6 +50,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Release smoke now enforces locked/offline Cargo test and release-build gates, and successful smoke subcommands keep their real exit status instead of relying only on output matching.
 - Release packaging now emits distribution manifest dry-runs from the same package checksums, including an enterprise offline manifest and explicit package-channel blockers when a target cannot be published yet.
 - Added a `commercial` permission profile and doctor-level `commercial_security` readiness report for strict sandbox plus approval posture validation.
+- OAuth token files can now be used as redacted remote/bridge bearer-token sources and refreshed through their stored refresh token when command-based refresh is not configured.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 

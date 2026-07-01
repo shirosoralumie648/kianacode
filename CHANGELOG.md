@@ -37,6 +37,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added a `commercial` permission profile and `kiana doctor`
   `commercial_security` readiness report for strict sandbox plus approval
   posture validation.
+- OAuth token files can now supply remote/bridge bearer tokens, refresh through
+  the stored refresh token, and surface redacted status in `kiana auth status`
+  and `kiana doctor`.
 
 ### Verified
 
@@ -55,5 +58,7 @@ minor versions may include breaking CLI, config, or storage changes. Use
   not complete.
 - Live remote/CCR/Session Ingress/token refresh gates require production-like
   service credentials and are not part of default CI.
+- Full OAuth browser/device login, secret-store hardening, and proactive refresh
+  scheduling remain future work beyond the local token-file refresh base.
 - Reference-level TUI, approval, sandbox, enterprise account, and provider
   ecosystem parity remain product work before broad commercial availability.

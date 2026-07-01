@@ -94,6 +94,12 @@ run_clean_kiana() {
     -u ANTHROPIC_MODEL \
     -u KIANA_REMOTE_ACCESS_TOKEN \
     -u CLAUDE_ACCESS_TOKEN \
+    -u KIANA_OAUTH_TOKENS_FILE \
+    -u CLAUDE_CODE_OAUTH_TOKENS_FILE \
+    -u KIANA_OAUTH_CLIENT_ID \
+    -u KIANA_OAUTH_AUTH_URL \
+    -u KIANA_OAUTH_TOKEN_URL \
+    -u KIANA_OAUTH_REDIRECT_URI \
     "$@" || status=$?
 
   return "$status"
@@ -270,6 +276,8 @@ smoke_auth_config() {
   output="$(run_clean_kiana "$binary" auth status --json)"
   grep -Fq -- '"api_key": "missing"' <<<"$output"
   grep -Fq -- '"source": "none"' <<<"$output"
+  grep -Fq -- '"access_token": "missing"' <<<"$output"
+  grep -Fq -- '"refresh_token": "missing"' <<<"$output"
 
   output="$(run_clean_kiana "$binary" auth login sk-ant-smoke-auth-key)"
   grep -Fq -- "Login updated" <<<"$output"
@@ -285,6 +293,8 @@ smoke_auth_config() {
   output="$(run_clean_kiana "$binary" auth status --json)"
   grep -Fq -- '"api_key": "missing"' <<<"$output"
   grep -Fq -- '"source": "none"' <<<"$output"
+  grep -Fq -- '"access_token": "missing"' <<<"$output"
+  grep -Fq -- '"refresh_token": "missing"' <<<"$output"
 }
 
 smoke_completion_scripts() {
