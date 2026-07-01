@@ -253,6 +253,77 @@ if summary.get("failed") != 0 or summary.get("passed", 0) < 1:
 PY
 }
 
+smoke_license_status_json() {
+  local binary="$1"
+  local output
+  local configured
+  local python_bin
+
+  output="$(
+    unset KIANA_LICENSE_FILE KIANA_LICENSE_KEY KIANA_LICENSE_PLAN KIANA_LICENSE_ENTITLEMENTS
+    unset KIANA_LICENSE_OFFLINE KIANA_ENTERPRISE_ACCOUNT_ID KIANA_SUPPORT_CONTACT
+    run_clean_kiana "$binary" license status --json 2>&1
+  )"
+  python_bin="$(doctor_json_python)"
+  LICENSE_STATUS_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["LICENSE_STATUS_JSON"])
+except Exception as exc:
+    print(f"license status JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("LICENSE_STATUS_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("schema") != "kiana.license-status.v1":
+    print("license status schema mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if report.get("status") != "missing" or report.get("license_key") != "missing":
+    print("default license status should be missing", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if "no enterprise license configured" not in report.get("issues", []):
+    print("missing license issue was not reported", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+
+  configured="$(
+    KIANA_LICENSE_KEY="smoke-license-secret-7777" \
+    KIANA_LICENSE_PLAN="enterprise" \
+    KIANA_LICENSE_ENTITLEMENTS="audit,policy" \
+    KIANA_ENTERPRISE_ACCOUNT_ID="acct_smoke" \
+    run_clean_kiana "$binary" license status --json 2>&1
+  )"
+  LICENSE_STATUS_JSON="$configured" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+report = json.loads(os.environ["LICENSE_STATUS_JSON"])
+checks = [
+    report.get("schema") == "kiana.license-status.v1",
+    report.get("status") == "configured",
+    report.get("source") == "KIANA_LICENSE_KEY",
+    report.get("license_key") == "set",
+    report.get("license_key_preview") == "redacted-7777",
+    report.get("account_id") == "acct_smoke",
+    report.get("plan") == "enterprise",
+    report.get("issues") == [],
+]
+if not all(checks):
+    print("configured license status failed smoke checks", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if "smoke-license-secret" in os.environ["LICENSE_STATUS_JSON"]:
+    print("license status leaked the raw license key", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 smoke_version() {
   local binary="$1"
   local output
@@ -481,6 +552,8 @@ help_smoke_cases=(
   "auto-mode --help::Usage: kiana auto-mode"
   "auth --help::Usage: kiana auth"
   "auth status --help::Usage: kiana auth status"
+  "license --help::Usage: kiana license"
+  "license status --help::Usage: kiana license status"
   "completion --help::Usage: kiana completion <shell>"
   "plugin --help::usage: kiana plugin"
   "plugin install --help::Usage: kiana plugin install"
@@ -540,6 +613,7 @@ smoke_version "$release_bin"
 smoke_doctor "$release_bin"
 smoke_doctor_json "$release_bin"
 smoke_model_smoke_json "$release_bin"
+smoke_license_status_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$release_bin" "$entry"
 done
@@ -554,6 +628,7 @@ smoke_version "$installed_bin"
 smoke_doctor "$installed_bin"
 smoke_doctor_json "$installed_bin"
 smoke_model_smoke_json "$installed_bin"
+smoke_license_status_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do
   smoke_help_usage "$installed_bin" "$entry"
 done

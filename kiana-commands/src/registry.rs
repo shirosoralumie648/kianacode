@@ -51,6 +51,7 @@ pub fn create_default_command_registry() -> CommandRegistry {
     registry.register(Arc::new(crate::context::ContextCommand));
     registry.register(Arc::new(crate::exit::ExitCommand));
     registry.register(Arc::new(crate::auth::AuthCommand));
+    registry.register(Arc::new(crate::license::LicenseCommand));
     registry.register(Arc::new(crate::login::LoginCommand));
     registry.register(Arc::new(crate::logout::LogoutCommand));
     registry.register(Arc::new(crate::model::ModelCommand));
@@ -109,6 +110,7 @@ mod tests {
             "config",
             "compact",
             "init",
+            "license",
             "commit",
             "checkpoint",
             "checks",
@@ -212,6 +214,7 @@ mod tests {
             "exit",
             "feedback",
             "help",
+            "license",
             "mcp",
             "release",
             "reload-plugins",

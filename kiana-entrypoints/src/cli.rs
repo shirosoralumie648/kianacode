@@ -8703,6 +8703,7 @@ fn print_help() {
     println!("  kiana --version       Show version");
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
+    println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");
     println!("  kiana completion bash Generate shell completion scripts");
@@ -15554,6 +15555,53 @@ mod tests {
             result["provider_id"].as_str() == Some("fake")
                 && result["status"].as_str() == Some("passed")
         }));
+    }
+
+    #[tokio::test]
+    async fn cli_license_status_json_reports_redacted_env_license() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&[
+            "KIANA_LICENSE_FILE",
+            "KIANA_LICENSE_KEY",
+            "KIANA_LICENSE_PLAN",
+            "KIANA_LICENSE_ENTITLEMENTS",
+            "KIANA_ENTERPRISE_ACCOUNT_ID",
+            "KIANA_SUPPORT_CONTACT",
+            "KIANA_MANAGED_POLICY_FILE",
+            "KIANA_MANAGED_SETTINGS_FILE",
+        ]);
+        for key in [
+            "KIANA_LICENSE_FILE",
+            "KIANA_MANAGED_POLICY_FILE",
+            "KIANA_MANAGED_SETTINGS_FILE",
+        ] {
+            std::env::remove_var(key);
+        }
+        std::env::set_var("KIANA_LICENSE_KEY", "cli-license-secret-4444");
+        std::env::set_var("KIANA_LICENSE_PLAN", "enterprise");
+        std::env::set_var("KIANA_LICENSE_ENTITLEMENTS", "audit,policy");
+        std::env::set_var("KIANA_ENTERPRISE_ACCOUNT_ID", "acct_cli");
+        std::env::set_var("KIANA_SUPPORT_CONTACT", "support@example.test");
+
+        let result = run_local_command(&[
+            "license".to_string(),
+            "status".to_string(),
+            "--json".to_string(),
+        ])
+        .await
+        .unwrap()
+        .expect("license status result");
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.license-status.v1");
+        assert_eq!(report["status"], "configured");
+        assert_eq!(report["source"], "KIANA_LICENSE_KEY");
+        assert_eq!(report["license_key"], "set");
+        assert_eq!(report["license_key_preview"], "redacted-4444");
+        assert_eq!(report["account_id"], "acct_cli");
+        assert_eq!(report["plan"], "enterprise");
+        assert_eq!(report["support_contact"], "support@example.test");
+        assert!(!result.value.contains("cli-license-secret"));
     }
 
     #[test]

@@ -24,6 +24,7 @@ pub mod feedback;
 pub mod help;
 pub mod hooks;
 pub mod init;
+pub mod license;
 pub mod login;
 pub mod logout;
 pub mod mcp;

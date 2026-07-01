@@ -41,6 +41,7 @@ kiana config get api_key
 kiana model list
 kiana model list --json
 kiana model smoke --json
+kiana license status --json
 ```
 
 环境变量优先级高于配置文件：
@@ -87,6 +88,18 @@ kiana model smoke --live --json
 ```
 
 ## 基础对话
+
+Enterprise license readiness is local and offline by default. It reports whether
+account, plan, entitlements, support contact, and managed policy inputs are
+configured without printing the raw license key:
+
+```bash
+export KIANA_LICENSE_KEY="kiana-enterprise-..."
+export KIANA_ENTERPRISE_ACCOUNT_ID="acct_..."
+export KIANA_LICENSE_PLAN="enterprise"
+export KIANA_LICENSE_ENTITLEMENTS="managed-policy,offline"
+kiana license status --json
+```
 
 ```bash
 kiana -p "summarize README.md"

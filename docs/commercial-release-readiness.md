@@ -67,6 +67,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Local Ollama text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
 - Text-only provider runs now default to an empty tool set when tools are not explicitly configured, so text prompts do not require a `--tools ""` workaround.
 - `kiana model smoke --json` now emits a pinned `kiana.model-smoke.v1` provider smoke report; default release gates require fake provider text smoke to pass and report live provider skip reasons, while real Anthropic/OpenAI-compatible/Ollama smoke remains opt-in through `--live` or `KIANA_PROVIDER_SMOKE_LIVE=1`.
+- `kiana license status --json` now emits a pinned `kiana.license-status.v1` readiness report for offline enterprise license, account, entitlement, support contact, and managed-policy inputs without exposing raw license keys.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 
@@ -84,7 +85,7 @@ These are not solved by the local release gate and must be completed before clai
 - Finish provider ecosystem parity beyond Anthropic/fake/OpenAI-compatible/Ollama text paths, including tool-capable OpenAI-compatible/Ollama operation and running opt-in live provider smoke reports against production-like credentials/daemons.
 - Harden default execution isolation and approval policy across Windows, macOS, and Linux.
 - Repeat dependency/compliance execution on the real release runners and complete third-party license/advisory signoff for the release record.
-- Complete enterprise account/license/policy support and a private vulnerability reporting channel.
+- Complete real enterprise account/license backend validation, policy support, and a private vulnerability reporting channel; the local license readiness contract exists, but production entitlement verification is not wired.
 
 ## Current Conclusion
 

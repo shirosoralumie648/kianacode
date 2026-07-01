@@ -60,4 +60,6 @@ commercial release.
   posture on Windows, macOS, and Linux.
 - `kiana doctor` reports `commercial_security: ready` on target release
   environments, or release notes explicitly scope unsupported platforms.
-- Enterprise account, license, policy, and support expectations are documented.
+- Enterprise account, license, policy, and support expectations are documented,
+  and `kiana license status --json` reports the intended release posture without
+  exposing raw license keys.

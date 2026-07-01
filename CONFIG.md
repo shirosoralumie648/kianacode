@@ -16,6 +16,7 @@ kiana config set base_url "https://api.anthropic.com"
 kiana model list
 kiana model list --json
 kiana model smoke --json
+kiana license status --json
 ```
 
 配置保存到 `~/.kiana/config.toml`，运行 `kiana config status` 可查看当前生效值。

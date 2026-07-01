@@ -99,6 +99,7 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
+  "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
   "$package_root/scripts/install-release-binary.sh"
 do
@@ -127,6 +128,13 @@ run_installed() {
     -u ANTHROPIC_BASE_URL \
     -u ANTHROPIC_MODEL \
     -u KIANA_PROVIDER_SMOKE_LIVE \
+    -u KIANA_LICENSE_FILE \
+    -u KIANA_LICENSE_KEY \
+    -u KIANA_LICENSE_PLAN \
+    -u KIANA_LICENSE_ENTITLEMENTS \
+    -u KIANA_LICENSE_OFFLINE \
+    -u KIANA_ENTERPRISE_ACCOUNT_ID \
+    -u KIANA_SUPPORT_CONTACT \
     -u KIANA_PROVIDER \
     -u KIANA_OPENAI_API_KEY \
     -u OPENAI_API_KEY \
@@ -139,6 +147,8 @@ INSTALL_DIR="$install_dir" bash "$installer" --install >/dev/null
 [[ -x "$installed" ]]
 run_installed --version >/dev/null
 run_installed doctor --json | grep -Fq '"schema": "kiana.doctor.v1"'
+run_installed license status --json | grep -Fq '"schema": "kiana.license-status.v1"'
+run_installed license status --json | grep -Fq '"status": "missing"'
 run_installed model list --json | grep -Fq '"provider_id": "openai-compatible"'
 run_installed model smoke --json | grep -Fq '"schema": "kiana.model-smoke.v1"'
 run_installed model smoke --json | grep -Fq '"provider_id": "fake"'

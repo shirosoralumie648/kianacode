@@ -42,6 +42,7 @@ for file in \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
+  docs/schemas/kiana-license-status.v1.schema.json \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh \
   scripts/generate-sbom.sh scripts/compliance-audit.sh scripts/install-compliance-tools.sh \
@@ -120,6 +121,12 @@ else
   fail "release smoke does not exercise model smoke --json"
 fi
 
+if grep -Fq 'license status --json' scripts/release-smoke.sh; then
+  pass "license status JSON gate is wired"
+else
+  fail "release smoke does not exercise license status --json"
+fi
+
 if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.json; then
   pass "doctor JSON schema version is pinned"
 else
@@ -130,6 +137,12 @@ if grep -Fq '"const": "kiana.model-smoke.v1"' docs/schemas/kiana-model-smoke.v1.
   pass "model smoke JSON schema version is pinned"
 else
   fail "model smoke JSON schema is missing kiana.model-smoke.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then
+  pass "license status JSON schema version is pinned"
+else
+  fail "license status JSON schema is missing kiana.license-status.v1 const"
 fi
 
 if grep -Fq 'KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}' .github/workflows/release.yml; then
