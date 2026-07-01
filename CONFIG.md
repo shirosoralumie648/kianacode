@@ -47,7 +47,7 @@ export KIANA_OPENAI_BASE_URL="https://api.openai.com/v1" # 可选
 export KIANA_OPENAI_MODEL="gpt-4.1"                      # 可选
 ```
 
-当前 OpenAI-compatible provider 只支持 text-only chat/completions；启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
+当前 OpenAI-compatible provider 只支持 text-only chat/completions；未显式配置 tools 时 runner 会自动使用空工具集，显式启用 `--tools` 时会在发出网络请求前返回 `unsupported_tools`。
 
 ### 4. 托管配置策略
 

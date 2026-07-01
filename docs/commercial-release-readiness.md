@@ -62,6 +62,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - TUI `/diff --json` and `/diff --last-assistant --json` now render structured diff previews with file lists, stats, and assistant patch snippets instead of raw JSON transcript output.
 - TUI permission requests now carry structured approval panel state with tool, reason, blocked path, input preview, suggestions, and queue context while preserving `/allow` and `/deny` command handling.
 - OpenAI-compatible text provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; tool support is explicitly disabled and rejected before network requests.
+- Text-only provider runs now default to an empty tool set when tools are not explicitly configured, so OpenAI-compatible text prompts do not require a `--tools ""` workaround.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.
 - Fixed user documentation drift for Rust version, config path, model ID, model listing, and README reference links.
 

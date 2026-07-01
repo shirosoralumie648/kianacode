@@ -68,6 +68,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   while preserving `/allow` and `/deny` command handling.
 - Added an OpenAI-compatible text provider for chat/completions endpoints with
   explicit model capabilities and pre-request rejection when tools are enabled.
+- Text-only providers now default to an empty tool set when the user has not
+  explicitly configured tools, while explicit tool requests still fail fast.
 
 ### Verified
 

@@ -55,10 +55,10 @@ OpenAI-compatible 文本 provider：
 export KIANA_PROVIDER="openai-compatible"
 export KIANA_OPENAI_API_KEY="sk-xxx"
 export KIANA_OPENAI_BASE_URL="https://api.openai.com/v1"
-kiana --tools "" -p "summarize README.md"
+kiana -p "summarize README.md"
 ```
 
-这个 provider 当前只声明 text-only 能力；`kiana model list --json` 会显示 `supports_tools=false`，带工具运行会在请求前失败。
+这个 provider 当前只声明 text-only 能力；`kiana model list --json` 会显示 `supports_tools=false`。未显式配置 tools 时会自动走空工具集，显式带工具运行会在请求前失败。
 
 ## 基础对话
 

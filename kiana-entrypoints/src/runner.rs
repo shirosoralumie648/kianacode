@@ -423,7 +423,12 @@ pub async fn run_assistant_turn_with_permission_handler(
     let provider = build_provider(&provider_id, &model, options, &config, api_timeout)?;
 
     let registry = create_default_registry();
-    let enabled_tools = tool_filter_option(options, &registry)?;
+    let enabled_tools = provider_default_tool_filter(
+        tool_filter_option(options, &registry)?,
+        options,
+        provider.as_ref(),
+        &model,
+    );
     let tool_schemas = filtered_tool_schemas(&registry, enabled_tools.as_ref());
     let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
     let cwd = string_option(options, "cwd").unwrap_or_else(|| {
@@ -813,7 +818,12 @@ where
     let provider = build_provider(&provider_id, &model, options, &config, api_timeout)?;
 
     let registry = create_default_registry();
-    let enabled_tools = tool_filter_option(options, &registry)?;
+    let enabled_tools = provider_default_tool_filter(
+        tool_filter_option(options, &registry)?,
+        options,
+        provider.as_ref(),
+        &model,
+    );
     let tool_schemas = filtered_tool_schemas(&registry, enabled_tools.as_ref());
     let mut run_abort_signal = abort_signal.clone();
     let cwd = string_option(options, "cwd").unwrap_or_else(|| {
@@ -4436,6 +4446,25 @@ fn tool_filter_option(
     Ok(Some(enabled))
 }
 
+fn provider_default_tool_filter(
+    enabled_tools: Option<HashSet<String>>,
+    options: &HashMap<String, Value>,
+    provider: &dyn Provider,
+    model: &str,
+) -> Option<HashSet<String>> {
+    if enabled_tools.is_none()
+        && !tools_are_explicitly_configured(options)
+        && !provider.model_profile(model).supports_tools
+    {
+        return Some(HashSet::new());
+    }
+    enabled_tools
+}
+
+fn tools_are_explicitly_configured(options: &HashMap<String, Value>) -> bool {
+    tools_option_value(options).is_some() || std::env::var("KIANA_TOOLS").is_ok()
+}
+
 fn core_model_tool_filter(available: &HashMap<String, String>) -> HashSet<String> {
     [
         "Read",
@@ -7430,7 +7459,6 @@ mod tests {
                 ("model".to_string(), json!("gpt-test")),
                 ("api_key".to_string(), json!("openai-test-key")),
                 ("base_url".to_string(), json!(base_url)),
-                ("tools".to_string(), json!("")),
             ]),
         )
         .await
@@ -7467,7 +7495,7 @@ mod tests {
                 ("model".to_string(), json!("gpt-test")),
                 ("api_key".to_string(), json!("openai-test-key")),
                 ("base_url".to_string(), json!("http://127.0.0.1:9")),
-                ("tools".to_string(), json!("Read")),
+                ("tools".to_string(), json!("default")),
             ]),
         )
         .await
