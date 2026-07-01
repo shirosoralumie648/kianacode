@@ -1,10 +1,11 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,6 +13,24 @@ pub struct OAuthTokens {
     pub access_token: String,
     pub refresh_token: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl OAuthTokens {
+    pub fn expires_within(&self, skew: Duration) -> bool {
+        let Some(expires_at) = self.expires_at else {
+            return false;
+        };
+        let skew =
+            ChronoDuration::from_std(skew).unwrap_or_else(|_| ChronoDuration::seconds(i64::MAX));
+        expires_at <= Utc::now() + skew
+    }
+
+    fn refresh_token_value(&self) -> Option<&str> {
+        self.refresh_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,7 +98,7 @@ impl OAuthTokenResponse {
         let expires_at = self.expires_at.or_else(|| {
             self.expires_in
                 .filter(|seconds| *seconds > 0)
-                .map(|seconds| Utc::now() + Duration::seconds(seconds))
+                .map(|seconds| Utc::now() + ChronoDuration::seconds(seconds))
         });
         OAuthTokens {
             access_token: self.access_token,
@@ -246,17 +265,31 @@ pub async fn refresh_stored_oauth_tokens() -> crate::errors::ServiceResult<Optio
     let Some(stored) = load_oauth_tokens()? else {
         return Ok(None);
     };
-    let Some(refresh_token) = stored
-        .refresh_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
+    refresh_and_save_oauth_tokens(stored).await
+}
+
+pub async fn load_oauth_tokens_refreshing_if_expiring(
+    skew: Duration,
+) -> crate::errors::ServiceResult<Option<OAuthTokens>> {
+    let Some(stored) = load_oauth_tokens()? else {
+        return Ok(None);
+    };
+    if stored.expires_within(skew) && stored.refresh_token_value().is_some() {
+        refresh_and_save_oauth_tokens(stored).await
+    } else {
+        Ok(Some(stored))
+    }
+}
+
+async fn refresh_and_save_oauth_tokens(
+    stored: OAuthTokens,
+) -> crate::errors::ServiceResult<Option<OAuthTokens>> {
+    let Some(refresh_token) = stored.refresh_token_value().map(str::to_string) else {
         return Ok(None);
     };
 
     let client = OAuthClient::new(oauth_config_from_env());
-    let mut refreshed = client.refresh_token(refresh_token).await?;
+    let mut refreshed = client.refresh_token(&refresh_token).await?;
     if refreshed.refresh_token.is_none() {
         refreshed.refresh_token = stored.refresh_token;
     }
@@ -404,10 +437,14 @@ mod tests {
         })
         .unwrap();
 
-        let (url, handle) = start_token_server(json!({
-            "access_token": "new-access",
-            "expires_in": 3600
-        }));
+        let (url, handle) = start_token_server(
+            json!({
+                "access_token": "new-access",
+                "expires_in": 3600
+            }),
+            "old-refresh",
+            "client-123",
+        );
         std::env::set_var("KIANA_OAUTH_TOKEN_URL", url);
 
         let refreshed = refresh_stored_oauth_tokens().await.unwrap().unwrap();
@@ -424,7 +461,83 @@ mod tests {
         clear_oauth_env();
     }
 
-    fn start_token_server(response: serde_json::Value) -> (String, std::thread::JoinHandle<()>) {
+    #[tokio::test]
+    async fn load_oauth_tokens_refreshing_if_expiring_keeps_fresh_token() {
+        let _guard = env_lock().lock().unwrap();
+        clear_oauth_env();
+        let token_path = temp_path("fresh");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        save_oauth_tokens(&OAuthTokens {
+            access_token: "fresh-access".to_string(),
+            refresh_token: Some("fresh-refresh".to_string()),
+            expires_at: Some(Utc::now() + ChronoDuration::hours(1)),
+        })
+        .unwrap();
+
+        let loaded = load_oauth_tokens_refreshing_if_expiring(Duration::from_secs(300))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(loaded.access_token, "fresh-access");
+        assert_eq!(loaded.refresh_token.as_deref(), Some("fresh-refresh"));
+
+        let _ = fs::remove_file(token_path);
+        clear_oauth_env();
+    }
+
+    #[tokio::test]
+    async fn load_oauth_tokens_refreshing_if_expiring_refreshes_near_expiry() {
+        let _guard = env_lock().lock().unwrap();
+        clear_oauth_env();
+        let token_path = temp_path("expiring");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        std::env::set_var("KIANA_OAUTH_CLIENT_ID", "client-expiring");
+        save_oauth_tokens(&OAuthTokens {
+            access_token: "expiring-access".to_string(),
+            refresh_token: Some("expiring-refresh".to_string()),
+            expires_at: Some(Utc::now() + ChronoDuration::seconds(30)),
+        })
+        .unwrap();
+
+        let (url, handle) = start_token_server(
+            json!({
+                "access_token": "refreshed-access",
+                "refresh_token": "refreshed-refresh",
+                "expires_in": 3600
+            }),
+            "expiring-refresh",
+            "client-expiring",
+        );
+        std::env::set_var("KIANA_OAUTH_TOKEN_URL", url);
+
+        let refreshed = load_oauth_tokens_refreshing_if_expiring(Duration::from_secs(300))
+            .await
+            .unwrap()
+            .unwrap();
+        let persisted = load_oauth_tokens().unwrap().unwrap();
+
+        assert_eq!(refreshed.access_token, "refreshed-access");
+        assert_eq!(
+            refreshed.refresh_token.as_deref(),
+            Some("refreshed-refresh")
+        );
+        assert_eq!(persisted.access_token, "refreshed-access");
+        assert_eq!(
+            persisted.refresh_token.as_deref(),
+            Some("refreshed-refresh")
+        );
+
+        handle.join().unwrap();
+        let _ = fs::remove_file(token_path);
+        clear_oauth_env();
+    }
+
+    fn start_token_server(
+        response: serde_json::Value,
+        expected_refresh_token: &'static str,
+        expected_client_id: &'static str,
+    ) -> (String, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let handle = std::thread::spawn(move || {
@@ -434,8 +547,8 @@ mod tests {
             let request = String::from_utf8_lossy(&buffer[..read]);
             assert!(request.starts_with("POST "));
             assert!(request.contains("grant_type=refresh_token"));
-            assert!(request.contains("refresh_token=old-refresh"));
-            assert!(request.contains("client_id=client-123"));
+            assert!(request.contains(&format!("refresh_token={expected_refresh_token}")));
+            assert!(request.contains(&format!("client_id={expected_client_id}")));
             let body = response.to_string();
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",

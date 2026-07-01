@@ -52,6 +52,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Added a `commercial` permission profile and doctor-level `commercial_security` readiness report for strict sandbox plus approval posture validation.
 - Added `kiana doctor --json` with a pinned `kiana.doctor.v1` schema and release smoke validation for schema-critical readiness fields.
 - OAuth token files can now be used as redacted remote/bridge bearer-token sources and refreshed through their stored refresh token when command-based refresh is not configured.
+- OAuth token files that carry `expires_at` are refreshed before remote-session and bridge live calls when the token is expired or within the proactive refresh window.
 - OAuth token writes now use same-directory atomic replacement, flush before rename, and owner-only permissions on platforms with native permission bits.
 - Remote code-session create, bridge credential fetch, smoke, and hydrate commands retry once after auth failure through the same remote refresh path used by websocket reconnects.
 - Created a local initial product commit so `HEAD` now resolves and the product tree is clean.

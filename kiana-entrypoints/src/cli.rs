@@ -5986,6 +5986,10 @@ struct RemoteSessionAccessToken {
     source: &'static str,
 }
 
+fn oauth_proactive_refresh_skew() -> std::time::Duration {
+    std::time::Duration::from_secs(300)
+}
+
 fn remote_session_access_token_details() -> Option<RemoteSessionAccessToken> {
     [
         "KIANA_REMOTE_ACCESS_TOKEN",
@@ -6021,8 +6025,49 @@ fn remote_session_access_token_details() -> Option<RemoteSessionAccessToken> {
     })
 }
 
-fn remote_session_live_access_token(command: &str) -> Result<RemoteSessionAccessToken> {
-    let access_token = remote_session_access_token_details().ok_or_else(|| {
+async fn remote_session_access_token_details_refreshing_if_expiring(
+) -> Result<Option<RemoteSessionAccessToken>> {
+    if let Some(access_token) = [
+        "KIANA_REMOTE_ACCESS_TOKEN",
+        "CLAUDE_ACCESS_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+    ]
+    .iter()
+    .find_map(|env| {
+        std::env::var(env).ok().and_then(|value| {
+            let value = value.trim().to_string();
+            if value.is_empty() {
+                None
+            } else {
+                Some(RemoteSessionAccessToken { value, source: env })
+            }
+        })
+    }) {
+        return Ok(Some(access_token));
+    }
+
+    let Some(tokens) = kiana_services::oauth::load_oauth_tokens_refreshing_if_expiring(
+        oauth_proactive_refresh_skew(),
+    )
+    .await?
+    else {
+        return Ok(None);
+    };
+    let value = tokens.access_token.trim().to_string();
+    if value.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(RemoteSessionAccessToken {
+            value,
+            source: "oauth_file",
+        }))
+    }
+}
+
+async fn remote_session_live_access_token(command: &str) -> Result<RemoteSessionAccessToken> {
+    let access_token = remote_session_access_token_details_refreshing_if_expiring()
+        .await?
+        .ok_or_else(|| {
         anyhow!(
             "remote-session {command} requires KIANA_REMOTE_ACCESS_TOKEN, CLAUDE_ACCESS_TOKEN, or ANTHROPIC_AUTH_TOKEN"
         )
@@ -6094,7 +6139,7 @@ async fn refresh_remote_session_access_token(stale_access_token: &str) -> Result
     }
 }
 
-fn remote_session_api_credentials(
+async fn remote_session_api_credentials(
     args: &[String],
     command: &str,
 ) -> Result<(RemoteSessionCliConfig, String, String)> {
@@ -6102,16 +6147,16 @@ fn remote_session_api_credentials(
     let org_uuid = config.org_uuid.clone().ok_or_else(|| {
         anyhow!("remote-session {command} requires --org-uuid or KIANA_REMOTE_ORG_UUID")
     })?;
-    let access_token = remote_session_live_access_token(command)?;
+    let access_token = remote_session_live_access_token(command).await?;
     Ok((config, org_uuid, access_token.value))
 }
 
-fn remote_session_code_session_credentials(
+async fn remote_session_code_session_credentials(
     args: &[String],
     command: &str,
 ) -> Result<(RemoteSessionCliConfig, RemoteSessionAccessToken)> {
     let config = build_remote_session_cli_config(args)?;
-    let access_token = remote_session_live_access_token(command)?;
+    let access_token = remote_session_live_access_token(command).await?;
     Ok((config, access_token))
 }
 
@@ -6320,7 +6365,7 @@ impl kiana_remote::RemoteSessionCallbacks for RemoteSessionCliCallbacks {
 }
 
 async fn remote_session_list(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "list")?;
+    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "list").await?;
     let sessions = kiana_remote::fetch_code_sessions_from_sessions_api(
         &config.api_base_url,
         &org_uuid,
@@ -6354,7 +6399,7 @@ async fn remote_session_list(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_show(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "show")?;
+    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "show").await?;
     let session_id = remote_session_session_id_from_args(args, &config).ok_or_else(|| {
         anyhow!("remote-session show requires --session-id, KIANA_REMOTE_SESSION_ID, or a session ID argument")
     })?;
@@ -6397,7 +6442,7 @@ async fn remote_session_show(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_rename(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "rename")?;
+    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "rename").await?;
     let positionals = remote_session_positional_args(args);
     let session_id = config
         .session_id
@@ -6437,7 +6482,7 @@ async fn remote_session_rename(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_create(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "create")?;
+    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "create").await?;
     let environment_id = remote_session_create_environment_id(args).ok_or_else(|| {
         anyhow!("remote-session create requires --environment-id or KIANA_REMOTE_ENVIRONMENT_ID")
     })?;
@@ -6509,7 +6554,7 @@ async fn remote_session_create(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_archive(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "archive")?;
+    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "archive").await?;
     let session_id = remote_session_session_id_from_args(args, &config).ok_or_else(|| {
         anyhow!("remote-session archive requires --session-id, KIANA_REMOTE_SESSION_ID, or a session ID argument")
     })?;
@@ -6559,7 +6604,7 @@ async fn remote_session_code_session(args: &[String]) -> Result<()> {
 
 async fn remote_session_code_session_create(args: &[String]) -> Result<()> {
     let (config, mut access_token) =
-        remote_session_code_session_credentials(args, "code-session create")?;
+        remote_session_code_session_credentials(args, "code-session create").await?;
     let title = remote_session_option_or_env(args, "--title", &["KIANA_REMOTE_CODE_SESSION_TITLE"])
         .or_else(|| remote_session_join_positionals(remote_session_code_session_positionals(args)))
         .unwrap_or_else(|| "Kiana remote code session".to_string());
@@ -6590,7 +6635,7 @@ async fn remote_session_code_session_create(args: &[String]) -> Result<()> {
 
 async fn remote_session_code_session_bridge(args: &[String]) -> Result<()> {
     let (config, mut access_token) =
-        remote_session_code_session_credentials(args, "code-session bridge")?;
+        remote_session_code_session_credentials(args, "code-session bridge").await?;
     let session_id = remote_session_code_session_id_from_args(args, &config).ok_or_else(|| {
         anyhow!("remote-session code-session bridge requires --session-id, KIANA_REMOTE_SESSION_ID, or a cse_* session ID argument")
     })?;
@@ -6624,7 +6669,7 @@ async fn remote_session_code_session_bridge(args: &[String]) -> Result<()> {
 
 async fn remote_session_code_session_smoke(args: &[String]) -> Result<()> {
     let (config, mut access_token) =
-        remote_session_code_session_credentials(args, "code-session smoke")?;
+        remote_session_code_session_credentials(args, "code-session smoke").await?;
     let title = remote_session_option_or_env(args, "--title", &["KIANA_REMOTE_CODE_SESSION_TITLE"])
         .or_else(|| remote_session_join_positionals(remote_session_code_session_positionals(args)))
         .unwrap_or_else(|| "Kiana CCR v2 live smoke".to_string());
@@ -6679,7 +6724,7 @@ async fn remote_session_code_session_smoke(args: &[String]) -> Result<()> {
 
 async fn remote_session_code_session_hydrate(args: &[String]) -> Result<()> {
     let (config, mut access_token) =
-        remote_session_code_session_credentials(args, "code-session hydrate")?;
+        remote_session_code_session_credentials(args, "code-session hydrate").await?;
     let session_id = remote_session_code_session_id_from_args(args, &config).ok_or_else(|| {
         anyhow!("remote-session code-session hydrate requires --session-id, KIANA_REMOTE_SESSION_ID, or a cse_* session ID argument")
     })?;
@@ -6988,7 +7033,8 @@ async fn remote_session_environments(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_environment_list(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "environments")?;
+    let (config, org_uuid, access_token) =
+        remote_session_api_credentials(args, "environments").await?;
     let environments =
         kiana_remote::fetch_environments(&config.api_base_url, &org_uuid, &access_token).await?;
 
@@ -7017,7 +7063,8 @@ async fn remote_session_environment_list(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_environment_selected(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "environments")?;
+    let (config, org_uuid, access_token) =
+        remote_session_api_credentials(args, "environments").await?;
     let environments =
         kiana_remote::fetch_environments(&config.api_base_url, &org_uuid, &access_token).await?;
     let default_environment_id = remote_session_default_environment_id(args);
@@ -7041,7 +7088,8 @@ async fn remote_session_environment_selected(args: &[String]) -> Result<()> {
 }
 
 async fn remote_session_environment_create_default(args: &[String]) -> Result<()> {
-    let (config, org_uuid, access_token) = remote_session_api_credentials(args, "environments")?;
+    let (config, org_uuid, access_token) =
+        remote_session_api_credentials(args, "environments").await?;
     let name = remote_session_option_or_env(args, "--name", &[])
         .or_else(|| remote_session_join_positionals(remote_session_environment_positionals(args)))
         .unwrap_or_else(|| "Default Cloud Environment".to_string());
@@ -7074,7 +7122,7 @@ async fn remote_session_listen(args: &[String]) -> Result<()> {
     let org_uuid = config.org_uuid.clone().ok_or_else(|| {
         anyhow!("remote-session listen requires --org-uuid or KIANA_REMOTE_ORG_UUID")
     })?;
-    let access_token = remote_session_live_access_token("listen")?.value;
+    let access_token = remote_session_live_access_token("listen").await?.value;
     let once = remote_session_has_flag(args, "--once");
     let permission_mode = remote_session_permission_mode(args)?;
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -7141,7 +7189,7 @@ async fn remote_session_send(args: &[String]) -> Result<()> {
     let org_uuid = config.org_uuid.clone().ok_or_else(|| {
         anyhow!("remote-session send requires --org-uuid or KIANA_REMOTE_ORG_UUID")
     })?;
-    let access_token = remote_session_live_access_token("send")?.value;
+    let access_token = remote_session_live_access_token("send").await?.value;
     let message = remote_session_send_message_from_args(args).ok_or_else(|| {
         anyhow!("remote-session send requires a message argument or --message <text>")
     })?;
@@ -7514,9 +7562,11 @@ async fn bridge_main(args: &[String]) -> Result<()> {
 
 async fn start_bridge(args: &[String]) -> Result<()> {
     let config = build_bridge_config(args)?;
-    bridge_access_token().ok_or_else(|| {
-        anyhow!("remote bridge requires KIANA_BRIDGE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN")
-    })?;
+    bridge_access_token_refreshing_if_expiring()
+        .await?
+        .ok_or_else(|| {
+            anyhow!("remote bridge requires KIANA_BRIDGE_ACCESS_TOKEN or CLAUDE_ACCESS_TOKEN")
+        })?;
 
     let api = Arc::new(BridgeApiClient::with_auth_provider(
         config.api_base_url.clone(),
@@ -7708,6 +7758,26 @@ fn bridge_access_token() -> Option<String> {
                 .map(|tokens| tokens.access_token.trim().to_string())
                 .filter(|value| !value.is_empty())
         })
+}
+
+async fn bridge_access_token_refreshing_if_expiring() -> Result<Option<String>> {
+    if let Some(token) = std::env::var("KIANA_BRIDGE_ACCESS_TOKEN")
+        .or_else(|_| std::env::var("CLAUDE_ACCESS_TOKEN"))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(Some(token));
+    }
+
+    Ok(
+        kiana_services::oauth::load_oauth_tokens_refreshing_if_expiring(
+            oauth_proactive_refresh_skew(),
+        )
+        .await?
+        .map(|tokens| tokens.access_token.trim().to_string())
+        .filter(|value| !value.is_empty()),
+    )
 }
 
 struct CliBridgeAuthProvider;
@@ -9503,6 +9573,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bridge_access_token_refreshes_expiring_oauth_file_before_start() {
+        let _guard = env_lock().lock().unwrap();
+        clear_bridge_env();
+        let token_path = temp_file_path("bridge-oauth-expiring", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        std::env::set_var("KIANA_OAUTH_CLIENT_ID", "bridge-expiring-client");
+        std::fs::write(
+            &token_path,
+            serde_json::json!({
+                "access_token": "expiring-bridge-oauth",
+                "refresh_token": "refresh-expiring-bridge-oauth",
+                "expires_at": "2000-01-01T00:00:00Z"
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let (url, requests, server) = start_oauth_token_server(serde_json::json!({
+            "access_token": "fresh-bridge-expiring-oauth",
+            "expires_in": 3600
+        }))
+        .await;
+        std::env::set_var("KIANA_OAUTH_TOKEN_URL", url);
+
+        let token = bridge_access_token_refreshing_if_expiring()
+            .await
+            .unwrap()
+            .unwrap();
+        let persisted = kiana_services::oauth::load_oauth_tokens().unwrap().unwrap();
+
+        assert_eq!(token, "fresh-bridge-expiring-oauth");
+        assert_eq!(persisted.access_token, "fresh-bridge-expiring-oauth");
+        assert_eq!(
+            persisted.refresh_token.as_deref(),
+            Some("refresh-expiring-bridge-oauth")
+        );
+        let body = requests.lock().unwrap().join("\n");
+        assert!(
+            body.contains("refresh_token=refresh-expiring-bridge-oauth"),
+            "{body}"
+        );
+        assert!(body.contains("client_id=bridge-expiring-client"), "{body}");
+
+        server.abort();
+        let _ = std::fs::remove_file(token_path);
+        clear_bridge_env();
+    }
+
+    #[tokio::test]
     async fn cli_bridge_auth_provider_refreshes_from_oauth_file_without_refresh_command() {
         let _guard = env_lock().lock().unwrap();
         clear_bridge_env();
@@ -9603,6 +9721,52 @@ mod tests {
         assert_eq!(token.value, "oauth-access-token");
         assert_eq!(token.source, "oauth_file");
 
+        let _ = std::fs::remove_file(token_path);
+        clear_remote_session_env();
+    }
+
+    #[tokio::test]
+    async fn remote_session_live_access_token_refreshes_expiring_oauth_file_before_request() {
+        let _guard = env_lock().lock().unwrap();
+        clear_remote_session_env();
+        let token_path = temp_file_path("remote-oauth-expiring", "json");
+        std::env::set_var("KIANA_OAUTH_TOKENS_FILE", &token_path);
+        std::env::set_var("KIANA_OAUTH_CLIENT_ID", "client-expiring-remote");
+        std::fs::write(
+            &token_path,
+            serde_json::json!({
+                "access_token": "expiring-oauth-token",
+                "refresh_token": "refresh-expiring-oauth-token",
+                "expires_at": "2000-01-01T00:00:00Z"
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let (url, requests, server) = start_oauth_token_server(serde_json::json!({
+            "access_token": "fresh-expiring-oauth-token",
+            "expires_in": 3600
+        }))
+        .await;
+        std::env::set_var("KIANA_OAUTH_TOKEN_URL", url);
+
+        let token = remote_session_live_access_token("list").await.unwrap();
+        let persisted = kiana_services::oauth::load_oauth_tokens().unwrap().unwrap();
+
+        assert_eq!(token.value, "fresh-expiring-oauth-token");
+        assert_eq!(token.source, "oauth_file");
+        assert_eq!(persisted.access_token, "fresh-expiring-oauth-token");
+        assert_eq!(
+            persisted.refresh_token.as_deref(),
+            Some("refresh-expiring-oauth-token")
+        );
+        let body = requests.lock().unwrap().join("\n");
+        assert!(
+            body.contains("refresh_token=refresh-expiring-oauth-token"),
+            "{body}"
+        );
+        assert!(body.contains("client_id=client-expiring-remote"), "{body}");
+
+        server.abort();
         let _ = std::fs::remove_file(token_path);
         clear_remote_session_env();
     }

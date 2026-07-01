@@ -42,6 +42,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - OAuth token files can now supply remote/bridge bearer tokens, refresh through
   the stored refresh token, and surface redacted status in `kiana auth status`
   and `kiana doctor`.
+- OAuth token files with `expires_at` are refreshed before remote-session and
+  bridge live calls when they are already expired or near expiry.
 - OAuth token persistence now uses same-directory atomic replacement and
   owner-only permissions where the platform exposes them.
 - Remote code-session create/bridge/smoke/hydrate commands retry once after an
