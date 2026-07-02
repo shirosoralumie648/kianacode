@@ -9,7 +9,8 @@
     "idle_timeout_ms",
     "max_sessions",
     "auth",
-    "base_option_keys"
+    "base_option_keys",
+    "sections"
   ],
   "properties": {
     "schema": {
@@ -46,6 +47,37 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "rows"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["label", "value"],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
       }
     }
   },

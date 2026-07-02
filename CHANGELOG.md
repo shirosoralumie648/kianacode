@@ -150,6 +150,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   for local repository file metadata and ranked lexical search.
 - Added pinned app-server subresponse schemas for conversations, settings,
   secrets, sandbox, and git-status release/package gates.
+- `/app/settings` now exposes the same readiness sections as the TUI settings
+  hub for product clients.
 - Added a bearer-protected `/app/plugins` app-server endpoint and pinned
   `kiana.app-server.plugins.v1` schema for product clients.
 - Fixed plugin `app.json` component counting and expanded `/app/plugins`

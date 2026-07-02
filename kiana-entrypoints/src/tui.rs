@@ -961,7 +961,7 @@ impl TuiRuntime {
     }
 }
 
-async fn load_settings_sections(
+pub(crate) async fn load_settings_sections(
     auth_command: Option<Arc<dyn Command>>,
     model_command: Option<Arc<dyn Command>>,
     permissions_command: Option<Arc<dyn Command>>,

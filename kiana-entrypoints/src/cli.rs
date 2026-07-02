@@ -7,6 +7,7 @@ use kiana_bridge::{
 use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
+use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
     PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
 };
@@ -5368,6 +5369,30 @@ async fn direct_connect_app_settings_handler(
 
     let mut option_keys = state.base_options.keys().cloned().collect::<Vec<_>>();
     option_keys.sort();
+    let mut settings_app_state = state.base_options.clone();
+    settings_app_state.insert(
+        "cwd".to_string(),
+        Value::String(state.workspace.display().to_string()),
+    );
+    let registry = create_default_command_registry();
+    let sections = crate::tui::load_settings_sections(
+        registry.get("auth").cloned(),
+        registry.get("model").cloned(),
+        registry.get("permissions").cloned(),
+        registry.get("mcp").cloned(),
+        registry.get("doctor").cloned(),
+        settings_app_state,
+    )
+    .await
+    .unwrap_or_else(|error| {
+        vec![SettingsSection::new(
+            "Readiness",
+            vec![
+                kiana_screens::settings::SettingsRow::new("status", "error"),
+                kiana_screens::settings::SettingsRow::new("error", error),
+            ],
+        )]
+    });
     axum::Json(serde_json::json!({
         "schema": "kiana.app-server.settings.v1",
         "workspace": state.workspace.display().to_string(),
@@ -5378,8 +5403,30 @@ async fn direct_connect_app_settings_handler(
             "required": state.auth_token.is_some(),
         },
         "base_option_keys": option_keys,
+        "sections": app_settings_sections_json(sections),
     }))
     .into_response()
+}
+
+fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
+    Value::Array(
+        sections
+            .into_iter()
+            .map(|section| {
+                serde_json::json!({
+                    "title": section.title,
+                    "rows": section
+                        .rows
+                        .into_iter()
+                        .map(|row| serde_json::json!({
+                            "label": row.label,
+                            "value": row.value,
+                        }))
+                        .collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    )
 }
 
 async fn direct_connect_app_secrets_handler(
@@ -15421,6 +15468,32 @@ mod tests {
             settings["base_option_keys"],
             serde_json::json!(["api_key", "permission_mode"])
         );
+        let setting_sections = settings["sections"].as_array().unwrap();
+        let setting_titles = setting_sections
+            .iter()
+            .map(|section| section["title"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            setting_titles,
+            vec![
+                "Account/Auth",
+                "Provider/Model",
+                "Permissions",
+                "MCP",
+                "Remote/Diagnostics"
+            ]
+        );
+        assert!(setting_sections.iter().all(|section| section["rows"]
+            .as_array()
+            .is_some_and(|rows| !rows.is_empty())));
+        assert!(setting_sections
+            .iter()
+            .any(|section| section["title"] == "Remote/Diagnostics"
+                && section["rows"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|row| row["label"] == "commercial_security")));
         assert!(!settings.to_string().contains("must-not-leak"));
 
         let secrets: Value = client
