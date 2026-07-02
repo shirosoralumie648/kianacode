@@ -1644,6 +1644,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stop_hooks_ignore_disabled_plugin_hooks_file() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-disabled-plugin-stop-hooks-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let plugins_dir = root.join("plugins");
+        let plugin = plugins_dir.join("policy-plugin");
+        std::fs::create_dir_all(plugin.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            plugin.join(".codex-plugin").join("plugin.json"),
+            serde_json::json!({ "name": "policy-plugin" }).to_string(),
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin.join("hooks")).unwrap();
+        std::fs::write(
+            plugin.join("hooks").join("hooks.json"),
+            serde_json::json!({
+                "Stop": ["printf '%s' '{\"decision\":\"block\",\"reason\":\"disabled plugin hook should not run\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        kiana_types::plugin::set_plugin_enabled(&plugins_dir, "policy-plugin", false).unwrap();
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        let (events, result) = run_and_collect(make_ctx()).await;
+
+        assert!(result.blocking_errors.is_empty());
+        assert!(!result.prevent_continuation);
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, StopHookEvent::Summary { hook_count: 0, .. })));
+        let _ = std::fs::remove_dir_all(root);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
     async fn stop_hook_env_overrides_plugin_hooks() {
         let _guard = env_guard().await;
         clear_hook_env();
