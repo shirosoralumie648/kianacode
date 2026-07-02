@@ -15144,7 +15144,8 @@ mod tests {
         std::fs::create_dir_all(&workspace).unwrap();
         let plugins_dir = workspace.join(".plugins");
         let sessions_dir = workspace.join(".sdk-sessions");
-        let plugin_manifest_dir = plugins_dir.join("app-tools").join(".codex-plugin");
+        let plugin_root = plugins_dir.join("app-tools");
+        let plugin_manifest_dir = plugin_root.join(".codex-plugin");
         std::fs::create_dir_all(&plugin_manifest_dir).unwrap();
         std::fs::write(
             plugin_manifest_dir.join("plugin.json"),
@@ -15156,6 +15157,55 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
+        std::fs::create_dir_all(plugin_root.join("commands")).unwrap();
+        std::fs::write(
+            plugin_root.join("commands").join("audit.md"),
+            "Audit command",
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join("agents")).unwrap();
+        std::fs::write(
+            plugin_root.join("agents").join("reviewer.md"),
+            "Review agent",
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join("skills").join("triage")).unwrap();
+        std::fs::write(
+            plugin_root.join("skills").join("triage").join("SKILL.md"),
+            "# Triage",
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join("hooks")).unwrap();
+        std::fs::write(plugin_root.join("hooks").join("hooks.json"), "[]").unwrap();
+        std::fs::create_dir_all(plugin_root.join("output-styles")).unwrap();
+        std::fs::write(
+            plugin_root.join("output-styles").join("brief.md"),
+            "Brief output",
+        )
+        .unwrap();
+        std::fs::write(plugin_root.join(".lsp.json"), "{}").unwrap();
+        std::fs::write(plugin_root.join("app.json"), "{}").unwrap();
+        std::fs::write(plugin_root.join(".mcp.json"), "{}").unwrap();
+        let disabled_plugin_root = plugins_dir.join("disabled-tools");
+        let disabled_manifest_dir = disabled_plugin_root.join(".codex-plugin");
+        std::fs::create_dir_all(&disabled_manifest_dir).unwrap();
+        std::fs::write(
+            disabled_manifest_dir.join("plugin.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "disabled-tools",
+                "version": "1.0.0",
+                "description": "Disabled app server plugin"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir_all(disabled_plugin_root.join("commands")).unwrap();
+        std::fs::write(
+            disabled_plugin_root.join("commands").join("disabled.md"),
+            "Disabled command",
+        )
+        .unwrap();
+        kiana_types::plugin::set_plugin_enabled(&plugins_dir, "disabled-tools", false).unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -15408,10 +15458,29 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(plugins["schema"], "kiana.app-server.plugins.v1");
-        assert_eq!(plugins["count"], 1);
-        assert_eq!(plugins["plugins"][0]["id"], "app-tools");
-        assert_eq!(plugins["plugins"][0]["enabled"], true);
-        assert_eq!(plugins["plugins"][0]["valid"], true);
+        assert_eq!(plugins["count"], 2);
+        let plugin_items = plugins["plugins"].as_array().unwrap();
+        let app_tools = plugin_items
+            .iter()
+            .find(|plugin| plugin["id"] == "app-tools")
+            .expect("app-tools plugin summary");
+        assert_eq!(app_tools["enabled"], true);
+        assert_eq!(app_tools["valid"], true);
+        assert_eq!(app_tools["components"]["commands"], 1);
+        assert_eq!(app_tools["components"]["agents"], 1);
+        assert_eq!(app_tools["components"]["skills"], 1);
+        assert_eq!(app_tools["components"]["hooks"], 1);
+        assert_eq!(app_tools["components"]["output_styles"], 1);
+        assert_eq!(app_tools["components"]["lsp_servers"], 1);
+        assert_eq!(app_tools["components"]["apps"], 1);
+        assert_eq!(app_tools["components"]["mcp_servers"], 1);
+        let disabled_tools = plugin_items
+            .iter()
+            .find(|plugin| plugin["id"] == "disabled-tools")
+            .expect("disabled-tools plugin summary");
+        assert_eq!(disabled_tools["enabled"], false);
+        assert_eq!(disabled_tools["valid"], true);
+        assert_eq!(disabled_tools["components"]["commands"], 1);
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))

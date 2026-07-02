@@ -1799,7 +1799,7 @@ fn count_components(root: &Path) -> PluginComponents {
         hooks: usize::from(root.join("hooks").join("hooks.json").is_file()),
         output_styles: count_files(&root.join("output-styles"), &["md"]),
         lsp_servers: usize::from(root.join(".lsp.json").is_file()),
-        apps: count_files(root, &["app.json"]),
+        apps: usize::from(root.join("app.json").is_file()),
         mcp_servers: usize::from(root.join(".mcp.json").is_file()),
     }
 }

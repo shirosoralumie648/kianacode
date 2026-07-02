@@ -152,6 +152,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   secrets, sandbox, and git-status release/package gates.
 - Added a bearer-protected `/app/plugins` app-server endpoint and pinned
   `kiana.app-server.plugins.v1` schema for product clients.
+- Fixed plugin `app.json` component counting and expanded `/app/plugins`
+  contract coverage for enabled/disabled plugin summaries.
 - Added a bearer-protected `/app/conversations/{session_id}/events` app-server
   endpoint and pinned `kiana.app-server.events.v1` schema so product clients can
   read bounded runtime-event snapshots without direct JSONL access.
