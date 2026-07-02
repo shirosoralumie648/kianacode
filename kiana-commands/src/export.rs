@@ -741,6 +741,147 @@ mod tests {
         std::fs::write(sessions.join("events.jsonl"), format!("{contents}\n")).unwrap();
     }
 
+    fn write_jsonl_only_session_with_full_runtime_events(root: &Path, session_id: &str) {
+        let sessions = root.join("sdk-sessions").join(session_id);
+        std::fs::create_dir_all(&sessions).unwrap();
+        let events = vec![
+            kiana_types::RuntimeEvent::new(
+                "evt-1",
+                session_id,
+                "turn-0",
+                None,
+                0,
+                "100",
+                kiana_types::RuntimeEventPayload::UserMessage(kiana_types::MessageRuntimeEvent {
+                    message: json!({
+                        "role": "user",
+                        "content": "start"
+                    }),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-2",
+                session_id,
+                "turn-0",
+                None,
+                1,
+                "101",
+                kiana_types::RuntimeEventPayload::AssistantMessage(
+                    kiana_types::MessageRuntimeEvent {
+                        message: json!({
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "answer"}]
+                        }),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-3",
+                session_id,
+                "turn-0",
+                None,
+                2,
+                "102",
+                kiana_types::RuntimeEventPayload::StreamDelta(
+                    kiana_types::RuntimeStreamDeltaEvent {
+                        delta: json!({"text": "streaming chunk"}),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-4",
+                session_id,
+                "turn-0",
+                None,
+                3,
+                "103",
+                kiana_types::RuntimeEventPayload::ToolCall(kiana_types::RuntimeToolCallEvent {
+                    tool_call_id: "toolu_read".to_string(),
+                    name: "Read".to_string(),
+                    workbench: Some("local".to_string()),
+                    input: json!({"file_path": "src/lib.rs"}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-5",
+                session_id,
+                "turn-0",
+                None,
+                4,
+                "104",
+                kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                    tool_call_id: "toolu_read".to_string(),
+                    name: Some("Read".to_string()),
+                    workbench: Some("local".to_string()),
+                    is_error: true,
+                    content: json!("permission denied"),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-6",
+                session_id,
+                "turn-0",
+                None,
+                5,
+                "105",
+                kiana_types::RuntimeEventPayload::PermissionRequest(
+                    kiana_types::RuntimePermissionRequestEvent {
+                        request_id: "req-1".to_string(),
+                        tool_name: "Write".to_string(),
+                        action: "ask".to_string(),
+                        input: json!({"file_path": "src/main.rs"}),
+                        reason: Some("workspace policy".to_string()),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-7",
+                session_id,
+                "turn-0",
+                None,
+                6,
+                "106",
+                kiana_types::RuntimeEventPayload::SessionEvent(kiana_types::RuntimeSessionEvent {
+                    subtype: "started".to_string(),
+                    message: Some("session started".to_string()),
+                    metadata: json!({}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-8",
+                session_id,
+                "turn-0",
+                None,
+                7,
+                "107",
+                kiana_types::RuntimeEventPayload::Error(kiana_types::RuntimeErrorEvent {
+                    code: Some("provider_error".to_string()),
+                    message: "provider failed".to_string(),
+                    details: json!({"retryable": false}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-9",
+                session_id,
+                "turn-0",
+                None,
+                8,
+                "108",
+                kiana_types::RuntimeEventPayload::Result(kiana_types::RuntimeResultEvent {
+                    status: "completed".to_string(),
+                    assistant_text: Some("final answer".to_string()),
+                    metadata: json!({"duration_ms": 12}),
+                }),
+            ),
+        ];
+        let contents = events
+            .into_iter()
+            .map(|event| serde_json::to_string(&event).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(sessions.join("events.jsonl"), format!("{contents}\n")).unwrap();
+    }
+
     #[tokio::test]
     async fn export_uses_current_session_from_context() {
         let _guard = env_lock().lock().unwrap();
@@ -833,6 +974,84 @@ mod tests {
         assert!(result.value.contains("src/lib.rs"));
         assert!(result.value.contains("result: success"));
         assert!(result.value.contains("pub fn main()"));
+
+        let _ = std::fs::remove_dir_all(root);
+        std::env::remove_var("KIANA_HOME");
+    }
+
+    #[tokio::test]
+    async fn export_text_renders_full_runtime_event_fixture_from_jsonl_tree() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root();
+        std::env::set_var("KIANA_HOME", &root);
+        write_jsonl_only_session_with_full_runtime_events(&root, "jsonl-full-events");
+
+        let result = ExportCommand
+            .execute(context(
+                "--session jsonl-full-events --text",
+                HashMap::new(),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result.value,
+            concat!(
+                "# Kiana Conversation Export\n",
+                "\n",
+                "session_id: jsonl-full-events\n",
+                "title: start\n",
+                "messages: 9\n",
+                "\n",
+                "## User\n",
+                "\n",
+                "start\n",
+                "\n",
+                "## Assistant\n",
+                "\n",
+                "answer\n",
+                "\n",
+                "## Assistant\n",
+                "\n",
+                "streaming chunk\n",
+                "\n",
+                "## Tool\n",
+                "\n",
+                "Tool requested: Read\n",
+                "tool_use_id: toolu_read\n",
+                "input:\n",
+                "{\n",
+                "  \"file_path\": \"src/lib.rs\"\n",
+                "}\n",
+                "\n",
+                "## Tool\n",
+                "\n",
+                "tool_use_id: toolu_read\n",
+                "result: error\n",
+                "permission denied\n",
+                "\n",
+                "## System\n",
+                "\n",
+                "Permission requested for Write.\n",
+                "request_id: req-1\n",
+                "action: ask\n",
+                "input: {\n",
+                "  \"file_path\": \"src/main.rs\"\n",
+                "}\n",
+                "\n",
+                "## System\n",
+                "\n",
+                "session started\n",
+                "\n",
+                "## System\n",
+                "\n",
+                "Error: provider failed\n",
+                "\n",
+                "## Assistant\n",
+                "\n",
+                "final answer"
+            )
+        );
 
         let _ = std::fs::remove_dir_all(root);
         std::env::remove_var("KIANA_HOME");

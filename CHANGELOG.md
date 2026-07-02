@@ -159,6 +159,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   contract docs for product clients consuming session event snapshots.
 - Added full TUI RuntimeEvent transcript-reducer coverage for user, assistant,
   stream, tool, permission, session, error, and result events.
+- Added full CLI text export RuntimeEvent fixture coverage for the same event
+  variants emitted by JSONL-only session trees.
 - Added pinned context index/search schemas and release/package smoke checks for
   local repository knowledge search.
 - Product acceptance reports now require local app-server and context-search
