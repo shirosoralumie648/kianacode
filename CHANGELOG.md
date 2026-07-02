@@ -69,6 +69,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added command-level `kiana skills` coverage proving disabled plugin skills
   stay hidden from JSON, show, path, and active skill-directory surfaces.
 - Added stop-hook coverage proving disabled plugin hook files do not run.
+- Added command-level MCP coverage proving disabled plugin `.mcp.json` servers
+  stay hidden from `kiana mcp list/get`.
 - Added commercial live smoke wrappers for provider and remote evidence:
   `scripts/provider-live-smoke.sh --required` stores live catalog/text/tool
   proof JSON, `scripts/remote-live-smoke.sh --required` stores CCR v2 code

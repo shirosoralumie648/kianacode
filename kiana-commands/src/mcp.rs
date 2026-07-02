@@ -1112,6 +1112,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mcp_command_hides_disabled_plugin_mcp_servers() {
+        let _guard = crate::local_state::env_lock().lock().unwrap();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let previous_plugins = std::env::var_os("KIANA_PLUGINS_DIR");
+        let previous_mcp = std::env::var_os(kiana_tools::mcp_tool::MCP_SERVERS_ENV);
+        let root = temp_project("mcp-disabled-plugin");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-mcp");
+        std::fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            plugin_root.join(".codex-plugin").join("plugin.json"),
+            json!({ "name": "review-mcp" }).to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            plugin_root.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "review-server": {
+                        "command": "review-mcp"
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        kiana_types::plugin::set_plugin_enabled(&plugins_dir, "review-mcp", false).unwrap();
+        std::fs::create_dir_all(&root).unwrap();
+        std::env::set_current_dir(&root).unwrap();
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::remove_var(kiana_tools::mcp_tool::MCP_SERVERS_ENV);
+
+        let list = McpCommand
+            .execute(CommandContext {
+                args: "list".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        assert!(list.value.contains("No MCP servers configured."));
+        assert!(!list.value.contains("review-server"), "{}", list.value);
+
+        let get_error = McpCommand
+            .execute(CommandContext {
+                args: "get review-server".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(get_error.contains("MCP server 'review-server' was not found"));
+
+        std::env::set_current_dir(previous_cwd).unwrap();
+        match previous_plugins {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
+        match previous_mcp {
+            Some(value) => std::env::set_var(kiana_tools::mcp_tool::MCP_SERVERS_ENV, value),
+            None => std::env::remove_var(kiana_tools::mcp_tool::MCP_SERVERS_ENV),
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
     async fn mcp_add_json_writes_project_mcp_config_and_list_reads_it() {
         let _guard = crate::local_state::env_lock().lock().unwrap();
         let previous_cwd = std::env::current_dir().unwrap();
