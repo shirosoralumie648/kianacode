@@ -9402,7 +9402,7 @@ mod tests {
     use super::*;
     use crate::test_support::env_lock;
     use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-    use std::collections::HashMap;
+    use std::collections::{BTreeSet, HashMap};
     use std::io;
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15426,6 +15426,63 @@ mod tests {
         assert_eq!(git_status["workspace"], workspace.display().to_string());
 
         server.abort();
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[test]
+    fn direct_connect_app_contract_schemas_match_packaged_schema_files() {
+        let workspace =
+            std::env::temp_dir().join(format!("kiana-direct-app-schema-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&workspace).unwrap();
+        let state = direct_connect_server_state(
+            DirectConnectServerArgs {
+                host: "127.0.0.1".to_string(),
+                port: 0,
+                auth_token: Some("secret".to_string()),
+                unix_socket: None,
+                workspace: Some(workspace.clone()),
+                idle_timeout_ms: 1000,
+                max_sessions: 32,
+            },
+            "127.0.0.1:0".parse().unwrap(),
+            Some("secret".to_string()),
+            HashMap::new(),
+        )
+        .unwrap();
+        let contract = direct_connect_app_contract(&state, 0);
+        let advertised = contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|endpoint| endpoint.get("schema").and_then(Value::as_str))
+            .filter(|schema| schema.starts_with("kiana.app-server."))
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>();
+
+        let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root");
+        let schema_dir = workspace_root.join("docs").join("schemas");
+        let documented = std::fs::read_dir(&schema_dir)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("kiana-app-server-")
+            })
+            .map(|entry| {
+                let contents = std::fs::read_to_string(entry.path()).unwrap();
+                let schema: Value = serde_json::from_str(&contents).unwrap();
+                schema["properties"]["schema"]["const"]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(advertised, documented);
         let _ = std::fs::remove_dir_all(workspace);
     }
 
