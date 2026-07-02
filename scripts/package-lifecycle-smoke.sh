@@ -204,16 +204,26 @@ run_installed model smoke --json | grep -Fq '"provider_id": "fake"'
 run_installed model smoke --tools --json | grep -Fq '"tools": true'
 run_installed model smoke --tools --json | grep -Fq '"capability": "tools"'
 context_fixture="$tmp_root/context-fixture"
+context_artifact_root="$tmp_root/context-artifact-root"
 mkdir -p "$context_fixture/src"
+mkdir -p "$context_fixture/docs"
+mkdir -p "$context_artifact_root/bundle"
 printf '%s\n' 'pub fn lifecycle_search() {}' '// lifecycle lifecycle search' > "$context_fixture/src/lib.rs"
+printf '%s\n' 'first module summary' > "$context_fixture/docs/path-only.md"
+printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
 (
   cd "$context_fixture"
   run_installed context index --json | grep -Fq '"schema": "kiana.context-index.v1"'
   run_installed context index --json | grep -Fq '"path": "src/lib.rs"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
+  run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'
+  run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"occurrences": 0'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-pack.v1"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "src/lib.rs"'
+  run_installed context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first module summary"'
+  run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "bundle/notes.md"'
+  run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first artifact line"'
 )
 
 offline_manifest="$archive_dir/manifests/enterprise/offline-manifest.json"

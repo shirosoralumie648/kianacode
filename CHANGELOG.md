@@ -150,6 +150,12 @@ minor versions may include breaking CLI, config, or storage changes. Use
   for local repository file metadata and ranked lexical search.
 - Added deterministic `kiana context pack` snippets with pinned
   `kiana.context-pack.v1` schema and release/package smoke coverage.
+- `kiana context search/pack` now match file-path tokens as well as file
+  contents, so path-shaped queries can return a file-start excerpt even when
+  the filename tokens are absent from the body.
+- `kiana context index/search/pack` now accept `--root DIR`, allowing
+  deterministic context packs for local artifact/support directories outside
+  the current repository.
 - Added pinned app-server subresponse schemas for conversations, settings,
   secrets, sandbox, and git-status release/package gates.
 - `/app/settings` now exposes the same readiness sections as the TUI settings

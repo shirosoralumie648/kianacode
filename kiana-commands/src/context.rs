@@ -74,7 +74,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--max-bytes-per-file N]|search <query> [--json] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -108,16 +108,27 @@ fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<Comma
 
 fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
+    let mut root = None;
     let mut max_bytes_per_file = None;
     let mut parts = args.split_whitespace();
     while let Some(arg) = parts.next() {
         match arg {
             "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
             "--max-bytes-per-file" => {
                 let value = parts
                     .next()
                     .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
                 max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
             }
             _ if arg.starts_with("--max-bytes-per-file=") => {
                 let value = arg.trim_start_matches("--max-bytes-per-file=");
@@ -129,7 +140,7 @@ fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandR
     }
 
     let index = build_context_index(
-        context_cwd(context),
+        context_root(context, root),
         ContextIndexOptions { max_bytes_per_file },
     )?;
     if json {
@@ -140,6 +151,7 @@ fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandR
 
 fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
+    let mut root = None;
     let mut limit = None;
     let mut max_bytes_per_file = None;
     let mut query = Vec::new();
@@ -147,6 +159,12 @@ fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
     while let Some(arg) = parts.next() {
         match arg {
             "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
             "--limit" => {
                 let value = parts
                     .next()
@@ -162,6 +180,10 @@ fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
             _ if arg.starts_with("--limit=") => {
                 let value = arg.trim_start_matches("--limit=");
                 limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
             }
             _ if arg.starts_with("--max-bytes-per-file=") => {
                 let value = arg.trim_start_matches("--max-bytes-per-file=");
@@ -181,7 +203,7 @@ fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
     }
 
     let results = search_context_index(
-        context_cwd(context),
+        context_root(context, root),
         &query.join(" "),
         ContextSearchOptions {
             limit,
@@ -196,6 +218,7 @@ fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
 
 fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
+    let mut root = None;
     let mut limit = None;
     let mut max_bytes_per_file = None;
     let mut max_snippet_lines = None;
@@ -204,6 +227,12 @@ fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandRe
     while let Some(arg) = parts.next() {
         match arg {
             "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
             "--limit" => {
                 let value = parts
                     .next()
@@ -225,6 +254,10 @@ fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandRe
             _ if arg.starts_with("--limit=") => {
                 let value = arg.trim_start_matches("--limit=");
                 limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
             }
             _ if arg.starts_with("--max-snippet-lines=") => {
                 let value = arg.trim_start_matches("--max-snippet-lines=");
@@ -248,7 +281,7 @@ fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandRe
     }
 
     let pack = build_context_pack(
-        context_cwd(context),
+        context_root(context, root),
         &query.join(" "),
         ContextPackOptions {
             limit,
@@ -280,6 +313,18 @@ fn parse_positive_usize(value: &str, label: &str) -> anyhow::Result<usize> {
         return Err(anyhow!("{label} requires a positive integer"));
     }
     Ok(parsed)
+}
+
+fn parse_root(value: &str) -> anyhow::Result<PathBuf> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(anyhow!("--root requires a directory path"));
+    }
+    Ok(PathBuf::from(value))
+}
+
+fn context_root(context: &CommandContext, root: Option<PathBuf>) -> PathBuf {
+    root.unwrap_or_else(|| context_cwd(context))
 }
 
 fn context_cwd(context: &CommandContext) -> PathBuf {
@@ -487,6 +532,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn context_index_json_uses_explicit_root() {
+        let cwd = fixture_root("index-root-cwd");
+        let artifact_root = fixture_root("index-root-artifact");
+        fs::create_dir_all(artifact_root.join("bundle")).unwrap();
+        fs::write(artifact_root.join("bundle/notes.md"), "artifact context\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: format!(
+                    "index --json --root={}",
+                    artifact_root.to_string_lossy().replace('\\', "/")
+                ),
+                app_state: HashMap::from([("cwd".to_string(), json!(cwd))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-index.v1");
+        assert_eq!(value["files_indexed"], 1);
+        assert_eq!(value["files"][0]["path"], "bundle/notes.md");
+
+        let _ = fs::remove_dir_all(cwd);
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
     async fn context_search_json_returns_ranked_hits() {
         let root = fixture_root("search-command");
         fs::create_dir_all(root.join("src")).unwrap();
@@ -511,6 +583,30 @@ mod tests {
         assert_eq!(value["hits"].as_array().unwrap().len(), 1);
         assert_eq!(value["hits"][0]["path"], "src/lib.rs");
         assert_eq!(value["hits"][0]["line_number"], 1);
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_search_json_matches_path_only_query() {
+        let root = fixture_root("search-path-command");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::write(root.join("docs/path-only.md"), "first module summary\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "search docs/path-only.md --json --limit 1".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-search.v1");
+        assert_eq!(value["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(value["hits"][0]["path"], "docs/path-only.md");
+        assert_eq!(value["hits"][0]["occurrences"], 0);
+        assert_eq!(value["hits"][0]["line"], "first module summary");
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
@@ -548,6 +644,39 @@ mod tests {
             .unwrap()
             .contains("checkout"));
 
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_pack_json_uses_explicit_root() {
+        let cwd = fixture_root("pack-root-cwd");
+        let artifact_root = fixture_root("pack-root-artifact");
+        fs::create_dir_all(artifact_root.join("bundle")).unwrap();
+        fs::write(
+            artifact_root.join("bundle/notes.md"),
+            "first artifact line\nsecond line\n",
+        )
+        .unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: format!(
+                    "pack bundle/notes.md --json --root {} --limit 1 --max-snippet-lines 1",
+                    artifact_root.to_string_lossy().replace('\\', "/")
+                ),
+                app_state: HashMap::from([("cwd".to_string(), json!(cwd))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-pack.v1");
+        assert_eq!(value["snippets"].as_array().unwrap().len(), 1);
+        assert_eq!(value["snippets"][0]["path"], "bundle/notes.md");
+        assert_eq!(value["snippets"][0]["occurrences"], 0);
+        assert_eq!(value["snippets"][0]["excerpt"], "first artifact line");
+
+        let _ = fs::remove_dir_all(cwd);
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
 

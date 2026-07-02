@@ -333,22 +333,34 @@ smoke_context_index_search_json() {
   local project_dir
   local index_output
   local search_output
+  local path_search_output
   local pack_output
+  local path_pack_output
+  local root_pack_output
   local python_bin
+  local artifact_dir
 
   if [[ "$binary_path" != /* ]]; then
     binary_path="$PWD/${binary_path#./}"
   fi
   project_dir="$(mktemp -d "$tmp_root/context-project.XXXXXX")"
+  artifact_dir="$(mktemp -d "$tmp_root/context-artifacts.XXXXXX")"
   mkdir -p "$project_dir/src"
+  mkdir -p "$project_dir/docs"
+  mkdir -p "$artifact_dir/bundle"
   printf '%s\n' 'pub fn release_context_search() {}' '// release release context search' > "$project_dir/src/lib.rs"
   printf '%s\n' '# Context Guide' 'release context guide' > "$project_dir/README.md"
+  printf '%s\n' 'first module summary' > "$project_dir/docs/path-only.md"
+  printf '%s\n' 'first artifact line' > "$artifact_dir/bundle/notes.md"
 
   index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
   search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
+  path_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search docs/path-only.md --json --limit 1 2>&1)"
   pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack release --json --limit 1 --max-snippet-lines 1 2>&1)"
+  path_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 2>&1)"
+  root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_dir" --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
-  CONTEXT_INDEX_JSON="$index_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PACK_JSON="$pack_output" "$python_bin" - <<'PY'
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
 import json
 import os
 import sys
@@ -356,17 +368,23 @@ import sys
 try:
     index = json.loads(os.environ["CONTEXT_INDEX_JSON"])
     search = json.loads(os.environ["CONTEXT_SEARCH_JSON"])
+    path_search = json.loads(os.environ["CONTEXT_PATH_SEARCH_JSON"])
     pack = json.loads(os.environ["CONTEXT_PACK_JSON"])
+    path_pack = json.loads(os.environ["CONTEXT_PATH_PACK_JSON"])
+    root_pack = json.loads(os.environ["CONTEXT_ROOT_PACK_JSON"])
 except Exception as exc:
     print(f"context JSON is not valid JSON: {exc}", file=sys.stderr)
     print(os.environ.get("CONTEXT_INDEX_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_SEARCH_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_PATH_SEARCH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PACK_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_PATH_PACK_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_ROOT_PACK_JSON", ""), file=sys.stderr)
     sys.exit(1)
 
 checks = [
     index.get("schema") == "kiana.context-index.v1",
-    index.get("files_indexed") == 2,
+    index.get("files_indexed") == 3,
     any(item.get("path") == "src/lib.rs" and item.get("language") == "rust" for item in index.get("files", [])),
     search.get("schema") == "kiana.context-search.v1",
     search.get("terms") == ["release"],
@@ -374,6 +392,10 @@ checks = [
     len(search.get("hits", [])) == 1,
     search.get("hits", [{}])[0].get("path") == "src/lib.rs",
     "release" in search.get("hits", [{}])[0].get("matched_terms", []),
+    path_search.get("schema") == "kiana.context-search.v1",
+    path_search.get("hits", [{}])[0].get("path") == "docs/path-only.md",
+    path_search.get("hits", [{}])[0].get("occurrences") == 0,
+    path_search.get("hits", [{}])[0].get("line") == "first module summary",
     pack.get("schema") == "kiana.context-pack.v1",
     pack.get("terms") == ["release"],
     pack.get("limit") == 1,
@@ -382,12 +404,23 @@ checks = [
     pack.get("snippets", [{}])[0].get("path") == "src/lib.rs",
     "release" in pack.get("snippets", [{}])[0].get("matched_terms", []),
     "release" in pack.get("snippets", [{}])[0].get("excerpt", ""),
+    path_pack.get("schema") == "kiana.context-pack.v1",
+    path_pack.get("snippets", [{}])[0].get("path") == "docs/path-only.md",
+    path_pack.get("snippets", [{}])[0].get("occurrences") == 0,
+    path_pack.get("snippets", [{}])[0].get("excerpt") == "first module summary",
+    root_pack.get("schema") == "kiana.context-pack.v1",
+    root_pack.get("snippets", [{}])[0].get("path") == "bundle/notes.md",
+    root_pack.get("snippets", [{}])[0].get("occurrences") == 0,
+    root_pack.get("snippets", [{}])[0].get("excerpt") == "first artifact line",
 ]
 if not all(checks):
     print("context index/search/pack JSON failed smoke checks", file=sys.stderr)
     print(json.dumps(index, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(search, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(path_search, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(pack, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(path_pack, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(root_pack, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 PY
 }

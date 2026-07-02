@@ -184,7 +184,7 @@ pub fn search_context_index(
             continue;
         };
         files_indexed += 1;
-        if hit.occurrences > 0 {
+        if hit.score > 0 {
             hits.push(hit);
         }
     }
@@ -242,7 +242,7 @@ pub fn build_context_pack(
             continue;
         };
         files_indexed += 1;
-        if snippet.occurrences > 0 {
+        if snippet.score > 0 {
             snippets.push(snippet);
         }
     }
@@ -321,12 +321,10 @@ fn search_file(
         }
     }
     let occurrences = occurrences_by_term.values().sum::<u64>();
-    let matched_terms = occurrences_by_term.keys().cloned().collect::<Vec<_>>();
-    let (line_number, line) = first_matching_line(&content, terms);
-    let path_score = tokenize(&rel)
-        .into_iter()
-        .filter(|token| terms.binary_search(token).is_ok())
-        .count() as u64;
+    let mut matched_terms = occurrences_by_term.keys().cloned().collect::<BTreeSet<_>>();
+    let path_score = add_path_matches(&rel, terms, &mut matched_terms);
+    let matched_terms = matched_terms.into_iter().collect::<Vec<_>>();
+    let (line_number, line) = first_matching_line_or_start(&content, terms, path_score > 0);
     let score = occurrences * 10 + matched_terms.len() as u64 * 5 + path_score * 3;
 
     Ok(Some(ContextSearchHit {
@@ -362,12 +360,10 @@ fn pack_file(
         }
     }
     let occurrences = occurrences_by_term.values().sum::<u64>();
-    let matched_terms = occurrences_by_term.keys().cloned().collect::<Vec<_>>();
-    let (line_number, _) = first_matching_line(&content, terms);
-    let path_score = tokenize(&rel)
-        .into_iter()
-        .filter(|token| terms.binary_search(token).is_ok())
-        .count() as u64;
+    let mut matched_terms = occurrences_by_term.keys().cloned().collect::<BTreeSet<_>>();
+    let path_score = add_path_matches(&rel, terms, &mut matched_terms);
+    let matched_terms = matched_terms.into_iter().collect::<Vec<_>>();
+    let (line_number, _) = first_matching_line_or_start(&content, terms, path_score > 0);
     let score = occurrences * 10 + matched_terms.len() as u64 * 5 + path_score * 3;
     let (start_line, end_line, excerpt) = snippet_excerpt(&content, line_number, max_snippet_lines);
 
@@ -412,6 +408,39 @@ fn first_matching_line(content: &str, terms: &[String]) -> (usize, String) {
         }
     }
     (0, String::new())
+}
+
+fn first_matching_line_or_start(
+    content: &str,
+    terms: &[String],
+    allow_path_only_fallback: bool,
+) -> (usize, String) {
+    let matched = first_matching_line(content, terms);
+    if matched.0 != 0 || !allow_path_only_fallback {
+        return matched;
+    }
+    first_non_empty_line(content)
+}
+
+fn first_non_empty_line(content: &str) -> (usize, String) {
+    for (index, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            return (index + 1, trimmed.chars().take(240).collect());
+        }
+    }
+    (0, String::new())
+}
+
+fn add_path_matches(rel: &str, terms: &[String], matched_terms: &mut BTreeSet<String>) -> u64 {
+    let mut score = 0;
+    for token in tokenize(rel) {
+        if terms.binary_search(&token).is_ok() {
+            score += 1;
+            matched_terms.insert(token);
+        }
+    }
+    score
 }
 
 fn snippet_excerpt(
@@ -534,6 +563,34 @@ mod tests {
     }
 
     #[test]
+    fn context_search_matches_path_terms_without_content_occurrences() {
+        let root = fixture_root("search-path");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/path_only.rs"), "pub fn unrelated() {}\n").unwrap();
+
+        let results = search_context_index(
+            &root,
+            "src/path_only.rs",
+            ContextSearchOptions {
+                limit: Some(5),
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(results.hits.len(), 1);
+        assert_eq!(results.hits[0].path, "src/path_only.rs");
+        assert_eq!(results.hits[0].occurrences, 0);
+        assert_eq!(results.hits[0].line_number, 1);
+        assert_eq!(results.hits[0].line, "pub fn unrelated() {}");
+        assert!(results.hits[0]
+            .matched_terms
+            .contains(&"path_only".to_string()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn context_pack_builds_ranked_snippets() {
         let root = fixture_root("pack");
         fs::create_dir_all(root.join("src")).unwrap();
@@ -596,6 +653,40 @@ mod tests {
         assert_eq!(first.snippets[0].path, "src/lib.rs");
         assert_eq!(first.snippets[0].start_line, first.snippets[0].end_line);
         assert_eq!(first.limit, 1);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_pack_includes_path_only_match_with_file_start_excerpt() {
+        let root = fixture_root("pack-path");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::write(
+            root.join("docs/operations.md"),
+            "Release owner checklist\nNo matching filename tokens here.\n",
+        )
+        .unwrap();
+
+        let pack = build_context_pack(
+            &root,
+            "docs/operations.md",
+            ContextPackOptions {
+                limit: Some(5),
+                max_bytes_per_file: None,
+                max_snippet_lines: Some(1),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(pack.snippets.len(), 1);
+        assert_eq!(pack.snippets[0].path, "docs/operations.md");
+        assert_eq!(pack.snippets[0].occurrences, 0);
+        assert_eq!(pack.snippets[0].start_line, 1);
+        assert_eq!(pack.snippets[0].end_line, 1);
+        assert_eq!(pack.snippets[0].excerpt, "Release owner checklist");
+        assert!(pack.snippets[0]
+            .matched_terms
+            .contains(&"operations".to_string()));
 
         let _ = fs::remove_dir_all(root);
     }
