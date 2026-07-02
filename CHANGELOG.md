@@ -148,6 +148,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
   `KIANA_MANAGED_PLUGIN_POLICY_FILE` or shared `KIANA_MANAGED_POLICY_FILE`.
 - Added deterministic `kiana context index` and `kiana context search` commands
   for local repository file metadata and ranked lexical search.
+- Added deterministic `kiana context pack` snippets with pinned
+  `kiana.context-pack.v1` schema and release/package smoke coverage.
 - Added pinned app-server subresponse schemas for conversations, settings,
   secrets, sandbox, and git-status release/package gates.
 - `/app/settings` now exposes the same readiness sections as the TUI settings

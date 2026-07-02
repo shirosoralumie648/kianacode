@@ -60,6 +60,7 @@ for file in \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
+  docs/schemas/kiana-context-pack.v1.schema.json \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
   docs/schemas/kiana-runtime-event.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
@@ -273,6 +274,12 @@ if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-sear
   pass "context search JSON schema version is pinned"
 else
   fail "context search JSON schema is missing kiana.context-search.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.context-pack.v1"' docs/schemas/kiana-context-pack.v1.schema.json; then
+  pass "context pack JSON schema version is pinned"
+else
+  fail "context pack JSON schema is missing kiana.context-pack.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json; then

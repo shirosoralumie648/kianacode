@@ -3,8 +3,9 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_index, build_repo_map, search_context_index, ContextIndex, ContextIndexOptions,
-    ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
+    build_context_index, build_context_pack, build_repo_map, search_context_index, ContextIndex,
+    ContextIndexOptions, ContextPack, ContextPackOptions, ContextSearchOptions,
+    ContextSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -40,6 +41,9 @@ impl Command for ContextCommand {
         if let Some(rest) = args.strip_prefix("search") {
             return search_result(&context, rest.trim());
         }
+        if let Some(rest) = args.strip_prefix("pack") {
+            return pack_result(&context, rest.trim());
+        }
 
         match args {
             "" | "status" => {}
@@ -70,7 +74,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--max-bytes-per-file N]|search <query> [--json] [--limit N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--max-bytes-per-file N]|search <query> [--json] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -190,6 +194,74 @@ fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
     Ok(CommandResult::text(format_context_search_text(&results)))
 }
 
+fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut limit = None;
+    let mut max_bytes_per_file = None;
+    let mut max_snippet_lines = None;
+    let mut query = Vec::new();
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--limit" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            "--max-snippet-lines" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-snippet-lines requires a positive integer"))?;
+                max_snippet_lines = Some(parse_positive_usize(value, "--max-snippet-lines")?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--limit=") => {
+                let value = arg.trim_start_matches("--limit=");
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            _ if arg.starts_with("--max-snippet-lines=") => {
+                let value = arg.trim_start_matches("--max-snippet-lines=");
+                max_snippet_lines = Some(parse_positive_usize(value, "--max-snippet-lines")?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" if query.is_empty() => {
+                return Ok(CommandResult::text(usage()))
+            }
+            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
+            _ => query.push(arg.to_string()),
+        }
+    }
+    if query.is_empty() {
+        return Err(anyhow!(
+            "Usage: kiana context pack <query> [--json] [--limit N]"
+        ));
+    }
+
+    let pack = build_context_pack(
+        context_cwd(context),
+        &query.join(" "),
+        ContextPackOptions {
+            limit,
+            max_bytes_per_file,
+            max_snippet_lines,
+        },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&pack)?));
+    }
+    Ok(CommandResult::text(format_context_pack_text(&pack)))
+}
+
 fn parse_max_tokens(value: &str) -> anyhow::Result<u64> {
     let parsed = value
         .parse::<u64>()
@@ -293,6 +365,37 @@ fn format_context_search_text(results: &ContextSearchResults) -> String {
         ));
         if !hit.line.is_empty() {
             lines.push(format!("  {}", hit.line));
+        }
+    }
+    lines.join("\n")
+}
+
+fn format_context_pack_text(pack: &ContextPack) -> String {
+    let mut lines = vec![
+        "Context pack".to_string(),
+        format!("root: {}", pack.root),
+        format!(
+            "query: {} terms={} files_indexed={} skipped_files={} snippets={}",
+            pack.query,
+            pack.terms.join(","),
+            pack.files_indexed,
+            pack.skipped_files,
+            pack.snippets.len()
+        ),
+    ];
+    for snippet in &pack.snippets {
+        lines.push(format!(
+            "- {}:{}-{} score={} occurrences={} terms={} hash={}",
+            snippet.path,
+            snippet.start_line,
+            snippet.end_line,
+            snippet.score,
+            snippet.occurrences,
+            snippet.matched_terms.join(","),
+            snippet.content_hash
+        ));
+        if !snippet.excerpt.is_empty() {
+            lines.push(snippet.excerpt.clone());
         }
     }
     lines.join("\n")
@@ -408,6 +511,42 @@ mod tests {
         assert_eq!(value["hits"].as_array().unwrap().len(), 1);
         assert_eq!(value["hits"][0]["path"], "src/lib.rs");
         assert_eq!(value["hits"][0]["line_number"], 1);
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_pack_json_returns_snippets() {
+        let root = fixture_root("pack-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn checkout() {}\n// checkout checkout\n",
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "checkout guide\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "pack checkout --json --limit 1 --max-snippet-lines 1".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-pack.v1");
+        assert_eq!(value["terms"][0], "checkout");
+        assert_eq!(value["limit"], 1);
+        assert_eq!(value["max_snippet_lines"], 1);
+        assert_eq!(value["snippets"].as_array().unwrap().len(), 1);
+        assert_eq!(value["snippets"][0]["path"], "src/lib.rs");
+        assert_eq!(value["snippets"][0]["start_line"], 1);
+        assert_eq!(value["snippets"][0]["end_line"], 1);
+        assert!(value["snippets"][0]["excerpt"]
+            .as_str()
+            .unwrap()
+            .contains("checkout"));
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }

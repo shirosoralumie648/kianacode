@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 const DEFAULT_LIMIT: usize = 10;
 const DEFAULT_MAX_BYTES_PER_FILE: usize = 128 * 1024;
+const DEFAULT_MAX_SNIPPET_LINES: usize = 5;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ContextIndexOptions {
@@ -32,6 +33,23 @@ impl Default for ContextSearchOptions {
         Self {
             limit: Some(DEFAULT_LIMIT),
             max_bytes_per_file: Some(DEFAULT_MAX_BYTES_PER_FILE),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ContextPackOptions {
+    pub limit: Option<usize>,
+    pub max_bytes_per_file: Option<usize>,
+    pub max_snippet_lines: Option<usize>,
+}
+
+impl Default for ContextPackOptions {
+    fn default() -> Self {
+        Self {
+            limit: Some(DEFAULT_LIMIT),
+            max_bytes_per_file: Some(DEFAULT_MAX_BYTES_PER_FILE),
+            max_snippet_lines: Some(DEFAULT_MAX_SNIPPET_LINES),
         }
     }
 }
@@ -76,6 +94,32 @@ pub struct ContextSearchHit {
     pub matched_terms: Vec<String>,
     pub line_number: usize,
     pub line: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextPack {
+    pub schema: String,
+    pub root: String,
+    pub query: String,
+    pub terms: Vec<String>,
+    pub limit: usize,
+    pub max_snippet_lines: usize,
+    pub files_indexed: usize,
+    pub skipped_files: usize,
+    pub snippets: Vec<ContextPackSnippet>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextPackSnippet {
+    pub path: String,
+    pub language: Option<String>,
+    pub content_hash: String,
+    pub score: u64,
+    pub occurrences: u64,
+    pub matched_terms: Vec<String>,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub excerpt: String,
 }
 
 pub fn build_context_index(
@@ -166,6 +210,65 @@ pub fn search_context_index(
     })
 }
 
+pub fn build_context_pack(
+    root: impl AsRef<Path>,
+    query: &str,
+    options: ContextPackOptions,
+) -> Result<ContextPack> {
+    let root = canonical_root(root.as_ref(), "context pack")?;
+    let terms = query_terms(query);
+    if terms.is_empty() {
+        return Err(anyhow!("context pack query must contain at least one term"));
+    }
+    let limit = options
+        .limit
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_LIMIT);
+    let max_bytes = options
+        .max_bytes_per_file
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_BYTES_PER_FILE);
+    let max_snippet_lines = options
+        .max_snippet_lines
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_SNIPPET_LINES);
+    let mut snippets = Vec::new();
+    let mut files_indexed = 0;
+    let mut skipped_files = 0;
+
+    for path in candidate_paths(&root)? {
+        let Some(snippet) = pack_file(&root, &path, &terms, max_bytes, max_snippet_lines)? else {
+            skipped_files += 1;
+            continue;
+        };
+        files_indexed += 1;
+        if snippet.occurrences > 0 {
+            snippets.push(snippet);
+        }
+    }
+
+    snippets.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then(left.path.cmp(&right.path))
+            .then(left.start_line.cmp(&right.start_line))
+    });
+    snippets.truncate(limit);
+
+    Ok(ContextPack {
+        schema: "kiana.context-pack.v1".to_string(),
+        root: root.to_string_lossy().to_string(),
+        query: query.trim().to_string(),
+        terms,
+        limit,
+        max_snippet_lines,
+        files_indexed,
+        skipped_files,
+        snippets,
+    })
+}
+
 fn canonical_root(root: &Path, label: &str) -> Result<PathBuf> {
     fs::canonicalize(root)
         .with_context(|| format!("failed to resolve {label} root {}", root.display()))
@@ -237,6 +340,50 @@ fn search_file(
     }))
 }
 
+fn pack_file(
+    root: &Path,
+    path: &Path,
+    terms: &[String],
+    max_bytes: usize,
+    max_snippet_lines: usize,
+) -> Result<Option<ContextPackSnippet>> {
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    if bytes.len() > max_bytes || bytes.contains(&0) {
+        return Ok(None);
+    }
+    let Ok(content) = String::from_utf8(bytes) else {
+        return Ok(None);
+    };
+    let rel = relative_path(root, path);
+    let mut occurrences_by_term = BTreeMap::new();
+    for token in tokenize(&content) {
+        if terms.binary_search(&token).is_ok() {
+            *occurrences_by_term.entry(token).or_insert(0_u64) += 1;
+        }
+    }
+    let occurrences = occurrences_by_term.values().sum::<u64>();
+    let matched_terms = occurrences_by_term.keys().cloned().collect::<Vec<_>>();
+    let (line_number, _) = first_matching_line(&content, terms);
+    let path_score = tokenize(&rel)
+        .into_iter()
+        .filter(|token| terms.binary_search(token).is_ok())
+        .count() as u64;
+    let score = occurrences * 10 + matched_terms.len() as u64 * 5 + path_score * 3;
+    let (start_line, end_line, excerpt) = snippet_excerpt(&content, line_number, max_snippet_lines);
+
+    Ok(Some(ContextPackSnippet {
+        path: rel,
+        language: language_for_path(path).map(str::to_string),
+        content_hash: stable_hash(content.as_bytes()),
+        score,
+        occurrences,
+        matched_terms,
+        start_line,
+        end_line,
+        excerpt,
+    }))
+}
+
 fn query_terms(query: &str) -> Vec<String> {
     tokenize(query)
         .into_iter()
@@ -265,6 +412,34 @@ fn first_matching_line(content: &str, terms: &[String]) -> (usize, String) {
         }
     }
     (0, String::new())
+}
+
+fn snippet_excerpt(
+    content: &str,
+    line_number: usize,
+    max_snippet_lines: usize,
+) -> (usize, usize, String) {
+    if line_number == 0 {
+        return (0, 0, String::new());
+    }
+    let lines = content.lines().collect::<Vec<_>>();
+    if lines.is_empty() {
+        return (0, 0, String::new());
+    }
+    let max_lines = max_snippet_lines.max(1);
+    let match_index = line_number.saturating_sub(1).min(lines.len() - 1);
+    let mut start = match_index.saturating_sub(max_lines / 2);
+    let mut end = (start + max_lines).min(lines.len());
+    if end.saturating_sub(start) < max_lines {
+        start = end.saturating_sub(max_lines);
+    }
+    end = (start + max_lines).min(lines.len());
+    let excerpt = lines[start..end]
+        .iter()
+        .map(|line| line.trim_end())
+        .collect::<Vec<_>>()
+        .join("\n");
+    (start + 1, end, excerpt)
 }
 
 fn relative_path(root: &Path, path: &Path) -> String {
@@ -354,6 +529,73 @@ mod tests {
         assert!(results.hits[0]
             .matched_terms
             .contains(&"checkout".to_string()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_pack_builds_ranked_snippets() {
+        let root = fixture_root("pack");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn checkout() {}\n// prepare checkout flow\n// checkout checkout done\n",
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "checkout guide\n").unwrap();
+
+        let pack = build_context_pack(
+            &root,
+            "checkout",
+            ContextPackOptions {
+                limit: Some(5),
+                max_bytes_per_file: None,
+                max_snippet_lines: Some(2),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(pack.schema, "kiana.context-pack.v1");
+        assert_eq!(pack.terms, vec!["checkout"]);
+        assert_eq!(pack.max_snippet_lines, 2);
+        assert_eq!(pack.snippets[0].path, "src/lib.rs");
+        assert_eq!(pack.snippets[0].language.as_deref(), Some("rust"));
+        assert_eq!(pack.snippets[0].occurrences, 4);
+        assert_eq!(pack.snippets[0].start_line, 1);
+        assert_eq!(pack.snippets[0].end_line, 2);
+        assert!(pack.snippets[0].excerpt.contains("prepare checkout flow"));
+        assert_eq!(pack.snippets[0].content_hash.len(), 16);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_pack_is_deterministic_and_budgeted() {
+        let root = fixture_root("pack-budget");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn lifecycle() {}\n// lifecycle lifecycle\n",
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "lifecycle guide\n").unwrap();
+
+        let options = ContextPackOptions {
+            limit: Some(1),
+            max_bytes_per_file: None,
+            max_snippet_lines: Some(1),
+        };
+        let first = build_context_pack(&root, "lifecycle", options).unwrap();
+        let second = build_context_pack(&root, "lifecycle", options).unwrap();
+
+        assert_eq!(
+            serde_json::to_value(&first).unwrap(),
+            serde_json::to_value(&second).unwrap()
+        );
+        assert_eq!(first.snippets.len(), 1);
+        assert_eq!(first.snippets[0].path, "src/lib.rs");
+        assert_eq!(first.snippets[0].start_line, first.snippets[0].end_line);
+        assert_eq!(first.limit, 1);
 
         let _ = fs::remove_dir_all(root);
     }

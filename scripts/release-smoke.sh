@@ -333,6 +333,7 @@ smoke_context_index_search_json() {
   local project_dir
   local index_output
   local search_output
+  local pack_output
   local python_bin
 
   if [[ "$binary_path" != /* ]]; then
@@ -345,8 +346,9 @@ smoke_context_index_search_json() {
 
   index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
   search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
+  pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack release --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
-  CONTEXT_INDEX_JSON="$index_output" CONTEXT_SEARCH_JSON="$search_output" "$python_bin" - <<'PY'
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PACK_JSON="$pack_output" "$python_bin" - <<'PY'
 import json
 import os
 import sys
@@ -354,10 +356,12 @@ import sys
 try:
     index = json.loads(os.environ["CONTEXT_INDEX_JSON"])
     search = json.loads(os.environ["CONTEXT_SEARCH_JSON"])
+    pack = json.loads(os.environ["CONTEXT_PACK_JSON"])
 except Exception as exc:
     print(f"context JSON is not valid JSON: {exc}", file=sys.stderr)
     print(os.environ.get("CONTEXT_INDEX_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_SEARCH_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_PACK_JSON", ""), file=sys.stderr)
     sys.exit(1)
 
 checks = [
@@ -370,11 +374,20 @@ checks = [
     len(search.get("hits", [])) == 1,
     search.get("hits", [{}])[0].get("path") == "src/lib.rs",
     "release" in search.get("hits", [{}])[0].get("matched_terms", []),
+    pack.get("schema") == "kiana.context-pack.v1",
+    pack.get("terms") == ["release"],
+    pack.get("limit") == 1,
+    pack.get("max_snippet_lines") == 1,
+    len(pack.get("snippets", [])) == 1,
+    pack.get("snippets", [{}])[0].get("path") == "src/lib.rs",
+    "release" in pack.get("snippets", [{}])[0].get("matched_terms", []),
+    "release" in pack.get("snippets", [{}])[0].get("excerpt", ""),
 ]
 if not all(checks):
-    print("context index/search JSON failed smoke checks", file=sys.stderr)
+    print("context index/search/pack JSON failed smoke checks", file=sys.stderr)
     print(json.dumps(index, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(search, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(pack, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 PY
 }
