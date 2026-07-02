@@ -106,6 +106,8 @@ commercial release.
   segment before Web or IDE clients are promoted as supported surfaces.
 - App-server session event snapshots return `kiana.app-server.events.v1` without
   requiring clients to read local JSONL files directly.
+- Runtime event snapshots conform to `kiana-runtime-event.v1` and the packaged
+  `docs/sdk-runtime-events.md` compatibility policy.
 - App-server plugin visibility returns `kiana.app-server.plugins.v1` without
   exposing plugin secrets or bypassing managed plugin policy.
 - Local context index/search workflows are accepted for repository knowledge

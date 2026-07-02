@@ -104,6 +104,7 @@ for file in \
   "$package_root/docs/proof-templates/entitlement-proof.example.json" \
   "$package_root/docs/proof-templates/release-ops.example.json" \
   "$package_root/docs/proof-templates/platform-security.example.json" \
+  "$package_root/docs/sdk-runtime-events.md" \
   "$package_root/docs/schemas/kiana-app-server-conversations.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-events.v1.schema.json" \
@@ -115,6 +116,7 @@ for file in \
   "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
   "$package_root/docs/schemas/kiana-commercial-release-blockers.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-runtime-event.v1.schema.json" \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \

@@ -42,6 +42,7 @@ for file in \
   VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
+  docs/sdk-runtime-events.md \
   docs/proof-templates/README.md \
   docs/proof-templates/product-acceptance.example.json \
   docs/proof-templates/entitlement-proof.example.json \
@@ -60,6 +61,7 @@ for file in \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  docs/schemas/kiana-runtime-event.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-managed-plugin-policy.v1.schema.json \
   docs/schemas/kiana-plugin-install-receipt.v1.schema.json \
@@ -277,6 +279,14 @@ if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana
   pass "commercial release blockers JSON schema version is pinned"
 else
   fail "commercial release blockers JSON schema is missing kiana.commercial-release-blockers.v1 const"
+fi
+
+if grep -Fq '"$id": "https://kiana.local/schemas/kiana-runtime-event.v1.schema.json"' docs/schemas/kiana-runtime-event.v1.schema.json &&
+  grep -Fq '"permission_request"' docs/schemas/kiana-runtime-event.v1.schema.json &&
+  grep -Fq '"tool_result"' docs/schemas/kiana-runtime-event.v1.schema.json; then
+  pass "runtime event JSON schema version is pinned"
+else
+  fail "runtime event JSON schema is missing required v1 contract anchors"
 fi
 
 blockers_json="$("$bash_bin" scripts/commercial-release-blockers-report.sh --json || true)"

@@ -150,6 +150,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Added a bearer-protected `/app/conversations/{session_id}/events` app-server
   endpoint and pinned `kiana.app-server.events.v1` schema so product clients can
   read bounded runtime-event snapshots without direct JSONL access.
+- Added a pinned `kiana-runtime-event.v1` schema and packaged runtime event SDK
+  contract docs for product clients consuming session event snapshots.
 - Added pinned context index/search schemas and release/package smoke checks for
   local repository knowledge search.
 - Product acceptance reports now require local app-server and context-search
