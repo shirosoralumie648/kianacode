@@ -566,4 +566,60 @@ mod tests {
         std::env::remove_var("KIANA_PLUGINS_DIR");
         let _ = fs::remove_dir_all(root);
     }
+
+    #[tokio::test]
+    async fn skills_command_hides_disabled_plugin_skills_from_active_surfaces() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("disabled-plugin");
+        let project = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-tools");
+        write_plugin_skill(
+            &plugins_dir,
+            "review-tools",
+            "code-audit",
+            "---\ndescription: Disabled plugin skill\n---\nPlugin body\n",
+        );
+        kiana_types::plugin::set_plugin_enabled(&plugins_dir, "review-tools", false).unwrap();
+        std::env::set_var("KIANA_HOME", root.join("empty-home"));
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        let app_state = HashMap::from([("cwd".to_string(), json!(project))]);
+
+        let json_result = SkillsCommand
+            .execute(context("json code-audit", app_state.clone()))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&json_result.value).unwrap();
+        assert_eq!(value, json!([]));
+
+        let path_result = SkillsCommand
+            .execute(context("path", app_state.clone()))
+            .await
+            .unwrap();
+        assert!(
+            !path_result
+                .value
+                .contains(&plugin_root.join("skills").display().to_string()),
+            "disabled plugin skill directory leaked through path output: {}",
+            path_result.value
+        );
+
+        let show_error = SkillsCommand
+            .execute(context("show review-tools:code-audit", app_state.clone()))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(show_error.contains("skill 'review-tools:code-audit' was not found"));
+
+        let path_error = SkillsCommand
+            .execute(context("path review-tools:code-audit", app_state))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(path_error.contains("skill 'review-tools:code-audit' was not found"));
+
+        std::env::remove_var("KIANA_HOME");
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
 }
