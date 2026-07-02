@@ -2825,6 +2825,188 @@ mod tests {
     }
 
     #[test]
+    fn maps_full_runtime_event_fixture_to_stable_conversation_view() {
+        let events = vec![
+            kiana_types::RuntimeEvent::new(
+                "evt-1",
+                "session-1",
+                "turn-0",
+                None,
+                0,
+                "100",
+                kiana_types::RuntimeEventPayload::UserMessage(kiana_types::MessageRuntimeEvent {
+                    message: json!({
+                        "role": "user",
+                        "content": "start"
+                    }),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-2",
+                "session-1",
+                "turn-0",
+                None,
+                1,
+                "101",
+                kiana_types::RuntimeEventPayload::AssistantMessage(
+                    kiana_types::MessageRuntimeEvent {
+                        message: json!({
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "answer"}]
+                        }),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-3",
+                "session-1",
+                "turn-0",
+                None,
+                2,
+                "102",
+                kiana_types::RuntimeEventPayload::StreamDelta(
+                    kiana_types::RuntimeStreamDeltaEvent {
+                        delta: json!({"text": "streaming chunk"}),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-4",
+                "session-1",
+                "turn-0",
+                None,
+                3,
+                "103",
+                kiana_types::RuntimeEventPayload::ToolCall(kiana_types::RuntimeToolCallEvent {
+                    tool_call_id: "toolu_read".to_string(),
+                    name: "Read".to_string(),
+                    workbench: Some("local".to_string()),
+                    input: json!({"file_path": "src/lib.rs"}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-5",
+                "session-1",
+                "turn-0",
+                None,
+                4,
+                "104",
+                kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                    tool_call_id: "toolu_read".to_string(),
+                    name: Some("Read".to_string()),
+                    workbench: Some("local".to_string()),
+                    is_error: true,
+                    content: json!("permission denied"),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-6",
+                "session-1",
+                "turn-0",
+                None,
+                5,
+                "105",
+                kiana_types::RuntimeEventPayload::PermissionRequest(
+                    kiana_types::RuntimePermissionRequestEvent {
+                        request_id: "req-1".to_string(),
+                        tool_name: "Write".to_string(),
+                        action: "ask".to_string(),
+                        input: json!({"file_path": "src/main.rs"}),
+                        reason: Some("workspace policy".to_string()),
+                    },
+                ),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-7",
+                "session-1",
+                "turn-0",
+                None,
+                6,
+                "106",
+                kiana_types::RuntimeEventPayload::SessionEvent(kiana_types::RuntimeSessionEvent {
+                    subtype: "started".to_string(),
+                    message: Some("session started".to_string()),
+                    metadata: json!({}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-8",
+                "session-1",
+                "turn-0",
+                None,
+                7,
+                "107",
+                kiana_types::RuntimeEventPayload::Error(kiana_types::RuntimeErrorEvent {
+                    code: Some("provider_error".to_string()),
+                    message: "provider failed".to_string(),
+                    details: json!({"retryable": false}),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-9",
+                "session-1",
+                "turn-0",
+                None,
+                8,
+                "108",
+                kiana_types::RuntimeEventPayload::Result(kiana_types::RuntimeResultEvent {
+                    status: "completed".to_string(),
+                    assistant_text: Some("final answer".to_string()),
+                    metadata: json!({"duration_ms": 12}),
+                }),
+            ),
+        ];
+
+        let conversation = runtime_events_to_conversation(events);
+
+        let expected = vec![
+            (MessageRole::User, "start", "100"),
+            (MessageRole::Assistant, "answer", "101"),
+            (MessageRole::Assistant, "streaming chunk", "102"),
+            (
+                MessageRole::Tool,
+                concat!(
+                    "Tool requested: Read\n",
+                    "tool_use_id: toolu_read\n",
+                    "workbench: local\n",
+                    "input:\n",
+                    "{\n",
+                    "  \"file_path\": \"src/lib.rs\"\n",
+                    "}"
+                ),
+                "103",
+            ),
+            (
+                MessageRole::Tool,
+                "tool_use_id: toolu_read\nresult: error\nworkbench: local\npermission denied",
+                "104",
+            ),
+            (
+                MessageRole::System,
+                concat!(
+                    "Permission requested for Write.\n",
+                    "request_id: req-1\n",
+                    "action: ask\n",
+                    "input: {\n",
+                    "  \"file_path\": \"src/main.rs\"\n",
+                    "}"
+                ),
+                "105",
+            ),
+            (MessageRole::System, "session started", "106"),
+            (MessageRole::System, "Error: provider failed", "107"),
+            (MessageRole::Assistant, "final answer", "108"),
+        ];
+
+        assert_eq!(conversation.len(), expected.len());
+        for (message, (role, content, timestamp)) in conversation.iter().zip(expected) {
+            assert_eq!(message.role, role);
+            assert_eq!(message.content, content);
+            assert_eq!(message.timestamp, timestamp);
+        }
+    }
+
+    #[test]
     fn maps_persisted_tool_result_messages_to_tool_role() {
         let messages = vec![
             json!({
