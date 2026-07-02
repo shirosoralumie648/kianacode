@@ -32,5 +32,10 @@ Run the strict full gates only after real evidence is available:
 
 ```bash
 bash scripts/release-preflight.sh
+bash scripts/stage-commercial-release-proofs.sh
 bash scripts/verify-commercial-release-artifacts.sh
 ```
+
+`scripts/stage-commercial-release-proofs.sh` does not create accepted evidence.
+It only copies already accepted/live proof files into `DIST_DIR/proofs`, writes
+`PROOF-MANIFEST.json`, and emits `HANDOFF.md` for the release owner.

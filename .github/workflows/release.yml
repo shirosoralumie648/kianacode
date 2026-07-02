@@ -147,6 +147,10 @@ jobs:
             MANIFEST_DIR=release-artifacts/manifests \
             bash scripts/generate-distribution-manifests.sh
 
+      - name: Stage commercial proof manifest
+        shell: bash
+        run: DIST_DIR=release-artifacts bash scripts/stage-commercial-release-proofs.sh
+
       - name: Verify commercial release artifacts
         shell: bash
         env:

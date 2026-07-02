@@ -61,6 +61,7 @@ for file in \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-context-pack.v1.schema.json \
+  docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
   docs/schemas/kiana-runtime-event.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
@@ -78,6 +79,7 @@ for file in \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
   scripts/commercial-release-blockers-report.sh \
+  scripts/stage-commercial-release-proofs.sh \
   scripts/entitlement-proof-report.sh \
   scripts/product-acceptance-report.sh \
   scripts/release-ops-report.sh \
@@ -282,6 +284,12 @@ else
   fail "context pack JSON schema is missing kiana.context-pack.v1 const"
 fi
 
+if grep -Fq '"const": "kiana.commercial-proof-manifest.v1"' docs/schemas/kiana-commercial-proof-manifest.v1.schema.json; then
+  pass "commercial proof manifest JSON schema version is pinned"
+else
+  fail "commercial proof manifest JSON schema is missing kiana.commercial-proof-manifest.v1 const"
+fi
+
 if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json; then
   pass "commercial release blockers JSON schema version is pinned"
 else
@@ -463,6 +471,14 @@ if grep -Fq 'dist/proofs/**' .github/workflows/release.yml &&
   pass "release workflow preserves live, entitlement, product, ops, and platform proof artifacts"
 else
   fail "release workflow does not preserve live/entitlement/product/ops/platform proof artifacts"
+fi
+
+stage_proofs_line="$(grep -n 'stage-commercial-release-proofs.sh' .github/workflows/release.yml | head -n 1 | cut -d: -f1 || true)"
+verify_artifacts_line="$(grep -n 'verify-commercial-release-artifacts.sh' .github/workflows/release.yml | head -n 1 | cut -d: -f1 || true)"
+if [[ -n "$stage_proofs_line" && -n "$verify_artifacts_line" && "$stage_proofs_line" -lt "$verify_artifacts_line" ]]; then
+  pass "commercial proof staging runs before artifact verification"
+else
+  fail "release workflow does not stage commercial proof manifest before artifact verification"
 fi
 
 if grep -Fq 'verify-commercial-release-artifacts.sh' .github/workflows/release.yml; then

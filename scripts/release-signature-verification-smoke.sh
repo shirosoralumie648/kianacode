@@ -430,6 +430,7 @@ for expected in \
   "default release signer placeholder" \
   "Homebrew channel manifest is still blocked" \
   "Windows target windows-x86_64 lacks" \
+  "PROOF-MANIFEST.json" \
   "entitlement-proof.json" \
   "product-acceptance.json" \
   "release-ops.json"
@@ -453,6 +454,7 @@ do
   mv "${proof}.missing" "$proof"
 done
 
+DIST_DIR="$dist_dir" bash scripts/stage-commercial-release-proofs.sh >/dev/null
 run_commercial_verifier >/dev/null
 
 echo "commercial release verifier smoke passed"

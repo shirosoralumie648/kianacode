@@ -380,7 +380,7 @@ add_check(
     evidence=provider_evidence,
     required_action="Run provider live smoke against production-like Anthropic, OpenAI-compatible, or Ollama credentials and keep the proof JSON.",
     paths=[provider_catalog, provider_smoke],
-    commands=["bash scripts/provider-live-smoke.sh --required"],
+    commands=["bash scripts/provider-live-smoke.sh --required", "bash scripts/stage-commercial-release-proofs.sh"],
     env=[
         "ANTHROPIC_API_KEY",
         "KIANA_OPENAI_API_KEY",
@@ -410,7 +410,7 @@ add_check(
     evidence=f"proof={remote_proof}" if remote_error is None else f"proof={remote_error}: {remote_proof}",
     required_action="Run remote live smoke against the production-like CCR/session service and keep the proof JSON.",
     paths=[remote_proof],
-    commands=["bash scripts/remote-live-smoke.sh --required"],
+    commands=["bash scripts/remote-live-smoke.sh --required", "bash scripts/stage-commercial-release-proofs.sh"],
     env=[
         "KIANA_REMOTE_ACCESS_TOKEN",
         "CLAUDE_ACCESS_TOKEN",
@@ -457,7 +457,7 @@ add_check(
     ),
     required_action="Record target-customer acceptance in kiana.product-acceptance.v1 with all required workflows.",
     paths=[product_file],
-    commands=["bash scripts/product-acceptance-report.sh full"],
+    commands=["bash scripts/product-acceptance-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],
     env=["KIANA_PRODUCT_ACCEPTANCE_FILE"],
 )
 
@@ -513,7 +513,7 @@ add_check(
     ),
     required_action="Record the production license/account backend acceptance in kiana.entitlement-proof.v1.",
     paths=[entitlement_file],
-    commands=["bash scripts/entitlement-proof-report.sh full"],
+    commands=["bash scripts/entitlement-proof-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],
     env=["KIANA_ENTITLEMENT_PROOF_FILE", "KIANA_REQUIRED_ENTITLEMENTS"],
 )
 
@@ -552,7 +552,7 @@ add_check(
     evidence=f"proof={ops_file}" if ops_error is None else f"proof={ops_error}: {ops_file}",
     required_action="Record private vulnerability route, release credential ownership, support contact, retention policy, and credential review in kiana.release-ops.v1.",
     paths=[ops_file],
-    commands=["bash scripts/release-ops-report.sh full"],
+    commands=["bash scripts/release-ops-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],
     env=["KIANA_RELEASE_OPS_FILE"],
 )
 
@@ -593,7 +593,7 @@ add_check(
     evidence=f"proof={platform_file}" if platform_error is None else f"proof={platform_error}: {platform_file}",
     required_action="Record accepted platform security proof from the real release runner with ready doctor status and expected isolation.",
     paths=[platform_file],
-    commands=["bash scripts/platform-security-proof-report.sh full"],
+    commands=["bash scripts/platform-security-proof-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],
     env=["KIANA_PLATFORM_SECURITY_PROOF_FILE", "KIANA_PLATFORM_SECURITY_PROOF_DIR"],
 )
 

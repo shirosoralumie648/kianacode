@@ -31,7 +31,8 @@ done
 
 tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events"' EXIT
+tmp_proof_manifest="$(mktemp)"
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -89,8 +90,42 @@ JSON
   docs/schemas/kiana-app-server-events.v1.schema.json \
   "$tmp_app_events" >/dev/null
 
+cat > "$tmp_proof_manifest" <<'JSON'
+{
+  "schema": "kiana.commercial-proof-manifest.v1",
+  "version": "0.1.0",
+  "generated_at": "2026-07-02T00:00:00Z",
+  "proof_root": "dist/proofs",
+  "summary": {
+    "proofs": 1,
+    "accepted": 1,
+    "live": 0,
+    "platforms": ["linux"]
+  },
+  "proofs": [
+    {
+      "id": "acceptance.platform-security.linux",
+      "category": "acceptance",
+      "schema": "kiana.platform-security-proof.v1",
+      "status": "accepted",
+      "accepted": true,
+      "live": null,
+      "source": "docs/platform-security/0.1.0-linux.json",
+      "path": "dist/proofs/platform-security/platform-security-linux.json",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "details": {
+        "platform": "linux"
+      }
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
+  "$tmp_proof_manifest" >/dev/null
+
 tmp_report="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_report"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest" "$tmp_report"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

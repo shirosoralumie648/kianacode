@@ -115,6 +115,11 @@ minor versions may include breaking CLI, config, or storage changes. Use
   `kiana.commercial-release-blockers.v1` schema so release owners can list
   remaining local and external commercial blockers without rerunning heavyweight
   build, live-service, signing, or channel-publication gates.
+- Added `scripts/stage-commercial-release-proofs.sh` plus the
+  `kiana.commercial-proof-manifest.v1` schema so release owners can stage
+  already accepted/live proof files into `dist/proofs/**`, generate
+  `PROOF-MANIFEST.json` and `HANDOFF.md`, and have the artifact verifier check
+  proof hashes before drafting a release.
 - Added a dependency-free JSON Schema subset validator and
   `scripts/schema-contract-smoke.sh` so proof templates and blocker reports are
   checked against pinned schemas in local preflight and packaged releases.

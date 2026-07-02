@@ -772,6 +772,125 @@ PY
   fi
 }
 
+require_commercial_proof_manifest_contract() {
+  local file="$1"
+  local expected_version="$2"
+  local current_dist_dir="$3"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate commercial proof manifest"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" "$current_dist_dir" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+path, expected_version, dist_dir_raw = sys.argv[1:4]
+dist_dir = Path(dist_dir_raw)
+with open(path, "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+proofs = manifest.get("proofs")
+if not isinstance(proofs, list):
+    proofs = []
+summary = manifest.get("summary")
+if not isinstance(summary, dict):
+    summary = {}
+
+required_paths = {
+    "proofs/live-smoke/provider/model-catalog-live.json",
+    "proofs/live-smoke/provider/model-smoke-live-tools.json",
+    "proofs/live-smoke/remote/code-session-smoke.json",
+    "proofs/entitlement/entitlement-proof.json",
+    "proofs/product/product-acceptance.json",
+    "proofs/release-ops/release-ops.json",
+    "proofs/platform-security/platform-security-linux.json",
+    "proofs/platform-security/platform-security-macos.json",
+    "proofs/platform-security/platform-security-windows.json",
+}
+required_ids = {
+    "live.provider-catalog",
+    "live.provider-smoke",
+    "live.remote-code-session",
+    "acceptance.entitlement",
+    "acceptance.product",
+    "acceptance.release-ops",
+    "acceptance.platform-security.linux",
+    "acceptance.platform-security.macos",
+    "acceptance.platform-security.windows",
+}
+
+def normalize(value):
+    text = str(value).replace("\\", "/")
+    prefix = str(dist_dir).replace("\\", "/").rstrip("/") + "/"
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    marker = "/proofs/"
+    if marker in text:
+        return "proofs/" + text.split(marker, 1)[1]
+    return text
+
+def file_hash(file_path):
+    digest = hashlib.sha256()
+    with file_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+paths = {normalize(item.get("path", "")) for item in proofs if isinstance(item, dict)}
+ids = {item.get("id") for item in proofs if isinstance(item, dict)}
+platforms = set(summary.get("platforms") or [])
+entries_valid = []
+for item in proofs:
+    if not isinstance(item, dict):
+        entries_valid.append(False)
+        continue
+    normalized_path = normalize(item.get("path", ""))
+    proof_file = dist_dir / normalized_path
+    expected_sha = item.get("sha256")
+    entries_valid.append(
+        isinstance(item.get("id"), str)
+        and item.get("id")
+        and isinstance(item.get("schema"), str)
+        and item.get("schema")
+        and normalized_path.startswith("proofs/")
+        and proof_file.is_file()
+        and isinstance(expected_sha, str)
+        and len(expected_sha) == 64
+        and file_hash(proof_file) == expected_sha
+        and "proof-templates" not in normalize(item.get("source", "")).lower()
+    )
+
+checks = [
+    manifest.get("schema") == "kiana.commercial-proof-manifest.v1",
+    manifest.get("version") == expected_version,
+    isinstance(manifest.get("generated_at"), str) and bool(manifest["generated_at"].strip()),
+    normalize(manifest.get("proof_root", "")).endswith("proofs"),
+    required_paths.issubset(paths),
+    required_ids.issubset(ids),
+    {"linux", "macos", "windows"}.issubset(platforms),
+    summary.get("proofs") == len(proofs),
+    summary.get("accepted", 0) >= 6,
+    summary.get("live", 0) >= 2,
+    bool(entries_valid) and all(entries_valid),
+]
+if not all(checks):
+    print(json.dumps(manifest, indent=2, sort_keys=True), file=sys.stderr)
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "commercial proof manifest contract"
+  else
+    fail "commercial proof manifest failed contract"
+  fi
+}
+
 has_windows_publishable_artifact() {
   local package="$1"
   [[ -f "${dist_dir}/${package}.zip" ]] || \
@@ -882,7 +1001,10 @@ entitlement_proof="${dist_dir}/proofs/entitlement/entitlement-proof.json"
 product_acceptance_proof="${dist_dir}/proofs/product/product-acceptance.json"
 release_ops_proof="${dist_dir}/proofs/release-ops/release-ops.json"
 platform_security_proofs=("${dist_dir}/proofs/platform-security/"*.json)
+commercial_proof_manifest="${dist_dir}/proofs/PROOF-MANIFEST.json"
 
+require_proof_file "$commercial_proof_manifest" "kiana.commercial-proof-manifest.v1" "commercial proof manifest"
+require_commercial_proof_manifest_contract "$commercial_proof_manifest" "$version" "$dist_dir"
 require_proof_file "$provider_catalog_proof" "kiana.model-catalog.v1" "provider live catalog proof"
 require_json_pattern "$provider_catalog_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live catalog proof is live"
 require_proof_file "$provider_smoke_proof" "kiana.model-smoke.v1" "provider live smoke proof"

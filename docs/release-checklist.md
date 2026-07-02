@@ -37,6 +37,9 @@ commercial release.
 - Checksum verification passes before upload.
 - `scripts/verify-commercial-release-artifacts.sh` passes on the combined
   release artifact set before a draft GitHub Release is created.
+- `scripts/stage-commercial-release-proofs.sh` runs on the combined release
+  artifact set before verification, writes `dist/proofs/PROOF-MANIFEST.json`,
+  and records `dist/proofs/HANDOFF.md` without creating accepted evidence.
 - `scripts/compliance-audit.sh --local-rc` produces `SBOM.cdx.json` and
   `compliance-report.json`.
 - `scripts/schema-contract-smoke.sh` passes and validates proof templates plus
@@ -127,10 +130,11 @@ commercial release.
   `dist/proofs/entitlement/entitlement-proof.json`,
   `dist/proofs/product/product-acceptance.json`, and
   `dist/proofs/release-ops/release-ops.json`, plus Linux/macOS/Windows
-  `dist/proofs/platform-security/*.json`; the commercial artifact verifier
-  checks those proof files, including provider live catalog/text/tool evidence
-  plus the remote code-session session id, service URLs, expiry, and worker
-  epoch contract.
+  `dist/proofs/platform-security/*.json`; `dist/proofs/PROOF-MANIFEST.json`
+  lists the staged proof paths and sha256 hashes, and the commercial artifact
+  verifier checks both the manifest and those proof files, including provider
+  live catalog/text/tool evidence plus the remote code-session session id,
+  service URLs, expiry, and worker epoch contract.
 - Sandbox and permission defaults match the documented commercial security
   posture on Windows, macOS, and Linux.
 - Installed plugins include `kiana.plugin-install-receipt.v1` receipts with
