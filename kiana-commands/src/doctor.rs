@@ -71,6 +71,7 @@ struct DoctorReport {
     oauth_token_file: OAuthTokenFileReport,
     bash_sandbox: BashSandboxReport,
     commercial_security: CommercialSecurityReport,
+    reference_capabilities: Vec<ReferenceCapabilityReport>,
     warnings: Vec<String>,
 }
 
@@ -152,6 +153,17 @@ struct CommercialSecurityReport {
     isolation: String,
     controls: Vec<String>,
     issues: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ReferenceCapabilityReport {
+    id: &'static str,
+    domain: &'static str,
+    status: &'static str,
+    references: Vec<&'static str>,
+    surfaces: Vec<&'static str>,
+    evidence: Vec<&'static str>,
+    risks: Vec<String>,
 }
 
 fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport> {
@@ -292,6 +304,11 @@ fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport>
             allow_unsandboxed_commands: bash_sandbox.allow_unsandboxed_commands,
             bwrap: bash_sandbox.bwrap_label(),
         },
+        reference_capabilities: reference_capability_matrix(
+            &commercial_security,
+            remote_bridge_token_configured,
+            code_session_token_status,
+        ),
         commercial_security,
         warnings,
     })
@@ -378,6 +395,19 @@ fn render_doctor_text(report: &DoctorReport) -> String {
             report.commercial_security.isolation
         ),
     ];
+
+    for capability in &report.reference_capabilities {
+        lines.push(format!(
+            "capability: {} status={} surfaces={} evidence={}",
+            capability.id,
+            capability.status,
+            capability.surfaces.join(","),
+            capability.evidence.join(",")
+        ));
+        for risk in &capability.risks {
+            lines.push(format!("capability_risk: {}: {risk}", capability.id));
+        }
+    }
 
     for warning in &report.warnings {
         lines.push(format!("warning: {warning}"));
@@ -589,6 +619,142 @@ fn commercial_security_controls(isolation: &str) -> Vec<String> {
         }
     }
     controls
+}
+
+fn reference_capability_matrix(
+    commercial_security: &CommercialSecurityReport,
+    remote_bridge_token_configured: bool,
+    code_session_token_status: CodeSessionLiveSmokeTokenStatus,
+) -> Vec<ReferenceCapabilityReport> {
+    let remote_status = if remote_bridge_token_configured
+        && matches!(
+            code_session_token_status,
+            CodeSessionLiveSmokeTokenStatus::Configured(_)
+        ) {
+        "local_ready_external_required"
+    } else {
+        "external_required"
+    };
+    let security_risks = if commercial_security.ready {
+        vec![
+            "accepted platform-security proof from real release runners is still required"
+                .to_string(),
+        ]
+    } else {
+        commercial_security.issues.clone()
+    };
+
+    vec![
+        ReferenceCapabilityReport {
+            id: "runtime-session-core",
+            domain: "runtime/session",
+            status: "ready",
+            references: vec!["codex", "cline", "pi", "claude-code-rev-main"],
+            surfaces: vec!["sdk-session-tree", "stream-json", "tui", "remote", "bridge"],
+            evidence: vec![
+                "kiana-runtime-event.v1",
+                "jsonl-session-tree",
+                "session-import-export",
+                "release-smoke",
+            ],
+            risks: vec!["future public RPC surfaces need matching schema fixtures".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "tool-lifecycle-mcp",
+            domain: "tools/mcp",
+            status: "ready",
+            references: vec!["codex", "Roo-Code", "claude-code-rev-main"],
+            surfaces: vec!["tool-registry", "runtime-events", "mcp-stdio", "mcp-http", "mcp-sse", "mcp-ws"],
+            evidence: vec![
+                "read-only-tool-batching",
+                "mcp-resource-templates",
+                "mcp-error-lifecycle",
+                "stream-json-tool-result",
+            ],
+            risks: vec!["new public tool surfaces must keep lifecycle/error assertions in sync".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "security-policy",
+            domain: "permissions/trust/sandbox",
+            status: if commercial_security.ready { "ready" } else { "not_ready" },
+            references: vec!["codex", "continue", "OpenHands", "pi"],
+            surfaces: vec!["permission-profile", "project-trust", "exec-policy", "network-policy", "commercial-security"],
+            evidence: vec![
+                "permission-precedence-tests",
+                "trust-gates",
+                "bash-powershell-exec-policy",
+                "network-ssrf-policy",
+            ],
+            risks: security_risks,
+        },
+        ReferenceCapabilityReport {
+            id: "provider-registry",
+            domain: "provider/model/auth",
+            status: "local_ready_external_required",
+            references: vec!["cline", "continue", "pi", "langchain"],
+            surfaces: vec!["model-list", "model-catalog", "model-smoke", "auth-status", "provider-standard"],
+            evidence: vec![
+                "fake-provider-standard-tests",
+                "openai-compatible-tool-loop",
+                "ollama-tool-loop",
+                "offline-model-catalog",
+            ],
+            risks: vec!["production-like provider live catalog and smoke proof are external release blockers".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "local-coding-workflow",
+            domain: "repo/edit/review",
+            status: "ready",
+            references: vec!["aider", "continue", "Roo-Code"],
+            surfaces: vec!["repo-map", "file-sets", "checkpoint", "diff", "review", "checks", "repair-loop"],
+            evidence: vec![
+                "deterministic-repo-map",
+                "assistant-turn-checkpoints",
+                "isolated-checks",
+                "repair-checks",
+            ],
+            risks: vec!["broader workflow eval/replay harness is still future work".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "product-shell",
+            domain: "tui/app-server",
+            status: "in_progress",
+            references: vec!["codex", "cline", "OpenHands", "Roo-Code", "pi"],
+            surfaces: vec!["tui", "settings-readiness", "prompt-history", "app-server"],
+            evidence: vec![
+                "product-shell-smoke",
+                "headless-tui-render-tests",
+                "direct-connect-app-contract",
+            ],
+            risks: vec!["target-customer walkthrough and acceptance proof remain external release blockers".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "remote-commercial-release",
+            domain: "remote/release",
+            status: remote_status,
+            references: vec!["codex", "OpenHands", "cline"],
+            surfaces: vec!["remote-bridge", "code-session-smoke", "proof-manifest", "artifact-verifier"],
+            evidence: vec![
+                "commercial-release-blockers-report",
+                "stage-commercial-release-proofs",
+                "verify-commercial-release-artifacts",
+            ],
+            risks: vec!["production remote smoke, signed multi-platform artifacts, and release channel proofs are external blockers".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "knowledge-agent-foundation",
+            domain: "context/agents",
+            status: "in_progress",
+            references: vec!["AutoGen", "MetaGPT", "LangChain", "OpenHands"],
+            surfaces: vec!["context-index", "context-search", "context-pack", "subagent-tool-contract"],
+            evidence: vec![
+                "deterministic-context-index",
+                "path-aware-context-search",
+                "root-scoped-context-pack",
+            ],
+            risks: vec!["incremental index, embeddings, artifact graph, notebook isolation, and team runtime remain future work".to_string()],
+        },
+    ]
 }
 
 fn bridge_access_token_configured() -> bool {
@@ -881,7 +1047,94 @@ mod tests {
         assert!(report["commercial_security"]["isolation"].is_string());
         assert!(report["commercial_security"]["controls"].is_array());
         assert!(report["commercial_security"]["issues"].is_array());
+        assert!(report["reference_capabilities"].is_array());
+        assert!(report["reference_capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == "provider-registry"
+                && item["status"] == "local_ready_external_required"
+                && item["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|surface| surface == "model-smoke")));
+        assert!(report["reference_capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == "remote-commercial-release"
+                && item["status"] == "external_required"
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "stage-commercial-release-proofs")));
         assert!(report["warnings"].is_array());
+    }
+
+    #[tokio::test]
+    async fn doctor_text_reports_reference_capability_matrix() {
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: String::new(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(result
+            .value
+            .contains("capability: runtime-session-core status=ready"));
+        assert!(result
+            .value
+            .contains("capability: provider-registry status=local_ready_external_required"));
+        assert!(result
+            .value
+            .contains("capability: remote-commercial-release status=external_required"));
+        assert!(result
+            .value
+            .contains("capability_risk: provider-registry: production-like provider live catalog and smoke proof are external release blockers"));
+    }
+
+    #[tokio::test]
+    async fn doctor_json_reports_reference_capability_matrix() {
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: "--json".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        let report: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+        let capabilities = report["reference_capabilities"].as_array().unwrap();
+
+        assert!(capabilities
+            .iter()
+            .any(|item| item["id"] == "runtime-session-core"
+                && item["status"] == "ready"
+                && item["references"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|reference| reference == "codex")));
+        assert!(capabilities
+            .iter()
+            .any(|item| item["id"] == "security-policy"
+                && item["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|surface| surface == "commercial-security")));
+        assert!(capabilities
+            .iter()
+            .any(|item| item["id"] == "knowledge-agent-foundation"
+                && item["status"] == "in_progress"
+                && item["risks"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|risk| risk.as_str().unwrap().contains("team runtime"))));
     }
 
     #[tokio::test]

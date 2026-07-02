@@ -55,6 +55,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Added a `commercial` permission profile and doctor-level `commercial_security` readiness report for strict sandbox plus approval posture validation.
 - Added `kiana doctor --json` with a pinned `kiana.doctor.v1` schema and release smoke validation for schema-critical readiness fields.
 - `kiana doctor --json` now reports platform-aware commercial security posture with `platform`, `isolation`, and `controls`; Linux keeps the strict `bwrap` sandbox gate, while Windows/macOS report the approval plus shell exec-policy model instead of a false `bwrap` blocker.
+- `kiana doctor --json` now reports a reference capability matrix for runtime/session, tool/MCP, security, provider, local-coding, product shell, remote release, and knowledge-agent surfaces, including local evidence and the remaining commercial risks that still require external proof.
 - OAuth token files can now be used as redacted remote/bridge bearer-token sources and refreshed through their stored refresh token when command-based refresh is not configured.
 - OAuth token files that carry `expires_at` are refreshed before remote-session and bridge live calls when the token is expired or within the proactive refresh window.
 - OAuth token writes now use same-directory atomic replacement, flush before rename, and owner-only permissions on platforms with native permission bits.

@@ -32,7 +32,8 @@ done
 tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest"' EXIT
+tmp_doctor="$(mktemp)"
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest" "$tmp_doctor"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -90,6 +91,97 @@ JSON
   docs/schemas/kiana-app-server-events.v1.schema.json \
   "$tmp_app_events" >/dev/null
 
+cat > "$tmp_doctor" <<'JSON'
+{
+  "schema": "kiana.doctor.v1",
+  "status": "warning",
+  "cwd": "/workspace",
+  "cargo": {
+    "available": true,
+    "value": "cargo 1.89.0"
+  },
+  "git_root": {
+    "available": true,
+    "value": "/workspace"
+  },
+  "config_file": {
+    "path": "/home/user/.kiana/config.toml",
+    "found": false
+  },
+  "sdk_sessions_dir": {
+    "path": "/home/user/.kiana/sessions",
+    "found": false
+  },
+  "api_key_set": false,
+  "model": "claude-sonnet-4",
+  "remote_settings": {
+    "status": "missing",
+    "file": "missing"
+  },
+  "tui_permission_request": {
+    "active": false,
+    "queued": 0
+  },
+  "mcp_transport": {
+    "wired": true,
+    "transports": ["stdio", "http", "sse", "ws"],
+    "surfaces": ["tools", "resources", "resource_templates", "prompts"]
+  },
+  "modifiers": {
+    "platform": "linux",
+    "backend": "none",
+    "available": false,
+    "current": []
+  },
+  "remote_bridge": {
+    "start_command_wired": true,
+    "token_configured": false
+  },
+  "remote_code_session": {
+    "live_smoke_token": "no",
+    "configured": false,
+    "source": null
+  },
+  "oauth_token_file": {
+    "status": "missing",
+    "valid": true,
+    "refreshable": false,
+    "error": null
+  },
+  "bash_sandbox": {
+    "enabled": false,
+    "status": "disabled",
+    "runtime": "disabled",
+    "fail_if_unavailable": false,
+    "allow_unsandboxed_commands": true,
+    "bwrap": "missing"
+  },
+  "commercial_security": {
+    "ready": false,
+    "status": "not_ready",
+    "platform": "linux",
+    "isolation": "linux_bwrap",
+    "controls": ["permission_profile:commercial"],
+    "issues": ["set `kiana permissions profile commercial`"]
+  },
+  "reference_capabilities": [
+    {
+      "id": "provider-registry",
+      "domain": "provider/model/auth",
+      "status": "local_ready_external_required",
+      "references": ["cline", "pi", "langchain"],
+      "surfaces": ["model-list", "model-catalog", "model-smoke"],
+      "evidence": ["fake-provider-standard-tests"],
+      "risks": ["production-like provider live smoke proof is external"]
+    }
+  ],
+  "warnings": ["set ANTHROPIC_API_KEY or ~/.kiana/config.toml before sending model prompts"]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-doctor.v1.schema.json \
+  "$tmp_doctor" >/dev/null
+
 cat > "$tmp_proof_manifest" <<'JSON'
 {
   "schema": "kiana.commercial-proof-manifest.v1",
@@ -125,7 +217,7 @@ JSON
   "$tmp_proof_manifest" >/dev/null
 
 tmp_report="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest" "$tmp_report"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_report"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

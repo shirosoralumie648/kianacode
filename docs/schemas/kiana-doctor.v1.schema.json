@@ -22,6 +22,7 @@
     "oauth_token_file",
     "bash_sandbox",
     "commercial_security",
+    "reference_capabilities",
     "warnings"
   ],
   "properties": {
@@ -243,6 +244,13 @@
       },
       "additionalProperties": false
     },
+    "reference_capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/reference_capability"
+      }
+    },
     "warnings": {
       "type": "array",
       "items": {
@@ -274,6 +282,47 @@
         },
         "found": {
           "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reference_capability": {
+      "type": "object",
+      "required": ["id", "domain", "status", "references", "surfaces", "evidence", "risks"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ready", "not_ready", "in_progress", "local_ready_external_required", "external_required"]
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false

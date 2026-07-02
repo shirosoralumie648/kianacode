@@ -190,6 +190,7 @@ required = [
     "oauth_token_file",
     "bash_sandbox",
     "commercial_security",
+    "reference_capabilities",
     "warnings",
 ]
 missing = [key for key in required if key not in report]
@@ -213,6 +214,19 @@ checks = [
     ],
     isinstance(report.get("commercial_security", {}).get("controls"), list),
     isinstance(report.get("commercial_security", {}).get("issues"), list),
+    isinstance(report.get("reference_capabilities"), list),
+    any(
+        isinstance(item, dict)
+        and item.get("id") == "provider-registry"
+        and item.get("status") == "local_ready_external_required"
+        for item in report.get("reference_capabilities", [])
+    ),
+    any(
+        isinstance(item, dict)
+        and item.get("id") == "remote-commercial-release"
+        and item.get("status") in ["external_required", "local_ready_external_required"]
+        for item in report.get("reference_capabilities", [])
+    ),
 ]
 if not all(checks):
     print("doctor JSON failed schema smoke checks", file=sys.stderr)

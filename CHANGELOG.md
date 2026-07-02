@@ -42,6 +42,10 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - `kiana doctor --json` commercial security output now includes `platform`,
   `isolation`, and `controls`, with Linux retaining strict `bwrap` sandbox
   readiness and Windows/macOS using the approval plus shell exec-policy model.
+- `kiana doctor --json` now exposes a reference capability matrix that maps
+  runtime/session, tool/MCP, security, provider, local-coding, product shell,
+  remote release, and knowledge-agent surfaces to local evidence and remaining
+  commercial risks.
 - OAuth token files can now supply remote/bridge bearer tokens, refresh through
   the stored refresh token, and surface redacted status in `kiana auth status`
   and `kiana doctor`.

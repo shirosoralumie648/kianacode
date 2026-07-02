@@ -197,6 +197,7 @@ INSTALL_DIR="$install_dir" bash "$installer" --install >/dev/null
 [[ -x "$installed" ]]
 run_installed --version >/dev/null
 run_installed doctor --json | grep -Fq '"schema": "kiana.doctor.v1"'
+run_installed doctor --json | grep -Fq '"reference_capabilities"'
 run_installed license status --json | grep -Fq '"schema": "kiana.license-status.v1"'
 run_installed license status --json | grep -Fq '"status": "missing"'
 run_installed model list --json | grep -Fq '"provider_id": "openai-compatible"'

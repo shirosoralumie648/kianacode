@@ -253,6 +253,12 @@ if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.jso
 else
   fail "doctor JSON schema is missing kiana.doctor.v1 const"
 fi
+if grep -Fq '"reference_capabilities"' docs/schemas/kiana-doctor.v1.schema.json &&
+  grep -Fq '"local_ready_external_required"' docs/schemas/kiana-doctor.v1.schema.json; then
+  pass "doctor reference capability matrix schema is pinned"
+else
+  fail "doctor JSON schema is missing reference capability matrix contract"
+fi
 
 if grep -Fq '"const": "kiana.model-smoke.v1"' docs/schemas/kiana-model-smoke.v1.schema.json; then
   pass "model smoke JSON schema version is pinned"
