@@ -195,6 +195,9 @@ minor versions may include breaking CLI, config, or storage changes. Use
   protocol, auth method, option aliases, env vars, default model/base URL,
   model source category, streaming mode, and live-smoke requirement for model
   listing, auth readiness, and runner provider construction.
+- Added provider adapter standard tests covering fake provider metadata, text,
+  unsupported-tool rejection, tool-call mapping, synthetic streaming, and
+  provider error-code behavior.
 - `kiana model list --json` now reports `streaming_mode` and
   `native_streaming`, distinguishing Anthropic native streaming from the
   synthetic stream-event fallback used by OpenAI-compatible, Ollama, and fake
