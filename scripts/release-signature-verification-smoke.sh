@@ -161,8 +161,8 @@ for target in "${targets[@]}"; do
   binary_sha="$dist_dir/${package}.binary.sha256"
 
   printf 'fixture archive for %s\n' "$target" > "$archive"
-  printf 'fixture binary checksum for %s\n' "$target" > "$binary_sha"
   write_checksum "$archive" "${archive}.sha256"
+  write_checksum "$archive" "$binary_sha"
   write_signature "$archive" "${archive}.sig"
   write_signature "$binary_sha" "$dist_dir/${package}.binary.sig"
   write_signature_proof "$target" "$archive_name" "$package"
@@ -208,8 +208,8 @@ cat > "$manifest_dir/enterprise/offline-manifest.json" <<EOF
       "target": "linux-x86_64",
       "archive": "kiana-${version}-linux-x86_64.tar.gz",
       "url": "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-linux-x86_64.tar.gz",
-      "sha256": "fixture-linux-archive-sha",
-      "binary_sha256": "fixture-linux-binary-sha",
+      "sha256": "$(hash_file "$dist_dir/kiana-${version}-linux-x86_64.tar.gz")",
+      "binary_sha256": "$(awk 'NF {print $1; exit}' "$dist_dir/kiana-${version}-linux-x86_64.binary.sha256")",
       "local_path": "kiana-${version}-linux-x86_64.tar.gz",
       "checksum_path": "kiana-${version}-linux-x86_64.tar.gz.sha256",
       "binary_checksum_path": "kiana-${version}-linux-x86_64.binary.sha256"
@@ -218,8 +218,8 @@ cat > "$manifest_dir/enterprise/offline-manifest.json" <<EOF
       "target": "macos-x86_64",
       "archive": "kiana-${version}-macos-x86_64.tar.gz",
       "url": "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-macos-x86_64.tar.gz",
-      "sha256": "fixture-macos-archive-sha",
-      "binary_sha256": "fixture-macos-binary-sha",
+      "sha256": "$(hash_file "$dist_dir/kiana-${version}-macos-x86_64.tar.gz")",
+      "binary_sha256": "$(awk 'NF {print $1; exit}' "$dist_dir/kiana-${version}-macos-x86_64.binary.sha256")",
       "local_path": "kiana-${version}-macos-x86_64.tar.gz",
       "checksum_path": "kiana-${version}-macos-x86_64.tar.gz.sha256",
       "binary_checksum_path": "kiana-${version}-macos-x86_64.binary.sha256"
@@ -228,8 +228,8 @@ cat > "$manifest_dir/enterprise/offline-manifest.json" <<EOF
       "target": "windows-x86_64",
       "archive": "kiana-${version}-windows-x86_64.tar.gz",
       "url": "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-windows-x86_64.tar.gz",
-      "sha256": "fixture-windows-archive-sha",
-      "binary_sha256": "fixture-windows-binary-sha",
+      "sha256": "$(hash_file "$dist_dir/kiana-${version}-windows-x86_64.tar.gz")",
+      "binary_sha256": "$(awk 'NF {print $1; exit}' "$dist_dir/kiana-${version}-windows-x86_64.binary.sha256")",
       "local_path": "kiana-${version}-windows-x86_64.tar.gz",
       "checksum_path": "kiana-${version}-windows-x86_64.tar.gz.sha256",
       "binary_checksum_path": "kiana-${version}-windows-x86_64.binary.sha256"
@@ -490,6 +490,31 @@ do
 done
 
 DIST_DIR="$dist_dir" bash scripts/stage-commercial-release-proofs.sh >/dev/null
+enterprise_manifest="$manifest_dir/enterprise/offline-manifest.json"
+cp "$enterprise_manifest" "${enterprise_manifest}.valid"
+"${PYTHON:-python3}" - "$enterprise_manifest" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+manifest["artifacts"][0]["sha256"] = "0" * 64
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(manifest, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
+set +e
+mismatch_output="$(run_commercial_verifier 2>&1)"
+mismatch_status=$?
+set -e
+if [[ "$mismatch_status" -eq 0 ]] ||
+  ! grep -Fq 'enterprise offline manifest failed commercial contract' <<<"$mismatch_output"; then
+  echo "commercial verifier accepted an enterprise manifest checksum mismatch" >&2
+  echo "$mismatch_output" >&2
+  exit 1
+fi
+mv "${enterprise_manifest}.valid" "$enterprise_manifest"
 run_commercial_verifier >/dev/null
 
 echo "commercial release verifier smoke passed"

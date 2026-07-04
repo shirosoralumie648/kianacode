@@ -716,6 +716,7 @@ PY
 require_enterprise_manifest_contract() {
   local file="$1"
   local expected_version="$2"
+  local current_dist_dir="$3"
   if [[ ! -f "$file" ]]; then
     return
   fi
@@ -725,11 +726,14 @@ require_enterprise_manifest_contract() {
     fail "python3 or python is required to validate enterprise offline manifest"
     return
   fi
-  if "$python" - "$file" "$expected_version" <<'PY'
+  if "$python" - "$file" "$expected_version" "$current_dist_dir" <<'PY'
+import hashlib
 import json
 import sys
+from pathlib import Path
 
-path, expected_version = sys.argv[1:3]
+path, expected_version, dist_dir_raw = sys.argv[1:4]
+dist_dir = Path(dist_dir_raw)
 with open(path, "r", encoding="utf-8") as handle:
     manifest = json.load(handle)
 
@@ -758,6 +762,21 @@ def filled(item, key):
     value = item.get(key)
     return isinstance(value, str) and bool(value.strip())
 
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+def first_checksum(path):
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.split()
+            if parts:
+                return parts[0]
+    return ""
+
 artifact_checks = []
 if isinstance(artifacts, list):
     for item in artifacts:
@@ -765,6 +784,24 @@ if isinstance(artifacts, list):
             artifact_checks.append(False)
             continue
         url = item.get("url")
+        archive = item.get("archive")
+        local_path = item.get("local_path")
+        checksum_path = item.get("checksum_path")
+        binary_checksum_path = item.get("binary_checksum_path")
+        archive_file = dist_dir / local_path if isinstance(local_path, str) else None
+        archive_checksum_file = dist_dir / checksum_path if isinstance(checksum_path, str) else None
+        binary_checksum_file = dist_dir / binary_checksum_path if isinstance(binary_checksum_path, str) else None
+        checksum_matches = (
+            archive_file is not None
+            and archive_checksum_file is not None
+            and binary_checksum_file is not None
+            and archive_file.is_file()
+            and archive_checksum_file.is_file()
+            and binary_checksum_file.is_file()
+            and item.get("sha256") == file_sha256(archive_file)
+            and item.get("sha256") == first_checksum(archive_checksum_file)
+            and item.get("binary_sha256") == first_checksum(binary_checksum_file)
+        )
         artifact_checks.append(
             all(
                 filled(item, key)
@@ -782,9 +819,10 @@ if isinstance(artifacts, list):
             and real_url(url)
             and isinstance(base_url, str)
             and url.startswith(base_url)
-            and item.get("local_path") == item.get("archive")
-            and item.get("checksum_path") == f"{item.get('archive')}.sha256"
-            and item.get("binary_checksum_path") == f"{item.get('archive')[:-7]}.binary.sha256"
+            and local_path == archive
+            and checksum_path == f"{archive}.sha256"
+            and binary_checksum_path == f"{archive[:-7]}.binary.sha256"
+            and checksum_matches
         )
 
 checks = [
@@ -1100,7 +1138,7 @@ if [[ -f "$enterprise_manifest" ]] && grep -Eq 'pending_|dry_run|blocked_' "$ent
 elif [[ -f "$enterprise_manifest" ]]; then
   pass "enterprise offline manifest contains no pending channel states"
 fi
-require_enterprise_manifest_contract "$enterprise_manifest" "$version"
+require_enterprise_manifest_contract "$enterprise_manifest" "$version" "$dist_dir"
 
 source_control_proof="${dist_dir}/proofs/source-control/source-control.json"
 provider_catalog_proof="${dist_dir}/proofs/live-smoke/provider/model-catalog-live.json"
