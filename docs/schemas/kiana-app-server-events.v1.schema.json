@@ -15,6 +15,7 @@
     "count",
     "truncated",
     "summary",
+    "view",
     "events"
   ],
   "properties": {
@@ -136,6 +137,26 @@
       },
       "additionalProperties": false
     },
+    "view": {
+      "type": "object",
+      "required": ["schema", "message_count", "messages"],
+      "properties": {
+        "schema": {
+          "const": "kiana.app-server.events-view.v1"
+        },
+        "message_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/view_message"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "events": {
       "type": "array",
       "items": {
@@ -145,6 +166,51 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "view_message": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "turn_id",
+        "sequence",
+        "timestamp",
+        "source_type",
+        "role",
+        "content",
+        "metadata"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turn_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timestamp": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant", "tool", "system"]
+        },
+        "content": {
+          "type": "string"
+        },
+        "changed_files": {},
+        "metadata": {}
+      },
+      "additionalProperties": false
+    },
     "runtime_event": {
       "type": "object",
       "required": [

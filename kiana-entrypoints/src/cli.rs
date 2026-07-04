@@ -8398,6 +8398,7 @@ fn direct_connect_app_conversation_events_report(
         events = events.split_off(total_events - DIRECT_CONNECT_APP_EVENTS_LIMIT);
     }
     let summary = direct_connect_app_events_summary(&events);
+    let view = direct_connect_app_events_view(&events);
 
     Ok(serde_json::json!({
         "schema": "kiana.app-server.events.v1",
@@ -8415,8 +8416,303 @@ fn direct_connect_app_conversation_events_report(
         "count": events.len(),
         "truncated": truncated,
         "summary": summary,
+        "view": view,
         "events": events,
     }))
+}
+
+fn direct_connect_app_events_view(events: &[Value]) -> Value {
+    let mut messages = Vec::new();
+    for event in events {
+        match event
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+        {
+            "user_message" | "assistant_message" => {
+                if let Some(message) = event.get("message") {
+                    messages.extend(direct_connect_app_message_view_messages(event, message));
+                }
+            }
+            "stream_delta" => {
+                let content =
+                    direct_connect_app_runtime_text(event.get("delta").unwrap_or(&Value::Null));
+                if !content.trim().is_empty() {
+                    messages.push(direct_connect_app_view_message(
+                        event,
+                        "assistant",
+                        content,
+                        serde_json::json!({
+                            "kind": "stream_delta",
+                        }),
+                    ));
+                }
+            }
+            "tool_call" => {
+                let name = event
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown");
+                let mut metadata = serde_json::json!({
+                    "kind": "tool_call",
+                    "tool_call_id": event.get("tool_call_id").cloned().unwrap_or(Value::Null),
+                    "name": name,
+                    "workbench": event.get("workbench").cloned().unwrap_or(Value::Null),
+                    "input": event.get("input").cloned().unwrap_or(Value::Null),
+                });
+                messages.push(direct_connect_app_view_message(
+                    event,
+                    "tool",
+                    format!("Tool requested: {name}"),
+                    metadata.take(),
+                ));
+            }
+            "tool_result" => {
+                let is_error = event
+                    .get("is_error")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                let mut metadata = serde_json::json!({
+                    "kind": "tool_result",
+                    "tool_call_id": event.get("tool_call_id").cloned().unwrap_or(Value::Null),
+                    "name": event.get("name").cloned().unwrap_or(Value::Null),
+                    "workbench": event.get("workbench").cloned().unwrap_or(Value::Null),
+                    "is_error": is_error,
+                });
+                if let Some(changed_files) = event.get("changed_files") {
+                    metadata["changed_files"] = changed_files.clone();
+                }
+                if let Some(error) = event.get("error") {
+                    metadata["error"] = error.clone();
+                }
+                let mut message = direct_connect_app_view_message(
+                    event,
+                    "tool",
+                    direct_connect_app_runtime_text(event.get("content").unwrap_or(&Value::Null)),
+                    metadata,
+                );
+                if let Some(changed_files) = event.get("changed_files") {
+                    message["changed_files"] = changed_files.clone();
+                }
+                messages.push(message);
+            }
+            "permission_request" => {
+                messages.push(direct_connect_app_view_message(
+                    event,
+                    "system",
+                    format!(
+                        "Permission requested for {}.",
+                        event
+                            .get("tool_name")
+                            .and_then(Value::as_str)
+                            .unwrap_or("unknown")
+                    ),
+                    serde_json::json!({
+                        "kind": "permission_request",
+                        "request_id": event.get("request_id").cloned().unwrap_or(Value::Null),
+                        "tool_name": event.get("tool_name").cloned().unwrap_or(Value::Null),
+                        "action": event.get("action").cloned().unwrap_or(Value::Null),
+                        "reason": event.get("reason").cloned().unwrap_or(Value::Null),
+                        "input": event.get("input").cloned().unwrap_or(Value::Null),
+                    }),
+                ));
+            }
+            "session_event" => {
+                let subtype = event
+                    .get("subtype")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown");
+                messages.push(direct_connect_app_view_message(
+                    event,
+                    "system",
+                    event
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| format!("Session event: {subtype}")),
+                    serde_json::json!({
+                        "kind": "session_event",
+                        "subtype": subtype,
+                        "metadata": event.get("metadata").cloned().unwrap_or(Value::Null),
+                    }),
+                ));
+            }
+            "error" => {
+                messages.push(direct_connect_app_view_message(
+                    event,
+                    "system",
+                    format!(
+                        "Error: {}",
+                        event
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or("unknown error")
+                    ),
+                    serde_json::json!({
+                        "kind": "error",
+                        "code": event.get("code").cloned().unwrap_or(Value::Null),
+                        "details": event.get("details").cloned().unwrap_or(Value::Null),
+                    }),
+                ));
+            }
+            "result" => {
+                if let Some(text) = event
+                    .get("assistant_text")
+                    .and_then(Value::as_str)
+                    .filter(|text| !text.trim().is_empty())
+                    .filter(|text| {
+                        !messages.iter().rev().any(|message| {
+                            message.get("role").and_then(Value::as_str) == Some("assistant")
+                                && message.get("content").and_then(Value::as_str) == Some(*text)
+                        })
+                    })
+                {
+                    messages.push(direct_connect_app_view_message(
+                        event,
+                        "assistant",
+                        text.to_string(),
+                        serde_json::json!({
+                            "kind": "result",
+                            "status": event.get("status").cloned().unwrap_or(Value::Null),
+                            "stop_reason": event.get("stop_reason").cloned().unwrap_or(Value::Null),
+                        }),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    serde_json::json!({
+        "schema": "kiana.app-server.events-view.v1",
+        "message_count": messages.len(),
+        "messages": messages,
+    })
+}
+
+fn direct_connect_app_message_view_messages(event: &Value, message: &Value) -> Vec<Value> {
+    let role = match message.get("role").and_then(Value::as_str) {
+        Some("assistant") => "assistant",
+        Some("tool") => "tool",
+        Some("user")
+            if message
+                .get("content")
+                .and_then(Value::as_array)
+                .is_some_and(|blocks| {
+                    blocks.iter().any(|block| {
+                        block.get("type").and_then(Value::as_str) == Some("tool_result")
+                    })
+                }) =>
+        {
+            "tool"
+        }
+        Some("user") => "user",
+        _ => "system",
+    };
+
+    let content = message.get("content").unwrap_or(&Value::Null);
+    let Some(blocks) = content.as_array() else {
+        return vec![direct_connect_app_view_message(
+            event,
+            role,
+            direct_connect_app_runtime_text(content),
+            serde_json::json!({
+                "kind": "message",
+            }),
+        )];
+    };
+
+    let mut messages = Vec::new();
+    for block in blocks {
+        let block_type = block.get("type").and_then(Value::as_str);
+        let block_role = match block_type {
+            Some("tool_use") | Some("tool_result") => "tool",
+            _ => role,
+        };
+        let content = direct_connect_app_content_block_text(block);
+        if content.trim().is_empty() {
+            continue;
+        }
+        messages.push(direct_connect_app_view_message(
+            event,
+            block_role,
+            content,
+            serde_json::json!({
+                "kind": "message_block",
+                "block_type": block_type.unwrap_or("text"),
+            }),
+        ));
+    }
+
+    if messages.is_empty() {
+        messages.push(direct_connect_app_view_message(
+            event,
+            role,
+            direct_connect_app_runtime_text(content),
+            serde_json::json!({
+                "kind": "message",
+            }),
+        ));
+    }
+    messages
+}
+
+fn direct_connect_app_content_block_text(block: &Value) -> String {
+    match block.get("type").and_then(Value::as_str) {
+        Some("text") => block
+            .get("text")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        Some("tool_use") => format!(
+            "Tool requested: {}",
+            block
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+        ),
+        Some("tool_result") => {
+            direct_connect_app_runtime_text(block.get("content").unwrap_or(&Value::Null))
+        }
+        _ => direct_connect_app_runtime_text(block),
+    }
+}
+
+fn direct_connect_app_runtime_text(value: &Value) -> String {
+    if let Some(text) = value.as_str() {
+        return text.to_string();
+    }
+    if let Some(text) = value.get("text").and_then(Value::as_str) {
+        return text.to_string();
+    }
+    if let Some(blocks) = value.as_array() {
+        return blocks
+            .iter()
+            .map(direct_connect_app_content_block_text)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_string();
+    }
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
+}
+
+fn direct_connect_app_view_message(
+    event: &Value,
+    role: &str,
+    content: String,
+    metadata: Value,
+) -> Value {
+    serde_json::json!({
+        "event_id": event.get("event_id").cloned().unwrap_or(Value::Null),
+        "turn_id": event.get("turn_id").cloned().unwrap_or(Value::Null),
+        "sequence": event.get("sequence").cloned().unwrap_or(Value::Null),
+        "timestamp": event.get("timestamp").cloned().unwrap_or(Value::Null),
+        "source_type": event.get("type").cloned().unwrap_or(Value::Null),
+        "role": role,
+        "content": content,
+        "metadata": metadata,
+    })
 }
 
 fn direct_connect_app_events_summary(events: &[Value]) -> Value {
@@ -18692,6 +18988,26 @@ mod tests {
         assert_eq!(
             event_snapshot["summary"]["terminal"]["stop_reason"],
             "end_turn"
+        );
+        assert_eq!(
+            event_snapshot["view"]["schema"],
+            "kiana.app-server.events-view.v1"
+        );
+        assert_eq!(event_snapshot["view"]["message_count"], 3);
+        assert_eq!(event_snapshot["view"]["messages"][0]["role"], "user");
+        assert_eq!(
+            event_snapshot["view"]["messages"][0]["content"],
+            "hello from app"
+        );
+        assert_eq!(event_snapshot["view"]["messages"][1]["role"], "assistant");
+        assert_eq!(
+            event_snapshot["view"]["messages"][1]["content"],
+            "hello from kiana"
+        );
+        assert_eq!(event_snapshot["view"]["messages"][2]["role"], "tool");
+        assert_eq!(
+            event_snapshot["view"]["messages"][2]["changed_files"][0]["path"],
+            "src/lib.rs"
         );
         assert_eq!(event_snapshot["events"][0]["type"], "user_message");
         assert_eq!(

@@ -124,6 +124,31 @@ cat > "$tmp_app_events" <<'JSON'
       "stop_reason": null
     }
   },
+  "view": {
+    "schema": "kiana.app-server.events-view.v1",
+    "message_count": 1,
+    "messages": [
+      {
+        "event_id": "evt-permission",
+        "turn_id": "turn-1",
+        "sequence": 3,
+        "timestamp": "2026-07-02T00:00:03Z",
+        "source_type": "permission_request",
+        "role": "system",
+        "content": "Permission requested for Bash.",
+        "metadata": {
+          "kind": "permission_request",
+          "request_id": "perm-1",
+          "tool_name": "Bash",
+          "action": "run",
+          "reason": "ask mode",
+          "input": {
+            "command": "git status"
+          }
+        }
+      }
+    ]
+  },
   "events": [
     {
       "event_id": "evt-permission",
