@@ -5286,6 +5286,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_settings_handler),
         )
         .route(
+            "/app/doctor",
+            axum::routing::get(direct_connect_app_doctor_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5788,6 +5792,51 @@ fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
             })
             .collect(),
     )
+}
+
+async fn direct_connect_app_doctor_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("doctor") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "doctor command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "--json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(doctor) => axum::Json(serde_json::json!({
+            "schema": "kiana.app-server.doctor.v1",
+            "workspace": state.workspace.display().to_string(),
+            "doctor": doctor,
+        }))
+        .into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build doctor readiness report: {error}"),
+        ),
+    }
 }
 
 async fn direct_connect_app_secrets_handler(
@@ -7043,6 +7092,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "conversation.files.read",
             "conversation.files.write",
             "settings.read",
+            "doctor.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7092,6 +7142,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/settings",
                 "schema": "kiana.app-server.settings.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/doctor",
+                "schema": "kiana.app-server.doctor.v1"
             },
             {
                 "method": "GET",
@@ -16668,6 +16723,15 @@ mod tests {
             .iter()
             .any(|endpoint| {
                 endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/doctor"
+                    && endpoint["schema"] == "kiana.app-server.doctor.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/index"
                     && endpoint["schema"] == "kiana.context-index.v1"
             }));
@@ -17099,6 +17163,33 @@ mod tests {
             .iter()
             .any(|provider| provider["provider_id"] == "openai-compatible"
                 && provider["status"] == "skipped"));
+
+        let doctor: Value = client
+            .get(format!("http://{addr}/app/doctor"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(doctor["schema"], "kiana.app-server.doctor.v1");
+        assert_eq!(doctor["workspace"], workspace.display().to_string());
+        assert_eq!(doctor["doctor"]["schema"], "kiana.doctor.v1");
+        let reference_capabilities = doctor["doctor"]["reference_capabilities"]
+            .as_array()
+            .unwrap();
+        let local_coding = reference_capabilities
+            .iter()
+            .find(|capability| capability["id"] == "local-coding-workflow")
+            .expect("local-coding-workflow readiness missing");
+        assert_eq!(local_coding["status"], "ready");
+        assert!(local_coding["evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|evidence| evidence == "deterministic-repo-map-budget"));
+        assert!(local_coding["risks"].as_array().unwrap().is_empty());
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))

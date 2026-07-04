@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-doctor.v1.schema.json",
+  "title": "Kiana App Server Doctor v1",
+  "type": "object",
+  "required": ["schema", "workspace", "doctor"],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.doctor.v1"
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "doctor": {
+      "type": "object",
+      "required": ["schema", "reference_capabilities"],
+      "properties": {
+        "schema": {
+          "const": "kiana.doctor.v1"
+        },
+        "reference_capabilities": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
