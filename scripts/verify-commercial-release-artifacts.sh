@@ -788,6 +788,74 @@ PY
   fi
 }
 
+require_source_control_contract() {
+  local file="$1"
+  local expected_version="$2"
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate source-control proof"
+    return
+  fi
+  if "$python" - "$file" "$expected_version" <<'PY'
+import json
+import re
+import sys
+
+path, expected_version = sys.argv[1:3]
+with open(path, "r", encoding="utf-8") as handle:
+    proof = json.load(handle)
+
+placeholder_markers = (
+    "todo",
+    "tbd",
+    "pending",
+    "placeholder",
+    "replace-me",
+    "example.com",
+    "example.test",
+)
+
+def filled(key):
+    value = proof.get(key)
+    return isinstance(value, str) and bool(value.strip())
+
+def not_placeholder(key):
+    value = proof.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
+commit = proof.get("commit")
+tagged_commit = proof.get("tagged_commit")
+checks = [
+    proof.get("schema") == "kiana.source-control-proof.v1",
+    proof.get("version") == expected_version,
+    proof.get("status") == "accepted",
+    proof.get("accepted") is True,
+    proof.get("pushed") is True,
+    proof.get("reviewed") is True,
+    proof.get("release_tag") == f"v{expected_version}",
+    isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit) is not None,
+    isinstance(tagged_commit, str) and re.fullmatch(r"[0-9a-f]{40}", tagged_commit) is not None,
+    commit == tagged_commit,
+    all(filled(key) for key in ["accepted_by", "accepted_at", "remote_url"]),
+    all(not_placeholder(key) for key in ["accepted_by", "remote_url"]),
+    isinstance(proof.get("remote_url"), str)
+    and proof["remote_url"].startswith(("https://", "ssh://", "git@")),
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  then
+    pass "source-control proof commercial contract"
+  else
+    fail "source-control proof failed commercial contract"
+  fi
+}
+
 require_commercial_proof_manifest_contract() {
   local file="$1"
   local expected_version="$2"
@@ -820,6 +888,7 @@ if not isinstance(summary, dict):
     summary = {}
 
 required_paths = {
+    "proofs/source-control/source-control.json",
     "proofs/live-smoke/provider/model-catalog-live.json",
     "proofs/live-smoke/provider/model-smoke-live-tools.json",
     "proofs/live-smoke/remote/code-session-smoke.json",
@@ -831,6 +900,7 @@ required_paths = {
     "proofs/platform-security/platform-security-windows.json",
 }
 required_ids = {
+    "source.control",
     "live.provider-catalog",
     "live.provider-smoke",
     "live.remote-code-session",
@@ -892,7 +962,7 @@ checks = [
     required_ids.issubset(ids),
     {"linux", "macos", "windows"}.issubset(platforms),
     summary.get("proofs") == len(proofs),
-    summary.get("accepted", 0) >= 6,
+    summary.get("accepted", 0) >= 7,
     summary.get("live", 0) >= 2,
     bool(entries_valid) and all(entries_valid),
 ]
@@ -1010,6 +1080,7 @@ elif [[ -f "$enterprise_manifest" ]]; then
 fi
 require_enterprise_manifest_contract "$enterprise_manifest" "$version"
 
+source_control_proof="${dist_dir}/proofs/source-control/source-control.json"
 provider_catalog_proof="${dist_dir}/proofs/live-smoke/provider/model-catalog-live.json"
 provider_smoke_proof="${dist_dir}/proofs/live-smoke/provider/model-smoke-live-tools.json"
 remote_smoke_proof="${dist_dir}/proofs/live-smoke/remote/code-session-smoke.json"
@@ -1021,6 +1092,12 @@ commercial_proof_manifest="${dist_dir}/proofs/PROOF-MANIFEST.json"
 
 require_proof_file "$commercial_proof_manifest" "kiana.commercial-proof-manifest.v1" "commercial proof manifest"
 require_commercial_proof_manifest_contract "$commercial_proof_manifest" "$version" "$dist_dir"
+require_proof_file "$source_control_proof" "kiana.source-control-proof.v1" "source-control proof"
+require_json_pattern "$source_control_proof" '"status"[[:space:]]*:[[:space:]]*"accepted"' "source-control proof accepted"
+require_json_pattern "$source_control_proof" '"accepted"[[:space:]]*:[[:space:]]*true' "source-control proof accepted flag"
+require_json_pattern "$source_control_proof" '"pushed"[[:space:]]*:[[:space:]]*true' "source-control proof pushed"
+require_json_pattern "$source_control_proof" '"reviewed"[[:space:]]*:[[:space:]]*true' "source-control proof reviewed"
+require_source_control_contract "$source_control_proof" "$version"
 require_proof_file "$provider_catalog_proof" "kiana.model-catalog.v1" "provider live catalog proof"
 require_json_pattern "$provider_catalog_proof" '"live"[[:space:]]*:[[:space:]]*true' "provider live catalog proof is live"
 require_proof_file "$provider_smoke_proof" "kiana.model-smoke.v1" "provider live smoke proof"

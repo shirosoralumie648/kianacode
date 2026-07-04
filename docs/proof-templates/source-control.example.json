@@ -1,0 +1,17 @@
+{
+  "schema": "kiana.source-control-proof.v1",
+  "version": "0.1.0",
+  "status": "blocked",
+  "accepted": false,
+  "accepted_by": "",
+  "accepted_at": "",
+  "remote_url": "",
+  "commit": "0000000000000000000000000000000000000000",
+  "release_tag": "v0.1.0",
+  "tagged_commit": "0000000000000000000000000000000000000000",
+  "pushed": false,
+  "reviewed": false,
+  "notes": [
+    "Replace this blocked template with release-owner accepted source-control proof before full commercial verification."
+  ]
+}

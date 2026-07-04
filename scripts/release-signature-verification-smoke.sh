@@ -138,6 +138,7 @@ if ! grep -Fq '"verification"' "$sign_dist_dir/${sign_package}.signature.json"; 
 fi
 
 mkdir -p \
+  "$dist_dir/proofs/source-control" \
   "$dist_dir/proofs/live-smoke/provider" \
   "$dist_dir/proofs/live-smoke/remote" \
   "$dist_dir/proofs/entitlement" \
@@ -236,6 +237,23 @@ cat > "$manifest_dir/enterprise/offline-manifest.json" <<EOF
     "winget": "generated"
   },
   "generated_by": "scripts/generate-distribution-manifests.sh"
+}
+EOF
+
+cat > "$dist_dir/proofs/source-control/source-control.json" <<EOF
+{
+  "schema": "kiana.source-control-proof.v1",
+  "version": "$version",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "release manager",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "remote_url": "https://github.com/acme/kiana.git",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "release_tag": "v${version}",
+  "tagged_commit": "0123456789abcdef0123456789abcdef01234567",
+  "pushed": true,
+  "reviewed": true
 }
 EOF
 
@@ -420,6 +438,7 @@ touch "$manifest_dir/homebrew/BLOCKED.md"
 windows_zip="$dist_dir/kiana-${version}-windows-x86_64.zip"
 mv "$windows_zip" "${windows_zip}.missing"
 for proof in \
+  "$dist_dir/proofs/source-control/source-control.json" \
   "$dist_dir/proofs/entitlement/entitlement-proof.json" \
   "$dist_dir/proofs/product/product-acceptance.json" \
   "$dist_dir/proofs/release-ops/release-ops.json"
@@ -441,6 +460,7 @@ for expected in \
   "Homebrew channel manifest is still blocked" \
   "Windows target windows-x86_64 lacks" \
   "PROOF-MANIFEST.json" \
+  "source-control.json" \
   "entitlement-proof.json" \
   "product-acceptance.json" \
   "release-ops.json"
@@ -457,6 +477,7 @@ write_signature_proof "linux-x86_64" "$linux_archive_name" "$linux_package"
 rm -f "$manifest_dir/homebrew/BLOCKED.md"
 mv "${windows_zip}.missing" "$windows_zip"
 for proof in \
+  "$dist_dir/proofs/source-control/source-control.json" \
   "$dist_dir/proofs/entitlement/entitlement-proof.json" \
   "$dist_dir/proofs/product/product-acceptance.json" \
   "$dist_dir/proofs/release-ops/release-ops.json"

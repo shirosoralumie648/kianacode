@@ -172,10 +172,12 @@ def default_acceptance_artifacts(check_id, paths):
         return paths
     return {
         "source.remote": [
+            f"docs/source-control/{VERSION}.json or external kiana.source-control-proof.v1 proof",
             "production git remote URL",
             "pushed reviewed release commit",
         ],
         "source.version-tag": [
+            f"docs/source-control/{VERSION}.json or external kiana.source-control-proof.v1 proof",
             f"{EXPECTED_TAG} tag on the reviewed release commit",
             "pushed immutable release tag",
         ],

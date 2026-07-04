@@ -78,7 +78,7 @@
           },
           "category": {
             "type": "string",
-            "enum": ["live-service", "acceptance"]
+            "enum": ["source-control", "live-service", "acceptance"]
           },
           "schema": {
             "type": "string",

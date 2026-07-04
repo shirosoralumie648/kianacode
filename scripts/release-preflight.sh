@@ -44,6 +44,7 @@ for file in \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   docs/sdk-runtime-events.md \
   docs/proof-templates/README.md \
+  docs/proof-templates/source-control.example.json \
   docs/proof-templates/product-acceptance.example.json \
   docs/proof-templates/entitlement-proof.example.json \
   docs/proof-templates/release-ops.example.json \
@@ -56,6 +57,7 @@ for file in \
   docs/schemas/kiana-app-server-sandbox.v1.schema.json \
   docs/schemas/kiana-app-server-plugins.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
+  docs/schemas/kiana-source-control-proof.v1.schema.json \
   docs/schemas/kiana-auth-status.v1.schema.json \
   docs/schemas/kiana-diff.v1.schema.json \
   docs/schemas/kiana-checkpoint.v1.schema.json \
@@ -429,6 +431,12 @@ else
   fail "commercial proof manifest JSON schema is missing kiana.commercial-proof-manifest.v1 const"
 fi
 
+if grep -Fq '"const": "kiana.source-control-proof.v1"' docs/schemas/kiana-source-control-proof.v1.schema.json; then
+  pass "source-control proof JSON schema version is pinned"
+else
+  fail "source-control proof JSON schema is missing kiana.source-control-proof.v1 const"
+fi
+
 if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json; then
   pass "commercial release blockers JSON schema version is pinned"
 else
@@ -614,14 +622,15 @@ else
 fi
 
 if grep -Fq 'dist/proofs/**' .github/workflows/release.yml &&
+  grep -Fq 'KIANA_SOURCE_CONTROL_PROOF_OUT: dist/proofs/source-control/source-control.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_LIVE_SMOKE_DIR: dist/proofs/live-smoke' .github/workflows/release.yml &&
   grep -Fq 'KIANA_ENTITLEMENT_PROOF_OUT: dist/proofs/entitlement/entitlement-proof.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_PRODUCT_ACCEPTANCE_OUT: dist/proofs/product/product-acceptance.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_RELEASE_OPS_OUT: dist/proofs/release-ops/release-ops.json' .github/workflows/release.yml &&
   grep -Fq 'KIANA_PLATFORM_SECURITY_PROOF_OUT: dist/proofs/platform-security/platform-security-${{ runner.os }}.json' .github/workflows/release.yml; then
-  pass "release workflow preserves live, entitlement, product, ops, and platform proof artifacts"
+  pass "release workflow preserves source-control, live, entitlement, product, ops, and platform proof artifacts"
 else
-  fail "release workflow does not preserve live/entitlement/product/ops/platform proof artifacts"
+  fail "release workflow does not preserve source-control/live/entitlement/product/ops/platform proof artifacts"
 fi
 
 stage_proofs_line="$(grep -n 'stage-commercial-release-proofs.sh' .github/workflows/release.yml | head -n 1 | cut -d: -f1 || true)"

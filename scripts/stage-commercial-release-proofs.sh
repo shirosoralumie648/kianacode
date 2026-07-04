@@ -19,6 +19,8 @@ Environment:
   DIST_DIR                                      default: dist
   KIANA_COMMERCIAL_PROOF_MANIFEST_OUT          default: DIST_DIR/proofs/PROOF-MANIFEST.json
   KIANA_COMMERCIAL_PROOF_HANDOFF_OUT           default: DIST_DIR/proofs/HANDOFF.md
+  KIANA_SOURCE_CONTROL_PROOF_FILE
+  KIANA_SOURCE_CONTROL_PROOF_OUT
   KIANA_LIVE_SMOKE_DIR
   KIANA_PROVIDER_LIVE_SMOKE_DIR
   KIANA_REMOTE_LIVE_SMOKE_DIR
@@ -222,6 +224,50 @@ def require_contract(label: str, checks: list[bool], data: dict[str, Any], sourc
     errors.append(f"{label}: {rel(source)} failed accepted commercial proof contract")
     errors.append(json.dumps(data, indent=2, sort_keys=True))
     return False
+
+
+source_control = first_existing(
+    "source-control proof",
+    [
+        to_path(os.environ.get("KIANA_SOURCE_CONTROL_PROOF_FILE")),
+        to_path(os.environ.get("KIANA_SOURCE_CONTROL_PROOF_OUT")),
+        DIST_DIR / "proofs/source-control/source-control.json",
+        Path(f"docs/source-control/{VERSION}.json"),
+    ],
+)
+if source_control:
+    source, data = source_control
+    expected_tag = f"v{VERSION}"
+    if require_contract(
+        "source-control proof",
+        [
+            data.get("schema") == "kiana.source-control-proof.v1",
+            data.get("version") == VERSION,
+            data.get("status") == "accepted",
+            data.get("accepted") is True,
+            filled(data, "accepted_by"),
+            filled(data, "accepted_at"),
+            filled(data, "remote_url"),
+            filled(data, "commit"),
+            filled(data, "tagged_commit"),
+            data.get("release_tag") == expected_tag,
+            data.get("commit") == data.get("tagged_commit"),
+            data.get("pushed") is True,
+            data.get("reviewed") is True,
+            not_placeholder(data, "accepted_by"),
+            not_placeholder(data, "remote_url"),
+        ],
+        data,
+        source,
+    ):
+        copy_and_record(
+            id="source.control",
+            category="source-control",
+            source=source,
+            dest=DIST_DIR / "proofs/source-control/source-control.json",
+            data=data,
+            details={"release_tag": data.get("release_tag"), "commit": data.get("commit")},
+        )
 
 
 live_root = Path(os.environ.get("KIANA_LIVE_SMOKE_DIR", "target/live-smoke"))
@@ -576,6 +622,7 @@ if errors:
 
 proof_paths = {entry["path"] for entry in entries}
 required_paths = {
+    rel(DIST_DIR / "proofs/source-control/source-control.json"),
     rel(DIST_DIR / "proofs/live-smoke/provider/model-catalog-live.json"),
     rel(DIST_DIR / "proofs/live-smoke/provider/model-smoke-live-tools.json"),
     rel(DIST_DIR / "proofs/live-smoke/remote/code-session-smoke.json"),
@@ -645,8 +692,8 @@ handoff_lines.extend(
         "```",
         "",
         "This handoff only records already accepted/live proof files. It does not",
-        "create acceptance, entitlement, operations, platform, provider, or remote",
-        "service evidence.",
+        "create source-control, acceptance, entitlement, operations, platform,",
+        "provider, or remote service evidence.",
         "",
     ]
 )

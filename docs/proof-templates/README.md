@@ -7,6 +7,7 @@ reviewed and accepted.
 
 Default full-preflight input paths for `VERSION=0.1.0` are:
 
+- `docs/source-control/0.1.0.json`
 - `docs/product-acceptance/0.1.0.json`
 - `docs/entitlements/0.1.0.json`
 - `docs/release-ops/0.1.0.json`
@@ -16,6 +17,7 @@ Default full-preflight input paths for `VERSION=0.1.0` are:
 
 The same files may be supplied from outside the repository with:
 
+- `KIANA_SOURCE_CONTROL_PROOF_FILE`
 - `KIANA_PRODUCT_ACCEPTANCE_FILE`
 - `KIANA_ENTITLEMENT_PROOF_FILE`
 - `KIANA_RELEASE_OPS_FILE`
