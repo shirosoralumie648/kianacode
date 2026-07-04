@@ -1575,6 +1575,51 @@ mod tests {
         }
     }
 
+    fn make_post_tool_ctx(
+        cwd: PathBuf,
+        project_trust: kiana_types::ProjectTrust,
+    ) -> PostToolUseHookContext {
+        PostToolUseHookContext {
+            abort_signal: Arc::new(tokio::sync::Notify::new()),
+            cwd,
+            project_trust,
+            permission_mode: "default".into(),
+            query_source: "repl_main_thread".into(),
+            tool_name: "Bash".into(),
+            tool_input: serde_json::json!({ "command": "echo ok" }),
+            tool_use_id: Some("toolu_test".into()),
+            tool_result: serde_json::json!({ "content": "ok" }),
+            is_error: false,
+        }
+    }
+
+    fn make_session_start_ctx(
+        cwd: PathBuf,
+        project_trust: kiana_types::ProjectTrust,
+    ) -> SessionStartHookContext {
+        SessionStartHookContext {
+            abort_signal: Arc::new(tokio::sync::Notify::new()),
+            cwd,
+            project_trust,
+            permission_mode: "default".into(),
+            query_source: "repl_main_thread".into(),
+        }
+    }
+
+    fn make_user_prompt_submit_ctx(
+        cwd: PathBuf,
+        project_trust: kiana_types::ProjectTrust,
+    ) -> UserPromptSubmitHookContext {
+        UserPromptSubmitHookContext {
+            abort_signal: Arc::new(tokio::sync::Notify::new()),
+            cwd,
+            project_trust,
+            permission_mode: "default".into(),
+            query_source: "repl_main_thread".into(),
+            user_prompt: "original prompt".into(),
+        }
+    }
+
     fn set_stop_hook(command: &str) {
         std::env::set_var(
             "KIANA_STOP_HOOKS",
@@ -1969,6 +2014,197 @@ mod tests {
         assert!(disabled_reason.contains("home pre hook blocked"));
         assert!(!disabled_reason.contains("project pre hook blocked"));
         assert!(!disabled_reason.contains("plugin pre hook blocked"));
+
+        match previous_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+        let _ = std::fs::remove_dir_all(root);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn session_start_hooks_respect_project_trust_source_boundary() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-session-start-trust-matrix-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let home = root.join("home");
+        let project = root.join("project");
+        std::fs::create_dir_all(home.join(".kiana")).unwrap();
+        std::fs::create_dir_all(project.join(".kiana")).unwrap();
+        std::fs::write(
+            home.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "SessionStart": ["printf '%s' '{\"add_context\":\"home session context\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "SessionStart": ["printf '%s' '{\"add_context\":\"project session context\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let previous_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        let trusted = run_session_start_hooks(make_session_start_ctx(
+            project.clone(),
+            kiana_types::ProjectTrust::Trusted,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            trusted,
+            vec![
+                "home session context".to_string(),
+                "project session context".to_string()
+            ]
+        );
+
+        let untrusted = run_session_start_hooks(make_session_start_ctx(
+            project,
+            kiana_types::ProjectTrust::Untrusted,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(untrusted, vec!["home session context".to_string()]);
+
+        match previous_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+        let _ = std::fs::remove_dir_all(root);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn user_prompt_submit_hooks_respect_project_trust_source_boundary() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-user-prompt-submit-trust-matrix-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let home = root.join("home");
+        let project = root.join("project");
+        std::fs::create_dir_all(home.join(".kiana")).unwrap();
+        std::fs::create_dir_all(project.join(".kiana")).unwrap();
+        std::fs::write(
+            home.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "UserPromptSubmit": ["printf '%s' '{\"add_context\":\"home prompt context\",\"update_input\":\"home prompt\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "UserPromptSubmit": ["printf '%s' '{\"add_context\":\"project prompt context\",\"update_input\":\"project prompt\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let previous_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        let trusted = run_user_prompt_submit_hooks(make_user_prompt_submit_ctx(
+            project.clone(),
+            kiana_types::ProjectTrust::Trusted,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            trusted.add_contexts,
+            vec![
+                "home prompt context".to_string(),
+                "project prompt context".to_string()
+            ]
+        );
+        assert_eq!(trusted.updated_prompt.as_deref(), Some("project prompt"));
+
+        let untrusted = run_user_prompt_submit_hooks(make_user_prompt_submit_ctx(
+            project,
+            kiana_types::ProjectTrust::Untrusted,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            untrusted.add_contexts,
+            vec!["home prompt context".to_string()]
+        );
+        assert_eq!(untrusted.updated_prompt.as_deref(), Some("home prompt"));
+
+        match previous_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+        let _ = std::fs::remove_dir_all(root);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn post_tool_use_hooks_respect_project_trust_source_boundary() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-post-tool-use-trust-matrix-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let home = root.join("home");
+        let project = root.join("project");
+        std::fs::create_dir_all(home.join(".kiana")).unwrap();
+        std::fs::create_dir_all(project.join(".kiana")).unwrap();
+        std::fs::write(
+            home.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "PostToolUse": ["printf '%s' '{\"decision\":\"block\",\"reason\":\"home post hook blocked\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "PostToolUse": ["printf '%s' '{\"decision\":\"block\",\"reason\":\"project post hook blocked\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let previous_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        let trusted = run_post_tool_use_hooks(make_post_tool_ctx(
+            project.clone(),
+            kiana_types::ProjectTrust::Trusted,
+        ))
+        .await;
+        let ToolHookDecision::Block(trusted_reason) = trusted else {
+            panic!("expected trusted hooks to block, got {trusted:?}");
+        };
+        assert!(trusted_reason.contains("home post hook blocked"));
+        assert!(trusted_reason.contains("project post hook blocked"));
+
+        let untrusted = run_post_tool_use_hooks(make_post_tool_ctx(
+            project,
+            kiana_types::ProjectTrust::Untrusted,
+        ))
+        .await;
+        let ToolHookDecision::Block(untrusted_reason) = untrusted else {
+            panic!("expected untrusted hooks to block on home only, got {untrusted:?}");
+        };
+        assert!(untrusted_reason.contains("home post hook blocked"));
+        assert!(!untrusted_reason.contains("project post hook blocked"));
 
         match previous_home {
             Some(value) => std::env::set_var("HOME", value),
