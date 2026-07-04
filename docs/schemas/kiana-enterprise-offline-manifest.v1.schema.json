@@ -3,7 +3,14 @@
   "$id": "https://kiana.local/schemas/kiana-enterprise-offline-manifest.v1.schema.json",
   "title": "Kiana Enterprise Offline Manifest v1",
   "type": "object",
-  "required": ["schema", "version", "release_base_url", "artifacts", "channels"],
+  "required": [
+    "schema",
+    "version",
+    "release_base_url",
+    "artifacts",
+    "channels",
+    "generated_by"
+  ],
   "properties": {
     "schema": {
       "const": "kiana.enterprise.offline-manifest.v1"
@@ -21,7 +28,16 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["target", "archive", "url", "sha256", "binary_sha256"],
+        "required": [
+          "target",
+          "archive",
+          "url",
+          "sha256",
+          "binary_sha256",
+          "local_path",
+          "checksum_path",
+          "binary_checksum_path"
+        ],
         "properties": {
           "target": {
             "type": "string",
@@ -42,6 +58,18 @@
           "binary_sha256": {
             "type": "string",
             "pattern": "^$|^[a-fA-F0-9]{64}$"
+          },
+          "local_path": {
+            "type": "string",
+            "pattern": "^kiana-.+[.]tar[.]gz$"
+          },
+          "checksum_path": {
+            "type": "string",
+            "pattern": "^kiana-.+[.]tar[.]gz[.]sha256$"
+          },
+          "binary_checksum_path": {
+            "type": "string",
+            "pattern": "^kiana-.+[.]binary[.]sha256$"
           }
         },
         "additionalProperties": false
@@ -65,6 +93,9 @@
         }
       },
       "additionalProperties": false
+    },
+    "generated_by": {
+      "const": "scripts/generate-distribution-manifests.sh"
     }
   },
   "additionalProperties": false

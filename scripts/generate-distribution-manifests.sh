@@ -132,7 +132,7 @@ EOF
   fi
 
   enterprise_targets+=(
-    "{\"target\":\"$(json_escape "$target")\",\"archive\":\"$(json_escape "$filename")\",\"url\":\"$(json_escape "$url")\",\"sha256\":\"$(json_escape "$archive_sha")\",\"binary_sha256\":\"$(json_escape "$binary_sha")\"}"
+    "{\"target\":\"$(json_escape "$target")\",\"archive\":\"$(json_escape "$filename")\",\"url\":\"$(json_escape "$url")\",\"sha256\":\"$(json_escape "$archive_sha")\",\"binary_sha256\":\"$(json_escape "$binary_sha")\",\"local_path\":\"$(json_escape "$filename")\",\"checksum_path\":\"$(json_escape "${filename}.sha256")\",\"binary_checksum_path\":\"$(json_escape "${package}.binary.sha256")\"}"
   )
 done
 
@@ -192,7 +192,8 @@ fi
   echo "    \"github_releases\": \"generated_from_release_base_url\","
   echo "    \"homebrew\": \"${homebrew_channel}\","
   echo "    \"winget\": \"${winget_channel}\""
-  echo "  }"
+  echo "  },"
+  echo "  \"generated_by\": \"scripts/generate-distribution-manifests.sh\""
   echo "}"
 } > "$manifest_dir/enterprise/offline-manifest.json"
 

@@ -41,9 +41,10 @@ tmp_checks_run="$(mktemp)"
 tmp_review_dry_run="$(mktemp)"
 tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
+tmp_enterprise_offline_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -569,6 +570,35 @@ JSON
   docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
   "$tmp_proof_manifest" >/dev/null
 
+cat > "$tmp_enterprise_offline_manifest" <<'JSON'
+{
+  "schema": "kiana.enterprise.offline-manifest.v1",
+  "version": "0.1.0",
+  "release_base_url": "https://github.com/acme/kiana/releases/download/v0.1.0",
+  "artifacts": [
+    {
+      "target": "linux-x86_64",
+      "archive": "kiana-0.1.0-linux-x86_64.tar.gz",
+      "url": "https://github.com/acme/kiana/releases/download/v0.1.0/kiana-0.1.0-linux-x86_64.tar.gz",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "binary_sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "local_path": "kiana-0.1.0-linux-x86_64.tar.gz",
+      "checksum_path": "kiana-0.1.0-linux-x86_64.tar.gz.sha256",
+      "binary_checksum_path": "kiana-0.1.0-linux-x86_64.binary.sha256"
+    }
+  ],
+  "channels": {
+    "github_releases": "generated_from_release_base_url",
+    "homebrew": "generated",
+    "winget": "generated"
+  },
+  "generated_by": "scripts/generate-distribution-manifests.sh"
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
+  "$tmp_enterprise_offline_manifest" >/dev/null
+
 cat > "$tmp_local_rc_evidence" <<'JSON'
 {
   "schema": "kiana.local-rc-evidence.v1",
@@ -622,7 +652,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

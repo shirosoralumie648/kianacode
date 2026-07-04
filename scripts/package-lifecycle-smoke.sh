@@ -265,6 +265,10 @@ checks = [
     artifact is not None,
     artifact is not None and artifact.get("sha256") == archive_sha,
     artifact is not None and archive_name in artifact.get("url", ""),
+    artifact is not None and artifact.get("local_path") == archive_name,
+    artifact is not None and artifact.get("checksum_path") == f"{archive_name}.sha256",
+    artifact is not None and artifact.get("binary_checksum_path") == f"{archive_name[:-7]}.binary.sha256",
+    manifest.get("generated_by") == "scripts/generate-distribution-manifests.sh",
     isinstance(manifest.get("channels"), dict),
 ]
 if not all(checks):

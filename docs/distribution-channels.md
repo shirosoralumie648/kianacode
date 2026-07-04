@@ -38,7 +38,10 @@ The channels below define the commercial distribution target state.
 - Enterprise offline bundles include
   `manifests/enterprise/offline-manifest.json`, generated from the same archive
   checksum files and validated by package lifecycle smoke against the pinned
-  `kiana.enterprise.offline-manifest.v1` schema.
+  `kiana.enterprise.offline-manifest.v1` schema. Each artifact row records the
+  remote URL plus the offline bundle-relative archive, archive checksum, and
+  binary checksum paths so enterprise installers can verify detached bundles
+  without reconstructing filenames.
 - GitHub Actions artifact workflow for Linux, macOS, and Windows once the real
   remote is active.
 - Release CI installs compliance tools through `scripts/install-compliance-tools.sh`
@@ -73,7 +76,8 @@ Those manifests must be generated from the same version and checksum set as the
 GitHub Release artifacts. The commercial verifier treats missing Homebrew,
 winget, or enterprise bundle metadata as a hard failure. The enterprise offline
 manifest must use a real HTTPS release URL, include non-empty artifact checksum
-entries, and report generated Homebrew and winget channel state.
+entries, list the offline bundle-relative archive and checksum paths, and report
+generated Homebrew and winget channel state.
 
 Windows release packaging emits a portable ZIP; full commercial verification
 requires that ZIP to be present in the combined release artifact set before the

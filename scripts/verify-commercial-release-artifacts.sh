@@ -746,15 +746,31 @@ if isinstance(artifacts, list):
             continue
         url = item.get("url")
         artifact_checks.append(
-            all(filled(item, key) for key in ["target", "archive", "url", "sha256", "binary_sha256"])
+            all(
+                filled(item, key)
+                for key in [
+                    "target",
+                    "archive",
+                    "url",
+                    "sha256",
+                    "binary_sha256",
+                    "local_path",
+                    "checksum_path",
+                    "binary_checksum_path",
+                ]
+            )
             and real_url(url)
             and isinstance(base_url, str)
             and url.startswith(base_url)
+            and item.get("local_path") == item.get("archive")
+            and item.get("checksum_path") == f"{item.get('archive')}.sha256"
+            and item.get("binary_checksum_path") == f"{item.get('archive')[:-7]}.binary.sha256"
         )
 
 checks = [
     manifest.get("schema") == "kiana.enterprise.offline-manifest.v1",
     manifest.get("version") == expected_version,
+    manifest.get("generated_by") == "scripts/generate-distribution-manifests.sh",
     real_url(base_url),
     isinstance(artifacts, list) and len(artifacts) > 0,
     bool(artifact_checks) and all(artifact_checks),
