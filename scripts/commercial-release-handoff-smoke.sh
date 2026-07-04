@@ -223,6 +223,111 @@ if "release signature proofs accepted" not in check.get("evidence", ""):
     raise SystemExit("signing.release-artifacts evidence does not name accepted signature proofs")
 PY
 
+mkdir -p "$tmp_dist/proofs/live-smoke/provider" "$tmp_dist/proofs/live-smoke/remote"
+cat > "$tmp_dist/proofs/live-smoke/provider/model-catalog-live.json" <<'JSON'
+{
+  "schema": "kiana.model-catalog.v1",
+  "live": true,
+  "summary": {
+    "providers": 1,
+    "discovered_models": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "providers": [
+    {
+      "provider_id": "openai-compatible",
+      "display_name": "OpenAI-compatible",
+      "protocol": "open_ai_chat_completions",
+      "models_source": "user_configured",
+      "status": "passed",
+      "live": true,
+      "model_ids": ["gpt-fixture"],
+      "discovered_model_ids": ["gpt-fixture"],
+      "message": "fixture live catalog passed",
+      "base_url": "https://provider.kiana.local/v1"
+    }
+  ]
+}
+JSON
+cat > "$tmp_dist/proofs/live-smoke/provider/model-smoke-live-tools.json" <<'JSON'
+{
+  "schema": "kiana.model-smoke.v1",
+  "live": true,
+  "tools": true,
+  "summary": {
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "provider_id": "openai-compatible",
+      "model_id": "gpt-fixture",
+      "status": "passed",
+      "live": true,
+      "capability": "text",
+      "message": "fixture text smoke passed",
+      "output_preview": "ok"
+    },
+    {
+      "provider_id": "openai-compatible",
+      "model_id": "gpt-fixture",
+      "status": "passed",
+      "live": true,
+      "capability": "tools",
+      "message": "fixture tool smoke passed",
+      "output_preview": "tool_call"
+    }
+  ]
+}
+JSON
+cat > "$tmp_dist/proofs/live-smoke/remote/code-session-smoke.json" <<'JSON'
+{
+  "schema": "kiana.remote-code-session-smoke.v1",
+  "status": "ok",
+  "checked_at": "2026-01-01T00:00:00Z",
+  "session_id": "cse_fixture",
+  "api_base_url": "https://remote.kiana.local/api",
+  "sdk_url": "https://remote.kiana.local/sdk",
+  "expires_in": 3600,
+  "worker_epoch": 7
+}
+JSON
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+by_id = {item["id"]: item for item in report.get("checks", [])}
+expected = {
+    "live.provider-smoke": "provider live proofs accepted",
+    "live.remote-code-session": "remote code-session proof accepted",
+}
+for check_id, evidence_text in expected.items():
+    check = by_id.get(check_id)
+    if not check:
+        raise SystemExit(f"{check_id} check is missing")
+    if check.get("status") != "satisfied":
+        raise SystemExit(f"{check_id} was not satisfied by staged live proof")
+    if check_id in handoff:
+        raise SystemExit(f"{check_id} should not appear as a blocking handoff assignment")
+    if evidence_text not in check.get("evidence", ""):
+        raise SystemExit(f"{check_id} evidence does not name accepted staged proof")
+PY
+
 mkdir -p "$tmp_dist/proofs/product"
 cat > "$tmp_dist/proofs/product/product-acceptance.json" <<'JSON'
 {

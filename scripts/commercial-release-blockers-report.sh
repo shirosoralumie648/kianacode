@@ -139,6 +139,23 @@ def valid_fingerprint(mapping, key):
     return isinstance(value, str) and bool(FINGERPRINT_PATTERN.fullmatch(value))
 
 
+def unique_paths(paths):
+    seen = set()
+    result = []
+    for path in paths:
+        if path is None:
+            continue
+        path = Path(path)
+        if not str(path):
+            continue
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(path)
+    return result
+
+
 def sha256_file(path):
     import hashlib
 
@@ -641,10 +658,38 @@ add_check(
 
 live_root = Path(os.environ.get("KIANA_LIVE_SMOKE_DIR", "target/live-smoke"))
 provider_dir = Path(os.environ.get("KIANA_PROVIDER_LIVE_SMOKE_DIR", live_root / "provider"))
-provider_catalog = provider_dir / "model-catalog-live.json"
-provider_smoke = provider_dir / "model-smoke-live-tools.json"
-catalog, catalog_error = load_json(provider_catalog)
-smoke, smoke_error = load_json(provider_smoke)
+provider_catalog_candidates = unique_paths(
+    [
+        Path(os.environ["KIANA_PROVIDER_CATALOG_PROOF_FILE"])
+        if os.environ.get("KIANA_PROVIDER_CATALOG_PROOF_FILE")
+        else None,
+        dist_dir / "proofs/live-smoke/provider/model-catalog-live.json",
+        provider_dir / "model-catalog-live.json",
+    ]
+)
+provider_smoke_candidates = unique_paths(
+    [
+        Path(os.environ["KIANA_PROVIDER_SMOKE_PROOF_FILE"])
+        if os.environ.get("KIANA_PROVIDER_SMOKE_PROOF_FILE")
+        else None,
+        dist_dir / "proofs/live-smoke/provider/model-smoke-live-tools.json",
+        provider_dir / "model-smoke-live-tools.json",
+    ]
+)
+provider_catalog = provider_catalog_candidates[0]
+provider_smoke = provider_smoke_candidates[0]
+catalog, catalog_error = None, "missing"
+for candidate in provider_catalog_candidates:
+    catalog, catalog_error = load_json(candidate)
+    if catalog_error is None and isinstance(catalog, dict):
+        provider_catalog = candidate
+        break
+smoke, smoke_error = None, "missing"
+for candidate in provider_smoke_candidates:
+    smoke, smoke_error = load_json(candidate)
+    if smoke_error is None and isinstance(smoke, dict):
+        provider_smoke = candidate
+        break
 live_text_passed = False
 live_tools_passed = False
 provider_ok = False
@@ -675,9 +720,16 @@ if isinstance(catalog, dict) and isinstance(smoke, dict):
         and live_tools_passed
     )
 provider_evidence = (
-    f"text={live_text_passed} tools={live_tools_passed} catalog={provider_catalog} smoke={provider_smoke}"
-    if catalog_error is None and smoke_error is None
-    else f"catalog={catalog_error or 'present'} smoke={smoke_error or 'present'}"
+    (
+        f"provider live proofs accepted: text={live_text_passed} tools={live_tools_passed} "
+        f"catalog={provider_catalog} smoke={provider_smoke}"
+    )
+    if provider_ok
+    else (
+        f"text={live_text_passed} tools={live_tools_passed} catalog={provider_catalog} smoke={provider_smoke}"
+        if catalog_error is None and smoke_error is None
+        else f"catalog={catalog_error or 'present'} smoke={smoke_error or 'present'}"
+    )
 )
 add_check(
     id="live.provider-smoke",
@@ -696,18 +748,42 @@ add_check(
         "OPENAI_API_KEY",
         "KIANA_OLLAMA_BASE_URL",
         "OLLAMA_BASE_URL",
+        "KIANA_PROVIDER_CATALOG_PROOF_FILE",
+        "KIANA_PROVIDER_SMOKE_PROOF_FILE",
     ],
 )
 
 remote_dir = Path(os.environ.get("KIANA_REMOTE_LIVE_SMOKE_DIR", live_root / "remote"))
-remote_proof = remote_dir / "code-session-smoke.json"
-remote, remote_error = load_json(remote_proof)
+remote_candidates = unique_paths(
+    [
+        Path(os.environ["KIANA_REMOTE_SMOKE_PROOF_FILE"])
+        if os.environ.get("KIANA_REMOTE_SMOKE_PROOF_FILE")
+        else None,
+        dist_dir / "proofs/live-smoke/remote/code-session-smoke.json",
+        remote_dir / "code-session-smoke.json",
+    ]
+)
+remote_proof = remote_candidates[0]
+remote, remote_error = None, "missing"
+for candidate in remote_candidates:
+    remote, remote_error = load_json(candidate)
+    if remote_error is None and isinstance(remote, dict):
+        remote_proof = candidate
+        break
 remote_ok = (
     isinstance(remote, dict)
     and remote.get("schema") == "kiana.remote-code-session-smoke.v1"
     and remote.get("status") == "ok"
     and isinstance(remote.get("session_id"), str)
     and remote["session_id"].startswith("cse_")
+    and isinstance(remote.get("api_base_url"), str)
+    and remote["api_base_url"].startswith(("http://", "https://"))
+    and isinstance(remote.get("sdk_url"), str)
+    and remote["sdk_url"].startswith(("http://", "https://"))
+    and isinstance(remote.get("expires_in"), int)
+    and remote["expires_in"] > 0
+    and isinstance(remote.get("worker_epoch"), int)
+    and remote["worker_epoch"] >= 0
 )
 add_check(
     id="live.remote-code-session",
@@ -716,7 +792,15 @@ add_check(
     ok=remote_ok,
     external=True,
     gate="scripts/remote-live-smoke.sh --required",
-    evidence=f"proof={remote_proof}" if remote_error is None else f"proof={remote_error}: {remote_proof}",
+    evidence=(
+        f"remote code-session proof accepted: proof={remote_proof}"
+        if remote_ok
+        else (
+            f"proof={remote_proof}"
+            if remote_error is None
+            else f"proof={remote_error}: {remote_proof}"
+        )
+    ),
     required_action="Run remote live smoke against the production-like CCR/session service and keep the proof JSON.",
     paths=[remote_proof],
     commands=["bash scripts/remote-live-smoke.sh --required", "bash scripts/stage-commercial-release-proofs.sh"],
@@ -725,6 +809,7 @@ add_check(
         "CLAUDE_ACCESS_TOKEN",
         "ANTHROPIC_AUTH_TOKEN",
         "KIANA_OAUTH_TOKENS_FILE",
+        "KIANA_REMOTE_SMOKE_PROOF_FILE",
     ],
 )
 
