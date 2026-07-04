@@ -132,6 +132,9 @@ commercial release.
   `kiana.context-search.v1`, and `kiana.context-pack.v1` from the active
   workspace so Web/IDE clients can use repository knowledge without shelling out
   to the CLI.
+- App-server context indexing supports `cache=true` on `/app/context/index`,
+  writing the default workspace `.kiana/context-index.json` artifact with the
+  same cache status fields as `kiana context index --cache`.
 - Local context index/search workflows are accepted for repository knowledge
   lookup before richer RAG features are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and

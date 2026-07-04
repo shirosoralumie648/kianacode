@@ -8,8 +8,8 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
 use kiana_query::{
-    build_context_index, build_context_pack, search_context_index, ContextIndexOptions,
-    ContextPackOptions, ContextSearchOptions,
+    build_context_index, build_context_pack, build_persistent_context_index, search_context_index,
+    ContextIndexOptions, ContextPackOptions, ContextSearchOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -5563,6 +5563,7 @@ struct DirectConnectContextQuery {
 
 #[derive(Debug, Deserialize)]
 struct DirectConnectContextIndexQuery {
+    cache: Option<bool>,
     max_bytes_per_file: Option<usize>,
 }
 
@@ -5580,14 +5581,20 @@ async fn direct_connect_app_context_index_handler(
         );
     }
 
-    match build_context_index(
-        &state.workspace,
-        ContextIndexOptions {
-            max_bytes_per_file: query.max_bytes_per_file,
-        },
-    )
-    .and_then(|index| serde_json::to_value(index).map_err(Into::into))
-    {
+    let options = ContextIndexOptions {
+        max_bytes_per_file: query.max_bytes_per_file,
+    };
+    let index = if query.cache.unwrap_or(false) {
+        build_persistent_context_index(
+            &state.workspace,
+            options,
+            state.workspace.join(".kiana").join("context-index.json"),
+        )
+    } else {
+        build_context_index(&state.workspace, options)
+    };
+
+    match index.and_then(|index| serde_json::to_value(index).map_err(Into::into)) {
         Ok(value) => axum::Json(value).into_response(),
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::BAD_REQUEST,
@@ -6249,6 +6256,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "plugins.read",
             "git.status.read",
             "context.index.read",
+            "context.index.cache.write",
             "context.search.read",
             "context.pack.read"
         ],
@@ -6296,7 +6304,10 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             {
                 "method": "GET",
                 "path": "/app/context/index",
-                "schema": "kiana.context-index.v1"
+                "schema": "kiana.context-index.v1",
+                "query": {
+                    "cache": "optional boolean; when true writes .kiana/context-index.json in the active workspace"
+                }
             },
             {
                 "method": "GET",
@@ -15545,6 +15556,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.index.cache.write".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.search.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -15768,6 +15783,28 @@ mod tests {
             .unwrap()
             .iter()
             .any(|file| file["path"] == "src/lib.rs"));
+
+        let cached_context_index: Value = client
+            .get(format!("http://{addr}/app/context/index"))
+            .bearer_auth("secret")
+            .query(&[("cache", "true"), ("max_bytes_per_file", "1024")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(cached_context_index["schema"], "kiana.context-index.v1");
+        assert_eq!(cached_context_index["cache"]["status"], "created");
+        assert_eq!(cached_context_index["cache"]["added_files"], 2);
+        assert!(cached_context_index["cache"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with(".kiana/context-index.json"));
+        assert!(workspace
+            .join(".kiana")
+            .join("context-index.json")
+            .is_file());
 
         let context_search: Value = client
             .get(format!("http://{addr}/app/context/search"))
