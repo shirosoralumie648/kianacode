@@ -710,7 +710,8 @@ smoke_completion_scripts() {
 }
 
 smoke_plugin_marketplace() {
-  local binary="$1"
+  local binary
+  binary="$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")"
   local marketplace_dir="$tmp_root/tools-marketplace"
   local output
 
@@ -769,6 +770,24 @@ JSON
   output="$(run_clean_kiana "$binary" plugin uninstall review-tools)"
   grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
   test ! -e "$smoke_home/.kiana/plugins/review-tools"
+
+  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope project)"
+  grep -Fq -- "Installed plugin: review-tools" <<<"$output"
+  grep -Fq -- "path: $tmp_root/.kiana/plugins/review-tools" <<<"$output"
+  test -f "$tmp_root/.kiana/plugins/review-tools/commands/audit.md"
+  test -f "$tmp_root/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin uninstall review-tools --scope project)"
+  grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
+  test ! -e "$tmp_root/.kiana/plugins/review-tools"
+
+  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope local)"
+  grep -Fq -- "Installed plugin: review-tools" <<<"$output"
+  grep -Fq -- "path: $tmp_root/.kiana/plugins.local/review-tools" <<<"$output"
+  test -f "$tmp_root/.kiana/plugins.local/review-tools/commands/audit.md"
+  test -f "$tmp_root/.kiana/plugins.local/review-tools/.kiana-install-receipt.json"
+  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin uninstall review-tools --scope local)"
+  grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
+  test ! -e "$tmp_root/.kiana/plugins.local/review-tools"
 
   output="$(run_clean_kiana "$binary" plugin marketplace remove tools-marketplace)"
   grep -Fq -- "Successfully removed marketplace: tools-marketplace" <<<"$output"

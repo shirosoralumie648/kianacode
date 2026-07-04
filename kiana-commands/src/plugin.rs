@@ -155,7 +155,7 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
         return Ok(CommandResult::text(plugin_install_usage()));
     }
     let args = parse_plugin_action_args(rest, "install")?;
-    ensure_runtime_plugin_scope(args.scope, "install")?;
+    let install_scope = args.scope.unwrap_or(MarketplaceScope::User);
     let source = resolve_install_source(context, &args.target).await?;
     let source_info = read_plugin(source.root.clone())?;
     if !source_info.valid {
@@ -175,7 +175,7 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
         enforce_managed_plugin_policy(source_info.display_name(), source.marketplace.as_deref())?;
 
     let install_name = safe_plugin_dir_name(source_info.display_name())?;
-    let install_root = plugin_root_dir(context);
+    let install_root = scoped_plugin_root_dir(context, install_scope);
     let destination = install_root.join(&install_name);
     if same_existing_path(&source_info.root, &destination) {
         return Ok(CommandResult::text(format!(
@@ -225,9 +225,9 @@ async fn uninstall_plugin(context: &CommandContext, rest: &str) -> Result<Comman
         return Ok(CommandResult::text(plugin_uninstall_usage()));
     }
     let args = parse_plugin_action_args(rest, "uninstall")?;
-    ensure_runtime_plugin_scope(args.scope, "uninstall")?;
-    let install_root = plugin_root_dir(context);
-    let plugin = resolve_installed_plugin(context, &args.target)?;
+    let install_scope = args.scope.unwrap_or(MarketplaceScope::User);
+    let install_root = scoped_plugin_root_dir(context, install_scope);
+    let plugin = resolve_installed_plugin_in_root(context, &args.target, &install_root)?;
     let plugin_name = plugin.display_name().to_string();
     std::fs::remove_dir_all(&plugin.root)?;
     let state_path =
@@ -1238,8 +1238,11 @@ fn plugin_dir_matches(root: &Path, target: &str) -> Result<bool> {
     Ok(read_plugin(root.to_path_buf())?.target_matches(target))
 }
 
-fn resolve_installed_plugin(context: &CommandContext, target: &str) -> Result<PluginInfo> {
-    let root = plugin_root_dir(context);
+fn resolve_installed_plugin_in_root(
+    context: &CommandContext,
+    target: &str,
+    root: &Path,
+) -> Result<PluginInfo> {
     let plugins = load_installed_plugins(&root)?;
     let path = resolve_path(context, target);
     if path.exists() {
@@ -1329,16 +1332,6 @@ fn parse_plugin_action_args(rest: &str, command: &str) -> Result<PluginActionArg
     }
     let target = target.ok_or_else(|| anyhow!("usage: kiana plugin {command} <plugin>"))?;
     Ok(PluginActionArgs { target, scope })
-}
-
-fn ensure_runtime_plugin_scope(scope: Option<MarketplaceScope>, command: &str) -> Result<()> {
-    match scope.unwrap_or(MarketplaceScope::User) {
-        MarketplaceScope::User => Ok(()),
-        other => Err(anyhow!(
-            "kiana plugin {command} --scope {} is not implemented yet; this build installs into the active user plugin path",
-            other
-        )),
-    }
 }
 
 fn safe_plugin_dir_name(name: &str) -> Result<String> {
@@ -1955,6 +1948,18 @@ fn plugin_init_summary(plugin: &PluginInfo) -> Value {
 }
 
 fn plugin_root_dir(context: &CommandContext) -> PathBuf {
+    scoped_plugin_root_dir(context, MarketplaceScope::User)
+}
+
+fn scoped_plugin_root_dir(context: &CommandContext, scope: MarketplaceScope) -> PathBuf {
+    match scope {
+        MarketplaceScope::User => user_plugin_root_dir(context),
+        MarketplaceScope::Project => cwd(context).join(".kiana").join("plugins"),
+        MarketplaceScope::Local => cwd(context).join(".kiana").join("plugins.local"),
+    }
+}
+
+fn user_plugin_root_dir(context: &CommandContext) -> PathBuf {
     if let Ok(path) = std::env::var("KIANA_PLUGINS_DIR") {
         return resolve_path(context, &path);
     }
@@ -2010,11 +2015,11 @@ fn marketplace_usage() -> &'static str {
 }
 
 fn plugin_install_usage() -> &'static str {
-    "Usage: kiana plugin install <plugin|plugin@marketplace|path> [--scope user]"
+    "Usage: kiana plugin install <plugin|plugin@marketplace|path> [--scope user|project|local]"
 }
 
 fn plugin_uninstall_usage() -> &'static str {
-    "Usage: kiana plugin uninstall <plugin|path> [--scope user] [--keep-data]"
+    "Usage: kiana plugin uninstall <plugin|path> [--scope user|project|local] [--keep-data]"
 }
 
 #[derive(Debug)]
@@ -3300,6 +3305,140 @@ mod tests {
             None => std::env::remove_var("KIANA_HOME"),
         }
         std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_and_uninstall_support_project_scope() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("install-project-scope");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let user_plugins_dir = kiana_home.join("plugins");
+        let project_plugins_dir = cwd.join(".kiana").join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let installed = PluginCommand
+            .execute(context(
+                "install review-tools@tools-marketplace --scope project",
+                &cwd,
+            ))
+            .await
+            .unwrap();
+        assert!(installed.value.contains("Installed plugin: review-tools"));
+        assert!(installed.value.contains(&format!(
+            "path: {}",
+            project_plugins_dir.join("review-tools").display()
+        )));
+        assert!(project_plugins_dir
+            .join("review-tools")
+            .join("commands")
+            .join("audit.md")
+            .is_file());
+        assert!(!user_plugins_dir.join("review-tools").exists());
+        assert!(project_plugins_dir.join("disabled_plugins.json").is_file());
+
+        let uninstalled = PluginCommand
+            .execute(context("uninstall review-tools --scope project", &cwd))
+            .await
+            .unwrap();
+        assert!(uninstalled
+            .value
+            .contains("Uninstalled plugin: review-tools"));
+        assert!(!project_plugins_dir.join("review-tools").exists());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_and_uninstall_support_local_scope() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("install-local-scope");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let user_plugins_dir = kiana_home.join("plugins");
+        let local_plugins_dir = cwd.join(".kiana").join("plugins.local");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let installed = PluginCommand
+            .execute(context(
+                "install review-tools@tools-marketplace --scope local",
+                &cwd,
+            ))
+            .await
+            .unwrap();
+        assert!(installed.value.contains("Installed plugin: review-tools"));
+        assert!(installed.value.contains(&format!(
+            "path: {}",
+            local_plugins_dir.join("review-tools").display()
+        )));
+        assert!(local_plugins_dir
+            .join("review-tools")
+            .join("commands")
+            .join("audit.md")
+            .is_file());
+        assert!(!user_plugins_dir.join("review-tools").exists());
+        assert!(local_plugins_dir.join("disabled_plugins.json").is_file());
+
+        let uninstalled = PluginCommand
+            .execute(context("uninstall review-tools --scope local", &cwd))
+            .await
+            .unwrap();
+        assert!(uninstalled
+            .value
+            .contains("Uninstalled plugin: review-tools"));
+        assert!(!local_plugins_dir.join("review-tools").exists());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
         let _ = fs::remove_dir_all(root);
     }
 
