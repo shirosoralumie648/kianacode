@@ -250,15 +250,15 @@ async fn set_plugin_state(
     rest: &str,
     enabled: bool,
 ) -> Result<CommandResult> {
-    let target = rest.trim();
-    if target.is_empty() {
+    let args = parse_plugin_read_args(rest, if enabled { "enable" } else { "disable" })?;
+    let Some(target) = args.target.as_deref() else {
         return Err(anyhow!(
-            "usage: kiana plugin {} <name|path>",
+            "usage: kiana plugin {} <name|path> [--scope user|project|local]",
             if enabled { "enable" } else { "disable" }
         ));
-    }
-    let plugin = resolve_plugin(context, target)?;
-    let root = plugin_root_dir(context);
+    };
+    let root = scoped_plugin_root_dir(context, args.scope);
+    let plugin = resolve_installed_plugin_in_root(context, target, &root)?;
     let state_path =
         set_plugin_enabled(&root, plugin.display_name(), enabled).map_err(anyhow::Error::msg)?;
     kiana_tools::lsp_tool::shutdown_lsp_clients().await;
@@ -1643,21 +1643,6 @@ fn managed_plugin_policy_path() -> Option<PathBuf> {
     std::env::var_os(KIANA_MANAGED_PLUGIN_POLICY_FILE_ENV)
         .or_else(|| std::env::var_os("KIANA_MANAGED_POLICY_FILE"))
         .map(PathBuf::from)
-}
-
-fn resolve_plugin(context: &CommandContext, target: &str) -> Result<PluginInfo> {
-    let path = resolve_path(context, target);
-    if path.exists() {
-        let root = plugin_root_from_target(&path);
-        return read_plugin(root);
-    }
-
-    let root = plugin_root_dir(context);
-    let plugins = load_installed_plugins(&root)?;
-    plugins
-        .into_iter()
-        .find(|plugin| plugin.target_matches(target))
-        .ok_or_else(|| anyhow!("plugin '{}' was not found in {}", target, root.display()))
 }
 
 fn load_installed_plugins(root: &Path) -> Result<Vec<PluginInfo>> {
@@ -3659,6 +3644,162 @@ mod tests {
             .value
             .contains("Validating plugin: review-tools"));
         assert!(scoped_validate.value.contains("Validation passed"));
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_state_commands_support_project_scope() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("state-project-scope");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let user_plugins_dir = kiana_home.join("plugins");
+        let project_plugins_dir = cwd.join(".kiana").join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+        PluginCommand
+            .execute(context(
+                "install review-tools@tools-marketplace --scope project",
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let disabled = PluginCommand
+            .execute(context("disable review-tools --scope project", &cwd))
+            .await
+            .unwrap();
+        assert!(disabled.value.contains("Plugin disabled: review-tools"));
+        assert!(disabled.value.contains(&format!(
+            "state: {}",
+            project_plugins_dir.join("disabled_plugins.json").display()
+        )));
+
+        let scoped_list = PluginCommand
+            .execute(context("list --scope project review-tools", &cwd))
+            .await
+            .unwrap();
+        assert!(scoped_list
+            .value
+            .contains("review-tools@1.2.3 [valid disabled]"));
+
+        let default_list = PluginCommand
+            .execute(context("list review-tools", &cwd))
+            .await
+            .unwrap();
+        assert!(default_list.value.contains("No plugins."));
+
+        let enabled = PluginCommand
+            .execute(context("enable review-tools --scope project", &cwd))
+            .await
+            .unwrap();
+        assert!(enabled.value.contains("Plugin enabled: review-tools"));
+        let scoped_list = PluginCommand
+            .execute(context("list --scope project review-tools", &cwd))
+            .await
+            .unwrap();
+        assert!(scoped_list
+            .value
+            .contains("review-tools@1.2.3 [valid enabled]"));
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_state_commands_support_local_scope() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("state-local-scope");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let user_plugins_dir = kiana_home.join("plugins");
+        let local_plugins_dir = cwd.join(".kiana").join("plugins.local");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+        PluginCommand
+            .execute(context(
+                "install review-tools@tools-marketplace --scope local",
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let disabled = PluginCommand
+            .execute(context("disable review-tools --scope local", &cwd))
+            .await
+            .unwrap();
+        assert!(disabled.value.contains("Plugin disabled: review-tools"));
+        assert!(disabled.value.contains(&format!(
+            "state: {}",
+            local_plugins_dir.join("disabled_plugins.json").display()
+        )));
+
+        let scoped_json = PluginCommand
+            .execute(context("json --scope local review-tools", &cwd))
+            .await
+            .unwrap();
+        let scoped_json: Value = serde_json::from_str(&scoped_json.value).unwrap();
+        assert_eq!(scoped_json[0]["enabled"], false);
+
+        let enabled = PluginCommand
+            .execute(context("enable review-tools --scope local", &cwd))
+            .await
+            .unwrap();
+        assert!(enabled.value.contains("Plugin enabled: review-tools"));
+        let scoped_json = PluginCommand
+            .execute(context("json --scope local review-tools", &cwd))
+            .await
+            .unwrap();
+        let scoped_json: Value = serde_json::from_str(&scoped_json.value).unwrap();
+        assert_eq!(scoped_json[0]["enabled"], true);
 
         match previous_home {
             Some(value) => std::env::set_var("KIANA_HOME", value),
