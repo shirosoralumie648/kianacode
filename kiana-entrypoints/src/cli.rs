@@ -5240,6 +5240,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_git_status_handler),
         )
         .route(
+            "/app/diff",
+            axum::routing::get(direct_connect_app_diff_handler),
+        )
+        .route(
             "/app/checks/dry-run",
             axum::routing::get(direct_connect_app_checks_dry_run_handler),
         )
@@ -5567,6 +5571,54 @@ async fn direct_connect_app_git_status_handler(
     }
 
     axum::Json(direct_connect_git_status_report(&state.workspace)).into_response()
+}
+
+async fn direct_connect_app_diff_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("diff") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "diff command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "--json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| {
+        let mut value = serde_json::from_str::<Value>(&result.value)?;
+        if let Some(object) = value.as_object_mut() {
+            object.insert(
+                "schema".to_string(),
+                Value::String("kiana.diff.v1".to_string()),
+            );
+        }
+        Ok(value)
+    }) {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build diff report: {error}"),
+        ),
+    }
 }
 
 async fn direct_connect_app_checks_dry_run_handler(
@@ -6449,6 +6501,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "sandbox.read",
             "plugins.read",
             "git.status.read",
+            "diff.read",
             "checks.dry_run.read",
             "checks.run.read",
             "review.dry_run.read",
@@ -6498,6 +6551,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/git/status",
                 "schema": "kiana.app-server.git-status.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/diff",
+                "schema": "kiana.diff.v1"
             },
             {
                 "method": "GET",
@@ -15799,6 +15857,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("diff.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("review.dry_run.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -15875,6 +15937,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/checks"
                     && endpoint["schema"] == "kiana.checks.run.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/diff"
+                    && endpoint["schema"] == "kiana.diff.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16225,6 +16296,27 @@ mod tests {
             .unwrap()
             .iter()
             .any(|file| file["path"] == "review-notes.txt"));
+
+        let diff: Value = client
+            .get(format!("http://{addr}/app/diff"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(diff["schema"], "kiana.diff.v1");
+        assert_eq!(diff["root"], workspace.display().to_string());
+        assert_eq!(diff["inside_git_repo"], true);
+        assert_eq!(diff["dirty"], true);
+        assert!(diff["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|file| file["path"] == "review-notes.txt"
+                && file["index"] == "?"
+                && file["worktree"] == "?"));
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))

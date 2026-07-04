@@ -128,6 +128,9 @@ commercial release.
   `docs/sdk-runtime-events.md` compatibility policy.
 - App-server plugin visibility returns `kiana.app-server.plugins.v1` without
   exposing plugin secrets or bypassing managed plugin policy.
+- App-server diff returns `kiana.diff.v1` from the active workspace so Web/IDE
+  clients can display changed files plus staged and unstaged stats without
+  shelling out to `kiana diff --json`.
 - App-server checks dry-run returns `kiana.checks.dry_run.v1` from the active
   workspace so Web/IDE clients can display deterministic local quality gates
   without shelling out to `kiana checks --dry-run --json`.
