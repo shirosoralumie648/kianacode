@@ -87,6 +87,22 @@ struct ListMcpResourceTemplatesInput {
 }
 
 #[derive(Debug, Deserialize)]
+struct ListMcpPromptsInput {
+    #[serde(default)]
+    server: Option<String>,
+    #[serde(default)]
+    transport: Option<TransportType>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    command: Option<String>,
+    #[serde(default, alias = "commandArgs")]
+    command_args: Option<Vec<String>>,
+    #[serde(default)]
+    config: Option<McpServerConfigInput>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ReadMcpResourceInput {
     server: String,
     uri: String,
@@ -102,10 +118,30 @@ struct ReadMcpResourceInput {
     config: Option<McpServerConfigInput>,
 }
 
+#[derive(Debug, Deserialize)]
+struct GetMcpPromptInput {
+    server: String,
+    name: String,
+    #[serde(default)]
+    args: Option<Value>,
+    #[serde(default)]
+    transport: Option<TransportType>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    command: Option<String>,
+    #[serde(default, alias = "commandArgs")]
+    command_args: Option<Vec<String>>,
+    #[serde(default)]
+    config: Option<McpServerConfigInput>,
+}
+
 pub struct McpTool;
 pub struct ListMcpResourcesTool;
 pub struct ListMcpResourceTemplatesTool;
+pub struct ListMcpPromptsTool;
 pub struct ReadMcpResourceTool;
+pub struct GetMcpPromptTool;
 
 pub fn configured_mcp_servers() -> Option<Value> {
     configured_mcp_servers_with_trust(ProjectTrust::Trusted)
@@ -197,7 +233,19 @@ impl ListMcpResourceTemplatesTool {
     }
 }
 
+impl ListMcpPromptsTool {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl ReadMcpResourceTool {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl GetMcpPromptTool {
     pub fn new() -> Self {
         Self
     }
@@ -588,6 +636,124 @@ impl Tool for ListMcpResourceTemplatesTool {
 }
 
 #[async_trait]
+impl Tool for ListMcpPromptsTool {
+    fn name(&self) -> &str {
+        "ListMcpPromptsTool"
+    }
+
+    fn description(&self) -> &str {
+        "List prompts from a configured MCP server"
+    }
+
+    fn search_hint(&self) -> Option<&str> {
+        Some("list reusable prompts from an MCP server")
+    }
+
+    fn workbench(&self) -> Option<&str> {
+        Some("mcp")
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
+    fn is_concurrency_safe(&self) -> bool {
+        true
+    }
+
+    fn input_schema(&self) -> Value {
+        mcp_server_input_schema(false)
+    }
+
+    fn output_schema(&self) -> Value {
+        json!({
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "description": { "type": "string" },
+                    "arguments": { "type": "array" },
+                    "server": { "type": "string" }
+                }
+            }
+        })
+    }
+
+    async fn validate_input(&self, input: &Value, _context: &ToolContext) -> ValidationResult {
+        match serde_json::from_value::<ListMcpPromptsInput>(input.clone()) {
+            Ok(_) => ValidationResult::ok(),
+            Err(error) => ValidationResult::err(format!("Invalid input: {error}"), 1),
+        }
+    }
+
+    async fn call(&self, input: &Value, context: &mut ToolContext) -> ToolResult<ToolOutput> {
+        let input: ListMcpPromptsInput = serde_json::from_value(input.clone())?;
+        let config = resolve_server_config_fields(
+            input.server.as_deref(),
+            &input.transport,
+            input.url.as_deref(),
+            input.command.as_deref(),
+            input.command_args.as_ref(),
+            input.config.as_ref(),
+            &context.app_state,
+        )?
+        .ok_or_else(|| {
+            ToolError::ValidationError(
+                "ListMcpPromptsTool requires an MCP server config".to_string(),
+            )
+        })?;
+
+        let server_name = config.name.clone();
+        let mut client = McpClient::new(config);
+        client
+            .connect()
+            .await
+            .map_err(|error| ToolError::Other(error.to_string()))?;
+        let prompts = client
+            .list_prompts()
+            .await
+            .map_err(|error| ToolError::Other(error.to_string()))?
+            .into_iter()
+            .map(|prompt| {
+                json!({
+                    "name": prompt.name,
+                    "description": prompt.description,
+                    "arguments": prompt.arguments.into_iter().map(|argument| {
+                        json!({
+                            "name": argument.name,
+                            "description": argument.description,
+                            "required": argument.required
+                        })
+                    }).collect::<Vec<_>>(),
+                    "server": server_name
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Ok(ToolOutput {
+            data: json!(prompts),
+            metadata: None,
+        })
+    }
+
+    fn map_to_api_result(&self, output: &ToolOutput, tool_use_id: &str) -> Value {
+        let content = match output.data.as_array() {
+            Some(prompts) if prompts.is_empty() => {
+                "No prompts found. MCP servers may still provide tools or resources.".to_string()
+            }
+            _ => json_value_to_model_text(&output.data),
+        };
+
+        json!({
+            "tool_use_id": tool_use_id,
+            "type": "tool_result",
+            "content": content
+        })
+    }
+}
+
+#[async_trait]
 impl Tool for ReadMcpResourceTool {
     fn name(&self) -> &str {
         "ReadMcpResourceTool"
@@ -682,6 +848,124 @@ impl Tool for ReadMcpResourceTool {
 
         Ok(ToolOutput {
             data: resource,
+            metadata: None,
+        })
+    }
+
+    fn map_to_api_result(&self, output: &ToolOutput, tool_use_id: &str) -> Value {
+        json!({
+            "tool_use_id": tool_use_id,
+            "type": "tool_result",
+            "content": json_value_to_model_text(&output.data)
+        })
+    }
+}
+
+#[async_trait]
+impl Tool for GetMcpPromptTool {
+    fn name(&self) -> &str {
+        "GetMcpPromptTool"
+    }
+
+    fn description(&self) -> &str {
+        "Get a prompt from a configured MCP server by name"
+    }
+
+    fn search_hint(&self) -> Option<&str> {
+        Some("get an MCP prompt by name")
+    }
+
+    fn workbench(&self) -> Option<&str> {
+        Some("mcp")
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
+    fn is_concurrency_safe(&self) -> bool {
+        true
+    }
+
+    fn input_schema(&self) -> Value {
+        let mut schema = mcp_server_input_schema(true);
+        if let Some(required) = schema.get_mut("required").and_then(Value::as_array_mut) {
+            required.push(json!("name"));
+        }
+        if let Some(properties) = schema.get_mut("properties").and_then(Value::as_object_mut) {
+            properties.insert("name".to_string(), json!({ "type": "string" }));
+            properties.insert(
+                "args".to_string(),
+                json!({
+                    "type": "object",
+                    "additionalProperties": true
+                }),
+            );
+        }
+        schema
+    }
+
+    fn output_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "description": { "type": "string" },
+                "messages": { "type": "array" }
+            }
+        })
+    }
+
+    async fn validate_input(&self, input: &Value, _context: &ToolContext) -> ValidationResult {
+        let input: GetMcpPromptInput = match serde_json::from_value(input.clone()) {
+            Ok(input) => input,
+            Err(error) => return ValidationResult::err(format!("Invalid input: {error}"), 1),
+        };
+        if input.server.trim().is_empty() {
+            return ValidationResult::err("server cannot be empty".to_string(), 2);
+        }
+        if input.name.trim().is_empty() {
+            return ValidationResult::err("name cannot be empty".to_string(), 3);
+        }
+        if input.args.as_ref().is_some_and(|args| !args.is_object()) {
+            return ValidationResult::err("args must be an object".to_string(), 4);
+        }
+        ValidationResult::ok()
+    }
+
+    async fn call(&self, input: &Value, context: &mut ToolContext) -> ToolResult<ToolOutput> {
+        let input: GetMcpPromptInput = serde_json::from_value(input.clone())?;
+        let prompt_name = input.name.trim();
+        if prompt_name.is_empty() {
+            return Err(ToolError::ValidationError(
+                "name cannot be empty".to_string(),
+            ));
+        }
+        let args = input.args.unwrap_or_else(|| json!({}));
+        let config = resolve_server_config_fields(
+            Some(input.server.as_str()),
+            &input.transport,
+            input.url.as_deref(),
+            input.command.as_deref(),
+            input.command_args.as_ref(),
+            input.config.as_ref(),
+            &context.app_state,
+        )?
+        .ok_or_else(|| {
+            ToolError::ValidationError("GetMcpPromptTool requires an MCP server config".to_string())
+        })?;
+
+        let mut client = McpClient::new(config);
+        client
+            .connect()
+            .await
+            .map_err(|error| ToolError::Other(error.to_string()))?;
+        let prompt = client
+            .get_prompt(prompt_name, value_object_to_hashmap(args)?)
+            .await
+            .map_err(|error| ToolError::Other(error.to_string()))?;
+
+        Ok(ToolOutput {
+            data: prompt,
             metadata: None,
         })
     }
@@ -1168,8 +1452,8 @@ fn now_unix_seconds() -> u64 {
 mod tests {
     use super::{
         configured_mcp_servers, configured_mcp_servers_with_trust, resolve_server_config_fields,
-        ListMcpResourceTemplatesTool, ListMcpResourcesTool, McpTool, ReadMcpResourceTool,
-        MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV,
+        GetMcpPromptTool, ListMcpPromptsTool, ListMcpResourceTemplatesTool, ListMcpResourcesTool,
+        McpTool, ReadMcpResourceTool, MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV,
     };
     use crate::{Tool, ToolContext};
     use kiana_services::mcp::TransportType;
@@ -1649,6 +1933,61 @@ mod tests {
         assert!(result["content"][0]["uriTemplate"].is_null());
     }
 
+    #[test]
+    fn maps_mcp_prompt_lists_and_get_results_to_model_facing_json_text() {
+        let prompts = crate::tool::ToolOutput {
+            data: json!([{
+                "name": "summarize",
+                "description": "Summarize a topic",
+                "arguments": [{
+                    "name": "topic",
+                    "description": "Topic to summarize",
+                    "required": true
+                }],
+                "server": "mock"
+            }]),
+            metadata: None,
+        };
+        let list_result =
+            ListMcpPromptsTool::new().map_to_api_result(&prompts, "toolu_list_prompts");
+
+        assert_eq!(list_result["type"], "tool_result");
+        assert_eq!(list_result["tool_use_id"], "toolu_list_prompts");
+        let list_content = list_result["content"].as_str().unwrap();
+        assert!(list_content.contains("\"name\": \"summarize\""));
+        assert!(list_content.contains("\"required\": true"));
+        assert!(list_result["content"][0]["name"].is_null());
+
+        let empty = crate::tool::ToolOutput {
+            data: json!([]),
+            metadata: None,
+        };
+        let empty_result =
+            ListMcpPromptsTool::new().map_to_api_result(&empty, "toolu_empty_prompts");
+        assert!(empty_result["content"]
+            .as_str()
+            .unwrap()
+            .contains("No prompts found"));
+
+        let prompt = crate::tool::ToolOutput {
+            data: json!({
+                "description": "Summarize a topic",
+                "messages": [{
+                    "role": "user",
+                    "content": {
+                        "type": "text",
+                        "text": "Summarize release readiness"
+                    }
+                }]
+            }),
+            metadata: None,
+        };
+        let get_result = GetMcpPromptTool::new().map_to_api_result(&prompt, "toolu_get_prompt");
+        let get_content = get_result["content"].as_str().unwrap();
+        assert!(get_content.contains("\"text\": \"Summarize release readiness\""));
+        assert!(get_result["content"]["messages"].is_null());
+    }
+
     #[tokio::test]
     async fn executes_mcp_tool_when_server_config_is_provided() {
         let (url, handle) = start_mock_mcp_tool_server(7);
@@ -2023,6 +2362,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn lists_mcp_prompts_when_server_config_is_provided() {
+        let (url, handle) = start_mock_mcp_tool_server(7);
+        let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
+        let mut context = ToolContext {
+            cwd: ".".to_string(),
+            read_file_state: HashMap::new(),
+            app_state: HashMap::new(),
+            abort_signal: abort_rx,
+        };
+
+        let output = ListMcpPromptsTool::new()
+            .call(
+                &json!({
+                    "server": "mock-http",
+                    "transport": "http",
+                    "url": url
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(output.data[0]["name"], "summarize");
+        assert_eq!(output.data[0]["server"], "mock-http");
+        assert_eq!(output.data[0]["arguments"][0]["name"], "topic");
+        assert_eq!(output.data[0]["arguments"][0]["required"], true);
+        handle.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn gets_mcp_prompt_when_server_config_is_provided() {
+        let (url, handle) = start_mock_mcp_tool_server(8);
+        let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
+        let mut context = ToolContext {
+            cwd: ".".to_string(),
+            read_file_state: HashMap::new(),
+            app_state: HashMap::new(),
+            abort_signal: abort_rx,
+        };
+
+        let output = GetMcpPromptTool::new()
+            .call(
+                &json!({
+                    "server": "mock-http",
+                    "transport": "http",
+                    "url": url,
+                    "name": "summarize",
+                    "args": { "topic": "release readiness" }
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(output.data["description"], "Summarize a topic");
+        assert_eq!(
+            output.data["messages"][0]["content"]["text"],
+            "Summarize release readiness"
+        );
+        handle.join().unwrap();
+    }
+
+    #[tokio::test]
     async fn reads_mcp_resource_when_server_config_is_provided() {
         let (url, handle) = start_mock_mcp_tool_server(7);
         let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
@@ -2201,7 +2603,39 @@ mod tests {
             Some("prompts/list") => Some(json!({
                 "jsonrpc": "2.0",
                 "id": id,
-                "result": {"prompts": []}
+                "result": {
+                    "prompts": [{
+                        "name": "summarize",
+                        "description": "Summarize a topic",
+                        "arguments": [{
+                            "name": "topic",
+                            "description": "Topic to summarize",
+                            "required": true
+                        }]
+                    }]
+                }
+            })),
+            Some("prompts/get") => Some(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "description": "Summarize a topic",
+                    "messages": [{
+                        "role": "user",
+                        "content": {
+                            "type": "text",
+                            "text": format!(
+                                "Summarize {}",
+                                message
+                                    .get("params")
+                                    .and_then(|params| params.get("arguments"))
+                                    .and_then(|args| args.get("topic"))
+                                    .and_then(serde_json::Value::as_str)
+                                    .unwrap_or("the topic")
+                            )
+                        }
+                    }]
+                }
             })),
             Some("tools/call") => {
                 let tool_name = message

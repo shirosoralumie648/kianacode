@@ -75,7 +75,9 @@ pub fn create_default_registry() -> ToolRegistry {
     registry.register(Arc::new(
         crate::mcp_tool::ListMcpResourceTemplatesTool::new(),
     ));
+    registry.register(Arc::new(crate::mcp_tool::ListMcpPromptsTool::new()));
     registry.register(Arc::new(crate::mcp_tool::ReadMcpResourceTool::new()));
+    registry.register(Arc::new(crate::mcp_tool::GetMcpPromptTool::new()));
     registry.register(Arc::new(crate::synthetic_output::SyntheticOutputTool::new()));
     registry.register(Arc::new(crate::notebook_edit::NotebookEditTool::new()));
     registry.register(Arc::new(crate::lsp_tool::LspTool::new()));
@@ -133,7 +135,9 @@ mod tests {
             "MCP",
             "ListMcpResourcesTool",
             "ListMcpResourceTemplatesTool",
+            "ListMcpPromptsTool",
             "ReadMcpResourceTool",
+            "GetMcpPromptTool",
             "Delete",
             "StructuredOutput",
             "NotebookEdit",
@@ -218,7 +222,9 @@ mod tests {
             find_schema("ListMcpResourceTemplatesTool")["workbench"],
             "mcp"
         );
+        assert_eq!(find_schema("ListMcpPromptsTool")["workbench"], "mcp");
         assert_eq!(find_schema("ReadMcpResourceTool")["workbench"], "mcp");
+        assert_eq!(find_schema("GetMcpPromptTool")["workbench"], "mcp");
         assert_eq!(find_schema("NotebookEdit")["workbench"], "notebook");
         assert!(find_schema("Read").get("workbench").is_none());
     }
