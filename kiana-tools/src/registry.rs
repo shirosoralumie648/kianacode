@@ -55,6 +55,7 @@ pub fn create_default_registry() -> ToolRegistry {
     registry.register(Arc::new(crate::file_read::FileReadTool::new()));
     registry.register(Arc::new(crate::file_write::FileWriteTool::new()));
     registry.register(Arc::new(crate::file_edit::FileEditTool::new()));
+    registry.register(Arc::new(crate::file_delete::FileDeleteTool::new()));
     registry.register(Arc::new(crate::grep::GrepTool::new()));
     registry.register(Arc::new(crate::glob::GlobTool::new()));
     registry.register(Arc::new(crate::agent::AgentTool::new()));
@@ -133,6 +134,7 @@ mod tests {
             "ListMcpResourcesTool",
             "ListMcpResourceTemplatesTool",
             "ReadMcpResourceTool",
+            "Delete",
             "StructuredOutput",
             "NotebookEdit",
             "LSP",

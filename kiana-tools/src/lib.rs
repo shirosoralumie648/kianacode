@@ -11,6 +11,7 @@ pub mod enter_worktree;
 pub mod exec_policy;
 pub mod exit_plan_mode;
 pub mod exit_worktree;
+pub mod file_delete;
 pub mod file_edit;
 pub mod file_read;
 pub mod file_write;

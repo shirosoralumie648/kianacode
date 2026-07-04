@@ -275,6 +275,7 @@ fn primitive_tool(name: &str) -> Option<Arc<dyn Tool>> {
         "read" | "fileread" => Some(Arc::new(crate::file_read::FileReadTool::new())),
         "write" | "filewrite" => Some(Arc::new(crate::file_write::FileWriteTool::new())),
         "edit" | "fileedit" => Some(Arc::new(crate::file_edit::FileEditTool::new())),
+        "delete" | "filedelete" => Some(Arc::new(crate::file_delete::FileDeleteTool::new())),
         "glob" => Some(Arc::new(crate::glob::GlobTool::new())),
         "grep" => Some(Arc::new(crate::grep::GrepTool::new())),
         "bash" => Some(Arc::new(crate::bash_tool::BashTool::new())),
