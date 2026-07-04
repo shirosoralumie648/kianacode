@@ -5302,6 +5302,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_product_acceptance_handler),
         )
         .route(
+            "/app/release/entitlement",
+            axum::routing::get(direct_connect_app_release_entitlement_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5917,6 +5921,28 @@ async fn direct_connect_app_release_product_acceptance_handler(
     }
 }
 
+async fn direct_connect_app_release_entitlement_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_entitlement_proof_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read entitlement proof report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6038,6 +6064,74 @@ fn direct_connect_product_acceptance_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.product-acceptance.v1") {
         return Err(anyhow!(
             "product acceptance file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_entitlement_proof_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let candidates = [
+        std::env::var_os("KIANA_ENTITLEMENT_PROOF_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_ENTITLEMENT_PROOF_OUT").map(PathBuf::from),
+        Some(
+            dist_dir
+                .join("proofs")
+                .join("entitlement")
+                .join("entitlement-proof.json"),
+        ),
+        Some(
+            root.join("target")
+                .join("entitlement-proof")
+                .join("entitlement-proof.json"),
+        ),
+        Some(
+            root.join("docs")
+                .join("entitlements")
+                .join(format!("{version}.json")),
+        ),
+    ];
+    let evidence_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no entitlement proof found in KIANA_ENTITLEMENT_PROOF_FILE, KIANA_ENTITLEMENT_PROOF_OUT, dist/proofs/entitlement/entitlement-proof.json, target/entitlement-proof/entitlement-proof.json, or docs/entitlements/{version}.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read entitlement proof file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse entitlement proof JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.entitlement-proof.v1") {
+        return Err(anyhow!(
+            "entitlement proof file {} has unexpected schema",
             evidence_path.display()
         ));
     }
@@ -7301,6 +7395,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.blockers.read",
             "release.local_rc_evidence.read",
             "release.product_acceptance.read",
+            "release.entitlement.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7370,6 +7465,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/product-acceptance",
                 "schema": "kiana.product-acceptance.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/entitlement",
+                "schema": "kiana.entitlement-proof.v1"
             },
             {
                 "method": "GET",
@@ -16506,6 +16606,8 @@ mod tests {
             "KIANA_LOCAL_RC_EVIDENCE_OUT",
             "KIANA_PRODUCT_ACCEPTANCE_FILE",
             "KIANA_PRODUCT_ACCEPTANCE_OUT",
+            "KIANA_ENTITLEMENT_PROOF_FILE",
+            "KIANA_ENTITLEMENT_PROOF_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -16972,6 +17074,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.product_acceptance.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.entitlement.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -16989,6 +17096,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/product-acceptance"
                     && endpoint["schema"] == "kiana.product-acceptance.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/entitlement"
+                    && endpoint["schema"] == "kiana.entitlement-proof.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -17603,6 +17719,64 @@ mod tests {
             .iter()
             .any(|workflow| workflow == "context-cache-recovery"));
         let _ = std::fs::remove_file(&product_acceptance_path);
+
+        let entitlement_path = std::env::temp_dir().join(format!(
+            "kiana-entitlement-proof-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &entitlement_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.entitlement-proof.v1",
+                "version": "0.1.0",
+                "status": "local_rc_only",
+                "accepted": false,
+                "accepted_by": "",
+                "accepted_at": "2026-07-05T00:00:00Z",
+                "account_id": "",
+                "organization": "",
+                "plan": "",
+                "license_status": "missing",
+                "entitlements": [
+                    "commercial-use",
+                    "enterprise-support",
+                    "managed-policy"
+                ],
+                "license_key_fingerprint": "",
+                "support_contact": "",
+                "backend": {
+                    "name": "",
+                    "environment": "",
+                    "checked_at": "2026-07-05T00:00:00Z",
+                    "request_id": ""
+                },
+                "notes": [
+                    "Generated by scripts/entitlement-proof-report.sh --local-rc"
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_ENTITLEMENT_PROOF_OUT", &entitlement_path);
+        let entitlement: Value = client
+            .get(format!("http://{addr}/app/release/entitlement"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(entitlement["schema"], "kiana.entitlement-proof.v1");
+        assert_eq!(entitlement["status"], "local_rc_only");
+        assert_eq!(entitlement["accepted"], false);
+        assert_eq!(entitlement["license_status"], "missing");
+        assert!(entitlement["entitlements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entitlement| entitlement == "managed-policy"));
+        let _ = std::fs::remove_file(&entitlement_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
