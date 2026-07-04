@@ -166,6 +166,110 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+def first_checksum(path):
+    with Path(path).open("r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.split()
+            if parts:
+                return parts[0]
+    return ""
+
+
+def real_release_url(value):
+    if not isinstance(value, str):
+        return False
+    lowered = value.lower()
+    return value.startswith("https://") and not any(
+        marker in lowered for marker in PLACEHOLDER_MARKERS
+    )
+
+
+def enterprise_offline_manifest_contract(manifest, dist_dir):
+    if not isinstance(manifest, dict):
+        return False, "enterprise offline manifest missing or invalid"
+    base_url = manifest.get("release_base_url")
+    channels = manifest.get("channels")
+    channels = channels if isinstance(channels, dict) else {}
+    artifacts = manifest.get("artifacts")
+    payload = json.dumps(manifest)
+    placeholder_markers = (
+        "github.com/kiana-project/kiana",
+        "example.com",
+        "example.test",
+        "localhost",
+        "127.0.0.1",
+        "pending_",
+        "blocked_",
+        "dry_run",
+    )
+    basic_checks = [
+        manifest.get("schema") == "kiana.enterprise.offline-manifest.v1",
+        manifest.get("version") == VERSION,
+        manifest.get("generated_by") == "scripts/generate-distribution-manifests.sh",
+        isinstance(base_url, str) and base_url.startswith("https://"),
+        isinstance(base_url, str)
+        and not any(marker in base_url.lower() for marker in placeholder_markers),
+        not any(marker in payload.lower() for marker in ("pending_", "blocked_", "dry_run")),
+        channels.get("github_releases") == "generated_from_release_base_url",
+        channels.get("homebrew") == "generated",
+        channels.get("winget") == "generated",
+        isinstance(artifacts, list) and len(artifacts) > 0,
+    ]
+    if not all(basic_checks):
+        return False, "enterprise offline manifest failed channel/base contract"
+
+    for item in artifacts:
+        if not isinstance(item, dict):
+            return False, "enterprise offline manifest failed artifact contract"
+        archive = item.get("archive")
+        local_path = item.get("local_path")
+        checksum_path = item.get("checksum_path")
+        binary_checksum_path = item.get("binary_checksum_path")
+        url = item.get("url")
+        archive_file = dist_dir / local_path if isinstance(local_path, str) else None
+        archive_checksum_file = dist_dir / checksum_path if isinstance(checksum_path, str) else None
+        binary_checksum_file = (
+            dist_dir / binary_checksum_path if isinstance(binary_checksum_path, str) else None
+        )
+        required_fields = [
+            "target",
+            "archive",
+            "url",
+            "sha256",
+            "binary_sha256",
+            "local_path",
+            "checksum_path",
+            "binary_checksum_path",
+        ]
+        paths_match = (
+            isinstance(archive, str)
+            and local_path == archive
+            and checksum_path == f"{archive}.sha256"
+            and binary_checksum_path == f"{archive[:-7]}.binary.sha256"
+        )
+        files_match = (
+            archive_file is not None
+            and archive_checksum_file is not None
+            and binary_checksum_file is not None
+            and archive_file.is_file()
+            and archive_checksum_file.is_file()
+            and binary_checksum_file.is_file()
+            and item.get("sha256") == sha256_file(archive_file)
+            and item.get("sha256") == first_checksum(archive_checksum_file)
+            and item.get("binary_sha256") == first_checksum(binary_checksum_file)
+        )
+        if not (
+            all(filled(item, key) for key in required_fields)
+            and real_release_url(url)
+            and isinstance(base_url, str)
+            and url.startswith(base_url)
+            and paths_match
+            and files_match
+        ):
+            return False, "enterprise offline manifest failed commercial contract"
+    return True, "enterprise offline manifest commercial contract accepted"
+
+
 def source_control_proof_candidates():
     return [
         Path(value)
@@ -616,31 +720,12 @@ add_check(
 
 enterprise_manifest = manifest_dir / "enterprise" / "offline-manifest.json"
 enterprise, enterprise_error = load_json(enterprise_manifest)
-enterprise_base_url = enterprise.get("release_base_url") if isinstance(enterprise, dict) else ""
-enterprise_channels = enterprise.get("channels") if isinstance(enterprise, dict) else {}
-enterprise_channels = enterprise_channels if isinstance(enterprise_channels, dict) else {}
-enterprise_payload = json.dumps(enterprise) if isinstance(enterprise, dict) else ""
-enterprise_placeholder_markers = (
-    "github.com/kiana-project/kiana",
-    "example.com",
-    "example.test",
-    "localhost",
-    "127.0.0.1",
-    "pending_",
-    "blocked_",
-    "dry_run",
+enterprise_contract_ok, enterprise_contract_evidence = enterprise_offline_manifest_contract(
+    enterprise, dist_dir
 )
 enterprise_ok = (
-    isinstance(enterprise, dict)
-    and enterprise.get("schema") == "kiana.enterprise.offline-manifest.v1"
-    and enterprise.get("version") == VERSION
-    and isinstance(enterprise_base_url, str)
-    and enterprise_base_url.startswith("https://")
-    and not any(marker in enterprise_base_url.lower() for marker in enterprise_placeholder_markers)
-    and not any(marker in enterprise_payload.lower() for marker in ("pending_", "blocked_", "dry_run"))
-    and enterprise_channels.get("github_releases") == "generated_from_release_base_url"
-    and enterprise_channels.get("homebrew") == "generated"
-    and enterprise_channels.get("winget") == "generated"
+    enterprise_error is None
+    and enterprise_contract_ok
 )
 add_check(
     id="distribution.enterprise-offline-manifest",
@@ -649,7 +734,11 @@ add_check(
     ok=enterprise_ok,
     external=True,
     gate="scripts/verify-commercial-release-artifacts.sh",
-    evidence=f"manifest={enterprise_manifest}" if enterprise_error is None else f"manifest={enterprise_error}: {enterprise_manifest}",
+    evidence=(
+        f"{enterprise_contract_evidence}: {enterprise_manifest}"
+        if enterprise_error is None
+        else f"manifest={enterprise_error}: {enterprise_manifest}"
+    ),
     required_action="Regenerate the enterprise offline manifest from final release artifacts and real release URLs after all channels are publishable.",
     paths=[enterprise_manifest],
     commands=["bash scripts/generate-distribution-manifests.sh", "bash scripts/verify-commercial-release-artifacts.sh"],

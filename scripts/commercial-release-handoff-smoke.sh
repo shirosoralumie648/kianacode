@@ -223,6 +223,87 @@ if "release signature proofs accepted" not in check.get("evidence", ""):
     raise SystemExit("signing.release-artifacts evidence does not name accepted signature proofs")
 PY
 
+"$python" - "$tmp_dist" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+dist = Path(sys.argv[1])
+version = "0.1.0"
+package = f"kiana-{version}-linux-x86_64"
+archive_name = f"{package}.tar.gz"
+archive = dist / archive_name
+archive_sha = dist / f"{archive_name}.sha256"
+binary_sha = dist / f"{package}.binary.sha256"
+manifest = dist / "manifests/enterprise/offline-manifest.json"
+manifest.parent.mkdir(parents=True, exist_ok=True)
+
+archive.write_text("enterprise offline fixture archive\n", encoding="utf-8")
+archive_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+archive_sha.write_text(f"{archive_digest}  {archive_name}\n", encoding="utf-8")
+binary_sha.write_text(f"{archive_digest}  {package}/kiana\n", encoding="utf-8")
+
+manifest.write_text(
+    json.dumps(
+        {
+            "schema": "kiana.enterprise.offline-manifest.v1",
+            "version": version,
+            "release_base_url": "https://github.com/acme/kiana/releases/download/v0.1.0",
+            "artifacts": [
+                {
+                    "target": "linux-x86_64",
+                    "archive": archive_name,
+                    "url": f"https://github.com/acme/kiana/releases/download/v0.1.0/{archive_name}",
+                    "sha256": "0" * 64,
+                    "binary_sha256": archive_digest,
+                    "local_path": archive_name,
+                    "checksum_path": f"{archive_name}.sha256",
+                    "binary_checksum_path": f"{package}.binary.sha256",
+                }
+            ],
+            "channels": {
+                "github_releases": "generated_from_release_base_url",
+                "homebrew": "generated",
+                "winget": "generated",
+            },
+            "generated_by": "scripts/generate-distribution-manifests.sh",
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+check = {item["id"]: item for item in report.get("checks", [])}.get("distribution.enterprise-offline-manifest")
+if not check:
+    raise SystemExit("distribution.enterprise-offline-manifest check is missing")
+if check.get("status") != "blocking":
+    raise SystemExit("distribution.enterprise-offline-manifest accepted a checksum-mismatched manifest")
+if "enterprise offline manifest failed commercial contract" not in check.get("evidence", ""):
+    raise SystemExit("distribution.enterprise-offline-manifest evidence does not name the failed contract")
+if "distribution.enterprise-offline-manifest" not in handoff:
+    raise SystemExit("distribution.enterprise-offline-manifest should remain a blocking handoff assignment")
+PY
+
 mkdir -p "$tmp_dist/proofs/live-smoke/provider" "$tmp_dist/proofs/live-smoke/remote"
 cat > "$tmp_dist/proofs/live-smoke/provider/model-catalog-live.json" <<'JSON'
 {
