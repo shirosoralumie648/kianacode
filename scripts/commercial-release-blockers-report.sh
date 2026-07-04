@@ -728,8 +728,28 @@ add_check(
     ],
 )
 
-product_file = Path(os.environ.get("KIANA_PRODUCT_ACCEPTANCE_FILE", f"docs/product-acceptance/{VERSION}.json"))
-product, product_error = load_json(product_file)
+product_candidates = [
+    Path(value)
+    for value in [
+        os.environ.get("KIANA_PRODUCT_ACCEPTANCE_FILE", ""),
+        os.environ.get("KIANA_PRODUCT_ACCEPTANCE_OUT", ""),
+    ]
+    if value
+] + [
+    dist_dir / "proofs/product/product-acceptance.json",
+    Path("target/product-acceptance/product-acceptance.json"),
+    Path(f"docs/product-acceptance/{VERSION}.json"),
+]
+product_file = product_candidates[-1]
+product = None
+product_error = "missing"
+for candidate in product_candidates:
+    candidate_product, candidate_error = load_json(candidate)
+    if candidate_error is None:
+        product_file = candidate
+        product = candidate_product
+        product_error = None
+        break
 required_workflows = {
     "permission",
     "diff",
@@ -739,6 +759,7 @@ required_workflows = {
     "settings",
     "app-server",
     "context-search",
+    "context-cache-recovery",
 }
 product_workflows = set(product.get("workflows") or []) if isinstance(product, dict) else set()
 product_ok = (
@@ -760,7 +781,9 @@ add_check(
     external=True,
     gate="scripts/product-acceptance-report.sh full",
     evidence=(
-        f"missing workflows: {', '.join(missing_workflows)}"
+        f"product acceptance proof accepted: {product_file}"
+        if product_ok
+        else f"missing workflows: {', '.join(missing_workflows)}"
         if product_error is None and missing_workflows
         else (f"proof={product_file}" if product_error is None else f"proof={product_error}: {product_file}")
     ),

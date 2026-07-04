@@ -223,4 +223,55 @@ if "release signature proofs accepted" not in check.get("evidence", ""):
     raise SystemExit("signing.release-artifacts evidence does not name accepted signature proofs")
 PY
 
+mkdir -p "$tmp_dist/proofs/product"
+cat > "$tmp_dist/proofs/product/product-acceptance.json" <<'JSON'
+{
+  "schema": "kiana.product-acceptance.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "target customer acceptance lead",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "scope": "terminal product shell, local app-server, and context-search acceptance",
+  "workflows": [
+    "permission",
+    "diff",
+    "history",
+    "onboarding",
+    "resume",
+    "settings",
+    "app-server",
+    "context-search",
+    "context-cache-recovery"
+  ]
+}
+JSON
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+check = {item["id"]: item for item in report.get("checks", [])}.get("acceptance.product")
+if not check:
+    raise SystemExit("acceptance.product check is missing")
+if check.get("status") != "satisfied":
+    raise SystemExit("acceptance.product was not satisfied by staged product acceptance proof")
+if "acceptance.product" in handoff:
+    raise SystemExit("acceptance.product should not appear as a blocking handoff assignment")
+if "product acceptance proof accepted" not in check.get("evidence", ""):
+    raise SystemExit("acceptance.product evidence does not name accepted staged proof")
+PY
+
 echo "commercial release handoff smoke passed"
