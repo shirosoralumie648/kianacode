@@ -8733,6 +8733,136 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_assistant_turn_streaming_surfaces_mcp_prompt_lifecycle_events() {
+        let _guard = env_lock().lock().unwrap();
+        clear_team_env();
+        clear_thinking_env();
+        clear_max_tokens_env();
+        isolate_permission_env();
+        let (mcp_url, mcp_state, mcp_server) = start_mock_prompt_mcp_server().await;
+        let (base_url, model_state, model_server) =
+            start_mock_streaming_mcp_prompt_loop_server(mcp_url).await;
+        let mut events = Vec::new();
+        let (_abort_tx, abort_signal) = tokio::sync::watch::channel(false);
+
+        let result = run_assistant_turn_streaming_with_runner_events_and_abort_signal(
+            vec![json!({
+                "role": "user",
+                "content": "get mcp prompt"
+            })],
+            &HashMap::from([
+                ("api_key".to_string(), json!("test-key")),
+                ("base_url".to_string(), json!(base_url)),
+                ("model".to_string(), json!("stream-mcp-prompt-model")),
+                ("tools".to_string(), json!("GetMcpPromptTool")),
+                ("max_iterations".to_string(), json!(2)),
+            ]),
+            |event| {
+                events.push(event);
+                Ok(())
+            },
+            None,
+            abort_signal,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.text, "prompt handled");
+        let tool_result = events
+            .iter()
+            .find_map(|event| match event {
+                RunnerStreamEvent::ToolResult {
+                    id,
+                    name,
+                    is_error,
+                    content,
+                    ..
+                } => Some((id, name, is_error, content)),
+                RunnerStreamEvent::Model(_) => None,
+            })
+            .expect("runner should emit an MCP prompt tool result event");
+        assert_eq!(tool_result.0, "toolu_prompt");
+        assert_eq!(tool_result.1, "GetMcpPromptTool");
+        assert!(!tool_result.2);
+        assert!(tool_result.3.contains("Summarize release readiness"));
+
+        let tool_call_event = events
+            .iter()
+            .find_map(|event| match event {
+                RunnerStreamEvent::Model(StreamEvent::ContentBlockStart {
+                    content_block: StreamContentBlock::ToolUse(tool_use),
+                    ..
+                }) if tool_use.id == "toolu_prompt" => Some(event.clone()),
+                _ => None,
+            })
+            .expect("runner should emit the MCP prompt tool-use stream event");
+        let runtime_call_events = runtime_events_from_runner_stream_event(
+            "session-1",
+            "turn-1",
+            None,
+            1,
+            "2026-07-05T00:00:01Z",
+            tool_call_event,
+        );
+        let runtime_call_event = serde_json::to_value(&runtime_call_events[0]).unwrap();
+        assert_eq!(runtime_call_event["type"], "tool_call");
+        assert_eq!(runtime_call_event["tool_call_id"], "toolu_prompt");
+        assert_eq!(runtime_call_event["name"], "GetMcpPromptTool");
+        assert_eq!(runtime_call_event["workbench"], "mcp");
+
+        let runtime_events = runtime_events_from_runner_stream_event(
+            "session-1",
+            "turn-2",
+            Some("turn-1".to_string()),
+            2,
+            "2026-07-05T00:00:02Z",
+            RunnerStreamEvent::ToolResult {
+                id: tool_result.0.clone(),
+                name: tool_result.1.clone(),
+                is_error: *tool_result.2,
+                content: tool_result.3.clone(),
+                changed_files: None,
+                error: None,
+            },
+        );
+        let runtime_event = serde_json::to_value(&runtime_events[0]).unwrap();
+        assert_eq!(runtime_event["type"], "tool_result");
+        assert_eq!(runtime_event["tool_call_id"], "toolu_prompt");
+        assert_eq!(runtime_event["name"], "GetMcpPromptTool");
+        assert_eq!(runtime_event["workbench"], "mcp");
+        assert_eq!(runtime_event["is_error"], false);
+        assert!(runtime_event["content"]
+            .as_str()
+            .unwrap()
+            .contains("Summarize release readiness"));
+
+        let prompt_gets = mcp_state.lock().unwrap().prompt_gets.clone();
+        assert_eq!(prompt_gets.len(), 1);
+        assert_eq!(prompt_gets[0]["name"], "summarize");
+        assert_eq!(prompt_gets[0]["arguments"]["topic"], "release readiness");
+
+        let model_requests = model_state.lock().unwrap().requests.clone();
+        assert_eq!(model_requests.len(), 2);
+        let tool_result_block = &model_requests[1]["messages"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()["content"][0];
+        assert_eq!(tool_result_block["type"], "tool_result");
+        assert_eq!(tool_result_block["tool_use_id"], "toolu_prompt");
+        assert!(
+            tool_result_block.get("is_error").is_none() || tool_result_block["is_error"] == false
+        );
+        assert!(tool_result_block["content"]
+            .as_str()
+            .unwrap()
+            .contains("Summarize release readiness"));
+
+        model_server.abort();
+        mcp_server.abort();
+    }
+
+    #[tokio::test]
     async fn run_assistant_turn_streaming_surfaces_sse_mcp_error_lifecycle_events() {
         let _guard = env_lock().lock().unwrap();
         clear_team_env();
@@ -9265,6 +9395,12 @@ mod tests {
     }
 
     #[derive(Debug, Default)]
+    struct MockStreamingMcpPromptLoopState {
+        mcp_url: String,
+        requests: Vec<Value>,
+    }
+
+    #[derive(Debug, Default)]
     struct MockReadSleepEditLoopState {
         file_path: String,
         requests: Vec<Value>,
@@ -9292,6 +9428,11 @@ mod tests {
     struct MockErrorMcpState {
         endpoint: Option<String>,
         calls: Vec<Value>,
+    }
+
+    #[derive(Debug, Default)]
+    struct MockPromptMcpState {
+        prompt_gets: Vec<Value>,
     }
 
     async fn start_mock_messages_server() -> (String, Arc<Mutex<MockMessagesState>>, JoinHandle<()>)
@@ -10421,6 +10562,116 @@ mod tests {
         ])
     }
 
+    async fn start_mock_streaming_mcp_prompt_loop_server(
+        mcp_url: String,
+    ) -> (
+        String,
+        Arc<Mutex<MockStreamingMcpPromptLoopState>>,
+        JoinHandle<()>,
+    ) {
+        let state = Arc::new(Mutex::new(MockStreamingMcpPromptLoopState {
+            mcp_url,
+            requests: Vec::new(),
+        }));
+        let app = Router::new()
+            .route(
+                "/v1/messages",
+                post(handle_mock_streaming_mcp_prompt_loop_request),
+            )
+            .with_state(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{}", addr), state, server)
+    }
+
+    async fn handle_mock_streaming_mcp_prompt_loop_request(
+        State(state): State<Arc<Mutex<MockStreamingMcpPromptLoopState>>>,
+        Json(body): Json<Value>,
+    ) -> impl IntoResponse {
+        let (call_count, mcp_url) = {
+            let mut state = state.lock().unwrap();
+            state.requests.push(body);
+            (state.requests.len(), state.mcp_url.clone())
+        };
+
+        if call_count == 1 {
+            return mock_sse_response(vec![
+                json!({
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_stream_mcp_prompt_tool_use",
+                        "model": "stream-mcp-prompt-model",
+                        "role": "assistant",
+                        "usage": {"input_tokens": 1, "output_tokens": 0}
+                    }
+                }),
+                json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_prompt",
+                        "name": "GetMcpPromptTool",
+                        "input": {}
+                    }
+                }),
+                json!({
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {
+                        "type": "input_json_delta",
+                        "partial_json": serde_json::to_string(&json!({
+                            "server": "runner-prompt-fixture",
+                            "transport": "http",
+                            "url": mcp_url,
+                            "name": "summarize",
+                            "args": {"topic": "release readiness"}
+                        })).unwrap()
+                    }
+                }),
+                json!({"type": "content_block_stop", "index": 0}),
+                json!({
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "tool_use"},
+                    "usage": {"input_tokens": 0, "output_tokens": 1}
+                }),
+                json!({"type": "message_stop"}),
+            ]);
+        }
+
+        mock_sse_response(vec![
+            json!({
+                "type": "message_start",
+                "message": {
+                    "id": "msg_stream_mcp_prompt_done",
+                    "model": "stream-mcp-prompt-model",
+                    "role": "assistant",
+                    "usage": {"input_tokens": 1, "output_tokens": 0}
+                }
+            }),
+            json!({
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""}
+            }),
+            json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "prompt handled"}
+            }),
+            json!({"type": "content_block_stop", "index": 0}),
+            json!({
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn"},
+                "usage": {"input_tokens": 0, "output_tokens": 1}
+            }),
+            json!({"type": "message_stop"}),
+        ])
+    }
+
     fn mock_sse_response(events: Vec<Value>) -> impl IntoResponse {
         let body = events
             .into_iter()
@@ -10537,6 +10788,20 @@ mod tests {
         }));
         let app = Router::new()
             .route("/", post(handle_mock_error_mcp_request))
+            .with_state(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{}", addr), state, server)
+    }
+
+    async fn start_mock_prompt_mcp_server(
+    ) -> (String, Arc<Mutex<MockPromptMcpState>>, JoinHandle<()>) {
+        let state = Arc::new(Mutex::new(MockPromptMcpState::default()));
+        let app = Router::new()
+            .route("/", post(handle_mock_prompt_mcp_request))
             .with_state(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -10794,6 +11059,105 @@ mod tests {
                             "text": "denied by fake server"
                         }],
                         "isError": true
+                    }
+                }))
+                .into_response()
+            }
+            _ => (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {"code": -32601, "message": "method not found"}
+                })),
+            )
+                .into_response(),
+        }
+    }
+
+    async fn handle_mock_prompt_mcp_request(
+        State(state): State<Arc<Mutex<MockPromptMcpState>>>,
+        Json(body): Json<Value>,
+    ) -> impl IntoResponse {
+        let method = body.get("method").and_then(Value::as_str);
+        let id = body.get("id").cloned().unwrap_or(Value::Null);
+
+        match method {
+            Some("notifications/initialized") => StatusCode::NO_CONTENT.into_response(),
+            Some("initialize") => Json(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
+                    "serverInfo": {"name": "runner-prompt-mock", "version": "1.0.0"}
+                }
+            }))
+            .into_response(),
+            Some("tools/list") => Json(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {"tools": []}
+            }))
+            .into_response(),
+            Some("resources/list") => Json(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {"resources": []}
+            }))
+            .into_response(),
+            Some("resources/templates/list") => Json(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {"resourceTemplates": []}
+            }))
+            .into_response(),
+            Some("prompts/list") => Json(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "prompts": [{
+                        "name": "summarize",
+                        "description": "Summarize a topic",
+                        "arguments": [{
+                            "name": "topic",
+                            "description": "Topic to summarize",
+                            "required": true
+                        }]
+                    }]
+                }
+            }))
+            .into_response(),
+            Some("prompts/get") => {
+                let prompt_name = body
+                    .get("params")
+                    .and_then(|params| params.get("name"))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                let arguments = body
+                    .get("params")
+                    .and_then(|params| params.get("arguments"))
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                {
+                    let mut state = state.lock().unwrap();
+                    state.prompt_gets.push(json!({
+                        "name": prompt_name,
+                        "arguments": arguments
+                    }));
+                }
+                Json(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": {
+                        "description": "Summarize a topic",
+                        "messages": [{
+                            "role": "user",
+                            "content": {
+                                "type": "text",
+                                "text": "Summarize release readiness"
+                            }
+                        }]
                     }
                 }))
                 .into_response()
