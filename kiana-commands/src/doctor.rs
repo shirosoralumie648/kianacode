@@ -2,6 +2,7 @@ use crate::local_state::{bool_label, config_path, sdk_sessions_dir};
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use async_trait::async_trait;
 use kiana_tools::bash_sandbox::{bash_sandbox_diagnostic, BashSandboxStatus};
+use kiana_tools::create_default_registry;
 use kiana_tools::permissions::{effective_tool_permissions, EffectiveToolPermissions};
 use serde::Serialize;
 use serde_json::Value;
@@ -71,6 +72,7 @@ struct DoctorReport {
     oauth_token_file: OAuthTokenFileReport,
     bash_sandbox: BashSandboxReport,
     commercial_security: CommercialSecurityReport,
+    tool_parity: ToolParityReport,
     reference_capabilities: Vec<ReferenceCapabilityReport>,
     warnings: Vec<String>,
 }
@@ -153,6 +155,33 @@ struct CommercialSecurityReport {
     isolation: String,
     controls: Vec<String>,
     issues: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolParityReport {
+    schema: &'static str,
+    source: &'static str,
+    plugin_tools_included: bool,
+    total_tools: usize,
+    read_only_tools: usize,
+    concurrency_safe_tools: usize,
+    workbenches: Vec<ToolWorkbenchReport>,
+    built_in_tools: Vec<ToolParityEntry>,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolWorkbenchReport {
+    name: String,
+    tools: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolParityEntry {
+    name: String,
+    source: &'static str,
+    read_only: bool,
+    concurrency_safe: bool,
+    workbench: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -304,6 +333,7 @@ fn build_doctor_report(context: &CommandContext) -> anyhow::Result<DoctorReport>
             allow_unsandboxed_commands: bash_sandbox.allow_unsandboxed_commands,
             bwrap: bash_sandbox.bwrap_label(),
         },
+        tool_parity: tool_parity_report(),
         reference_capabilities: reference_capability_matrix(
             &commercial_security,
             remote_bridge_token_configured,
@@ -394,6 +424,13 @@ fn render_doctor_text(report: &DoctorReport) -> String {
             report.commercial_security.platform,
             report.commercial_security.isolation
         ),
+        format!(
+            "tool_parity: {} built-in tools read_only={} concurrency_safe={} plugin_tools_included={}",
+            report.tool_parity.total_tools,
+            report.tool_parity.read_only_tools,
+            report.tool_parity.concurrency_safe_tools,
+            bool_label(report.tool_parity.plugin_tools_included)
+        ),
     ];
 
     for capability in &report.reference_capabilities {
@@ -417,6 +454,48 @@ fn render_doctor_text(report: &DoctorReport) -> String {
     }
 
     lines.join("\n")
+}
+
+fn tool_parity_report() -> ToolParityReport {
+    let registry = create_default_registry();
+    let mut built_in_tools: Vec<ToolParityEntry> = registry
+        .list_tools()
+        .into_iter()
+        .map(|tool| ToolParityEntry {
+            name: tool.name().to_string(),
+            source: "builtin",
+            read_only: tool.is_read_only(),
+            concurrency_safe: tool.is_concurrency_safe(),
+            workbench: tool.workbench().map(str::to_string),
+        })
+        .collect();
+    built_in_tools.sort_by(|left, right| left.name.cmp(&right.name));
+
+    let mut workbench_counts = HashMap::<String, usize>::new();
+    for tool in &built_in_tools {
+        if let Some(workbench) = &tool.workbench {
+            *workbench_counts.entry(workbench.clone()).or_default() += 1;
+        }
+    }
+    let mut workbenches: Vec<ToolWorkbenchReport> = workbench_counts
+        .into_iter()
+        .map(|(name, tools)| ToolWorkbenchReport { name, tools })
+        .collect();
+    workbenches.sort_by(|left, right| left.name.cmp(&right.name));
+
+    ToolParityReport {
+        schema: "kiana.tool-parity.v1",
+        source: "builtin-registry",
+        plugin_tools_included: false,
+        total_tools: built_in_tools.len(),
+        read_only_tools: built_in_tools.iter().filter(|tool| tool.read_only).count(),
+        concurrency_safe_tools: built_in_tools
+            .iter()
+            .filter(|tool| tool.concurrency_safe)
+            .count(),
+        workbenches,
+        built_in_tools,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1047,6 +1126,10 @@ mod tests {
         assert!(report["commercial_security"]["isolation"].is_string());
         assert!(report["commercial_security"]["controls"].is_array());
         assert!(report["commercial_security"]["issues"].is_array());
+        assert_eq!(report["tool_parity"]["schema"], "kiana.tool-parity.v1");
+        assert_eq!(report["tool_parity"]["source"], "builtin-registry");
+        assert_eq!(report["tool_parity"]["plugin_tools_included"], false);
+        assert!(report["tool_parity"]["built_in_tools"].is_array());
         assert!(report["reference_capabilities"].is_array());
         assert!(report["reference_capabilities"]
             .as_array()
@@ -1092,6 +1175,8 @@ mod tests {
         assert!(result
             .value
             .contains("capability: remote-commercial-release status=external_required"));
+        assert!(result.value.contains("tool_parity: "));
+        assert!(result.value.contains("plugin_tools_included=no"));
         assert!(result
             .value
             .contains("capability_risk: provider-registry: production-like provider live catalog and smoke proof are external release blockers"));
@@ -1135,6 +1220,61 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|risk| risk.as_str().unwrap().contains("team runtime"))));
+    }
+
+    #[tokio::test]
+    async fn doctor_json_reports_tool_parity_snapshot() {
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: "--json".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        let report: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+        let parity = &report["tool_parity"];
+
+        assert_eq!(parity["schema"], "kiana.tool-parity.v1");
+        assert_eq!(parity["source"], "builtin-registry");
+        assert_eq!(parity["plugin_tools_included"], false);
+        assert!(parity["total_tools"].as_u64().unwrap() >= 40);
+        assert!(parity["read_only_tools"].as_u64().unwrap() >= 3);
+        assert!(parity["concurrency_safe_tools"].as_u64().unwrap() >= 3);
+
+        let tools = parity["built_in_tools"].as_array().unwrap();
+        for name in [
+            "Read",
+            "Write",
+            "Edit",
+            "Bash",
+            "MCP",
+            "TaskCreate",
+            "NotebookEdit",
+        ] {
+            assert!(
+                tools.iter().any(|tool| tool["name"] == name),
+                "{name} missing from tool parity snapshot"
+            );
+        }
+
+        let read = tools
+            .iter()
+            .find(|tool| tool["name"] == "Read")
+            .expect("Read missing from tool parity snapshot");
+        assert_eq!(read["source"], "builtin");
+        assert_eq!(read["read_only"], true);
+        assert_eq!(read["concurrency_safe"], true);
+        assert!(read["workbench"].is_null());
+
+        let mcp = tools
+            .iter()
+            .find(|tool| tool["name"] == "MCP")
+            .expect("MCP missing from tool parity snapshot");
+        assert_eq!(mcp["workbench"], "mcp");
+
+        assert!(!tools
+            .iter()
+            .any(|tool| tool["name"] == "review-tools:code-audit"));
     }
 
     #[tokio::test]

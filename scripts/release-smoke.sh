@@ -190,6 +190,7 @@ required = [
     "oauth_token_file",
     "bash_sandbox",
     "commercial_security",
+    "tool_parity",
     "reference_capabilities",
     "warnings",
 ]
@@ -214,6 +215,30 @@ checks = [
     ],
     isinstance(report.get("commercial_security", {}).get("controls"), list),
     isinstance(report.get("commercial_security", {}).get("issues"), list),
+    report.get("tool_parity", {}).get("schema") == "kiana.tool-parity.v1",
+    report.get("tool_parity", {}).get("source") == "builtin-registry",
+    report.get("tool_parity", {}).get("plugin_tools_included") is False,
+    isinstance(report.get("tool_parity", {}).get("built_in_tools"), list),
+    report.get("tool_parity", {}).get("total_tools", 0) >= 40,
+    any(
+        isinstance(item, dict)
+        and item.get("name") == "Read"
+        and item.get("source") == "builtin"
+        and item.get("read_only") is True
+        and item.get("concurrency_safe") is True
+        for item in report.get("tool_parity", {}).get("built_in_tools", [])
+    ),
+    any(
+        isinstance(item, dict)
+        and item.get("name") == "MCP"
+        and item.get("workbench") == "mcp"
+        for item in report.get("tool_parity", {}).get("built_in_tools", [])
+    ),
+    not any(
+        isinstance(item, dict)
+        and item.get("name") == "review-tools:code-audit"
+        for item in report.get("tool_parity", {}).get("built_in_tools", [])
+    ),
     isinstance(report.get("reference_capabilities"), list),
     any(
         isinstance(item, dict)
