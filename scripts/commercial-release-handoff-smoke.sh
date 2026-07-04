@@ -16,7 +16,8 @@ tmp_handoff="$(mktemp)"
 tmp_source_control="$(mktemp)"
 tmp_proof_report="$(mktemp)"
 tmp_proof_handoff="$(mktemp)"
-trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_proof_report" "$tmp_proof_handoff"' EXIT
+tmp_dist="$(mktemp -d)"
+trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_proof_report" "$tmp_proof_handoff"; rm -rf "$tmp_dist"' EXIT
 
 KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
   bash scripts/commercial-release-blockers-report.sh \
@@ -139,6 +140,87 @@ for check_id in ["source.remote", "source.version-tag"]:
         raise SystemExit(f"{check_id} should not appear as a blocking handoff assignment")
     if "source-control proof accepted" not in check.get("evidence", ""):
         raise SystemExit(f"{check_id} evidence does not name accepted source-control proof")
+PY
+
+"$python" - "$tmp_dist" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+dist = Path(sys.argv[1])
+version = "0.1.0"
+target = "linux-x86_64"
+package = f"kiana-{version}-{target}"
+archive_name = f"{package}.tar.gz"
+archive = dist / archive_name
+binary_sha = dist / f"{package}.binary.sha256"
+archive_sig = dist / f"{archive_name}.sig"
+binary_sig = dist / f"{package}.binary.sig"
+proof = dist / f"{package}.signature.json"
+
+archive.write_text("signed fixture archive\n", encoding="utf-8")
+binary_sha.write_text("0" * 64 + f"  {package}/kiana\n", encoding="utf-8")
+archive_sig.write_text("fixture archive signature\n", encoding="utf-8")
+binary_sig.write_text("fixture binary signature\n", encoding="utf-8")
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+proof.write_text(
+    json.dumps(
+        {
+            "schema": "kiana.release-signature.v1",
+            "target": target,
+            "archive": archive_name,
+            "archive_sha256": sha256(archive),
+            "binary_sha256_file_sha256": sha256(binary_sha),
+            "signed_at": "2026-01-01T00:00:00Z",
+            "signer": "release engineering",
+            "signature_files": {
+                "archive": archive_sig.name,
+                "binary": binary_sig.name,
+            },
+            "verification": {
+                "method": "KIANA_SIGNATURE_VERIFY_COMMAND",
+                "archive": "verified",
+                "binary": "verified",
+                "verified_at": "2026-01-01T00:00:01Z",
+            },
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+check = {item["id"]: item for item in report.get("checks", [])}.get("signing.release-artifacts")
+if not check:
+    raise SystemExit("signing.release-artifacts check is missing")
+if check.get("status") != "satisfied":
+    raise SystemExit("signing.release-artifacts was not satisfied by accepted signature proof")
+if "signing.release-artifacts" in handoff:
+    raise SystemExit("signing.release-artifacts should not appear as a blocking handoff assignment")
+if "release signature proofs accepted" not in check.get("evidence", ""):
+    raise SystemExit("signing.release-artifacts evidence does not name accepted signature proofs")
 PY
 
 echo "commercial release handoff smoke passed"

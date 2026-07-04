@@ -139,6 +139,16 @@ def valid_fingerprint(mapping, key):
     return isinstance(value, str) and bool(FINGERPRINT_PATTERN.fullmatch(value))
 
 
+def sha256_file(path):
+    import hashlib
+
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def source_control_proof_candidates():
     return [
         Path(value)
@@ -182,6 +192,54 @@ def accepted_source_control_proof():
         if accepted:
             return path, data
     return None, None
+
+
+def accepted_release_signature_proofs(dist_dir):
+    archives = sorted(Path(dist_dir).glob(f"kiana-{VERSION}-*.tar.gz"))
+    accepted = []
+    errors = []
+    for archive in archives:
+        package = archive.name.removesuffix(".tar.gz")
+        target = package.removeprefix(f"kiana-{VERSION}-")
+        binary_sha = archive.parent / f"{package}.binary.sha256"
+        archive_sig = archive.parent / f"{archive.name}.sig"
+        binary_sig = archive.parent / f"{package}.binary.sig"
+        proof_path = archive.parent / f"{package}.signature.json"
+        proof, error = load_json(proof_path)
+        if error is not None or not isinstance(proof, dict):
+            errors.append(f"{target}: signature proof {error or 'invalid'}")
+            continue
+        signature_files = proof.get("signature_files")
+        signature_files = signature_files if isinstance(signature_files, dict) else {}
+        verification = proof.get("verification")
+        verification = verification if isinstance(verification, dict) else {}
+        checks = [
+            archive.is_file(),
+            binary_sha.is_file(),
+            archive_sig.is_file() and archive_sig.stat().st_size > 0,
+            binary_sig.is_file() and binary_sig.stat().st_size > 0,
+            proof.get("schema") == "kiana.release-signature.v1",
+            proof.get("target") == target,
+            proof.get("archive") == archive.name,
+            proof.get("archive_sha256") == sha256_file(archive),
+            proof.get("binary_sha256_file_sha256") == sha256_file(binary_sha)
+            if binary_sha.is_file()
+            else False,
+            filled(proof, "signed_at"),
+            filled(proof, "signer"),
+            not_placeholder(proof, "signer"),
+            signature_files.get("archive") == archive_sig.name,
+            signature_files.get("binary") == binary_sig.name,
+            verification.get("method") == "KIANA_SIGNATURE_VERIFY_COMMAND",
+            verification.get("archive") == "verified",
+            verification.get("binary") == "verified",
+            filled(verification, "verified_at"),
+        ]
+        if all(checks):
+            accepted.append(target)
+        else:
+            errors.append(f"{target}: signature proof failed accepted contract")
+    return accepted, errors
 
 
 def check_status(ok):
@@ -456,23 +514,32 @@ add_check(
 signing_command = os.environ.get("KIANA_SIGNING_COMMAND", "")
 signature_verify_command = os.environ.get("KIANA_SIGNATURE_VERIFY_COMMAND", "")
 release_signer = os.environ.get("KIANA_RELEASE_SIGNER", "")
-signing_ok = (
+dist_dir = Path(os.environ.get("DIST_DIR", "dist"))
+manifest_dir = Path(os.environ.get("MANIFEST_DIR", dist_dir / "manifests"))
+accepted_signature_targets, signature_proof_errors = accepted_release_signature_proofs(dist_dir)
+signing_env_ok = (
     bool(signing_command.strip())
     and bool(signature_verify_command.strip())
     and bool(release_signer.strip())
     and release_signer != "external-release-signer"
 )
+signing_proofs_ok = bool(accepted_signature_targets)
+signing_ok = signing_env_ok or signing_proofs_ok
 add_check(
     id="signing.release-artifacts",
     category="signing",
-    title="Release artifact signing and verification commands are configured",
+    title="Release artifact signing and verification proof is accepted",
     ok=signing_ok,
     external=True,
     gate="scripts/sign-release-artifacts.sh",
     evidence=(
-        "signing command, verify command, and signer identity are configured"
-        if signing_ok
-        else "missing KIANA_SIGNING_COMMAND, KIANA_SIGNATURE_VERIFY_COMMAND, or reviewed KIANA_RELEASE_SIGNER"
+        f"release signature proofs accepted: {', '.join(accepted_signature_targets)}"
+        if signing_proofs_ok
+        else (
+            "signing command, verify command, and signer identity are configured"
+            if signing_env_ok
+            else "missing KIANA_SIGNING_COMMAND, KIANA_SIGNATURE_VERIFY_COMMAND, reviewed KIANA_RELEASE_SIGNER, or accepted release signature proof"
+        )
     ),
     required_action="Configure production signing, signature verification, and reviewed signer identity in the release environment.",
     commands=["bash scripts/sign-release-artifacts.sh"],
@@ -485,8 +552,6 @@ add_check(
     ],
 )
 
-dist_dir = Path(os.environ.get("DIST_DIR", "dist"))
-manifest_dir = Path(os.environ.get("MANIFEST_DIR", dist_dir / "manifests"))
 archives = sorted(dist_dir.glob(f"kiana-{VERSION}-*.tar.gz"))
 seen_linux = any(f"-linux-" in archive.name for archive in archives)
 seen_macos = any(f"-macos-" in archive.name for archive in archives)
