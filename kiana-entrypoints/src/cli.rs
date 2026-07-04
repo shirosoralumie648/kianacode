@@ -5338,6 +5338,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_remote_code_session_smoke_handler),
         )
         .route(
+            "/app/release/distribution",
+            axum::routing::get(direct_connect_app_release_distribution_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -6151,6 +6155,28 @@ async fn direct_connect_app_release_remote_code_session_smoke_handler(
     }
 }
 
+async fn direct_connect_app_release_distribution_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_distribution_review_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build distribution review report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6856,6 +6882,326 @@ fn direct_connect_remote_code_session_smoke_report() -> Result<Value> {
         "remote code-session smoke proof",
         "kiana.remote-code-session-smoke.v1",
     )
+}
+
+fn direct_connect_distribution_review_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let dist_dir = std::env::var_os("KIANA_DISTRIBUTION_REVIEW_DIST_DIR")
+        .or_else(|| std::env::var_os("DIST_DIR"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let dist_dir = if dist_dir.is_absolute() {
+        dist_dir
+    } else {
+        root.join(dist_dir)
+    };
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+
+    let mut artifacts = direct_connect_distribution_artifacts(&dist_dir)?;
+    artifacts.sort_by(|left, right| {
+        left.get("path")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .cmp(
+                right
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
+    });
+    let targets = artifacts
+        .iter()
+        .filter_map(|artifact| artifact.get("target").and_then(Value::as_str))
+        .collect::<HashSet<_>>();
+    let homebrew_formulae =
+        direct_connect_distribution_manifest_files(&dist_dir, &["manifests", "homebrew"], "rb")?;
+    let winget_manifests =
+        direct_connect_distribution_manifest_files(&dist_dir, &["manifests", "winget"], "yaml")?;
+    let winget_blocked_path = dist_dir.join("manifests").join("winget").join("BLOCKED.md");
+    let enterprise_manifest_path = dist_dir
+        .join("manifests")
+        .join("enterprise")
+        .join("offline-manifest.json");
+    let enterprise_offline_manifest = if enterprise_manifest_path.is_file() {
+        match direct_connect_read_json_schema_file(
+            &enterprise_manifest_path,
+            "enterprise offline manifest",
+            "kiana.enterprise.offline-manifest.v1",
+        ) {
+            Ok(manifest) => serde_json::json!({
+                "present": true,
+                "path": direct_connect_relative_path(&dist_dir, &enterprise_manifest_path),
+                "valid": true,
+                "schema": manifest["schema"].clone(),
+                "artifact_count": manifest
+                    .get("artifacts")
+                    .and_then(Value::as_array)
+                    .map(Vec::len)
+                    .unwrap_or_default(),
+                "channels": manifest.get("channels").cloned().unwrap_or(Value::Null),
+            }),
+            Err(error) => serde_json::json!({
+                "present": true,
+                "path": direct_connect_relative_path(&dist_dir, &enterprise_manifest_path),
+                "valid": false,
+                "error": error.to_string(),
+            }),
+        }
+    } else {
+        serde_json::json!({
+            "present": false,
+            "path": "manifests/enterprise/offline-manifest.json",
+            "valid": false,
+        })
+    };
+
+    let missing_platforms = ["macos", "windows"]
+        .into_iter()
+        .filter(|platform| !targets.iter().any(|target| target.contains(*platform)))
+        .collect::<Vec<_>>();
+    let blockers = direct_connect_distribution_review_blockers(
+        artifacts.len(),
+        &homebrew_formulae,
+        &winget_manifests,
+        winget_blocked_path.is_file(),
+        enterprise_offline_manifest
+            .get("valid")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        &missing_platforms,
+    );
+    let blocking_count = blockers
+        .iter()
+        .filter(|blocker| blocker.get("blocking").and_then(Value::as_bool) == Some(true))
+        .count();
+    let channel_status = |ready: bool, blocked: bool| {
+        if ready {
+            "ready"
+        } else if blocked {
+            "blocked"
+        } else {
+            "missing"
+        }
+    };
+    let artifact_count = artifacts.len();
+    let linux_present = targets.iter().any(|target| target.contains("linux"));
+    let macos_present = targets.iter().any(|target| target.contains("macos"));
+    let windows_present = targets.iter().any(|target| target.contains("windows"));
+    let homebrew_ready = !homebrew_formulae.is_empty();
+    let winget_ready = !winget_manifests.is_empty();
+    let winget_blocked = winget_blocked_path.is_file();
+    let enterprise_manifest_ready = enterprise_offline_manifest
+        .get("valid")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let channels_ready = [homebrew_ready, winget_ready, enterprise_manifest_ready]
+        .into_iter()
+        .filter(|ready| *ready)
+        .count();
+    let github_release_status = channel_status(!targets.is_empty(), false);
+    let homebrew_status = channel_status(homebrew_ready, false);
+    let winget_status = channel_status(winget_ready, winget_blocked);
+    let winget_blocked_path_value = if winget_blocked {
+        Value::String(direct_connect_relative_path(
+            &dist_dir,
+            &winget_blocked_path,
+        ))
+    } else {
+        Value::Null
+    };
+
+    Ok(serde_json::json!({
+        "schema": "kiana.app-server.distribution-review.v1",
+        "version": version,
+        "dist_dir": dist_dir.display().to_string(),
+        "summary": {
+            "artifacts": artifact_count,
+            "platforms": {
+                "linux": linux_present,
+                "macos": macos_present,
+                "windows": windows_present,
+            },
+            "channels_ready": channels_ready,
+            "blocking": blocking_count,
+        },
+        "artifacts": artifacts,
+        "channels": {
+            "github_releases": {
+                "status": github_release_status,
+                "artifact_count": artifact_count,
+            },
+            "homebrew": {
+                "status": homebrew_status,
+                "formulae": homebrew_formulae,
+            },
+            "winget": {
+                "status": winget_status,
+                "manifests": winget_manifests,
+                "blocked_path": winget_blocked_path_value,
+            },
+        },
+        "enterprise_offline_manifest": enterprise_offline_manifest,
+        "blockers": blockers,
+    }))
+}
+
+fn direct_connect_distribution_artifacts(dist_dir: &Path) -> Result<Vec<Value>> {
+    if !dist_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut artifacts = Vec::new();
+    for entry in std::fs::read_dir(dist_dir)
+        .with_context(|| {
+            format!(
+                "failed to read distribution directory {}",
+                dist_dir.display()
+            )
+        })?
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if !path.is_file() || !direct_connect_distribution_is_archive(&path) {
+            continue;
+        }
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        let target = direct_connect_distribution_target_from_archive(file_name);
+        let checksum_path = dist_dir.join(format!("{file_name}.sha256"));
+        let binary_checksum_path = dist_dir.join(format!(
+            "{}.binary.sha256",
+            file_name.strip_suffix(".tar.gz").unwrap_or(file_name)
+        ));
+        artifacts.push(serde_json::json!({
+            "target": target,
+            "archive": file_name,
+            "path": direct_connect_relative_path(dist_dir, &path),
+            "sha256_file": if checksum_path.is_file() {
+                Value::String(direct_connect_relative_path(dist_dir, &checksum_path))
+            } else {
+                Value::Null
+            },
+            "binary_sha256_file": if binary_checksum_path.is_file() {
+                Value::String(direct_connect_relative_path(dist_dir, &binary_checksum_path))
+            } else {
+                Value::Null
+            },
+        }));
+    }
+    Ok(artifacts)
+}
+
+fn direct_connect_distribution_manifest_files(
+    dist_dir: &Path,
+    segments: &[&str],
+    extension: &str,
+) -> Result<Vec<String>> {
+    let mut dir = dist_dir.to_path_buf();
+    for segment in segments {
+        dir.push(segment);
+    }
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut files = std::fs::read_dir(&dir)
+        .with_context(|| format!("failed to read manifest directory {}", dir.display()))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
+        })
+        .map(|path| direct_connect_relative_path(dist_dir, &path))
+        .collect::<Vec<_>>();
+    files.sort();
+    Ok(files)
+}
+
+fn direct_connect_distribution_review_blockers(
+    artifact_count: usize,
+    homebrew_formulae: &[String],
+    winget_manifests: &[String],
+    winget_blocked: bool,
+    enterprise_manifest_valid: bool,
+    missing_platforms: &[&str],
+) -> Vec<Value> {
+    let mut blockers = Vec::new();
+    if artifact_count == 0 {
+        blockers.push(serde_json::json!({
+            "id": "distribution.artifacts",
+            "blocking": true,
+            "message": "no packaged release artifacts were found in the reviewed dist directory",
+        }));
+    }
+    if !missing_platforms.is_empty() {
+        blockers.push(serde_json::json!({
+            "id": "distribution.platform-artifacts",
+            "blocking": true,
+            "message": format!("missing platform artifacts: {}", missing_platforms.join(", ")),
+        }));
+    }
+    if homebrew_formulae.is_empty() {
+        blockers.push(serde_json::json!({
+            "id": "distribution.homebrew",
+            "blocking": true,
+            "message": "Homebrew formula is not present",
+        }));
+    }
+    if winget_manifests.is_empty() {
+        blockers.push(serde_json::json!({
+            "id": "distribution.winget",
+            "blocking": true,
+            "message": if winget_blocked {
+                "winget channel is explicitly blocked"
+            } else {
+                "winget manifest is not present"
+            },
+        }));
+    }
+    if !enterprise_manifest_valid {
+        blockers.push(serde_json::json!({
+            "id": "distribution.enterprise-offline-manifest",
+            "blocking": true,
+            "message": "enterprise offline manifest is missing or invalid",
+        }));
+    }
+    blockers
+}
+
+fn direct_connect_distribution_is_archive(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name.ends_with(".tar.gz") || name.ends_with(".zip") || name.ends_with(".tgz")
+        })
+}
+
+fn direct_connect_distribution_target_from_archive(file_name: &str) -> String {
+    let trimmed = file_name
+        .strip_suffix(".tar.gz")
+        .or_else(|| file_name.strip_suffix(".zip"))
+        .or_else(|| file_name.strip_suffix(".tgz"))
+        .unwrap_or(file_name);
+    trimmed
+        .strip_prefix("kiana-")
+        .and_then(|rest| rest.split_once('-').map(|(_, target)| target.to_string()))
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn direct_connect_relative_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
 }
 
 fn direct_connect_first_existing_path<const N: usize>(
@@ -8159,6 +8505,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.proof_manifest.read",
             "release.live_provider_smoke.read",
             "release.remote_code_session_smoke.read",
+            "release.distribution_review.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -8273,6 +8620,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/remote-code-session-smoke",
                 "schema": "kiana.remote-code-session-smoke.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/distribution",
+                "schema": "kiana.app-server.distribution-review.v1"
             },
             {
                 "method": "GET",
@@ -17430,6 +17782,7 @@ mod tests {
             "KIANA_PROVIDER_LIVE_SMOKE_OUT",
             "KIANA_REMOTE_SMOKE_PROOF_FILE",
             "KIANA_REMOTE_SMOKE_PROOF_OUT",
+            "KIANA_DISTRIBUTION_REVIEW_DIST_DIR",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17941,6 +18294,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.remote_code_session_smoke.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.distribution_review.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -18039,6 +18397,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/remote-code-session-smoke"
                     && endpoint["schema"] == "kiana.remote-code-session-smoke.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/distribution"
+                    && endpoint["schema"] == "kiana.app-server.distribution-review.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -18979,6 +19346,123 @@ mod tests {
             "scripts/generate-distribution-manifests.sh"
         );
         let _ = std::fs::remove_file(&enterprise_offline_manifest_path);
+
+        let distribution_dist_dir =
+            std::env::temp_dir().join(format!("kiana-dist-review-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(distribution_dist_dir.join("manifests").join("homebrew")).unwrap();
+        std::fs::create_dir_all(distribution_dist_dir.join("manifests").join("winget")).unwrap();
+        std::fs::create_dir_all(distribution_dist_dir.join("manifests").join("enterprise"))
+            .unwrap();
+        std::fs::write(
+            distribution_dist_dir.join("kiana-0.1.0-linux-x86_64.tar.gz"),
+            "archive",
+        )
+        .unwrap();
+        std::fs::write(
+            distribution_dist_dir.join("kiana-0.1.0-linux-x86_64.tar.gz.sha256"),
+            "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507  kiana-0.1.0-linux-x86_64.tar.gz\n",
+        )
+        .unwrap();
+        std::fs::write(
+            distribution_dist_dir.join("kiana-0.1.0-linux-x86_64.binary.sha256"),
+            "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0  kiana\n",
+        )
+        .unwrap();
+        std::fs::write(
+            distribution_dist_dir
+                .join("manifests")
+                .join("homebrew")
+                .join("kiana-linux-x86_64.rb"),
+            "class Kiana < Formula\nend\n",
+        )
+        .unwrap();
+        std::fs::write(
+            distribution_dist_dir
+                .join("manifests")
+                .join("winget")
+                .join("BLOCKED.md"),
+            "blocked until Windows artifact is publishable\n",
+        )
+        .unwrap();
+        std::fs::write(
+            distribution_dist_dir
+                .join("manifests")
+                .join("enterprise")
+                .join("offline-manifest.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.enterprise.offline-manifest.v1",
+                "version": "0.1.0",
+                "release_base_url": "https://downloads.example.test/kiana/v0.1.0",
+                "artifacts": [{
+                    "target": "linux-x86_64",
+                    "archive": "kiana-0.1.0-linux-x86_64.tar.gz",
+                    "url": "https://downloads.example.test/kiana/v0.1.0/kiana-0.1.0-linux-x86_64.tar.gz",
+                    "sha256": "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507",
+                    "binary_sha256": "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0",
+                    "local_path": "kiana-0.1.0-linux-x86_64.tar.gz",
+                    "checksum_path": "kiana-0.1.0-linux-x86_64.tar.gz.sha256",
+                    "binary_checksum_path": "kiana-0.1.0-linux-x86_64.binary.sha256"
+                }],
+                "channels": {
+                    "github_releases": "generated_from_release_base_url",
+                    "homebrew": "generated",
+                    "winget": "blocked_no_windows_publishable_artifact"
+                },
+                "generated_by": "scripts/generate-distribution-manifests.sh"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_DISTRIBUTION_REVIEW_DIST_DIR", &distribution_dist_dir);
+        let distribution_review: Value = client
+            .get(format!("http://{addr}/app/release/distribution"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            distribution_review["schema"],
+            "kiana.app-server.distribution-review.v1"
+        );
+        assert_eq!(distribution_review["summary"]["artifacts"], 1);
+        assert_eq!(distribution_review["summary"]["platforms"]["linux"], true);
+        assert_eq!(distribution_review["summary"]["platforms"]["macos"], false);
+        assert_eq!(
+            distribution_review["summary"]["platforms"]["windows"],
+            false
+        );
+        assert_eq!(
+            distribution_review["channels"]["homebrew"]["status"],
+            "ready"
+        );
+        assert_eq!(
+            distribution_review["channels"]["winget"]["status"],
+            "blocked"
+        );
+        assert_eq!(
+            distribution_review["channels"]["winget"]["blocked_path"],
+            "manifests/winget/BLOCKED.md"
+        );
+        assert_eq!(
+            distribution_review["enterprise_offline_manifest"]["valid"],
+            true
+        );
+        assert!(distribution_review["artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|artifact| artifact["target"] == "linux-x86_64"
+                && artifact["sha256_file"] == "kiana-0.1.0-linux-x86_64.tar.gz.sha256"
+                && artifact["binary_sha256_file"] == "kiana-0.1.0-linux-x86_64.binary.sha256"));
+        assert!(distribution_review["blockers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|blocker| blocker["id"] == "distribution.platform-artifacts"));
+        let _ = std::fs::remove_dir_all(&distribution_dist_dir);
 
         let commercial_proof_manifest_path = std::env::temp_dir().join(format!(
             "kiana-commercial-proof-manifest-{}.json",
