@@ -8397,6 +8397,7 @@ fn direct_connect_app_conversation_events_report(
     if truncated {
         events = events.split_off(total_events - DIRECT_CONNECT_APP_EVENTS_LIMIT);
     }
+    let summary = direct_connect_app_events_summary(&events);
 
     Ok(serde_json::json!({
         "schema": "kiana.app-server.events.v1",
@@ -8413,8 +8414,81 @@ fn direct_connect_app_conversation_events_report(
         "total_events": total_events,
         "count": events.len(),
         "truncated": truncated,
+        "summary": summary,
         "events": events,
     }))
+}
+
+fn direct_connect_app_events_summary(events: &[Value]) -> Value {
+    let mut event_types = serde_json::Map::new();
+    let mut turn_ids = HashSet::new();
+    let mut tool_result_total = 0usize;
+    let mut tool_result_errors = 0usize;
+    let mut file_change_paths = Vec::<String>::new();
+    let mut terminal = serde_json::json!({
+        "present": false,
+        "status": Value::Null,
+        "stop_reason": Value::Null,
+    });
+
+    for event in events {
+        if let Some(turn_id) = event.get("turn_id").and_then(Value::as_str) {
+            turn_ids.insert(turn_id.to_string());
+        }
+        let event_type = event
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let count = event_types
+            .get(event_type)
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            + 1;
+        event_types.insert(event_type.to_string(), Value::from(count));
+
+        if event_type == "tool_result" {
+            tool_result_total += 1;
+            if event
+                .get("is_error")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                tool_result_errors += 1;
+            }
+            if let Some(changed_files) = event.get("changed_files").and_then(Value::as_array) {
+                for changed_file in changed_files {
+                    if let Some(path) = changed_file.get("path").and_then(Value::as_str) {
+                        if !file_change_paths.iter().any(|existing| existing == path) {
+                            file_change_paths.push(path.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        if event_type == "result" {
+            terminal = serde_json::json!({
+                "present": true,
+                "status": event.get("status").cloned().unwrap_or(Value::Null),
+                "stop_reason": event.get("stop_reason").cloned().unwrap_or(Value::Null),
+            });
+        }
+    }
+    file_change_paths.sort();
+
+    serde_json::json!({
+        "turns": turn_ids.len(),
+        "event_types": Value::Object(event_types),
+        "tool_results": {
+            "total": tool_result_total,
+            "errors": tool_result_errors,
+        },
+        "file_changes": {
+            "count": file_change_paths.len(),
+            "paths": file_change_paths,
+        },
+        "terminal": terminal,
+    })
 }
 
 fn direct_connect_read_runtime_event_values(session_id: &str) -> Result<Option<Vec<Value>>> {
@@ -18023,6 +18097,45 @@ mod tests {
                     },
                 ),
             ),
+            kiana_types::RuntimeEvent::new(
+                "event-2",
+                session_id,
+                "turn-0",
+                None,
+                2,
+                "2026-07-02T00:00:02Z",
+                kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                    tool_call_id: "toolu_write".to_string(),
+                    name: Some("Write".to_string()),
+                    workbench: Some("local-files".to_string()),
+                    is_error: false,
+                    content: serde_json::json!("updated src/lib.rs"),
+                    changed_files: Some(serde_json::json!([
+                        {
+                            "path": "src/lib.rs",
+                            "operation": "update",
+                            "source": "Write"
+                        }
+                    ])),
+                    error: None,
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "event-3",
+                session_id,
+                "turn-0",
+                None,
+                3,
+                "2026-07-02T00:00:03Z",
+                kiana_types::RuntimeEventPayload::Result(kiana_types::RuntimeResultEvent {
+                    status: "completed".to_string(),
+                    stop_reason: "end_turn".to_string(),
+                    assistant_text: Some("hello from kiana".to_string()),
+                    metadata: serde_json::json!({
+                        "turns": 1
+                    }),
+                }),
+            ),
         ];
         let event_contents = events
             .iter()
@@ -18557,8 +18670,29 @@ mod tests {
         assert_eq!(event_snapshot["session_id"], session_id);
         assert_eq!(event_snapshot["active"], true);
         assert_eq!(event_snapshot["event_source"]["available"], true);
-        assert_eq!(event_snapshot["count"], 2);
-        assert_eq!(event_snapshot["total_events"], 2);
+        assert_eq!(event_snapshot["count"], 4);
+        assert_eq!(event_snapshot["total_events"], 4);
+        assert_eq!(event_snapshot["summary"]["turns"], 1);
+        assert_eq!(event_snapshot["summary"]["event_types"]["user_message"], 1);
+        assert_eq!(
+            event_snapshot["summary"]["event_types"]["assistant_message"],
+            1
+        );
+        assert_eq!(event_snapshot["summary"]["event_types"]["tool_result"], 1);
+        assert_eq!(event_snapshot["summary"]["event_types"]["result"], 1);
+        assert_eq!(event_snapshot["summary"]["tool_results"]["total"], 1);
+        assert_eq!(event_snapshot["summary"]["tool_results"]["errors"], 0);
+        assert_eq!(event_snapshot["summary"]["file_changes"]["count"], 1);
+        assert_eq!(
+            event_snapshot["summary"]["file_changes"]["paths"][0],
+            "src/lib.rs"
+        );
+        assert_eq!(event_snapshot["summary"]["terminal"]["present"], true);
+        assert_eq!(event_snapshot["summary"]["terminal"]["status"], "completed");
+        assert_eq!(
+            event_snapshot["summary"]["terminal"]["stop_reason"],
+            "end_turn"
+        );
         assert_eq!(event_snapshot["events"][0]["type"], "user_message");
         assert_eq!(
             event_snapshot["events"][1]["message"]["content"][0]["text"],

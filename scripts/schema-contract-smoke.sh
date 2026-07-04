@@ -105,6 +105,25 @@ cat > "$tmp_app_events" <<'JSON'
   "total_events": 1,
   "count": 1,
   "truncated": false,
+  "summary": {
+    "turns": 1,
+    "event_types": {
+      "permission_request": 1
+    },
+    "tool_results": {
+      "total": 0,
+      "errors": 0
+    },
+    "file_changes": {
+      "count": 0,
+      "paths": []
+    },
+    "terminal": {
+      "present": false,
+      "status": null,
+      "stop_reason": null
+    }
+  },
   "events": [
     {
       "event_id": "evt-permission",

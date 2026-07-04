@@ -14,6 +14,7 @@
     "total_events",
     "count",
     "truncated",
+    "summary",
     "events"
   ],
   "properties": {
@@ -61,6 +62,79 @@
     },
     "truncated": {
       "type": "boolean"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "turns",
+        "event_types",
+        "tool_results",
+        "file_changes",
+        "terminal"
+      ],
+      "properties": {
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "tool_results": {
+          "type": "object",
+          "required": ["total", "errors"],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "file_changes": {
+          "type": "object",
+          "required": ["count", "paths"],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "terminal": {
+          "type": "object",
+          "required": ["present", "status", "stop_reason"],
+          "properties": {
+            "present": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": ["string", "null"]
+            },
+            "stop_reason": {
+              "type": ["string", "null"]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     },
     "events": {
       "type": "array",
@@ -164,6 +238,10 @@
         },
         "details": {},
         "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stop_reason": {
           "type": "string",
           "minLength": 1
         },
