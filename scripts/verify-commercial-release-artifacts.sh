@@ -862,6 +862,95 @@ PY
   fi
 }
 
+require_homebrew_formula_contract() {
+  local expected_version="$1"
+  local current_dist_dir="$2"
+  shift 2
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate Homebrew formula"
+    return
+  fi
+  if "$python" - "$expected_version" "$current_dist_dir" "$@" <<'PY'
+import hashlib
+import re
+import sys
+from pathlib import Path
+
+expected_version = sys.argv[1]
+dist_dir = Path(sys.argv[2])
+formulae = [Path(value) for value in sys.argv[3:]]
+placeholder_markers = (
+    "github.com/kiana-project/kiana",
+    "example.com",
+    "example.test",
+    "localhost",
+    "127.0.0.1",
+    "pending_",
+    "blocked_",
+    "dry_run",
+)
+
+def field(content, name):
+    match = re.search(rf'^\s*{re.escape(name)}\s+"([^"]+)"\s*$', content, re.MULTILINE)
+    return match.group(1) if match else ""
+
+def real_url(value):
+    return (
+        isinstance(value, str)
+        and value.startswith("https://")
+        and not any(marker in value.lower() for marker in placeholder_markers)
+    )
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+def first_checksum(path):
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.split()
+            if parts:
+                return parts[0]
+    return ""
+
+checks = []
+for formula in formulae:
+    try:
+        content = formula.read_text(encoding="utf-8")
+    except OSError:
+        checks.append(False)
+        continue
+    url = field(content, "url")
+    formula_sha = field(content, "sha256")
+    version = field(content, "version")
+    archive_name = url.rsplit("/", 1)[-1] if isinstance(url, str) else ""
+    archive = dist_dir / archive_name
+    checksum = dist_dir / f"{archive_name}.sha256"
+    checks.append(
+        version == expected_version
+        and real_url(url)
+        and url.endswith(".tar.gz")
+        and re.fullmatch(r"[0-9a-fA-F]{64}", formula_sha or "") is not None
+        and archive.is_file()
+        and checksum.is_file()
+        and formula_sha.lower() == file_sha256(archive)
+        and formula_sha.lower() == first_checksum(checksum).lower()
+    )
+
+sys.exit(0 if checks and all(checks) else 1)
+PY
+  then
+    pass "Homebrew formula commercial contract"
+  else
+    fail "Homebrew formula failed commercial contract"
+  fi
+}
+
 require_source_control_contract() {
   local file="$1"
   local expected_version="$2"
@@ -1130,6 +1219,7 @@ else
   homebrew_formulas=("${manifest_dir}/homebrew/"*.rb)
   if (( ${#homebrew_formulas[@]} > 0 )); then
     pass "Homebrew channel manifest is not blocked"
+    require_homebrew_formula_contract "$version" "$dist_dir" "${homebrew_formulas[@]}"
   else
     fail "Homebrew channel manifest is not blocked but no formula was generated"
   fi

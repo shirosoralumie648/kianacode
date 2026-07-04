@@ -186,9 +186,18 @@ EOF
   fi
 done
 
-cat > "$manifest_dir/homebrew/kiana.rb" <<'EOF'
+cat > "$manifest_dir/homebrew/kiana.rb" <<EOF
 class Kiana < Formula
-  desc "Kiana"
+  desc "Kiana Code AI coding assistant"
+  homepage "https://github.com/acme/kiana"
+  url "https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-linux-x86_64.tar.gz"
+  sha256 "$(hash_file "$dist_dir/kiana-${version}-linux-x86_64.tar.gz")"
+  version "${version}"
+  license any_of: ["MIT", "Apache-2.0"]
+
+  def install
+    bin.install "kiana"
+  end
 end
 EOF
 
@@ -491,6 +500,22 @@ do
 done
 
 DIST_DIR="$dist_dir" bash scripts/stage-commercial-release-proofs.sh >/dev/null
+homebrew_formula="$manifest_dir/homebrew/kiana.rb"
+cp "$homebrew_formula" "${homebrew_formula}.valid"
+bad_sha="0000000000000000000000000000000000000000000000000000000000000000"
+perl -0pi -e 's/sha256 "[0-9a-f]{64}"/sha256 "'"${bad_sha}"'"/' "$homebrew_formula"
+set +e
+homebrew_mismatch_output="$(run_commercial_verifier 2>&1)"
+homebrew_mismatch_status=$?
+set -e
+if [[ "$homebrew_mismatch_status" -eq 0 ]] ||
+  ! grep -Fq 'Homebrew formula failed commercial contract' <<<"$homebrew_mismatch_output"; then
+  echo "commercial verifier accepted a Homebrew formula checksum mismatch" >&2
+  echo "$homebrew_mismatch_output" >&2
+  exit 1
+fi
+mv "${homebrew_formula}.valid" "$homebrew_formula"
+
 enterprise_manifest="$manifest_dir/enterprise/offline-manifest.json"
 cp "$enterprise_manifest" "${enterprise_manifest}.valid"
 "${PYTHON:-python3}" - "$enterprise_manifest" <<'PY'
