@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-conversation-files.v1.schema.json",
+  "title": "Kiana App Server Conversation Files v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "session_id",
+    "changed",
+    "editable_files",
+    "read_only_files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.conversation-files.v1"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "editable_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "read_only_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false
+}

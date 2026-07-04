@@ -5273,6 +5273,11 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_conversation_events_handler),
         )
         .route(
+            "/app/conversations/{session_id}/files",
+            axum::routing::get(direct_connect_app_conversation_files_get_handler)
+                .post(direct_connect_app_conversation_files_post_handler),
+        )
+        .route(
             "/app/settings",
             axum::routing::get(direct_connect_app_settings_handler),
         )
@@ -5457,6 +5462,206 @@ fn direct_connect_persisted_conversation_json(session: crate::sdk::SdkSessionInf
         "events_url": Value::Null,
         "events_snapshot_url": format!("/app/conversations/{}/events", session.session_id),
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct DirectConnectConversationFilesRequest {
+    #[serde(default)]
+    editable_files: Option<Vec<String>>,
+    #[serde(
+        default,
+        alias = "readOnlyFiles",
+        alias = "readonly_files",
+        alias = "readonlyFiles"
+    )]
+    read_only_files: Option<Vec<String>>,
+    #[serde(default)]
+    clear_editable: bool,
+    #[serde(default, alias = "clearReadonly")]
+    clear_read_only: bool,
+}
+
+async fn direct_connect_app_conversation_files_get_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    direct_connect_app_conversation_files_handler(state, session_id, headers, None).await
+}
+
+async fn direct_connect_app_conversation_files_post_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+    axum::Json(body): axum::Json<DirectConnectConversationFilesRequest>,
+) -> axum::response::Response {
+    direct_connect_app_conversation_files_handler(state, session_id, headers, Some(body)).await
+}
+
+async fn direct_connect_app_conversation_files_handler(
+    state: DirectConnectServerState,
+    session_id: String,
+    headers: axum::http::HeaderMap,
+    body: Option<DirectConnectConversationFilesRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+    if let Err(error) = direct_connect_validate_session_id(&session_id) {
+        return direct_connect_json_error(axum::http::StatusCode::BAD_REQUEST, error.to_string());
+    }
+
+    match direct_connect_conversation_files_report(&session_id, body) {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) if error.to_string().contains("was not found") => direct_connect_json_error(
+            axum::http::StatusCode::NOT_FOUND,
+            format!("direct-connect conversation files not found: {error}"),
+        ),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to update conversation files: {error}"),
+        ),
+    }
+}
+
+fn direct_connect_conversation_files_report(
+    session_id: &str,
+    request: Option<DirectConnectConversationFilesRequest>,
+) -> Result<Value> {
+    let mut session = direct_connect_read_session_json(session_id)?;
+    let mut changed = false;
+
+    if let Some(request) = request {
+        if request.clear_editable {
+            direct_connect_remove_object_key(&mut session, "editable_files");
+            changed = true;
+        }
+        if request.clear_read_only {
+            direct_connect_remove_object_key(&mut session, "read_only_files");
+            changed = true;
+        }
+        if let Some(editable_files) = request.editable_files {
+            direct_connect_validate_file_set("editable_files", &editable_files)?;
+            session["editable_files"] = Value::Array(
+                editable_files
+                    .into_iter()
+                    .map(Value::String)
+                    .collect::<Vec<_>>(),
+            );
+            changed = true;
+        }
+        if let Some(read_only_files) = request.read_only_files {
+            direct_connect_validate_file_set("read_only_files", &read_only_files)?;
+            session["read_only_files"] = Value::Array(
+                read_only_files
+                    .into_iter()
+                    .map(Value::String)
+                    .collect::<Vec<_>>(),
+            );
+            changed = true;
+        }
+        if changed {
+            session["updated_at"] = serde_json::json!(direct_connect_now_unix_seconds());
+            direct_connect_write_session_json(session_id, &session)?;
+        }
+    }
+
+    Ok(serde_json::json!({
+        "schema": "kiana.app-server.conversation-files.v1",
+        "session_id": session_id,
+        "changed": changed,
+        "editable_files": direct_connect_session_file_list(&session, "editable_files"),
+        "read_only_files": direct_connect_session_file_list(&session, "read_only_files"),
+    }))
+}
+
+fn direct_connect_read_session_json(session_id: &str) -> Result<Value> {
+    direct_connect_validate_session_id(session_id)?;
+    let path = direct_connect_sdk_sessions_dir().join(format!("{session_id}.json"));
+    if path.exists() {
+        let contents = std::fs::read_to_string(&path)
+            .with_context(|| format!("session '{}' was not found", session_id))?;
+        return serde_json::from_str(&contents)
+            .with_context(|| format!("failed to parse session file {}", path.display()));
+    }
+
+    let events = direct_connect_read_runtime_event_values(session_id)?
+        .ok_or_else(|| anyhow!("session '{}' was not found", session_id))?;
+    let messages = events
+        .iter()
+        .filter_map(direct_connect_runtime_event_message)
+        .collect::<Vec<_>>();
+    Ok(serde_json::json!({
+        "session_id": session_id,
+        "title": serde_json::Value::Null,
+        "tag": serde_json::Value::Null,
+        "parent_session_id": serde_json::Value::Null,
+        "cwd": serde_json::Value::Null,
+        "created_at": 0,
+        "updated_at": 0,
+        "messages": messages,
+    }))
+}
+
+fn direct_connect_write_session_json(session_id: &str, session: &Value) -> Result<()> {
+    direct_connect_validate_session_id(session_id)?;
+    let dir = direct_connect_sdk_sessions_dir();
+    std::fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
+    let path = dir.join(format!("{session_id}.json"));
+    let tmp = dir.join(format!(".{session_id}.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, serde_json::to_string_pretty(session)?)
+        .with_context(|| format!("failed to write {}", tmp.display()))?;
+    std::fs::rename(&tmp, &path)
+        .with_context(|| format!("failed to replace {}", path.display()))?;
+    Ok(())
+}
+
+fn direct_connect_runtime_event_message(event: &Value) -> Option<Value> {
+    match event.get("type").and_then(Value::as_str)? {
+        "user_message" | "assistant_message" => event.get("message").cloned(),
+        _ => None,
+    }
+}
+
+fn direct_connect_validate_file_set(label: &str, files: &[String]) -> Result<()> {
+    for file in files {
+        if file.trim().is_empty() {
+            return Err(anyhow!("{label} contains an empty file path"));
+        }
+    }
+    Ok(())
+}
+
+fn direct_connect_session_file_list(session: &Value, key: &str) -> Vec<String> {
+    session
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn direct_connect_remove_object_key(value: &mut Value, key: &str) {
+    if let Some(object) = value.as_object_mut() {
+        object.remove(key);
+    }
+}
+
+fn direct_connect_now_unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 async fn direct_connect_app_conversation_events_handler(
@@ -6831,6 +7036,8 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "conversations.read",
             "events.snapshot.read",
             "events.websocket",
+            "conversation.files.read",
+            "conversation.files.write",
             "settings.read",
             "secrets.redacted",
             "sandbox.read",
@@ -6866,6 +7073,16 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/conversations/{session_id}/events",
                 "schema": "kiana.app-server.events.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/conversations/{session_id}/files",
+                "schema": "kiana.app-server.conversation-files.v1"
+            },
+            {
+                "method": "POST",
+                "path": "/app/conversations/{session_id}/files",
+                "schema": "kiana.app-server.conversation-files.v1"
             },
             {
                 "method": "GET",
@@ -16304,6 +16521,14 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("conversation.files.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("conversation.files.write".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("plugins.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -16378,6 +16603,24 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/conversations/{session_id}/events"
                     && endpoint["schema"] == "kiana.app-server.events.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/conversations/{session_id}/files"
+                    && endpoint["schema"] == "kiana.app-server.conversation-files.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "POST"
+                    && endpoint["path"] == "/app/conversations/{session_id}/files"
+                    && endpoint["schema"] == "kiana.app-server.conversation-files.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16572,6 +16815,89 @@ mod tests {
             event_snapshot["events"][1]["message"]["content"][0]["text"],
             "hello from kiana"
         );
+
+        let initial_files: Value = client
+            .get(format!(
+                "http://{addr}/app/conversations/{archived_session_id}/files"
+            ))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            initial_files["schema"],
+            "kiana.app-server.conversation-files.v1"
+        );
+        assert_eq!(initial_files["session_id"], archived_session_id);
+        assert_eq!(initial_files["editable_files"], serde_json::json!([]));
+        assert_eq!(initial_files["read_only_files"], serde_json::json!([]));
+        assert_eq!(initial_files["changed"], false);
+
+        let updated_files: Value = client
+            .post(format!(
+                "http://{addr}/app/conversations/{archived_session_id}/files"
+            ))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "editable_files": ["src/lib.rs", "tests/app.rs"],
+                "read_only_files": ["README.md"],
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            updated_files["schema"],
+            "kiana.app-server.conversation-files.v1"
+        );
+        assert_eq!(updated_files["session_id"], archived_session_id);
+        assert_eq!(
+            updated_files["editable_files"],
+            serde_json::json!(["src/lib.rs", "tests/app.rs"])
+        );
+        assert_eq!(
+            updated_files["read_only_files"],
+            serde_json::json!(["README.md"])
+        );
+        assert_eq!(updated_files["changed"], true);
+
+        let persisted_files: Value = serde_json::from_str(
+            &std::fs::read_to_string(sessions_dir.join(format!("{archived_session_id}.json")))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            persisted_files["editable_files"],
+            serde_json::json!(["src/lib.rs", "tests/app.rs"])
+        );
+        assert_eq!(
+            persisted_files["read_only_files"],
+            serde_json::json!(["README.md"])
+        );
+
+        let cleared_files: Value = client
+            .post(format!(
+                "http://{addr}/app/conversations/{archived_session_id}/files"
+            ))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "clear_editable": true,
+                "clear_read_only": true,
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(cleared_files["editable_files"], serde_json::json!([]));
+        assert_eq!(cleared_files["read_only_files"], serde_json::json!([]));
+        assert_eq!(cleared_files["changed"], true);
 
         let settings: Value = client
             .get(format!("http://{addr}/app/settings"))

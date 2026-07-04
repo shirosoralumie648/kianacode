@@ -19,8 +19,8 @@
         "required": [
           "id",
           "session_id",
-          "work_dir",
-          "dangerously_skip_permissions",
+          "source",
+          "active",
           "events_url",
           "events_snapshot_url"
         ],
@@ -33,15 +33,49 @@
             "type": "string",
             "minLength": 1
           },
-          "work_dir": {
+          "source": {
             "type": "string",
-            "minLength": 1
+            "enum": ["direct-connect", "sdk-session-store"]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": ["string", "null"]
+          },
+          "tag": {
+            "type": ["string", "null"]
+          },
+          "parent_session_id": {
+            "type": ["string", "null"]
+          },
+          "work_dir": {
+            "type": ["string", "null"]
           },
           "dangerously_skip_permissions": {
             "type": "boolean"
           },
+          "created_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "message_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "assistant_message_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_role": {
+            "type": ["string", "null"]
+          },
           "events_url": {
-            "type": "string",
+            "type": ["string", "null"],
             "pattern": "^/sessions/.+/ws$"
           },
           "events_snapshot_url": {
