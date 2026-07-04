@@ -33,10 +33,11 @@ tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_checks_dry_run="$(mktemp)"
+tmp_review_dry_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_review_dry_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -147,6 +148,48 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-checks-dry-run.v1.schema.json \
   "$tmp_checks_dry_run" >/dev/null
+
+cat > "$tmp_review_dry_run" <<'JSON'
+{
+  "schema": "kiana.review.dry_run.v1",
+  "root": "/workspace",
+  "git_root": "/workspace",
+  "inside_git_repo": true,
+  "dry_run": true,
+  "dirty": true,
+  "head": "0123456789abcdef0123456789abcdef01234567",
+  "branch": "main",
+  "planned_steps": [
+    "create_isolated_worktree",
+    "apply_current_patch",
+    "run_configured_checks",
+    "produce_review_findings",
+    "discard_isolated_worktree"
+  ],
+  "files": [
+    {
+      "path": "src/lib.rs",
+      "index": "M",
+      "worktree": " "
+    }
+  ],
+  "patches": {
+    "staged": {
+      "changed": true,
+      "bytes": 42,
+      "text": "diff --git a/src/lib.rs b/src/lib.rs\n"
+    },
+    "unstaged": {
+      "changed": false,
+      "bytes": 0,
+      "text": ""
+    }
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-review-dry-run.v1.schema.json \
+  "$tmp_review_dry_run" >/dev/null
 
 cat > "$tmp_doctor" <<'JSON'
 {

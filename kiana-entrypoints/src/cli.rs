@@ -5244,6 +5244,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_checks_dry_run_handler),
         )
         .route(
+            "/app/review/dry-run",
+            axum::routing::get(direct_connect_app_review_dry_run_handler),
+        )
+        .route(
             "/app/context/index",
             axum::routing::get(direct_connect_app_context_index_handler),
         )
@@ -5593,6 +5597,46 @@ async fn direct_connect_app_checks_dry_run_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             format!("failed to build checks dry-run report: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_review_dry_run_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("review") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "review command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "--dry-run --json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build review dry-run report: {error}"),
         ),
     }
 }
@@ -6300,6 +6344,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "plugins.read",
             "git.status.read",
             "checks.dry_run.read",
+            "review.dry_run.read",
             "context.index.read",
             "context.index.cache.write",
             "context.search.read",
@@ -6350,6 +6395,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/checks/dry-run",
                 "schema": "kiana.checks.dry_run.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/review/dry-run",
+                "schema": "kiana.review.dry_run.v1"
             },
             {
                 "method": "GET",
@@ -15620,6 +15670,10 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&Value::String("checks.dry_run.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("review.dry_run.read".to_string())));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -15682,6 +15736,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/checks/dry-run"
                     && endpoint["schema"] == "kiana.checks.dry_run.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/review/dry-run"
+                    && endpoint["schema"] == "kiana.review.dry_run.v1"
             }));
 
         let conversations: Value = client
@@ -15931,6 +15994,24 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(check_ids.contains(&"rustfmt"));
         assert!(check_ids.contains(&"cargo_check"));
+
+        let review_dry_run: Value = client
+            .get(format!("http://{addr}/app/review/dry-run"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(review_dry_run["schema"], "kiana.review.dry_run.v1");
+        assert_eq!(review_dry_run["root"], workspace.display().to_string());
+        assert_eq!(review_dry_run["dry_run"], true);
+        assert_eq!(review_dry_run["inside_git_repo"], false);
+        assert!(review_dry_run["planned_steps"]
+            .as_array()
+            .unwrap()
+            .is_empty());
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))

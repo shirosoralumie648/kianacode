@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-review-dry-run.v1.schema.json",
+  "title": "Kiana Review Dry Run v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "root",
+    "inside_git_repo",
+    "dry_run",
+    "dirty",
+    "planned_steps",
+    "files",
+    "patches"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.review.dry_run.v1"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inside_git_repo": {
+      "type": "boolean"
+    },
+    "dry_run": {
+      "const": true
+    },
+    "dirty": {
+      "type": "boolean"
+    },
+    "head": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string"
+    },
+    "planned_steps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "create_isolated_worktree",
+          "apply_current_patch",
+          "run_configured_checks",
+          "produce_review_findings",
+          "discard_isolated_worktree"
+        ]
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "index", "worktree"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "index": {
+            "type": "string",
+            "minLength": 1
+          },
+          "worktree": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "patches": {
+      "type": "object",
+      "required": ["staged", "unstaged"],
+      "properties": {
+        "staged": {
+          "$ref": "#/$defs/patchPreview"
+        },
+        "unstaged": {
+          "$ref": "#/$defs/patchPreview"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "patchPreview": {
+      "type": "object",
+      "required": ["changed", "bytes", "text"],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

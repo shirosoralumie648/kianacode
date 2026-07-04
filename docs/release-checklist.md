@@ -131,6 +131,10 @@ commercial release.
 - App-server checks dry-run returns `kiana.checks.dry_run.v1` from the active
   workspace so Web/IDE clients can display deterministic local quality gates
   without shelling out to `kiana checks --dry-run --json`.
+- App-server review dry-run returns `kiana.review.dry_run.v1` from the active
+  workspace so Web/IDE clients can display deterministic local review state,
+  patch previews, and isolated-review steps without shelling out to
+  `kiana review --dry-run --json`.
 - App-server context endpoints return `kiana.context-index.v1`,
   `kiana.context-search.v1`, and `kiana.context-pack.v1` from the active
   workspace so Web/IDE clients can use repository knowledge without shelling out
