@@ -268,6 +268,8 @@ fi
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
   grep -Fq '"context-search"' scripts/product-acceptance-report.sh &&
   grep -Fq '"context-cache-recovery"' scripts/product-acceptance-report.sh &&
+  grep -Fq '"context-cache-recovery"' scripts/stage-commercial-release-proofs.sh &&
+  grep -Fq '"context-cache-recovery"' scripts/verify-commercial-release-artifacts.sh &&
   grep -Fq 'persistent_context_index_recovers_from_corrupt_cache' scripts/product-acceptance-report.sh &&
   grep -Fq 'cargo test -p kiana-commands --locked --offline context_search' scripts/product-acceptance-report.sh; then
   pass "product acceptance requires app-server, context-search, and context-cache-recovery workflows"

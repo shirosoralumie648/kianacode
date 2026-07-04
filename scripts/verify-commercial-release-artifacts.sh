@@ -287,6 +287,7 @@ required_workflows = {
     "settings",
     "app-server",
     "context-search",
+    "context-cache-recovery",
 }
 placeholder_markers = (
     "todo",

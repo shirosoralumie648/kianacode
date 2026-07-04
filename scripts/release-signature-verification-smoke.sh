@@ -375,7 +375,8 @@ cat > "$dist_dir/proofs/product/product-acceptance.json" <<EOF
     "resume",
     "settings",
     "app-server",
-    "context-search"
+    "context-search",
+    "context-cache-recovery"
   ]
 }
 EOF

@@ -419,6 +419,7 @@ if product:
         "settings",
         "app-server",
         "context-search",
+        "context-cache-recovery",
     }
     if require_contract(
         "product acceptance",
