@@ -1,10 +1,11 @@
 use crate::checkpoint::{checkpoint_repo_dir, CheckpointKind};
+use crate::local_state::sdk_sessions_dir;
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Component;
@@ -38,6 +39,14 @@ impl Command for DiffCommand {
             return Ok(CommandResult::text(usage()));
         }
         let cwd = context_cwd(&context);
+
+        if let Some(session_id) = args.session_changes.as_deref() {
+            if !args.json_output || args.from_checkpoint.is_some() || args.last_assistant {
+                return Err(anyhow!(usage()));
+            }
+            let report = session_changes_report(session_id)?;
+            return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
+        }
 
         if args.last_assistant {
             if !args.json_output || args.from_checkpoint.is_some() {
@@ -99,7 +108,7 @@ impl Command for DiffCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana diff [--json]\n       kiana diff --from-checkpoint <checkpoint-dir-or-manifest> --json\n       kiana diff --last-assistant --json"
+    "Usage: kiana diff [--json]\n       kiana diff --from-checkpoint <checkpoint-dir-or-manifest> --json\n       kiana diff --last-assistant --json\n       kiana diff --session-changes <session-id> --json"
 }
 
 fn parse_diff_args(raw: &str) -> Result<DiffArgs> {
@@ -113,6 +122,22 @@ fn parse_diff_args(raw: &str) -> Result<DiffArgs> {
             "help" | "--help" | "-h" => args.help = true,
             "--json" | "json" => args.json_output = true,
             "--last-assistant" | "last-assistant" => args.last_assistant = true,
+            "--session-changes" | "session-changes" => {
+                index += 1;
+                let Some(value) = tokens.get(index) else {
+                    return Err(anyhow!(usage()));
+                };
+                validate_session_id(value)?;
+                args.session_changes = Some((*value).to_string());
+            }
+            token if token.starts_with("--session-changes=") => {
+                let value = token.strip_prefix("--session-changes=").unwrap_or_default();
+                if value.is_empty() {
+                    return Err(anyhow!(usage()));
+                }
+                validate_session_id(value)?;
+                args.session_changes = Some(value.to_string());
+            }
             "--from-checkpoint" | "from-checkpoint" => {
                 index += 1;
                 let Some(value) = tokens.get(index) else {
@@ -133,6 +158,110 @@ fn parse_diff_args(raw: &str) -> Result<DiffArgs> {
     }
 
     Ok(args)
+}
+
+fn session_changes_report(session_id: &str) -> Result<SessionChangesReport> {
+    validate_session_id(session_id)?;
+    let path = sdk_sessions_dir().join(session_id).join("events.jsonl");
+    let contents = fs::read_to_string(&path)
+        .with_context(|| format!("session '{}' was not found", session_id))?;
+    let mut files = BTreeMap::<String, SessionChangedFile>::new();
+    let mut change_count = 0usize;
+
+    for (line_index, line) in contents.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let event: kiana_types::RuntimeEvent = serde_json::from_str(line).with_context(|| {
+            format!(
+                "failed to parse runtime event {} in {}",
+                line_index + 1,
+                path.display()
+            )
+        })?;
+        if event.session_id != session_id {
+            return Err(anyhow!(
+                "runtime event {} in {} belongs to session '{}'",
+                line_index + 1,
+                path.display(),
+                event.session_id
+            ));
+        }
+
+        let kiana_types::RuntimeEventPayload::ToolResult(tool_result) = event.payload else {
+            continue;
+        };
+        let Some(changed_files) = tool_result.changed_files else {
+            continue;
+        };
+        collect_changed_files(&mut files, &mut change_count, &changed_files);
+    }
+
+    Ok(SessionChangesReport {
+        schema: "kiana.diff.session_changes.v1",
+        session_id: session_id.to_string(),
+        changed: !files.is_empty(),
+        file_count: files.len(),
+        change_count,
+        files: files.into_values().collect(),
+    })
+}
+
+fn collect_changed_files(
+    files: &mut BTreeMap<String, SessionChangedFile>,
+    change_count: &mut usize,
+    changed_files: &Value,
+) {
+    let Some(items) = changed_files.as_array() else {
+        return;
+    };
+
+    for item in items {
+        let Some(path) = item.get("path").and_then(Value::as_str).map(str::trim) else {
+            continue;
+        };
+        if path.is_empty() || safe_relative_path(path).is_none() {
+            continue;
+        }
+
+        *change_count += 1;
+        let entry = files
+            .entry(path.to_string())
+            .or_insert_with(|| SessionChangedFile {
+                path: path.to_string(),
+                operations: BTreeSet::new(),
+                sources: BTreeSet::new(),
+            });
+
+        if let Some(operation) = item
+            .get("operation")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            entry.operations.insert(operation.to_string());
+        }
+        if let Some(source) = item
+            .get("source")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            entry.sources.insert(source.to_string());
+        }
+    }
+}
+
+fn validate_session_id(session_id: &str) -> Result<()> {
+    if session_id.trim().is_empty()
+        || session_id.chars().any(char::is_whitespace)
+        || session_id.contains('/')
+        || session_id.contains('\\')
+        || session_id.contains("..")
+    {
+        return Err(anyhow!("session id contains invalid path characters"));
+    }
+    Ok(())
 }
 
 fn git_success(cwd: &Path, args: &[&str]) -> bool {
@@ -549,6 +678,7 @@ struct DiffArgs {
     help: bool,
     from_checkpoint: Option<String>,
     last_assistant: bool,
+    session_changes: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -630,6 +760,23 @@ struct DiffFromCheckpointFile {
     path: String,
     baseline_exists: bool,
     current_exists: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct SessionChangesReport {
+    schema: &'static str,
+    session_id: String,
+    changed: bool,
+    file_count: usize,
+    change_count: usize,
+    files: Vec<SessionChangedFile>,
+}
+
+#[derive(Debug, Serialize)]
+struct SessionChangedFile {
+    path: String,
+    operations: BTreeSet<String>,
+    sources: BTreeSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -777,6 +924,146 @@ mod tests {
         }));
 
         let root = value["root"].as_str().unwrap().to_string();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn diff_session_changes_json_aggregates_tool_result_changed_files() {
+        let _guard = env_lock().lock().unwrap();
+        let root = fixture_root("session-changes");
+        let sessions_dir = root.join("sdk-sessions");
+        let session_dir = sessions_dir.join("session-changes");
+        fs::create_dir_all(&session_dir).unwrap();
+        unsafe {
+            std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
+        }
+        let first = kiana_types::RuntimeEvent::new(
+            "event-1",
+            "session-changes",
+            "turn-1",
+            None,
+            1,
+            "2026-07-05T00:00:01Z",
+            kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                tool_call_id: "tool-1".to_string(),
+                name: Some("Write".to_string()),
+                workbench: None,
+                is_error: false,
+                content: json!({"ok": true}),
+                error: None,
+                changed_files: Some(json!([
+                    {"path": "src/lib.rs", "operation": "create", "source": "Write"},
+                    {"path": "README.md", "operation": "update", "source": "Edit"}
+                ])),
+            }),
+        );
+        let second = kiana_types::RuntimeEvent::new(
+            "event-2",
+            "session-changes",
+            "turn-2",
+            Some("turn-1".to_string()),
+            2,
+            "2026-07-05T00:00:02Z",
+            kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                tool_call_id: "tool-2".to_string(),
+                name: Some("Edit".to_string()),
+                workbench: None,
+                is_error: false,
+                content: json!({"ok": true}),
+                error: None,
+                changed_files: Some(json!([
+                    {"path": "src/lib.rs", "operation": "update", "source": "Edit"}
+                ])),
+            }),
+        );
+        fs::write(
+            session_dir.join("events.jsonl"),
+            format!(
+                "{}\n{}\n",
+                serde_json::to_string(&first).unwrap(),
+                serde_json::to_string(&second).unwrap()
+            ),
+        )
+        .unwrap();
+
+        let result = DiffCommand
+            .execute(CommandContext {
+                args: "--session-changes session-changes --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.diff.session_changes.v1");
+        assert_eq!(value["session_id"], "session-changes");
+        assert_eq!(value["changed"], true);
+        assert_eq!(value["file_count"], 2);
+        assert_eq!(value["change_count"], 3);
+        assert_eq!(value["files"][0]["path"], "README.md");
+        assert_eq!(value["files"][0]["operations"], json!(["update"]));
+        assert_eq!(value["files"][1]["path"], "src/lib.rs");
+        assert_eq!(value["files"][1]["operations"], json!(["create", "update"]));
+        assert_eq!(value["files"][1]["sources"], json!(["Edit", "Write"]));
+
+        unsafe {
+            std::env::remove_var("KIANA_SDK_SESSIONS_DIR");
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn diff_session_changes_json_returns_empty_report_for_legacy_events() {
+        let _guard = env_lock().lock().unwrap();
+        let root = fixture_root("session-changes-empty");
+        let sessions_dir = root.join("sdk-sessions");
+        let session_dir = sessions_dir.join("legacy-session");
+        fs::create_dir_all(&session_dir).unwrap();
+        unsafe {
+            std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
+        }
+        let event = kiana_types::RuntimeEvent::new(
+            "event-legacy",
+            "legacy-session",
+            "turn-1",
+            None,
+            1,
+            "2026-07-05T00:00:03Z",
+            kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                tool_call_id: "tool-legacy".to_string(),
+                name: Some("Read".to_string()),
+                workbench: None,
+                is_error: false,
+                content: json!("read-only result"),
+                error: None,
+                changed_files: None,
+            }),
+        );
+        fs::write(
+            session_dir.join("events.jsonl"),
+            format!("{}\n", serde_json::to_string(&event).unwrap()),
+        )
+        .unwrap();
+
+        let result = DiffCommand
+            .execute(CommandContext {
+                args: "--session-changes legacy-session --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.diff.session_changes.v1");
+        assert_eq!(value["session_id"], "legacy-session");
+        assert_eq!(value["changed"], false);
+        assert_eq!(value["file_count"], 0);
+        assert_eq!(value["change_count"], 0);
+        assert_eq!(value["files"], json!([]));
+
+        unsafe {
+            std::env::remove_var("KIANA_SDK_SESSIONS_DIR");
+        }
         let _ = fs::remove_dir_all(root);
     }
 
