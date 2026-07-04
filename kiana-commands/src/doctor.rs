@@ -787,12 +787,18 @@ fn reference_capability_matrix(
             references: vec!["aider", "continue", "Roo-Code"],
             surfaces: vec!["repo-map", "file-sets", "checkpoint", "diff", "review", "checks", "repair-loop"],
             evidence: vec![
-                "deterministic-repo-map",
-                "assistant-turn-checkpoints",
+                "deterministic-repo-map-budget",
+                "editable-read-only-file-sets",
+                "write-edit-delete-file-changes",
+                "checkpoint-create-restore-undo",
+                "last-assistant-diff",
+                "isolated-review",
                 "isolated-checks",
-                "repair-checks",
+                "repair-checks-nonstreaming",
+                "repair-checks-streaming",
+                "late-user-edit-conflict",
             ],
-            risks: vec!["broader workflow eval/replay harness is still future work".to_string()],
+            risks: Vec::new(),
         },
         ReferenceCapabilityReport {
             id: "product-shell",
@@ -1220,6 +1226,45 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|risk| risk.as_str().unwrap().contains("team runtime"))));
+    }
+
+    #[tokio::test]
+    async fn doctor_json_reports_complete_local_coding_workflow_audit() {
+        let result = DoctorCommand
+            .execute(CommandContext {
+                args: "--json".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        let report: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+        let capabilities = report["reference_capabilities"].as_array().unwrap();
+        let local = capabilities
+            .iter()
+            .find(|item| item["id"] == "local-coding-workflow")
+            .expect("local-coding-workflow capability missing");
+
+        assert_eq!(local["status"], "ready");
+        let evidence = local["evidence"].as_array().unwrap();
+        for expected in [
+            "deterministic-repo-map-budget",
+            "editable-read-only-file-sets",
+            "write-edit-delete-file-changes",
+            "checkpoint-create-restore-undo",
+            "last-assistant-diff",
+            "isolated-review",
+            "isolated-checks",
+            "repair-checks-nonstreaming",
+            "repair-checks-streaming",
+            "late-user-edit-conflict",
+        ] {
+            assert!(
+                evidence.iter().any(|item| item == expected),
+                "missing local coding audit evidence: {expected}"
+            );
+        }
+
+        assert!(local["risks"].as_array().unwrap().is_empty());
     }
 
     #[tokio::test]
