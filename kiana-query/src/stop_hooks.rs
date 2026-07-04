@@ -485,10 +485,11 @@ async fn execute_hook_set(
     let timeout_duration = hook_timeout_duration();
     let mut hook_infos = Vec::new();
     let mut runtime_errors = hook_resolution.errors;
-    let mut errors = runtime_errors
+    let mut blocking_errors = runtime_errors
         .iter()
         .map(|error| error.message.clone())
         .collect::<Vec<_>>();
+    let mut summary_errors = blocking_errors.clone();
     let mut prevented_continuation = false;
     let mut stop_reason = None;
     let mut has_output = false;
@@ -548,7 +549,8 @@ async fn execute_hook_set(
                     details: runtime_error.details.clone(),
                 })
                 .await;
-            errors.push(runtime_error.message.clone());
+            blocking_errors.push(runtime_error.message.clone());
+            summary_errors.push(runtime_error.message.clone());
             runtime_errors.push(runtime_error);
             continue;
         }
@@ -559,7 +561,7 @@ async fn execute_hook_set(
             } else {
                 run.stderr.trim().to_string()
             };
-            errors.push(format!(
+            let exit_error = format!(
                 "{} exited with {}{}",
                 command,
                 run.exit_code
@@ -570,7 +572,13 @@ async fn execute_hook_set(
                 } else {
                     format!(": {}", detail)
                 }
-            ));
+            );
+            summary_errors.push(exit_error.clone());
+            if hook_nonzero_policy().is_deny() {
+                blocking_errors.push(exit_error);
+            } else {
+                has_output = true;
+            }
             continue;
         }
 
@@ -587,7 +595,8 @@ async fn execute_hook_set(
                     content: error.clone(),
                 })
                 .await;
-            errors.push(error);
+            blocking_errors.push(error.clone());
+            summary_errors.push(error);
         }
         if parsed.prevent_continuation {
             let reason = parsed
@@ -617,15 +626,15 @@ async fn execute_hook_set(
         .send(StopHookEvent::Summary {
             hook_count: hook_infos.len(),
             hook_infos,
-            errors: errors.clone(),
+            errors: summary_errors,
             prevented_continuation,
             stop_reason: stop_reason.clone(),
             has_output,
         })
         .await;
 
-    if !errors.is_empty() {
-        HookSetResult::BlockingErrors(errors)
+    if !blocking_errors.is_empty() {
+        HookSetResult::BlockingErrors(blocking_errors)
     } else if prevented_continuation {
         HookSetResult::Prevented {
             reason: stop_reason.unwrap_or_else(|| "Hook prevented continuation".to_string()),
@@ -1301,6 +1310,32 @@ fn hook_timeout_duration() -> Duration {
     Duration::from_millis(millis)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HookNonzeroPolicy {
+    Deny,
+    Warning,
+}
+
+impl HookNonzeroPolicy {
+    fn is_deny(self) -> bool {
+        self == HookNonzeroPolicy::Deny
+    }
+}
+
+fn hook_nonzero_policy() -> HookNonzeroPolicy {
+    match std::env::var("KIANA_HOOK_NONZERO_POLICY") {
+        Ok(value)
+            if matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "warning" | "warn" | "non_blocking" | "non-blocking" | "allow"
+            ) =>
+        {
+            HookNonzeroPolicy::Warning
+        }
+        _ => HookNonzeroPolicy::Deny,
+    }
+}
+
 fn parse_hook_output(stdout: &str) -> ParsedHookOutput {
     let Ok(value) = serde_json::from_str::<Value>(stdout) else {
         return ParsedHookOutput::default();
@@ -1512,6 +1547,7 @@ mod tests {
             "KIANA_TASK_COMPLETED_HOOKS",
             "KIANA_TEAMMATE_IDLE_HOOKS",
             "KIANA_HOOK_TIMEOUT_MS",
+            "KIANA_HOOK_NONZERO_POLICY",
             "KIANA_HOOKS_FILE",
             "KIANA_HOME",
             "KIANA_PLUGINS_DIR",
@@ -1584,6 +1620,31 @@ mod tests {
         assert_eq!(result.blocking_errors.len(), 1);
         assert!(result.blocking_errors[0].contains("exited with 7"));
         assert!(result.blocking_errors[0].contains("bad hook"));
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn stop_hook_nonzero_exit_warning_policy_does_not_block() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        std::env::set_var("KIANA_HOOK_NONZERO_POLICY", "warning");
+        set_stop_hook("printf '%s' 'warn hook' >&2; exit 7");
+
+        let (events, result) = run_and_collect(make_ctx()).await;
+
+        assert!(!result.prevent_continuation);
+        assert!(result.blocking_errors.is_empty(), "{:?}", result);
+        assert!(events.iter().any(|event| matches!(
+            event,
+            StopHookEvent::Summary {
+                errors,
+                has_output: true,
+                ..
+            } if errors.iter().any(|error| error.contains("exited with 7") && error.contains("warn hook"))
+        )));
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, StopHookEvent::BlockingError { .. })));
         clear_hook_env();
     }
 
