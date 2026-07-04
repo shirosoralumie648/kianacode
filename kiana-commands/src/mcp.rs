@@ -1,4 +1,4 @@
-use crate::local_state::app_state_array_len;
+use crate::local_state::{app_state_array_len, kiana_home_dir};
 use crate::types::{
     Command, CommandContext, CommandResult, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
@@ -94,7 +94,7 @@ fn argv_tail_string(argv: &[String]) -> String {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana mcp [status|serve|list|get <name>|add <name> -- <command> [args...]|add-json <name> <json> [--scope project]|add-from-claude-desktop [--scope project]|remove <name> [--scope project]|reset-project-choices]\n       kiana mcp serve [--debug] [--verbose]\n       kiana --mcp-config <file-or-json> mcp list"
+    "Usage: kiana mcp [status|serve|list|get <name>|add <name> -- <command> [args...]|add-json <name> <json> [--scope user|project|local]|add-from-claude-desktop [--scope user|project|local]|remove <name> [--scope user|project|local]|reset-project-choices]\n       kiana mcp serve [--debug] [--verbose]\n       kiana --mcp-config <file-or-json> mcp list"
 }
 
 fn list_mcp_servers(context: &CommandContext, query: &str) -> anyhow::Result<CommandResult> {
@@ -166,6 +166,7 @@ fn add_mcp_server_tokens(tokens: &[String]) -> anyhow::Result<CommandResult> {
 
 fn add_mcp_server_parsed(parsed: ParsedMcpAdd) -> anyhow::Result<CommandResult> {
     validate_server_name(&parsed.name)?;
+    let scope = parsed.scope;
 
     let config = parsed.into_config()?;
     validate_server_config(
@@ -193,17 +194,21 @@ fn add_mcp_server_parsed(parsed: ParsedMcpAdd) -> anyhow::Result<CommandResult> 
     stored_config.remove("name");
     let stored_config = Value::Object(stored_config);
 
-    let mut servers = read_project_mcp_servers()?;
+    let mut servers = read_mcp_servers(scope)?;
     if servers.contains_key(&name) {
-        return Err(anyhow!("MCP server {name} already exists in .mcp.json"));
+        return Err(anyhow!(
+            "MCP server {name} already exists in {}",
+            scope.file_label()
+        ));
     }
     servers.insert(name.clone(), stored_config);
-    write_project_mcp_servers(&servers)?;
+    let path = write_mcp_servers(scope, &servers)?;
     Ok(CommandResult::text(format!(
-        "Added {} MCP server {} to project config\nFile modified: {}",
+        "Added {} MCP server {} to {} config\nFile modified: {}",
         mcp_add_transport_label(&transport),
         name,
-        project_mcp_config_path()?.display()
+        scope.label(),
+        path.display()
     )))
 }
 
@@ -220,20 +225,24 @@ fn add_json_mcp_server(rest: &str) -> anyhow::Result<CommandResult> {
     }
     let (config, scope_tail) = parse_json_value_prefix(json_and_scope)
         .with_context(|| format!("MCP server {name} JSON config is invalid"))?;
-    parse_project_scope_tail(scope_tail)?;
+    let scope = parse_scope_tail(scope_tail)?;
     validate_server_config(name, &config)?;
 
-    let mut servers = read_project_mcp_servers()?;
+    let mut servers = read_mcp_servers(scope)?;
     if servers.contains_key(name) {
-        return Err(anyhow!("MCP server {name} already exists in .mcp.json"));
+        return Err(anyhow!(
+            "MCP server {name} already exists in {}",
+            scope.file_label()
+        ));
     }
     servers.insert(name.to_string(), config.clone());
-    write_project_mcp_servers(&servers)?;
+    let path = write_mcp_servers(scope, &servers)?;
     Ok(CommandResult::text(format!(
-        "Added {} MCP server {} to project config\nFile modified: {}",
+        "Added {} MCP server {} to {} config\nFile modified: {}",
         server_transport(&config),
         name,
-        project_mcp_config_path()?.display()
+        scope.label(),
+        path.display()
     )))
 }
 
@@ -242,7 +251,10 @@ fn add_from_claude_desktop(rest: &str) -> anyhow::Result<CommandResult> {
     if matches!(rest, "help" | "--help" | "-h") {
         return Ok(CommandResult::text(add_from_desktop_usage()));
     }
-    parse_project_scope_tail_for(rest, "kiana mcp add-from-claude-desktop [--scope project]")?;
+    let scope = parse_scope_tail_for(
+        rest,
+        "kiana mcp add-from-claude-desktop [--scope user|project|local]",
+    )?;
 
     let Some((source_path, desktop_servers)) = read_claude_desktop_mcp_servers()? else {
         return Ok(CommandResult::text(
@@ -256,27 +268,28 @@ fn add_from_claude_desktop(rest: &str) -> anyhow::Result<CommandResult> {
         )));
     }
 
-    let mut project_servers = read_project_mcp_servers()?;
+    let mut scoped_servers = read_mcp_servers(scope)?;
     let mut imported = 0usize;
     let mut skipped_existing = 0usize;
     for (name, config) in desktop_servers {
         validate_server_name(&name)?;
         validate_server_config(&name, &config)?;
-        if project_servers.contains_key(&name) {
+        if scoped_servers.contains_key(&name) {
             skipped_existing += 1;
             continue;
         }
-        project_servers.insert(name, config);
+        scoped_servers.insert(name, config);
         imported += 1;
     }
 
     let path = if imported > 0 {
-        write_project_mcp_servers(&project_servers)?
+        write_mcp_servers(scope, &scoped_servers)?
     } else {
-        project_mcp_config_path()?
+        mcp_config_path(scope)?
     };
     let mut lines = vec![format!(
-        "Imported {imported} MCP server(s) from Claude Desktop to project config"
+        "Imported {imported} MCP server(s) from Claude Desktop to {} config",
+        scope.label()
     )];
     if skipped_existing > 0 {
         lines.push(format!("Skipped {skipped_existing} existing MCP server(s)"));
@@ -291,12 +304,13 @@ fn add_from_claude_desktop(rest: &str) -> anyhow::Result<CommandResult> {
 }
 
 fn add_from_desktop_usage() -> &'static str {
-    "Usage: kiana mcp add-from-claude-desktop [--scope project]\n       Import MCP servers from Claude Desktop into the current project's .mcp.json.\n       Set KIANA_CLAUDE_DESKTOP_CONFIG to import from an explicit config file."
+    "Usage: kiana mcp add-from-claude-desktop [--scope user|project|local]\n       Import MCP servers from Claude Desktop into user, project, or local MCP config.\n       Set KIANA_CLAUDE_DESKTOP_CONFIG to import from an explicit config file."
 }
 
 #[derive(Debug, Default)]
 struct ParsedMcpAdd {
     name: String,
+    scope: McpConfigScope,
     transport: Option<String>,
     command_or_url: Option<String>,
     args: Vec<String>,
@@ -366,7 +380,7 @@ impl ParsedMcpAdd {
 }
 
 fn add_usage() -> &'static str {
-    "kiana mcp add [--transport stdio|http|sse] [-e KEY=value] [-H Header:Value] [--scope project] <name> [--] <command-or-url> [args...]"
+    "kiana mcp add [--transport stdio|http|sse] [-e KEY=value] [-H Header:Value] [--scope user|project|local] <name> [--] <command-or-url> [args...]"
 }
 
 fn parse_mcp_add_args(rest: &str) -> anyhow::Result<ParsedMcpAdd> {
@@ -383,6 +397,7 @@ fn parse_mcp_add_tokens(words: &[String]) -> anyhow::Result<ParsedMcpAdd> {
     }
 
     let mut transport = None;
+    let mut scope = McpConfigScope::Project;
     let mut env = serde_json::Map::new();
     let mut headers = serde_json::Map::new();
     let mut positionals = Vec::new();
@@ -462,7 +477,7 @@ fn parse_mcp_add_tokens(words: &[String]) -> anyhow::Result<ParsedMcpAdd> {
                 .get(index)
                 .map(String::as_str)
                 .ok_or_else(|| anyhow!("usage: {}", add_usage()))?;
-            ensure_project_scope(value)?;
+            scope = parse_mcp_config_scope(value)?;
             index += 1;
             continue;
         }
@@ -470,7 +485,7 @@ fn parse_mcp_add_tokens(words: &[String]) -> anyhow::Result<ParsedMcpAdd> {
             .strip_prefix("--scope=")
             .or_else(|| token.strip_prefix("-s="))
         {
-            ensure_project_scope(value)?;
+            scope = parse_mcp_config_scope(value)?;
             index += 1;
             continue;
         }
@@ -526,6 +541,7 @@ fn parse_mcp_add_tokens(words: &[String]) -> anyhow::Result<ParsedMcpAdd> {
 
     Ok(ParsedMcpAdd {
         name,
+        scope,
         transport,
         command_or_url,
         args,
@@ -597,21 +613,23 @@ fn remove_mcp_server(rest: &str) -> anyhow::Result<CommandResult> {
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .ok_or_else(|| anyhow!("usage: kiana mcp remove <name>"))?;
-    parse_project_scope_tail(scope_tail)?;
+    let scope = parse_scope_tail(scope_tail)?;
     if name.is_empty() {
         return Err(anyhow!("usage: kiana mcp remove <name>"));
     }
-    let mut servers = read_project_mcp_servers()?;
+    let mut servers = read_mcp_servers(scope)?;
     if servers.remove(name).is_none() {
         return Err(anyhow!(
-            "No MCP server found with name: {name} in .mcp.json"
+            "No MCP server found with name: {name} in {}",
+            scope.file_label()
         ));
     }
-    write_project_mcp_servers(&servers)?;
+    let path = write_mcp_servers(scope, &servers)?;
     Ok(CommandResult::text(format!(
-        "Removed MCP server {} from project config\nFile modified: {}",
+        "Removed MCP server {} from {} config\nFile modified: {}",
         name,
-        project_mcp_config_path()?.display()
+        scope.label(),
+        path.display()
     )))
 }
 
@@ -659,12 +677,12 @@ fn configured_server_entries(context: &CommandContext) -> Vec<(String, Value)> {
     server_entries(&value)
 }
 
-fn read_project_mcp_servers() -> anyhow::Result<serde_json::Map<String, Value>> {
-    let path = project_mcp_config_path()?;
+fn read_mcp_servers(scope: McpConfigScope) -> anyhow::Result<serde_json::Map<String, Value>> {
+    let path = mcp_config_path(scope)?;
     if !path.exists() {
         return Ok(serde_json::Map::new());
     }
-    let value = read_project_mcp_config_value(&path)?;
+    let value = read_mcp_config_value(&path)?;
     let Some(servers) = value
         .get("mcpServers")
         .or_else(|| value.get(kiana_tools::mcp_tool::MCP_SERVERS_APP_STATE_KEY))
@@ -675,10 +693,13 @@ fn read_project_mcp_servers() -> anyhow::Result<serde_json::Map<String, Value>> 
     Ok(servers.clone())
 }
 
-fn write_project_mcp_servers(servers: &serde_json::Map<String, Value>) -> anyhow::Result<PathBuf> {
-    let path = project_mcp_config_path()?;
+fn write_mcp_servers(
+    scope: McpConfigScope,
+    servers: &serde_json::Map<String, Value>,
+) -> anyhow::Result<PathBuf> {
+    let path = mcp_config_path(scope)?;
     let mut payload = if path.exists() {
-        match read_project_mcp_config_value(&path)? {
+        match read_mcp_config_value(&path)? {
             Value::Object(object) => object,
             _ => serde_json::Map::new(),
         }
@@ -686,20 +707,30 @@ fn write_project_mcp_servers(servers: &serde_json::Map<String, Value>) -> anyhow
         serde_json::Map::new()
     };
     payload.insert("mcpServers".to_string(), Value::Object(servers.clone()));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
     let contents = serde_json::to_string_pretty(&Value::Object(payload))?;
     std::fs::write(&path, format!("{contents}\n"))
         .with_context(|| format!("failed to write {}", path.display()))?;
     Ok(path)
 }
 
-fn read_project_mcp_config_value(path: &std::path::Path) -> anyhow::Result<Value> {
+fn read_mcp_config_value(path: &std::path::Path) -> anyhow::Result<Value> {
     let contents = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read {}", path.display()))?;
     serde_json::from_str(&contents).with_context(|| format!("failed to parse {}", path.display()))
 }
 
-fn project_mcp_config_path() -> anyhow::Result<PathBuf> {
-    Ok(std::env::current_dir()?.join(".mcp.json"))
+fn mcp_config_path(scope: McpConfigScope) -> anyhow::Result<PathBuf> {
+    Ok(match scope {
+        McpConfigScope::User => kiana_home_dir().join("mcp.json"),
+        McpConfigScope::Project => std::env::current_dir()?.join(".mcp.json"),
+        McpConfigScope::Local => std::env::current_dir()?
+            .join(".kiana")
+            .join("mcp.local.json"),
+    })
 }
 
 fn project_mcp_choices_path() -> anyhow::Result<PathBuf> {
@@ -714,7 +745,7 @@ fn read_claude_desktop_mcp_servers(
         if !path.exists() {
             continue;
         }
-        let value = read_project_mcp_config_value(&path)?;
+        let value = read_mcp_config_value(&path)?;
         let servers = value
             .get("mcpServers")
             .and_then(Value::as_object)
@@ -840,18 +871,52 @@ fn parse_json_value_prefix(input: &str) -> anyhow::Result<(Value, &str)> {
     Ok((value, input[consumed..].trim()))
 }
 
-fn parse_project_scope_tail(tail: &str) -> anyhow::Result<()> {
-    parse_project_scope_tail_for(tail, "kiana mcp add-json <name> <json> --scope project")
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum McpConfigScope {
+    User,
+    Project,
+    Local,
 }
 
-fn parse_project_scope_tail_for(tail: &str, usage_text: &str) -> anyhow::Result<()> {
+impl Default for McpConfigScope {
+    fn default() -> Self {
+        Self::Project
+    }
+}
+
+impl McpConfigScope {
+    fn label(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Project => "project",
+            Self::Local => "local",
+        }
+    }
+
+    fn file_label(self) -> &'static str {
+        match self {
+            Self::User => "user mcp.json",
+            Self::Project => ".mcp.json",
+            Self::Local => ".kiana/mcp.local.json",
+        }
+    }
+}
+
+fn parse_scope_tail(tail: &str) -> anyhow::Result<McpConfigScope> {
+    parse_scope_tail_for(
+        tail,
+        "kiana mcp add-json <name> <json> --scope user|project|local",
+    )
+}
+
+fn parse_scope_tail_for(tail: &str, usage_text: &str) -> anyhow::Result<McpConfigScope> {
     let tail = tail.trim();
     if tail.is_empty() {
-        return Ok(());
+        return Ok(McpConfigScope::Project);
     }
     let (flag, rest) = split_word(tail);
     let Some(flag) = flag else {
-        return Ok(());
+        return Ok(McpConfigScope::Project);
     };
     let (scope, rest) = match flag {
         "--scope" | "-s" => split_word(rest),
@@ -868,20 +933,21 @@ fn parse_project_scope_tail_for(tail: &str, usage_text: &str) -> anyhow::Result<
         .map(str::trim)
         .filter(|scope| !scope.is_empty())
         .ok_or_else(|| anyhow!("usage: {usage_text}"))?;
-    ensure_project_scope(scope)?;
     if !rest.trim().is_empty() {
         return Err(anyhow!("unexpected MCP scope arguments: {}", rest.trim()));
     }
-    Ok(())
+    parse_mcp_config_scope(scope)
 }
 
-fn ensure_project_scope(scope: &str) -> anyhow::Result<()> {
-    if scope == "project" {
-        return Ok(());
+fn parse_mcp_config_scope(scope: &str) -> anyhow::Result<McpConfigScope> {
+    match scope.trim().to_ascii_lowercase().as_str() {
+        "user" => Ok(McpConfigScope::User),
+        "project" => Ok(McpConfigScope::Project),
+        "local" => Ok(McpConfigScope::Local),
+        other => Err(anyhow!(
+            "unsupported MCP config scope '{other}'; supported scopes: user, project, local"
+        )),
     }
-    Err(anyhow!(
-        "MCP config scope '{scope}' is not implemented yet; only project (.mcp.json) is supported"
-    ))
 }
 
 fn validate_server_name(name: &str) -> anyhow::Result<()> {
@@ -1330,6 +1396,98 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(root.join(".mcp.json")).unwrap())
                 .unwrap();
         assert_eq!(config["mcpServers"]["docs"]["command"], "node");
+
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn mcp_add_json_user_scope_writes_user_mcp_config_and_list_reads_it() {
+        let _guard = crate::local_state::env_lock().lock().unwrap();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_project("mcp-add-json-user-scope");
+        let kiana_home = root.join("home").join(".kiana");
+        let project = root.join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        std::env::set_current_dir(&project).unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::remove_var(kiana_tools::mcp_tool::MCP_SERVERS_ENV);
+
+        let add = McpCommand
+            .execute(CommandContext {
+                args: r#"add-json docs {"command":"node","args":["user-server.js"]} --scope user"#
+                    .to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(add.value.contains("Added stdio MCP server docs"));
+        assert!(add.value.contains("user config"));
+        let config: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(kiana_home.join("mcp.json")).unwrap())
+                .unwrap();
+        assert_eq!(config["mcpServers"]["docs"]["command"], "node");
+
+        let list = McpCommand
+            .execute(CommandContext {
+                args: "list".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        assert!(list.value.contains("docs"), "{}", list.value);
+        assert!(list.value.contains("node user-server.js"), "{}", list.value);
+
+        std::env::set_current_dir(previous_cwd).unwrap();
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn mcp_add_json_local_scope_writes_local_kiana_mcp_config_and_list_reads_it() {
+        let _guard = crate::local_state::env_lock().lock().unwrap();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let root = temp_project("mcp-add-json-local-scope");
+        std::fs::create_dir_all(&root).unwrap();
+        std::env::set_current_dir(&root).unwrap();
+        std::env::remove_var(kiana_tools::mcp_tool::MCP_SERVERS_ENV);
+
+        let add = McpCommand
+            .execute(CommandContext {
+                args:
+                    r#"add-json shell {"command":"bash","args":["local-server.sh"]} --scope local"#
+                        .to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(add.value.contains("Added stdio MCP server shell"));
+        assert!(add.value.contains("local config"));
+        let config: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join(".kiana").join("mcp.local.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(config["mcpServers"]["shell"]["command"], "bash");
+
+        let list = McpCommand
+            .execute(CommandContext {
+                args: "list".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        assert!(list.value.contains("shell"), "{}", list.value);
+        assert!(
+            list.value.contains("bash local-server.sh"),
+            "{}",
+            list.value
+        );
 
         std::env::set_current_dir(previous_cwd).unwrap();
         let _ = std::fs::remove_dir_all(root);

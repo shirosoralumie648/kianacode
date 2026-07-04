@@ -32,6 +32,7 @@
 Kiana 可借鉴方式：
 - 继续让 `kiana-types/src/plugin.rs` 做 manifest 解析。
 - 安装/禁用插件时刷新 commands、skills、hooks、MCP、LSP 可见性缓存。
+- MCP 配置分层按 user/project/local scope 落盘，并在运行时按信任边界合并。
 
 不应该照搬的部分：
 - 不复制 Anthropic marketplace metadata。
@@ -124,7 +125,7 @@ Acceptance Tests:
 | Capability | Kiana 当前状态 | 缺失行为 | 建议修改模块/crate | 测试要求 | 优先级 |
 |---|---|---|---|---|---|
 | Plugin install | 已支持 URL/git/github/git-subdir marketplace 主链路，并支持 cached `npm` `file:` 离线包源 | 真实 npm registry、pip plugin source、真实 GitHub marketplace live smoke 未补 | `kiana-commands/src/plugin.rs`, `kiana-types/src/plugin.rs` | local http/git/npm-file + opt-in live smoke | P2 |
-| Resource cache | plugin skill cache 已按 enabled roots 刷新 | commands/hooks/agents/MCP/LSP 全资源 disable visibility 需补齐 | `kiana-skills/src`, `kiana-commands/src/plugin.rs`, `kiana-tools/src/lsp_tool.rs` | resource visibility matrix | P1 |
+| Resource cache | plugin skill cache 已按 enabled roots 刷新；disabled plugin MCP 已从 resolver 与 `kiana mcp list/get` 隐藏；MCP user/project/local scope 已写入并按信任边界读取 | commands/hooks/agents/LSP 全资源 disable visibility 仍需补齐，MCP 后续新 surface 还需同步生命周期断言 | `kiana-skills/src`, `kiana-commands/src/plugin.rs`, `kiana-tools/src/lsp_tool.rs`, `kiana-tools/src/mcp_tool.rs`, `kiana-commands/src/mcp.rs` | resource visibility matrix + `cargo test -p kiana-commands mcp` + `cargo test -p kiana-tools mcp` | P1 |
 | Hook CLI | 已有 hooks add/remove/status | hook schema validation 与 timeout/error event 需更明确 | `kiana-commands/src/hooks.rs`, `kiana-query/src/stop_hooks.rs` | malformed hook fixtures | P1 |
 | Agent definitions | 已支持多来源 agent discovery 和 built-ins | background agent lifecycle、auto-memory 完整语义未完成 | `kiana-tools/src/agent.rs` | agent runtime fixtures | P2 |
 

@@ -114,7 +114,13 @@ pub fn configured_mcp_servers() -> Option<Value> {
 pub fn configured_mcp_servers_with_trust(project_trust: ProjectTrust) -> Option<Value> {
     let mut merged = serde_json::Map::new();
     merge_mcp_servers_value(&mut merged, &Value::Object(load_plugin_mcp_servers()));
+    if let Some(value) = read_user_mcp_config() {
+        merge_mcp_servers_value(&mut merged, &value);
+    }
     for value in read_project_mcp_configs_with_trust(project_trust) {
+        merge_mcp_servers_value(&mut merged, &value);
+    }
+    if let Some(value) = read_local_mcp_config_with_trust(project_trust) {
         merge_mcp_servers_value(&mut merged, &value);
     }
     if let Ok(raw) = env::var(MCP_SERVERS_ENV) {
@@ -127,6 +133,10 @@ pub fn configured_mcp_servers_with_trust(project_trust: ProjectTrust) -> Option<
     } else {
         Some(Value::Object(merged))
     }
+}
+
+fn read_user_mcp_config() -> Option<Value> {
+    read_json_file(&kiana_home_dir().join("mcp.json")).map(|value| expand_env_vars_in_value(&value))
 }
 
 fn read_project_mcp_configs_with_trust(project_trust: ProjectTrust) -> Vec<Value> {
@@ -148,6 +158,25 @@ fn read_project_mcp_configs_with_trust(project_trust: ProjectTrust) -> Vec<Value
         .filter_map(|dir| read_json_file(&dir.join(".mcp.json")))
         .map(|value| expand_env_vars_in_value(&value))
         .collect()
+}
+
+fn read_local_mcp_config_with_trust(project_trust: ProjectTrust) -> Option<Value> {
+    if !project_trust.allows_project_resources() {
+        return None;
+    }
+    let cwd = env::current_dir().ok()?;
+    read_json_file(&cwd.join(".kiana").join("mcp.local.json"))
+        .map(|value| expand_env_vars_in_value(&value))
+}
+
+fn kiana_home_dir() -> PathBuf {
+    if let Ok(path) = env::var("KIANA_HOME") {
+        return PathBuf::from(path);
+    }
+    if let Ok(home) = env::var("HOME") {
+        return PathBuf::from(home).join(".kiana");
+    }
+    PathBuf::from(".kiana")
 }
 
 impl McpTool {
@@ -1138,9 +1167,9 @@ fn now_unix_seconds() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        configured_mcp_servers, resolve_server_config_fields, ListMcpResourceTemplatesTool,
-        ListMcpResourcesTool, McpTool, ReadMcpResourceTool, MCP_SERVERS_APP_STATE_KEY,
-        MCP_SERVERS_ENV,
+        configured_mcp_servers, configured_mcp_servers_with_trust, resolve_server_config_fields,
+        ListMcpResourceTemplatesTool, ListMcpResourcesTool, McpTool, ReadMcpResourceTool,
+        MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV,
     };
     use crate::{Tool, ToolContext};
     use kiana_services::mcp::TransportType;
@@ -1220,6 +1249,108 @@ mod tests {
         assert_eq!(servers["docs"]["command"], "root-docs");
         assert_eq!(servers["shared"]["command"], "child-shared");
 
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn configured_mcp_servers_reads_user_mcp_config_when_project_is_untrusted() {
+        let _guard = crate::test_support::lock_env();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("user-scope");
+        let project = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(&kiana_home).unwrap();
+        fs::write(
+            kiana_home.join("mcp.json"),
+            json!({
+                "mcpServers": {
+                    "user-docs": {
+                        "command": "node",
+                        "args": ["user-server.js"]
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "project-docs": {
+                        "command": "project-server"
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::env::set_current_dir(&project).unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::remove_var(MCP_SERVERS_ENV);
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+
+        let servers = configured_mcp_servers_with_trust(kiana_types::ProjectTrust::Untrusted)
+            .expect("user MCP config should be loaded");
+        assert_eq!(servers["user-docs"]["command"], "node");
+        assert!(servers.get("project-docs").is_none(), "{servers:?}");
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn configured_mcp_servers_reads_local_scope_only_when_project_is_trusted() {
+        let _guard = crate::test_support::lock_env();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("local-scope");
+        let project = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        fs::create_dir_all(project.join(".kiana")).unwrap();
+        fs::create_dir_all(&kiana_home).unwrap();
+        fs::write(
+            project.join(".kiana").join("mcp.local.json"),
+            json!({
+                "mcpServers": {
+                    "local-shell": {
+                        "command": "bash",
+                        "args": ["local-server.sh"]
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::env::set_current_dir(&project).unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::remove_var(MCP_SERVERS_ENV);
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+
+        let untrusted = configured_mcp_servers_with_trust(kiana_types::ProjectTrust::Untrusted);
+        assert!(
+            untrusted
+                .as_ref()
+                .and_then(|servers| servers.get("local-shell"))
+                .is_none(),
+            "{untrusted:?}"
+        );
+
+        let trusted = configured_mcp_servers_with_trust(kiana_types::ProjectTrust::Trusted)
+            .expect("local MCP config should be loaded for trusted projects");
+        assert_eq!(trusted["local-shell"]["command"], "bash");
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
         std::env::set_current_dir(previous_cwd).unwrap();
         let _ = fs::remove_dir_all(root);
     }
