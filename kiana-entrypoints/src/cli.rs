@@ -5326,6 +5326,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_enterprise_offline_manifest_handler),
         )
         .route(
+            "/app/release/proof-manifest",
+            axum::routing::get(direct_connect_app_release_proof_manifest_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -6073,6 +6077,28 @@ async fn direct_connect_app_release_enterprise_offline_manifest_handler(
     }
 }
 
+async fn direct_connect_app_release_proof_manifest_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_commercial_proof_manifest_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read commercial proof manifest report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6600,6 +6626,60 @@ fn direct_connect_enterprise_offline_manifest_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.enterprise.offline-manifest.v1") {
         return Err(anyhow!(
             "enterprise offline manifest {} has unexpected schema",
+            manifest_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_commercial_proof_manifest_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let dist_dir = if dist_dir.is_absolute() {
+        dist_dir
+    } else {
+        root.join(dist_dir)
+    };
+    let candidates = [
+        std::env::var_os("KIANA_COMMERCIAL_PROOF_MANIFEST_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_COMMERCIAL_PROOF_MANIFEST_OUT").map(PathBuf::from),
+        Some(dist_dir.join("proofs").join("PROOF-MANIFEST.json")),
+    ];
+    let manifest_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no commercial proof manifest found in KIANA_COMMERCIAL_PROOF_MANIFEST_FILE, KIANA_COMMERCIAL_PROOF_MANIFEST_OUT, or DIST_DIR/proofs/PROOF-MANIFEST.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&manifest_path).with_context(|| {
+        format!(
+            "failed to read commercial proof manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse commercial proof manifest JSON {}",
+            manifest_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.commercial-proof-manifest.v1") {
+        return Err(anyhow!(
+            "commercial proof manifest {} has unexpected schema",
             manifest_path.display()
         ));
     }
@@ -7869,6 +7949,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.source_control.read",
             "release.signature.read",
             "release.enterprise_offline_manifest.read",
+            "release.proof_manifest.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7968,6 +8049,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/enterprise-offline-manifest",
                 "schema": "kiana.enterprise.offline-manifest.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/proof-manifest",
+                "schema": "kiana.commercial-proof-manifest.v1"
             },
             {
                 "method": "GET",
@@ -17117,6 +17203,8 @@ mod tests {
             "KIANA_RELEASE_SIGNATURE_PROOF_OUT",
             "KIANA_ENTERPRISE_OFFLINE_MANIFEST_FILE",
             "KIANA_ENTERPRISE_OFFLINE_MANIFEST_OUT",
+            "KIANA_COMMERCIAL_PROOF_MANIFEST_FILE",
+            "KIANA_COMMERCIAL_PROOF_MANIFEST_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17613,6 +17701,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.enterprise_offline_manifest.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.proof_manifest.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17684,6 +17777,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/enterprise-offline-manifest"
                     && endpoint["schema"] == "kiana.enterprise.offline-manifest.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/proof-manifest"
+                    && endpoint["schema"] == "kiana.commercial-proof-manifest.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -18624,6 +18726,91 @@ mod tests {
             "scripts/generate-distribution-manifests.sh"
         );
         let _ = std::fs::remove_file(&enterprise_offline_manifest_path);
+
+        let commercial_proof_manifest_path = std::env::temp_dir().join(format!(
+            "kiana-commercial-proof-manifest-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &commercial_proof_manifest_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.commercial-proof-manifest.v1",
+                "version": "0.1.0",
+                "generated_at": "2026-07-05T00:00:00Z",
+                "proof_root": "dist/proofs",
+                "summary": {
+                    "proofs": 2,
+                    "accepted": 1,
+                    "live": 1,
+                    "platforms": ["linux"]
+                },
+                "proofs": [
+                    {
+                        "id": "source-control",
+                        "category": "source-control",
+                        "schema": "kiana.source-control-proof.v1",
+                        "status": "accepted",
+                        "accepted": true,
+                        "live": null,
+                        "source": "docs/source-control/0.1.0.json",
+                        "path": "dist/proofs/source-control/source-control.json",
+                        "sha256": "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507",
+                        "details": {
+                            "release_tag": "v0.1.0"
+                        }
+                    },
+                    {
+                        "id": "live.provider-smoke",
+                        "category": "live-service",
+                        "schema": "kiana.model-smoke.v1",
+                        "status": "passed",
+                        "accepted": null,
+                        "live": true,
+                        "source": "target/live-smoke/provider/model-smoke-live-tools.json",
+                        "path": "dist/proofs/live-smoke/provider/model-smoke-live-tools.json",
+                        "sha256": "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0",
+                        "details": {
+                            "provider": "fake-live"
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var(
+            "KIANA_COMMERCIAL_PROOF_MANIFEST_OUT",
+            &commercial_proof_manifest_path,
+        );
+        let commercial_proof_manifest: Value = client
+            .get(format!("http://{addr}/app/release/proof-manifest"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            commercial_proof_manifest["schema"],
+            "kiana.commercial-proof-manifest.v1"
+        );
+        assert_eq!(commercial_proof_manifest["summary"]["proofs"], 2);
+        assert_eq!(commercial_proof_manifest["summary"]["accepted"], 1);
+        assert_eq!(commercial_proof_manifest["summary"]["live"], 1);
+        assert!(commercial_proof_manifest["proofs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|proof| proof["id"] == "source-control" && proof["category"] == "source-control"));
+        assert!(commercial_proof_manifest["proofs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(
+                |proof| proof["id"] == "live.provider-smoke" && proof["category"] == "live-service"
+            ));
+        let _ = std::fs::remove_file(&commercial_proof_manifest_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
