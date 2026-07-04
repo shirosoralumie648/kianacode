@@ -5314,6 +5314,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_platform_security_handler),
         )
         .route(
+            "/app/release/source-control",
+            axum::routing::get(direct_connect_app_release_source_control_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5995,6 +5999,28 @@ async fn direct_connect_app_release_platform_security_handler(
     }
 }
 
+async fn direct_connect_app_release_source_control_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_source_control_proof_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read source control proof report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6326,6 +6352,69 @@ fn direct_connect_platform_security_proof_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.platform-security-proof.v1") {
         return Err(anyhow!(
             "platform security proof file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_source_control_proof_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let candidates = [
+        std::env::var_os("KIANA_SOURCE_CONTROL_PROOF_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_SOURCE_CONTROL_PROOF_OUT").map(PathBuf::from),
+        Some(
+            dist_dir
+                .join("proofs")
+                .join("source-control")
+                .join("source-control.json"),
+        ),
+        Some(
+            root.join("docs")
+                .join("source-control")
+                .join(format!("{version}.json")),
+        ),
+    ];
+    let evidence_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no source control proof found in KIANA_SOURCE_CONTROL_PROOF_FILE, KIANA_SOURCE_CONTROL_PROOF_OUT, dist/proofs/source-control/source-control.json, or docs/source-control/{version}.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read source control proof file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse source control proof JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.source-control-proof.v1") {
+        return Err(anyhow!(
+            "source control proof file {} has unexpected schema",
             evidence_path.display()
         ));
     }
@@ -7592,6 +7681,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.entitlement.read",
             "release.ops.read",
             "release.platform_security.read",
+            "release.source_control.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7676,6 +7766,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/platform-security",
                 "schema": "kiana.platform-security-proof.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/source-control",
+                "schema": "kiana.source-control-proof.v1"
             },
             {
                 "method": "GET",
@@ -16819,6 +16914,8 @@ mod tests {
             "KIANA_PLATFORM_SECURITY_PROOF_FILE",
             "KIANA_PLATFORM_SECURITY_PROOF_OUT",
             "KIANA_PLATFORM_SECURITY_PROOF_DIR",
+            "KIANA_SOURCE_CONTROL_PROOF_FILE",
+            "KIANA_SOURCE_CONTROL_PROOF_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17300,6 +17397,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.platform_security.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.source_control.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17344,6 +17446,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/platform-security"
                     && endpoint["schema"] == "kiana.platform-security-proof.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/source-control"
+                    && endpoint["schema"] == "kiana.source-control-proof.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -18123,6 +18234,50 @@ mod tests {
         assert_eq!(platform_security["isolation"], "linux_bwrap");
         assert_eq!(platform_security["doctor_status"], "unknown");
         let _ = std::fs::remove_file(&platform_security_path);
+
+        let source_control_path = std::env::temp_dir().join(format!(
+            "kiana-source-control-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &source_control_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.source-control-proof.v1",
+                "version": "0.1.0",
+                "status": "local_rc_only",
+                "accepted": false,
+                "accepted_by": "",
+                "accepted_at": "2026-07-05T00:00:00Z",
+                "remote_url": "",
+                "commit": "0000000000000000000000000000000000000000",
+                "release_tag": "v0.1.0",
+                "tagged_commit": "0000000000000000000000000000000000000000",
+                "pushed": false,
+                "reviewed": false,
+                "notes": [
+                    "Local RC only; production source-control proof is not accepted"
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_SOURCE_CONTROL_PROOF_OUT", &source_control_path);
+        let source_control: Value = client
+            .get(format!("http://{addr}/app/release/source-control"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(source_control["schema"], "kiana.source-control-proof.v1");
+        assert_eq!(source_control["status"], "local_rc_only");
+        assert_eq!(source_control["accepted"], false);
+        assert_eq!(source_control["release_tag"], "v0.1.0");
+        assert_eq!(source_control["pushed"], false);
+        assert_eq!(source_control["reviewed"], false);
+        let _ = std::fs::remove_file(&source_control_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
