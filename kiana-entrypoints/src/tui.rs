@@ -1627,6 +1627,9 @@ fn format_tui_diff_preview(command_name: &str, output: &str) -> Option<String> {
     if value.get("schema").and_then(Value::as_str) == Some("kiana.diff.from_checkpoint.v1") {
         return Some(format_checkpoint_diff_preview(&value));
     }
+    if value.get("schema").and_then(Value::as_str) == Some("kiana.diff.session_changes.v1") {
+        return Some(format_session_changes_diff_preview(&value));
+    }
     if value
         .get("inside_git_repo")
         .and_then(Value::as_bool)
@@ -1675,6 +1678,55 @@ fn format_git_diff_preview(value: &Value) -> String {
     }
     push_diff_stat(&mut lines, "staged", value.get("staged"));
     push_diff_stat(&mut lines, "unstaged", value.get("unstaged"));
+    lines.join("\n")
+}
+
+fn format_session_changes_diff_preview(value: &Value) -> String {
+    let changed = value
+        .get("changed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mut lines = vec![format!(
+        "File changes preview\nstatus: {}",
+        if changed { "changes present" } else { "clean" }
+    )];
+    if let Some(session_id) = value.get("session_id").and_then(Value::as_str) {
+        lines.push(format!("session: {session_id}"));
+    }
+    let file_count = value.get("file_count").and_then(Value::as_u64).unwrap_or(0);
+    let change_count = value
+        .get("change_count")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    lines.push(format!("files: {file_count}"));
+    lines.push(format!("changes: {change_count}"));
+
+    let files = value
+        .get("files")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if files.is_empty() {
+        lines.push("file list: none".to_string());
+    } else {
+        for file in files.iter().take(20) {
+            let path = file
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or("<unknown>");
+            lines.push(format!("- {path}"));
+            if let Some(operations) = json_string_list(file.get("operations")) {
+                lines.push(format!("  operations: {operations}"));
+            }
+            if let Some(sources) = json_string_list(file.get("sources")) {
+                lines.push(format!("  sources: {sources}"));
+            }
+        }
+        if files.len() > 20 {
+            lines.push(format!("- ... {} more files", files.len() - 20));
+        }
+    }
+
     lines.join("\n")
 }
 
@@ -1738,6 +1790,21 @@ fn push_diff_stat(lines: &mut Vec<String>, label: &str, section: Option<&Value>)
     lines.push(String::new());
     lines.push(format!("{label} stat:"));
     lines.push(stat.to_string());
+}
+
+fn json_string_list(value: Option<&Value>) -> Option<String> {
+    let items = value?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        None
+    } else {
+        Some(items.join(", "))
+    }
 }
 
 fn truncate_chars(text: String, max_chars: usize) -> String {
@@ -2630,6 +2697,54 @@ mod tests {
         assert!(message.contains("src/lib.rs"));
         assert!(message.contains("patch preview:"));
         assert!(message.contains("+new line"));
+        assert!(!message.contains("\"schema\""));
+    }
+
+    #[test]
+    fn tui_session_changes_diff_json_result_renders_file_changes_preview() {
+        let mut runtime = runtime_for_test("session-1");
+        let mut app = App::new();
+
+        runtime.apply_event(
+            &mut app,
+            TuiEvent::SlashCommandCompleted {
+                name: "diff".to_string(),
+                command_type: CommandType::Local,
+                result: Ok(CommandResult::text(
+                    json!({
+                        "schema": "kiana.diff.session_changes.v1",
+                        "session_id": "session-1",
+                        "changed": true,
+                        "file_count": 2,
+                        "change_count": 3,
+                        "files": [
+                            {
+                                "path": "README.md",
+                                "operations": ["update"],
+                                "sources": ["Edit"]
+                            },
+                            {
+                                "path": "src/lib.rs",
+                                "operations": ["create", "update"],
+                                "sources": ["Edit", "Write"]
+                            }
+                        ]
+                    })
+                    .to_string(),
+                )),
+                session_sync: None,
+            },
+        );
+
+        let message = &app.repl.messages.last().unwrap().content;
+        assert!(message.contains("File changes preview"));
+        assert!(message.contains("session: session-1"));
+        assert!(message.contains("files: 2"));
+        assert!(message.contains("changes: 3"));
+        assert!(message.contains("README.md"));
+        assert!(message.contains("operations: update"));
+        assert!(message.contains("src/lib.rs"));
+        assert!(message.contains("sources: Edit, Write"));
         assert!(!message.contains("\"schema\""));
     }
 
