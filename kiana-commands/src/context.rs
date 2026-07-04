@@ -3,9 +3,9 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_index, build_context_pack, build_repo_map, search_context_index, ContextIndex,
-    ContextIndexOptions, ContextPack, ContextPackOptions, ContextSearchOptions,
-    ContextSearchResults, RepoMap, RepoMapOptions,
+    build_context_index, build_context_pack, build_persistent_context_index, build_repo_map,
+    search_context_index, ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions,
+    ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -74,7 +74,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -109,6 +109,7 @@ fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<Comma
 fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
     let mut root = None;
+    let mut cache = None;
     let mut max_bytes_per_file = None;
     let mut parts = args.split_whitespace();
     while let Some(arg) = parts.next() {
@@ -120,6 +121,12 @@ fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandR
                     .ok_or_else(|| anyhow!("--root requires a directory path"))?;
                 root = Some(parse_root(value)?);
             }
+            "--cache" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--cache requires a file path"))?;
+                cache = Some(parse_path(value, "--cache")?);
+            }
             "--max-bytes-per-file" => {
                 let value = parts
                     .next()
@@ -130,6 +137,10 @@ fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandR
                 let value = arg.trim_start_matches("--root=");
                 root = Some(parse_root(value)?);
             }
+            _ if arg.starts_with("--cache=") => {
+                let value = arg.trim_start_matches("--cache=");
+                cache = Some(parse_path(value, "--cache")?);
+            }
             _ if arg.starts_with("--max-bytes-per-file=") => {
                 let value = arg.trim_start_matches("--max-bytes-per-file=");
                 max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
@@ -139,10 +150,12 @@ fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandR
         }
     }
 
-    let index = build_context_index(
-        context_root(context, root),
-        ContextIndexOptions { max_bytes_per_file },
-    )?;
+    let root = context_root(context, root);
+    let options = ContextIndexOptions { max_bytes_per_file };
+    let index = match cache {
+        Some(cache_path) => build_persistent_context_index(root, options, cache_path)?,
+        None => build_context_index(root, options)?,
+    };
     if json {
         return Ok(CommandResult::text(serde_json::to_string_pretty(&index)?));
     }
@@ -316,9 +329,13 @@ fn parse_positive_usize(value: &str, label: &str) -> anyhow::Result<usize> {
 }
 
 fn parse_root(value: &str) -> anyhow::Result<PathBuf> {
+    parse_path(value, "--root")
+}
+
+fn parse_path(value: &str, label: &str) -> anyhow::Result<PathBuf> {
     let value = value.trim();
     if value.is_empty() {
-        return Err(anyhow!("--root requires a directory path"));
+        return Err(anyhow!("{label} requires a path"));
     }
     Ok(PathBuf::from(value))
 }
@@ -382,6 +399,17 @@ fn format_context_index_text(index: &ContextIndex) -> String {
             file.bytes,
             file.line_count,
             file.content_hash
+        ));
+    }
+    if let Some(cache) = &index.cache {
+        lines.push(format!(
+            "cache: {} status={} reused={} added={} changed={} removed={}",
+            cache.path,
+            cache.status,
+            cache.reused_files,
+            cache.added_files,
+            cache.changed_files,
+            cache.removed_files
         ));
     }
     lines.join("\n")
@@ -555,6 +583,109 @@ mod tests {
         assert_eq!(value["files"][0]["path"], "bundle/notes.md");
 
         let _ = fs::remove_dir_all(cwd);
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_index_json_persists_incremental_cache() {
+        let root = fixture_root("index-cache-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn indexed() {}\n").unwrap();
+        let cache_path = root.join(".kiana").join("context-index.json");
+        let cache_arg = cache_path.to_string_lossy().replace('\\', "/");
+
+        let first = ContextCommand
+            .execute(CommandContext {
+                args: format!("index --json --cache {cache_arg}"),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let first_value: serde_json::Value = serde_json::from_str(&first.value).unwrap();
+
+        assert_eq!(first_value["schema"], "kiana.context-index.v1");
+        assert_eq!(first_value["cache"]["status"], "created");
+        assert_eq!(first_value["cache"]["added_files"], 1);
+        assert_eq!(first_value["cache"]["reused_files"], 0);
+        assert!(cache_path.is_file());
+
+        let second = ContextCommand
+            .execute(CommandContext {
+                args: format!("index --json --cache {cache_arg}"),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let second_value: serde_json::Value = serde_json::from_str(&second.value).unwrap();
+
+        assert_eq!(second_value["cache"]["status"], "updated");
+        assert_eq!(second_value["cache"]["reused_files"], 1);
+        assert_eq!(second_value["cache"]["added_files"], 0);
+        assert_eq!(second_value["cache"]["changed_files"], 0);
+        assert_eq!(second_value["cache"]["removed_files"], 0);
+
+        fs::write(root.join("src/lib.rs"), "pub fn indexed_changed() {}\n").unwrap();
+        fs::write(root.join("README.md"), "new context\n").unwrap();
+        let third = ContextCommand
+            .execute(CommandContext {
+                args: format!("index --json --cache {cache_arg}"),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let third_value: serde_json::Value = serde_json::from_str(&third.value).unwrap();
+
+        assert_eq!(third_value["cache"]["status"], "updated");
+        assert_eq!(third_value["cache"]["added_files"], 1);
+        assert_eq!(third_value["cache"]["changed_files"], 1);
+        assert_eq!(third_value["cache"]["removed_files"], 0);
+
+        fs::remove_file(root.join("README.md")).unwrap();
+        let fourth = ContextCommand
+            .execute(CommandContext {
+                args: format!("index --json --cache {cache_arg}"),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let fourth_value: serde_json::Value = serde_json::from_str(&fourth.value).unwrap();
+
+        assert_eq!(fourth_value["cache"]["removed_files"], 1);
+
+        let _ = fs::remove_dir_all(Path::new(fourth_value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_index_json_recovers_corrupt_incremental_cache() {
+        let root = fixture_root("index-cache-corrupt-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn recoverable() {}\n").unwrap();
+        let cache_path = root.join(".kiana").join("context-index.json");
+        fs::create_dir_all(cache_path.parent().unwrap()).unwrap();
+        fs::write(&cache_path, "{not valid json").unwrap();
+        let cache_arg = cache_path.to_string_lossy().replace('\\', "/");
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: format!("index --json --cache {cache_arg}"),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-index.v1");
+        assert_eq!(value["files_indexed"], 1);
+        assert_eq!(value["cache"]["status"], "recovered");
+        assert_eq!(value["cache"]["added_files"], 1);
+        assert_eq!(value["cache"]["reused_files"], 0);
+        assert_eq!(value["cache"]["changed_files"], 0);
+        assert_eq!(value["cache"]["removed_files"], 0);
+        assert!(serde_json::from_str::<serde_json::Value>(
+            &fs::read_to_string(&cache_path).unwrap()
+        )
+        .is_ok());
+
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
 

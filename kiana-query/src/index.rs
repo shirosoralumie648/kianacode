@@ -62,6 +62,8 @@ pub struct ContextIndex {
     pub skipped_files: usize,
     pub total_bytes: u64,
     pub files: Vec<ContextIndexedFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<ContextIndexCacheReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +73,16 @@ pub struct ContextIndexedFile {
     pub bytes: u64,
     pub line_count: usize,
     pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextIndexCacheReport {
+    pub path: String,
+    pub status: String,
+    pub reused_files: usize,
+    pub added_files: usize,
+    pub changed_files: usize,
+    pub removed_files: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,7 +163,38 @@ pub fn build_context_index(
         skipped_files,
         total_bytes,
         files,
+        cache: None,
     })
+}
+
+pub fn build_persistent_context_index(
+    root: impl AsRef<Path>,
+    options: ContextIndexOptions,
+    cache_path: impl AsRef<Path>,
+) -> Result<ContextIndex> {
+    let mut index = build_context_index(root, options)?;
+    let root = PathBuf::from(&index.root);
+    let cache_path = normalize_cache_path(&root, cache_path.as_ref());
+    let previous = read_cached_index(&cache_path)?;
+    let report = cache_report(&cache_path, &previous, &index);
+
+    index.cache = Some(report);
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create context index cache dir {}",
+                parent.display()
+            )
+        })?;
+    }
+    fs::write(&cache_path, serde_json::to_string_pretty(&index)? + "\n").with_context(|| {
+        format!(
+            "failed to write context index cache {}",
+            cache_path.display()
+        )
+    })?;
+
+    Ok(index)
 }
 
 pub fn search_context_index(
@@ -272,6 +315,95 @@ pub fn build_context_pack(
 fn canonical_root(root: &Path, label: &str) -> Result<PathBuf> {
     fs::canonicalize(root)
         .with_context(|| format!("failed to resolve {label} root {}", root.display()))
+}
+
+fn normalize_cache_path(root: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    }
+}
+
+enum CachedContextIndex {
+    Missing,
+    Valid(ContextIndex),
+    Invalid,
+}
+
+fn read_cached_index(path: &Path) -> Result<CachedContextIndex> {
+    match fs::read_to_string(path) {
+        Ok(contents) => match serde_json::from_str(&contents) {
+            Ok(index) => Ok(CachedContextIndex::Valid(index)),
+            Err(_) => Ok(CachedContextIndex::Invalid),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(CachedContextIndex::Missing)
+        }
+        Err(error) => Err(error)
+            .with_context(|| format!("failed to read context index cache {}", path.display())),
+    }
+}
+
+fn cache_report(
+    path: &Path,
+    previous: &CachedContextIndex,
+    current: &ContextIndex,
+) -> ContextIndexCacheReport {
+    let previous = match previous {
+        CachedContextIndex::Valid(previous) => previous,
+        CachedContextIndex::Missing | CachedContextIndex::Invalid => {
+            return ContextIndexCacheReport {
+                path: path.to_string_lossy().to_string(),
+                status: match previous {
+                    CachedContextIndex::Missing => "created",
+                    CachedContextIndex::Invalid => "recovered",
+                    CachedContextIndex::Valid(_) => unreachable!(),
+                }
+                .to_string(),
+                reused_files: 0,
+                added_files: current.files.len(),
+                changed_files: 0,
+                removed_files: 0,
+            };
+        }
+    };
+
+    let previous_files = previous
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file.content_hash.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let current_files = current
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file.content_hash.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut reused_files = 0;
+    let mut added_files = 0;
+    let mut changed_files = 0;
+
+    for (path, hash) in &current_files {
+        match previous_files.get(*path) {
+            Some(previous_hash) if *previous_hash == *hash => reused_files += 1,
+            Some(_) => changed_files += 1,
+            None => added_files += 1,
+        }
+    }
+
+    let removed_files = previous_files
+        .keys()
+        .filter(|path| !current_files.contains_key(*path))
+        .count();
+
+    ContextIndexCacheReport {
+        path: path.to_string_lossy().to_string(),
+        status: "updated".to_string(),
+        reused_files,
+        added_files,
+        changed_files,
+        removed_files,
+    }
 }
 
 fn candidate_paths(root: &Path) -> Result<Vec<PathBuf>> {
@@ -525,6 +657,34 @@ mod tests {
         assert_eq!(index.files[1].language.as_deref(), Some("rust"));
         assert_eq!(index.skipped_files, 0);
         assert_eq!(index.files[1].content_hash.len(), 16);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persistent_context_index_recovers_from_corrupt_cache() {
+        let root = fixture_root("corrupt-cache");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn recoverable() {}\n").unwrap();
+        let cache_path = root.join(".kiana/context-index.json");
+        fs::create_dir_all(cache_path.parent().unwrap()).unwrap();
+        fs::write(&cache_path, "{not valid json").unwrap();
+
+        let index =
+            build_persistent_context_index(&root, ContextIndexOptions::default(), &cache_path)
+                .unwrap();
+        let cache = index.cache.as_ref().unwrap();
+
+        assert_eq!(index.schema, "kiana.context-index.v1");
+        assert_eq!(index.files_indexed, 1);
+        assert_eq!(cache.status, "recovered");
+        assert_eq!(cache.added_files, 1);
+        assert_eq!(cache.reused_files, 0);
+        assert_eq!(cache.changed_files, 0);
+        assert_eq!(cache.removed_files, 0);
+        assert!(
+            serde_json::from_str::<ContextIndex>(&fs::read_to_string(&cache_path).unwrap()).is_ok()
+        );
 
         let _ = fs::remove_dir_all(root);
     }

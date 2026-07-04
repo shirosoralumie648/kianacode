@@ -1699,6 +1699,8 @@ fn terminate_process(_pid: u32) -> ToolResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{TaskCreateTool, TaskGetTool, TaskListTool, TaskStopTool, TaskUpdateTool};
+    #[cfg(unix)]
+    use crate::bash_tool::BashTool;
     use crate::{Tool, ToolContext};
     use serde_json::{json, Value};
     use std::collections::HashMap;

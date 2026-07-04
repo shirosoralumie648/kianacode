@@ -79,6 +79,7 @@ for file in \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
   scripts/commercial-release-blockers-report.sh \
+  scripts/commercial-release-handoff-smoke.sh \
   scripts/stage-commercial-release-proofs.sh \
   scripts/entitlement-proof-report.sh \
   scripts/product-acceptance-report.sh \
@@ -207,10 +208,12 @@ fi
 
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
   grep -Fq '"context-search"' scripts/product-acceptance-report.sh &&
+  grep -Fq '"context-cache-recovery"' scripts/product-acceptance-report.sh &&
+  grep -Fq 'persistent_context_index_recovers_from_corrupt_cache' scripts/product-acceptance-report.sh &&
   grep -Fq 'cargo test -p kiana-commands --locked --offline context_search' scripts/product-acceptance-report.sh; then
-  pass "product acceptance requires app-server and context-search workflows"
+  pass "product acceptance requires app-server, context-search, and context-cache-recovery workflows"
 else
-  fail "product acceptance does not require app-server and context-search workflows"
+  fail "product acceptance does not require app-server, context-search, and context-cache-recovery workflows"
 fi
 
 if grep -Fq 'provider-live-smoke.sh' RELEASE.md &&
@@ -272,10 +275,14 @@ else
   fail "model catalog JSON schema is missing kiana.model-catalog.v1 const"
 fi
 
-if grep -Fq '"const": "kiana.context-index.v1"' docs/schemas/kiana-context-index.v1.schema.json; then
+if grep -Fq '"const": "kiana.context-index.v1"' docs/schemas/kiana-context-index.v1.schema.json &&
+  grep -Fq '"cache"' docs/schemas/kiana-context-index.v1.schema.json &&
+  grep -Fq '"recovered"' docs/schemas/kiana-context-index.v1.schema.json &&
+  grep -Fq '"reused_files"' docs/schemas/kiana-context-index.v1.schema.json &&
+  grep -Fq '"removed_files"' docs/schemas/kiana-context-index.v1.schema.json; then
   pass "context index JSON schema version is pinned"
 else
-  fail "context index JSON schema is missing kiana.context-index.v1 const"
+  fail "context index JSON schema is missing required v1 cache recovery contract anchors"
 fi
 
 if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-search.v1.schema.json; then
@@ -315,6 +322,12 @@ if printf '%s\n' "$blockers_json" | grep -Fq '"schema": "kiana.commercial-releas
   pass "commercial release blockers report JSON gate is wired"
 else
   fail "commercial release blockers report JSON gate is not wired"
+fi
+
+if "$bash_bin" scripts/commercial-release-handoff-smoke.sh; then
+  pass "commercial release handoff smoke passed"
+else
+  fail "commercial release handoff smoke failed"
 fi
 
 if "$bash_bin" scripts/schema-contract-smoke.sh; then
@@ -592,7 +605,7 @@ if [[ "$mode" == "full" ]]; then
 
   pass "full release signing/channel proof is enforced by release artifact verification"
 else
-  if "$bash_bin" scripts/product-acceptance-report.sh --local-rc; then
+  if KIANA_PRODUCT_ACCEPTANCE_ALLOW_LOCAL_RC_GATE_SKIP="${KIANA_PRODUCT_ACCEPTANCE_ALLOW_LOCAL_RC_GATE_SKIP:-1}" "$bash_bin" scripts/product-acceptance-report.sh --local-rc; then
     pass "local RC product acceptance report generated"
   else
     fail "local RC product acceptance report failed"

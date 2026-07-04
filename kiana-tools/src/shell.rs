@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+#[cfg(windows)]
 use std::path::{Path, PathBuf};
 
 pub(crate) fn preferred_bash_program() -> OsString {

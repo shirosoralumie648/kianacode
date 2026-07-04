@@ -14,12 +14,19 @@ commercial release.
 - `bash scripts/commercial-release-blockers-report.sh --json` produces
   `kiana.commercial-release-blockers.v1`; any remaining blocking checks are
   assigned before the full preflight is requested.
+- `bash scripts/commercial-release-blockers-report.sh --handoff-md <path>`
+  writes a release-owner handoff with owners, acceptance artifacts,
+  verification commands, and handoff notes for every blocking check; the
+  contract is covered by `bash scripts/commercial-release-handoff-smoke.sh`.
 - `bash scripts/release-preflight.sh` passes in full mode.
 
 ## Build And Test
 
 - `cargo fmt --all --check` passes.
 - `bash scripts/release-preflight.sh --local-rc` passes.
+- `bash scripts/commercial-release-blockers-report.sh --json` shows
+  `build.locked-offline-cache` satisfied on the release runner before relying on
+  locked/offline Cargo gates.
 - `cargo test --workspace --locked --offline --no-fail-fast` passes.
 - `kiana doctor --json` conforms to `docs/schemas/kiana-doctor.v1.schema.json`
   through the release smoke gate.
@@ -45,6 +52,9 @@ commercial release.
 - `scripts/schema-contract-smoke.sh` passes and validates proof templates plus
   the commercial blocker report against the pinned schemas using the packaged
   schema validator.
+- `scripts/commercial-release-handoff-smoke.sh` passes and validates the
+  commercial blocker owner-assignment handoff behavior independently of the
+  broader schema smoke.
 - `scripts/compliance-audit.sh` passes with `cargo-audit`, `cargo-deny`, and
   the checked-in `deny.toml` policy.
 - `scripts/install-compliance-tools.sh` installs full audit tooling under

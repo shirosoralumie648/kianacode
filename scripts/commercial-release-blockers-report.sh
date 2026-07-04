@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 format="text"
 fail_on_blockers=0
+handoff_out="${KIANA_COMMERCIAL_HANDOFF_OUT:-}"
 
 while (($# > 0)); do
   case "$1" in
@@ -14,14 +15,27 @@ while (($# > 0)); do
     --fail-on-blockers)
       fail_on_blockers=1
       ;;
+    --handoff-md)
+      shift
+      if (($# == 0)); then
+        echo "--handoff-md requires a path" >&2
+        exit 2
+      fi
+      handoff_out="$1"
+      ;;
+    --handoff-md=*)
+      handoff_out="${1#--handoff-md=}"
+      ;;
     -h|--help)
       cat <<'EOF'
-usage: scripts/commercial-release-blockers-report.sh [--json] [--fail-on-blockers]
+usage: scripts/commercial-release-blockers-report.sh [--json] [--fail-on-blockers] [--handoff-md PATH]
 
 Writes a lightweight commercial release readiness report without running cargo,
 network, signing, or package-manager publication gates.
 
 Set KIANA_COMMERCIAL_BLOCKERS_OUT to also write the JSON report to a file.
+Set KIANA_COMMERCIAL_HANDOFF_OUT or pass --handoff-md to write an assignment
+handoff Markdown file for the remaining blockers.
 EOF
       exit 0
       ;;
@@ -42,6 +56,7 @@ python_bin() {
 
 KIANA_BLOCKERS_FORMAT="$format" \
 KIANA_BLOCKERS_FAIL_ON_BLOCKERS="$fail_on_blockers" \
+KIANA_BLOCKERS_HANDOFF_OUT="$handoff_out" \
 "$(python_bin)" - <<'PY'
 import json
 import os
@@ -121,6 +136,68 @@ def check_status(ok):
     return "satisfied" if ok else "blocking"
 
 
+def blocker_env_key(prefix, check_id):
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in check_id.upper())
+    return f"{prefix}_{normalized}"
+
+
+def default_owner(category, external):
+    if not external:
+        return "local-release-automation"
+    return {
+        "source-control": "release-manager",
+        "build-test": "release-engineering",
+        "signing": "release-security",
+        "distribution": "release-engineering",
+        "live-service": "service-owner",
+        "acceptance": "acceptance-owner",
+    }.get(category, "release-owner")
+
+
+def default_handoff_notes(external, paths, env):
+    notes = []
+    if external:
+        notes.append("Assign this blocker to the named operational owner before the release review.")
+    else:
+        notes.append("Resolve this local blocker before asking external owners to act.")
+    if paths:
+        notes.append("Attach or regenerate every listed acceptance artifact before closing the check.")
+    if env:
+        notes.append("Run the verification commands with the listed environment variables set from production-approved sources.")
+    return notes
+
+
+def default_acceptance_artifacts(check_id, paths):
+    if paths:
+        return paths
+    return {
+        "source.remote": [
+            "production git remote URL",
+            "pushed reviewed release commit",
+        ],
+        "source.version-tag": [
+            f"{EXPECTED_TAG} tag on the reviewed release commit",
+            "pushed immutable release tag",
+        ],
+        "source.clean-tracked-tree": [
+            "clean `git status --short` output",
+            "clean `git diff --check` output",
+        ],
+        "source.release-tag-env": [
+            "release preflight environment with matching KIANA_RELEASE_TAG",
+        ],
+        "signing.release-artifacts": [
+            "dist/proofs/signing/release-signature.json",
+            "dist/proofs/macos/notarization.json",
+            "signature files beside every release archive and binary checksum",
+        ],
+        "build.locked-offline-cache": [
+            "complete Cargo registry source cache for every locked registry package",
+            "successful locked/offline Cargo metadata or release-smoke run",
+        ],
+    }.get(check_id, [])
+
+
 checks = []
 
 
@@ -137,7 +214,27 @@ def add_check(
     paths=None,
     commands=None,
     env=None,
+    owner=None,
+    owner_status=None,
+    acceptance_artifacts=None,
+    verification_commands=None,
+    handoff_notes=None,
 ):
+    paths = sorted(str(item) for item in (paths or []))
+    commands = list(commands or [])
+    env = list(env or [])
+    owner_env = os.environ.get(blocker_env_key("KIANA_BLOCKER_OWNER", id), "").strip()
+    effective_owner = owner_env or owner or default_owner(category, external)
+    effective_owner_status = owner_status or (
+        "specific-owner-assigned"
+        if owner_env
+        else ("role-owner-required" if external else "local-owner")
+    )
+    effective_acceptance_artifacts = list(
+        acceptance_artifacts or default_acceptance_artifacts(id, paths)
+    )
+    effective_verification_commands = list(verification_commands or commands or [gate])
+    effective_handoff_notes = list(handoff_notes or default_handoff_notes(external, paths, env))
     checks.append(
         {
             "id": id,
@@ -149,9 +246,14 @@ def add_check(
             "gate": gate,
             "evidence": evidence,
             "required_action": required_action,
-            "paths": sorted(str(item) for item in (paths or [])),
-            "commands": list(commands or []),
-            "env": list(env or []),
+            "paths": paths,
+            "commands": commands,
+            "env": env,
+            "owner": effective_owner,
+            "owner_status": effective_owner_status,
+            "acceptance_artifacts": sorted(str(item) for item in effective_acceptance_artifacts),
+            "verification_commands": effective_verification_commands,
+            "handoff_notes": effective_handoff_notes,
         }
     )
 
@@ -208,6 +310,81 @@ add_check(
     required_action=f"Unset KIANA_RELEASE_TAG or set it to {EXPECTED_TAG}.",
     env=["KIANA_RELEASE_TAG"],
 )
+
+
+def locked_registry_packages(lock_path):
+    packages = []
+    current = {}
+    if not lock_path.exists():
+        return packages, f"missing: {lock_path}"
+    for raw_line in lock_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line == "[[package]]":
+            if current.get("source", "").startswith("registry+") and current.get("name") and current.get("version"):
+                packages.append((current["name"], current["version"]))
+            current = {}
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"')
+        if key in {"name", "version", "source"}:
+            current[key] = value
+    if current.get("source", "").startswith("registry+") and current.get("name") and current.get("version"):
+        packages.append((current["name"], current["version"]))
+    return sorted(set(packages)), None
+
+
+def cargo_registry_src_roots():
+    cargo_home = Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo"))
+    src_root = cargo_home / "registry" / "src"
+    if not src_root.exists():
+        return []
+    return [path for path in src_root.iterdir() if path.is_dir()]
+
+
+def missing_locked_cargo_sources():
+    packages, error = locked_registry_packages(ROOT / "Cargo.lock")
+    if error:
+        return [], 0, error
+    roots = cargo_registry_src_roots()
+    if not roots and packages:
+        return [f"{name}-{version}" for name, version in packages], len(packages), "no Cargo registry source cache found"
+    missing = []
+    for name, version in packages:
+        dirname = f"{name}-{version}"
+        if not any((root / dirname).is_dir() for root in roots):
+            missing.append(dirname)
+    return missing, len(packages), None
+
+
+missing_cargo_sources, locked_cargo_packages, cargo_source_error = missing_locked_cargo_sources()
+cargo_source_sample = ", ".join(missing_cargo_sources[:8])
+if len(missing_cargo_sources) > 8:
+    cargo_source_sample += f", ... (+{len(missing_cargo_sources) - 8} more)"
+add_check(
+    id="build.locked-offline-cache",
+    category="build-test",
+    title="Locked Cargo registry source cache supports offline release gates",
+    ok=not missing_cargo_sources and cargo_source_error is None,
+    external=False,
+    gate="cargo test --workspace --locked --offline --no-fail-fast",
+    evidence=(
+        f"all {locked_cargo_packages} locked registry packages are cached"
+        if not missing_cargo_sources and cargo_source_error is None
+        else f"{cargo_source_error or 'missing locked crate sources'}: {cargo_source_sample}"
+    ),
+    required_action="Refresh the Cargo registry source cache for the locked dependency set, or run the strict release gates on a runner with the required locked crate sources available.",
+    paths=["Cargo.lock", "${CARGO_HOME:-~/.cargo}/registry/src"],
+    commands=[
+        "cargo fetch --locked",
+        "cargo test --workspace --locked --offline --no-fail-fast",
+        "bash scripts/release-smoke.sh",
+    ],
+    env=["CARGO_HOME", "CARGO_REGISTRIES_CRATES_IO_PROTOCOL", "CARGO_NET_GIT_FETCH_WITH_CLI"],
+)
+
 
 signing_command = os.environ.get("KIANA_SIGNING_COMMAND", "")
 signature_verify_command = os.environ.get("KIANA_SIGNATURE_VERIFY_COMMAND", "")
@@ -616,11 +793,103 @@ report = {
     "checks": checks,
 }
 
+
+def md_escape(value):
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def render_handoff_markdown(report):
+    summary = report["summary"]
+    lines = [
+        f"# Kiana Commercial Release Handoff {report['version']} ({report['release_tag']})",
+        "",
+        f"Generated: {report['generated_at']}",
+        f"Status: {report['status']}",
+        (
+            "Summary: "
+            f"{summary['blocking']} blocking, "
+            f"{summary['external_blocking']} external, "
+            f"{summary['local_blocking']} local, "
+            f"{summary['satisfied']} satisfied"
+        ),
+        "",
+        "## Blocking Assignments",
+        "",
+    ]
+    if not blocking_checks:
+        lines.extend(["No blocking checks were detected.", ""])
+        return "\n".join(lines).rstrip() + "\n"
+
+    lines.extend(
+        [
+            "| ID | Owner | Status | Gate | Acceptance Artifacts | Verification |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    for check in blocking_checks:
+        artifacts = "<br>".join(md_escape(item) for item in check["acceptance_artifacts"])
+        verification = "<br>".join(md_escape(item) for item in check["verification_commands"])
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    md_escape(check["id"]),
+                    md_escape(check["owner"]),
+                    md_escape(check["owner_status"]),
+                    md_escape(check["gate"]),
+                    artifacts or "n/a",
+                    verification or "n/a",
+                ]
+            )
+            + " |"
+        )
+
+    lines.append("")
+    for check in blocking_checks:
+        lines.extend(
+            [
+                f"## {check['id']}",
+                "",
+                f"- Title: {check['title']}",
+                f"- Owner: {check['owner']} ({check['owner_status']})",
+                f"- Evidence: {check['evidence']}",
+                f"- Required action: {check['required_action']}",
+                f"- Gate: {check['gate']}",
+            ]
+        )
+        if check["env"]:
+            lines.append("- Environment:")
+            for item in check["env"]:
+                lines.append(f"  - `{item}`")
+        if check["acceptance_artifacts"]:
+            lines.append("- Acceptance artifacts:")
+            for item in check["acceptance_artifacts"]:
+                lines.append(f"  - `{item}`")
+        if check["verification_commands"]:
+            lines.append("- Verification commands:")
+            for item in check["verification_commands"]:
+                lines.append(f"  - `{item}`")
+        if check["handoff_notes"]:
+            lines.append("- Handoff notes:")
+            for item in check["handoff_notes"]:
+                lines.append(f"  - {item}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 out = os.environ.get("KIANA_COMMERCIAL_BLOCKERS_OUT", "")
 if out:
     path = Path(out)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+handoff_out = os.environ.get("KIANA_BLOCKERS_HANDOFF_OUT", "") or os.environ.get(
+    "KIANA_COMMERCIAL_HANDOFF_OUT", ""
+)
+if handoff_out:
+    path = Path(handoff_out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_handoff_markdown(report), encoding="utf-8")
 
 if os.environ.get("KIANA_BLOCKERS_FORMAT") == "json":
     print(json.dumps(report, indent=2, sort_keys=True))
@@ -636,12 +905,15 @@ else:
     )
     if out:
         print(f"JSON report: {out}")
+    if handoff_out:
+        print(f"Handoff: {handoff_out}")
     if blocking_checks:
         print("")
         print("Blocking:")
         for check in blocking_checks:
             owner = "external" if check["external"] else "local"
             print(f"- {check['id']} [{owner}]: {check['title']}")
+            print(f"  owner: {check['owner']} ({check['owner_status']})")
             print(f"  evidence: {check['evidence']}")
             print(f"  gate: {check['gate']}")
             print(f"  action: {check['required_action']}")

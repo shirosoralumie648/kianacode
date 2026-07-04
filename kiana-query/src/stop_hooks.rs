@@ -17,6 +17,7 @@ use futures::FutureExt;
 use kiana_types::ProjectTrust;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+#[cfg(windows)]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;

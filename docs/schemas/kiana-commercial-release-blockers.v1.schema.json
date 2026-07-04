@@ -81,7 +81,12 @@
           "required_action",
           "paths",
           "commands",
-          "env"
+          "env",
+          "owner",
+          "owner_status",
+          "acceptance_artifacts",
+          "verification_commands",
+          "handoff_notes"
         ],
         "properties": {
           "id": {
@@ -92,6 +97,7 @@
             "type": "string",
             "enum": [
               "source-control",
+              "build-test",
               "signing",
               "distribution",
               "live-service",
@@ -137,6 +143,32 @@
             }
           },
           "env": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner_status": {
+            "type": "string",
+            "enum": ["local-owner", "role-owner-required", "specific-owner-assigned"]
+          },
+          "acceptance_artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verification_commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "handoff_notes": {
             "type": "array",
             "items": {
               "type": "string"

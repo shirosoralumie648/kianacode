@@ -31,9 +31,10 @@ done
 
 tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
+tmp_context_index="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest" "$tmp_doctor"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -90,6 +91,36 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-events.v1.schema.json \
   "$tmp_app_events" >/dev/null
+
+cat > "$tmp_context_index" <<'JSON'
+{
+  "schema": "kiana.context-index.v1",
+  "root": "/workspace",
+  "files_indexed": 1,
+  "skipped_files": 0,
+  "total_bytes": 21,
+  "files": [
+    {
+      "path": "src/lib.rs",
+      "language": "rust",
+      "bytes": 21,
+      "line_count": 1,
+      "content_hash": "0123456789abcdef"
+    }
+  ],
+  "cache": {
+    "path": "/workspace/.kiana/context-index.json",
+    "status": "recovered",
+    "reused_files": 0,
+    "added_files": 1,
+    "changed_files": 0,
+    "removed_files": 0
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-context-index.v1.schema.json \
+  "$tmp_context_index" >/dev/null
 
 cat > "$tmp_doctor" <<'JSON'
 {
@@ -217,10 +248,31 @@ JSON
   "$tmp_proof_manifest" >/dev/null
 
 tmp_report="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_report"' EXIT
-bash scripts/commercial-release-blockers-report.sh --json > "$tmp_report"
+tmp_handoff="$(mktemp)"
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_report" "$tmp_handoff"' EXIT
+bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
   "$tmp_report" >/dev/null
+"$python" - "$tmp_report" "$tmp_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+checks = report.get("checks", [])
+if not checks:
+    raise SystemExit("commercial blockers report has no checks")
+for check in checks:
+    for key in ["owner", "owner_status", "acceptance_artifacts", "verification_commands", "handoff_notes"]:
+        if key not in check:
+            raise SystemExit(f"commercial blockers report missing {key}")
+if "## Blocking Assignments" not in handoff:
+    raise SystemExit("commercial blockers handoff is missing assignment section")
+if "source.remote" not in handoff:
+    raise SystemExit("commercial blockers handoff is missing source.remote")
+PY
+bash scripts/commercial-release-handoff-smoke.sh >/dev/null
 
 echo "schema contract smoke passed"

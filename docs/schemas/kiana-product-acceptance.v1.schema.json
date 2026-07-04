@@ -62,7 +62,7 @@
       "if": {
         "properties": {
           "status": {
-            "enum": ["headless_smoke_only", "blocked"]
+            "enum": ["headless_smoke_only", "headless_smoke_partial", "blocked"]
           }
         }
       },
@@ -85,7 +85,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["accepted", "headless_smoke_only", "blocked"]
+      "enum": ["accepted", "headless_smoke_only", "headless_smoke_partial", "blocked"]
     },
     "accepted": {
       "type": "boolean"
