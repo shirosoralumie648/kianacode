@@ -57,6 +57,7 @@ for file in \
   docs/schemas/kiana-app-server-plugins.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
   docs/schemas/kiana-diff.v1.schema.json \
+  docs/schemas/kiana-checkpoint.v1.schema.json \
   docs/schemas/kiana-checks-dry-run.v1.schema.json \
   docs/schemas/kiana-checks-run.v1.schema.json \
   docs/schemas/kiana-review-dry-run.v1.schema.json \
@@ -203,6 +204,8 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '.kiana/context-index.json' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'diff.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/diff' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'checkpoint.create' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/checkpoints' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'checks.dry_run.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/checks/dry-run' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'checks.run.read' kiana-entrypoints/src/cli.rs &&
@@ -217,6 +220,7 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/search' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/pack' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.diff.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.checkpoint.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.checks.dry_run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.checks.run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.review.dry_run.v1' kiana-entrypoints/src/cli.rs &&
@@ -224,9 +228,9 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server diff, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
+  pass "app-server checkpoint, diff, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
-  fail "app-server diff, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
+  fail "app-server checkpoint, diff, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
@@ -305,6 +309,16 @@ if grep -Fq '"const": "kiana.diff.v1"' docs/schemas/kiana-diff.v1.schema.json &&
   pass "diff JSON schema version is pinned"
 else
   fail "diff JSON schema is missing required dirty-state anchors"
+fi
+
+if grep -Fq '"const": "kiana.checkpoint.v1"' docs/schemas/kiana-checkpoint.v1.schema.json &&
+  grep -Fq '"checkpoint_dir"' docs/schemas/kiana-checkpoint.v1.schema.json &&
+  grep -Fq '"manifest_path"' docs/schemas/kiana-checkpoint.v1.schema.json &&
+  grep -Fq '"staged_patch"' docs/schemas/kiana-checkpoint.v1.schema.json &&
+  grep -Fq '"unstaged_patch"' docs/schemas/kiana-checkpoint.v1.schema.json; then
+  pass "checkpoint JSON schema version is pinned"
+else
+  fail "checkpoint JSON schema is missing required safety checkpoint anchors"
 fi
 
 if grep -Fq '"const": "kiana.checks.run.v1"' docs/schemas/kiana-checks-run.v1.schema.json &&

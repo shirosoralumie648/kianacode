@@ -33,6 +33,7 @@ tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_diff="$(mktemp)"
+tmp_checkpoint="$(mktemp)"
 tmp_checks_dry_run="$(mktemp)"
 tmp_checks_run="$(mktemp)"
 tmp_review_dry_run="$(mktemp)"
@@ -40,7 +41,7 @@ tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_diff" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -159,6 +160,44 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-diff.v1.schema.json \
   "$tmp_diff" >/dev/null
+
+cat > "$tmp_checkpoint" <<'JSON'
+{
+  "schema": "kiana.checkpoint.v1",
+  "id": "checkpoint-1",
+  "root": "/workspace",
+  "git_root": "/workspace",
+  "checkpoint_dir": "/home/user/.kiana/checkpoints/workspace/checkpoint-1",
+  "manifest_path": "/home/user/.kiana/checkpoints/workspace/checkpoint-1/manifest.json",
+  "inside_git_repo": true,
+  "dirty": true,
+  "head": "0123456789abcdef0123456789abcdef01234567",
+  "branch": "main",
+  "kind": "manual",
+  "created_at_unix_ms": 1783123200000,
+  "files": [
+    {
+      "path": "review-notes.txt",
+      "index": "?",
+      "worktree": "?"
+    }
+  ],
+  "staged_patch": {
+    "changed": false,
+    "path": "/home/user/.kiana/checkpoints/workspace/checkpoint-1/staged.diff",
+    "bytes": 0
+  },
+  "unstaged_patch": {
+    "changed": true,
+    "path": "/home/user/.kiana/checkpoints/workspace/checkpoint-1/unstaged.diff",
+    "bytes": 42
+  },
+  "untracked_files": ["review-notes.txt"]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-checkpoint.v1.schema.json \
+  "$tmp_checkpoint" >/dev/null
 
 cat > "$tmp_checks_dry_run" <<'JSON'
 {
@@ -504,7 +543,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_diff" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

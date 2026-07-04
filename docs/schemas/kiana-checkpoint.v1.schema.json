@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-checkpoint.v1.schema.json",
+  "title": "Kiana Checkpoint v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "root",
+    "git_root",
+    "checkpoint_dir",
+    "manifest_path",
+    "inside_git_repo",
+    "dirty",
+    "head",
+    "branch",
+    "kind",
+    "created_at_unix_ms",
+    "files",
+    "staged_patch",
+    "unstaged_patch",
+    "untracked_files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.checkpoint.v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkpoint_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifest_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inside_git_repo": {
+      "const": true
+    },
+    "dirty": {
+      "type": "boolean"
+    },
+    "head": {
+      "type": ["string", "null"]
+    },
+    "branch": {
+      "type": ["string", "null"]
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["manual", "assistant_turn"]
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turn_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at_unix_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/checkpointFile"
+      }
+    },
+    "staged_patch": {
+      "$ref": "#/$defs/patchArtifact"
+    },
+    "unstaged_patch": {
+      "$ref": "#/$defs/patchArtifact"
+    },
+    "untracked_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "assistant_final_state": {
+      "type": "object",
+      "required": ["created_at_unix_ms", "files"],
+      "properties": {
+        "created_at_unix_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "exists"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "checkpointFile": {
+      "type": "object",
+      "required": ["path", "index", "worktree"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "index": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worktree": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "patchArtifact": {
+      "type": "object",
+      "required": ["changed", "path", "bytes"],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
