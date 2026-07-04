@@ -5330,6 +5330,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_proof_manifest_handler),
         )
         .route(
+            "/app/release/live-provider-smoke",
+            axum::routing::get(direct_connect_app_release_live_provider_smoke_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -6099,6 +6103,28 @@ async fn direct_connect_app_release_proof_manifest_handler(
     }
 }
 
+async fn direct_connect_app_release_live_provider_smoke_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_live_provider_smoke_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read live provider smoke report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6681,6 +6707,113 @@ fn direct_connect_commercial_proof_manifest_report() -> Result<Value> {
         return Err(anyhow!(
             "commercial proof manifest {} has unexpected schema",
             manifest_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_live_provider_smoke_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let dist_dir = if dist_dir.is_absolute() {
+        dist_dir
+    } else {
+        root.join(dist_dir)
+    };
+    let target_provider_dir = root.join("target").join("live-smoke").join("provider");
+    let catalog_path = direct_connect_first_existing_path(
+        root,
+        [
+            std::env::var_os("KIANA_PROVIDER_LIVE_CATALOG_FILE").map(PathBuf::from),
+            std::env::var_os("KIANA_PROVIDER_LIVE_CATALOG_OUT").map(PathBuf::from),
+            Some(
+                dist_dir
+                    .join("proofs")
+                    .join("live-smoke")
+                    .join("provider")
+                    .join("model-catalog-live.json"),
+            ),
+            Some(target_provider_dir.join("model-catalog-live.json")),
+        ],
+    )
+    .ok_or_else(|| {
+        anyhow!(
+            "no live provider catalog proof found in KIANA_PROVIDER_LIVE_CATALOG_FILE, KIANA_PROVIDER_LIVE_CATALOG_OUT, DIST_DIR/proofs/live-smoke/provider/model-catalog-live.json, or target/live-smoke/provider/model-catalog-live.json"
+        )
+    })?;
+    let smoke_path = direct_connect_first_existing_path(
+        root,
+        [
+            std::env::var_os("KIANA_PROVIDER_LIVE_SMOKE_FILE").map(PathBuf::from),
+            std::env::var_os("KIANA_PROVIDER_LIVE_SMOKE_OUT").map(PathBuf::from),
+            Some(
+                dist_dir
+                    .join("proofs")
+                    .join("live-smoke")
+                    .join("provider")
+                    .join("model-smoke-live-tools.json"),
+            ),
+            Some(target_provider_dir.join("model-smoke-live-tools.json")),
+        ],
+    )
+    .ok_or_else(|| {
+        anyhow!(
+            "no live provider smoke proof found in KIANA_PROVIDER_LIVE_SMOKE_FILE, KIANA_PROVIDER_LIVE_SMOKE_OUT, DIST_DIR/proofs/live-smoke/provider/model-smoke-live-tools.json, or target/live-smoke/provider/model-smoke-live-tools.json"
+        )
+    })?;
+    let catalog = direct_connect_read_json_schema_file(
+        &catalog_path,
+        "live provider catalog proof",
+        "kiana.model-catalog.v1",
+    )?;
+    let smoke = direct_connect_read_json_schema_file(
+        &smoke_path,
+        "live provider smoke proof",
+        "kiana.model-smoke.v1",
+    )?;
+    Ok(serde_json::json!({
+        "schema": "kiana.app-server.live-provider-smoke.v1",
+        "catalog_path": catalog_path.display().to_string(),
+        "smoke_path": smoke_path.display().to_string(),
+        "catalog": catalog,
+        "smoke": smoke,
+    }))
+}
+
+fn direct_connect_first_existing_path<const N: usize>(
+    root: &Path,
+    candidates: [Option<PathBuf>; N],
+) -> Option<PathBuf> {
+    candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+}
+
+fn direct_connect_read_json_schema_file(
+    path: &Path,
+    label: &str,
+    expected_schema: &str,
+) -> Result<Value> {
+    let report = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read {label} file {}", path.display()))?;
+    let value: Value = serde_json::from_str(&report)
+        .with_context(|| format!("failed to parse {label} JSON {}", path.display()))?;
+    if value.get("schema").and_then(Value::as_str) != Some(expected_schema) {
+        return Err(anyhow!(
+            "{label} file {} has unexpected schema",
+            path.display()
         ));
     }
     Ok(value)
@@ -7950,6 +8083,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.signature.read",
             "release.enterprise_offline_manifest.read",
             "release.proof_manifest.read",
+            "release.live_provider_smoke.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -8054,6 +8188,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/proof-manifest",
                 "schema": "kiana.commercial-proof-manifest.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/live-provider-smoke",
+                "schema": "kiana.app-server.live-provider-smoke.v1"
             },
             {
                 "method": "GET",
@@ -17205,6 +17344,10 @@ mod tests {
             "KIANA_ENTERPRISE_OFFLINE_MANIFEST_OUT",
             "KIANA_COMMERCIAL_PROOF_MANIFEST_FILE",
             "KIANA_COMMERCIAL_PROOF_MANIFEST_OUT",
+            "KIANA_PROVIDER_LIVE_CATALOG_FILE",
+            "KIANA_PROVIDER_LIVE_CATALOG_OUT",
+            "KIANA_PROVIDER_LIVE_SMOKE_FILE",
+            "KIANA_PROVIDER_LIVE_SMOKE_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17706,6 +17849,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.proof_manifest.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.live_provider_smoke.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17786,6 +17934,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/proof-manifest"
                     && endpoint["schema"] == "kiana.commercial-proof-manifest.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/live-provider-smoke"
+                    && endpoint["schema"] == "kiana.app-server.live-provider-smoke.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -18811,6 +18968,120 @@ mod tests {
                 |proof| proof["id"] == "live.provider-smoke" && proof["category"] == "live-service"
             ));
         let _ = std::fs::remove_file(&commercial_proof_manifest_path);
+
+        let provider_catalog_path = std::env::temp_dir().join(format!(
+            "kiana-provider-live-catalog-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &provider_catalog_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.model-catalog.v1",
+                "live": true,
+                "summary": {
+                    "providers": 1,
+                    "discovered_models": 1,
+                    "skipped": 0,
+                    "failed": 0
+                },
+                "providers": [
+                    {
+                        "provider_id": "openai-compatible",
+                        "display_name": "OpenAI Compatible",
+                        "protocol": "open_ai_chat_completions",
+                        "models_source": "user_configured",
+                        "status": "passed",
+                        "live": true,
+                        "model_ids": ["gpt-4.1"],
+                        "discovered_model_ids": ["gpt-4.1"],
+                        "message": "live catalog accepted",
+                        "base_url": "https://api.example.test/v1"
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let provider_smoke_path = std::env::temp_dir().join(format!(
+            "kiana-provider-live-smoke-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &provider_smoke_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.model-smoke.v1",
+                "live": true,
+                "tools": true,
+                "summary": {
+                    "passed": 2,
+                    "skipped": 0,
+                    "failed": 0
+                },
+                "results": [
+                    {
+                        "provider_id": "openai-compatible",
+                        "model_id": "gpt-4.1",
+                        "status": "passed",
+                        "live": true,
+                        "capability": "text",
+                        "message": "text live smoke accepted",
+                        "output_preview": "ok"
+                    },
+                    {
+                        "provider_id": "openai-compatible",
+                        "model_id": "gpt-4.1",
+                        "status": "passed",
+                        "live": true,
+                        "capability": "tools",
+                        "message": "tool live smoke accepted",
+                        "output_preview": "tool ok"
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PROVIDER_LIVE_CATALOG_OUT", &provider_catalog_path);
+        std::env::set_var("KIANA_PROVIDER_LIVE_SMOKE_OUT", &provider_smoke_path);
+        let live_provider_smoke: Value = client
+            .get(format!("http://{addr}/app/release/live-provider-smoke"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            live_provider_smoke["schema"],
+            "kiana.app-server.live-provider-smoke.v1"
+        );
+        assert_eq!(
+            live_provider_smoke["catalog"]["schema"],
+            "kiana.model-catalog.v1"
+        );
+        assert_eq!(live_provider_smoke["catalog"]["live"], true);
+        assert_eq!(
+            live_provider_smoke["catalog"]["summary"]["discovered_models"],
+            1
+        );
+        assert_eq!(
+            live_provider_smoke["smoke"]["schema"],
+            "kiana.model-smoke.v1"
+        );
+        assert_eq!(live_provider_smoke["smoke"]["live"], true);
+        assert_eq!(live_provider_smoke["smoke"]["tools"], true);
+        assert_eq!(live_provider_smoke["smoke"]["summary"]["passed"], 2);
+        assert!(live_provider_smoke["catalog_path"]
+            .as_str()
+            .unwrap()
+            .contains("kiana-provider-live-catalog"));
+        assert!(live_provider_smoke["smoke_path"]
+            .as_str()
+            .unwrap()
+            .contains("kiana-provider-live-smoke"));
+        let _ = std::fs::remove_file(&provider_catalog_path);
+        let _ = std::fs::remove_file(&provider_smoke_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))

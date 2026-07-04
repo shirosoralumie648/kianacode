@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-live-provider-smoke.v1.schema.json",
+  "title": "Kiana App Server Live Provider Smoke Report v1",
+  "type": "object",
+  "required": ["schema", "catalog_path", "smoke_path", "catalog", "smoke"],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.live-provider-smoke.v1"
+    },
+    "catalog_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "smoke_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "catalog": {
+      "$ref": "kiana-model-catalog.v1.schema.json"
+    },
+    "smoke": {
+      "$ref": "kiana-model-smoke.v1.schema.json"
+    }
+  },
+  "additionalProperties": false
+}
