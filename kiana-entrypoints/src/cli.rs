@@ -722,6 +722,35 @@ fn is_end_session_control_request(event: &Value) -> bool {
         == Some("end_session")
 }
 
+fn stream_json_input_error_payload(message: &str) -> Value {
+    serde_json::json!({
+        "schema": "kiana.stream-json-input-error.v1",
+        "code": stream_json_input_error_code(message),
+        "line": stream_json_input_error_line(message),
+        "message": message,
+    })
+}
+
+fn stream_json_input_error_code(message: &str) -> &'static str {
+    if message.contains("is not valid JSON") {
+        "invalid_json"
+    } else if message.contains("requires at least one user message or prompt") {
+        "missing_prompt"
+    } else {
+        "invalid_input"
+    }
+}
+
+fn stream_json_input_error_line(message: &str) -> Option<usize> {
+    let marker = " line ";
+    let start = message.find(marker)? + marker.len();
+    let digits = message[start..]
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>();
+    digits.parse::<usize>().ok()
+}
+
 fn stream_json_history_message(event: &Value) -> Option<Value> {
     if event.get("type").and_then(Value::as_str) != Some("assistant") {
         return None;
@@ -816,9 +845,25 @@ async fn print_main(print_args: PrintArgs, runtime_flags: &RuntimeFlags) -> Resu
         PrintInputFormat::Text => (print_args.message, Vec::new()),
         PrintInputFormat::StreamJson => {
             let stdin = tokio::io::BufReader::new(tokio::io::stdin());
-            let input =
-                read_stream_json_input(stdin, &print_args.message, print_args.replay_user_messages)
-                    .await?;
+            let input = match read_stream_json_input(
+                stdin,
+                &print_args.message,
+                print_args.replay_user_messages,
+            )
+            .await
+            {
+                Ok(input) => input,
+                Err(error) if matches!(print_args.output_format, PrintOutputFormat::StreamJson) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&stream_json_input_error_payload(
+                            &error.to_string()
+                        ))?
+                    );
+                    return Err(error);
+                }
+                Err(error) => return Err(error),
+            };
             if !input.history_messages.is_empty() {
                 options.insert(
                     crate::sdk::STREAM_JSON_HISTORY_MESSAGES_OPTION.to_string(),
@@ -5340,22 +5385,32 @@ async fn direct_connect_app_conversations_handler(
         );
     }
 
-    let mut conversations = state
-        .sessions
-        .lock()
-        .await
+    let active_sessions = state.sessions.lock().await;
+    let active_session_ids = active_sessions
         .values()
-        .map(|session| {
-            serde_json::json!({
-                "id": session.session_id,
-                "session_id": session.session_id,
-                "work_dir": session.work_dir.display().to_string(),
-                "dangerously_skip_permissions": session.dangerously_skip_permissions,
-                "events_url": format!("/sessions/{}/ws", session.session_id),
-                "events_snapshot_url": format!("/app/conversations/{}/events", session.session_id),
-            })
-        })
+        .map(|session| session.session_id.clone())
+        .collect::<HashSet<_>>();
+    let mut conversations = active_sessions
+        .values()
+        .map(direct_connect_active_conversation_json)
         .collect::<Vec<_>>();
+    drop(active_sessions);
+
+    let persisted_sessions = match crate::sdk::list_sessions().await {
+        Ok(sessions) => sessions,
+        Err(error) => {
+            return direct_connect_json_error(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to load SDK sessions: {error}"),
+            )
+        }
+    };
+    conversations.extend(
+        persisted_sessions
+            .into_iter()
+            .filter(|session| !active_session_ids.contains(&session.session_id))
+            .map(direct_connect_persisted_conversation_json),
+    );
     conversations.sort_by(|left, right| {
         left.get("id")
             .and_then(Value::as_str)
@@ -5369,6 +5424,39 @@ async fn direct_connect_app_conversations_handler(
         "conversations": conversations,
     }))
     .into_response()
+}
+
+fn direct_connect_active_conversation_json(session: &DirectConnectServerSession) -> Value {
+    serde_json::json!({
+        "id": session.session_id,
+        "session_id": session.session_id,
+        "source": "direct-connect",
+        "active": true,
+        "work_dir": session.work_dir.display().to_string(),
+        "dangerously_skip_permissions": session.dangerously_skip_permissions,
+        "events_url": format!("/sessions/{}/ws", session.session_id),
+        "events_snapshot_url": format!("/app/conversations/{}/events", session.session_id),
+    })
+}
+
+fn direct_connect_persisted_conversation_json(session: crate::sdk::SdkSessionInfo) -> Value {
+    serde_json::json!({
+        "id": session.session_id,
+        "session_id": session.session_id,
+        "source": "sdk-session-store",
+        "active": false,
+        "title": session.title,
+        "tag": session.tag,
+        "parent_session_id": session.parent_session_id,
+        "work_dir": session.cwd,
+        "created_at": session.created_at,
+        "updated_at": session.updated_at,
+        "message_count": session.message_count,
+        "assistant_message_count": session.assistant_message_count,
+        "last_role": session.last_role,
+        "events_url": Value::Null,
+        "events_snapshot_url": format!("/app/conversations/{}/events", session.session_id),
+    })
 }
 
 async fn direct_connect_app_conversation_events_handler(
@@ -16167,6 +16255,31 @@ mod tests {
             format!("{event_contents}\n"),
         )
         .unwrap();
+        let archived_session_id = "archived-app-session";
+        std::fs::write(
+            sessions_dir.join(format!("{archived_session_id}.json")),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "session_id": archived_session_id,
+                "title": "Archived app session",
+                "tag": "handoff",
+                "parent_session_id": null,
+                "cwd": workspace.display().to_string(),
+                "created_at": 7,
+                "updated_at": 9,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "resume this app session"
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "ready"
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
 
         let contract: Value = client
             .get(format!("http://{addr}/app"))
@@ -16403,15 +16516,38 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(conversations["schema"], "kiana.app-server.conversations.v1");
-        assert_eq!(conversations["count"], 1);
-        assert_eq!(conversations["conversations"][0]["id"], session_id);
+        assert_eq!(conversations["count"], 2);
+        let conversation_items = conversations["conversations"].as_array().unwrap();
+        let live_conversation = conversation_items
+            .iter()
+            .find(|conversation| conversation["id"] == session_id)
+            .expect("live direct-connect conversation");
+        assert_eq!(live_conversation["active"], true);
+        assert_eq!(live_conversation["source"], "direct-connect");
         assert_eq!(
-            conversations["conversations"][0]["events_url"],
+            live_conversation["events_url"],
             format!("/sessions/{session_id}/ws")
         );
         assert_eq!(
-            conversations["conversations"][0]["events_snapshot_url"],
+            live_conversation["events_snapshot_url"],
             format!("/app/conversations/{session_id}/events")
+        );
+        let archived_conversation = conversation_items
+            .iter()
+            .find(|conversation| conversation["id"] == archived_session_id)
+            .expect("archived SDK conversation");
+        assert_eq!(archived_conversation["active"], false);
+        assert_eq!(archived_conversation["source"], "sdk-session-store");
+        assert_eq!(archived_conversation["title"], "Archived app session");
+        assert_eq!(archived_conversation["tag"], "handoff");
+        assert_eq!(archived_conversation["message_count"], 2);
+        assert_eq!(archived_conversation["assistant_message_count"], 1);
+        assert_eq!(archived_conversation["last_role"], "assistant");
+        assert_eq!(archived_conversation["updated_at"], 9);
+        assert_eq!(archived_conversation["events_url"], Value::Null);
+        assert_eq!(
+            archived_conversation["events_snapshot_url"],
+            format!("/app/conversations/{archived_session_id}/events")
         );
 
         let event_snapshot: Value = client
@@ -17322,6 +17458,15 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("line 1 is not valid JSON"));
+        assert_eq!(
+            stream_json_input_error_payload(&error),
+            serde_json::json!({
+                "schema": "kiana.stream-json-input-error.v1",
+                "code": "invalid_json",
+                "line": 1,
+                "message": error,
+            })
+        );
 
         let error = parse_stream_json_input(
             r#"{"type":"assistant","message":{"role":"assistant","content":"history only"}}"#,
