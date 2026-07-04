@@ -2,8 +2,8 @@ use crate::local_state::kiana_home_dir;
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use kiana_types::hooks::{parse_hook_commands, parse_hook_config, HookConfig};
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 pub struct HooksCommand;
@@ -86,7 +86,7 @@ const HOOK_SLOTS: [HookSlot; 8] = [
     HookSlot::Fallback,
 ];
 
-type HooksFile = BTreeMap<String, Vec<String>>;
+type HooksFile = HookConfig;
 
 impl HookSlot {
     fn key(self) -> &'static str {
@@ -341,30 +341,14 @@ fn read_hooks_file() -> Result<HooksFile> {
     let contents = std::fs::read_to_string(&path)?;
     let value = serde_json::from_str::<Value>(&contents)
         .map_err(|error| anyhow!("failed to parse {}: {}", path.display(), error))?;
-    Ok(hooks_file_from_value(value))
-}
-
-fn hooks_file_from_value(value: Value) -> HooksFile {
-    let mut file = HooksFile::new();
-    if value.is_array() || value.is_string() {
-        let commands = parse_hook_commands_value(&value);
-        if !commands.is_empty() {
-            file.insert(HookSlot::Fallback.key().to_string(), commands);
-        }
-        return file;
-    }
-
-    if let Some(object) = value.as_object() {
-        for (key, value) in object {
-            if let Ok(slot) = parse_slot(key) {
-                let commands = parse_hook_commands_value(value);
-                if !commands.is_empty() {
-                    file.insert(slot.key().to_string(), commands);
-                }
-            }
-        }
-    }
-    file
+    parse_hook_config(value).map_err(|error| {
+        anyhow!(
+            "invalid hook schema in {} at {}: {}",
+            path.display(),
+            error.location,
+            error.message
+        )
+    })
 }
 
 fn write_hooks_file(file: &HooksFile) -> Result<PathBuf> {
@@ -405,44 +389,8 @@ fn file_commands_for<'a>(slot: HookSlot, file: &'a HooksFile) -> Option<&'a Vec<
 fn hook_count_from_env(env_name: &str) -> Option<usize> {
     std::env::var(env_name)
         .ok()
-        .map(|value| parse_hook_commands(&value).len())
-}
-
-fn parse_hook_commands(value: &str) -> Vec<String> {
-    if let Ok(commands) = serde_json::from_str::<Vec<String>>(value) {
-        return clean_commands(commands);
-    }
-    if let Ok(command) = serde_json::from_str::<String>(value) {
-        return clean_commands(vec![command]);
-    }
-    if let Ok(value) = serde_json::from_str::<Value>(value) {
-        return parse_hook_commands_value(&value);
-    }
-    clean_commands(value.lines().map(str::to_string).collect())
-}
-
-fn parse_hook_commands_value(value: &Value) -> Vec<String> {
-    if let Some(command) = value.as_str() {
-        return clean_commands(vec![command.to_string()]);
-    }
-    if let Some(array) = value.as_array() {
-        return clean_commands(
-            array
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect(),
-        );
-    }
-    Vec::new()
-}
-
-fn clean_commands(commands: Vec<String>) -> Vec<String> {
-    commands
-        .into_iter()
-        .map(|command| command.trim().to_string())
-        .filter(|command| !command.is_empty())
-        .collect()
+        .and_then(|value| parse_hook_commands(&value).ok())
+        .map(|commands| commands.len())
 }
 
 fn prune_empty_events(file: &mut HooksFile) {
@@ -661,6 +609,27 @@ mod tests {
         assert!(json.value.contains("\"hooks\""));
         assert!(json.value.contains("echo legacy"));
 
+        let _ = std::fs::remove_file(path);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn hooks_json_rejects_malformed_hook_schema() {
+        let _guard = env_lock().lock().unwrap();
+        clear_hook_env();
+        let path = temp_hooks_path();
+        std::fs::write(&path, r#"{"Stop":[{"command":"echo nested"}]}"#).unwrap();
+        std::env::set_var("KIANA_HOOKS_FILE", &path);
+
+        let error = HooksCommand
+            .execute(context("json"))
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("invalid hook schema"), "{error}");
+        assert!(error.contains("Stop[0]"), "{error}");
+        assert!(error.contains(path.to_string_lossy().as_ref()), "{error}");
         let _ = std::fs::remove_file(path);
         clear_hook_env();
     }

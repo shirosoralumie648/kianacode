@@ -14,7 +14,10 @@
 /// the hook logic runs on a spawned task. The return value (`StopHookResult`)
 /// is sent as the last item on a oneshot channel.
 use futures::FutureExt;
-use kiana_types::ProjectTrust;
+use kiana_types::{
+    hooks::{hook_commands_for_event, parse_hook_commands, parse_hook_config, HookConfigError},
+    ProjectTrust,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 #[cfg(windows)]
@@ -469,10 +472,11 @@ async fn execute_hook_set(
     active: bool,
 ) -> HookSetResult {
     let hook_name = event.name();
-    let commands = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
+    let hook_resolution = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
+    let commands = hook_resolution.commands;
     let timeout_duration = hook_timeout_duration();
     let mut hook_infos = Vec::new();
-    let mut errors = Vec::new();
+    let mut errors = hook_resolution.errors;
     let mut prevented_continuation = false;
     let mut stop_reason = None;
     let mut has_output = false;
@@ -481,6 +485,14 @@ async fn execute_hook_set(
 
     if ctx.abort_signal.try_recv_aborted() {
         return HookSetResult::Aborted;
+    }
+
+    for error in &errors {
+        let _ = tx
+            .send(StopHookEvent::BlockingError {
+                content: error.clone(),
+            })
+            .await;
     }
 
     for (index, command) in commands.iter().enumerate() {
@@ -620,9 +632,10 @@ async fn execute_context_hook_set(
     ctx: &StopHookContext,
 ) -> Result<ContextHookSetResult, String> {
     let hook_name = event.name();
-    let commands = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
+    let hook_resolution = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
+    let commands = hook_resolution.commands;
     let timeout_duration = hook_timeout_duration();
-    let mut errors = Vec::new();
+    let mut errors = hook_resolution.errors;
     let mut contexts = Vec::new();
     let mut updated_input = None;
 
@@ -923,7 +936,17 @@ fn is_windows_system_bash(path: &Path) -> bool {
         .eq_ignore_ascii_case(r"C:\Windows\System32\bash.exe")
 }
 
-fn hook_commands_for(hook_name: &str, project_trust: ProjectTrust, cwd: &Path) -> Vec<String> {
+#[derive(Debug, Default)]
+struct HookCommandResolution {
+    commands: Vec<String>,
+    errors: Vec<String>,
+}
+
+fn hook_commands_for(
+    hook_name: &str,
+    project_trust: ProjectTrust,
+    cwd: &Path,
+) -> HookCommandResolution {
     let specific_env = match hook_name {
         "Stop" => "KIANA_STOP_HOOKS",
         "SessionStart" => "KIANA_SESSION_START_HOOKS",
@@ -935,85 +958,117 @@ fn hook_commands_for(hook_name: &str, project_trust: ProjectTrust, cwd: &Path) -
         _ => "KIANA_HOOKS",
     };
 
-    if let Some(commands) = std::env::var(specific_env)
-        .ok()
-        .or_else(|| std::env::var("KIANA_HOOKS").ok())
-        .map(|value| parse_hook_commands(&value))
-    {
-        return commands;
+    if let Ok(value) = std::env::var(specific_env) {
+        return match parse_hook_commands(&value) {
+            Ok(commands) => HookCommandResolution {
+                commands,
+                errors: Vec::new(),
+            },
+            Err(error) => HookCommandResolution {
+                commands: Vec::new(),
+                errors: vec![format_hook_config_error(specific_env, &error)],
+            },
+        };
     }
 
-    let mut commands = hook_commands_from_files(hook_name, project_trust, cwd);
-    commands.extend(plugin_hook_commands(hook_name));
-    commands
-}
+    if let Ok(value) = std::env::var("KIANA_HOOKS") {
+        return match parse_hook_commands(&value) {
+            Ok(commands) => HookCommandResolution {
+                commands,
+                errors: Vec::new(),
+            },
+            Err(error) => HookCommandResolution {
+                commands: Vec::new(),
+                errors: vec![format_hook_config_error("KIANA_HOOKS", &error)],
+            },
+        };
+    }
 
-fn parse_hook_commands(value: &str) -> Vec<String> {
-    if let Ok(commands) = serde_json::from_str::<Vec<String>>(value) {
-        return clean_commands(commands);
-    }
-    if let Ok(command) = serde_json::from_str::<String>(value) {
-        return clean_commands(vec![command]);
-    }
-    clean_commands(value.lines().map(str::to_string).collect())
+    let mut resolution = hook_commands_from_files(hook_name, project_trust, cwd);
+    let plugin_resolution = plugin_hook_commands(hook_name);
+    resolution.commands.extend(plugin_resolution.commands);
+    resolution.errors.extend(plugin_resolution.errors);
+    resolution
 }
 
 fn hook_commands_from_files(
     hook_name: &str,
     project_trust: ProjectTrust,
     cwd: &Path,
-) -> Vec<String> {
-    let mut commands = Vec::new();
+) -> HookCommandResolution {
+    let mut resolution = HookCommandResolution::default();
     for path in hooks_file_paths_with_trust(project_trust, cwd) {
-        let Some(mut file_commands) = std::fs::read_to_string(path)
-            .ok()
-            .and_then(|contents| serde_json::from_str::<Value>(&contents).ok())
-            .and_then(|value| hook_commands_from_value(hook_name, &value))
-        else {
+        if !path.is_file() {
             continue;
+        }
+        let source = path.display().to_string();
+        let contents = match std::fs::read_to_string(&path) {
+            Ok(contents) => contents,
+            Err(error) => {
+                resolution
+                    .errors
+                    .push(format!("failed to read hook config {source}: {error}"));
+                continue;
+            }
         };
-        commands.append(&mut file_commands);
+        let value = match serde_json::from_str::<Value>(&contents) {
+            Ok(value) => value,
+            Err(error) => {
+                resolution
+                    .errors
+                    .push(format!("invalid hook JSON in {source}: {error}"));
+                continue;
+            }
+        };
+        match parse_hook_config(value) {
+            Ok(config) => resolution
+                .commands
+                .extend(hook_commands_for_event(&config, hook_name)),
+            Err(error) => resolution
+                .errors
+                .push(format_hook_config_error(&source, &error)),
+        };
     }
-    commands
+    resolution
 }
 
-fn hook_commands_from_value(hook_name: &str, value: &Value) -> Option<Vec<String>> {
-    if value.is_array() || value.is_string() {
-        return Some(parse_hook_commands_value(&value));
-    }
-
-    let object = value.as_object()?;
-    for key in hook_file_keys(hook_name) {
-        if let Some(value) = object.get(*key) {
-            return Some(parse_hook_commands_value(value));
-        }
-    }
-    for key in ["hooks", "fallback", "all", "KIANA_HOOKS"] {
-        if let Some(value) = object.get(key) {
-            return Some(parse_hook_commands_value(value));
-        }
-    }
-    None
-}
-
-fn plugin_hook_commands(hook_name: &str) -> Vec<String> {
-    let mut commands = Vec::new();
+fn plugin_hook_commands(hook_name: &str) -> HookCommandResolution {
+    let mut resolution = HookCommandResolution::default();
     for plugin in installed_plugin_roots() {
         if find_manifest_path(&plugin).is_none() {
             continue;
         }
         let path = plugin.join("hooks").join("hooks.json");
+        let source = path.display().to_string();
         let Ok(contents) = std::fs::read_to_string(&path) else {
             continue;
         };
-        let Ok(value) = serde_json::from_str::<Value>(&contents) else {
-            continue;
+        let value = match serde_json::from_str::<Value>(&contents) {
+            Ok(value) => value,
+            Err(error) => {
+                resolution
+                    .errors
+                    .push(format!("invalid hook JSON in {source}: {error}"));
+                continue;
+            }
         };
-        if let Some(mut plugin_commands) = hook_commands_from_value(hook_name, &value) {
-            commands.append(&mut plugin_commands);
+        match parse_hook_config(value) {
+            Ok(config) => resolution
+                .commands
+                .extend(hook_commands_for_event(&config, hook_name)),
+            Err(error) => resolution
+                .errors
+                .push(format_hook_config_error(&source, &error)),
         }
     }
-    commands
+    resolution
+}
+
+fn format_hook_config_error(source: &str, error: &HookConfigError) -> String {
+    format!(
+        "invalid hook schema in {} at {}: {}",
+        source, error.location, error.message
+    )
 }
 
 fn installed_plugin_roots() -> Vec<PathBuf> {
@@ -1047,91 +1102,6 @@ fn hooks_file_paths_with_trust(project_trust: ProjectTrust, cwd: &Path) -> Vec<P
         }
     }
     paths
-}
-
-fn hook_file_keys(hook_name: &str) -> &'static [&'static str] {
-    match hook_name {
-        "Stop" => &[
-            "Stop",
-            "stop",
-            "stop_hooks",
-            "stopHooks",
-            "KIANA_STOP_HOOKS",
-        ],
-        "SessionStart" => &[
-            "SessionStart",
-            "sessionStart",
-            "session_start",
-            "session_start_hooks",
-            "sessionStartHooks",
-            "KIANA_SESSION_START_HOOKS",
-        ],
-        "UserPromptSubmit" => &[
-            "UserPromptSubmit",
-            "userPromptSubmit",
-            "user_prompt_submit",
-            "user_prompt_submit_hooks",
-            "userPromptSubmitHooks",
-            "KIANA_USER_PROMPT_SUBMIT_HOOKS",
-        ],
-        "PreToolUse" => &[
-            "PreToolUse",
-            "preToolUse",
-            "pre_tool_use",
-            "pre_tool_use_hooks",
-            "preToolUseHooks",
-            "KIANA_PRE_TOOL_USE_HOOKS",
-        ],
-        "PostToolUse" => &[
-            "PostToolUse",
-            "postToolUse",
-            "post_tool_use",
-            "post_tool_use_hooks",
-            "postToolUseHooks",
-            "KIANA_POST_TOOL_USE_HOOKS",
-        ],
-        "TaskCompleted" => &[
-            "TaskCompleted",
-            "taskCompleted",
-            "task_completed",
-            "task_completed_hooks",
-            "taskCompletedHooks",
-            "KIANA_TASK_COMPLETED_HOOKS",
-        ],
-        "TeammateIdle" => &[
-            "TeammateIdle",
-            "teammateIdle",
-            "teammate_idle",
-            "teammate_idle_hooks",
-            "teammateIdleHooks",
-            "KIANA_TEAMMATE_IDLE_HOOKS",
-        ],
-        _ => &["hooks", "fallback", "all", "KIANA_HOOKS"],
-    }
-}
-
-fn parse_hook_commands_value(value: &Value) -> Vec<String> {
-    if let Some(command) = value.as_str() {
-        return clean_commands(vec![command.to_string()]);
-    }
-    if let Some(commands) = value.as_array() {
-        return clean_commands(
-            commands
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect(),
-        );
-    }
-    Vec::new()
-}
-
-fn clean_commands(commands: Vec<String>) -> Vec<String> {
-    commands
-        .into_iter()
-        .map(|command| command.trim().to_string())
-        .filter(|command| !command.is_empty())
-        .collect()
 }
 
 fn hook_input_json(event: &HookEvent, ctx: &StopHookContext, active: bool) -> String {
@@ -1515,6 +1485,39 @@ mod tests {
         let (_events, result) = run_and_collect(make_ctx()).await;
 
         assert_eq!(result.blocking_errors, vec!["file hook blocked"]);
+        let _ = std::fs::remove_file(path);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn stop_hooks_report_malformed_hooks_file_as_blocking_error() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let path = std::env::temp_dir().join(format!(
+            "kiana-malformed-stop-hooks-{}-{}.json",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, r#"{"Stop":[{"command":"echo nested"}]}"#).unwrap();
+        std::env::set_var("KIANA_HOOKS_FILE", &path);
+
+        let (events, result) = run_and_collect(make_ctx()).await;
+
+        assert_eq!(result.blocking_errors.len(), 1);
+        assert!(
+            result.blocking_errors[0].contains("invalid hook schema"),
+            "{:?}",
+            result.blocking_errors
+        );
+        assert!(
+            result.blocking_errors[0].contains("Stop[0]"),
+            "{:?}",
+            result.blocking_errors
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            StopHookEvent::BlockingError { content } if content.contains("invalid hook schema")
+        )));
         let _ = std::fs::remove_file(path);
         clear_hook_env();
     }

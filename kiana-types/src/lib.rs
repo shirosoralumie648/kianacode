@@ -1,4 +1,5 @@
 pub mod connector_text;
+pub mod hooks;
 pub mod ids;
 pub mod logs;
 pub mod message;
