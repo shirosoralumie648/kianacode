@@ -790,7 +790,7 @@ impl TuiRuntime {
         workbench: Option<&str>,
         content: String,
     ) {
-        let result_message = format_tool_result_message(is_error, workbench, &content);
+        let result_message = format_tool_result_message(is_error, workbench, &content, None);
         for message in app.repl.messages.iter_mut().rev() {
             if message.role == MessageRole::Tool && tool_message_matches_id(&message.content, &id) {
                 message.content = append_or_replace_tool_result(&message.content, &result_message);
@@ -1568,7 +1568,12 @@ fn format_tool_use_message(id: &str, name: &str, workbench: Option<&str>, input:
     lines.join("\n")
 }
 
-fn format_tool_result_message(is_error: bool, workbench: Option<&str>, content: &str) -> String {
+fn format_tool_result_message(
+    is_error: bool,
+    workbench: Option<&str>,
+    content: &str,
+    error: Option<&Value>,
+) -> String {
     let status = if is_error { "error" } else { "success" };
     let mut lines = vec![format!("result: {status}")];
     if let Some(workbench) = non_empty_workbench(workbench) {
@@ -1577,6 +1582,15 @@ fn format_tool_result_message(is_error: bool, workbench: Option<&str>, content: 
     let summary = truncate_chars(content.trim().to_string(), 2000);
     if !summary.is_empty() {
         lines.push(summary);
+    }
+    if let Some(error) = error.filter(|value| !value.is_null()) {
+        lines.push("tool error metadata:".to_string());
+        lines.push(truncate_for_tui(
+            serde_json::to_string_pretty(error)
+                .unwrap_or_else(|_| error.to_string())
+                .as_str(),
+            2000,
+        ));
     }
     lines.join("\n")
 }
@@ -1864,6 +1878,7 @@ fn runtime_event_to_conversation_messages(
                     tool_result.is_error,
                     tool_result.workbench.as_deref(),
                     &message_content_text(&tool_result.content),
+                    tool_result.error.as_ref(),
                 )
             ),
             timestamp,
@@ -2076,6 +2091,7 @@ fn conversation_content_block_text(value: &Value) -> String {
                     .unwrap_or(false),
                 value.get("workbench").and_then(Value::as_str),
                 &message_content_text(value.get("content").unwrap_or(&Value::Null)),
+                value.get("error"),
             );
             match value
                 .get("tool_use_id")
@@ -2851,6 +2867,53 @@ mod tests {
         assert!(conversation[2].content.contains("result: success"));
         assert!(conversation[2].content.contains("pub fn main()"));
         assert_eq!(conversation[2].timestamp, "125");
+    }
+
+    #[test]
+    fn maps_tool_result_error_metadata_to_conversation_messages() {
+        let events = vec![kiana_types::RuntimeEvent::new(
+            "evt-tool-error",
+            "session-1",
+            "turn-0",
+            None,
+            0,
+            "126",
+            kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                tool_call_id: "toolu_validation".to_string(),
+                name: Some("TestValidation".to_string()),
+                workbench: Some("local".to_string()),
+                is_error: true,
+                content: json!("path is required\n\nRepair hint: Provide the required input fields for TestValidation and retry the tool call."),
+                error: Some(json!({
+                    "type": "tool_error",
+                    "code": "tool_validation_error",
+                    "tool_name": "TestValidation",
+                    "tool_use_id": "toolu_validation",
+                    "message": "path is required",
+                    "validation_error_code": 42,
+                    "repair_hint": "Provide the required input fields for TestValidation and retry the tool call."
+                })),
+            }),
+        )];
+
+        let conversation = runtime_events_to_conversation(events);
+
+        assert_eq!(conversation.len(), 1);
+        assert_eq!(conversation[0].role, MessageRole::Tool);
+        assert_eq!(conversation[0].timestamp, "126");
+        assert!(conversation[0]
+            .content
+            .contains("tool_use_id: toolu_validation"));
+        assert!(conversation[0].content.contains("result: error"));
+        assert!(conversation[0].content.contains("workbench: local"));
+        assert!(conversation[0].content.contains("tool error metadata:"));
+        assert!(conversation[0]
+            .content
+            .contains("\"code\": \"tool_validation_error\""));
+        assert!(conversation[0]
+            .content
+            .contains("\"validation_error_code\": 42"));
+        assert!(conversation[0].content.contains("\"repair_hint\": \"Provide the required input fields for TestValidation and retry the tool call.\""));
     }
 
     #[test]
