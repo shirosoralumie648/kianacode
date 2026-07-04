@@ -534,6 +534,8 @@ if release_ops:
             filled(credential_review, "reviewed_by"),
             filled(credential_review, "reviewed_at"),
             filled(credential_review, "scope"),
+            not_placeholder(credential_review, "reviewed_by"),
+            not_placeholder(credential_review, "scope"),
         ],
         data,
         source,

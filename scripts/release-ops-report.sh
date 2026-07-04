@@ -109,6 +109,13 @@ def not_placeholder(key):
     lowered = value.lower()
     return not any(marker in lowered for marker in placeholder_markers)
 
+def review_not_placeholder(key):
+    value = credential_review.get(key)
+    if not isinstance(value, str):
+        return False
+    lowered = value.lower()
+    return not any(marker in lowered for marker in placeholder_markers)
+
 credential_review = report.get("credential_review")
 if not isinstance(credential_review, dict):
     credential_review = {}
@@ -127,10 +134,12 @@ checks = [
     credential_review.get("status") == "accepted",
     isinstance(credential_review.get("reviewed_by"), str)
     and bool(credential_review["reviewed_by"].strip()),
+    review_not_placeholder("reviewed_by"),
     isinstance(credential_review.get("reviewed_at"), str)
     and bool(credential_review["reviewed_at"].strip()),
     isinstance(credential_review.get("scope"), str)
     and bool(credential_review["scope"].strip()),
+    review_not_placeholder("scope"),
 ]
 if not all(checks):
     print("release ops file failed commercial checks", file=sys.stderr)

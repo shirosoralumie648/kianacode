@@ -153,6 +153,12 @@ def not_placeholder(key):
         marker in value.lower() for marker in placeholder_markers
     )
 
+def review_not_placeholder(key):
+    value = credential_review.get(key)
+    return isinstance(value, str) and not any(
+        marker in value.lower() for marker in placeholder_markers
+    )
+
 checks = [
     report.get("schema") == "kiana.release-ops.v1",
     report.get("version") == expected_version,
@@ -167,10 +173,12 @@ checks = [
     credential_review.get("status") == "accepted",
     isinstance(credential_review.get("reviewed_by"), str)
     and bool(credential_review["reviewed_by"].strip()),
+    review_not_placeholder("reviewed_by"),
     isinstance(credential_review.get("reviewed_at"), str)
     and bool(credential_review["reviewed_at"].strip()),
     isinstance(credential_review.get("scope"), str)
     and bool(credential_review["scope"].strip()),
+    review_not_placeholder("scope"),
 ]
 sys.exit(0 if all(checks) else 1)
 PY
