@@ -5294,6 +5294,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_blockers_handler),
         )
         .route(
+            "/app/release/local-rc-evidence",
+            axum::routing::get(direct_connect_app_release_local_rc_evidence_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5865,6 +5869,28 @@ async fn direct_connect_app_release_blockers_handler(
     }
 }
 
+async fn direct_connect_app_release_local_rc_evidence_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_local_rc_evidence_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read local RC evidence report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -5884,6 +5910,44 @@ fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     }
     serde_json::from_slice::<Value>(&output.stdout)
         .context("failed to parse commercial release blockers JSON report")
+}
+
+fn direct_connect_local_rc_evidence_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let evidence_path = std::env::var_os("KIANA_LOCAL_RC_EVIDENCE_OUT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let dist_dir = std::env::var_os("DIST_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("dist"));
+            dist_dir.join("proofs").join("local-rc-evidence.json")
+        });
+    let evidence_path = if evidence_path.is_absolute() {
+        evidence_path
+    } else {
+        root.join(evidence_path)
+    };
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read local RC evidence file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse local RC evidence JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.local-rc-evidence.v1") {
+        return Err(anyhow!(
+            "local RC evidence file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
 }
 
 async fn direct_connect_app_secrets_handler(
@@ -7141,6 +7205,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "settings.read",
             "doctor.read",
             "release.blockers.read",
+            "release.local_rc_evidence.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7200,6 +7265,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/blockers",
                 "schema": "kiana.commercial-release-blockers.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/local-rc-evidence",
+                "schema": "kiana.local-rc-evidence.v1"
             },
             {
                 "method": "GET",
@@ -16332,6 +16402,8 @@ mod tests {
             "OLLAMA_MODEL",
             "KIANA_PLUGINS_DIR",
             "KIANA_SDK_SESSIONS_DIR",
+            "DIST_DIR",
+            "KIANA_LOCAL_RC_EVIDENCE_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -16787,6 +16859,20 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/blockers"
                     && endpoint["schema"] == "kiana.commercial-release-blockers.v1"
+            }));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.local_rc_evidence.read"));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/local-rc-evidence"
+                    && endpoint["schema"] == "kiana.local-rc-evidence.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -17274,6 +17360,76 @@ mod tests {
             .unwrap()
             .iter()
             .any(|check| check["id"] == "source.remote" && check["external"] == true));
+
+        let local_rc_evidence_path = workspace.join("local-rc-evidence.json");
+        std::fs::write(
+            &local_rc_evidence_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.local-rc-evidence.v1",
+                "version": "0.1.0",
+                "generated_at": "2026-07-05T00:00:00Z",
+                "status": "local_rc_ready",
+                "dist_dir": "dist",
+                "summary": {
+                    "release_artifacts": 1,
+                    "manifests": 2,
+                    "proofs": 2,
+                    "blockers_total": 12,
+                    "local_blockers": 0,
+                    "external_blockers": 12
+                },
+                "release_artifacts": [{
+                    "target": "linux-x86_64",
+                    "archive": "dist/kiana-0.1.0-linux-x86_64.tar.gz",
+                    "archive_sha256": "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507",
+                    "binary_sha256": "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0",
+                    "lifecycle_smoke": "passed"
+                }],
+                "distribution_manifests": {
+                    "enterprise_offline_manifest": "dist/manifests/enterprise/offline-manifest.json",
+                    "homebrew_formulae": ["dist/manifests/homebrew/kiana-linux-x86_64.rb"],
+                    "winget_manifests": [],
+                    "blocked_channels": ["dist/manifests/winget/BLOCKED.md"]
+                },
+                "proofs": [{
+                    "path": "dist/proofs/product/product-acceptance-local-rc.json",
+                    "schema": "kiana.product-acceptance.v1",
+                    "status": "headless_smoke_only",
+                    "accepted": false
+                }],
+                "blockers": {
+                    "status": "blocked",
+                    "blocking": 12,
+                    "local_blocking": 0,
+                    "external_blocking": 12,
+                    "blocking_ids": ["source.remote"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_LOCAL_RC_EVIDENCE_OUT", &local_rc_evidence_path);
+        let local_rc_evidence: Value = client
+            .get(format!("http://{addr}/app/release/local-rc-evidence"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(local_rc_evidence["schema"], "kiana.local-rc-evidence.v1");
+        assert_eq!(local_rc_evidence["status"], "local_rc_ready");
+        assert_eq!(local_rc_evidence["summary"]["local_blockers"], 0);
+        assert_eq!(
+            local_rc_evidence["release_artifacts"][0]["target"],
+            "linux-x86_64"
+        );
+        assert!(local_rc_evidence["proofs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|proof| proof["schema"] == "kiana.product-acceptance.v1"));
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
