@@ -1,3 +1,4 @@
+use kiana_types::{project_trust_from_app_state, ProjectTrust};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -374,6 +375,12 @@ pub fn permission_check_for_tool(
 ) -> ToolPermissionCheck {
     let settings = effective_tool_permissions(app_state);
     let is_read_only = is_read_only || known_read_only_tool(tool_name);
+
+    if !is_read_only && project_trust_from_app_state(app_state) == ProjectTrust::Untrusted {
+        return ToolPermissionCheck::Deny(format!(
+            "Tool {tool_name} is denied in an untrusted project. Run `kiana trust trust` from this project to allow mutating tools."
+        ));
+    }
 
     if let Some(rule) = settings
         .managed_disallowed_tools
@@ -875,6 +882,25 @@ mod tests {
                 permission_check_for_tool("Bash", false, &json!({"command": "pwd"}), &app_state),
                 ToolPermissionCheck::Deny(_)
             ));
+            assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
+        });
+    }
+
+    #[test]
+    fn untrusted_project_denies_mutating_tools_but_allows_reads() {
+        with_isolated_permission_env("untrusted-project", |_| {
+            let app_state = HashMap::from([("project_trusted".to_string(), json!(false))]);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(
+                matches!(bash, ToolPermissionCheck::Deny(reason) if reason.contains("untrusted project"))
+            );
+
             assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
         });
     }

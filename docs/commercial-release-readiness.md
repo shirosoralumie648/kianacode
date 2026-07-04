@@ -44,6 +44,7 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Added `scripts/release-preflight.sh` and `make release-preflight` to make local RC checks and full commercial release blockers executable.
 - Added CycloneDX SBOM generation and `scripts/compliance-audit.sh`; release packages now include `SBOM.cdx.json` and `docs/compliance-report.json`.
 - Added `kiana doctor --json` built-in tool parity diagnostics through `tool_parity`, including all default registry tools, read-only/concurrency-safe flags, workbench metadata, and release-smoke proof that plugin-only commands are not treated as core built-ins.
+- Added a project-trust execution gate for mutating tools: explicitly untrusted workspaces now fail closed for tools such as `Bash` while continuing to allow read-only tools, covered by `cargo test -p kiana-tools untrusted_project_denies_mutating_tools_but_allows_reads --locked`.
 - Added `deny.toml`; tag/manual release workflow installs `cargo-audit` and `cargo-deny` and runs full compliance mode.
 - Added `scripts/install-compliance-tools.sh` so full compliance tooling can be installed under ignored `target/` paths instead of relying on global Cargo state.
 - Full local compliance mode now passes with project-local `cargo-audit` and `cargo-deny`; current RustSec output has no vulnerability errors and retains six allowed warning advisories for upstream-only maintenance/unsoundness tracking.
