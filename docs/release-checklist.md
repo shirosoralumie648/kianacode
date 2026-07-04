@@ -199,3 +199,6 @@ commercial release.
 - Enterprise account, license, policy, and support expectations are documented;
   `kiana license status --json` reports local posture without exposing raw keys,
   and entitlement proof records the external backend acceptance.
+- App-server license status returns `kiana.license-status.v1` with redacted
+  license, account, entitlement, and support readiness so Web/IDE clients can
+  render enterprise readiness without shelling out to `kiana license status --json`.

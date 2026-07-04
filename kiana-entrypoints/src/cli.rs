@@ -5241,6 +5241,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_auth_status_handler),
         )
         .route(
+            "/app/license/status",
+            axum::routing::get(direct_connect_app_license_status_handler),
+        )
+        .route(
             "/app/models/catalog",
             axum::routing::get(direct_connect_app_model_catalog_handler),
         )
@@ -5618,6 +5622,46 @@ async fn direct_connect_app_auth_status_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             format!("failed to build auth status report: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_license_status_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("license") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "license command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "status --json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build license status report: {error}"),
         ),
     }
 }
@@ -6697,6 +6741,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "sandbox.read",
             "plugins.read",
             "auth.status.read",
+            "license.status.read",
             "model.catalog.read",
             "git.status.read",
             "diff.read",
@@ -6751,6 +6796,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/auth/status",
                 "schema": "kiana.auth-status.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/license/status",
+                "schema": "kiana.license-status.v1"
             },
             {
                 "method": "GET",
@@ -16093,6 +16143,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("license.status.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("model.catalog.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -16173,6 +16227,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/auth/status"
                     && endpoint["schema"] == "kiana.auth-status.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/license/status"
+                    && endpoint["schema"] == "kiana.license-status.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16446,6 +16509,27 @@ mod tests {
             .any(|provider| provider["provider_id"] == "ollama"
                 && provider["auth"] == "not_required"));
         assert!(!auth_status.to_string().contains("must-not-leak"));
+
+        let license_status: Value = client
+            .get(format!("http://{addr}/app/license/status"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(license_status["schema"], "kiana.license-status.v1");
+        assert_eq!(license_status["status"], "missing");
+        assert_eq!(license_status["source"], "none");
+        assert_eq!(license_status["license_key"], "missing");
+        assert_eq!(license_status["offline"], false);
+        assert!(license_status["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue == "no enterprise license configured"));
+        assert!(!license_status.to_string().contains("must-not-leak"));
 
         let model_catalog: Value = client
             .get(format!("http://{addr}/app/models/catalog"))
