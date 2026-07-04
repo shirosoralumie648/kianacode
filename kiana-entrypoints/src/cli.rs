@@ -8,7 +8,8 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
 use kiana_query::{
-    build_context_pack, search_context_index, ContextPackOptions, ContextSearchOptions,
+    build_context_index, build_context_pack, search_context_index, ContextIndexOptions,
+    ContextPackOptions, ContextSearchOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -5239,6 +5240,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_git_status_handler),
         )
         .route(
+            "/app/context/index",
+            axum::routing::get(direct_connect_app_context_index_handler),
+        )
+        .route(
             "/app/context/search",
             axum::routing::get(direct_connect_app_context_search_handler),
         )
@@ -5554,6 +5559,41 @@ struct DirectConnectContextQuery {
     limit: Option<usize>,
     max_snippet_lines: Option<usize>,
     max_bytes_per_file: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DirectConnectContextIndexQuery {
+    max_bytes_per_file: Option<usize>,
+}
+
+async fn direct_connect_app_context_index_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextIndexQuery>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match build_context_index(
+        &state.workspace,
+        ContextIndexOptions {
+            max_bytes_per_file: query.max_bytes_per_file,
+        },
+    )
+    .and_then(|index| serde_json::to_value(index).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to build context index: {error}"),
+        ),
+    }
 }
 
 async fn direct_connect_app_context_search_handler(
@@ -6208,6 +6248,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "sandbox.read",
             "plugins.read",
             "git.status.read",
+            "context.index.read",
             "context.search.read",
             "context.pack.read"
         ],
@@ -6251,6 +6292,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/git/status",
                 "schema": "kiana.app-server.git-status.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/context/index",
+                "schema": "kiana.context-index.v1"
             },
             {
                 "method": "GET",
@@ -15495,6 +15541,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.index.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.search.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -15526,6 +15576,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/plugins"
                     && endpoint["schema"] == "kiana.app-server.plugins.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/index"
+                    && endpoint["schema"] == "kiana.context-index.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -15691,6 +15750,24 @@ mod tests {
         assert_eq!(disabled_tools["enabled"], false);
         assert_eq!(disabled_tools["valid"], true);
         assert_eq!(disabled_tools["components"]["commands"], 1);
+
+        let context_index: Value = client
+            .get(format!("http://{addr}/app/context/index"))
+            .bearer_auth("secret")
+            .query(&[("max_bytes_per_file", "1024")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(context_index["schema"], "kiana.context-index.v1");
+        assert_eq!(context_index["files_indexed"], 2);
+        assert!(context_index["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|file| file["path"] == "src/lib.rs"));
 
         let context_search: Value = client
             .get(format!("http://{addr}/app/context/search"))
