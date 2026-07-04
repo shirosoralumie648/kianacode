@@ -250,7 +250,12 @@ impl Tool for FileEditTool {
         json!({
             "tool_use_id": tool_use_id,
             "type": "tool_result",
-            "content": content
+            "content": content,
+            "changed_files": [{
+                "path": file_path,
+                "operation": "edit",
+                "source": "Edit"
+            }]
         })
     }
 }
@@ -263,6 +268,28 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[tokio::test]
+    async fn edit_api_result_reports_changed_file_metadata() {
+        let output = crate::ToolOutput {
+            data: json!({
+                "filePath": "src/lib.rs",
+                "oldString": "old",
+                "newString": "new",
+                "replaceAll": false,
+                "originalFile": "old",
+                "updatedContent": "new"
+            }),
+            metadata: None,
+        };
+
+        let result = FileEditTool::new().map_to_api_result(&output, "toolu_edit");
+
+        assert_eq!(result["type"], "tool_result");
+        assert_eq!(result["changed_files"][0]["path"], "src/lib.rs");
+        assert_eq!(result["changed_files"][0]["operation"], "edit");
+        assert_eq!(result["changed_files"][0]["source"], "Edit");
+    }
 
     #[tokio::test]
     async fn edit_rejects_files_not_listed_as_editable() {

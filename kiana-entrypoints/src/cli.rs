@@ -1558,6 +1558,7 @@ fn stream_json_runner_event(
             name,
             is_error,
             content,
+            changed_files,
             error,
         } => {
             let mut value = serde_json::json!({
@@ -1569,6 +1570,9 @@ fn stream_json_runner_event(
             });
             if let Some(error) = error {
                 value["error"] = error.clone();
+            }
+            if let Some(changed_files) = changed_files {
+                value["changed_files"] = changed_files.clone();
             }
             value
         }
@@ -18300,6 +18304,39 @@ mod tests {
     }
 
     #[test]
+    fn stream_json_partial_event_exposes_tool_result_changed_files() {
+        let event = stream_json_runner_event(
+            crate::runner::RunnerStreamEvent::ToolResult {
+                id: "toolu_write".to_string(),
+                name: "Write".to_string(),
+                is_error: false,
+                content: "The file src/lib.rs has been updated successfully.".to_string(),
+                error: None,
+                changed_files: Some(serde_json::json!([
+                    {
+                        "path": "src/lib.rs",
+                        "operation": "update",
+                        "source": "Write"
+                    }
+                ])),
+            },
+            "session-1",
+        )
+        .unwrap();
+
+        assert_eq!(event["type"], "stream_event");
+        assert_eq!(event["event"]["type"], "tool_result");
+        assert_eq!(event["event"]["tool_use_id"], "toolu_write");
+        assert_eq!(event["event"]["changed_files"][0]["path"], "src/lib.rs");
+        assert_eq!(event["event"]["changed_files"][0]["operation"], "update");
+        let lifecycle = event["runtime_events"].as_array().unwrap();
+        assert_eq!(lifecycle.len(), 1);
+        assert_eq!(lifecycle[0]["type"], "tool_result");
+        assert_eq!(lifecycle[0]["changed_files"][0]["path"], "src/lib.rs");
+        assert_eq!(lifecycle[0]["changed_files"][0]["source"], "Write");
+    }
+
+    #[test]
     fn stream_json_partial_event_exposes_tool_result_error_lifecycle_runtime_events() {
         let event = stream_json_runner_event(
             crate::runner::RunnerStreamEvent::ToolResult {
@@ -18307,6 +18344,7 @@ mod tests {
                 name: "MCP".to_string(),
                 is_error: true,
                 content: "denied by fake server".to_string(),
+                changed_files: None,
                 error: Some(serde_json::json!({
                     "type": "tool_error",
                     "code": "tool_validation_error",

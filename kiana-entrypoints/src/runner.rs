@@ -56,6 +56,7 @@ pub enum RunnerStreamEvent {
         name: String,
         is_error: bool,
         content: String,
+        changed_files: Option<Value>,
         error: Option<Value>,
     },
 }
@@ -82,6 +83,7 @@ pub fn runtime_events_from_runner_stream_event(
             name,
             is_error,
             content,
+            changed_files,
             error,
         } => {
             let workbench = default_tool_workbench(&name);
@@ -97,6 +99,7 @@ pub fn runtime_events_from_runner_stream_event(
                     workbench,
                     is_error,
                     content: json!(content),
+                    changed_files,
                     error,
                 }),
             )]
@@ -1078,6 +1081,7 @@ where
                 name: tool_use.name,
                 is_error: result.is_error,
                 content: tool_result_event_content(&result),
+                changed_files: result.api_result.get("changed_files").cloned(),
                 error: result.api_result.get("error").cloned(),
             })?;
             tool_results.push(result.api_result);
@@ -4955,6 +4959,7 @@ mod tests {
                 name: "Read".to_string(),
                 is_error: false,
                 content: "file body".to_string(),
+                changed_files: None,
                 error: None,
             },
         );
@@ -4967,6 +4972,39 @@ mod tests {
         assert_eq!(value["name"], "Read");
         assert_eq!(value["is_error"], false);
         assert_eq!(value["content"], "file body");
+    }
+
+    #[test]
+    fn runner_runtime_event_adapter_preserves_changed_files() {
+        let events = runtime_events_from_runner_stream_event(
+            "session-1",
+            "turn-2",
+            Some("turn-1".to_string()),
+            2,
+            "2026-07-04T00:00:01Z",
+            RunnerStreamEvent::ToolResult {
+                id: "toolu_write".to_string(),
+                name: "Write".to_string(),
+                is_error: false,
+                content: "The file src/lib.rs has been updated successfully.".to_string(),
+                error: None,
+                changed_files: Some(json!([
+                    {
+                        "path": "src/lib.rs",
+                        "operation": "update",
+                        "source": "Write"
+                    }
+                ])),
+            },
+        );
+
+        assert_eq!(events.len(), 1);
+        let value = serde_json::to_value(&events[0]).unwrap();
+        assert_eq!(value["type"], "tool_result");
+        assert_eq!(value["tool_call_id"], "toolu_write");
+        assert_eq!(value["changed_files"][0]["path"], "src/lib.rs");
+        assert_eq!(value["changed_files"][0]["operation"], "update");
+        assert_eq!(value["changed_files"][0]["source"], "Write");
     }
 
     #[test]
@@ -5003,6 +5041,7 @@ mod tests {
                 name: "MCP".to_string(),
                 is_error: false,
                 content: "ok".to_string(),
+                changed_files: None,
                 error: None,
             },
         );
@@ -8653,6 +8692,7 @@ mod tests {
                 name: tool_result.1.clone(),
                 is_error: *tool_result.2,
                 content: tool_result.3.clone(),
+                changed_files: None,
                 error: None,
             },
         );
@@ -8787,6 +8827,7 @@ mod tests {
                 name: tool_result.1.clone(),
                 is_error: *tool_result.2,
                 content: tool_result.3.clone(),
+                changed_files: None,
                 error: None,
             },
         );
@@ -8921,6 +8962,7 @@ mod tests {
                 name: tool_result.1.clone(),
                 is_error: *tool_result.2,
                 content: tool_result.3.clone(),
+                changed_files: None,
                 error: None,
             },
         );

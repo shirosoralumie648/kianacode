@@ -79,6 +79,8 @@ pub struct RuntimeToolResultEvent {
     pub is_error: bool,
     pub content: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub changed_files: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<Value>,
 }
 

@@ -55,6 +55,13 @@ fn runtime_event_schema_covers_required_payloads() {
             workbench: Some("mcp".to_string()),
             is_error: false,
             content: json!({"text": "content"}),
+            changed_files: Some(json!([
+                {
+                    "path": "src/lib.rs",
+                    "operation": "update",
+                    "source": "Write"
+                }
+            ])),
             error: Some(json!({
                 "type": "tool_error",
                 "code": "tool_validation_error",

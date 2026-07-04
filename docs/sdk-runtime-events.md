@@ -24,7 +24,7 @@ Payload variants:
 - `assistant_message`: includes `message`
 - `stream_delta`: includes `delta`
 - `tool_call`: includes `tool_call_id`, `name`, and `input`
-- `tool_result`: includes `tool_call_id`, `is_error`, and `content`
+- `tool_result`: includes `tool_call_id`, `is_error`, and `content`; may include `changed_files` for tool-produced file edits and `error` for structured tool failures
 - `permission_request`: includes `request_id`, `tool_name`, `action`, and `input`
 - `session_event`: includes `subtype` and `metadata`
 - `error`: includes `message` and `details`

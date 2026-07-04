@@ -265,6 +265,7 @@ fn append_tool_events_from_message(
                             .and_then(Value::as_bool)
                             .unwrap_or(false),
                         content: block.get("content").cloned().unwrap_or_default(),
+                        changed_files: block.get("changed_files").cloned(),
                         error: block.get("error").cloned(),
                     }),
                 ));
@@ -307,4 +308,57 @@ fn runtime_event(
         timestamp,
         payload,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{ContentBlock, MessageContent};
+    use std::collections::HashMap;
+
+    #[test]
+    fn bridge_sdk_adapter_preserves_tool_result_changed_files() {
+        let block = HashMap::from([
+            ("type".to_string(), json!("tool_result")),
+            ("tool_use_id".to_string(), json!("toolu_write")),
+            (
+                "content".to_string(),
+                json!("The file src/lib.rs has been updated successfully."),
+            ),
+            ("is_error".to_string(), json!(false)),
+            ("workbench".to_string(), json!("local")),
+            (
+                "changed_files".to_string(),
+                json!([
+                    {
+                        "path": "src/lib.rs",
+                        "operation": "update",
+                        "source": "Write"
+                    }
+                ]),
+            ),
+        ]);
+
+        let events = runtime_events_from_bridge_sdk_message(
+            "session-1",
+            "turn-1",
+            None,
+            0,
+            "2026-07-04T00:00:00Z",
+            SDKMessage::User {
+                uuid: "user-1".to_string(),
+                message: MessageContent {
+                    content: ContentBlock::Blocks(vec![block]),
+                },
+            },
+        );
+
+        assert_eq!(events.len(), 2);
+        let event = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(event["type"], "tool_result");
+        assert_eq!(event["tool_call_id"], "toolu_write");
+        assert_eq!(event["changed_files"][0]["path"], "src/lib.rs");
+        assert_eq!(event["changed_files"][0]["operation"], "update");
+        assert_eq!(event["changed_files"][0]["source"], "Write");
+    }
 }

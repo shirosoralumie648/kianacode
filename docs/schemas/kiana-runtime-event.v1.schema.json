@@ -67,6 +67,7 @@
       "type": "boolean"
     },
     "content": {},
+    "changed_files": {},
     "error": {},
     "request_id": {
       "type": "string",

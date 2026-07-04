@@ -2844,6 +2844,7 @@ mod tests {
                     workbench: Some("mcp".to_string()),
                     is_error: false,
                     content: json!("pub fn main() {}"),
+                    changed_files: None,
                     error: None,
                 }),
             ),
@@ -2884,6 +2885,7 @@ mod tests {
                 workbench: Some("local".to_string()),
                 is_error: true,
                 content: json!("path is required\n\nRepair hint: Provide the required input fields for TestValidation and retry the tool call."),
+                changed_files: None,
                 error: Some(json!({
                     "type": "tool_error",
                     "code": "tool_validation_error",
@@ -2989,6 +2991,7 @@ mod tests {
                     workbench: Some("local".to_string()),
                     is_error: true,
                     content: json!("permission denied"),
+                    changed_files: None,
                     error: None,
                 }),
             ),

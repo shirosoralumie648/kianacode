@@ -190,7 +190,12 @@ impl Tool for FileWriteTool {
         json!({
             "tool_use_id": tool_use_id,
             "type": "tool_result",
-            "content": content
+            "content": content,
+            "changed_files": [{
+                "path": file_path,
+                "operation": op_type,
+                "source": "Write"
+            }]
         })
     }
 }
@@ -201,6 +206,26 @@ mod tests {
     use crate::tool::{Tool, ToolContext};
     use serde_json::json;
     use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn write_api_result_reports_changed_file_metadata() {
+        let output = crate::ToolOutput {
+            data: json!({
+                "type": "update",
+                "filePath": "src/lib.rs",
+                "content": "updated",
+                "originalFile": "old"
+            }),
+            metadata: None,
+        };
+
+        let result = FileWriteTool::new().map_to_api_result(&output, "toolu_write");
+
+        assert_eq!(result["type"], "tool_result");
+        assert_eq!(result["changed_files"][0]["path"], "src/lib.rs");
+        assert_eq!(result["changed_files"][0]["operation"], "update");
+        assert_eq!(result["changed_files"][0]["source"], "Write");
+    }
 
     #[tokio::test]
     async fn write_rejects_files_marked_read_only() {

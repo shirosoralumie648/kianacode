@@ -371,6 +371,7 @@ fn append_tool_events_from_message(
                             .and_then(serde_json::Value::as_bool)
                             .unwrap_or(false),
                         content: block.get("content").cloned().unwrap_or_default(),
+                        changed_files: block.get("changed_files").cloned(),
                         error: block.get("error").cloned(),
                     }),
                 ));
@@ -506,6 +507,13 @@ mod runtime_event_tests {
                             "content": "file body",
                             "is_error": true,
                             "workbench": "mcp",
+                            "changed_files": [
+                                {
+                                    "path": "src/lib.rs",
+                                    "operation": "update",
+                                    "source": "Write"
+                                }
+                            ],
                             "error": {
                                 "type": "tool_error",
                                 "code": "tool_validation_error",
@@ -538,6 +546,14 @@ mod runtime_event_tests {
         assert_eq!(
             serde_json::to_value(&user_events[1]).unwrap()["is_error"],
             true
+        );
+        assert_eq!(
+            serde_json::to_value(&user_events[1]).unwrap()["changed_files"][0]["path"],
+            "src/lib.rs"
+        );
+        assert_eq!(
+            serde_json::to_value(&user_events[1]).unwrap()["changed_files"][0]["operation"],
+            "update"
         );
         assert_eq!(
             serde_json::to_value(&user_events[1]).unwrap()["error"]["code"],
