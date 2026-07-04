@@ -57,6 +57,12 @@
           },
           "schema": {
             "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false

@@ -128,6 +128,9 @@ commercial release.
   `docs/sdk-runtime-events.md` compatibility policy.
 - App-server plugin visibility returns `kiana.app-server.plugins.v1` without
   exposing plugin secrets or bypassing managed plugin policy.
+- App-server checks dry-run returns `kiana.checks.dry_run.v1` from the active
+  workspace so Web/IDE clients can display deterministic local quality gates
+  without shelling out to `kiana checks --dry-run --json`.
 - App-server context endpoints return `kiana.context-index.v1`,
   `kiana.context-search.v1`, and `kiana.context-pack.v1` from the active
   workspace so Web/IDE clients can use repository knowledge without shelling out

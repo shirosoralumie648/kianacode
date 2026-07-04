@@ -56,6 +56,7 @@ for file in \
   docs/schemas/kiana-app-server-sandbox.v1.schema.json \
   docs/schemas/kiana-app-server-plugins.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
+  docs/schemas/kiana-checks-dry-run.v1.schema.json \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
@@ -196,17 +197,20 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.index.cache.write' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'build_persistent_context_index' kiana-entrypoints/src/cli.rs &&
   grep -Fq '.kiana/context-index.json' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'checks.dry_run.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/checks/dry-run' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.search.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.pack.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/index' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/search' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/pack' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.checks.dry_run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server context index/search/pack endpoints and cache writes are wired"
+  pass "app-server context, checks dry-run, and cache endpoints are wired"
 else
-  fail "app-server context index/search/pack endpoints or cache writes are not wired"
+  fail "app-server context, checks dry-run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
@@ -269,6 +273,14 @@ for app_schema in conversations events settings secrets sandbox plugins git-stat
     fail "app-server ${app_schema} JSON schema is missing ${schema_name} const"
   fi
 done
+
+if grep -Fq '"const": "kiana.checks.dry_run.v1"' docs/schemas/kiana-checks-dry-run.v1.schema.json &&
+  grep -Fq '"rustfmt"' docs/schemas/kiana-checks-dry-run.v1.schema.json &&
+  grep -Fq '"cargo_check"' docs/schemas/kiana-checks-dry-run.v1.schema.json; then
+  pass "checks dry-run JSON schema version is pinned"
+else
+  fail "checks dry-run JSON schema is missing required quality-gate anchors"
+fi
 
 if grep -Fq '"const": "kiana.doctor.v1"' docs/schemas/kiana-doctor.v1.schema.json; then
   pass "doctor JSON schema version is pinned"

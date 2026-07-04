@@ -32,10 +32,11 @@ done
 tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
+tmp_checks_dry_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -122,6 +123,30 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-context-index.v1.schema.json \
   "$tmp_context_index" >/dev/null
+
+cat > "$tmp_checks_dry_run" <<'JSON'
+{
+  "schema": "kiana.checks.dry_run.v1",
+  "root": "/workspace",
+  "inside_git_repo": true,
+  "dry_run": true,
+  "checks": [
+    {
+      "id": "rustfmt",
+      "description": "Rust formatting",
+      "command": "cargo fmt --all --check"
+    },
+    {
+      "id": "cargo_check",
+      "description": "Rust workspace compilation",
+      "command": "cargo check --workspace"
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-checks-dry-run.v1.schema.json \
+  "$tmp_checks_dry_run" >/dev/null
 
 cat > "$tmp_doctor" <<'JSON'
 {

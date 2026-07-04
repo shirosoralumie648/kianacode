@@ -5240,6 +5240,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_git_status_handler),
         )
         .route(
+            "/app/checks/dry-run",
+            axum::routing::get(direct_connect_app_checks_dry_run_handler),
+        )
+        .route(
             "/app/context/index",
             axum::routing::get(direct_connect_app_context_index_handler),
         )
@@ -5551,6 +5555,46 @@ async fn direct_connect_app_git_status_handler(
     }
 
     axum::Json(direct_connect_git_status_report(&state.workspace)).into_response()
+}
+
+async fn direct_connect_app_checks_dry_run_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("checks") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "checks command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "--dry-run --json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build checks dry-run report: {error}"),
+        ),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -6255,6 +6299,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "sandbox.read",
             "plugins.read",
             "git.status.read",
+            "checks.dry_run.read",
             "context.index.read",
             "context.index.cache.write",
             "context.search.read",
@@ -6300,6 +6345,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/git/status",
                 "schema": "kiana.app-server.git-status.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/checks/dry-run",
+                "schema": "kiana.checks.dry_run.v1"
             },
             {
                 "method": "GET",
@@ -15400,6 +15450,7 @@ mod tests {
             "pub fn checkout() {}\n// checkout checkout\n",
         )
         .unwrap();
+        std::fs::write(workspace.join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
         std::fs::write(workspace.join("README.md"), "checkout guide\n").unwrap();
         let disabled_plugin_root = plugins_dir.join("disabled-tools");
         let disabled_manifest_dir = disabled_plugin_root.join(".codex-plugin");
@@ -15565,6 +15616,10 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&Value::String("context.pack.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("checks.dry_run.read".to_string())));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -15618,6 +15673,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/pack"
                     && endpoint["schema"] == "kiana.context-pack.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/checks/dry-run"
+                    && endpoint["schema"] == "kiana.checks.dry_run.v1"
             }));
 
         let conversations: Value = client
@@ -15777,12 +15841,17 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(context_index["schema"], "kiana.context-index.v1");
-        assert_eq!(context_index["files_indexed"], 2);
+        assert_eq!(context_index["files_indexed"], 3);
         assert!(context_index["files"]
             .as_array()
             .unwrap()
             .iter()
             .any(|file| file["path"] == "src/lib.rs"));
+        assert!(context_index["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|file| file["path"] == "Cargo.toml"));
 
         let cached_context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
@@ -15796,7 +15865,7 @@ mod tests {
             .unwrap();
         assert_eq!(cached_context_index["schema"], "kiana.context-index.v1");
         assert_eq!(cached_context_index["cache"]["status"], "created");
-        assert_eq!(cached_context_index["cache"]["added_files"], 2);
+        assert_eq!(cached_context_index["cache"]["added_files"], 3);
         assert!(cached_context_index["cache"]["path"]
             .as_str()
             .unwrap()
@@ -15842,6 +15911,26 @@ mod tests {
         assert_eq!(context_pack["max_snippet_lines"], 1);
         assert_eq!(context_pack["snippets"].as_array().unwrap().len(), 1);
         assert_eq!(context_pack["snippets"][0]["path"], "src/lib.rs");
+
+        let checks_dry_run: Value = client
+            .get(format!("http://{addr}/app/checks/dry-run"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(checks_dry_run["schema"], "kiana.checks.dry_run.v1");
+        assert_eq!(checks_dry_run["root"], workspace.display().to_string());
+        let check_ids = checks_dry_run["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|check| check["id"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert!(check_ids.contains(&"rustfmt"));
+        assert!(check_ids.contains(&"cargo_check"));
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))
