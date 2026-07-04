@@ -5306,6 +5306,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_entitlement_handler),
         )
         .route(
+            "/app/release/ops",
+            axum::routing::get(direct_connect_app_release_ops_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5943,6 +5947,28 @@ async fn direct_connect_app_release_entitlement_handler(
     }
 }
 
+async fn direct_connect_app_release_ops_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_release_ops_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read release ops report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6132,6 +6158,74 @@ fn direct_connect_entitlement_proof_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.entitlement-proof.v1") {
         return Err(anyhow!(
             "entitlement proof file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_release_ops_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let candidates = [
+        std::env::var_os("KIANA_RELEASE_OPS_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_RELEASE_OPS_OUT").map(PathBuf::from),
+        Some(
+            dist_dir
+                .join("proofs")
+                .join("release-ops")
+                .join("release-ops.json"),
+        ),
+        Some(
+            root.join("target")
+                .join("release-ops")
+                .join("release-ops.json"),
+        ),
+        Some(
+            root.join("docs")
+                .join("release-ops")
+                .join(format!("{version}.json")),
+        ),
+    ];
+    let evidence_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no release ops proof found in KIANA_RELEASE_OPS_FILE, KIANA_RELEASE_OPS_OUT, dist/proofs/release-ops/release-ops.json, target/release-ops/release-ops.json, or docs/release-ops/{version}.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read release ops file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse release ops JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.release-ops.v1") {
+        return Err(anyhow!(
+            "release ops file {} has unexpected schema",
             evidence_path.display()
         ));
     }
@@ -7396,6 +7490,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.local_rc_evidence.read",
             "release.product_acceptance.read",
             "release.entitlement.read",
+            "release.ops.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7470,6 +7565,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/entitlement",
                 "schema": "kiana.entitlement-proof.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/ops",
+                "schema": "kiana.release-ops.v1"
             },
             {
                 "method": "GET",
@@ -16608,6 +16708,8 @@ mod tests {
             "KIANA_PRODUCT_ACCEPTANCE_OUT",
             "KIANA_ENTITLEMENT_PROOF_FILE",
             "KIANA_ENTITLEMENT_PROOF_OUT",
+            "KIANA_RELEASE_OPS_FILE",
+            "KIANA_RELEASE_OPS_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17079,6 +17181,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.entitlement.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.ops.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17105,6 +17212,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/entitlement"
                     && endpoint["schema"] == "kiana.entitlement-proof.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/ops"
+                    && endpoint["schema"] == "kiana.release-ops.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -17777,6 +17893,53 @@ mod tests {
             .iter()
             .any(|entitlement| entitlement == "managed-policy"));
         let _ = std::fs::remove_file(&entitlement_path);
+
+        let release_ops_path =
+            std::env::temp_dir().join(format!("kiana-release-ops-{}.json", uuid::Uuid::new_v4()));
+        std::fs::write(
+            &release_ops_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.release-ops.v1",
+                "version": "0.1.0",
+                "status": "local_rc_only",
+                "accepted": false,
+                "accepted_by": "",
+                "accepted_at": "2026-07-05T00:00:00Z",
+                "security_contact": "",
+                "vulnerability_report_channel": "",
+                "release_credentials_owner": "",
+                "support_contact": "",
+                "artifact_retention_days": 90,
+                "log_retention_days": 30,
+                "credential_review": {
+                    "status": "pending",
+                    "reviewed_by": "",
+                    "reviewed_at": "",
+                    "scope": "local RC only; production release credentials are not accepted"
+                },
+                "notes": [
+                    "Generated by scripts/release-ops-report.sh --local-rc"
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_RELEASE_OPS_OUT", &release_ops_path);
+        let release_ops: Value = client
+            .get(format!("http://{addr}/app/release/ops"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(release_ops["schema"], "kiana.release-ops.v1");
+        assert_eq!(release_ops["status"], "local_rc_only");
+        assert_eq!(release_ops["accepted"], false);
+        assert_eq!(release_ops["artifact_retention_days"], 90);
+        assert_eq!(release_ops["credential_review"]["status"], "pending");
+        let _ = std::fs::remove_file(&release_ops_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
