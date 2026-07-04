@@ -570,7 +570,7 @@ mod tests {
         assert!(smoke.contains("auth --help::Usage: kiana auth"));
         assert!(smoke.contains("auth status --help::Usage: kiana auth status"));
         assert!(smoke.contains("completion --help::Usage: kiana completion <shell>"));
-        assert!(smoke.contains("plugin --help::usage: kiana plugin"));
+        assert!(smoke.contains("plugin --help::--scope user|project|local"));
         assert!(smoke.contains("plugin install --help::Usage: kiana plugin install"));
         assert!(smoke.contains("agents --help::Usage: kiana agents"));
         assert!(smoke.contains("open --help::Usage: kiana open <cc-url>"));

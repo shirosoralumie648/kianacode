@@ -2046,7 +2046,7 @@ fn split_word(input: &str) -> (Option<&str>, &str) {
 }
 
 fn usage() -> &'static str {
-    "usage: kiana plugin [list|status|json [query]|marketplace <add|list|remove|update>|install <plugin>|uninstall <plugin>|show <name>|enable <name>|disable <name>|path [name]|validate [name|path]]"
+    "usage: kiana plugin [list|status|json [query]|marketplace <add|list|remove|update>|install <plugin>|uninstall <plugin>|show <name>|enable <name>|disable <name>|path [name]|validate [name|path]]\n       scoped roots: add --scope user|project|local to install, uninstall, list, json, show, path, validate, enable, or disable"
 }
 
 fn marketplace_usage() -> &'static str {

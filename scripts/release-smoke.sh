@@ -694,12 +694,16 @@ smoke_completion_scripts() {
   grep -Fq -- "mcp" <<<"$output"
   grep -Fq -- "open" <<<"$output"
   grep -Fq -- "install uninstall" <<<"$output"
+  grep -Fq -- "--scope" <<<"$output"
+  grep -Fq -- "user project local" <<<"$output"
 
   output="$(run_clean_kiana "$binary" completion fish)"
   grep -Fq -- "complete -c kiana" <<<"$output"
   grep -Fq -- "__fish_seen_subcommand_from auto-mode" <<<"$output"
   grep -Fq -- "__fish_seen_subcommand_from mcp" <<<"$output"
   grep -Fq -- "__fish_seen_subcommand_from plugin" <<<"$output"
+  grep -Fq -- "-l scope -s s" <<<"$output"
+  grep -Fq -- "-a 'user project local'" <<<"$output"
 
   output="$(run_clean_kiana "$binary" completion zsh --output "$output_file")"
   grep -Fq -- "Wrote completion script" <<<"$output"
@@ -707,6 +711,7 @@ smoke_completion_scripts() {
   grep -Fq -- "_arguments" "$output_file"
   grep -Fq -- "'auto-mode:kiana command'" "$output_file"
   grep -Fq -- "'plugin command' list status json marketplace install uninstall" "$output_file"
+  grep -Fq -- "'plugin scope' user project local" "$output_file"
 }
 
 smoke_plugin_marketplace() {
@@ -839,7 +844,7 @@ help_smoke_cases=(
   "license --help::Usage: kiana license"
   "license status --help::Usage: kiana license status"
   "completion --help::Usage: kiana completion <shell>"
-  "plugin --help::usage: kiana plugin"
+  "plugin --help::--scope user|project|local"
   "plugin install --help::Usage: kiana plugin install"
   "agents --help::Usage: kiana agents"
   "open --help::Usage: kiana open <cc-url>"

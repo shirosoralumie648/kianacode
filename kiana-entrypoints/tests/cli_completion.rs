@@ -39,6 +39,12 @@ fn completion_generates_shell_scripts_and_writes_output_file() {
     assert!(bash.stdout.contains("open"), "{}", bash.stdout);
     assert!(bash.stdout.contains("server"), "{}", bash.stdout);
     assert!(bash.stdout.contains("install uninstall"), "{}", bash.stdout);
+    assert!(bash.stdout.contains("--scope"), "{}", bash.stdout);
+    assert!(
+        bash.stdout.contains("user project local"),
+        "{}",
+        bash.stdout
+    );
 
     let zsh = run_kiana_completion(
         &home,
@@ -62,6 +68,24 @@ fn completion_generates_shell_scripts_and_writes_output_file() {
     assert!(
         zsh_script.contains("'plugin command' list status json marketplace install uninstall"),
         "{zsh_script}"
+    );
+    assert!(
+        zsh_script.contains("'plugin scope' user project local"),
+        "{zsh_script}"
+    );
+
+    let fish = run_kiana_completion(&home, &project, &["completion", "fish"]);
+    assert!(fish.status.success(), "{}", fish.stderr);
+    assert!(
+        fish.stdout.contains("__fish_seen_subcommand_from plugin"),
+        "{}",
+        fish.stdout
+    );
+    assert!(fish.stdout.contains("-l scope -s s"), "{}", fish.stdout);
+    assert!(
+        fish.stdout.contains("-a 'user project local'"),
+        "{}",
+        fish.stdout
     );
 
     let _ = std::fs::remove_dir_all(root);

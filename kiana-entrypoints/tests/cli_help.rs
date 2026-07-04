@@ -200,7 +200,7 @@ fn routed_help_flags_print_usage_instead_of_running_commands() {
         (
             &["plugin", "--help"][..],
             "usage: kiana plugin",
-            "install <plugin>",
+            "--scope user|project|local",
         ),
         (
             &["plugin", "install", "--help"][..],

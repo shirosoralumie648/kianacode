@@ -186,6 +186,14 @@ _kiana() {{
       ;;
     plugin)
       subcommands="list status json marketplace install uninstall remove rm show enable disable path validate"
+      if [[ "${{COMP_WORDS[COMP_CWORD-1]}}" == "--scope" || "${{COMP_WORDS[COMP_CWORD-1]}}" == "-s" ]]; then
+        COMPREPLY=( $(compgen -W "user project local" -- "$cur") )
+        return 0
+      fi
+      if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "--scope -s" -- "$cur") )
+        return 0
+      fi
       ;;
     remote-session)
       subcommands="status list show rename create archive environments code-session url listen send"
@@ -241,6 +249,7 @@ _kiana() {{
           ;;
         plugin)
           _values 'plugin command' list status json marketplace install uninstall remove rm show enable disable path validate
+          _values 'plugin scope' user project local
           ;;
       esac
       ;;
@@ -265,6 +274,8 @@ fn fish_completion(commands: &BTreeSet<String>) -> String {
         "complete -c kiana -f -n '__fish_seen_subcommand_from auth' -a 'status login logout'".to_string(),
         "complete -c kiana -f -n '__fish_seen_subcommand_from mcp' -a 'status serve list get add add-json add-from-claude-desktop remove reset-project-choices'".to_string(),
         "complete -c kiana -f -n '__fish_seen_subcommand_from plugin' -a 'list status json marketplace install uninstall remove rm show enable disable path validate'".to_string(),
+        "complete -c kiana -f -n '__fish_seen_subcommand_from plugin' -l scope -s s -d 'plugin scope'".to_string(),
+        "complete -c kiana -f -n '__fish_seen_subcommand_from plugin; and __fish_seen_argument -l scope -s s' -a 'user project local'".to_string(),
     ]);
     lines.push(String::new());
     lines.join("\n")
