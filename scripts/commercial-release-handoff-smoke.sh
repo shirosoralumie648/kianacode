@@ -354,4 +354,81 @@ for check_id, evidence_text in expected.items():
         raise SystemExit(f"{check_id} evidence does not name accepted staged proof")
 PY
 
+mkdir -p "$tmp_dist/proofs/platform-security"
+cat > "$tmp_dist/proofs/platform-security/platform-security-linux.json" <<'JSON'
+{
+  "schema": "kiana.platform-security-proof.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "platform security lead",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "platform": "linux",
+  "runner": "linux-release-runner",
+  "isolation": "linux_bwrap",
+  "controls": ["permission_profile:commercial", "permission_mode:ask", "bwrap:strict"],
+  "doctor_status": "ready",
+  "evidence": [{"label": "doctor", "value": "commercial_security ready"}]
+}
+JSON
+cat > "$tmp_dist/proofs/platform-security/platform-security-macos.json" <<'JSON'
+{
+  "schema": "kiana.platform-security-proof.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "platform security lead",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "platform": "macos",
+  "runner": "macos-release-runner",
+  "isolation": "macos_exec_policy",
+  "controls": ["permission_profile:commercial", "permission_mode:ask", "exec_policy"],
+  "doctor_status": "ready",
+  "evidence": [{"label": "doctor", "value": "commercial_security ready"}]
+}
+JSON
+cat > "$tmp_dist/proofs/platform-security/platform-security-windows.json" <<'JSON'
+{
+  "schema": "kiana.platform-security-proof.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "platform security lead",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "platform": "windows",
+  "runner": "windows-release-runner",
+  "isolation": "windows_exec_policy",
+  "controls": ["permission_profile:commercial", "permission_mode:ask", "exec_policy"],
+  "doctor_status": "ready",
+  "evidence": [{"label": "doctor", "value": "commercial_security ready"}]
+}
+JSON
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+check = {item["id"]: item for item in report.get("checks", [])}.get("acceptance.platform-security")
+if not check:
+    raise SystemExit("acceptance.platform-security check is missing")
+if check.get("status") != "satisfied":
+    raise SystemExit("acceptance.platform-security was not satisfied by staged platform security proofs")
+if "acceptance.platform-security" in handoff:
+    raise SystemExit("acceptance.platform-security should not appear as a blocking handoff assignment")
+if "platform security proofs accepted" not in check.get("evidence", ""):
+    raise SystemExit("acceptance.platform-security evidence does not name accepted staged proofs")
+PY
+
 echo "commercial release handoff smoke passed"

@@ -942,19 +942,27 @@ expected_isolation_by_platform = {
     "windows": "windows_exec_policy",
 }
 expected_isolation = expected_isolation_by_platform.get(current_platform, "unknown")
-platform_dir = Path(os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_DIR", "docs/platform-security"))
-platform_file_override = os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_FILE", "").strip()
-platform_files = {
-    platform: platform_dir / f"{VERSION}-{platform}.json"
-    for platform in ["linux", "macos", "windows"]
-}
-if platform_file_override:
-    platform_files[current_platform] = Path(platform_file_override)
+platform_candidates = []
+for value in [
+    os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_FILE", ""),
+    os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_OUT", ""),
+]:
+    if value:
+        platform_candidates.append(Path(value))
+platform_dir_override = os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_DIR", "").strip()
+if platform_dir_override:
+    platform_candidates.extend(sorted(Path(platform_dir_override).glob(f"{VERSION}-*.json")))
+platform_candidates.extend(sorted((dist_dir / "proofs/platform-security").glob("*.json")))
+platform_candidates.extend(sorted(Path("target/platform-security").glob("*.json")))
+platform_candidates.extend(sorted(Path("docs/platform-security").glob(f"{VERSION}-*.json")))
 
 platform_results = {}
-for platform, proof_file in platform_files.items():
-    expected = expected_isolation_by_platform[platform]
+for proof_file in platform_candidates:
     proof, error = load_json(proof_file)
+    platform = proof.get("platform") if isinstance(proof, dict) else None
+    if platform not in expected_isolation_by_platform or platform in platform_results:
+        continue
+    expected = expected_isolation_by_platform[platform]
     ok = (
         isinstance(proof, dict)
         and proof.get("schema") == "kiana.platform-security-proof.v1"
@@ -977,13 +985,25 @@ for platform, proof_file in platform_files.items():
         "ok": ok,
         "error": error,
     }
+for platform in ["linux", "macos", "windows"]:
+    platform_results.setdefault(
+        platform,
+        {
+            "file": Path(f"docs/platform-security/{VERSION}-{platform}.json"),
+            "ok": False,
+            "error": "missing",
+        },
+    )
 
-platform_ok = all(item["ok"] for item in platform_results.values())
+platform_order = ["linux", "macos", "windows"]
+platform_ok = all(platform_results[platform]["ok"] for platform in platform_order)
 platform_evidence = ", ".join(
     f"{platform}="
     + ("accepted" if result["ok"] else f"missing_or_invalid:{result['file']}")
-    for platform, result in platform_results.items()
+    for platform in platform_order
+    for result in [platform_results[platform]]
 )
+platform_paths = [platform_results[platform]["file"] for platform in platform_order]
 add_check(
     id="acceptance.platform-security",
     category="acceptance",
@@ -991,11 +1011,19 @@ add_check(
     ok=platform_ok,
     external=True,
     gate="scripts/platform-security-proof-report.sh full",
-    evidence=platform_evidence,
+    evidence=(
+        f"platform security proofs accepted: {platform_evidence}"
+        if platform_ok
+        else platform_evidence
+    ),
     required_action="Record accepted platform security proofs from the real Linux, macOS, and Windows release runners with ready doctor status and expected isolation.",
-    paths=[platform_files["linux"], platform_files["macos"], platform_files["windows"]],
+    paths=platform_paths,
     commands=["bash scripts/platform-security-proof-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],
-    env=["KIANA_PLATFORM_SECURITY_PROOF_FILE", "KIANA_PLATFORM_SECURITY_PROOF_DIR"],
+    env=[
+        "KIANA_PLATFORM_SECURITY_PROOF_FILE",
+        "KIANA_PLATFORM_SECURITY_PROOF_OUT",
+        "KIANA_PLATFORM_SECURITY_PROOF_DIR",
+    ],
     acceptance_artifacts=[
         f"docs/platform-security/{VERSION}-linux.json",
         f"docs/platform-security/{VERSION}-macos.json",
