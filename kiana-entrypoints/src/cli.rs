@@ -5366,6 +5366,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_model_catalog_handler),
         )
         .route(
+            "/app/models/smoke",
+            axum::routing::get(direct_connect_app_model_smoke_handler),
+        )
+        .route(
             "/app/git/status",
             axum::routing::get(direct_connect_app_git_status_handler),
         )
@@ -7459,6 +7463,46 @@ async fn direct_connect_app_model_catalog_handler(
     }
 }
 
+async fn direct_connect_app_model_smoke_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("model") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "model command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "smoke --json --tools".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build model smoke report: {error}"),
+        ),
+    }
+}
+
 async fn direct_connect_app_git_status_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
@@ -8882,6 +8926,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "auth.status.read",
             "license.status.read",
             "model.catalog.read",
+            "model.smoke.read",
             "git.status.read",
             "diff.read",
             "checkpoint.create",
@@ -9025,6 +9070,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/models/catalog",
                 "schema": "kiana.model-catalog.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/models/smoke",
+                "schema": "kiana.model-smoke.v1"
             },
             {
                 "method": "GET",
@@ -18517,6 +18567,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("model.smoke.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.index.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -18629,6 +18683,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/models/catalog"
                     && endpoint["schema"] == "kiana.model-catalog.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/models/smoke"
+                    && endpoint["schema"] == "kiana.model-smoke.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -20112,6 +20175,34 @@ mod tests {
             .contains("kiana-provider-live-smoke"));
         let _ = std::fs::remove_file(&provider_catalog_path);
         let _ = std::fs::remove_file(&provider_smoke_path);
+
+        let model_smoke: Value = client
+            .get(format!("http://{addr}/app/models/smoke"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(model_smoke["schema"], "kiana.model-smoke.v1");
+        assert_eq!(model_smoke["live"], false);
+        assert_eq!(model_smoke["tools"], true);
+        assert_eq!(model_smoke["summary"]["failed"], 0);
+        assert!(model_smoke["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|result| result["provider_id"] == "fake"
+                && result["capability"] == "text"
+                && result["status"] == "passed"));
+        assert!(model_smoke["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|result| result["provider_id"] == "fake"
+                && result["capability"] == "tools"
+                && result["status"] == "passed"));
 
         let remote_code_session_smoke_path = std::env::temp_dir().join(format!(
             "kiana-remote-code-session-smoke-{}.json",
