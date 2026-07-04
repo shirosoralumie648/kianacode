@@ -28,12 +28,14 @@ Payload variants:
 - `permission_request`: includes `request_id`, `tool_name`, `action`, and `input`
 - `session_event`: includes `subtype` and `metadata`
 - `error`: includes `message` and `details`
-- `result`: includes `status` and `metadata`
+- `result`: includes `status`, `stop_reason`, and `metadata`
 
 Compatibility policy:
 
 - New producers must keep existing fields stable for `v1`.
 - New optional fields may be added only with a schema update and release note.
+- Terminal result producers must set `stop_reason`; use `model_stop` for normal
+  model completion when a more specific reason is unavailable.
 - Product clients should ignore unknown future event `type` values only after a
   schema version bump; `v1` uses a closed enum.
 - Secret values must not be emitted in `input`, `content`, `metadata`, or

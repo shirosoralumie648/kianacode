@@ -81,6 +81,7 @@ fn runtime_event_schema_covers_required_payloads() {
         }),
         RuntimeEventPayload::Result(RuntimeResultEvent {
             status: "completed".to_string(),
+            stop_reason: "model_stop".to_string(),
             assistant_text: Some("done".to_string()),
             metadata: json!({"iterations": 2}),
         }),
@@ -117,6 +118,40 @@ fn runtime_event_schema_covers_required_payloads() {
             "error",
             "result",
         ]
+    );
+}
+
+#[test]
+fn runtime_result_event_serializes_stop_reason_as_public_field() {
+    let event = RuntimeEvent::new(
+        "evt-result",
+        "session-1",
+        "turn-1",
+        None,
+        3,
+        "2026-07-04T00:00:00Z",
+        RuntimeEventPayload::Result(RuntimeResultEvent {
+            status: "completed".to_string(),
+            stop_reason: "max_turns".to_string(),
+            assistant_text: Some("partial answer".to_string()),
+            metadata: json!({"iterations": 4}),
+        }),
+    );
+
+    assert_eq!(
+        serde_json::to_value(event).unwrap(),
+        json!({
+            "event_id": "evt-result",
+            "session_id": "session-1",
+            "turn_id": "turn-1",
+            "sequence": 3,
+            "timestamp": "2026-07-04T00:00:00Z",
+            "type": "result",
+            "status": "completed",
+            "stop_reason": "max_turns",
+            "assistant_text": "partial answer",
+            "metadata": {"iterations": 4}
+        })
     );
 }
 

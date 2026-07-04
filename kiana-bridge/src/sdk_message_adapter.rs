@@ -88,6 +88,12 @@ pub fn runtime_events_from_bridge_sdk_message(
                     timestamp,
                     RuntimeEventPayload::Result(RuntimeResultEvent {
                         status,
+                        stop_reason: data
+                            .get("stop_reason")
+                            .and_then(Value::as_str)
+                            .filter(|reason| !reason.trim().is_empty())
+                            .unwrap_or("model_stop")
+                            .to_string(),
                         assistant_text,
                         metadata: json!(data),
                     }),

@@ -113,6 +113,7 @@ fn bridge_sdk_adapter_emits_runtime_event_stream_delta_and_results() {
         SDKMessage::Result {
             data: HashMap::from([
                 ("status".to_string(), json!("completed")),
+                ("stop_reason".to_string(), json!("model_stop")),
                 ("assistant_text".to_string(), json!("done")),
             ]),
         },
@@ -125,6 +126,10 @@ fn bridge_sdk_adapter_emits_runtime_event_stream_delta_and_results() {
     assert_eq!(
         serde_json::to_value(&result_events[0]).unwrap()["assistant_text"],
         "done"
+    );
+    assert_eq!(
+        serde_json::to_value(&result_events[0]).unwrap()["stop_reason"],
+        "model_stop"
     );
 
     let error_events = kiana_bridge::runtime_events_from_bridge_sdk_message(

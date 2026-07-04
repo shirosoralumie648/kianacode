@@ -113,6 +113,7 @@ pub struct RuntimeErrorEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RuntimeResultEvent {
     pub status: String,
+    pub stop_reason: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assistant_text: Option<String>,
     #[serde(default)]

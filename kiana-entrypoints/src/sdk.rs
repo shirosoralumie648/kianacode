@@ -1115,6 +1115,7 @@ fn persist_completed_model_prompt(
         text,
         messages,
         iterations,
+        stop_reason,
         structured_output,
         teammate_shutdown_approved,
     } = run;
@@ -1127,6 +1128,7 @@ fn persist_completed_model_prompt(
         "execution": "model",
         "assistant_text": text,
         "iterations": iterations,
+        "stop_reason": stop_reason,
         "teammate_shutdown_approved": teammate_shutdown_approved,
     });
     if let Some(structured_output) = structured_output {
@@ -1675,12 +1677,14 @@ mod tests {
                     content: serde_json::json!([{"type": "text", "text": "done"}]),
                 }],
                 iterations: 1,
+                stop_reason: "model_stop".to_string(),
                 structured_output: None,
                 teammate_shutdown_approved: false,
             },
         );
         let result_value = serde_json::to_value(result_event).unwrap();
         assert_eq!(result_value["type"], "result");
+        assert_eq!(result_value["stop_reason"], "model_stop");
         assert_eq!(result_value["assistant_text"], "done");
         assert_eq!(result_value["metadata"]["iterations"], 1);
     }

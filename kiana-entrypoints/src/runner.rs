@@ -43,6 +43,7 @@ pub struct AssistantRunResult {
     pub text: String,
     pub messages: Vec<Message>,
     pub iterations: usize,
+    pub stop_reason: String,
     pub structured_output: Option<Value>,
     pub teammate_shutdown_approved: bool,
 }
@@ -143,6 +144,7 @@ pub fn runtime_event_from_assistant_run_result(
         timestamp,
         RuntimeEventPayload::Result(RuntimeResultEvent {
             status: "completed".to_string(),
+            stop_reason: result.stop_reason.clone(),
             assistant_text: Some(result.text.clone()),
             metadata: json!({
                 "iterations": result.iterations,
@@ -152,6 +154,14 @@ pub fn runtime_event_from_assistant_run_result(
             }),
         }),
     )
+}
+
+fn normalized_model_stop_reason(stop_reason: Option<&str>) -> String {
+    match stop_reason {
+        Some("end_turn") | Some("stop") => "model_stop".to_string(),
+        Some(reason) if !reason.trim().is_empty() => reason.to_string(),
+        _ => "model_stop".to_string(),
+    }
 }
 
 fn runtime_events_from_model_stream_event(
@@ -580,6 +590,7 @@ pub async fn run_assistant_turn_with_permission_handler(
                 text: final_text,
                 messages,
                 iterations: iteration,
+                stop_reason: normalized_model_stop_reason(response.stop_reason.as_deref()),
                 structured_output: final_structured_output,
                 teammate_shutdown_approved: app_state_bool(
                     &tool_context.app_state,
@@ -626,6 +637,7 @@ pub async fn run_assistant_turn_with_permission_handler(
                 text: final_text,
                 messages,
                 iterations: iteration,
+                stop_reason: "structured_output".to_string(),
                 structured_output: final_structured_output,
                 teammate_shutdown_approved: app_state_bool(
                     &tool_context.app_state,
@@ -1028,6 +1040,7 @@ where
                 text: final_text,
                 messages,
                 iterations: iteration,
+                stop_reason: "model_stop".to_string(),
                 structured_output: final_structured_output,
                 teammate_shutdown_approved: app_state_bool(
                     &tool_context.app_state,
@@ -1084,6 +1097,7 @@ where
                 text: final_text,
                 messages,
                 iterations: iteration,
+                stop_reason: "structured_output".to_string(),
                 structured_output: final_structured_output,
                 teammate_shutdown_approved: app_state_bool(
                     &tool_context.app_state,
@@ -5071,6 +5085,7 @@ mod tests {
                     content: json!([{"type": "text", "text": "done"}]),
                 }],
                 iterations: 2,
+                stop_reason: "model_stop".to_string(),
                 structured_output: Some(json!({"answer": "done"})),
                 teammate_shutdown_approved: false,
             },
@@ -5079,6 +5094,7 @@ mod tests {
         let value = serde_json::to_value(event).unwrap();
         assert_eq!(value["type"], "result");
         assert_eq!(value["status"], "completed");
+        assert_eq!(value["stop_reason"], "model_stop");
         assert_eq!(value["assistant_text"], "done");
         assert_eq!(value["metadata"]["iterations"], 2);
         assert_eq!(value["metadata"]["message_count"], 1);

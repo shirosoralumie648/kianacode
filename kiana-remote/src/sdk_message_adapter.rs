@@ -215,6 +215,9 @@ pub fn runtime_events_from_sdk_message(
             timestamp,
             RuntimeEventPayload::Result(RuntimeResultEvent {
                 status: result_msg.subtype,
+                stop_reason: result_msg
+                    .stop_reason
+                    .unwrap_or_else(|| "model_stop".to_string()),
                 assistant_text: result_msg.result,
                 metadata: json!({ "uuid": result_msg.uuid }),
             }),
@@ -569,6 +572,7 @@ mod runtime_event_tests {
             SDKMessage::Result(SDKResultMessage {
                 subtype: "success".to_string(),
                 uuid: "result-1".to_string(),
+                stop_reason: Some("max_turns".to_string()),
                 errors: None,
                 result: Some("done".to_string()),
             }),
@@ -576,6 +580,10 @@ mod runtime_event_tests {
         assert_eq!(
             serde_json::to_value(&result_events[0]).unwrap()["type"],
             "result"
+        );
+        assert_eq!(
+            serde_json::to_value(&result_events[0]).unwrap()["stop_reason"],
+            "max_turns"
         );
 
         let error_events = runtime_events_from_sdk_message(
@@ -587,6 +595,7 @@ mod runtime_event_tests {
             SDKMessage::Result(SDKResultMessage {
                 subtype: "error".to_string(),
                 uuid: "result-2".to_string(),
+                stop_reason: None,
                 errors: Some(vec!["boom".to_string()]),
                 result: None,
             }),

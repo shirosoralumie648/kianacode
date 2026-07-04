@@ -33,6 +33,7 @@ done
   docs/proof-templates/source-control.example.json >/dev/null
 
 tmp_runtime_event="$(mktemp)"
+tmp_runtime_result="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
@@ -49,7 +50,7 @@ tmp_release_signature="$(mktemp)"
 tmp_enterprise_offline_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -68,6 +69,26 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-runtime-event.v1.schema.json \
   "$tmp_runtime_event" >/dev/null
+
+cat > "$tmp_runtime_result" <<'JSON'
+{
+  "event_id": "evt-result",
+  "session_id": "session-1",
+  "turn_id": "turn-1",
+  "sequence": 9,
+  "timestamp": "2026-07-04T00:00:09Z",
+  "type": "result",
+  "status": "completed",
+  "stop_reason": "model_stop",
+  "assistant_text": "done",
+  "metadata": {
+    "iterations": 1
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-runtime-event.v1.schema.json \
+  "$tmp_runtime_result" >/dev/null
 
 cat > "$tmp_app_events" <<'JSON'
 {

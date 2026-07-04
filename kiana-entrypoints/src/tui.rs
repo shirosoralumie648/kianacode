@@ -2953,6 +2953,7 @@ mod tests {
                 "108",
                 kiana_types::RuntimeEventPayload::Result(kiana_types::RuntimeResultEvent {
                     status: "completed".to_string(),
+                    stop_reason: "model_stop".to_string(),
                     assistant_text: Some("final answer".to_string()),
                     metadata: json!({"duration_ms": 12}),
                 }),
