@@ -5310,6 +5310,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_ops_handler),
         )
         .route(
+            "/app/release/platform-security",
+            axum::routing::get(direct_connect_app_release_platform_security_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5969,6 +5973,28 @@ async fn direct_connect_app_release_ops_handler(
     }
 }
 
+async fn direct_connect_app_release_platform_security_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_platform_security_proof_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read platform security proof report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6226,6 +6252,80 @@ fn direct_connect_release_ops_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.release-ops.v1") {
         return Err(anyhow!(
             "release ops file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_platform_security_proof_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "linux"
+    };
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let proof_dir = std::env::var_os("KIANA_PLATFORM_SECURITY_PROOF_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("docs").join("platform-security"));
+    let candidates = [
+        std::env::var_os("KIANA_PLATFORM_SECURITY_PROOF_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_PLATFORM_SECURITY_PROOF_OUT").map(PathBuf::from),
+        Some(
+            dist_dir
+                .join("proofs")
+                .join("platform-security")
+                .join(format!("platform-security-{platform}.json")),
+        ),
+        Some(
+            root.join("target")
+                .join("platform-security")
+                .join(format!("platform-security-{platform}.json")),
+        ),
+        Some(proof_dir.join(format!("{version}-{platform}.json"))),
+    ];
+    let evidence_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no platform security proof found in KIANA_PLATFORM_SECURITY_PROOF_FILE, KIANA_PLATFORM_SECURITY_PROOF_OUT, dist/proofs/platform-security/platform-security-{platform}.json, target/platform-security/platform-security-{platform}.json, or docs/platform-security/{version}-{platform}.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read platform security proof file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse platform security proof JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.platform-security-proof.v1") {
+        return Err(anyhow!(
+            "platform security proof file {} has unexpected schema",
             evidence_path.display()
         ));
     }
@@ -7491,6 +7591,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.product_acceptance.read",
             "release.entitlement.read",
             "release.ops.read",
+            "release.platform_security.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7570,6 +7671,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/ops",
                 "schema": "kiana.release-ops.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/platform-security",
+                "schema": "kiana.platform-security-proof.v1"
             },
             {
                 "method": "GET",
@@ -16710,6 +16816,9 @@ mod tests {
             "KIANA_ENTITLEMENT_PROOF_OUT",
             "KIANA_RELEASE_OPS_FILE",
             "KIANA_RELEASE_OPS_OUT",
+            "KIANA_PLATFORM_SECURITY_PROOF_FILE",
+            "KIANA_PLATFORM_SECURITY_PROOF_OUT",
+            "KIANA_PLATFORM_SECURITY_PROOF_DIR",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17186,6 +17295,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.ops.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.platform_security.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17221,6 +17335,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/ops"
                     && endpoint["schema"] == "kiana.release-ops.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/platform-security"
+                    && endpoint["schema"] == "kiana.platform-security-proof.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -17940,6 +18063,66 @@ mod tests {
         assert_eq!(release_ops["artifact_retention_days"], 90);
         assert_eq!(release_ops["credential_review"]["status"], "pending");
         let _ = std::fs::remove_file(&release_ops_path);
+
+        let platform_security_path = std::env::temp_dir().join(format!(
+            "kiana-platform-security-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &platform_security_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.platform-security-proof.v1",
+                "version": "0.1.0",
+                "status": "local_rc_only",
+                "accepted": false,
+                "accepted_by": "",
+                "accepted_at": "2026-07-05T00:00:00Z",
+                "platform": "linux",
+                "runner": "local",
+                "isolation": "linux_bwrap",
+                "controls": [
+                    "permission_profile:commercial",
+                    "permission_mode:ask",
+                    "exec_policy:bash+powershell"
+                ],
+                "doctor_status": "unknown",
+                "evidence": [
+                    {
+                        "label": "mode",
+                        "value": "local_rc_only"
+                    },
+                    {
+                        "label": "isolation",
+                        "value": "linux_bwrap"
+                    }
+                ],
+                "notes": [
+                    "Generated by scripts/platform-security-proof-report.sh --local-rc"
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PLATFORM_SECURITY_PROOF_OUT", &platform_security_path);
+        let platform_security: Value = client
+            .get(format!("http://{addr}/app/release/platform-security"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            platform_security["schema"],
+            "kiana.platform-security-proof.v1"
+        );
+        assert_eq!(platform_security["status"], "local_rc_only");
+        assert_eq!(platform_security["accepted"], false);
+        assert_eq!(platform_security["platform"], "linux");
+        assert_eq!(platform_security["isolation"], "linux_bwrap");
+        assert_eq!(platform_security["doctor_status"], "unknown");
+        let _ = std::fs::remove_file(&platform_security_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
