@@ -32,6 +32,7 @@ done
 tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
+tmp_repo_map="$(mktemp)"
 tmp_diff="$(mktemp)"
 tmp_checkpoint="$(mktemp)"
 tmp_checks_dry_run="$(mktemp)"
@@ -41,7 +42,7 @@ tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -128,6 +129,29 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-context-index.v1.schema.json \
   "$tmp_context_index" >/dev/null
+
+cat > "$tmp_repo_map" <<'JSON'
+{
+  "schema": "kiana.repo-map.v1",
+  "root": "/workspace",
+  "token_budget": 1000,
+  "estimated_tokens": 24,
+  "truncated": false,
+  "omitted_files": 0,
+  "files": [
+    {
+      "path": "src/lib.rs",
+      "language": "rust",
+      "bytes": 42,
+      "estimated_tokens": 16,
+      "symbols": ["struct Widget", "fn render"]
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-repo-map.v1.schema.json \
+  "$tmp_repo_map" >/dev/null
 
 cat > "$tmp_diff" <<'JSON'
 {
@@ -543,7 +567,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

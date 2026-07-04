@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-repo-map.v1.schema.json",
+  "title": "Kiana Repo Map v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "root",
+    "token_budget",
+    "estimated_tokens",
+    "truncated",
+    "omitted_files",
+    "files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.repo-map.v1"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "token_budget": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "estimated_tokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "omitted_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repoMapFile"
+      }
+    }
+  },
+  "$defs": {
+    "repoMapFile": {
+      "type": "object",
+      "required": ["path", "language", "bytes", "estimated_tokens", "symbols"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language": {
+          "type": ["string", "null"]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimated_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "symbols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

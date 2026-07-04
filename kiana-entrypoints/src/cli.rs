@@ -8,8 +8,9 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
 use kiana_query::{
-    build_context_index, build_context_pack, build_persistent_context_index, search_context_index,
-    ContextIndexOptions, ContextPackOptions, ContextSearchOptions,
+    build_context_index, build_context_pack, build_persistent_context_index, build_repo_map,
+    search_context_index, ContextIndexOptions, ContextPackOptions, ContextSearchOptions,
+    RepoMapOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -5268,6 +5269,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_context_index_handler),
         )
         .route(
+            "/app/context/repo-map",
+            axum::routing::get(direct_connect_app_context_repo_map_handler),
+        )
+        .route(
             "/app/context/search",
             axum::routing::get(direct_connect_app_context_search_handler),
         )
@@ -5865,6 +5870,11 @@ struct DirectConnectContextIndexQuery {
     max_bytes_per_file: Option<usize>,
 }
 
+#[derive(Debug, Deserialize)]
+struct DirectConnectRepoMapQuery {
+    max_tokens: Option<u64>,
+}
+
 async fn direct_connect_app_context_index_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
@@ -5897,6 +5907,44 @@ async fn direct_connect_app_context_index_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::BAD_REQUEST,
             format!("failed to build context index: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_context_repo_map_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectRepoMapQuery>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match build_repo_map(
+        &state.workspace,
+        RepoMapOptions {
+            max_tokens: query.max_tokens,
+        },
+    )
+    .and_then(|repo_map| {
+        let mut value = serde_json::to_value(repo_map)?;
+        if let Some(object) = value.as_object_mut() {
+            object.insert(
+                "schema".to_string(),
+                Value::String("kiana.repo-map.v1".to_string()),
+            );
+        }
+        Ok(value)
+    }) {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to build repo map: {error}"),
         ),
     }
 }
@@ -6561,6 +6609,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "review.run.read",
             "context.index.read",
             "context.index.cache.write",
+            "context.repo_map.read",
             "context.search.read",
             "context.pack.read"
         ],
@@ -6642,6 +6691,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "query": {
                     "cache": "optional boolean; when true writes .kiana/context-index.json in the active workspace"
                 }
+            },
+            {
+                "method": "GET",
+                "path": "/app/context/repo-map",
+                "schema": "kiana.repo-map.v1"
             },
             {
                 "method": "GET",
@@ -15907,6 +15961,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.repo_map.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("checks.dry_run.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -15981,6 +16039,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/pack"
                     && endpoint["schema"] == "kiana.context-pack.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/repo-map"
+                    && endpoint["schema"] == "kiana.repo-map.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16264,6 +16331,32 @@ mod tests {
         assert_eq!(context_pack["max_snippet_lines"], 1);
         assert_eq!(context_pack["snippets"].as_array().unwrap().len(), 1);
         assert_eq!(context_pack["snippets"][0]["path"], "src/lib.rs");
+
+        let repo_map: Value = client
+            .get(format!("http://{addr}/app/context/repo-map"))
+            .bearer_auth("secret")
+            .query(&[("max_tokens", "1000")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(repo_map["schema"], "kiana.repo-map.v1");
+        assert_eq!(repo_map["root"], workspace.display().to_string());
+        assert_eq!(repo_map["token_budget"], 1000);
+        assert_eq!(repo_map["truncated"], false);
+        assert!(repo_map["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|file| file["path"] == "src/lib.rs"
+                && file["language"] == "rust"
+                && file["symbols"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|symbol| symbol == "fn checkout")));
 
         let checks_dry_run: Value = client
             .get(format!("http://{addr}/app/checks/dry-run"))

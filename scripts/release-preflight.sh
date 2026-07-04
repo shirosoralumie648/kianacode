@@ -65,6 +65,7 @@ for file in \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
+  docs/schemas/kiana-repo-map.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-context-pack.v1.schema.json \
   docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
@@ -202,6 +203,8 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.index.cache.write' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'build_persistent_context_index' kiana-entrypoints/src/cli.rs &&
   grep -Fq '.kiana/context-index.json' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'context.repo_map.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/context/repo-map' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'diff.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/diff' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'checkpoint.create' kiana-entrypoints/src/cli.rs &&
@@ -226,11 +229,12 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.review.dry_run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.review.run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server checkpoint, diff, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
+  pass "app-server checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
-  fail "app-server checkpoint, diff, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
+  fail "app-server checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
@@ -377,6 +381,15 @@ if grep -Fq '"const": "kiana.context-index.v1"' docs/schemas/kiana-context-index
   pass "context index JSON schema version is pinned"
 else
   fail "context index JSON schema is missing required v1 cache recovery contract anchors"
+fi
+
+if grep -Fq '"const": "kiana.repo-map.v1"' docs/schemas/kiana-repo-map.v1.schema.json &&
+  grep -Fq '"token_budget"' docs/schemas/kiana-repo-map.v1.schema.json &&
+  grep -Fq '"estimated_tokens"' docs/schemas/kiana-repo-map.v1.schema.json &&
+  grep -Fq '"symbols"' docs/schemas/kiana-repo-map.v1.schema.json; then
+  pass "repo-map JSON schema version is pinned"
+else
+  fail "repo-map JSON schema is missing required structure anchors"
 fi
 
 if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-search.v1.schema.json; then
