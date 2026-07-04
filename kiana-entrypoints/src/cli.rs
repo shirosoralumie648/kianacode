@@ -5290,6 +5290,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_doctor_handler),
         )
         .route(
+            "/app/release/blockers",
+            axum::routing::get(direct_connect_app_release_blockers_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5837,6 +5841,49 @@ async fn direct_connect_app_doctor_handler(
             format!("failed to build doctor readiness report: {error}"),
         ),
     }
+}
+
+async fn direct_connect_app_release_blockers_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_commercial_release_blockers_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build commercial release blockers report: {error}"),
+        ),
+    }
+}
+
+fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let output = std::process::Command::new("bash")
+        .arg("scripts/commercial-release-blockers-report.sh")
+        .arg("--json")
+        .current_dir(root)
+        .output()
+        .context("failed to run scripts/commercial-release-blockers-report.sh --json")?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "commercial release blockers report exited with status {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    serde_json::from_slice::<Value>(&output.stdout)
+        .context("failed to parse commercial release blockers JSON report")
 }
 
 async fn direct_connect_app_secrets_handler(
@@ -7093,6 +7140,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "conversation.files.write",
             "settings.read",
             "doctor.read",
+            "release.blockers.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7147,6 +7195,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/doctor",
                 "schema": "kiana.app-server.doctor.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/blockers",
+                "schema": "kiana.commercial-release-blockers.v1"
             },
             {
                 "method": "GET",
@@ -16732,6 +16785,15 @@ mod tests {
             .iter()
             .any(|endpoint| {
                 endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/blockers"
+                    && endpoint["schema"] == "kiana.commercial-release-blockers.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/index"
                     && endpoint["schema"] == "kiana.context-index.v1"
             }));
@@ -17190,6 +17252,28 @@ mod tests {
             .iter()
             .any(|evidence| evidence == "deterministic-repo-map-budget"));
         assert!(local_coding["risks"].as_array().unwrap().is_empty());
+
+        let release_blockers: Value = client
+            .get(format!("http://{addr}/app/release/blockers"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            release_blockers["schema"],
+            "kiana.commercial-release-blockers.v1"
+        );
+        assert!(release_blockers["summary"]["total_checks"]
+            .as_u64()
+            .is_some_and(|count| count > 0));
+        assert!(release_blockers["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["id"] == "source.remote" && check["external"] == true));
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
