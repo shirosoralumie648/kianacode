@@ -1,6 +1,8 @@
 use anyhow::Result;
 use colored::*;
-use kiana_commands::{create_default_command_registry, CommandContext, CommandType};
+use kiana_commands::{
+    create_default_command_registry, CommandContext, CommandRegistry, CommandType,
+};
 use rustyline::DefaultEditor;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -26,20 +28,25 @@ pub async fn run_repl() -> Result<()> {
             Err(_) => break,
         };
 
-        if input.trim().is_empty() {
-            continue;
-        }
-
-        editor.add_history_entry(&input)?;
-
-        if let Some(command_line) = input.trim().strip_prefix('/') {
-            let mut parts = command_line.splitn(2, char::is_whitespace);
-            let name = parts.next().unwrap_or_default();
-            let args = parts.next().unwrap_or_default().trim().to_string();
-
-            if let Some(command) = command_registry.get(name) {
+        match classify_repl_input(&input, &command_registry) {
+            ReplInputRoute::Empty => continue,
+            ReplInputRoute::UnknownCommand(name) => {
+                editor.add_history_entry(&input)?;
+                println!(
+                    "{} Unknown command: /{}. Try /help.",
+                    "Kiana:".bright_cyan().bold(),
+                    name
+                );
+                println!();
+                continue;
+            }
+            ReplInputRoute::Command { name, args } => {
+                editor.add_history_entry(&input)?;
+                let command = command_registry
+                    .get(&name)
+                    .expect("classified command must exist in registry");
                 let command_state = command_app_state(&app_state, &session_id, &cwd);
-                let should_clear_session = is_clear_session_command(name, &args);
+                let should_clear_session = is_clear_session_command(&name, &args);
                 let result = command
                     .execute(CommandContext {
                         args,
@@ -74,14 +81,14 @@ pub async fn run_repl() -> Result<()> {
                         continue;
                     }
                 }
-            } else {
-                println!(
-                    "{} Unknown command: /{}. Try /help.",
-                    "Kiana:".bright_cyan().bold(),
-                    name
-                );
-                println!();
-                continue;
+            }
+            ReplInputRoute::Prompt(prompt) => {
+                editor.add_history_entry(&input)?;
+                input = prompt;
+            }
+            ReplInputRoute::BashShortcut(command) => {
+                editor.add_history_entry(&input)?;
+                input = format!("Run this shell command: {command}");
             }
         }
 
@@ -174,6 +181,42 @@ fn is_clear_session_command(name: &str, args: &str) -> bool {
     name == "clear" && args.trim().is_empty()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReplInputRoute {
+    Empty,
+    Prompt(String),
+    Command { name: String, args: String },
+    UnknownCommand(String),
+    BashShortcut(String),
+}
+
+fn classify_repl_input(input: &str, command_registry: &CommandRegistry) -> ReplInputRoute {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return ReplInputRoute::Empty;
+    }
+
+    if let Some(command) = trimmed.strip_prefix('!') {
+        let command = command.trim();
+        if !command.is_empty() {
+            return ReplInputRoute::BashShortcut(command.to_string());
+        }
+    }
+
+    let Some(command_line) = trimmed.strip_prefix('/') else {
+        return ReplInputRoute::Prompt(input.to_string());
+    };
+
+    let mut parts = command_line.splitn(2, char::is_whitespace);
+    let name = parts.next().unwrap_or_default().to_string();
+    let args = parts.next().unwrap_or_default().trim().to_string();
+    if command_registry.get(&name).is_some() {
+        ReplInputRoute::Command { name, args }
+    } else {
+        ReplInputRoute::UnknownCommand(name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,5 +264,35 @@ mod tests {
         assert!(!is_clear_session_command("clear", "status"));
         assert!(!is_clear_session_command("clear", "--help"));
         assert!(!is_clear_session_command("status", ""));
+    }
+
+    #[test]
+    fn repl_input_classifier_routes_text_slash_bash_and_unknown_commands() {
+        let registry = create_default_command_registry();
+
+        assert_eq!(classify_repl_input("   ", &registry), ReplInputRoute::Empty);
+        assert_eq!(
+            classify_repl_input("explain this file", &registry),
+            ReplInputRoute::Prompt("explain this file".to_string())
+        );
+        assert_eq!(
+            classify_repl_input("please run /help", &registry),
+            ReplInputRoute::Prompt("please run /help".to_string())
+        );
+        assert_eq!(
+            classify_repl_input("/help config", &registry),
+            ReplInputRoute::Command {
+                name: "help".to_string(),
+                args: "config".to_string()
+            }
+        );
+        assert_eq!(
+            classify_repl_input("/unknown arg", &registry),
+            ReplInputRoute::UnknownCommand("unknown".to_string())
+        );
+        assert_eq!(
+            classify_repl_input("!git status --short", &registry),
+            ReplInputRoute::BashShortcut("git status --short".to_string())
+        );
     }
 }
