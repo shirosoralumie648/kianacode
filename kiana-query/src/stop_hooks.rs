@@ -49,6 +49,14 @@ pub struct HookInfo {
 pub enum StopHookEvent {
     /// A hook produced a blocking error; the content should be shown to the user.
     BlockingError { content: String },
+    /// A hook produced a structured runtime error for public event streams.
+    RuntimeError {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+        message: String,
+        #[serde(default)]
+        details: Value,
+    },
     /// A hook signalled that the query loop should not continue.
     ContinuationPrevented { reason: String },
     /// Informational progress update (hook started / finished).
@@ -476,7 +484,11 @@ async fn execute_hook_set(
     let commands = hook_resolution.commands;
     let timeout_duration = hook_timeout_duration();
     let mut hook_infos = Vec::new();
-    let mut errors = hook_resolution.errors;
+    let mut runtime_errors = hook_resolution.errors;
+    let mut errors = runtime_errors
+        .iter()
+        .map(|error| error.message.clone())
+        .collect::<Vec<_>>();
     let mut prevented_continuation = false;
     let mut stop_reason = None;
     let mut has_output = false;
@@ -487,10 +499,17 @@ async fn execute_hook_set(
         return HookSetResult::Aborted;
     }
 
-    for error in &errors {
+    for error in &runtime_errors {
+        let _ = tx
+            .send(StopHookEvent::RuntimeError {
+                code: error.code.clone(),
+                message: error.message.clone(),
+                details: error.details.clone(),
+            })
+            .await;
         let _ = tx
             .send(StopHookEvent::BlockingError {
-                content: error.clone(),
+                content: error.message.clone(),
             })
             .await;
     }
@@ -520,8 +539,17 @@ async fn execute_hook_set(
             return HookSetResult::Aborted;
         }
 
-        if let Some(error) = run.error {
-            errors.push(format!("{}: {}", command, error));
+        if let Some(error) = run.error.as_ref() {
+            let runtime_error = hook_command_runtime_error(hook_name, command, &run, error.clone());
+            let _ = tx
+                .send(StopHookEvent::RuntimeError {
+                    code: runtime_error.code.clone(),
+                    message: runtime_error.message.clone(),
+                    details: runtime_error.details.clone(),
+                })
+                .await;
+            errors.push(runtime_error.message.clone());
+            runtime_errors.push(runtime_error);
             continue;
         }
 
@@ -635,7 +663,11 @@ async fn execute_context_hook_set(
     let hook_resolution = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
     let commands = hook_resolution.commands;
     let timeout_duration = hook_timeout_duration();
-    let mut errors = hook_resolution.errors;
+    let mut errors = hook_resolution
+        .errors
+        .into_iter()
+        .map(|error| error.message)
+        .collect::<Vec<_>>();
     let mut contexts = Vec::new();
     let mut updated_input = None;
 
@@ -770,7 +802,16 @@ struct HookRun {
     stdout: String,
     stderr: String,
     error: Option<String>,
+    error_code: Option<String>,
+    error_details: Value,
     aborted: bool,
+}
+
+#[derive(Debug, Clone)]
+struct HookRuntimeError {
+    code: Option<String>,
+    message: String,
+    details: Value,
 }
 
 #[derive(Debug, Default)]
@@ -812,6 +853,8 @@ async fn run_hook_command(
                 stdout: String::new(),
                 stderr: String::new(),
                 error: Some(error.to_string()),
+                error_code: Some("hook_spawn_error".to_string()),
+                error_details: json!({}),
                 aborted: false,
             };
         }
@@ -825,6 +868,8 @@ async fn run_hook_command(
                 stdout: String::new(),
                 stderr: String::new(),
                 error: Some(format!("failed to write hook stdin: {}", error)),
+                error_code: Some("hook_stdin_error".to_string()),
+                error_details: json!({}),
                 aborted: false,
             };
         }
@@ -839,6 +884,8 @@ async fn run_hook_command(
             stdout: String::new(),
             stderr: String::new(),
             error: None,
+            error_code: None,
+            error_details: json!({}),
             aborted: true,
         },
         result = timeout(timeout_duration, &mut wait) => match result {
@@ -848,6 +895,8 @@ async fn run_hook_command(
                 stdout: String::from_utf8_lossy(&output.stdout).to_string(),
                 stderr: String::from_utf8_lossy(&output.stderr).to_string(),
                 error: None,
+                error_code: None,
+                error_details: json!({}),
                 aborted: false,
             },
             Ok(Err(error)) => HookRun {
@@ -856,6 +905,8 @@ async fn run_hook_command(
                 stdout: String::new(),
                 stderr: String::new(),
                 error: Some(error.to_string()),
+                error_code: Some("hook_wait_error".to_string()),
+                error_details: json!({}),
                 aborted: false,
             },
             Err(_) => HookRun {
@@ -864,6 +915,10 @@ async fn run_hook_command(
                 stdout: String::new(),
                 stderr: String::new(),
                 error: Some(format!("hook timed out after {}ms", timeout_duration.as_millis())),
+                error_code: Some("hook_timeout".to_string()),
+                error_details: json!({
+                    "timeout_ms": timeout_duration.as_millis()
+                }),
                 aborted: false,
             },
         },
@@ -939,7 +994,7 @@ fn is_windows_system_bash(path: &Path) -> bool {
 #[derive(Debug, Default)]
 struct HookCommandResolution {
     commands: Vec<String>,
-    errors: Vec<String>,
+    errors: Vec<HookRuntimeError>,
 }
 
 fn hook_commands_for(
@@ -966,7 +1021,7 @@ fn hook_commands_for(
             },
             Err(error) => HookCommandResolution {
                 commands: Vec::new(),
-                errors: vec![format_hook_config_error(specific_env, &error)],
+                errors: vec![hook_config_error(hook_name, specific_env, &error)],
             },
         };
     }
@@ -979,7 +1034,7 @@ fn hook_commands_for(
             },
             Err(error) => HookCommandResolution {
                 commands: Vec::new(),
-                errors: vec![format_hook_config_error("KIANA_HOOKS", &error)],
+                errors: vec![hook_config_error(hook_name, "KIANA_HOOKS", &error)],
             },
         };
     }
@@ -1005,18 +1060,22 @@ fn hook_commands_from_files(
         let contents = match std::fs::read_to_string(&path) {
             Ok(contents) => contents,
             Err(error) => {
-                resolution
-                    .errors
-                    .push(format!("failed to read hook config {source}: {error}"));
+                resolution.errors.push(hook_io_error(
+                    hook_name,
+                    &source,
+                    format!("failed to read hook config {source}: {error}"),
+                ));
                 continue;
             }
         };
         let value = match serde_json::from_str::<Value>(&contents) {
             Ok(value) => value,
             Err(error) => {
-                resolution
-                    .errors
-                    .push(format!("invalid hook JSON in {source}: {error}"));
+                resolution.errors.push(hook_json_error(
+                    hook_name,
+                    &source,
+                    format!("invalid hook JSON in {source}: {error}"),
+                ));
                 continue;
             }
         };
@@ -1026,7 +1085,7 @@ fn hook_commands_from_files(
                 .extend(hook_commands_for_event(&config, hook_name)),
             Err(error) => resolution
                 .errors
-                .push(format_hook_config_error(&source, &error)),
+                .push(hook_config_error(hook_name, &source, &error)),
         };
     }
     resolution
@@ -1046,9 +1105,11 @@ fn plugin_hook_commands(hook_name: &str) -> HookCommandResolution {
         let value = match serde_json::from_str::<Value>(&contents) {
             Ok(value) => value,
             Err(error) => {
-                resolution
-                    .errors
-                    .push(format!("invalid hook JSON in {source}: {error}"));
+                resolution.errors.push(hook_json_error(
+                    hook_name,
+                    &source,
+                    format!("invalid hook JSON in {source}: {error}"),
+                ));
                 continue;
             }
         };
@@ -1058,17 +1119,80 @@ fn plugin_hook_commands(hook_name: &str) -> HookCommandResolution {
                 .extend(hook_commands_for_event(&config, hook_name)),
             Err(error) => resolution
                 .errors
-                .push(format_hook_config_error(&source, &error)),
+                .push(hook_config_error(hook_name, &source, &error)),
         }
     }
     resolution
 }
 
-fn format_hook_config_error(source: &str, error: &HookConfigError) -> String {
-    format!(
+fn hook_command_runtime_error(
+    hook_name: &str,
+    command: &str,
+    run: &HookRun,
+    error: String,
+) -> HookRuntimeError {
+    let mut details = json!({
+        "hook_event": hook_name,
+        "command": command,
+        "duration_ms": run.duration_ms,
+    });
+    merge_runtime_error_details(&mut details, &run.error_details);
+    HookRuntimeError {
+        code: run
+            .error_code
+            .clone()
+            .or_else(|| Some("hook_execution_error".to_string())),
+        message: format!("{command}: {error}"),
+        details,
+    }
+}
+
+fn hook_io_error(hook_name: &str, source: &str, message: String) -> HookRuntimeError {
+    HookRuntimeError {
+        code: Some("hook_config_io_error".to_string()),
+        message,
+        details: json!({
+            "hook_event": hook_name,
+            "source": source
+        }),
+    }
+}
+
+fn hook_json_error(hook_name: &str, source: &str, message: String) -> HookRuntimeError {
+    HookRuntimeError {
+        code: Some("hook_config_json_error".to_string()),
+        message,
+        details: json!({
+            "hook_event": hook_name,
+            "source": source
+        }),
+    }
+}
+
+fn hook_config_error(hook_name: &str, source: &str, error: &HookConfigError) -> HookRuntimeError {
+    let message = format!(
         "invalid hook schema in {} at {}: {}",
         source, error.location, error.message
-    )
+    );
+    HookRuntimeError {
+        code: Some("hook_config_error".to_string()),
+        message,
+        details: json!({
+            "hook_event": hook_name,
+            "source": source,
+            "location": error.location,
+            "schema_error": error.message
+        }),
+    }
+}
+
+fn merge_runtime_error_details(target: &mut Value, source: &Value) {
+    let (Some(target), Some(source)) = (target.as_object_mut(), source.as_object()) else {
+        return;
+    };
+    for (key, value) in source {
+        target.insert(key.clone(), value.clone());
+    }
 }
 
 fn installed_plugin_roots() -> Vec<PathBuf> {
@@ -1464,6 +1588,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stop_hook_timeout_emits_runtime_error_event() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        std::env::set_var("KIANA_HOOK_TIMEOUT_MS", "1");
+        set_stop_hook("sleep 1");
+
+        let (events, result) = run_and_collect(make_ctx()).await;
+
+        assert_eq!(result.blocking_errors.len(), 1);
+        assert!(
+            result.blocking_errors[0].contains("hook timed out after 1ms"),
+            "{:?}",
+            result.blocking_errors
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            StopHookEvent::RuntimeError { code, message, details }
+                if code.as_deref() == Some("hook_timeout")
+                    && message.contains("hook timed out after 1ms")
+                    && details["hook_event"] == "Stop"
+                    && details["timeout_ms"] == 1
+        )));
+        clear_hook_env();
+    }
+
+    #[tokio::test]
     async fn stop_hooks_load_from_persistent_hooks_file() {
         let _guard = env_guard().await;
         clear_hook_env();
@@ -1517,6 +1667,46 @@ mod tests {
         assert!(events.iter().any(|event| matches!(
             event,
             StopHookEvent::BlockingError { content } if content.contains("invalid hook schema")
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            StopHookEvent::RuntimeError { code, message, details }
+                if code.as_deref() == Some("hook_config_error")
+                    && message.contains("invalid hook schema")
+                    && details["hook_event"] == "Stop"
+                    && details["source"].as_str().is_some_and(|source| source == path.to_string_lossy())
+        )));
+        let _ = std::fs::remove_file(path);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn stop_hooks_report_invalid_json_as_runtime_error_event() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let path = std::env::temp_dir().join(format!(
+            "kiana-invalid-stop-hooks-{}-{}.json",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, r#"{"Stop":["echo missing end quote]}"#).unwrap();
+        std::env::set_var("KIANA_HOOKS_FILE", &path);
+
+        let (events, result) = run_and_collect(make_ctx()).await;
+
+        assert_eq!(result.blocking_errors.len(), 1);
+        assert!(
+            result.blocking_errors[0].contains("invalid hook JSON"),
+            "{:?}",
+            result.blocking_errors
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            StopHookEvent::RuntimeError { code, message, details }
+                if code.as_deref() == Some("hook_config_json_error")
+                    && message.contains("invalid hook JSON")
+                    && details["hook_event"] == "Stop"
+                    && details["source"].as_str().is_some_and(|source| source == path.to_string_lossy())
         )));
         let _ = std::fs::remove_file(path);
         clear_hook_env();
