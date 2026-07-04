@@ -5237,6 +5237,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_plugins_handler),
         )
         .route(
+            "/app/models/catalog",
+            axum::routing::get(direct_connect_app_model_catalog_handler),
+        )
+        .route(
             "/app/git/status",
             axum::routing::get(direct_connect_app_git_status_handler),
         )
@@ -5564,6 +5568,46 @@ async fn direct_connect_app_plugins_handler(
         "plugins": plugins,
     }))
     .into_response()
+}
+
+async fn direct_connect_app_model_catalog_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("model") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "model command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "catalog --json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build model catalog report: {error}"),
+        ),
+    }
 }
 
 async fn direct_connect_app_git_status_handler(
@@ -6600,6 +6644,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
+            "model.catalog.read",
             "git.status.read",
             "diff.read",
             "checkpoint.create",
@@ -6648,6 +6693,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/plugins",
                 "schema": "kiana.app-server.plugins.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/models/catalog",
+                "schema": "kiana.model-catalog.v1"
             },
             {
                 "method": "GET",
@@ -15945,6 +15995,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("model.catalog.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.index.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -16012,6 +16066,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/plugins"
                     && endpoint["schema"] == "kiana.app-server.plugins.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/models/catalog"
+                    && endpoint["schema"] == "kiana.model-catalog.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16249,6 +16312,30 @@ mod tests {
         assert_eq!(disabled_tools["enabled"], false);
         assert_eq!(disabled_tools["valid"], true);
         assert_eq!(disabled_tools["components"]["commands"], 1);
+
+        let model_catalog: Value = client
+            .get(format!("http://{addr}/app/models/catalog"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(model_catalog["schema"], "kiana.model-catalog.v1");
+        assert_eq!(model_catalog["live"], false);
+        assert_eq!(model_catalog["summary"]["failed"], 0);
+        assert!(model_catalog["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| provider["provider_id"] == "fake" && provider["status"] == "static"));
+        assert!(model_catalog["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| provider["provider_id"] == "openai-compatible"
+                && provider["status"] == "skipped"));
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))

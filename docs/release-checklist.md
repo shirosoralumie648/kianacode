@@ -148,6 +148,9 @@ commercial release.
 - App-server review run returns `kiana.review.run.v1` from the active workspace
   so Web/IDE clients can execute isolated local review checks and findings
   without shelling out to `kiana review --json`.
+- App-server model catalog returns `kiana.model-catalog.v1` in offline mode so
+  Web/IDE clients can render provider/model availability without shelling out to
+  `kiana model catalog --json`.
 - App-server context endpoints return `kiana.context-index.v1`,
   `kiana.repo-map.v1`, `kiana.context-search.v1`, and
   `kiana.context-pack.v1` from the active workspace so Web/IDE clients can use
