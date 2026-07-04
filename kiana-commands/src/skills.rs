@@ -2,8 +2,9 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use kiana_skills::{
-    clear_caches, get_plugin_skill_dirs, get_skill_dirs_with_trust, load_all_skills_with_trust,
-    Command as SkillCommand, LoadedFrom, SettingSource,
+    clear_caches, get_plugin_skill_dirs_for_cwd, get_skill_dirs_with_trust,
+    load_all_skills_with_trust, plugin_skill_load_audit_for_cwd, Command as SkillCommand,
+    LoadedFrom, SettingSource,
 };
 use kiana_types::project_trust_from_app_state;
 use serde::Serialize;
@@ -35,6 +36,7 @@ impl Command for SkillsCommand {
         match command.unwrap_or("list") {
             "" | "list" | "status" => list_skills(&context, rest).await,
             "json" => skills_json(&context, rest).await,
+            "audit" => skills_audit(&context, rest).await,
             "show" | "get" => show_skill(&context, rest).await,
             "path" | "paths" => skill_paths(&context, rest).await,
             "query" | "search" | "find" => list_skills(&context, rest).await,
@@ -106,6 +108,31 @@ async fn skills_json(context: &CommandContext, query: &str) -> Result<CommandRes
     Ok(CommandResult::text(serde_json::to_string_pretty(&payload)?))
 }
 
+async fn skills_audit(context: &CommandContext, rest: &str) -> Result<CommandResult> {
+    let rest = rest.trim();
+    if !matches!(rest, "" | "--json" | "json") {
+        return Err(anyhow!("usage: kiana skills audit [--json]"));
+    }
+
+    let cwd = cwd(context);
+    let skills = filtered_skills(load_skills(context, &cwd).await, "");
+    let skill_payload: Vec<SkillSummary> = skills.iter().map(SkillSummary::from).collect();
+    let project_trust = project_trust_from_app_state(&context.app_state);
+    let plugin_audit = plugin_skill_load_audit_for_cwd(&cwd, project_trust).await;
+    let payload = serde_json::json!({
+        "schema": "kiana.skills-audit.v1",
+        "cwd": cwd.display().to_string(),
+        "skills": skill_payload,
+        "plugin_load_audit": plugin_audit.entries,
+        "totals": {
+            "skills": skills.len(),
+            "plugins": plugin_audit.total_plugins,
+            "plugin_skills_loaded": plugin_audit.total_skills_loaded,
+        }
+    });
+    Ok(CommandResult::text(serde_json::to_string_pretty(&payload)?))
+}
+
 async fn show_skill(context: &CommandContext, rest: &str) -> Result<CommandResult> {
     let name = rest.trim();
     if name.is_empty() {
@@ -155,7 +182,9 @@ async fn load_skills(context: &CommandContext, cwd: &std::path::Path) -> Vec<Ski
 async fn skill_dirs(context: &CommandContext, cwd: &std::path::Path) -> Vec<PathBuf> {
     let mut dirs =
         get_skill_dirs_with_trust(cwd, project_trust_from_app_state(&context.app_state)).await;
-    dirs.extend(get_plugin_skill_dirs().await);
+    dirs.extend(
+        get_plugin_skill_dirs_for_cwd(cwd, project_trust_from_app_state(&context.app_state)).await,
+    );
     dirs
 }
 
@@ -291,7 +320,7 @@ fn loaded_from_label(loaded_from: LoadedFrom) -> &'static str {
 }
 
 fn usage() -> &'static str {
-    "usage: kiana skills [list|status|json [query]|show <name>|path [name]|query <text>]"
+    "usage: kiana skills [list|status|json [query]|audit [--json]|show <name>|path [name]|query <text>]"
 }
 
 #[derive(Serialize)]
@@ -561,6 +590,77 @@ mod tests {
             .unwrap();
         assert!(std::path::Path::new(&path.value)
             .ends_with(std::path::Path::new("skills").join("code-audit")));
+
+        std::env::remove_var("KIANA_HOME");
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn skills_audit_json_reports_plugin_load_status_and_manifest_errors() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("plugin-audit");
+        let project = root.join("project");
+        let plugins_dir = root.join("plugins");
+        write_plugin_skill(
+            &plugins_dir,
+            "review-tools",
+            "code-audit",
+            "---\ndescription: Audit code from plugin\n---\nPlugin body\n",
+        );
+
+        let invalid_plugin = plugins_dir.join("broken-tools");
+        fs::create_dir_all(invalid_plugin.join(".codex-plugin")).unwrap();
+        fs::write(
+            invalid_plugin.join(".codex-plugin").join("plugin.json"),
+            r#"{"name":"broken-tools","#,
+        )
+        .unwrap();
+        fs::create_dir_all(invalid_plugin.join("skills").join("broken-audit")).unwrap();
+        fs::write(
+            invalid_plugin
+                .join("skills")
+                .join("broken-audit")
+                .join("SKILL.md"),
+            "---\ndescription: Broken plugin skill\n---\nPlugin body\n",
+        )
+        .unwrap();
+
+        std::env::set_var("KIANA_HOME", root.join("empty-home"));
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        let app_state = HashMap::from([("cwd".to_string(), json!(project))]);
+
+        let audit_result = SkillsCommand
+            .execute(context("audit --json", app_state))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&audit_result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.skills-audit.v1");
+        assert_eq!(value["skills"].as_array().unwrap().len(), 1);
+        assert_eq!(value["skills"][0]["name"], "review-tools:code-audit");
+        assert_eq!(value["skills"][0]["loaded_from"], "plugin");
+
+        let audit = value["plugin_load_audit"].as_array().unwrap();
+        let loaded = audit
+            .iter()
+            .find(|entry| entry["plugin"] == "review-tools")
+            .expect("successful plugin audit entry");
+        assert_eq!(loaded["status"], "loaded");
+        assert_eq!(loaded["skills_loaded"], 1);
+        assert_eq!(loaded["warnings"], json!([]));
+
+        let broken = audit
+            .iter()
+            .find(|entry| entry["plugin"] == "broken-tools")
+            .expect("broken plugin audit entry");
+        assert_eq!(broken["status"], "error");
+        assert_eq!(broken["error"]["type"], "manifest-parse-error");
+        assert!(broken["error"]["manifest_path"]
+            .as_str()
+            .unwrap()
+            .ends_with(".codex-plugin/plugin.json"));
+        assert_eq!(broken["skills_loaded"], 0);
 
         std::env::remove_var("KIANA_HOME");
         std::env::remove_var("KIANA_PLUGINS_DIR");

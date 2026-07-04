@@ -12,7 +12,10 @@ pub use dynamic::{
 };
 pub use loader::{get_skill_dirs, get_skill_dirs_with_trust, load_skills_from_dir, SkillLoadError};
 pub use mcp::fetch_mcp_skills_for_client;
-pub use plugins::{get_plugin_skill_dirs, load_plugin_skills};
+pub use plugins::{
+    get_plugin_skill_dirs, get_plugin_skill_dirs_for_cwd, load_plugin_skills,
+    load_plugin_skills_for_cwd, plugin_skill_load_audit, plugin_skill_load_audit_for_cwd,
+};
 pub use types::{Command, ExecutionContext, Frontmatter, LoadedFrom, SettingSource};
 
 use std::collections::HashMap;
@@ -51,7 +54,7 @@ pub async fn load_all_skills_with_trust(
     let cache_key = format!(
         "{}::{project_trust:?}::plugins={}",
         cwd_cache_key(cwd),
-        plugin_skill_cache_key()
+        plugins::plugin_skill_cache_key_for_cwd(cwd, project_trust)
     );
     let mut registry = skill_registry().lock().await;
 
@@ -69,7 +72,7 @@ pub async fn load_all_skills_with_trust(
             Err(e) => warn!("Failed to load skills from {:?}: {}", dir, e),
         }
     }
-    all.extend(load_plugin_skills().await);
+    all.extend(load_plugin_skills_for_cwd(cwd, project_trust).await);
 
     // Deduplicate by name (first wins, which is shallowest dir / highest priority)
     let mut seen = std::collections::HashSet::new();
@@ -102,19 +105,6 @@ fn cwd_cache_key(cwd: &Path) -> String {
         .unwrap_or_else(|_| cwd.to_path_buf())
         .to_string_lossy()
         .to_string()
-}
-
-fn plugin_skill_cache_key() -> String {
-    kiana_types::plugin::installed_plugin_roots()
-        .into_iter()
-        .map(|path| {
-            path.canonicalize()
-                .unwrap_or(path)
-                .to_string_lossy()
-                .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("|")
 }
 
 pub fn find_command<'a>(name: &str, commands: &'a [Command]) -> Option<&'a Command> {
