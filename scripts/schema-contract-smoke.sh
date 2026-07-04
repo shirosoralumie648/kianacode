@@ -34,10 +34,11 @@ tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_checks_dry_run="$(mktemp)"
 tmp_review_dry_run="$(mktemp)"
+tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_review_dry_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -190,6 +191,71 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-review-dry-run.v1.schema.json \
   "$tmp_review_dry_run" >/dev/null
+
+cat > "$tmp_review_run" <<'JSON'
+{
+  "schema": "kiana.review.run.v1",
+  "root": "/workspace",
+  "git_root": "/workspace",
+  "inside_git_repo": true,
+  "dry_run": false,
+  "dirty": true,
+  "head": "0123456789abcdef0123456789abcdef01234567",
+  "branch": "main",
+  "files": [
+    {
+      "path": "src/lib.rs",
+      "index": " ",
+      "worktree": "M"
+    }
+  ],
+  "patches": {
+    "staged": {
+      "changed": false,
+      "bytes": 0,
+      "text": ""
+    },
+    "unstaged": {
+      "changed": true,
+      "bytes": 42,
+      "text": "diff --git a/src/lib.rs b/src/lib.rs\n"
+    }
+  },
+  "checks": {
+    "schema": "kiana.checks.run.v1",
+    "root": "/workspace",
+    "git_root": "/workspace",
+    "inside_git_repo": true,
+    "dry_run": false,
+    "execution": {
+      "isolation": "git_worktree",
+      "applied_current_changes": true
+    },
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "results": [
+      {
+        "id": "release_smoke",
+        "description": "Release smoke gate",
+        "command": "bash scripts/release-smoke.sh",
+        "status": "passed",
+        "exit_code": 0,
+        "stdout": "smoke-ok\n",
+        "stderr": "",
+        "error": null
+      }
+    ]
+  },
+  "findings": []
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-review-run.v1.schema.json \
+  "$tmp_review_run" >/dev/null
 
 cat > "$tmp_doctor" <<'JSON'
 {

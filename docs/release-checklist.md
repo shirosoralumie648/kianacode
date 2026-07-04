@@ -135,6 +135,9 @@ commercial release.
   workspace so Web/IDE clients can display deterministic local review state,
   patch previews, and isolated-review steps without shelling out to
   `kiana review --dry-run --json`.
+- App-server review run returns `kiana.review.run.v1` from the active workspace
+  so Web/IDE clients can execute isolated local review checks and findings
+  without shelling out to `kiana review --json`.
 - App-server context endpoints return `kiana.context-index.v1`,
   `kiana.context-search.v1`, and `kiana.context-pack.v1` from the active
   workspace so Web/IDE clients can use repository knowledge without shelling out

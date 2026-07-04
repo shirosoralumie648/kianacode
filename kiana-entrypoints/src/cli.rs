@@ -5248,6 +5248,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_review_dry_run_handler),
         )
         .route(
+            "/app/review",
+            axum::routing::get(direct_connect_app_review_run_handler),
+        )
+        .route(
             "/app/context/index",
             axum::routing::get(direct_connect_app_context_index_handler),
         )
@@ -5637,6 +5641,55 @@ async fn direct_connect_app_review_dry_run_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             format!("failed to build review dry-run report: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_review_run_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    direct_connect_app_review_handler(state, headers, "--json", "run").await
+}
+
+async fn direct_connect_app_review_handler(
+    state: DirectConnectServerState,
+    headers: axum::http::HeaderMap,
+    args: &str,
+    report_kind: &str,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("review") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "review command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: args.to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build review {report_kind} report: {error}"),
         ),
     }
 }
@@ -6345,6 +6398,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "git.status.read",
             "checks.dry_run.read",
             "review.dry_run.read",
+            "review.run.read",
             "context.index.read",
             "context.index.cache.write",
             "context.search.read",
@@ -6400,6 +6454,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/review/dry-run",
                 "schema": "kiana.review.dry_run.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/review",
+                "schema": "kiana.review.run.v1"
             },
             {
                 "method": "GET",
@@ -15500,7 +15559,11 @@ mod tests {
             "pub fn checkout() {}\n// checkout checkout\n",
         )
         .unwrap();
-        std::fs::write(workspace.join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        std::fs::write(
+            workspace.join("Cargo.toml"),
+            "[package]\nname = \"kiana-direct-app-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .unwrap();
         std::fs::write(workspace.join("README.md"), "checkout guide\n").unwrap();
         let disabled_plugin_root = plugins_dir.join("disabled-tools");
         let disabled_manifest_dir = disabled_plugin_root.join(".codex-plugin");
@@ -15674,6 +15737,10 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&Value::String("review.dry_run.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("review.run.read".to_string())));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -15745,6 +15812,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/review/dry-run"
                     && endpoint["schema"] == "kiana.review.dry_run.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/review"
+                    && endpoint["schema"] == "kiana.review.run.v1"
             }));
 
         let conversations: Value = client
@@ -16012,6 +16088,48 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+
+        run_git_for_test(&workspace, &["init"]).await;
+        run_git_for_test(&workspace, &["config", "user.email", "kiana@example.com"]).await;
+        run_git_for_test(&workspace, &["config", "user.name", "Kiana"]).await;
+        std::fs::create_dir_all(workspace.join("scripts")).unwrap();
+        std::fs::write(
+            workspace.join("scripts").join("release-smoke.sh"),
+            "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'app-review-ok\\n'\n",
+        )
+        .unwrap();
+        run_git_for_test(&workspace, &["add", "."]).await;
+        run_git_for_test(&workspace, &["commit", "-m", "initial"]).await;
+        std::fs::write(
+            workspace.join("src").join("lib.rs"),
+            "pub fn checkout() {}\n// checkout checkout\n// working review\n",
+        )
+        .unwrap();
+        std::fs::write(workspace.join("review-notes.txt"), "client review notes\n").unwrap();
+
+        let review_run: Value = client
+            .get(format!("http://{addr}/app/review"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(review_run["schema"], "kiana.review.run.v1");
+        assert_eq!(review_run["root"], workspace.display().to_string());
+        assert_eq!(review_run["dry_run"], false);
+        assert_eq!(review_run["inside_git_repo"], true);
+        assert_eq!(
+            review_run["checks"]["execution"]["isolation"],
+            "git_worktree"
+        );
+        assert_eq!(review_run["checks"]["summary"]["failed"], 0);
+        assert!(review_run["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|file| file["path"] == "review-notes.txt"));
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))
