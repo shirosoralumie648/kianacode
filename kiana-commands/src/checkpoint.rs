@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
@@ -469,11 +469,13 @@ fn restore_checkpoint(cwd: &Path, target: &Path) -> Result<CheckpointRestoreRepo
     }
 
     let mut report = CheckpointRestoreReport {
+        schema: "kiana.checkpoint.restore.v1",
         id: checkpoint.id.clone(),
         checkpoint_dir: checkpoint_dir.to_string_lossy().to_string(),
         git_root: git_root.to_string_lossy().to_string(),
         applied_patches: Vec::new(),
         restored_untracked: Vec::new(),
+        changed_files: Vec::new(),
         skipped: Vec::new(),
         conflicts: Vec::new(),
     };
@@ -597,6 +599,7 @@ fn restore_patch(
         return Ok(());
     }
 
+    let before = restore_patch_file_states(git_root, patch_path)?;
     let check = run_git(
         git_root,
         &["apply", "--check", "--binary"],
@@ -618,6 +621,64 @@ fn restore_patch(
         return Ok(());
     }
     report.applied_patches.push(patch_name.to_string());
+    record_patch_file_changes(git_root, patch_name, before, report)?;
+    Ok(())
+}
+
+fn restore_patch_file_states(git_root: &Path, patch_path: &Path) -> Result<BTreeMap<String, bool>> {
+    let output = run_git(
+        git_root,
+        &["apply", "--numstat", "--summary"],
+        Some(patch_path),
+    )?;
+    if !output.status.success() {
+        return Ok(BTreeMap::new());
+    }
+    let mut files = BTreeMap::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let Some(path) = patch_numstat_path(line) else {
+            continue;
+        };
+        let Some(relative) = safe_relative_path(&path) else {
+            continue;
+        };
+        let exists = git_root.join(relative).exists();
+        files.insert(path, exists);
+    }
+    Ok(files)
+}
+
+fn patch_numstat_path(line: &str) -> Option<String> {
+    let mut columns = line.split('\t');
+    let _added = columns.next()?;
+    let _deleted = columns.next()?;
+    let path = columns.next()?.trim();
+    if path.is_empty() || columns.next().is_some() {
+        return None;
+    }
+    Some(parse_status_path(path))
+}
+
+fn record_patch_file_changes(
+    git_root: &Path,
+    patch_name: &str,
+    before: BTreeMap<String, bool>,
+    report: &mut CheckpointRestoreReport,
+) -> Result<()> {
+    for (path, before_exists) in before {
+        let Some(relative) = safe_relative_path(&path) else {
+            continue;
+        };
+        let after_exists = git_root.join(relative).exists();
+        report.changed_files.push(RestoreChangedFile {
+            path,
+            operation: "patch_applied".to_string(),
+            source: patch_name.to_string(),
+            before_exists,
+            after_exists,
+            changed: before_exists != after_exists || after_exists,
+        });
+    }
     Ok(())
 }
 
@@ -644,6 +705,7 @@ fn restore_untracked_files(
             continue;
         }
         let target = git_root.join(relative);
+        let before_exists = target.exists();
         if target.exists() {
             let source_bytes = fs::read(&source)
                 .with_context(|| format!("failed to read {}", source.display()))?;
@@ -674,6 +736,14 @@ fn restore_untracked_files(
             )
         })?;
         report.restored_untracked.push(path.clone());
+        report.changed_files.push(RestoreChangedFile {
+            path: path.clone(),
+            operation: "restored_untracked".to_string(),
+            source: "checkpoint_untracked".to_string(),
+            before_exists,
+            after_exists: target.exists(),
+            changed: true,
+        });
     }
     Ok(())
 }
@@ -1151,11 +1221,13 @@ struct AssistantFinalFile {
 
 #[derive(Debug, Serialize)]
 struct CheckpointRestoreReport {
+    schema: &'static str,
     id: String,
     checkpoint_dir: String,
     git_root: String,
     applied_patches: Vec<String>,
     restored_untracked: Vec<String>,
+    changed_files: Vec<RestoreChangedFile>,
     skipped: Vec<RestoreSkipped>,
     conflicts: Vec<RestoreConflict>,
 }
@@ -1231,4 +1303,14 @@ struct RestoreSkipped {
 struct RestoreConflict {
     path: String,
     reason: String,
+}
+
+#[derive(Debug, Serialize)]
+struct RestoreChangedFile {
+    path: String,
+    operation: String,
+    source: String,
+    before_exists: bool,
+    after_exists: bool,
+    changed: bool,
 }

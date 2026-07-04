@@ -513,6 +513,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn checkpoint_restore_json_reports_before_after_file_changes() {
+        let _guard = env_lock().lock().unwrap();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-checkpoint-restore-changes-repo-{}-{unique}",
+            std::process::id()
+        ));
+        let home = std::env::temp_dir().join(format!(
+            "kiana-checkpoint-restore-changes-home-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        run_git(&root, &["init"]);
+        run_git(&root, &["config", "user.email", "test@example.com"]);
+        run_git(&root, &["config", "user.name", "Kiana Test"]);
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        run_git(&root, &["add", "tracked.txt"]);
+        run_git(&root, &["commit", "-m", "initial"]);
+        fs::write(root.join("tracked.txt"), "checkpoint change\n").unwrap();
+        fs::write(root.join("notes.txt"), "checkpoint note\n").unwrap();
+        std::env::set_var("KIANA_HOME", &home);
+
+        let registry = create_default_command_registry();
+        let command = registry.get("checkpoint").expect("missing /checkpoint");
+        let checkpoint = command
+            .execute(CommandContext {
+                args: "--json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), serde_json::json!(root.clone()))]),
+            })
+            .await
+            .unwrap();
+        let checkpoint_json: serde_json::Value = serde_json::from_str(&checkpoint.value).unwrap();
+        let checkpoint_dir = checkpoint_json["checkpoint_dir"].as_str().unwrap();
+        fs::write(root.join("tracked.txt"), "base\n").unwrap();
+        fs::remove_file(root.join("notes.txt")).unwrap();
+
+        let result = command
+            .execute(CommandContext {
+                args: format!("restore {checkpoint_dir} --json"),
+                app_state: HashMap::from([("cwd".to_string(), serde_json::json!(root.clone()))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.checkpoint.restore.v1");
+        let changed_files = value["changed_files"].as_array().unwrap();
+        let tracked = changed_files
+            .iter()
+            .find(|file| file["path"] == "tracked.txt")
+            .expect("tracked restore change missing");
+        assert_eq!(tracked["operation"], "patch_applied");
+        assert_eq!(tracked["source"], "unstaged.diff");
+        assert_eq!(tracked["before_exists"], true);
+        assert_eq!(tracked["after_exists"], true);
+        assert_eq!(tracked["changed"], true);
+
+        let notes = changed_files
+            .iter()
+            .find(|file| file["path"] == "notes.txt")
+            .expect("untracked restore change missing");
+        assert_eq!(notes["operation"], "restored_untracked");
+        assert_eq!(notes["source"], "checkpoint_untracked");
+        assert_eq!(notes["before_exists"], false);
+        assert_eq!(notes["after_exists"], true);
+        assert_eq!(notes["changed"], true);
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
+        std::env::remove_var("KIANA_HOME");
+    }
+
+    #[tokio::test]
     async fn diff_from_checkpoint_json_reports_changes_after_checkpoint() {
         let _guard = env_lock().lock().unwrap();
         let unique = SystemTime::now()
