@@ -1913,17 +1913,45 @@ fn runtime_event_to_conversation_messages(
             content: format!("Error: {}", error.message),
             timestamp,
         }],
-        kiana_types::RuntimeEventPayload::Result(result) => result
-            .assistant_text
-            .filter(|text| !text.trim().is_empty())
-            .map(|content| ConversationMessage {
-                role: MessageRole::Assistant,
-                content,
+        kiana_types::RuntimeEventPayload::Result(result) => {
+            if let Some(content) = result
+                .assistant_text
+                .as_ref()
+                .filter(|text| !text.trim().is_empty())
+            {
+                return vec![ConversationMessage {
+                    role: MessageRole::Assistant,
+                    content: content.clone(),
+                    timestamp,
+                }];
+            }
+            vec![ConversationMessage {
+                role: MessageRole::System,
+                content: format_runtime_result_status_message(&result),
                 timestamp,
-            })
-            .into_iter()
-            .collect(),
+            }]
+        }
     }
+}
+
+fn format_runtime_result_status_message(result: &kiana_types::RuntimeResultEvent) -> String {
+    let mut lines = vec![
+        format!("Run result: {}", result.status),
+        format!("stop_reason: {}", result.stop_reason),
+    ];
+    if !result.metadata.is_null()
+        && !result
+            .metadata
+            .as_object()
+            .is_some_and(serde_json::Map::is_empty)
+    {
+        lines.push("metadata:".to_string());
+        lines.push(
+            serde_json::to_string_pretty(&result.metadata)
+                .unwrap_or_else(|_| result.metadata.to_string()),
+        );
+    }
+    lines.join("\n")
 }
 
 fn runtime_delta_text(delta: &Value) -> String {
@@ -3007,6 +3035,33 @@ mod tests {
             assert_eq!(message.content, content);
             assert_eq!(message.timestamp, timestamp);
         }
+    }
+
+    #[test]
+    fn maps_result_event_without_assistant_text_to_terminal_status_message() {
+        let events = vec![kiana_types::RuntimeEvent::new(
+            "evt-result",
+            "session-1",
+            "turn-0",
+            None,
+            0,
+            "200",
+            kiana_types::RuntimeEventPayload::Result(kiana_types::RuntimeResultEvent {
+                status: "max_turns".to_string(),
+                stop_reason: "max_turns".to_string(),
+                assistant_text: None,
+                metadata: json!({"turns": 3}),
+            }),
+        )];
+
+        let conversation = runtime_events_to_conversation(events);
+
+        assert_eq!(conversation.len(), 1);
+        assert_eq!(conversation[0].role, MessageRole::System);
+        assert_eq!(conversation[0].timestamp, "200");
+        assert!(conversation[0].content.contains("Run result: max_turns"));
+        assert!(conversation[0].content.contains("stop_reason: max_turns"));
+        assert!(conversation[0].content.contains("\"turns\": 3"));
     }
 
     #[test]
