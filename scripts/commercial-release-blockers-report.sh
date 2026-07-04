@@ -139,6 +139,51 @@ def valid_fingerprint(mapping, key):
     return isinstance(value, str) and bool(FINGERPRINT_PATTERN.fullmatch(value))
 
 
+def source_control_proof_candidates():
+    return [
+        Path(value)
+        for value in [
+            os.environ.get("KIANA_SOURCE_CONTROL_PROOF_FILE", ""),
+            os.environ.get("KIANA_SOURCE_CONTROL_PROOF_OUT", ""),
+        ]
+        if value
+    ] + [
+        Path(os.environ.get("DIST_DIR", "dist")) / "proofs/source-control/source-control.json",
+        Path(f"docs/source-control/{VERSION}.json"),
+    ]
+
+
+def accepted_source_control_proof():
+    for path in source_control_proof_candidates():
+        data, error = load_json(path)
+        if error is not None or not isinstance(data, dict):
+            continue
+        commit = data.get("commit")
+        tagged_commit = data.get("tagged_commit")
+        remote_url = data.get("remote_url")
+        accepted = (
+            data.get("schema") == "kiana.source-control-proof.v1"
+            and data.get("version") == VERSION
+            and data.get("status") == "accepted"
+            and data.get("accepted") is True
+            and data.get("pushed") is True
+            and data.get("reviewed") is True
+            and data.get("release_tag") == EXPECTED_TAG
+            and isinstance(commit, str)
+            and re.fullmatch(r"[0-9a-f]{40}", commit) is not None
+            and isinstance(tagged_commit, str)
+            and re.fullmatch(r"[0-9a-f]{40}", tagged_commit) is not None
+            and commit == tagged_commit
+            and all(filled(data, key) for key in ["accepted_by", "accepted_at", "remote_url"])
+            and all(not_placeholder(data, key) for key in ["accepted_by", "remote_url"])
+            and isinstance(remote_url, str)
+            and remote_url.startswith(("https://", "ssh://", "git@"))
+        )
+        if accepted:
+            return path, data
+    return None, None
+
+
 def check_status(ok):
     return "satisfied" if ok else "blocking"
 
@@ -269,14 +314,26 @@ def add_check(
 
 remote_names = [line for line in git_stdout("remote").splitlines() if line.strip()]
 origin_url = git_stdout("remote", "get-url", "origin")
+source_control_proof_path, source_control_proof = accepted_source_control_proof()
+source_control_proof_evidence = ""
+if source_control_proof:
+    source_control_proof_evidence = (
+        "source-control proof accepted: "
+        f"{source_control_proof_path} "
+        f"remote={source_control_proof.get('remote_url')} "
+        f"tag={source_control_proof.get('release_tag')} "
+        f"commit={source_control_proof.get('commit')}"
+    )
 add_check(
     id="source.remote",
     category="source-control",
     title="Real git remote is configured",
-    ok=bool(remote_names or origin_url),
+    ok=bool(remote_names or origin_url or source_control_proof),
     external=True,
     gate="scripts/release-preflight.sh",
-    evidence=origin_url or (", ".join(remote_names) if remote_names else "no git remote configured"),
+    evidence=source_control_proof_evidence
+    or origin_url
+    or (", ".join(remote_names) if remote_names else "no git remote configured"),
     required_action="Create or connect the production repository remote and push the reviewed release commit.",
     commands=["git remote add origin <url>", "git push -u origin HEAD"],
 )
@@ -286,10 +343,11 @@ add_check(
     id="source.version-tag",
     category="source-control",
     title=f"HEAD is tagged with {EXPECTED_TAG}",
-    ok=EXPECTED_TAG in head_tags,
+    ok=EXPECTED_TAG in head_tags or bool(source_control_proof),
     external=True,
     gate="scripts/release-preflight.sh",
-    evidence=", ".join(head_tags) if head_tags else f"HEAD is not tagged with {EXPECTED_TAG}",
+    evidence=source_control_proof_evidence
+    or (", ".join(head_tags) if head_tags else f"HEAD is not tagged with {EXPECTED_TAG}"),
     required_action="Create the immutable release tag from a clean reviewed commit, then push the tag to the real remote.",
     commands=[f"git tag {EXPECTED_TAG}", f"git push origin {EXPECTED_TAG}"],
 )

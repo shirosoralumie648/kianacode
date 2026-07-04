@@ -13,7 +13,10 @@ python_bin() {
 python="$(python_bin)"
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_report" "$tmp_handoff"' EXIT
+tmp_source_control="$(mktemp)"
+tmp_proof_report="$(mktemp)"
+tmp_proof_handoff="$(mktemp)"
+trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_proof_report" "$tmp_proof_handoff"' EXIT
 
 KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
   bash scripts/commercial-release-blockers-report.sh \
@@ -89,6 +92,53 @@ if blocking:
 else:
     if "No blocking checks were detected." not in handoff:
         raise SystemExit("ready handoff does not state that no blockers were detected")
+PY
+
+cat > "$tmp_source_control" <<'JSON'
+{
+  "schema": "kiana.source-control-proof.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "release manager",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "remote_url": "https://github.com/acme/kiana.git",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "release_tag": "v0.1.0",
+  "tagged_commit": "0123456789abcdef0123456789abcdef01234567",
+  "pushed": true,
+  "reviewed": true
+}
+JSON
+
+KIANA_SOURCE_CONTROL_PROOF_FILE="$tmp_source_control" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+by_id = {check["id"]: check for check in report.get("checks", [])}
+
+for check_id in ["source.remote", "source.version-tag"]:
+    check = by_id.get(check_id)
+    if not check:
+        raise SystemExit(f"{check_id} check is missing")
+    if check.get("status") != "satisfied":
+        raise SystemExit(f"{check_id} was not satisfied by accepted source-control proof")
+    if check_id in handoff:
+        raise SystemExit(f"{check_id} should not appear as a blocking handoff assignment")
+    if "source-control proof accepted" not in check.get("evidence", ""):
+        raise SystemExit(f"{check_id} evidence does not name accepted source-control proof")
 PY
 
 echo "commercial release handoff smoke passed"
