@@ -1543,6 +1543,9 @@ mod tests {
         for key in [
             "KIANA_HOOKS",
             "KIANA_STOP_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+            "KIANA_USER_PROMPT_SUBMIT_HOOKS",
+            "KIANA_PRE_TOOL_USE_HOOKS",
             "KIANA_POST_TOOL_USE_HOOKS",
             "KIANA_TASK_COMPLETED_HOOKS",
             "KIANA_TEAMMATE_IDLE_HOOKS",
@@ -1553,6 +1556,22 @@ mod tests {
             "KIANA_PLUGINS_DIR",
         ] {
             std::env::remove_var(key);
+        }
+    }
+
+    fn make_pre_tool_ctx(
+        cwd: PathBuf,
+        project_trust: kiana_types::ProjectTrust,
+    ) -> PreToolUseHookContext {
+        PreToolUseHookContext {
+            abort_signal: Arc::new(tokio::sync::Notify::new()),
+            cwd,
+            project_trust,
+            permission_mode: "default".into(),
+            query_source: "repl_main_thread".into(),
+            tool_name: "Bash".into(),
+            tool_input: serde_json::json!({ "command": "echo ok" }),
+            tool_use_id: Some("toolu_test".into()),
         }
     }
 
@@ -1856,6 +1875,101 @@ mod tests {
         let (_events, result) = run_and_collect(ctx).await;
 
         assert!(result.blocking_errors.is_empty());
+        match previous_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+        let _ = std::fs::remove_dir_all(root);
+        clear_hook_env();
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_hooks_respect_home_project_plugin_and_trust_sources() {
+        let _guard = env_guard().await;
+        clear_hook_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-pre-tool-source-matrix-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let home = root.join("home");
+        let project = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin = plugins_dir.join("policy-plugin");
+        std::fs::create_dir_all(home.join(".kiana")).unwrap();
+        std::fs::create_dir_all(project.join(".kiana")).unwrap();
+        std::fs::create_dir_all(plugin.join(".codex-plugin")).unwrap();
+        std::fs::create_dir_all(plugin.join("hooks")).unwrap();
+        std::fs::write(
+            home.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "PreToolUse": ["printf '%s' '{\"decision\":\"block\",\"reason\":\"home pre hook blocked\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join(".kiana").join("hooks.json"),
+            serde_json::json!({
+                "PreToolUse": ["printf '%s' '{\"decision\":\"block\",\"reason\":\"project pre hook blocked\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            plugin.join(".codex-plugin").join("plugin.json"),
+            serde_json::json!({ "name": "policy-plugin" }).to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            plugin.join("hooks").join("hooks.json"),
+            serde_json::json!({
+                "PreToolUse": ["printf '%s' '{\"decision\":\"block\",\"reason\":\"plugin pre hook blocked\"}'"]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let previous_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        let trusted = run_pre_tool_use_hooks(make_pre_tool_ctx(
+            project.clone(),
+            kiana_types::ProjectTrust::Trusted,
+        ))
+        .await;
+        let ToolHookDecision::Block(trusted_reason) = trusted else {
+            panic!("expected trusted hooks to block, got {trusted:?}");
+        };
+        assert!(trusted_reason.contains("home pre hook blocked"));
+        assert!(trusted_reason.contains("project pre hook blocked"));
+        assert!(trusted_reason.contains("plugin pre hook blocked"));
+
+        let untrusted = run_pre_tool_use_hooks(make_pre_tool_ctx(
+            project.clone(),
+            kiana_types::ProjectTrust::Untrusted,
+        ))
+        .await;
+        let ToolHookDecision::Block(untrusted_reason) = untrusted else {
+            panic!("expected untrusted hooks to block on home/plugin, got {untrusted:?}");
+        };
+        assert!(untrusted_reason.contains("home pre hook blocked"));
+        assert!(!untrusted_reason.contains("project pre hook blocked"));
+        assert!(untrusted_reason.contains("plugin pre hook blocked"));
+
+        kiana_types::plugin::set_plugin_enabled(&plugins_dir, "policy-plugin", false).unwrap();
+        let disabled_plugin = run_pre_tool_use_hooks(make_pre_tool_ctx(
+            project,
+            kiana_types::ProjectTrust::Untrusted,
+        ))
+        .await;
+        let ToolHookDecision::Block(disabled_reason) = disabled_plugin else {
+            panic!("expected disabled-plugin case to block on home, got {disabled_plugin:?}");
+        };
+        assert!(disabled_reason.contains("home pre hook blocked"));
+        assert!(!disabled_reason.contains("project pre hook blocked"));
+        assert!(!disabled_reason.contains("plugin pre hook blocked"));
+
         match previous_home {
             Some(value) => std::env::set_var("HOME", value),
             None => std::env::remove_var("HOME"),
