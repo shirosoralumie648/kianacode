@@ -259,6 +259,7 @@ fn append_tool_events_from_message(
                             .and_then(Value::as_bool)
                             .unwrap_or(false),
                         content: block.get("content").cloned().unwrap_or_default(),
+                        error: block.get("error").cloned(),
                     }),
                 ));
                 sequence += 1;

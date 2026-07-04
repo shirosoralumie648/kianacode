@@ -67,6 +67,7 @@
       "type": "boolean"
     },
     "content": {},
+    "error": {},
     "request_id": {
       "type": "string",
       "minLength": 1

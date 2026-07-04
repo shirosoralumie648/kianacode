@@ -722,6 +722,7 @@ mod tests {
                     workbench: None,
                     is_error: false,
                     content: json!("pub fn main() {}"),
+                    error: None,
                 }),
             ),
             kiana_types::sdk_message_to_runtime_event(
@@ -815,6 +816,7 @@ mod tests {
                     workbench: Some("local".to_string()),
                     is_error: true,
                     content: json!("permission denied"),
+                    error: None,
                 }),
             ),
             kiana_types::RuntimeEvent::new(

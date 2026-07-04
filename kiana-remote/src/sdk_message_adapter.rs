@@ -368,6 +368,7 @@ fn append_tool_events_from_message(
                             .and_then(serde_json::Value::as_bool)
                             .unwrap_or(false),
                         content: block.get("content").cloned().unwrap_or_default(),
+                        error: block.get("error").cloned(),
                     }),
                 ));
                 sequence += 1;
@@ -496,7 +497,19 @@ mod runtime_event_tests {
                 message: Some(json!({
                     "role": "user",
                     "content": [
-                        {"type": "tool_result", "tool_use_id": "toolu_1", "content": "file body", "is_error": false, "workbench": "mcp"}
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_1",
+                            "content": "file body",
+                            "is_error": true,
+                            "workbench": "mcp",
+                            "error": {
+                                "type": "tool_error",
+                                "code": "tool_validation_error",
+                                "message": "path is required",
+                                "repair_hint": "Provide the required input fields for Read and retry the tool call."
+                            }
+                        }
                     ]
                 })),
                 tool_use_result: None,
@@ -518,6 +531,18 @@ mod runtime_event_tests {
         assert_eq!(
             serde_json::to_value(&user_events[1]).unwrap()["workbench"],
             "mcp"
+        );
+        assert_eq!(
+            serde_json::to_value(&user_events[1]).unwrap()["is_error"],
+            true
+        );
+        assert_eq!(
+            serde_json::to_value(&user_events[1]).unwrap()["error"]["code"],
+            "tool_validation_error"
+        );
+        assert_eq!(
+            serde_json::to_value(&user_events[1]).unwrap()["error"]["repair_hint"],
+            "Provide the required input fields for Read and retry the tool call."
         );
 
         let stream_events = runtime_events_from_sdk_message(

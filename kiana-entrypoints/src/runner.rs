@@ -55,6 +55,7 @@ pub enum RunnerStreamEvent {
         name: String,
         is_error: bool,
         content: String,
+        error: Option<Value>,
     },
 }
 
@@ -80,6 +81,7 @@ pub fn runtime_events_from_runner_stream_event(
             name,
             is_error,
             content,
+            error,
         } => {
             let workbench = default_tool_workbench(&name);
             vec![runner_runtime_event(
@@ -94,6 +96,7 @@ pub fn runtime_events_from_runner_stream_event(
                     workbench,
                     is_error,
                     content: json!(content),
+                    error,
                 }),
             )]
         }
@@ -1016,6 +1019,7 @@ where
                 name: tool_use.name,
                 is_error: result.is_error,
                 content: tool_result_event_content(&result),
+                error: result.api_result.get("error").cloned(),
             })?;
             tool_results.push(result.api_result);
         }
@@ -4891,6 +4895,7 @@ mod tests {
                 name: "Read".to_string(),
                 is_error: false,
                 content: "file body".to_string(),
+                error: None,
             },
         );
 
@@ -4938,6 +4943,7 @@ mod tests {
                 name: "MCP".to_string(),
                 is_error: false,
                 content: "ok".to_string(),
+                error: None,
             },
         );
         let result = serde_json::to_value(&result_events[0]).unwrap();
@@ -8465,6 +8471,7 @@ mod tests {
                     name,
                     is_error,
                     content,
+                    ..
                 } => Some((id, name, is_error, content)),
                 RunnerStreamEvent::Model(_) => None,
             })
@@ -8531,6 +8538,7 @@ mod tests {
                     name,
                     is_error,
                     content,
+                    ..
                 } => Some((id, name, is_error, content)),
                 RunnerStreamEvent::Model(_) => None,
             })
@@ -8575,6 +8583,7 @@ mod tests {
                 name: tool_result.1.clone(),
                 is_error: *tool_result.2,
                 content: tool_result.3.clone(),
+                error: None,
             },
         );
         let runtime_event = serde_json::to_value(&runtime_events[0]).unwrap();
@@ -8663,6 +8672,7 @@ mod tests {
                     name,
                     is_error,
                     content,
+                    ..
                 } => Some((id, name, is_error, content)),
                 RunnerStreamEvent::Model(_) => None,
             })
@@ -8707,6 +8717,7 @@ mod tests {
                 name: tool_result.1.clone(),
                 is_error: *tool_result.2,
                 content: tool_result.3.clone(),
+                error: None,
             },
         );
         let runtime_event = serde_json::to_value(&runtime_events[0]).unwrap();
@@ -8795,6 +8806,7 @@ mod tests {
                     name,
                     is_error,
                     content,
+                    ..
                 } => Some((id, name, is_error, content)),
                 RunnerStreamEvent::Model(_) => None,
             })
@@ -8839,6 +8851,7 @@ mod tests {
                 name: tool_result.1.clone(),
                 is_error: *tool_result.2,
                 content: tool_result.3.clone(),
+                error: None,
             },
         );
         let runtime_event = serde_json::to_value(&runtime_events[0]).unwrap();

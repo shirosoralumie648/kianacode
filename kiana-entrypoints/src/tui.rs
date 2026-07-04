@@ -2800,6 +2800,7 @@ mod tests {
                     workbench: Some("mcp".to_string()),
                     is_error: false,
                     content: json!("pub fn main() {}"),
+                    error: None,
                 }),
             ),
         ];
@@ -2897,6 +2898,7 @@ mod tests {
                     workbench: Some("local".to_string()),
                     is_error: true,
                     content: json!("permission denied"),
+                    error: None,
                 }),
             ),
             kiana_types::RuntimeEvent::new(

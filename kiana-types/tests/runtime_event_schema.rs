@@ -55,6 +55,12 @@ fn runtime_event_schema_covers_required_payloads() {
             workbench: Some("mcp".to_string()),
             is_error: false,
             content: json!({"text": "content"}),
+            error: Some(json!({
+                "type": "tool_error",
+                "code": "tool_validation_error",
+                "message": "path is required",
+                "repair_hint": "Provide the required input fields for Read and retry the tool call."
+            })),
         }),
         RuntimeEventPayload::PermissionRequest(RuntimePermissionRequestEvent {
             request_id: "perm-1".to_string(),

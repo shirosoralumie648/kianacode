@@ -1513,13 +1513,20 @@ fn stream_json_runner_event(
             name,
             is_error,
             content,
-        } => serde_json::json!({
-            "type": "tool_result",
-            "tool_use_id": id,
-            "name": name,
-            "is_error": is_error,
-            "content": content,
-        }),
+            error,
+        } => {
+            let mut value = serde_json::json!({
+                "type": "tool_result",
+                "tool_use_id": id,
+                "name": name,
+                "is_error": is_error,
+                "content": content,
+            });
+            if let Some(error) = error {
+                value["error"] = error.clone();
+            }
+            value
+        }
     };
     let runtime_events = crate::runner::runtime_events_from_runner_stream_event(
         session_id,
@@ -17757,6 +17764,12 @@ mod tests {
                 name: "MCP".to_string(),
                 is_error: true,
                 content: "denied by fake server".to_string(),
+                error: Some(serde_json::json!({
+                    "type": "tool_error",
+                    "code": "tool_validation_error",
+                    "message": "server is required",
+                    "repair_hint": "Provide the required input fields for MCP and retry the tool call."
+                })),
             },
             "session-1",
         )
@@ -17768,6 +17781,11 @@ mod tests {
         assert_eq!(event["event"]["name"], "MCP");
         assert_eq!(event["event"]["is_error"], true);
         assert_eq!(event["event"]["content"], "denied by fake server");
+        assert_eq!(event["event"]["error"]["code"], "tool_validation_error");
+        assert_eq!(
+            event["event"]["error"]["repair_hint"],
+            "Provide the required input fields for MCP and retry the tool call."
+        );
         let lifecycle = event["runtime_events"].as_array().unwrap();
         assert_eq!(lifecycle.len(), 1);
         assert_eq!(lifecycle[0]["type"], "tool_result");
@@ -17776,6 +17794,11 @@ mod tests {
         assert_eq!(lifecycle[0]["workbench"], "mcp");
         assert_eq!(lifecycle[0]["is_error"], true);
         assert_eq!(lifecycle[0]["content"], "denied by fake server");
+        assert_eq!(lifecycle[0]["error"]["code"], "tool_validation_error");
+        assert_eq!(
+            lifecycle[0]["error"]["repair_hint"],
+            "Provide the required input fields for MCP and retry the tool call."
+        );
     }
 
     #[tokio::test]
