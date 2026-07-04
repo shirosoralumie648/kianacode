@@ -5318,6 +5318,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_source_control_handler),
         )
         .route(
+            "/app/release/signature",
+            axum::routing::get(direct_connect_app_release_signature_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -6021,6 +6025,28 @@ async fn direct_connect_app_release_source_control_handler(
     }
 }
 
+async fn direct_connect_app_release_signature_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_release_signature_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read release signature proof report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6415,6 +6441,80 @@ fn direct_connect_source_control_proof_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.source-control-proof.v1") {
         return Err(anyhow!(
             "source control proof file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_release_signature_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let dist_dir = if dist_dir.is_absolute() {
+        dist_dir
+    } else {
+        root.join(dist_dir)
+    };
+    let explicit_candidates = [
+        std::env::var_os("KIANA_RELEASE_SIGNATURE_PROOF_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_RELEASE_SIGNATURE_PROOF_OUT").map(PathBuf::from),
+    ];
+    let evidence_path = explicit_candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .or_else(|| {
+            let mut packaged = std::fs::read_dir(&dist_dir)
+                .ok()?
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| {
+                            name.starts_with(&format!("kiana-{version}-"))
+                                && name.ends_with(".signature.json")
+                        })
+                })
+                .collect::<Vec<_>>();
+            packaged.sort();
+            packaged.into_iter().next()
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "no release signature proof found in KIANA_RELEASE_SIGNATURE_PROOF_FILE, KIANA_RELEASE_SIGNATURE_PROOF_OUT, or DIST_DIR/kiana-{version}-*.signature.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read release signature proof file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse release signature proof JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.release-signature.v1") {
+        return Err(anyhow!(
+            "release signature proof file {} has unexpected schema",
             evidence_path.display()
         ));
     }
@@ -7682,6 +7782,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.ops.read",
             "release.platform_security.read",
             "release.source_control.read",
+            "release.signature.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7771,6 +7872,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/source-control",
                 "schema": "kiana.source-control-proof.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/signature",
+                "schema": "kiana.release-signature.v1"
             },
             {
                 "method": "GET",
@@ -16916,6 +17022,8 @@ mod tests {
             "KIANA_PLATFORM_SECURITY_PROOF_DIR",
             "KIANA_SOURCE_CONTROL_PROOF_FILE",
             "KIANA_SOURCE_CONTROL_PROOF_OUT",
+            "KIANA_RELEASE_SIGNATURE_PROOF_FILE",
+            "KIANA_RELEASE_SIGNATURE_PROOF_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17402,6 +17510,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.source_control.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.signature.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17455,6 +17568,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/source-control"
                     && endpoint["schema"] == "kiana.source-control-proof.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/signature"
+                    && endpoint["schema"] == "kiana.release-signature.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -18278,6 +18400,59 @@ mod tests {
         assert_eq!(source_control["pushed"], false);
         assert_eq!(source_control["reviewed"], false);
         let _ = std::fs::remove_file(&source_control_path);
+
+        let release_signature_path = std::env::temp_dir().join(format!(
+            "kiana-release-signature-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &release_signature_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.release-signature.v1",
+                "target": "linux-x86_64",
+                "archive": "kiana-0.1.0-linux-x86_64.tar.gz",
+                "archive_sha256": "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507",
+                "binary_sha256_file_sha256": "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0",
+                "signed_at": "2026-07-05T00:00:00Z",
+                "signer": "local-rc-signer",
+                "signature_files": {
+                    "archive": "kiana-0.1.0-linux-x86_64.tar.gz.sig",
+                    "binary": "kiana-0.1.0-linux-x86_64.binary.sig"
+                },
+                "verification": {
+                    "method": "KIANA_SIGNATURE_VERIFY_COMMAND",
+                    "archive": "verified",
+                    "binary": "verified",
+                    "verified_at": "2026-07-05T00:00:00Z"
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_RELEASE_SIGNATURE_PROOF_OUT", &release_signature_path);
+        let release_signature: Value = client
+            .get(format!("http://{addr}/app/release/signature"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(release_signature["schema"], "kiana.release-signature.v1");
+        assert_eq!(release_signature["target"], "linux-x86_64");
+        assert_eq!(
+            release_signature["archive"],
+            "kiana-0.1.0-linux-x86_64.tar.gz"
+        );
+        assert_eq!(release_signature["signer"], "local-rc-signer");
+        assert_eq!(
+            release_signature["verification"]["method"],
+            "KIANA_SIGNATURE_VERIFY_COMMAND"
+        );
+        assert_eq!(release_signature["verification"]["archive"], "verified");
+        assert_eq!(release_signature["verification"]["binary"], "verified");
+        let _ = std::fs::remove_file(&release_signature_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
