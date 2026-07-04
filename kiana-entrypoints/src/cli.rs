@@ -5334,6 +5334,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_live_provider_smoke_handler),
         )
         .route(
+            "/app/release/remote-code-session-smoke",
+            axum::routing::get(direct_connect_app_release_remote_code_session_smoke_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -6125,6 +6129,28 @@ async fn direct_connect_app_release_live_provider_smoke_handler(
     }
 }
 
+async fn direct_connect_app_release_remote_code_session_smoke_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_remote_code_session_smoke_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read remote code-session smoke report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6782,6 +6808,54 @@ fn direct_connect_live_provider_smoke_report() -> Result<Value> {
         "catalog": catalog,
         "smoke": smoke,
     }))
+}
+
+fn direct_connect_remote_code_session_smoke_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let dist_dir = if dist_dir.is_absolute() {
+        dist_dir
+    } else {
+        root.join(dist_dir)
+    };
+    let live_root = root.join("target").join("live-smoke");
+    let remote_dir = std::env::var_os("KIANA_REMOTE_LIVE_SMOKE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| live_root.join("remote"));
+    let remote_dir = if remote_dir.is_absolute() {
+        remote_dir
+    } else {
+        root.join(remote_dir)
+    };
+    let proof_path = direct_connect_first_existing_path(
+        root,
+        [
+            std::env::var_os("KIANA_REMOTE_SMOKE_PROOF_FILE").map(PathBuf::from),
+            std::env::var_os("KIANA_REMOTE_SMOKE_PROOF_OUT").map(PathBuf::from),
+            Some(
+                dist_dir
+                    .join("proofs")
+                    .join("live-smoke")
+                    .join("remote")
+                    .join("code-session-smoke.json"),
+            ),
+            Some(remote_dir.join("code-session-smoke.json")),
+        ],
+    )
+    .ok_or_else(|| {
+        anyhow!(
+            "no remote code-session smoke proof found in KIANA_REMOTE_SMOKE_PROOF_FILE, KIANA_REMOTE_SMOKE_PROOF_OUT, DIST_DIR/proofs/live-smoke/remote/code-session-smoke.json, or target/live-smoke/remote/code-session-smoke.json"
+        )
+    })?;
+    direct_connect_read_json_schema_file(
+        &proof_path,
+        "remote code-session smoke proof",
+        "kiana.remote-code-session-smoke.v1",
+    )
 }
 
 fn direct_connect_first_existing_path<const N: usize>(
@@ -8084,6 +8158,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.enterprise_offline_manifest.read",
             "release.proof_manifest.read",
             "release.live_provider_smoke.read",
+            "release.remote_code_session_smoke.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -8193,6 +8268,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/live-provider-smoke",
                 "schema": "kiana.app-server.live-provider-smoke.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/remote-code-session-smoke",
+                "schema": "kiana.remote-code-session-smoke.v1"
             },
             {
                 "method": "GET",
@@ -17348,6 +17428,8 @@ mod tests {
             "KIANA_PROVIDER_LIVE_CATALOG_OUT",
             "KIANA_PROVIDER_LIVE_SMOKE_FILE",
             "KIANA_PROVIDER_LIVE_SMOKE_OUT",
+            "KIANA_REMOTE_SMOKE_PROOF_FILE",
+            "KIANA_REMOTE_SMOKE_PROOF_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17854,6 +17936,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.live_provider_smoke.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.remote_code_session_smoke.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17943,6 +18030,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/live-provider-smoke"
                     && endpoint["schema"] == "kiana.app-server.live-provider-smoke.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/remote-code-session-smoke"
+                    && endpoint["schema"] == "kiana.remote-code-session-smoke.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -19082,6 +19178,61 @@ mod tests {
             .contains("kiana-provider-live-smoke"));
         let _ = std::fs::remove_file(&provider_catalog_path);
         let _ = std::fs::remove_file(&provider_smoke_path);
+
+        let remote_code_session_smoke_path = std::env::temp_dir().join(format!(
+            "kiana-remote-code-session-smoke-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &remote_code_session_smoke_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.remote-code-session-smoke.v1",
+                "status": "ok",
+                "checked_at": "2026-07-05T00:00:00Z",
+                "session_id": "cse_live_remote_smoke",
+                "api_base_url": "https://api.example.test",
+                "sdk_url": "https://sdk.example.test",
+                "expires_in": 3600,
+                "worker_epoch": 3
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var(
+            "KIANA_REMOTE_SMOKE_PROOF_OUT",
+            &remote_code_session_smoke_path,
+        );
+        let remote_code_session_smoke: Value = client
+            .get(format!(
+                "http://{addr}/app/release/remote-code-session-smoke"
+            ))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            remote_code_session_smoke["schema"],
+            "kiana.remote-code-session-smoke.v1"
+        );
+        assert_eq!(remote_code_session_smoke["status"], "ok");
+        assert_eq!(
+            remote_code_session_smoke["session_id"],
+            "cse_live_remote_smoke"
+        );
+        assert_eq!(
+            remote_code_session_smoke["api_base_url"],
+            "https://api.example.test"
+        );
+        assert_eq!(
+            remote_code_session_smoke["sdk_url"],
+            "https://sdk.example.test"
+        );
+        assert_eq!(remote_code_session_smoke["expires_in"], 3600);
+        assert_eq!(remote_code_session_smoke["worker_epoch"], 3);
+        let _ = std::fs::remove_file(&remote_code_session_smoke_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
