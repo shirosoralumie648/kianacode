@@ -550,6 +550,8 @@ require_release_signature_contract() {
   local expected_archive="$3"
   local expected_archive_sig="$4"
   local expected_binary_sig="$5"
+  local archive_file="$6"
+  local binary_sha_file="$7"
   if [[ ! -f "$file" ]]; then
     return
   fi
@@ -559,11 +561,20 @@ require_release_signature_contract() {
     fail "python3 or python is required to validate release signature proof"
     return
   fi
-  if "$python" - "$file" "$expected_target" "$expected_archive" "$expected_archive_sig" "$expected_binary_sig" <<'PY'
+  if "$python" - "$file" "$expected_target" "$expected_archive" "$expected_archive_sig" "$expected_binary_sig" "$archive_file" "$binary_sha_file" <<'PY'
+import hashlib
 import json
 import sys
 
-path, expected_target, expected_archive, expected_archive_sig, expected_binary_sig = sys.argv[1:6]
+(
+    path,
+    expected_target,
+    expected_archive,
+    expected_archive_sig,
+    expected_binary_sig,
+    archive_file,
+    binary_sha_file,
+) = sys.argv[1:8]
 with open(path, "r", encoding="utf-8") as handle:
     report = json.load(handle)
 
@@ -594,10 +605,19 @@ def not_placeholder(value):
         marker in value.lower() for marker in placeholder_markers
     )
 
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 checks = [
     report.get("schema") == "kiana.release-signature.v1",
     report.get("target") == expected_target,
     report.get("archive") == expected_archive,
+    report.get("archive_sha256") == sha256(archive_file),
+    report.get("binary_sha256_file_sha256") == sha256(binary_sha_file),
     filled(report, "signed_at"),
     filled(report, "signer"),
     not_placeholder(report.get("signer")),
@@ -1010,8 +1030,10 @@ for archive in "${archives[@]}"; do
   require_json_pattern "$signature_proof" '"schema"[[:space:]]*:[[:space:]]*"kiana.release-signature.v1"' "release signature proof schema"
   require_json_pattern "$signature_proof" "\"target\"[[:space:]]*:[[:space:]]*\"${target}\"" "release signature target matches"
   require_json_pattern "$signature_proof" "\"archive\"[[:space:]]*:[[:space:]]*\"${filename}\"" "release signature archive matches"
+  require_json_pattern "$signature_proof" '"archive_sha256"[[:space:]]*:' "release signature archive digest"
+  require_json_pattern "$signature_proof" '"binary_sha256_file_sha256"[[:space:]]*:' "release signature binary checksum digest"
   reject_json_pattern "$signature_proof" '"signer"[[:space:]]*:[[:space:]]*"external-release-signer"' "default release signer placeholder"
-  require_release_signature_contract "$signature_proof" "$target" "$filename" "${filename}.sig" "${package}.binary.sig"
+  require_release_signature_contract "$signature_proof" "$target" "$filename" "${filename}.sig" "${package}.binary.sig" "$archive" "${dist_dir}/${package}.binary.sha256"
   verify_signature_file "$archive" "${archive}.sig" "${target} archive"
   verify_signature_file "${dist_dir}/${package}.binary.sha256" "${dist_dir}/${package}.binary.sig" "${target} binary checksum"
 

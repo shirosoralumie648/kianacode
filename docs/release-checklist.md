@@ -82,10 +82,10 @@ commercial release.
   binding the reviewed commit, immutable release tag, pushed remote, reviewer,
   and release-owner acceptance timestamp.
 - Signing proof files use `kiana.release-signature.v1` and validate the target,
-  archive, signer, archive/binary signature file names, and verified signature
-  status; macOS notarization proof files use `kiana.macos-notarization.v1` with
-  `status=accepted`, target/archive binding, accepted timestamp, authority, and
-  notarization id.
+  archive, signer, archive/binary signature file names, archive digest, binary
+  checksum-file digest, and verified signature status; macOS notarization proof
+  files use `kiana.macos-notarization.v1` with `status=accepted`,
+  target/archive binding, accepted timestamp, authority, and notarization id.
 - `scripts/release-ops-report.sh full` passes with `kiana.release-ops.v1`
   proof covering private vulnerability reporting, release credential ownership,
   support contact, artifact/log retention, and accepted credential review.

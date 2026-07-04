@@ -74,12 +74,24 @@ verify_signature() {
   fi
 }
 
+sha256_file() {
+  local input="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$input" | awk '{print $1}'
+  else
+    shasum -a 256 "$input" | awk '{print $1}'
+  fi
+}
+
 write_signature_proof() {
   local target="$1"
-  local archive_name="$2"
-  local archive_sig="$3"
-  local binary_sig="$4"
-  local proof="$5"
+  local archive="$2"
+  local binary_sha="$3"
+  local archive_sig="$4"
+  local binary_sig="$5"
+  local proof="$6"
+  local archive_name
+  archive_name="$(basename "$archive")"
   local signed_at
   local verified_at
   signed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -89,6 +101,8 @@ write_signature_proof() {
   "schema": "kiana.release-signature.v1",
   "target": "$(json_escape "$target")",
   "archive": "$(json_escape "$archive_name")",
+  "archive_sha256": "$(sha256_file "$archive")",
+  "binary_sha256_file_sha256": "$(sha256_file "$binary_sha")",
   "signed_at": "$(json_escape "$signed_at")",
   "signer": "$(json_escape "$signer")",
   "signature_files": {
@@ -193,7 +207,7 @@ for archive in "${archives[@]}"; do
   sign_file "$binary_sha" "$binary_sig"
   verify_signature "$archive" "$archive_sig"
   verify_signature "$binary_sha" "$binary_sig"
-  write_signature_proof "$target" "$filename" "$archive_sig" "$binary_sig" "$signature_proof"
+  write_signature_proof "$target" "$archive" "$binary_sha" "$archive_sig" "$binary_sig" "$signature_proof"
 
   if [[ "$target" == macos-* ]]; then
     write_notarization_proof "$target" "$archive" "${dist_dir}/${package}.notarization.json"

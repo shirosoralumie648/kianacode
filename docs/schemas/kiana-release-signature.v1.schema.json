@@ -7,6 +7,8 @@
     "schema",
     "target",
     "archive",
+    "archive_sha256",
+    "binary_sha256_file_sha256",
     "signed_at",
     "signer",
     "signature_files",
@@ -23,6 +25,14 @@
     "archive": {
       "type": "string",
       "pattern": "^kiana-.+[.]tar[.]gz$"
+    },
+    "archive_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "binary_sha256_file_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "signed_at": {
       "type": "string",

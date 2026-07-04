@@ -565,11 +565,13 @@ else
 fi
 
 if grep -Fq '"verification"' docs/schemas/kiana-release-signature.v1.schema.json &&
+  grep -Fq '"archive_sha256"' docs/schemas/kiana-release-signature.v1.schema.json &&
+  grep -Fq '"binary_sha256_file_sha256"' docs/schemas/kiana-release-signature.v1.schema.json &&
   grep -Fq 'KIANA_SIGNATURE_VERIFY_COMMAND' scripts/sign-release-artifacts.sh &&
   grep -Fq 'KIANA_SIGNATURE_VERIFY_COMMAND' scripts/verify-commercial-release-artifacts.sh; then
-  pass "release signature verification command is enforced"
+  pass "release signature verification command and digest binding are enforced"
 else
-  fail "release signature verification command is not enforced"
+  fail "release signature verification command or digest binding is not enforced"
 fi
 
 if grep -Fq '"const": "kiana.macos-notarization.v1"' docs/schemas/kiana-macos-notarization.v1.schema.json; then

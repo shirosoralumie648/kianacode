@@ -43,11 +43,15 @@ write_signature_proof() {
   local archive_name="$2"
   local package="$3"
   local signer="${4:-kiana release engineering}"
+  local archive="$dist_dir/$archive_name"
+  local binary_sha="$dist_dir/${package}.binary.sha256"
   cat > "$dist_dir/${package}.signature.json" <<EOF
 {
   "schema": "kiana.release-signature.v1",
   "target": "$target",
   "archive": "$archive_name",
+  "archive_sha256": "$(hash_file "$archive")",
+  "binary_sha256_file_sha256": "$(hash_file "$binary_sha")",
   "signed_at": "2026-01-01T00:00:00Z",
   "signer": "$signer",
   "signature_files": {

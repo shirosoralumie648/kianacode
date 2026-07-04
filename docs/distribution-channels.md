@@ -57,7 +57,8 @@ The channels below define the commercial distribution target state.
   and uninstall instructions for the shipped artifact.
 - Signing proof artifacts using `kiana.release-signature.v1` beside every
   archive and binary checksum, validated against the target archive and
-  signature file names plus `KIANA_SIGNATURE_VERIFY_COMMAND` verification.
+  signature file names, archive digest, binary checksum-file digest, plus
+  `KIANA_SIGNATURE_VERIFY_COMMAND` verification.
 - macOS notarization proof artifacts using `kiana.macos-notarization.v1` with
   `status=accepted`, target/archive binding, accepted timestamp, authority, and
   notarization id.
