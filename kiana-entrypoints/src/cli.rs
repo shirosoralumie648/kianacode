@@ -7,6 +7,9 @@ use kiana_bridge::{
 use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
+use kiana_query::{
+    build_context_pack, search_context_index, ContextPackOptions, ContextSearchOptions,
+};
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
     PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
@@ -5236,6 +5239,14 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_git_status_handler),
         )
         .route(
+            "/app/context/search",
+            axum::routing::get(direct_connect_app_context_search_handler),
+        )
+        .route(
+            "/app/context/pack",
+            axum::routing::get(direct_connect_app_context_pack_handler),
+        )
+        .route(
             "/sessions",
             axum::routing::post(direct_connect_create_session_handler),
         )
@@ -5535,6 +5546,87 @@ async fn direct_connect_app_git_status_handler(
     }
 
     axum::Json(direct_connect_git_status_report(&state.workspace)).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct DirectConnectContextQuery {
+    q: String,
+    limit: Option<usize>,
+    max_snippet_lines: Option<usize>,
+    max_bytes_per_file: Option<usize>,
+}
+
+async fn direct_connect_app_context_search_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextQuery>,
+) -> axum::response::Response {
+    direct_connect_app_context_handler(state, headers, query, "search").await
+}
+
+async fn direct_connect_app_context_pack_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextQuery>,
+) -> axum::response::Response {
+    direct_connect_app_context_handler(state, headers, query, "pack").await
+}
+
+async fn direct_connect_app_context_handler(
+    state: DirectConnectServerState,
+    headers: axum::http::HeaderMap,
+    query: DirectConnectContextQuery,
+    mode: &str,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+    if query.q.trim().is_empty() {
+        return direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            "q query parameter is required",
+        );
+    }
+
+    match direct_connect_context_query_report(&state, query, mode).await {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to build context {mode}: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_context_query_report(
+    state: &DirectConnectServerState,
+    query: DirectConnectContextQuery,
+    mode: &str,
+) -> Result<Value> {
+    match mode {
+        "search" => Ok(serde_json::to_value(search_context_index(
+            &state.workspace,
+            &query.q,
+            ContextSearchOptions {
+                limit: query.limit,
+                max_bytes_per_file: query.max_bytes_per_file,
+            },
+        )?)?),
+        "pack" => Ok(serde_json::to_value(build_context_pack(
+            &state.workspace,
+            &query.q,
+            ContextPackOptions {
+                limit: query.limit,
+                max_bytes_per_file: query.max_bytes_per_file,
+                max_snippet_lines: query.max_snippet_lines,
+            },
+        )?)?),
+        _ => Err(anyhow!("unsupported context mode: {mode}")),
+    }
 }
 
 async fn direct_connect_create_session_handler(
@@ -6115,7 +6207,9 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
-            "git.status.read"
+            "git.status.read",
+            "context.search.read",
+            "context.pack.read"
         ],
         "endpoints": [
             {
@@ -6157,6 +6251,16 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/git/status",
                 "schema": "kiana.app-server.git-status.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/context/search",
+                "schema": "kiana.context-search.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/context/pack",
+                "schema": "kiana.context-pack.v1"
             },
             {
                 "method": "POST",
@@ -15233,6 +15337,13 @@ mod tests {
         std::fs::write(plugin_root.join(".lsp.json"), "{}").unwrap();
         std::fs::write(plugin_root.join("app.json"), "{}").unwrap();
         std::fs::write(plugin_root.join(".mcp.json"), "{}").unwrap();
+        std::fs::create_dir_all(workspace.join("src")).unwrap();
+        std::fs::write(
+            workspace.join("src").join("lib.rs"),
+            "pub fn checkout() {}\n// checkout checkout\n",
+        )
+        .unwrap();
+        std::fs::write(workspace.join("README.md"), "checkout guide\n").unwrap();
         let disabled_plugin_root = plugins_dir.join("disabled-tools");
         let disabled_manifest_dir = disabled_plugin_root.join(".codex-plugin");
         std::fs::create_dir_all(&disabled_manifest_dir).unwrap();
@@ -15381,6 +15492,14 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&Value::String("plugins.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("context.search.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("context.pack.read".to_string())));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -15407,6 +15526,24 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/plugins"
                     && endpoint["schema"] == "kiana.app-server.plugins.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/search"
+                    && endpoint["schema"] == "kiana.context-search.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/pack"
+                    && endpoint["schema"] == "kiana.context-pack.v1"
             }));
 
         let conversations: Value = client
@@ -15554,6 +15691,43 @@ mod tests {
         assert_eq!(disabled_tools["enabled"], false);
         assert_eq!(disabled_tools["valid"], true);
         assert_eq!(disabled_tools["components"]["commands"], 1);
+
+        let context_search: Value = client
+            .get(format!("http://{addr}/app/context/search"))
+            .bearer_auth("secret")
+            .query(&[("q", "checkout"), ("limit", "1")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(context_search["schema"], "kiana.context-search.v1");
+        assert_eq!(context_search["query"], "checkout");
+        assert_eq!(context_search["limit"], 1);
+        assert_eq!(context_search["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(context_search["hits"][0]["path"], "src/lib.rs");
+
+        let context_pack: Value = client
+            .get(format!("http://{addr}/app/context/pack"))
+            .bearer_auth("secret")
+            .query(&[
+                ("q", "checkout"),
+                ("limit", "1"),
+                ("max_snippet_lines", "1"),
+            ])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(context_pack["schema"], "kiana.context-pack.v1");
+        assert_eq!(context_pack["query"], "checkout");
+        assert_eq!(context_pack["limit"], 1);
+        assert_eq!(context_pack["max_snippet_lines"], 1);
+        assert_eq!(context_pack["snippets"].as_array().unwrap().len(), 1);
+        assert_eq!(context_pack["snippets"][0]["path"], "src/lib.rs");
 
         let git_status: Value = client
             .get(format!("http://{addr}/app/git/status"))

@@ -35,7 +35,8 @@ commercial release.
   `scripts/release-smoke.sh`.
 - Local app-server `/app` contract returns `kiana.app-server.contract.v1` and
   exposes bearer-protected conversations, session event snapshots, settings,
-  redacted secrets, sandbox, and git-status endpoints.
+  redacted secrets, sandbox, git-status, context-search, and context-pack
+  endpoints.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - `scripts/package-lifecycle-smoke.sh` runs on each release runner after
   packaging and before artifact signing.
@@ -127,6 +128,9 @@ commercial release.
   `docs/sdk-runtime-events.md` compatibility policy.
 - App-server plugin visibility returns `kiana.app-server.plugins.v1` without
   exposing plugin secrets or bypassing managed plugin policy.
+- App-server context endpoints return `kiana.context-search.v1` and
+  `kiana.context-pack.v1` from the active workspace so Web/IDE clients can use
+  repository knowledge without shelling out to the CLI.
 - Local context index/search workflows are accepted for repository knowledge
   lookup before richer RAG features are promoted as supported surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and

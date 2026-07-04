@@ -192,6 +192,17 @@ else
   fail "release smoke does not exercise product shell smoke"
 fi
 
+if grep -Fq 'context.search.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'context.pack.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/context/search' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/context/pack' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
+  pass "app-server context search/pack endpoints are wired"
+else
+  fail "app-server context search/pack endpoints are not wired"
+fi
+
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
   grep -Fq '.kiana-install-receipt.json' scripts/release-smoke.sh &&
   grep -Fq 'install_receipt_integrity' scripts/release-smoke.sh &&
