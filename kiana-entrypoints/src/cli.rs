@@ -5244,6 +5244,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_checks_dry_run_handler),
         )
         .route(
+            "/app/checks",
+            axum::routing::get(direct_connect_app_checks_run_handler),
+        )
+        .route(
             "/app/review/dry-run",
             axum::routing::get(direct_connect_app_review_dry_run_handler),
         )
@@ -5601,6 +5605,55 @@ async fn direct_connect_app_checks_dry_run_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             format!("failed to build checks dry-run report: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_checks_run_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    direct_connect_app_checks_handler(state, headers, "--json", "run").await
+}
+
+async fn direct_connect_app_checks_handler(
+    state: DirectConnectServerState,
+    headers: axum::http::HeaderMap,
+    args: &str,
+    report_kind: &str,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("checks") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "checks command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: args.to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build checks {report_kind} report: {error}"),
         ),
     }
 }
@@ -6397,6 +6450,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "plugins.read",
             "git.status.read",
             "checks.dry_run.read",
+            "checks.run.read",
             "review.dry_run.read",
             "review.run.read",
             "context.index.read",
@@ -6449,6 +6503,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/checks/dry-run",
                 "schema": "kiana.checks.dry_run.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/checks",
+                "schema": "kiana.checks.run.v1"
             },
             {
                 "method": "GET",
@@ -15736,6 +15795,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("checks.run.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("review.dry_run.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -15803,6 +15866,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/checks/dry-run"
                     && endpoint["schema"] == "kiana.checks.dry_run.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/checks"
+                    && endpoint["schema"] == "kiana.checks.run.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16106,6 +16178,29 @@ mod tests {
         )
         .unwrap();
         std::fs::write(workspace.join("review-notes.txt"), "client review notes\n").unwrap();
+
+        let checks_run: Value = client
+            .get(format!("http://{addr}/app/checks"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(checks_run["schema"], "kiana.checks.run.v1");
+        assert_eq!(checks_run["root"], workspace.display().to_string());
+        assert_eq!(checks_run["dry_run"], false);
+        assert_eq!(checks_run["inside_git_repo"], true);
+        assert_eq!(checks_run["execution"]["isolation"], "git_worktree");
+        assert_eq!(checks_run["summary"]["failed"], 0);
+        assert!(checks_run["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["id"] == "release_smoke"
+                && check["status"] == "passed"
+                && check["stdout"] == "app-review-ok\n"));
 
         let review_run: Value = client
             .get(format!("http://{addr}/app/review"))

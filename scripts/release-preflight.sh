@@ -57,6 +57,7 @@ for file in \
   docs/schemas/kiana-app-server-plugins.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
   docs/schemas/kiana-checks-dry-run.v1.schema.json \
+  docs/schemas/kiana-checks-run.v1.schema.json \
   docs/schemas/kiana-review-dry-run.v1.schema.json \
   docs/schemas/kiana-review-run.v1.schema.json \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
@@ -201,6 +202,8 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '.kiana/context-index.json' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'checks.dry_run.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/checks/dry-run' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'checks.run.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/checks' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'review.dry_run.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/review/dry-run' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'review.run.read' kiana-entrypoints/src/cli.rs &&
@@ -211,14 +214,15 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/search' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/pack' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.checks.dry_run.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.checks.run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.review.dry_run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.review.run.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server context, checks, review dry-run/run, and cache endpoints are wired"
+  pass "app-server context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
-  fail "app-server context, checks, review dry-run/run, or cache endpoints are not wired"
+  fail "app-server context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
@@ -288,6 +292,14 @@ if grep -Fq '"const": "kiana.checks.dry_run.v1"' docs/schemas/kiana-checks-dry-r
   pass "checks dry-run JSON schema version is pinned"
 else
   fail "checks dry-run JSON schema is missing required quality-gate anchors"
+fi
+
+if grep -Fq '"const": "kiana.checks.run.v1"' docs/schemas/kiana-checks-run.v1.schema.json &&
+  grep -Fq '"git_worktree"' docs/schemas/kiana-checks-run.v1.schema.json &&
+  grep -Fq '"release_smoke"' docs/schemas/kiana-checks-run.v1.schema.json; then
+  pass "checks run JSON schema version is pinned"
+else
+  fail "checks run JSON schema is missing required isolated quality-gate anchors"
 fi
 
 if grep -Fq '"const": "kiana.review.dry_run.v1"' docs/schemas/kiana-review-dry-run.v1.schema.json &&

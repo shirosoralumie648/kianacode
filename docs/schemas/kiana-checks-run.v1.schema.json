@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-checks-run.v1.schema.json",
+  "title": "Kiana Checks Run v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "root",
+    "inside_git_repo",
+    "dry_run",
+    "execution",
+    "summary",
+    "results"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.checks.run.v1"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inside_git_repo": {
+      "type": "boolean"
+    },
+    "dry_run": {
+      "const": false
+    },
+    "execution": {
+      "type": "object",
+      "required": ["isolation", "applied_current_changes"],
+      "properties": {
+        "isolation": {
+          "type": "string",
+          "enum": ["git_worktree", "none"]
+        },
+        "applied_current_changes": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "skipped"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/checkResult"
+      }
+    }
+  },
+  "$defs": {
+    "checkResult": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "command",
+        "status",
+        "stdout",
+        "stderr"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["rustfmt", "cargo_check", "cargo_test", "release_smoke"]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed", "skipped"]
+        },
+        "exit_code": {
+          "type": ["integer", "null"]
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "error": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

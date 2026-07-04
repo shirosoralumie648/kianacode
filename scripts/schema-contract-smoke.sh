@@ -33,12 +33,13 @@ tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_checks_dry_run="$(mktemp)"
+tmp_checks_run="$(mktemp)"
 tmp_review_dry_run="$(mktemp)"
 tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -149,6 +150,41 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-checks-dry-run.v1.schema.json \
   "$tmp_checks_dry_run" >/dev/null
+
+cat > "$tmp_checks_run" <<'JSON'
+{
+  "schema": "kiana.checks.run.v1",
+  "root": "/workspace",
+  "git_root": "/workspace",
+  "inside_git_repo": true,
+  "dry_run": false,
+  "execution": {
+    "isolation": "git_worktree",
+    "applied_current_changes": true
+  },
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "results": [
+    {
+      "id": "release_smoke",
+      "description": "Release smoke gate",
+      "command": "bash scripts/release-smoke.sh",
+      "status": "passed",
+      "exit_code": 0,
+      "stdout": "smoke-ok\n",
+      "stderr": "",
+      "error": null
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-checks-run.v1.schema.json \
+  "$tmp_checks_run" >/dev/null
 
 cat > "$tmp_review_dry_run" <<'JSON'
 {
@@ -435,7 +471,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

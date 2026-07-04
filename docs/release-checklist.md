@@ -131,6 +131,9 @@ commercial release.
 - App-server checks dry-run returns `kiana.checks.dry_run.v1` from the active
   workspace so Web/IDE clients can display deterministic local quality gates
   without shelling out to `kiana checks --dry-run --json`.
+- App-server checks run returns `kiana.checks.run.v1` from the active workspace
+  so Web/IDE clients can execute isolated local quality gates without shelling
+  out to `kiana checks --json`.
 - App-server review dry-run returns `kiana.review.dry_run.v1` from the active
   workspace so Web/IDE clients can display deterministic local review state,
   patch previews, and isolated-review steps without shelling out to
