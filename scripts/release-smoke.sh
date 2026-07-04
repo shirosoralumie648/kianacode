@@ -759,6 +759,9 @@ JSON
   output="$(run_clean_kiana "$binary" plugin show review-tools)"
   grep -Fq -- '"install_receipt_integrity": {' <<<"$output"
   grep -Fq -- '"status": "tampered"' <<<"$output"
+  output="$(run_clean_kiana "$binary" plugin validate review-tools)"
+  grep -Fq -- "plugin install receipt integrity tampered" <<<"$output"
+  grep -Fq -- "Validation failed" <<<"$output"
 
   output="$(run_clean_kiana "$binary" plugin disable review-tools)"
   grep -Fq -- "Plugin disabled: review-tools" <<<"$output"

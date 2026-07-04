@@ -1655,6 +1655,15 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
     let mut description = None;
     let (install_receipt, install_receipt_integrity) =
         read_plugin_install_receipt(&root, &mut warnings);
+    if let Some(integrity) = install_receipt_integrity.as_ref() {
+        if integrity.status != "verified" {
+            errors.push(format!(
+                "plugin install receipt integrity {}: {}",
+                integrity.status,
+                integrity.summary()
+            ));
+        }
+    }
 
     match manifest_path.as_ref() {
         Some(path) => match std::fs::read_to_string(path) {
@@ -3261,6 +3270,14 @@ mod tests {
                 .as_str()
                 .unwrap()
                 .contains("plugin install receipt integrity tampered")));
+        let tampered_validation = PluginCommand
+            .execute(context("validate review-tools", &cwd))
+            .await
+            .unwrap();
+        assert!(tampered_validation
+            .value
+            .contains("plugin install receipt integrity tampered"));
+        assert!(tampered_validation.value.contains("Validation failed"));
 
         PluginCommand
             .execute(context("disable review-tools", &cwd))
