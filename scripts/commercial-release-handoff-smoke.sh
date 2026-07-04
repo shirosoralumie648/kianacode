@@ -304,6 +304,75 @@ if "distribution.enterprise-offline-manifest" not in handoff:
     raise SystemExit("distribution.enterprise-offline-manifest should remain a blocking handoff assignment")
 PY
 
+"$python" - "$tmp_dist" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+dist = Path(sys.argv[1])
+version = "0.1.0"
+package = f"kiana-{version}-windows-x86_64"
+zip_file = dist / f"{package}.zip"
+zip_sha = dist / f"{package}.zip.sha256"
+manifest = dist / f"manifests/winget/Kiana.Kiana/{version}/Kiana.Kiana.installer.yaml"
+homebrew = dist / "manifests/homebrew/kiana-linux-x86_64.rb"
+manifest.parent.mkdir(parents=True, exist_ok=True)
+homebrew.parent.mkdir(parents=True, exist_ok=True)
+
+zip_file.write_text("winget zip fixture\n", encoding="utf-8")
+zip_digest = hashlib.sha256(zip_file.read_bytes()).hexdigest()
+zip_sha.write_text(f"{zip_digest}  {zip_file.name}\n", encoding="utf-8")
+homebrew.write_text("class Kiana < Formula\nend\n", encoding="utf-8")
+manifest.write_text(
+    "\n".join(
+        [
+            "PackageIdentifier: Kiana.Kiana",
+            f"PackageVersion: {version}",
+            "InstallerType: zip",
+            "NestedInstallerType: portable",
+            "Installers:",
+            "- Architecture: x64",
+            f"  InstallerUrl: https://github.com/acme/kiana/releases/download/v{version}/{zip_file.name}",
+            f"  InstallerSha256: {'0' * 64}",
+            "  NestedInstallerFiles:",
+            "  - RelativeFilePath: kiana-0.1.0-windows-x86_64/kiana.exe",
+            "    PortableCommandAlias: kiana",
+            "ManifestType: installer",
+            "ManifestVersion: 1.6.0",
+            "",
+        ]
+    ),
+    encoding="utf-8",
+)
+PY
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+check = {item["id"]: item for item in report.get("checks", [])}.get("distribution.package-channels")
+if not check:
+    raise SystemExit("distribution.package-channels check is missing")
+if check.get("status") != "blocking":
+    raise SystemExit("distribution.package-channels accepted a checksum-mismatched winget manifest")
+if "winget manifest failed commercial contract" not in check.get("evidence", ""):
+    raise SystemExit("distribution.package-channels evidence does not name the winget contract failure")
+if "distribution.package-channels" not in handoff:
+    raise SystemExit("distribution.package-channels should remain a blocking handoff assignment")
+PY
+
 mkdir -p "$tmp_dist/proofs/live-smoke/provider" "$tmp_dist/proofs/live-smoke/remote"
 cat > "$tmp_dist/proofs/live-smoke/provider/model-catalog-live.json" <<'JSON'
 {

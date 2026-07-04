@@ -270,6 +270,48 @@ def enterprise_offline_manifest_contract(manifest, dist_dir):
     return True, "enterprise offline manifest commercial contract accepted"
 
 
+def winget_manifest_contract(manifests, dist_dir):
+    if not manifests:
+        return False, "winget manifest missing"
+    for manifest in manifests:
+        try:
+            content = manifest.read_text(encoding="utf-8")
+        except OSError as exc:
+            return False, f"winget manifest unreadable: {manifest}: {exc}"
+        fields = {}
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            fields[key.strip()] = value.strip().strip('"').strip("'")
+        installer_url = fields.get("InstallerUrl", "")
+        installer_sha = fields.get("InstallerSha256", "")
+        installer_type = fields.get("InstallerType", "")
+        manifest_type = fields.get("ManifestType", "")
+        version = fields.get("PackageVersion", "")
+        if not (
+            installer_type == "zip"
+            and manifest_type == "installer"
+            and version == VERSION
+            and real_release_url(installer_url)
+            and installer_url.endswith(".zip")
+            and re.fullmatch(r"[0-9a-fA-F]{64}", installer_sha or "") is not None
+        ):
+            return False, "winget manifest failed commercial contract"
+        zip_name = installer_url.rsplit("/", 1)[-1]
+        zip_file = dist_dir / zip_name
+        zip_checksum = dist_dir / f"{zip_name}.sha256"
+        if not (
+            zip_file.is_file()
+            and zip_checksum.is_file()
+            and installer_sha.lower() == sha256_file(zip_file)
+            and installer_sha.lower() == first_checksum(zip_checksum).lower()
+        ):
+            return False, "winget manifest failed commercial contract"
+    return True, "winget manifest commercial contract accepted"
+
+
 def source_control_proof_candidates():
     return [
         Path(value)
@@ -700,7 +742,15 @@ homebrew_blocked = (manifest_dir / "homebrew" / "BLOCKED.md").exists()
 homebrew_formulae = sorted((manifest_dir / "homebrew").glob("*.rb"))
 winget_blocked = (manifest_dir / "winget" / "BLOCKED.md").exists()
 winget_manifests = sorted((manifest_dir / "winget").glob(f"*/{VERSION}/*.installer.yaml"))
-channel_ok = (not homebrew_blocked) and bool(homebrew_formulae) and (not winget_blocked) and bool(winget_manifests)
+winget_contract_ok, winget_contract_evidence = winget_manifest_contract(
+    winget_manifests, dist_dir
+)
+channel_ok = (
+    (not homebrew_blocked)
+    and bool(homebrew_formulae)
+    and (not winget_blocked)
+    and winget_contract_ok
+)
 add_check(
     id="distribution.package-channels",
     category="distribution",
@@ -710,7 +760,8 @@ add_check(
     gate="scripts/verify-commercial-release-artifacts.sh",
     evidence=(
         f"homebrew_blocked={homebrew_blocked} homebrew_formulae={len(homebrew_formulae)} "
-        f"winget_blocked={winget_blocked} winget_manifests={len(winget_manifests)}"
+        f"winget_blocked={winget_blocked} winget_manifests={len(winget_manifests)} "
+        f"winget_contract={winget_contract_evidence}"
     ),
     required_action="Generate publishable Homebrew formulae and winget manifests from real release URLs; remove channel BLOCKED.md files only when publication is actually possible.",
     paths=[manifest_dir / "homebrew", manifest_dir / "winget"],
