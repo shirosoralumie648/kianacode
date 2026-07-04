@@ -123,7 +123,7 @@ Acceptance Tests:
 
 | Capability | Kiana 当前状态 | 缺失行为 | 建议修改模块/crate | 测试要求 | 优先级 |
 |---|---|---|---|---|---|
-| Plugin install | 已支持 URL/git/github/git-subdir marketplace 主链路 | npm/pip plugin source、真实 GitHub marketplace live smoke 未补 | `kiana-commands/src/plugin.rs`, `kiana-types/src/plugin.rs` | local http/git + opt-in live smoke | P2 |
+| Plugin install | 已支持 URL/git/github/git-subdir marketplace 主链路，并支持 cached `npm` `file:` 离线包源 | 真实 npm registry、pip plugin source、真实 GitHub marketplace live smoke 未补 | `kiana-commands/src/plugin.rs`, `kiana-types/src/plugin.rs` | local http/git/npm-file + opt-in live smoke | P2 |
 | Resource cache | plugin skill cache 已按 enabled roots 刷新 | commands/hooks/agents/MCP/LSP 全资源 disable visibility 需补齐 | `kiana-skills/src`, `kiana-commands/src/plugin.rs`, `kiana-tools/src/lsp_tool.rs` | resource visibility matrix | P1 |
 | Hook CLI | 已有 hooks add/remove/status | hook schema validation 与 timeout/error event 需更明确 | `kiana-commands/src/hooks.rs`, `kiana-query/src/stop_hooks.rs` | malformed hook fixtures | P1 |
 | Agent definitions | 已支持多来源 agent discovery 和 built-ins | background agent lifecycle、auto-memory 完整语义未完成 | `kiana-tools/src/agent.rs` | agent runtime fixtures | P2 |

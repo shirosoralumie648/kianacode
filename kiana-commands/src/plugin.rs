@@ -766,8 +766,13 @@ async fn find_plugin_from_remote_marketplace_manifest_file(
                 marketplace_entry_source_path(base, &entry.source)?
             }
             _ => {
-                marketplace_entry_remote_source_path(&marketplace_name, &entry.name, &entry.source)
-                    .await?
+                marketplace_entry_remote_source_path(
+                    &marketplace_name,
+                    &entry.name,
+                    &entry.source,
+                    manifest_path.parent(),
+                )
+                .await?
             }
         };
         if !plugin_root.exists() {
@@ -808,6 +813,7 @@ async fn marketplace_entry_remote_source_path(
     marketplace_name: &str,
     entry_name: &str,
     source: &Value,
+    package_base: Option<&Path>,
 ) -> Result<PathBuf> {
     if let Some(path) = source.as_str() {
         return Err(anyhow!(
@@ -923,7 +929,20 @@ async fn marketplace_entry_remote_source_path(
             )
             .await
         }
-        "npm" | "pip" => Err(anyhow!(
+        "npm" => {
+            let package = object
+                .get("package")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "remote marketplace '{}' plugin '{}' npm source object requires 'package'",
+                        marketplace_name,
+                        entry_name
+                    )
+                })?;
+            resolve_remote_npm_file_package_source(marketplace_name, entry_name, package, package_base)
+        }
+        "pip" => Err(anyhow!(
             "remote marketplace '{}' plugin '{}' source type '{}' is not implemented yet",
             marketplace_name,
             entry_name,
@@ -942,6 +961,43 @@ async fn marketplace_entry_remote_source_path(
             other
         )),
     }
+}
+
+fn resolve_remote_npm_file_package_source(
+    marketplace_name: &str,
+    entry_name: &str,
+    package: &str,
+    package_base: Option<&Path>,
+) -> Result<PathBuf> {
+    let path = package.strip_prefix("file:").ok_or_else(|| {
+        anyhow!(
+            "remote marketplace '{}' plugin '{}' npm package '{}' is not supported; use file:<relative-path> for offline package sources",
+            marketplace_name,
+            entry_name,
+            package
+        )
+    })?;
+    let path = Path::new(path);
+    if path.is_absolute()
+        || path.as_os_str().is_empty()
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err(anyhow!(
+            "remote marketplace '{}' plugin '{}' npm file package must be a relative path inside the cached marketplace",
+            marketplace_name,
+            entry_name
+        ));
+    }
+    let base = package_base.ok_or_else(|| {
+        anyhow!(
+            "remote marketplace '{}' plugin '{}' npm file package has no cached marketplace base",
+            marketplace_name,
+            entry_name
+        )
+    })?;
+    Ok(base.join(path))
 }
 
 async fn clone_remote_plugin_source(
@@ -2615,6 +2671,9 @@ fn git_clone_source(url: &str) -> String {
 }
 
 fn normalize_file_url_path_for_git(path: &str) -> String {
+    if !cfg!(windows) {
+        return path.to_string();
+    }
     let mut path = path.replace('/', "\\");
     if path.as_bytes().get(0) == Some(&b'\\') && path.as_bytes().get(2) == Some(&b':') {
         path.remove(0);
@@ -3487,14 +3546,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn plugin_install_reports_unsupported_remote_plugin_source_types() {
+    async fn plugin_install_from_remote_marketplace_npm_file_package_source() {
         let _guard = env_lock().lock().unwrap();
         let previous_home = std::env::var_os("KIANA_HOME");
-        let root = temp_root("unsupported-remote-plugin-source");
+        let root = temp_root("npm-file-plugin-source");
         let cwd = root.join("project");
         let kiana_home = root.join("home").join(".kiana");
         let plugins_dir = kiana_home.join("plugins");
+        let package_root = kiana_home
+            .join("plugin-marketplace-cache")
+            .join("packages")
+            .join("packaged-tools");
         fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(package_root.join("commands")).unwrap();
+        write_manifest(&package_root, "packaged-tools");
+        fs::write(package_root.join("commands").join("audit.md"), "# audit").unwrap();
         let marketplace_url = serve_json_once(
             serde_json::to_string_pretty(&json!({
                 "name": "package-marketplace",
@@ -3504,7 +3570,7 @@ mod tests {
                         "name": "packaged-tools",
                         "source": {
                             "source": "npm",
-                            "package": "@example/packaged-tools"
+                            "package": "file:packages/packaged-tools"
                         }
                     }
                 ]
@@ -3520,14 +3586,17 @@ mod tests {
             .await
             .unwrap();
 
-        let error = PluginCommand
+        let installed = PluginCommand
             .execute(context("install packaged-tools@package-marketplace", &cwd))
             .await
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains(
-            "remote marketplace 'package-marketplace' plugin 'packaged-tools' source type 'npm' is not implemented yet"
-        ));
+            .unwrap();
+        assert!(installed.value.contains("Installed plugin: packaged-tools"));
+        assert!(installed.value.contains("marketplace: package-marketplace"));
+        assert!(plugins_dir
+            .join("packaged-tools")
+            .join("commands")
+            .join("audit.md")
+            .is_file());
 
         match previous_home {
             Some(value) => std::env::set_var("KIANA_HOME", value),
