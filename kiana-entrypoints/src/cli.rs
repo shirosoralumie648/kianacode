@@ -5322,6 +5322,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_signature_handler),
         )
         .route(
+            "/app/release/enterprise-offline-manifest",
+            axum::routing::get(direct_connect_app_release_enterprise_offline_manifest_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -6047,6 +6051,28 @@ async fn direct_connect_app_release_signature_handler(
     }
 }
 
+async fn direct_connect_app_release_enterprise_offline_manifest_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_enterprise_offline_manifest_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read enterprise offline manifest report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -6516,6 +6542,65 @@ fn direct_connect_release_signature_report() -> Result<Value> {
         return Err(anyhow!(
             "release signature proof file {} has unexpected schema",
             evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_enterprise_offline_manifest_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let dist_dir = if dist_dir.is_absolute() {
+        dist_dir
+    } else {
+        root.join(dist_dir)
+    };
+    let candidates = [
+        std::env::var_os("KIANA_ENTERPRISE_OFFLINE_MANIFEST_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_ENTERPRISE_OFFLINE_MANIFEST_OUT").map(PathBuf::from),
+        Some(
+            dist_dir
+                .join("manifests")
+                .join("enterprise")
+                .join("offline-manifest.json"),
+        ),
+    ];
+    let manifest_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no enterprise offline manifest found in KIANA_ENTERPRISE_OFFLINE_MANIFEST_FILE, KIANA_ENTERPRISE_OFFLINE_MANIFEST_OUT, or DIST_DIR/manifests/enterprise/offline-manifest.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&manifest_path).with_context(|| {
+        format!(
+            "failed to read enterprise offline manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse enterprise offline manifest JSON {}",
+            manifest_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.enterprise.offline-manifest.v1") {
+        return Err(anyhow!(
+            "enterprise offline manifest {} has unexpected schema",
+            manifest_path.display()
         ));
     }
     Ok(value)
@@ -7783,6 +7868,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "release.platform_security.read",
             "release.source_control.read",
             "release.signature.read",
+            "release.enterprise_offline_manifest.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7877,6 +7963,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/signature",
                 "schema": "kiana.release-signature.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/enterprise-offline-manifest",
+                "schema": "kiana.enterprise.offline-manifest.v1"
             },
             {
                 "method": "GET",
@@ -17024,6 +17115,8 @@ mod tests {
             "KIANA_SOURCE_CONTROL_PROOF_OUT",
             "KIANA_RELEASE_SIGNATURE_PROOF_FILE",
             "KIANA_RELEASE_SIGNATURE_PROOF_OUT",
+            "KIANA_ENTERPRISE_OFFLINE_MANIFEST_FILE",
+            "KIANA_ENTERPRISE_OFFLINE_MANIFEST_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -17515,6 +17608,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.signature.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.enterprise_offline_manifest.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -17577,6 +17675,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/signature"
                     && endpoint["schema"] == "kiana.release-signature.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/enterprise-offline-manifest"
+                    && endpoint["schema"] == "kiana.enterprise.offline-manifest.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -18453,6 +18560,70 @@ mod tests {
         assert_eq!(release_signature["verification"]["archive"], "verified");
         assert_eq!(release_signature["verification"]["binary"], "verified");
         let _ = std::fs::remove_file(&release_signature_path);
+
+        let enterprise_offline_manifest_path = std::env::temp_dir().join(format!(
+            "kiana-enterprise-offline-manifest-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &enterprise_offline_manifest_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.enterprise.offline-manifest.v1",
+                "version": "0.1.0",
+                "release_base_url": "https://downloads.example.test/kiana/v0.1.0",
+                "artifacts": [{
+                    "target": "linux-x86_64",
+                    "archive": "kiana-0.1.0-linux-x86_64.tar.gz",
+                    "url": "https://downloads.example.test/kiana/v0.1.0/kiana-0.1.0-linux-x86_64.tar.gz",
+                    "sha256": "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507",
+                    "binary_sha256": "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0",
+                    "local_path": "kiana-0.1.0-linux-x86_64.tar.gz",
+                    "checksum_path": "kiana-0.1.0-linux-x86_64.tar.gz.sha256",
+                    "binary_checksum_path": "kiana-0.1.0-linux-x86_64.binary.sha256"
+                }],
+                "channels": {
+                    "github_releases": "generated_from_release_base_url",
+                    "homebrew": "generated",
+                    "winget": "blocked_no_windows_publishable_artifact"
+                },
+                "generated_by": "scripts/generate-distribution-manifests.sh"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var(
+            "KIANA_ENTERPRISE_OFFLINE_MANIFEST_OUT",
+            &enterprise_offline_manifest_path,
+        );
+        let enterprise_offline_manifest: Value = client
+            .get(format!(
+                "http://{addr}/app/release/enterprise-offline-manifest"
+            ))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            enterprise_offline_manifest["schema"],
+            "kiana.enterprise.offline-manifest.v1"
+        );
+        assert_eq!(enterprise_offline_manifest["version"], "0.1.0");
+        assert_eq!(
+            enterprise_offline_manifest["artifacts"][0]["target"],
+            "linux-x86_64"
+        );
+        assert_eq!(
+            enterprise_offline_manifest["channels"]["homebrew"],
+            "generated"
+        );
+        assert_eq!(
+            enterprise_offline_manifest["generated_by"],
+            "scripts/generate-distribution-manifests.sh"
+        );
+        let _ = std::fs::remove_file(&enterprise_offline_manifest_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
