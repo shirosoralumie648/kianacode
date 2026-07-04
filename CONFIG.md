@@ -24,7 +24,7 @@ kiana auth logout --oauth-only
 kiana license status --json
 ```
 
-配置保存到 `~/.kiana/config.toml`，运行 `kiana config status` 可查看当前生效值。
+配置保存到 `~/.kiana/config.toml`，运行 `kiana config status` 可查看当前生效值。需要排查配置来源时，运行 `kiana config resolved --json` 可输出 `kiana.config-resolved.v1`，其中每个有效值都带 `source` 字段，并且 API key 只显示脱敏预览。
 
 ### 2. 手动编辑配置文件
 ```bash
@@ -96,6 +96,8 @@ export KIANA_MANAGED_POLICY_FILE="/etc/kiana/policy.json"
   }
 }
 ```
+
+运行 `kiana config resolved --json` 可以确认托管配置是否作为最终 overlay 生效；输出会显示 `config_file`、`remote_settings_file`、`settings_file`、`settings_json`、`env`、`managed_settings_file` 的状态，并把 `api_key` 等敏感值脱敏。
 
 Managed plugin install policy can live in the shared managed policy file under
 `plugins`, or in a dedicated file referenced by `KIANA_MANAGED_PLUGIN_POLICY_FILE`.
@@ -193,6 +195,8 @@ base config (~/.kiana/config.toml)
 -> ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL / ANTHROPIC_MODEL
 -> KIANA_MANAGED_SETTINGS_FILE 或 KIANA_MANAGED_POLICY_FILE
 ```
+
+`kiana config resolved --json` 会按同一优先级输出当前有效值及来源，适合排查企业托管配置、环境变量覆盖、settings overlay 和普通配置文件之间的冲突。
 
 例如：
 - 配置文件设置了 `api_key = "key1"`

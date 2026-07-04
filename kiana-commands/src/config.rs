@@ -52,6 +52,7 @@ impl Command for ConfigCommand {
                     &redacted_config_json(&kiana_bootstrap::config::load_config()),
                 )?))
             }
+            "resolved" => resolved_config(args.get(1..).unwrap_or_default()),
             "get" => get_config_value(args.get(1), args.get(2..).unwrap_or_default()),
             "set" => set_config_value(args.get(1), args.get(2..).unwrap_or_default()),
             "unset" | "reset" => unset_config_value(
@@ -442,6 +443,455 @@ fn redacted_config_json(config: &Config) -> Value {
     })
 }
 
+#[derive(Debug, Clone)]
+struct ResolvedField {
+    value: Value,
+    source: &'static str,
+}
+
+impl ResolvedField {
+    fn new(value: Value, source: &'static str) -> Self {
+        Self { value, source }
+    }
+
+    fn json(self) -> Value {
+        json!({
+            "value": self.value,
+            "source": self.source,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedConfigSummary {
+    api_key: ResolvedField,
+    base_url: ResolvedField,
+    model: ResolvedField,
+    verbose: ResolvedField,
+    brief: ResolvedField,
+    vim_mode: ResolvedField,
+    theme: ResolvedField,
+    advisor_model: ResolvedField,
+    output_style: ResolvedField,
+    sandbox: ResolvedField,
+}
+
+fn resolved_config(extra: &[String]) -> Result<CommandResult> {
+    if !extra.is_empty() && extra != ["--json"] {
+        return Err(anyhow!(
+            "unknown config resolved arguments '{}'\n\n{}",
+            extra.join(" "),
+            usage()
+        ));
+    }
+    let summary = resolved_config_summary();
+    Ok(CommandResult::text(serde_json::to_string_pretty(
+        &resolved_config_json(summary),
+    )?))
+}
+
+fn resolved_config_json(summary: ResolvedConfigSummary) -> Value {
+    let path = config_path();
+    json!({
+        "schema": "kiana.config-resolved.v1",
+        "config_file": {
+            "path": path.to_string_lossy(),
+            "status": if path.is_file() { "found" } else { "missing" },
+        },
+        "sources": resolved_config_sources(),
+        "values": {
+            "api_key": summary.api_key.json(),
+            "base_url": summary.base_url.json(),
+            "model": summary.model.json(),
+            "settings": {
+                "verbose": summary.verbose.json(),
+                "brief": summary.brief.json(),
+                "vim_mode": summary.vim_mode.json(),
+                "theme": summary.theme.json(),
+                "advisor_model": summary.advisor_model.json(),
+                "output_style": summary.output_style.json(),
+            },
+            "sandbox": summary.sandbox.json(),
+        }
+    })
+}
+
+fn resolved_config_sources() -> Value {
+    let path = config_path();
+    json!({
+        "config_file": {
+            "path": path.to_string_lossy(),
+            "status": if path.is_file() { "found" } else { "missing" },
+        },
+        "remote_settings_file": env_path_source("KIANA_REMOTE_SETTINGS_FILE"),
+        "settings_file": env_path_source("KIANA_SETTINGS_FILE"),
+        "settings_json": {
+            "status": if std::env::var("KIANA_SETTINGS_JSON").ok().is_some_and(|value| !value.trim().is_empty()) {
+                "set"
+            } else {
+                "missing"
+            },
+        },
+        "env": {
+            "anthropic_api_key": env_value_status("ANTHROPIC_API_KEY"),
+            "anthropic_base_url": env_value_status("ANTHROPIC_BASE_URL"),
+            "anthropic_model": env_value_status("ANTHROPIC_MODEL"),
+        },
+        "managed_settings_file": managed_settings_source(),
+    })
+}
+
+fn env_path_source(name: &str) -> Value {
+    match std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        Some(path) => json!({
+            "path": path,
+            "status": if std::path::Path::new(&path).is_file() { "found" } else { "missing" },
+        }),
+        None => json!({
+            "path": Value::Null,
+            "status": "missing",
+        }),
+    }
+}
+
+fn env_value_status(name: &str) -> Value {
+    json!({
+        "status": if std::env::var(name).ok().is_some_and(|value| !value.trim().is_empty()) {
+            "set"
+        } else {
+            "missing"
+        }
+    })
+}
+
+fn managed_settings_source() -> Value {
+    let explicit = std::env::var("KIANA_MANAGED_SETTINGS_FILE")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let shared = std::env::var("KIANA_MANAGED_POLICY_FILE")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    match explicit.or(shared) {
+        Some(path) => json!({
+            "path": path,
+            "status": if std::path::Path::new(&path).is_file() { "found" } else { "missing" },
+        }),
+        None => json!({
+            "path": Value::Null,
+            "status": "missing",
+        }),
+    }
+}
+
+fn resolved_config_summary() -> ResolvedConfigSummary {
+    let effective = kiana_bootstrap::config::load_config();
+    let file = load_user_config();
+
+    ResolvedConfigSummary {
+        api_key: ResolvedField::new(
+            effective
+                .api_key
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .map(mask_secret)
+                .map(Value::String)
+                .unwrap_or(Value::Null),
+            resolved_api_key_source(&file),
+        ),
+        base_url: ResolvedField::new(
+            effective
+                .base_url
+                .as_deref()
+                .unwrap_or("https://api.anthropic.com")
+                .to_string()
+                .into(),
+            resolved_base_url_source(&file),
+        ),
+        model: ResolvedField::new(effective.model.clone().into(), resolved_model_source(&file)),
+        verbose: ResolvedField::new(
+            effective.settings.verbose.into(),
+            resolved_settings_bool_source(
+                "verbose",
+                file.settings.verbose,
+                Config::default().settings.verbose,
+            ),
+        ),
+        brief: ResolvedField::new(
+            effective.settings.brief.into(),
+            resolved_settings_bool_source(
+                "brief",
+                file.settings.brief,
+                Config::default().settings.brief,
+            ),
+        ),
+        vim_mode: ResolvedField::new(
+            effective.settings.vim_mode.into(),
+            resolved_settings_bool_source(
+                "vim_mode",
+                file.settings.vim_mode,
+                Config::default().settings.vim_mode,
+            ),
+        ),
+        theme: ResolvedField::new(
+            effective
+                .settings
+                .theme
+                .as_deref()
+                .unwrap_or("system")
+                .to_string()
+                .into(),
+            resolved_settings_string_source("theme", file.settings.theme.as_deref(), None),
+        ),
+        advisor_model: ResolvedField::new(
+            effective
+                .settings
+                .advisor_model
+                .as_deref()
+                .unwrap_or("off")
+                .to_string()
+                .into(),
+            resolved_settings_string_source(
+                "advisor_model",
+                file.settings.advisor_model.as_deref(),
+                None,
+            ),
+        ),
+        output_style: ResolvedField::new(
+            effective
+                .settings
+                .output_style
+                .as_deref()
+                .unwrap_or("default")
+                .to_string()
+                .into(),
+            resolved_settings_string_source(
+                "output_style",
+                file.settings.output_style.as_deref(),
+                None,
+            ),
+        ),
+        sandbox: ResolvedField::new(
+            effective.sandbox.clone().unwrap_or(Value::Null),
+            resolved_sandbox_source(file.sandbox.as_ref()),
+        ),
+    }
+}
+
+fn resolved_api_key_source(file: &Config) -> &'static str {
+    if overlay_has_non_empty_string(managed_settings_path().as_ref(), &["apiKey", "api_key"]) {
+        "managed_settings_file"
+    } else if env_non_empty("ANTHROPIC_API_KEY") {
+        "env"
+    } else if overlay_has_non_empty_string(settings_json_value().as_ref(), &["apiKey", "api_key"]) {
+        "settings_json"
+    } else if overlay_has_non_empty_string(settings_file_path().as_ref(), &["apiKey", "api_key"]) {
+        "settings_file"
+    } else if overlay_has_non_empty_string(remote_settings_path().as_ref(), &["apiKey", "api_key"])
+    {
+        "remote_settings_file"
+    } else if file
+        .api_key
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty())
+    {
+        "config_file"
+    } else {
+        "default"
+    }
+}
+
+fn resolved_base_url_source(file: &Config) -> &'static str {
+    if overlay_has_non_empty_string(managed_settings_path().as_ref(), &["baseUrl", "base_url"]) {
+        "managed_settings_file"
+    } else if env_non_empty("ANTHROPIC_BASE_URL") {
+        "env"
+    } else if overlay_has_non_empty_string(settings_json_value().as_ref(), &["baseUrl", "base_url"])
+    {
+        "settings_json"
+    } else if overlay_has_non_empty_string(settings_file_path().as_ref(), &["baseUrl", "base_url"])
+    {
+        "settings_file"
+    } else if overlay_has_non_empty_string(
+        remote_settings_path().as_ref(),
+        &["baseUrl", "base_url"],
+    ) {
+        "remote_settings_file"
+    } else if file.base_url.is_some() {
+        "config_file"
+    } else {
+        "default"
+    }
+}
+
+fn resolved_model_source(file: &Config) -> &'static str {
+    if overlay_has_non_empty_string(managed_settings_path().as_ref(), &["model"]) {
+        "managed_settings_file"
+    } else if env_non_empty("ANTHROPIC_MODEL") {
+        "env"
+    } else if overlay_has_non_empty_string(settings_json_value().as_ref(), &["model"]) {
+        "settings_json"
+    } else if overlay_has_non_empty_string(settings_file_path().as_ref(), &["model"]) {
+        "settings_file"
+    } else if overlay_has_non_empty_string(remote_settings_path().as_ref(), &["model"]) {
+        "remote_settings_file"
+    } else if file.model != Config::default().model {
+        "config_file"
+    } else {
+        "default"
+    }
+}
+
+fn resolved_settings_bool_source(key: &str, file_value: bool, default_value: bool) -> &'static str {
+    if overlay_settings_has_key(managed_settings_path().as_ref(), key) {
+        "managed_settings_file"
+    } else if overlay_settings_has_key(settings_json_value().as_ref(), key) {
+        "settings_json"
+    } else if overlay_settings_has_key(settings_file_path().as_ref(), key) {
+        "settings_file"
+    } else if overlay_settings_has_key(remote_settings_path().as_ref(), key) {
+        "remote_settings_file"
+    } else if file_value != default_value {
+        "config_file"
+    } else {
+        "default"
+    }
+}
+
+fn resolved_settings_string_source(
+    key: &str,
+    file_value: Option<&str>,
+    default_value: Option<&str>,
+) -> &'static str {
+    if overlay_settings_has_key(managed_settings_path().as_ref(), key) {
+        "managed_settings_file"
+    } else if overlay_settings_has_key(settings_json_value().as_ref(), key) {
+        "settings_json"
+    } else if overlay_settings_has_key(settings_file_path().as_ref(), key) {
+        "settings_file"
+    } else if overlay_settings_has_key(remote_settings_path().as_ref(), key) {
+        "remote_settings_file"
+    } else if file_value != default_value {
+        "config_file"
+    } else {
+        "default"
+    }
+}
+
+fn resolved_sandbox_source(file_sandbox: Option<&Value>) -> &'static str {
+    if overlay_has_key(managed_settings_path().as_ref(), &["sandbox"]) {
+        "managed_settings_file"
+    } else if overlay_has_key(settings_json_value().as_ref(), &["sandbox"]) {
+        "settings_json"
+    } else if overlay_has_key(settings_file_path().as_ref(), &["sandbox"]) {
+        "settings_file"
+    } else if overlay_has_key(remote_settings_path().as_ref(), &["sandbox"]) {
+        "remote_settings_file"
+    } else if file_sandbox.is_some() {
+        "config_file"
+    } else {
+        "default"
+    }
+}
+
+fn env_non_empty(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty())
+}
+
+fn remote_settings_path() -> Option<Value> {
+    env_json_or_toml_path("KIANA_REMOTE_SETTINGS_FILE")
+}
+
+fn settings_file_path() -> Option<Value> {
+    env_json_or_toml_path("KIANA_SETTINGS_FILE")
+}
+
+fn managed_settings_path() -> Option<Value> {
+    std::env::var("KIANA_MANAGED_SETTINGS_FILE")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            std::env::var("KIANA_MANAGED_POLICY_FILE")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .and_then(|path| config_overlay_value_from_file(std::path::Path::new(&path)))
+}
+
+fn env_json_or_toml_path(name: &str) -> Option<Value> {
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .and_then(|path| config_overlay_value_from_file(std::path::Path::new(&path)))
+}
+
+fn settings_json_value() -> Option<Value> {
+    std::env::var("KIANA_SETTINGS_JSON")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .and_then(|value| serde_json::from_str(&value).ok())
+}
+
+fn config_overlay_value_from_file(path: &std::path::Path) -> Option<Value> {
+    let contents = std::fs::read_to_string(path).ok()?;
+    if path.extension().and_then(|ext| ext.to_str()) == Some("json")
+        || contents.trim_start().starts_with('{')
+    {
+        serde_json::from_str(&contents).ok()
+    } else {
+        let toml_value: toml::Value = toml::from_str(&contents).ok()?;
+        serde_json::to_value(toml_value).ok()
+    }
+}
+
+fn overlay_has_non_empty_string(value: Option<&Value>, aliases: &[&str]) -> bool {
+    aliases.iter().any(|alias| {
+        value
+            .and_then(|value| value.get(*alias))
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.trim().is_empty())
+    })
+}
+
+fn overlay_has_key(value: Option<&Value>, aliases: &[&str]) -> bool {
+    aliases
+        .iter()
+        .any(|alias| value.and_then(|value| value.get(*alias)).is_some())
+}
+
+fn overlay_settings_has_key(value: Option<&Value>, key: &str) -> bool {
+    let aliases = settings_aliases(key);
+    aliases.iter().any(|alias| {
+        value
+            .and_then(|value| value.get("settings"))
+            .and_then(|settings| settings.get(*alias))
+            .is_some()
+    })
+}
+
+fn settings_aliases(key: &str) -> &'static [&'static str] {
+    match key {
+        "vim_mode" => &["vimMode", "vim_mode"],
+        "advisor_model" => &["advisorModel", "advisor_model"],
+        "output_style" => &["outputStyle", "output_style"],
+        other => {
+            if other == "verbose" {
+                &["verbose"]
+            } else if other == "brief" {
+                &["brief"]
+            } else if other == "theme" {
+                &["theme"]
+            } else {
+                &[]
+            }
+        }
+    }
+}
+
 fn mask_secret(secret: &str) -> String {
     let chars: Vec<char> = secret.chars().collect();
     if chars.len() <= 8 {
@@ -460,7 +910,7 @@ fn mask_secret(secret: &str) -> String {
 }
 
 fn usage() -> &'static str {
-    "Usage:\n  kiana config [status|list]\n  kiana config init\n  kiana config path\n  kiana config json\n  kiana config get <api_key|base_url|model|verbose|brief|vim_mode|theme|advisor_model|output_style|sandbox>\n  kiana config set <key> <value>\n  kiana config unset <key>"
+    "Usage:\n  kiana config [status|list]\n  kiana config init\n  kiana config path\n  kiana config json\n  kiana config resolved --json\n  kiana config get <api_key|base_url|model|verbose|brief|vim_mode|theme|advisor_model|output_style|sandbox>\n  kiana config set <key> <value>\n  kiana config unset <key>"
 }
 
 #[cfg(test)]
@@ -675,5 +1125,108 @@ mod tests {
         assert!(!path.exists());
 
         std::env::remove_var("KIANA_CONFIG_FILE");
+    }
+
+    #[tokio::test]
+    async fn config_resolved_json_reports_effective_values_sources_and_redacts_secrets() {
+        let _guard = lock_env();
+        let path = temp_config_path();
+        let remote = temp_config_path().with_extension("remote.json");
+        let settings = temp_config_path().with_extension("settings.json");
+        let managed = temp_config_path().with_extension("managed.json");
+        std::env::set_var("KIANA_CONFIG_FILE", &path);
+        std::env::set_var("KIANA_REMOTE_SETTINGS_FILE", &remote);
+        std::env::set_var("KIANA_SETTINGS_FILE", &settings);
+        std::env::set_var("KIANA_SETTINGS_JSON", r#"{"settings":{"brief":true}}"#);
+        std::env::set_var("ANTHROPIC_API_KEY", "env-secret-1234567890");
+        std::env::set_var("ANTHROPIC_BASE_URL", "https://env.example.test");
+        std::env::set_var("ANTHROPIC_MODEL", "env-model");
+        std::env::set_var("KIANA_MANAGED_SETTINGS_FILE", &managed);
+
+        fs::write(
+            &path,
+            r#"
+api_key = "file-secret-0000"
+base_url = "https://file.example.test"
+model = "file-model"
+
+[settings]
+theme = "file-theme"
+"#,
+        )
+        .unwrap();
+        fs::write(
+            &remote,
+            r#"{"model":"remote-model","settings":{"theme":"remote-theme"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            &settings,
+            r#"{"baseUrl":"settings.example.test","settings":{"outputStyle":"settings-style"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            &managed,
+            r#"{"apiKey":"managed-secret-abcdef","model":"managed-model","settings":{"theme":"managed-theme"}}"#,
+        )
+        .unwrap();
+
+        let result = ConfigCommand
+            .execute(context("resolved --json"))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.config-resolved.v1");
+        assert_eq!(
+            value["config_file"]["path"].as_str(),
+            Some(path.to_string_lossy().as_ref())
+        );
+        assert_eq!(value["config_file"]["status"], "found");
+        assert_eq!(value["values"]["api_key"]["value"], "mana...cdef");
+        assert_eq!(
+            value["values"]["api_key"]["source"],
+            "managed_settings_file"
+        );
+        assert_eq!(value["values"]["model"]["value"], "managed-model");
+        assert_eq!(value["values"]["model"]["source"], "managed_settings_file");
+        assert_eq!(
+            value["values"]["base_url"]["value"],
+            "https://env.example.test"
+        );
+        assert_eq!(value["values"]["base_url"]["source"], "env");
+        assert_eq!(
+            value["values"]["settings"]["theme"]["value"],
+            "managed-theme"
+        );
+        assert_eq!(
+            value["values"]["settings"]["theme"]["source"],
+            "managed_settings_file"
+        );
+        assert_eq!(value["values"]["settings"]["brief"]["value"], true);
+        assert_eq!(
+            value["values"]["settings"]["brief"]["source"],
+            "settings_json"
+        );
+        assert_eq!(
+            value["sources"]["managed_settings_file"]["path"].as_str(),
+            Some(managed.to_string_lossy().as_ref())
+        );
+        assert!(!result.value.contains("managed-secret-abcdef"));
+        assert!(!result.value.contains("env-secret-1234567890"));
+        assert!(!result.value.contains("file-secret-0000"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(remote);
+        let _ = fs::remove_file(settings);
+        let _ = fs::remove_file(managed);
+        std::env::remove_var("KIANA_CONFIG_FILE");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("ANTHROPIC_BASE_URL");
+        std::env::remove_var("ANTHROPIC_MODEL");
+        std::env::remove_var("KIANA_MANAGED_SETTINGS_FILE");
     }
 }
