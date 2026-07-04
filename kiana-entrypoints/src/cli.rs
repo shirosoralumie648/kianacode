@@ -17901,6 +17901,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn plugin_prompt_commands_run_from_non_interactive_cli() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&["KIANA_PLUGINS_DIR"]);
+        let root = std::env::temp_dir().join(format!(
+            "kiana-cli-plugin-command-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-tools");
+        std::fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::create_dir_all(plugin_root.join("commands")).unwrap();
+        std::fs::write(
+            plugin_root.join(".codex-plugin").join("plugin.json"),
+            serde_json::json!({ "name": "review-tools" }).to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            plugin_root.join("commands").join("audit.md"),
+            "---\ndescription: Audit command\narguments: target\n---\nAudit $target from ${KIANA_PLUGIN_ROOT}",
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        let result =
+            run_local_command(&["review-tools:audit".to_string(), "src/lib.rs".to_string()])
+                .await
+                .unwrap()
+                .expect("plugin prompt command result");
+
+        assert!(result.value.contains("Audit src/lib.rs"));
+        assert!(result
+            .value
+            .contains(&plugin_root.to_string_lossy().to_string()));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
     async fn cli_model_list_json_outputs_provider_capabilities() {
         let result = run_local_command(&[
             "model".to_string(),

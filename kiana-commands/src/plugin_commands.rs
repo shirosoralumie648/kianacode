@@ -33,6 +33,10 @@ impl Command for PluginPromptCommand {
         self.hidden
     }
 
+    fn supports_non_interactive(&self) -> bool {
+        true
+    }
+
     async fn execute(&self, context: CommandContext) -> anyhow::Result<CommandResult> {
         let session_id = context
             .app_state
