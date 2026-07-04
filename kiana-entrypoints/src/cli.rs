@@ -5298,6 +5298,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_release_local_rc_evidence_handler),
         )
         .route(
+            "/app/release/product-acceptance",
+            axum::routing::get(direct_connect_app_release_product_acceptance_handler),
+        )
+        .route(
             "/app/secrets",
             axum::routing::get(direct_connect_app_secrets_handler),
         )
@@ -5891,6 +5895,28 @@ async fn direct_connect_app_release_local_rc_evidence_handler(
     }
 }
 
+async fn direct_connect_app_release_product_acceptance_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_product_acceptance_report() {
+        Ok(report) => axum::Json(report).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to read product acceptance report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -5944,6 +5970,74 @@ fn direct_connect_local_rc_evidence_report() -> Result<Value> {
     if value.get("schema").and_then(Value::as_str) != Some("kiana.local-rc-evidence.v1") {
         return Err(anyhow!(
             "local RC evidence file {} has unexpected schema",
+            evidence_path.display()
+        ));
+    }
+    Ok(value)
+}
+
+fn direct_connect_product_acceptance_report() -> Result<Value> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
+    let version = std::fs::read_to_string(root.join("VERSION"))
+        .unwrap_or_else(|_| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let dist_dir = std::env::var_os("DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("dist"));
+    let candidates = [
+        std::env::var_os("KIANA_PRODUCT_ACCEPTANCE_FILE").map(PathBuf::from),
+        std::env::var_os("KIANA_PRODUCT_ACCEPTANCE_OUT").map(PathBuf::from),
+        Some(
+            dist_dir
+                .join("proofs")
+                .join("product")
+                .join("product-acceptance.json"),
+        ),
+        Some(
+            root.join("target")
+                .join("product-acceptance")
+                .join("product-acceptance.json"),
+        ),
+        Some(
+            root.join("docs")
+                .join("product-acceptance")
+                .join(format!("{version}.json")),
+        ),
+    ];
+    let evidence_path = candidates
+        .into_iter()
+        .flatten()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .find(|path| path.is_file())
+        .ok_or_else(|| {
+            anyhow!(
+                "no product acceptance proof found in KIANA_PRODUCT_ACCEPTANCE_FILE, KIANA_PRODUCT_ACCEPTANCE_OUT, dist/proofs/product/product-acceptance.json, target/product-acceptance/product-acceptance.json, or docs/product-acceptance/{version}.json"
+            )
+        })?;
+    let report = std::fs::read_to_string(&evidence_path).with_context(|| {
+        format!(
+            "failed to read product acceptance file {}",
+            evidence_path.display()
+        )
+    })?;
+    let value: Value = serde_json::from_str(&report).with_context(|| {
+        format!(
+            "failed to parse product acceptance JSON {}",
+            evidence_path.display()
+        )
+    })?;
+    if value.get("schema").and_then(Value::as_str) != Some("kiana.product-acceptance.v1") {
+        return Err(anyhow!(
+            "product acceptance file {} has unexpected schema",
             evidence_path.display()
         ));
     }
@@ -7206,6 +7300,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "doctor.read",
             "release.blockers.read",
             "release.local_rc_evidence.read",
+            "release.product_acceptance.read",
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
@@ -7270,6 +7365,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/release/local-rc-evidence",
                 "schema": "kiana.local-rc-evidence.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/release/product-acceptance",
+                "schema": "kiana.product-acceptance.v1"
             },
             {
                 "method": "GET",
@@ -16404,6 +16504,8 @@ mod tests {
             "KIANA_SDK_SESSIONS_DIR",
             "DIST_DIR",
             "KIANA_LOCAL_RC_EVIDENCE_OUT",
+            "KIANA_PRODUCT_ACCEPTANCE_FILE",
+            "KIANA_PRODUCT_ACCEPTANCE_OUT",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -16865,6 +16967,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|capability| capability == "release.local_rc_evidence.read"));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|capability| capability == "release.product_acceptance.read"));
         assert!(contract["endpoints"]
             .as_array()
             .unwrap()
@@ -16873,6 +16980,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/release/local-rc-evidence"
                     && endpoint["schema"] == "kiana.local-rc-evidence.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/release/product-acceptance"
+                    && endpoint["schema"] == "kiana.product-acceptance.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -17430,6 +17546,63 @@ mod tests {
             .unwrap()
             .iter()
             .any(|proof| proof["schema"] == "kiana.product-acceptance.v1"));
+
+        let product_acceptance_path = std::env::temp_dir().join(format!(
+            "kiana-product-acceptance-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &product_acceptance_path,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "kiana.product-acceptance.v1",
+                "version": "0.1.0",
+                "status": "headless_smoke_only",
+                "accepted": false,
+                "accepted_by": "",
+                "accepted_at": "2026-07-05T00:00:00Z",
+                "scope": "headless product-shell, app-server, and context-search smoke only",
+                "workflows": [
+                    "permission",
+                    "diff",
+                    "history",
+                    "onboarding",
+                    "resume",
+                    "settings",
+                    "app-server",
+                    "context-search",
+                    "context-cache-recovery"
+                ],
+                "notes": [
+                    "Generated by scripts/product-acceptance-report.sh --local-rc"
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PRODUCT_ACCEPTANCE_OUT", &product_acceptance_path);
+        let product_acceptance: Value = client
+            .get(format!("http://{addr}/app/release/product-acceptance"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(product_acceptance["schema"], "kiana.product-acceptance.v1");
+        assert_eq!(product_acceptance["status"], "headless_smoke_only");
+        assert_eq!(product_acceptance["accepted"], false);
+        assert!(product_acceptance["workflows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|workflow| workflow == "app-server"));
+        assert!(product_acceptance["workflows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|workflow| workflow == "context-cache-recovery"));
+        let _ = std::fs::remove_file(&product_acceptance_path);
 
         let context_index: Value = client
             .get(format!("http://{addr}/app/context/index"))
