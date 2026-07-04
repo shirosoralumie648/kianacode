@@ -287,6 +287,297 @@ fn collect_bridge_changed_files(
     }
 }
 
+pub fn bridge_events_view_report(
+    session_id: &str,
+    events: &[RuntimeEvent],
+) -> BridgeEventsViewReport {
+    let mut messages = Vec::new();
+
+    for event in events {
+        if event.session_id != session_id {
+            continue;
+        }
+        match &event.payload {
+            RuntimeEventPayload::UserMessage(message) => {
+                messages.extend(bridge_message_view_messages(
+                    event,
+                    &message.message,
+                    "user",
+                ));
+            }
+            RuntimeEventPayload::AssistantMessage(message) => {
+                messages.extend(bridge_message_view_messages(
+                    event,
+                    &message.message,
+                    "assistant",
+                ));
+            }
+            RuntimeEventPayload::StreamDelta(delta) => {
+                let content = bridge_runtime_text(&delta.delta);
+                if !content.trim().is_empty() {
+                    messages.push(bridge_view_message(
+                        event,
+                        "assistant",
+                        content,
+                        json!({
+                            "kind": "stream_delta",
+                        }),
+                        None,
+                    ));
+                }
+            }
+            RuntimeEventPayload::ToolCall(tool_call) => {
+                messages.push(bridge_view_message(
+                    event,
+                    "tool",
+                    format!("Tool requested: {}", tool_call.name),
+                    json!({
+                        "kind": "tool_call",
+                        "tool_call_id": tool_call.tool_call_id,
+                        "name": tool_call.name,
+                        "workbench": tool_call.workbench,
+                        "input": tool_call.input,
+                    }),
+                    None,
+                ));
+            }
+            RuntimeEventPayload::ToolResult(tool_result) => {
+                let mut metadata = json!({
+                    "kind": "tool_result",
+                    "tool_call_id": tool_result.tool_call_id,
+                    "name": tool_result.name,
+                    "workbench": tool_result.workbench,
+                    "is_error": tool_result.is_error,
+                });
+                if let Some(error) = &tool_result.error {
+                    metadata["error"] = error.clone();
+                }
+                if let Some(changed_files) = &tool_result.changed_files {
+                    metadata["changed_files"] = changed_files.clone();
+                }
+                messages.push(bridge_view_message(
+                    event,
+                    "tool",
+                    bridge_runtime_text(&tool_result.content),
+                    metadata,
+                    tool_result.changed_files.clone(),
+                ));
+            }
+            RuntimeEventPayload::PermissionRequest(permission) => {
+                messages.push(bridge_view_message(
+                    event,
+                    "system",
+                    format!("Permission requested for {}.", permission.tool_name),
+                    json!({
+                        "kind": "permission_request",
+                        "request_id": permission.request_id,
+                        "tool_name": permission.tool_name,
+                        "action": permission.action,
+                        "reason": permission.reason,
+                        "input": permission.input,
+                    }),
+                    None,
+                ));
+            }
+            RuntimeEventPayload::SessionEvent(session_event) => {
+                messages.push(bridge_view_message(
+                    event,
+                    "system",
+                    session_event
+                        .message
+                        .clone()
+                        .unwrap_or_else(|| format!("Session event: {}", session_event.subtype)),
+                    json!({
+                        "kind": "session_event",
+                        "subtype": session_event.subtype,
+                        "metadata": session_event.metadata,
+                    }),
+                    None,
+                ));
+            }
+            RuntimeEventPayload::Error(error) => {
+                messages.push(bridge_view_message(
+                    event,
+                    "system",
+                    format!("Error: {}", error.message),
+                    json!({
+                        "kind": "error",
+                        "code": error.code,
+                        "details": error.details,
+                    }),
+                    None,
+                ));
+            }
+            RuntimeEventPayload::Result(result) => {
+                if let Some(text) = result
+                    .assistant_text
+                    .as_deref()
+                    .filter(|text| !text.trim().is_empty())
+                    .filter(|text| {
+                        !messages
+                            .iter()
+                            .rev()
+                            .any(|message: &BridgeEventsViewMessage| {
+                                message.role == "assistant" && message.content == *text
+                            })
+                    })
+                {
+                    messages.push(bridge_view_message(
+                        event,
+                        "assistant",
+                        text.to_string(),
+                        json!({
+                            "kind": "result",
+                            "status": result.status,
+                            "stop_reason": result.stop_reason,
+                        }),
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+
+    BridgeEventsViewReport {
+        schema: "kiana.app-server.events-view.v1",
+        session_id: session_id.to_string(),
+        message_count: messages.len(),
+        messages,
+    }
+}
+
+fn bridge_message_view_messages(
+    event: &RuntimeEvent,
+    message: &Value,
+    default_role: &str,
+) -> Vec<BridgeEventsViewMessage> {
+    let role = message
+        .get("role")
+        .and_then(Value::as_str)
+        .unwrap_or(default_role);
+    let role = match role {
+        "assistant" => "assistant",
+        "tool" => "tool",
+        "user" => "user",
+        _ => "system",
+    };
+    let content = message.get("content").unwrap_or(&Value::Null);
+    let Some(blocks) = content.as_array() else {
+        return vec![bridge_view_message(
+            event,
+            role,
+            bridge_runtime_text(content),
+            json!({
+                "kind": "message",
+            }),
+            None,
+        )];
+    };
+
+    let mut messages = Vec::new();
+    let mut skipped_tool_blocks = false;
+    for block in blocks {
+        let block_type = block.get("type").and_then(Value::as_str).unwrap_or("text");
+        if matches!(block_type, "tool_use" | "tool_result") {
+            skipped_tool_blocks = true;
+            continue;
+        }
+        let content = bridge_content_block_text(block);
+        if content.trim().is_empty() {
+            continue;
+        }
+        messages.push(bridge_view_message(
+            event,
+            role,
+            content,
+            json!({
+                "kind": "message_block",
+                "block_type": block_type,
+            }),
+            None,
+        ));
+    }
+    if messages.is_empty() {
+        if skipped_tool_blocks {
+            return messages;
+        }
+        messages.push(bridge_view_message(
+            event,
+            role,
+            bridge_runtime_text(content),
+            json!({
+                "kind": "message",
+            }),
+            None,
+        ));
+    }
+    messages
+}
+
+fn bridge_content_block_text(block: &Value) -> String {
+    match block.get("type").and_then(Value::as_str) {
+        Some("text") => block
+            .get("text")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        _ => bridge_runtime_text(block),
+    }
+}
+
+fn bridge_runtime_text(value: &Value) -> String {
+    if let Some(text) = value.as_str() {
+        return text.to_string();
+    }
+    if let Some(text) = value.get("text").and_then(Value::as_str) {
+        return text.to_string();
+    }
+    if let Some(blocks) = value.as_array() {
+        return blocks
+            .iter()
+            .map(bridge_content_block_text)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_string();
+    }
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
+}
+
+fn bridge_view_message(
+    event: &RuntimeEvent,
+    role: &str,
+    content: String,
+    metadata: Value,
+    changed_files: Option<Value>,
+) -> BridgeEventsViewMessage {
+    BridgeEventsViewMessage {
+        event_id: event.event_id.clone(),
+        turn_id: event.turn_id.clone(),
+        sequence: event.sequence,
+        timestamp: event.timestamp.clone(),
+        source_type: bridge_runtime_event_type(&event.payload),
+        role: role.to_string(),
+        content,
+        changed_files,
+        metadata,
+    }
+}
+
+fn bridge_runtime_event_type(payload: &RuntimeEventPayload) -> &'static str {
+    match payload {
+        RuntimeEventPayload::UserMessage(_) => "user_message",
+        RuntimeEventPayload::AssistantMessage(_) => "assistant_message",
+        RuntimeEventPayload::StreamDelta(_) => "stream_delta",
+        RuntimeEventPayload::ToolCall(_) => "tool_call",
+        RuntimeEventPayload::ToolResult(_) => "tool_result",
+        RuntimeEventPayload::PermissionRequest(_) => "permission_request",
+        RuntimeEventPayload::SessionEvent(_) => "session_event",
+        RuntimeEventPayload::Error(_) => "error",
+        RuntimeEventPayload::Result(_) => "result",
+    }
+}
+
 fn safe_relative_path(path: &str) -> Option<&Path> {
     let path = Path::new(path);
     if path.is_absolute() {
@@ -419,6 +710,28 @@ pub struct BridgeSessionChangedFile {
     path: String,
     operations: BTreeSet<String>,
     sources: BTreeSet<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BridgeEventsViewReport {
+    schema: &'static str,
+    session_id: String,
+    message_count: usize,
+    messages: Vec<BridgeEventsViewMessage>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BridgeEventsViewMessage {
+    event_id: String,
+    turn_id: String,
+    sequence: u64,
+    timestamp: String,
+    source_type: &'static str,
+    role: String,
+    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    changed_files: Option<Value>,
+    metadata: Value,
 }
 
 #[cfg(test)]

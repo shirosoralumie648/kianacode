@@ -183,3 +183,88 @@ fn bridge_control_adapter_emits_runtime_event_permission_request() {
     assert_eq!(value["tool_name"], "Bash");
     assert_eq!(value["input"]["command"], "pwd");
 }
+
+#[test]
+fn bridge_events_view_report_projects_runtime_events_for_clients() {
+    let mut events = kiana_bridge::runtime_events_from_bridge_sdk_message(
+        "session-1",
+        "turn-1",
+        None,
+        0,
+        "2026-07-05T00:00:00Z",
+        SDKMessage::Assistant {
+            uuid: "assistant-1".to_string(),
+            message: MessageContent {
+                content: ContentBlock::Blocks(vec![
+                    HashMap::from([
+                        ("type".to_string(), json!("text")),
+                        ("text".to_string(), json!("checking")),
+                    ]),
+                    HashMap::from([
+                        ("type".to_string(), json!("tool_use")),
+                        ("id".to_string(), json!("toolu_write")),
+                        ("name".to_string(), json!("Write")),
+                        (
+                            "input".to_string(),
+                            json!({"file_path": "src/lib.rs", "content": "pub fn main() {}"}),
+                        ),
+                        ("workbench".to_string(), json!("local")),
+                    ]),
+                ]),
+            },
+        },
+    );
+    events.extend(kiana_bridge::runtime_events_from_bridge_sdk_message(
+        "session-1",
+        "turn-2",
+        Some("turn-1".to_string()),
+        10,
+        "2026-07-05T00:00:01Z",
+        SDKMessage::User {
+            uuid: "user-1".to_string(),
+            message: MessageContent {
+                content: ContentBlock::Blocks(vec![HashMap::from([
+                    ("type".to_string(), json!("tool_result")),
+                    ("tool_use_id".to_string(), json!("toolu_write")),
+                    ("content".to_string(), json!("updated")),
+                    ("is_error".to_string(), json!(false)),
+                    ("workbench".to_string(), json!("local")),
+                    (
+                        "changed_files".to_string(),
+                        json!([{"path": "src/lib.rs", "operation": "update", "source": "Write"}]),
+                    ),
+                ])]),
+            },
+        },
+    ));
+    events.extend(kiana_bridge::runtime_events_from_bridge_sdk_message(
+        "session-1",
+        "turn-3",
+        Some("turn-2".to_string()),
+        20,
+        "2026-07-05T00:00:02Z",
+        SDKMessage::Result {
+            data: HashMap::from([
+                ("status".to_string(), json!("completed")),
+                ("stop_reason".to_string(), json!("model_stop")),
+                ("assistant_text".to_string(), json!("checking")),
+            ]),
+        },
+    ));
+
+    let view = kiana_bridge::bridge_events_view_report("session-1", &events);
+    let value = serde_json::to_value(view).unwrap();
+
+    assert_eq!(value["schema"], "kiana.app-server.events-view.v1");
+    assert_eq!(value["session_id"], "session-1");
+    assert_eq!(value["message_count"], 3);
+    assert_eq!(value["messages"][0]["role"], "assistant");
+    assert_eq!(value["messages"][0]["content"], "checking");
+    assert_eq!(value["messages"][1]["role"], "tool");
+    assert_eq!(value["messages"][1]["metadata"]["kind"], "tool_call");
+    assert_eq!(value["messages"][2]["role"], "tool");
+    assert_eq!(
+        value["messages"][2]["changed_files"][0]["path"],
+        "src/lib.rs"
+    );
+}
