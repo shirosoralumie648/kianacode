@@ -743,10 +743,20 @@ fn reference_capability_matrix(
             domain: "tools/mcp",
             status: "ready",
             references: vec!["codex", "Roo-Code", "claude-code-rev-main"],
-            surfaces: vec!["tool-registry", "runtime-events", "mcp-stdio", "mcp-http", "mcp-sse", "mcp-ws"],
+            surfaces: vec![
+                "tool-registry",
+                "runtime-events",
+                "mcp-prompts",
+                "mcp-stdio",
+                "mcp-http",
+                "mcp-sse",
+                "mcp-ws",
+            ],
             evidence: vec![
                 "read-only-tool-batching",
                 "mcp-resource-templates",
+                "mcp-prompt-list-get",
+                "mcp-prompt-lifecycle",
                 "mcp-error-lifecycle",
                 "stream-json-tool-result",
             ],
@@ -810,8 +820,38 @@ fn reference_capability_matrix(
                 "product-shell-smoke",
                 "headless-tui-render-tests",
                 "direct-connect-app-contract",
+                "app-server-events-view",
+                "app-server-release-proof-surfaces",
             ],
             risks: vec!["target-customer walkthrough and acceptance proof remain external release blockers".to_string()],
+        },
+        ReferenceCapabilityReport {
+            id: "plugin-extension-contracts",
+            domain: "plugins/skills/hooks",
+            status: "ready",
+            references: vec!["claude-code-main", "cline", "pi", "continue"],
+            surfaces: vec![
+                "plugin-marketplace",
+                "plugin-install-receipt",
+                "plugin-component-validate",
+                "skills",
+                "hooks",
+                "agents",
+                "mcp",
+                "lsp",
+            ],
+            evidence: vec![
+                "managed-plugin-policy",
+                "scoped-plugin-roots",
+                "plugin-install-receipt-integrity",
+                "plugin-component-json-preflight",
+                "plugin-enable-disable-visibility",
+                "hook-trust-boundaries",
+            ],
+            risks: vec![
+                "external cryptographic plugin provenance remains an enterprise deployment policy item"
+                    .to_string(),
+            ],
         },
         ReferenceCapabilityReport {
             id: "remote-commercial-release",
@@ -1180,7 +1220,12 @@ mod tests {
             .contains("capability: provider-registry status=local_ready_external_required"));
         assert!(result
             .value
-            .contains("capability: remote-commercial-release status=external_required"));
+            .contains("capability: remote-commercial-release status="));
+        assert!(result
+            .value
+            .contains("capability: plugin-extension-contracts status=ready"));
+        assert!(result.value.contains("mcp-prompt-lifecycle"));
+        assert!(result.value.contains("plugin-component-json-preflight"));
         assert!(result.value.contains("tool_parity: "));
         assert!(result.value.contains("plugin_tools_included=no"));
         assert!(result
@@ -1217,6 +1262,28 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|surface| surface == "commercial-security")));
+        assert!(capabilities
+            .iter()
+            .any(|item| item["id"] == "tool-lifecycle-mcp"
+                && item["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|surface| surface == "mcp-prompts")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "mcp-prompt-lifecycle")));
+        assert!(capabilities
+            .iter()
+            .any(|item| item["id"] == "plugin-extension-contracts"
+                && item["status"] == "ready"
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "plugin-component-json-preflight")));
         assert!(capabilities
             .iter()
             .any(|item| item["id"] == "knowledge-agent-foundation"
