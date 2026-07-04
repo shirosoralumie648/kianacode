@@ -373,6 +373,99 @@ if "distribution.package-channels" not in handoff:
     raise SystemExit("distribution.package-channels should remain a blocking handoff assignment")
 PY
 
+"$python" - "$tmp_dist" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+dist = Path(sys.argv[1])
+version = "0.1.0"
+linux_package = f"kiana-{version}-linux-x86_64"
+linux_archive = dist / f"{linux_package}.tar.gz"
+linux_archive_sha = dist / f"{linux_package}.tar.gz.sha256"
+homebrew = dist / "manifests/homebrew/kiana-linux-x86_64.rb"
+windows_package = f"kiana-{version}-windows-x86_64"
+zip_file = dist / f"{windows_package}.zip"
+zip_sha = dist / f"{windows_package}.zip.sha256"
+manifest = dist / f"manifests/winget/Kiana.Kiana/{version}/Kiana.Kiana.installer.yaml"
+homebrew.parent.mkdir(parents=True, exist_ok=True)
+manifest.parent.mkdir(parents=True, exist_ok=True)
+
+linux_archive.write_text("homebrew archive fixture\n", encoding="utf-8")
+linux_digest = hashlib.sha256(linux_archive.read_bytes()).hexdigest()
+linux_archive_sha.write_text(f"{linux_digest}  {linux_archive.name}\n", encoding="utf-8")
+zip_file.write_text("winget zip fixture\n", encoding="utf-8")
+zip_digest = hashlib.sha256(zip_file.read_bytes()).hexdigest()
+zip_sha.write_text(f"{zip_digest}  {zip_file.name}\n", encoding="utf-8")
+homebrew.write_text(
+    "\n".join(
+        [
+            "class KianaLinuxX8664 < Formula",
+            '  desc "Kiana command line assistant"',
+            '  homepage "https://github.com/acme/kiana"',
+            f'  url "https://github.com/acme/kiana/releases/download/v{version}/{linux_archive.name}"',
+            f'  sha256 "{"0" * 64}"',
+            f'  version "{version}"',
+            "",
+            "  def install",
+            "    bin.install \"kiana\"",
+            "  end",
+            "end",
+            "",
+        ]
+    ),
+    encoding="utf-8",
+)
+manifest.write_text(
+    "\n".join(
+        [
+            "PackageIdentifier: Kiana.Kiana",
+            f"PackageVersion: {version}",
+            "InstallerType: zip",
+            "NestedInstallerType: portable",
+            "Installers:",
+            "- Architecture: x64",
+            f"  InstallerUrl: https://github.com/acme/kiana/releases/download/v{version}/{zip_file.name}",
+            f"  InstallerSha256: {zip_digest}",
+            "  NestedInstallerFiles:",
+            "  - RelativeFilePath: kiana-0.1.0-windows-x86_64/kiana.exe",
+            "    PortableCommandAlias: kiana",
+            "ManifestType: installer",
+            "ManifestVersion: 1.6.0",
+            "",
+        ]
+    ),
+    encoding="utf-8",
+)
+PY
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+check = {item["id"]: item for item in report.get("checks", [])}.get("distribution.package-channels")
+if not check:
+    raise SystemExit("distribution.package-channels check is missing")
+if check.get("status") != "blocking":
+    raise SystemExit("distribution.package-channels accepted a checksum-mismatched Homebrew formula")
+if "homebrew formula failed commercial contract" not in check.get("evidence", ""):
+    raise SystemExit("distribution.package-channels evidence does not name the Homebrew contract failure")
+if "distribution.package-channels" not in handoff:
+    raise SystemExit("distribution.package-channels should remain a blocking handoff assignment")
+PY
+
 mkdir -p "$tmp_dist/proofs/live-smoke/provider" "$tmp_dist/proofs/live-smoke/remote"
 cat > "$tmp_dist/proofs/live-smoke/provider/model-catalog-live.json" <<'JSON'
 {

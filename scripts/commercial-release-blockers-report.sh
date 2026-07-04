@@ -270,6 +270,42 @@ def enterprise_offline_manifest_contract(manifest, dist_dir):
     return True, "enterprise offline manifest commercial contract accepted"
 
 
+def homebrew_formula_field(content, field):
+    match = re.search(rf'^\s*{re.escape(field)}\s+"([^"]+)"\s*$', content, re.MULTILINE)
+    return match.group(1) if match else ""
+
+
+def homebrew_formula_contract(formulae, dist_dir):
+    if not formulae:
+        return False, "homebrew formula missing"
+    for formula in formulae:
+        try:
+            content = formula.read_text(encoding="utf-8")
+        except OSError as exc:
+            return False, f"homebrew formula unreadable: {formula}: {exc}"
+        url = homebrew_formula_field(content, "url")
+        formula_sha = homebrew_formula_field(content, "sha256")
+        version = homebrew_formula_field(content, "version")
+        if not (
+            version == VERSION
+            and real_release_url(url)
+            and url.endswith(".tar.gz")
+            and re.fullmatch(r"[0-9a-fA-F]{64}", formula_sha or "") is not None
+        ):
+            return False, "homebrew formula failed commercial contract"
+        archive_name = url.rsplit("/", 1)[-1]
+        archive = dist_dir / archive_name
+        archive_checksum = dist_dir / f"{archive_name}.sha256"
+        if not (
+            archive.is_file()
+            and archive_checksum.is_file()
+            and formula_sha.lower() == sha256_file(archive)
+            and formula_sha.lower() == first_checksum(archive_checksum).lower()
+        ):
+            return False, "homebrew formula failed commercial contract"
+    return True, "homebrew formula commercial contract accepted"
+
+
 def winget_manifest_contract(manifests, dist_dir):
     if not manifests:
         return False, "winget manifest missing"
@@ -742,12 +778,15 @@ homebrew_blocked = (manifest_dir / "homebrew" / "BLOCKED.md").exists()
 homebrew_formulae = sorted((manifest_dir / "homebrew").glob("*.rb"))
 winget_blocked = (manifest_dir / "winget" / "BLOCKED.md").exists()
 winget_manifests = sorted((manifest_dir / "winget").glob(f"*/{VERSION}/*.installer.yaml"))
+homebrew_contract_ok, homebrew_contract_evidence = homebrew_formula_contract(
+    homebrew_formulae, dist_dir
+)
 winget_contract_ok, winget_contract_evidence = winget_manifest_contract(
     winget_manifests, dist_dir
 )
 channel_ok = (
     (not homebrew_blocked)
-    and bool(homebrew_formulae)
+    and homebrew_contract_ok
     and (not winget_blocked)
     and winget_contract_ok
 )
@@ -760,6 +799,7 @@ add_check(
     gate="scripts/verify-commercial-release-artifacts.sh",
     evidence=(
         f"homebrew_blocked={homebrew_blocked} homebrew_formulae={len(homebrew_formulae)} "
+        f"homebrew_contract={homebrew_contract_evidence} "
         f"winget_blocked={winget_blocked} winget_manifests={len(winget_manifests)} "
         f"winget_contract={winget_contract_evidence}"
     ),
