@@ -69,6 +69,7 @@ for file in \
   docs/schemas/kiana-review-run.v1.schema.json \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
+  docs/schemas/kiana-model-list.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-repo-map.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
@@ -215,6 +216,8 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.license-status.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.catalog.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/catalog' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'model.list.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/models/list' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.smoke.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/smoke' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.repo_map.read' kiana-entrypoints/src/cli.rs &&
@@ -247,13 +250,14 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.app-server.distribution-review.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.auth-status.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.model-catalog.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.model-list.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server auth status, license status, model catalog/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
+  pass "app-server auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
-  fail "app-server auth status, license status, model catalog/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
+  fail "app-server auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
@@ -392,6 +396,12 @@ if grep -Fq '"const": "kiana.model-catalog.v1"' docs/schemas/kiana-model-catalog
   pass "model catalog JSON schema version is pinned"
 else
   fail "model catalog JSON schema is missing kiana.model-catalog.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.model-list.v1"' docs/schemas/kiana-model-list.v1.schema.json; then
+  pass "model list JSON schema version is pinned"
+else
+  fail "model list JSON schema is missing kiana.model-list.v1 const"
 fi
 
 if grep -Fq '"const": "kiana.auth-status.v1"' docs/schemas/kiana-auth-status.v1.schema.json &&

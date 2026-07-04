@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-model-list.v1.schema.json",
+  "title": "Kiana Model List Report v1",
+  "type": "object",
+  "required": ["schema", "summary", "profiles"],
+  "properties": {
+    "schema": {
+      "const": "kiana.model-list.v1"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["profiles"],
+      "properties": {
+        "profiles": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/profile"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "provider_display_name",
+        "model_id",
+        "supports_tools",
+        "supports_streaming",
+        "streaming_mode",
+        "native_streaming",
+        "supports_vision",
+        "supports_structured_output",
+        "context_window"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supports_tools": {
+          "type": "boolean"
+        },
+        "supports_streaming": {
+          "type": "boolean"
+        },
+        "streaming_mode": {
+          "type": "string",
+          "enum": ["native", "synthetic", "none"]
+        },
+        "native_streaming": {
+          "type": "boolean"
+        },
+        "supports_vision": {
+          "type": "boolean"
+        },
+        "supports_structured_output": {
+          "type": "boolean"
+        },
+        "context_window": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

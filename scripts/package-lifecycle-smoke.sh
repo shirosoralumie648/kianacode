@@ -124,6 +124,7 @@ for file in \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-managed-plugin-policy.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-model-list.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-macos-notarization.v1.schema.json" \
   "$package_root/docs/schemas/kiana-plugin-install-receipt.v1.schema.json" \
