@@ -127,7 +127,7 @@ Acceptance Tests:
 
 | Capability | Kiana 当前状态 | 缺失行为 | 建议修改模块/crate | 测试要求 | 优先级 |
 |---|---|---|---|---|---|
-| Tool validation | registry/tool_execution 已有基础 | public validation error code 和 repair hint 不完整 | `kiana-tools/src/tool_execution.rs`, `kiana-tools/src/registry.rs` | invalid tool golden tests | P0 |
+| Tool validation | registry/tool_execution 已有基础；validation failure 现在在 `tool_result.error` 输出稳定 `tool_validation_error`、原始 validation code、tool/use id 和 model-facing repair hint | 更完整的跨 stream-json/TUI/remote golden 仍可继续补齐 | `kiana-tools/src/tool_execution.rs`, `kiana-tools/src/registry.rs` | `cargo test -p kiana-tools validation_failure_returns_structured_tool_error_with_repair_hint`; `cargo test -p kiana-tools tool_execution` | P0 |
 | Modes/profiles | permission profile 存在 | mode/profile 与 tool allowlist/system prompt 未形成用户概念 | `kiana-tools/src/permissions.rs`, `kiana-entrypoints/src/runner.rs` | mode/profile validation tests | P1 |
 | File change data | diff/checkpoint 命令已有 | runtime event 到 file changes 面板/CLI 的稳定映射不足 | `kiana-commands/src/diff.rs`, `kiana-commands/src/checkpoint.rs` | edit/write/delete fixtures | P1 |
 | Terminal process lifecycle | Bash/PowerShell 工具有实现 | long-running/PTY/kill/reconnect contract 仍需加强 | `kiana-tools/src/bash_tool.rs`, `kiana-tools/src/powershell_tool.rs` | timeout, kill, stderr ordering | P1 |

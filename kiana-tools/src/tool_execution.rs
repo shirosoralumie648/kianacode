@@ -183,12 +183,7 @@ pub async fn execute_tool_call_with_permission_handler(
 
     let validation = tool.validate_input(input, context).await;
     if !validation.result {
-        return tool_error_result(
-            tool_use_id,
-            validation
-                .message
-                .unwrap_or_else(|| "Invalid tool input".to_string()),
-        );
+        return validation_error_result(name, tool_use_id, validation);
     }
 
     if let Some(reason) = hook_ask_reason.as_deref() {
@@ -429,12 +424,7 @@ async fn execute_preapproved_tool_call(
 
     let validation = tool.validate_input(input, context).await;
     if !validation.result {
-        return tool_error_result(
-            tool_use_id,
-            validation
-                .message
-                .unwrap_or_else(|| "Invalid tool input".to_string()),
-        );
+        return validation_error_result(name, tool_use_id, validation);
     }
 
     if let Some(reason) = hook_ask_reason.as_deref() {
@@ -703,6 +693,40 @@ fn tool_error_result(tool_use_id: Option<&str>, message: String) -> ToolExecutio
             "tool_use_id": tool_use_id.unwrap_or_default(),
             "is_error": true,
             "content": content,
+        }),
+        content,
+        structured_output: None,
+    }
+}
+
+fn validation_error_result(
+    tool_name: &str,
+    tool_use_id: Option<&str>,
+    validation: crate::ValidationResult,
+) -> ToolExecutionResult {
+    let message = validation
+        .message
+        .unwrap_or_else(|| "Invalid tool input".to_string());
+    let repair_hint =
+        format!("Provide the required input fields for {tool_name} and retry the tool call.");
+    let content = json!(format!("{message}\n\nRepair hint: {repair_hint}"));
+    let error = json!({
+        "type": "tool_error",
+        "code": "tool_validation_error",
+        "tool_name": tool_name,
+        "tool_use_id": tool_use_id.unwrap_or_default(),
+        "message": message,
+        "validation_error_code": validation.error_code,
+        "repair_hint": repair_hint,
+    });
+    ToolExecutionResult {
+        is_error: true,
+        api_result: json!({
+            "type": "tool_result",
+            "tool_use_id": tool_use_id.unwrap_or_default(),
+            "is_error": true,
+            "content": content,
+            "error": error,
         }),
         content,
         structured_output: None,
@@ -1342,6 +1366,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     struct TestWriteTool;
+    struct TestValidationTool;
 
     struct RecordingPermissionPromptHandler {
         decision: PermissionPromptDecision,
@@ -1427,6 +1452,45 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl Tool for TestValidationTool {
+        fn name(&self) -> &str {
+            "TestValidation"
+        }
+
+        fn description(&self) -> &str {
+            "Validates input for tool execution tests"
+        }
+
+        fn input_schema(&self) -> Value {
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"]
+            })
+        }
+
+        fn output_schema(&self) -> Value {
+            json!({ "type": "object" })
+        }
+
+        async fn validate_input(&self, input: &Value, _context: &ToolContext) -> ValidationResult {
+            if input.get("path").and_then(Value::as_str).is_none() {
+                return ValidationResult::err("path is required".to_string(), 42);
+            }
+            ValidationResult::ok()
+        }
+
+        async fn call(&self, _input: &Value, _context: &mut ToolContext) -> ToolResult<ToolOutput> {
+            Ok(ToolOutput {
+                data: json!({ "ok": true }),
+                metadata: None,
+            })
+        }
+    }
+
     fn test_context(cwd: &std::path::Path) -> ToolContext {
         let (_tx, rx) = tokio::sync::watch::channel(false);
         ToolContext {
@@ -1448,6 +1512,55 @@ mod tests {
         ] {
             std::env::remove_var(key);
         }
+    }
+
+    #[tokio::test]
+    async fn validation_failure_returns_structured_tool_error_with_repair_hint() {
+        let _guard = crate::test_support::lock_env();
+        clear_hook_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-tool-validation-error-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(TestValidationTool));
+        let mut context = test_context(&root);
+
+        let result = execute_tool_call_with_permission_handler(
+            &registry,
+            None,
+            &mut context,
+            "TestValidation",
+            &json!({}),
+            Some("toolu_validation"),
+            None,
+        )
+        .await;
+
+        assert!(result.is_error);
+        assert_eq!(result.api_result["type"], "tool_result");
+        assert_eq!(result.api_result["tool_use_id"], "toolu_validation");
+        assert_eq!(result.api_result["is_error"], true);
+        assert_eq!(
+            result.api_result["content"],
+            json!("path is required\n\nRepair hint: Provide the required input fields for TestValidation and retry the tool call.")
+        );
+        assert_eq!(
+            result.api_result["error"],
+            json!({
+                "type": "tool_error",
+                "code": "tool_validation_error",
+                "tool_name": "TestValidation",
+                "tool_use_id": "toolu_validation",
+                "message": "path is required",
+                "validation_error_code": 42,
+                "repair_hint": "Provide the required input fields for TestValidation and retry the tool call."
+            })
+        );
+        assert_eq!(result.structured_output, None);
+        let _ = std::fs::remove_dir_all(root);
+        clear_hook_env();
     }
 
     #[tokio::test]
