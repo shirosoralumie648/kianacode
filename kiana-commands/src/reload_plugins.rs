@@ -2,6 +2,7 @@ use crate::local_state::kiana_home_dir;
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use async_trait::async_trait;
 use kiana_types::plugin::enabled_plugin_roots_in;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 pub struct ReloadPluginsCommand;
@@ -30,13 +31,18 @@ impl Command for ReloadPluginsCommand {
             "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
             _ => return Err(anyhow::anyhow!(usage())),
         }
-        let root = plugin_root_dir(&context);
-        let roots = enabled_plugin_roots_in(&root);
+        let scoped_roots = scoped_plugin_roots(&context);
+        let roots = enabled_plugin_roots_for_scopes(&scoped_roots);
         let counts = PluginRuntimeCounts::from_roots(&roots);
+        let path_summary = scoped_roots
+            .iter()
+            .map(|root| format!("{}: {}", root.scope, root.path.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
         kiana_tools::lsp_tool::shutdown_lsp_clients().await;
 
         Ok(CommandResult::text(format!(
-            "Reloaded: {} plugins · {} commands · {} agents · {} skills · {} hooks · {} plugin MCP servers · {} plugin LSP servers\npath: {}\nLSP runtime: restarted on next use",
+            "Reloaded: {} plugins · {} commands · {} agents · {} skills · {} hooks · {} plugin MCP servers · {} plugin LSP servers\npaths:\n{}\nLSP runtime: restarted on next use",
             counts.plugins,
             counts.commands,
             counts.agents,
@@ -44,7 +50,7 @@ impl Command for ReloadPluginsCommand {
             counts.hooks,
             counts.mcp_servers,
             counts.lsp_servers,
-            root.display()
+            path_summary
         )))
     }
 }
@@ -82,11 +88,48 @@ impl PluginRuntimeCounts {
     }
 }
 
-fn plugin_root_dir(context: &CommandContext) -> PathBuf {
+#[derive(Debug, Clone)]
+struct ScopedPluginRoot {
+    scope: &'static str,
+    path: PathBuf,
+}
+
+fn scoped_plugin_roots(context: &CommandContext) -> Vec<ScopedPluginRoot> {
+    let cwd = cwd(context);
+    vec![
+        ScopedPluginRoot {
+            scope: "user",
+            path: user_plugin_root_dir(context),
+        },
+        ScopedPluginRoot {
+            scope: "project",
+            path: cwd.join(".kiana").join("plugins"),
+        },
+        ScopedPluginRoot {
+            scope: "local",
+            path: cwd.join(".kiana").join("plugins.local"),
+        },
+    ]
+}
+
+fn user_plugin_root_dir(context: &CommandContext) -> PathBuf {
     if let Ok(path) = std::env::var("KIANA_PLUGINS_DIR") {
         return resolve_path(context, &path);
     }
     kiana_home_dir().join("plugins")
+}
+
+fn enabled_plugin_roots_for_scopes(scoped_roots: &[ScopedPluginRoot]) -> Vec<PathBuf> {
+    let mut seen = BTreeSet::new();
+    let mut roots = Vec::new();
+    for scoped_root in scoped_roots {
+        for root in enabled_plugin_roots_in(&scoped_root.path) {
+            if seen.insert(root.clone()) {
+                roots.push(root);
+            }
+        }
+    }
+    roots
 }
 
 fn resolve_path(context: &CommandContext, path: &str) -> PathBuf {
@@ -212,6 +255,82 @@ mod tests {
         assert!(result.value.contains("1 plugin MCP servers"));
         assert!(result.value.contains("1 plugin LSP servers"));
         assert!(result.value.contains("LSP runtime: restarted on next use"));
+
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn reload_plugins_reports_user_project_and_local_scoped_roots() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("scoped-counts");
+        let cwd = root.join("project");
+        let user_plugins_dir = root.join("user-plugins");
+        let user_plugin_root = user_plugins_dir.join("alpha");
+        let project_plugin_root = cwd.join(".kiana").join("plugins").join("beta");
+        let local_plugin_root = cwd.join(".kiana").join("plugins.local").join("gamma");
+
+        write_manifest(&user_plugin_root, "alpha");
+        fs::create_dir_all(user_plugin_root.join("commands")).unwrap();
+        fs::write(
+            user_plugin_root.join("commands").join("hello.md"),
+            "# hello",
+        )
+        .unwrap();
+
+        write_manifest(&project_plugin_root, "beta");
+        fs::create_dir_all(project_plugin_root.join("agents")).unwrap();
+        fs::write(
+            project_plugin_root.join("agents").join("review.md"),
+            "# review",
+        )
+        .unwrap();
+
+        write_manifest(&local_plugin_root, "gamma");
+        fs::create_dir_all(local_plugin_root.join("skills").join("triage")).unwrap();
+        fs::write(
+            local_plugin_root
+                .join("skills")
+                .join("triage")
+                .join("SKILL.md"),
+            "# Triage",
+        )
+        .unwrap();
+
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins_dir);
+
+        let result = ReloadPluginsCommand
+            .execute(context("", &cwd))
+            .await
+            .unwrap();
+
+        assert!(result.value.contains("3 plugins"), "{}", result.value);
+        assert!(result.value.contains("1 commands"), "{}", result.value);
+        assert!(result.value.contains("1 agents"), "{}", result.value);
+        assert!(result.value.contains("1 skills"), "{}", result.value);
+        assert!(
+            result
+                .value
+                .contains(&format!("user: {}", user_plugins_dir.display())),
+            "{}",
+            result.value
+        );
+        assert!(
+            result.value.contains(&format!(
+                "project: {}",
+                cwd.join(".kiana").join("plugins").display()
+            )),
+            "{}",
+            result.value
+        );
+        assert!(
+            result.value.contains(&format!(
+                "local: {}",
+                cwd.join(".kiana").join("plugins.local").display()
+            )),
+            "{}",
+            result.value
+        );
 
         std::env::remove_var("KIANA_PLUGINS_DIR");
         let _ = fs::remove_dir_all(root);
