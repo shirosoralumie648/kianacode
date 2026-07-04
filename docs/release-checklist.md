@@ -148,6 +148,9 @@ commercial release.
 - App-server review run returns `kiana.review.run.v1` from the active workspace
   so Web/IDE clients can execute isolated local review checks and findings
   without shelling out to `kiana review --json`.
+- App-server auth status returns `kiana.auth-status.v1` with redacted API key,
+  OAuth, and provider readiness fields so Web/IDE clients can render account
+  state without shelling out to `kiana auth status --json`.
 - App-server model catalog returns `kiana.model-catalog.v1` in offline mode so
   Web/IDE clients can render provider/model availability without shelling out to
   `kiana model catalog --json`.

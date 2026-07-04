@@ -5237,6 +5237,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_plugins_handler),
         )
         .route(
+            "/app/auth/status",
+            axum::routing::get(direct_connect_app_auth_status_handler),
+        )
+        .route(
             "/app/models/catalog",
             axum::routing::get(direct_connect_app_model_catalog_handler),
         )
@@ -5568,6 +5572,54 @@ async fn direct_connect_app_plugins_handler(
         "plugins": plugins,
     }))
     .into_response()
+}
+
+async fn direct_connect_app_auth_status_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("auth") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "auth command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "status --json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| {
+        let mut value = serde_json::from_str::<Value>(&result.value)?;
+        if let Some(object) = value.as_object_mut() {
+            object.insert(
+                "schema".to_string(),
+                Value::String("kiana.auth-status.v1".to_string()),
+            );
+        }
+        Ok(value)
+    }) {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build auth status report: {error}"),
+        ),
+    }
 }
 
 async fn direct_connect_app_model_catalog_handler(
@@ -6644,6 +6696,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "secrets.redacted",
             "sandbox.read",
             "plugins.read",
+            "auth.status.read",
             "model.catalog.read",
             "git.status.read",
             "diff.read",
@@ -6693,6 +6746,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/plugins",
                 "schema": "kiana.app-server.plugins.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/auth/status",
+                "schema": "kiana.auth-status.v1"
             },
             {
                 "method": "GET",
@@ -15783,8 +15841,24 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn direct_connect_app_contract_exposes_product_shell_endpoints() {
         let _guard = env_lock().lock().unwrap();
-        let _env =
-            EnvSnapshot::take(&["KIANA_HOME", "KIANA_PLUGINS_DIR", "KIANA_SDK_SESSIONS_DIR"]);
+        let _env = EnvSnapshot::take(&[
+            "ANTHROPIC_API_KEY",
+            "KIANA_CONFIG_FILE",
+            "KIANA_HOME",
+            "KIANA_OAUTH_TOKENS_FILE",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OPENAI_BASE_URL",
+            "OPENAI_BASE_URL",
+            "KIANA_OPENAI_MODEL",
+            "OPENAI_MODEL",
+            "KIANA_OLLAMA_BASE_URL",
+            "OLLAMA_BASE_URL",
+            "KIANA_OLLAMA_MODEL",
+            "OLLAMA_MODEL",
+            "KIANA_PLUGINS_DIR",
+            "KIANA_SDK_SESSIONS_DIR",
+        ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&workspace).unwrap();
@@ -15866,6 +15940,26 @@ mod tests {
         kiana_types::plugin::set_plugin_enabled(&plugins_dir, "disabled-tools", false).unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
+        std::env::set_var("KIANA_CONFIG_FILE", workspace.join("config.toml"));
+        std::env::set_var(
+            "KIANA_OAUTH_TOKENS_FILE",
+            workspace.join("oauth-tokens.json"),
+        );
+        for key in [
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+            "KIANA_OPENAI_BASE_URL",
+            "OPENAI_BASE_URL",
+            "KIANA_OPENAI_MODEL",
+            "OPENAI_MODEL",
+            "KIANA_OLLAMA_BASE_URL",
+            "OLLAMA_BASE_URL",
+            "KIANA_OLLAMA_MODEL",
+            "OLLAMA_MODEL",
+        ] {
+            std::env::remove_var(key);
+        }
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server_args = DirectConnectServerArgs {
@@ -15995,6 +16089,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("auth.status.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("model.catalog.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -16066,6 +16164,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/plugins"
                     && endpoint["schema"] == "kiana.app-server.plugins.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/auth/status"
+                    && endpoint["schema"] == "kiana.auth-status.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -16312,6 +16419,33 @@ mod tests {
         assert_eq!(disabled_tools["enabled"], false);
         assert_eq!(disabled_tools["valid"], true);
         assert_eq!(disabled_tools["components"]["commands"], 1);
+
+        let auth_status: Value = client
+            .get(format!("http://{addr}/app/auth/status"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(auth_status["schema"], "kiana.auth-status.v1");
+        assert_eq!(auth_status["api_key"], "missing");
+        assert_eq!(auth_status["source"], "none");
+        assert_eq!(auth_status["oauth"]["status"], "missing");
+        assert!(auth_status["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| provider["provider_id"] == "anthropic"
+                && provider["status"] == "missing"));
+        assert!(auth_status["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|provider| provider["provider_id"] == "ollama"
+                && provider["auth"] == "not_required"));
+        assert!(!auth_status.to_string().contains("must-not-leak"));
 
         let model_catalog: Value = client
             .get(format!("http://{addr}/app/models/catalog"))

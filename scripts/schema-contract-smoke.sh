@@ -31,6 +31,7 @@ done
 
 tmp_runtime_event="$(mktemp)"
 tmp_app_events="$(mktemp)"
+tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_repo_map="$(mktemp)"
 tmp_diff="$(mktemp)"
@@ -42,7 +43,7 @@ tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -99,6 +100,60 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-events.v1.schema.json \
   "$tmp_app_events" >/dev/null
+
+cat > "$tmp_auth_status" <<'JSON'
+{
+  "schema": "kiana.auth-status.v1",
+  "api_key": "missing",
+  "source": "none",
+  "config_file": "/workspace/config.toml",
+  "oauth": {
+    "status": "missing",
+    "access_token": "missing",
+    "refresh_token": "missing",
+    "file": "/workspace/oauth.json",
+    "store": "file",
+    "expires_at": null,
+    "expired": false,
+    "expiring": false,
+    "refreshable": false,
+    "error": null
+  },
+  "providers": [
+    {
+      "provider_id": "anthropic",
+      "display_name": "Anthropic",
+      "auth": "api_key",
+      "status": "missing",
+      "auth_source": "none",
+      "key_preview": "missing",
+      "base_url": null,
+      "model_id": "claude-sonnet-4-20250514",
+      "default_model_id": "claude-sonnet-4-20250514",
+      "protocol": "anthropic_messages",
+      "models_source": "static_table",
+      "requires_live_smoke": true
+    },
+    {
+      "provider_id": "ollama",
+      "display_name": "Ollama",
+      "auth": "not_required",
+      "status": "configured",
+      "auth_source": "not_required",
+      "key_preview": "not_required",
+      "base_url": "http://127.0.0.1:11434",
+      "model_id": "llama3.1",
+      "default_model_id": "llama3.1",
+      "protocol": "ollama_chat",
+      "models_source": "local_service",
+      "requires_live_smoke": true
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-auth-status.v1.schema.json \
+  "$tmp_auth_status" >/dev/null
 
 cat > "$tmp_context_index" <<'JSON'
 {
@@ -567,7 +622,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
