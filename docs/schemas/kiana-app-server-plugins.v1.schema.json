@@ -19,6 +19,7 @@
         "required": [
           "id",
           "name",
+          "scope",
           "root",
           "enabled",
           "valid",
@@ -34,6 +35,9 @@
           "name": {
             "type": "string",
             "minLength": 1
+          },
+          "scope": {
+            "enum": ["user", "project", "local"]
           },
           "version": {
             "type": ["string", "null"]

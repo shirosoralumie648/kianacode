@@ -15995,6 +15995,55 @@ mod tests {
         )
         .unwrap();
         kiana_types::plugin::set_plugin_enabled(&plugins_dir, "disabled-tools", false).unwrap();
+        let project_plugin_root = workspace
+            .join(".kiana")
+            .join("plugins")
+            .join("project-tools");
+        std::fs::create_dir_all(project_plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            project_plugin_root
+                .join(".codex-plugin")
+                .join("plugin.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "project-tools",
+                "version": "1.0.0",
+                "description": "Project app server plugin"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir_all(project_plugin_root.join("commands")).unwrap();
+        std::fs::write(
+            project_plugin_root
+                .join("commands")
+                .join("project-audit.md"),
+            "Project audit command",
+        )
+        .unwrap();
+        let local_plugin_root = workspace
+            .join(".kiana")
+            .join("plugins.local")
+            .join("local-tools");
+        std::fs::create_dir_all(local_plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            local_plugin_root.join(".codex-plugin").join("plugin.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "local-tools",
+                "version": "1.0.0",
+                "description": "Local app server plugin"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir_all(local_plugin_root.join("skills").join("local-triage")).unwrap();
+        std::fs::write(
+            local_plugin_root
+                .join("skills")
+                .join("local-triage")
+                .join("SKILL.md"),
+            "# Local triage",
+        )
+        .unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
         std::env::set_var("KIANA_CONFIG_FILE", workspace.join("config.toml"));
@@ -16466,12 +16515,13 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(plugins["schema"], "kiana.app-server.plugins.v1");
-        assert_eq!(plugins["count"], 2);
+        assert_eq!(plugins["count"], 4);
         let plugin_items = plugins["plugins"].as_array().unwrap();
         let app_tools = plugin_items
             .iter()
             .find(|plugin| plugin["id"] == "app-tools")
             .expect("app-tools plugin summary");
+        assert_eq!(app_tools["scope"], "user");
         assert_eq!(app_tools["enabled"], true);
         assert_eq!(app_tools["valid"], true);
         assert_eq!(app_tools["components"]["commands"], 1);
@@ -16486,9 +16536,31 @@ mod tests {
             .iter()
             .find(|plugin| plugin["id"] == "disabled-tools")
             .expect("disabled-tools plugin summary");
+        assert_eq!(disabled_tools["scope"], "user");
         assert_eq!(disabled_tools["enabled"], false);
         assert_eq!(disabled_tools["valid"], true);
         assert_eq!(disabled_tools["components"]["commands"], 1);
+        let project_tools = plugin_items
+            .iter()
+            .find(|plugin| plugin["id"] == "project-tools")
+            .expect("project-tools plugin summary");
+        assert_eq!(project_tools["scope"], "project");
+        assert_eq!(
+            project_tools["root"],
+            project_plugin_root.display().to_string()
+        );
+        assert_eq!(project_tools["enabled"], true);
+        assert_eq!(project_tools["valid"], true);
+        assert_eq!(project_tools["components"]["commands"], 1);
+        let local_tools = plugin_items
+            .iter()
+            .find(|plugin| plugin["id"] == "local-tools")
+            .expect("local-tools plugin summary");
+        assert_eq!(local_tools["scope"], "local");
+        assert_eq!(local_tools["root"], local_plugin_root.display().to_string());
+        assert_eq!(local_tools["enabled"], true);
+        assert_eq!(local_tools["valid"], true);
+        assert_eq!(local_tools["components"]["skills"], 1);
 
         let auth_status: Value = client
             .get(format!("http://{addr}/app/auth/status"))

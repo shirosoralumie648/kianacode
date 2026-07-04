@@ -127,11 +127,25 @@ fn plugins_json(context: &CommandContext, query: &str) -> Result<CommandResult> 
 }
 
 pub fn installed_plugin_summaries(context: &CommandContext) -> Result<Value> {
-    let root = plugin_root_dir(context);
-    let plugins = load_installed_plugins(&root)?;
-    Ok(Value::Array(
-        plugins.iter().map(plugin_init_summary).collect::<Vec<_>>(),
-    ))
+    let plugins = installed_plugin_summaries_by_scope(context)?;
+    Ok(Value::Array(plugins))
+}
+
+fn installed_plugin_summaries_by_scope(context: &CommandContext) -> Result<Vec<Value>> {
+    let mut plugins = Vec::new();
+    for scope in [
+        MarketplaceScope::User,
+        MarketplaceScope::Project,
+        MarketplaceScope::Local,
+    ] {
+        let root = scoped_plugin_root_dir(context, scope);
+        plugins.extend(
+            load_installed_plugins(&root)?
+                .iter()
+                .map(|plugin| plugin_init_summary(plugin, scope)),
+        );
+    }
+    Ok(plugins)
 }
 
 fn show_plugin(context: &CommandContext, rest: &str) -> Result<CommandResult> {
@@ -1960,10 +1974,11 @@ fn format_validation(plugin: &PluginInfo) -> String {
     lines.join("\n")
 }
 
-fn plugin_init_summary(plugin: &PluginInfo) -> Value {
+fn plugin_init_summary(plugin: &PluginInfo, scope: MarketplaceScope) -> Value {
     serde_json::json!({
         "id": &plugin.id,
         "name": plugin.display_name(),
+        "scope": scope.as_str(),
         "version": &plugin.version,
         "description": &plugin.description,
         "root": plugin.root.display().to_string(),
@@ -1973,10 +1988,6 @@ fn plugin_init_summary(plugin: &PluginInfo) -> Value {
         "errors": &plugin.errors,
         "warnings": &plugin.warnings,
     })
-}
-
-fn plugin_root_dir(context: &CommandContext) -> PathBuf {
-    scoped_plugin_root_dir(context, MarketplaceScope::User)
 }
 
 fn scoped_plugin_root_dir(context: &CommandContext, scope: MarketplaceScope) -> PathBuf {
