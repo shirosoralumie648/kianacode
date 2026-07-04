@@ -60,6 +60,7 @@ KIANA_BLOCKERS_HANDOFF_OUT="$handoff_out" \
 "$(python_bin)" - <<'PY'
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -78,6 +79,7 @@ PLACEHOLDER_MARKERS = (
     "example.com",
     "example.test",
 )
+FINGERPRINT_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def run(command):
@@ -130,6 +132,11 @@ def not_placeholder(mapping, key):
     return isinstance(value, str) and not any(
         marker in value.lower() for marker in PLACEHOLDER_MARKERS
     )
+
+
+def valid_fingerprint(mapping, key):
+    value = mapping.get(key)
+    return isinstance(value, str) and bool(FINGERPRINT_PATTERN.fullmatch(value))
 
 
 def check_status(ok):
@@ -670,6 +677,7 @@ entitlement_ok = (
         "license_key_fingerprint",
         "support_contact",
     ])
+    and valid_fingerprint(entitlement, "license_key_fingerprint")
     and all(filled(backend, key) and not_placeholder(backend, key) for key in [
         "name",
         "environment",

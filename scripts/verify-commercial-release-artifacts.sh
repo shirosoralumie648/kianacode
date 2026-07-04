@@ -203,6 +203,7 @@ require_entitlement_contract() {
   fi
   if "$python" - "$file" "$expected_version" "${KIANA_REQUIRED_ENTITLEMENTS:-commercial-use,enterprise-support,managed-policy}" <<'PY'
 import json
+import re
 import sys
 
 path, expected_version, required_raw = sys.argv[1:4]
@@ -233,6 +234,7 @@ placeholder_markers = (
     "example.com",
     "example.test",
 )
+fingerprint_pattern = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 def filled(mapping, key):
     value = mapping.get(key)
@@ -244,6 +246,10 @@ def not_placeholder(mapping, key):
         marker in value.lower() for marker in placeholder_markers
     )
 
+def valid_fingerprint(mapping, key):
+    value = mapping.get(key)
+    return isinstance(value, str) and bool(fingerprint_pattern.fullmatch(value))
+
 entitlements = set(report.get("entitlements") or [])
 checks = [
     report.get("schema") == "kiana.entitlement-proof.v1",
@@ -253,6 +259,7 @@ checks = [
     report.get("license_status") == "active",
     all(filled(report, key) for key in required_strings),
     all(not_placeholder(report, key) for key in required_strings),
+    valid_fingerprint(report, "license_key_fingerprint"),
     required.issubset(entitlements),
     all(filled(backend, key) for key in backend_strings),
     all(not_placeholder(backend, key) for key in backend_strings),

@@ -345,7 +345,7 @@ cat > "$dist_dir/proofs/entitlement/entitlement-proof.json" <<EOF
   "account_id": "acct_live_fixture",
   "organization": "Kiana Customer",
   "plan": "enterprise",
-  "license_key_fingerprint": "sha256:fixture",
+  "license_key_fingerprint": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "support_contact": "support@kiana.local",
   "license_status": "active",
   "entitlements": ["commercial-use", "enterprise-support", "managed-policy"],

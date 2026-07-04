@@ -51,6 +51,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -95,6 +96,7 @@ EXPECTED_ISOLATION = {
     "macos": "macos_exec_policy",
     "windows": "windows_exec_policy",
 }
+FINGERPRINT_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 errors: list[str] = []
 entries: list[dict[str, Any]] = []
@@ -180,6 +182,11 @@ def not_placeholder(mapping: dict[str, Any], key: str) -> bool:
     return isinstance(value, str) and not any(
         marker in value.lower() for marker in PLACEHOLDER_MARKERS
     )
+
+
+def valid_fingerprint(mapping: dict[str, Any], key: str) -> bool:
+    value = mapping.get(key)
+    return isinstance(value, str) and bool(FINGERPRINT_PATTERN.fullmatch(value))
 
 
 def sha256(path: Path) -> str:
@@ -481,6 +488,7 @@ if entitlement:
             data.get("license_status") == "active",
             REQUIRED_ENTITLEMENTS.issubset(entitlements),
             all(filled(data, key) and not_placeholder(data, key) for key in required_strings),
+            valid_fingerprint(data, "license_key_fingerprint"),
             all(filled(backend, key) and not_placeholder(backend, key) for key in backend_strings),
         ],
         data,

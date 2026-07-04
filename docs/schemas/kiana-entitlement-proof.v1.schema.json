@@ -55,7 +55,7 @@
             "minItems": 1
           },
           "license_key_fingerprint": {
-            "minLength": 1
+            "pattern": "^sha256:[0-9a-f]{64}$"
           },
           "support_contact": {
             "minLength": 1
