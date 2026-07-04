@@ -725,6 +725,17 @@ if "## Blocking Assignments" not in handoff:
     raise SystemExit("commercial blockers handoff is missing assignment section")
 if "source.remote" not in handoff:
     raise SystemExit("commercial blockers handoff is missing source.remote")
+platform_security = next(
+    (check for check in checks if check.get("id") == "acceptance.platform-security"),
+    None,
+)
+if not platform_security:
+    raise SystemExit("commercial blockers report is missing acceptance.platform-security")
+platform_artifacts = set(platform_security.get("acceptance_artifacts") or [])
+for platform in ["linux", "macos", "windows"]:
+    expected = f"docs/platform-security/0.1.0-{platform}.json"
+    if expected not in platform_artifacts:
+        raise SystemExit(f"platform security blocker is missing {expected}")
 PY
 bash scripts/commercial-release-handoff-smoke.sh >/dev/null
 

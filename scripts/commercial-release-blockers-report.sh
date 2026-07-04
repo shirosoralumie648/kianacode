@@ -736,44 +736,71 @@ add_check(
 )
 
 current_platform = platform_id()
-expected_isolation = {
+expected_isolation_by_platform = {
     "linux": "linux_bwrap",
     "macos": "macos_exec_policy",
     "windows": "windows_exec_policy",
-}.get(current_platform, "unknown")
+}
+expected_isolation = expected_isolation_by_platform.get(current_platform, "unknown")
 platform_dir = Path(os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_DIR", "docs/platform-security"))
-platform_file = Path(os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_FILE", platform_dir / f"{VERSION}-{current_platform}.json"))
-platform_proof, platform_error = load_json(platform_file)
-platform_ok = (
-    current_platform != "unknown"
-    and isinstance(platform_proof, dict)
-    and platform_proof.get("schema") == "kiana.platform-security-proof.v1"
-    and platform_proof.get("version") == VERSION
-    and platform_proof.get("status") == "accepted"
-    and platform_proof.get("accepted") is True
-    and platform_proof.get("platform") == current_platform
-    and platform_proof.get("isolation") == expected_isolation
-    and platform_proof.get("doctor_status") == "ready"
-    and filled(platform_proof, "accepted_by")
-    and filled(platform_proof, "accepted_at")
-    and filled(platform_proof, "runner")
-    and isinstance(platform_proof.get("controls"), list)
-    and len(platform_proof["controls"]) > 0
-    and isinstance(platform_proof.get("evidence"), list)
-    and len(platform_proof["evidence"]) > 0
+platform_file_override = os.environ.get("KIANA_PLATFORM_SECURITY_PROOF_FILE", "").strip()
+platform_files = {
+    platform: platform_dir / f"{VERSION}-{platform}.json"
+    for platform in ["linux", "macos", "windows"]
+}
+if platform_file_override:
+    platform_files[current_platform] = Path(platform_file_override)
+
+platform_results = {}
+for platform, proof_file in platform_files.items():
+    expected = expected_isolation_by_platform[platform]
+    proof, error = load_json(proof_file)
+    ok = (
+        isinstance(proof, dict)
+        and proof.get("schema") == "kiana.platform-security-proof.v1"
+        and proof.get("version") == VERSION
+        and proof.get("status") == "accepted"
+        and proof.get("accepted") is True
+        and proof.get("platform") == platform
+        and proof.get("isolation") == expected
+        and proof.get("doctor_status") == "ready"
+        and filled(proof, "accepted_by")
+        and filled(proof, "accepted_at")
+        and filled(proof, "runner")
+        and isinstance(proof.get("controls"), list)
+        and len(proof["controls"]) > 0
+        and isinstance(proof.get("evidence"), list)
+        and len(proof["evidence"]) > 0
+    )
+    platform_results[platform] = {
+        "file": proof_file,
+        "ok": ok,
+        "error": error,
+    }
+
+platform_ok = all(item["ok"] for item in platform_results.values())
+platform_evidence = ", ".join(
+    f"{platform}="
+    + ("accepted" if result["ok"] else f"missing_or_invalid:{result['file']}")
+    for platform, result in platform_results.items()
 )
 add_check(
     id="acceptance.platform-security",
     category="acceptance",
-    title=f"{current_platform} platform security proof is accepted",
+    title="Linux, macOS, and Windows platform security proofs are accepted",
     ok=platform_ok,
     external=True,
     gate="scripts/platform-security-proof-report.sh full",
-    evidence=f"proof={platform_file}" if platform_error is None else f"proof={platform_error}: {platform_file}",
-    required_action="Record accepted platform security proof from the real release runner with ready doctor status and expected isolation.",
-    paths=[platform_file],
+    evidence=platform_evidence,
+    required_action="Record accepted platform security proofs from the real Linux, macOS, and Windows release runners with ready doctor status and expected isolation.",
+    paths=[platform_files["linux"], platform_files["macos"], platform_files["windows"]],
     commands=["bash scripts/platform-security-proof-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],
     env=["KIANA_PLATFORM_SECURITY_PROOF_FILE", "KIANA_PLATFORM_SECURITY_PROOF_DIR"],
+    acceptance_artifacts=[
+        f"docs/platform-security/{VERSION}-linux.json",
+        f"docs/platform-security/{VERSION}-macos.json",
+        f"docs/platform-security/{VERSION}-windows.json",
+    ],
 )
 
 blocking_checks = [check for check in checks if check["status"] == "blocking"]
