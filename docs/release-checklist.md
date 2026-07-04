@@ -39,6 +39,10 @@ commercial release.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - `scripts/package-lifecycle-smoke.sh` runs on each release runner after
   packaging and before artifact signing.
+- `KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed bash scripts/local-rc-evidence-report.sh`
+  writes `dist/proofs/local-rc-evidence.json` with the packaged artifacts,
+  checksums, distribution manifests, generated proof JSON, lifecycle smoke
+  status, and current local/external blocker counts.
 - Windows `scripts/package-release.sh` runs produce a portable ZIP plus
   checksum for winget submission.
 - Checksum verification passes before upload.
@@ -49,9 +53,9 @@ commercial release.
   and records `dist/proofs/HANDOFF.md` without creating accepted evidence.
 - `scripts/compliance-audit.sh --local-rc` produces `SBOM.cdx.json` and
   `compliance-report.json`.
-- `scripts/schema-contract-smoke.sh` passes and validates proof templates plus
-  the commercial blocker report against the pinned schemas using the packaged
-  schema validator.
+- `scripts/schema-contract-smoke.sh` passes and validates proof templates, the
+  commercial blocker report, and the local RC evidence report against the pinned
+  schemas using the packaged schema validator.
 - `scripts/commercial-release-handoff-smoke.sh` passes and validates the
   commercial blocker owner-assignment handoff behavior independently of the
   broader schema smoke.

@@ -34,7 +34,8 @@ tmp_app_events="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor"' EXIT
+tmp_local_rc_evidence="$(mktemp)"
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -247,9 +248,60 @@ JSON
   docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
   "$tmp_proof_manifest" >/dev/null
 
+cat > "$tmp_local_rc_evidence" <<'JSON'
+{
+  "schema": "kiana.local-rc-evidence.v1",
+  "version": "0.1.0",
+  "generated_at": "2026-07-04T00:00:00Z",
+  "status": "local_rc_ready",
+  "dist_dir": "dist",
+  "summary": {
+    "release_artifacts": 1,
+    "manifests": 2,
+    "proofs": 3,
+    "blockers_total": 12,
+    "local_blockers": 0,
+    "external_blockers": 12
+  },
+  "release_artifacts": [
+    {
+      "target": "linux-x86_64",
+      "archive": "dist/kiana-0.1.0-linux-x86_64.tar.gz",
+      "archive_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "binary_sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "lifecycle_smoke": "passed"
+    }
+  ],
+  "distribution_manifests": {
+    "enterprise_offline_manifest": "dist/manifests/enterprise/offline-manifest.json",
+    "homebrew_formulae": ["dist/manifests/homebrew/kiana-linux-x86_64.rb"],
+    "winget_manifests": [],
+    "blocked_channels": ["dist/manifests/winget/BLOCKED.md"]
+  },
+  "proofs": [
+    {
+      "path": "dist/proofs/product/product-acceptance-local-rc.json",
+      "schema": "kiana.product-acceptance.v1",
+      "status": "local_rc",
+      "accepted": false
+    }
+  ],
+  "blockers": {
+    "status": "blocked",
+    "blocking": 12,
+    "local_blocking": 0,
+    "external_blocking": 12,
+    "blocking_ids": ["source.remote", "source.version-tag"]
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-local-rc-evidence.v1.schema.json \
+  "$tmp_local_rc_evidence" >/dev/null
+
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_context_index" "$tmp_proof_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

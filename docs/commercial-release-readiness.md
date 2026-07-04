@@ -1,6 +1,6 @@
 # Kiana Commercial Release Readiness
 
-Date: 2026-07-02
+Date: 2026-07-04
 
 ## Verified Local Release Candidate Gates
 
@@ -88,9 +88,10 @@ DIST_DIR="$(mktemp -d)" ./scripts/package-release.sh
 - Commercial blocker reports now include owner assignment metadata, acceptance artifacts, verification commands, and handoff notes; `scripts/commercial-release-blockers-report.sh --handoff-md <path>` writes a release-owner Markdown handoff, and `scripts/commercial-release-handoff-smoke.sh` locks the handoff contract independently of the broader schema smoke.
 - Commercial blocker reports now include `build.locked-offline-cache`, a local build/test blocker that detects when the runner's Cargo registry source cache is missing crates required by `Cargo.lock` before locked/offline release gates are trusted.
 - Local RC product-acceptance preflight can now emit a schema-validated `headless_smoke_partial` report when the host's offline Cargo registry cache is incomplete; this keeps release ownership/reporting gates auditable while preserving strict full commercial acceptance through `scripts/product-acceptance-report.sh full`.
+- Added `scripts/local-rc-evidence-report.sh` and the pinned `kiana.local-rc-evidence.v1` schema; release managers can now bundle local Linux RC artifacts, checksums, distribution manifests, generated proof JSON, lifecycle smoke status, and the current commercial blocker summary into `dist/proofs/local-rc-evidence.json` before external release owners take over.
 - Added `scripts/stage-commercial-release-proofs.sh` and the pinned `kiana.commercial-proof-manifest.v1` schema; release managers can stage already accepted/live provider, remote, entitlement, product, release-ops, and platform-security proof files into the final `dist/proofs/**` layout with sha256 handoff evidence, without creating or accepting proof content.
 - Added non-accepted commercial proof templates under `docs/proof-templates/` for product acceptance, entitlement, release operations, and platform security evidence; preflight verifies those examples remain `status=blocked` and are not mistaken for accepted release proofs.
-- Added `scripts/validate-json-schema.py` and `scripts/schema-contract-smoke.sh`; local preflight and release packages now carry a dependency-free schema validation entrypoint for proof templates and the commercial blocker report.
+- Added `scripts/validate-json-schema.py` and `scripts/schema-contract-smoke.sh`; local preflight and release packages now carry a dependency-free schema validation entrypoint for proof templates, the commercial blocker report, and the local RC evidence report.
 - OpenAI-compatible provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; Chat Completions text and function-style tool loops are covered by local mock gates.
 - Local Ollama provider support is now wired through the provider model profile, runner provider selection, and `kiana model list --json`; `/api/chat` text and `tools`/`tool_calls` loops are covered by local mock gates.
 - Built-in provider registry metadata now centralizes provider display name, protocol, auth method, option aliases, env vars, default model/base URL, model source category, streaming mode, and live-smoke requirement for `model list`, `auth status`, and runner provider construction.
@@ -123,6 +124,7 @@ These are not solved by the local release gate and must be completed before clai
 - Publish the real Git repository and remote URL, then activate CI on real push/PR/release events.
 - Push the local product commit to the real remote, then create an immutable release tag from a reviewed clean tree.
 - Run `bash scripts/commercial-release-blockers-report.sh --json --handoff-md dist/proofs/COMMERCIAL-BLOCKERS-HANDOFF.md` as the handoff checklist for release owners, assign every reported blocking item, close them with real evidence, and run `bash scripts/stage-commercial-release-proofs.sh` on the combined artifact set before final commercial verification.
+- After packaging and `scripts/package-lifecycle-smoke.sh`, run `KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed bash scripts/local-rc-evidence-report.sh` from a clean tracked tree to produce the local RC evidence bundle; any `local_blockers` in that report must be closed before it is handed to external release owners.
 - Activate the release workflow on the real remote, then add real `KIANA_SIGNING_COMMAND`, `KIANA_SIGNATURE_VERIFY_COMMAND`, macOS notarization command/proof where applicable, and an accepted `KIANA_RELEASE_OPS_FILE` so `scripts/sign-release-artifacts.sh`, `scripts/release-ops-report.sh full`, and `scripts/verify-commercial-release-artifacts.sh` can pass instead of blocking the draft release.
 - Provide real install URLs and the `0.1.0` commercial GA distribution channels: GitHub Releases, Homebrew, winget, and enterprise offline bundle. apt/yum/npm-style channels remain post-GA candidates until matching generator and verifier gates exist.
 - Implement package-manager publication; upgrade, rollback, uninstall, and changelog documentation plus local tarball lifecycle smoke now exists, and full commercial verification now fails while required channel manifests are blocked or missing from the combined artifact set.

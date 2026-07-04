@@ -118,6 +118,7 @@ for file in \
   "$package_root/docs/schemas/kiana-context-pack.v1.schema.json" \
   "$package_root/docs/schemas/kiana-commercial-proof-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-commercial-release-blockers.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-local-rc-evidence.v1.schema.json" \
   "$package_root/docs/schemas/kiana-runtime-event.v1.schema.json" \
   "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
@@ -135,6 +136,7 @@ for file in \
   "$package_root/scripts/validate-json-schema.py" \
   "$package_root/scripts/schema-contract-smoke.sh" \
   "$package_root/scripts/commercial-release-blockers-report.sh" \
+  "$package_root/scripts/local-rc-evidence-report.sh" \
   "$package_root/scripts/stage-commercial-release-proofs.sh" \
   "$package_root/scripts/entitlement-proof-report.sh" \
   "$package_root/scripts/product-acceptance-report.sh" \

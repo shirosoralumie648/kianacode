@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-local-rc-evidence.v1.schema.json",
+  "title": "Kiana Local RC Evidence v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "generated_at",
+    "status",
+    "dist_dir",
+    "summary",
+    "release_artifacts",
+    "distribution_manifests",
+    "proofs",
+    "blockers"
+  ],
+  "properties": {
+    "schema": { "const": "kiana.local-rc-evidence.v1" },
+    "version": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["local_rc_ready", "local_rc_incomplete"] },
+    "dist_dir": { "type": "string", "minLength": 1 },
+    "summary": {
+      "type": "object",
+      "required": [
+        "release_artifacts",
+        "manifests",
+        "proofs",
+        "blockers_total",
+        "local_blockers",
+        "external_blockers"
+      ],
+      "properties": {
+        "release_artifacts": { "type": "integer", "minimum": 0 },
+        "manifests": { "type": "integer", "minimum": 0 },
+        "proofs": { "type": "integer", "minimum": 0 },
+        "blockers_total": { "type": "integer", "minimum": 0 },
+        "local_blockers": { "type": "integer", "minimum": 0 },
+        "external_blockers": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "release_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "archive", "archive_sha256", "binary_sha256", "lifecycle_smoke"],
+        "properties": {
+          "target": { "type": "string", "minLength": 1 },
+          "archive": { "type": "string", "minLength": 1 },
+          "archive_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "binary_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "lifecycle_smoke": { "type": "string", "enum": ["passed", "not_run"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "distribution_manifests": {
+      "type": "object",
+      "required": ["enterprise_offline_manifest", "homebrew_formulae", "winget_manifests", "blocked_channels"],
+      "properties": {
+        "enterprise_offline_manifest": { "type": "string" },
+        "homebrew_formulae": { "type": "array", "items": { "type": "string" } },
+        "winget_manifests": { "type": "array", "items": { "type": "string" } },
+        "blocked_channels": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "proofs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "schema", "status", "accepted"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "schema": { "type": "string" },
+          "status": { "type": "string" },
+          "accepted": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "blockers": {
+      "type": "object",
+      "required": ["status", "blocking", "local_blocking", "external_blocking", "blocking_ids"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ready", "blocked"] },
+        "blocking": { "type": "integer", "minimum": 0 },
+        "local_blocking": { "type": "integer", "minimum": 0 },
+        "external_blocking": { "type": "integer", "minimum": 0 },
+        "blocking_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

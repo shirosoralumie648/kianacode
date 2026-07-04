@@ -63,6 +63,7 @@ for file in \
   docs/schemas/kiana-context-pack.v1.schema.json \
   docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  docs/schemas/kiana-local-rc-evidence.v1.schema.json \
   docs/schemas/kiana-runtime-event.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-managed-plugin-policy.v1.schema.json \
@@ -79,6 +80,7 @@ for file in \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
   scripts/commercial-release-blockers-report.sh \
+  scripts/local-rc-evidence-report.sh \
   scripts/commercial-release-handoff-smoke.sh \
   scripts/stage-commercial-release-proofs.sh \
   scripts/entitlement-proof-report.sh \
@@ -307,6 +309,12 @@ if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana
   pass "commercial release blockers JSON schema version is pinned"
 else
   fail "commercial release blockers JSON schema is missing kiana.commercial-release-blockers.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.local-rc-evidence.v1"' docs/schemas/kiana-local-rc-evidence.v1.schema.json; then
+  pass "local RC evidence JSON schema version is pinned"
+else
+  fail "local RC evidence JSON schema is missing kiana.local-rc-evidence.v1 const"
 fi
 
 if grep -Fq '"$id": "https://kiana.local/schemas/kiana-runtime-event.v1.schema.json"' docs/schemas/kiana-runtime-event.v1.schema.json &&
