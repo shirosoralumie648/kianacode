@@ -793,8 +793,28 @@ add_check(
     env=["KIANA_PRODUCT_ACCEPTANCE_FILE"],
 )
 
-entitlement_file = Path(os.environ.get("KIANA_ENTITLEMENT_PROOF_FILE", f"docs/entitlements/{VERSION}.json"))
-entitlement, entitlement_error = load_json(entitlement_file)
+entitlement_candidates = [
+    Path(value)
+    for value in [
+        os.environ.get("KIANA_ENTITLEMENT_PROOF_FILE", ""),
+        os.environ.get("KIANA_ENTITLEMENT_PROOF_OUT", ""),
+    ]
+    if value
+] + [
+    dist_dir / "proofs/entitlement/entitlement-proof.json",
+    Path("target/entitlement-proof/entitlement-proof.json"),
+    Path(f"docs/entitlements/{VERSION}.json"),
+]
+entitlement_file = entitlement_candidates[-1]
+entitlement = None
+entitlement_error = "missing"
+for candidate in entitlement_candidates:
+    candidate_entitlement, candidate_error = load_json(candidate)
+    if candidate_error is None:
+        entitlement_file = candidate
+        entitlement = candidate_entitlement
+        entitlement_error = None
+        break
 required_entitlements = {
     item.strip()
     for item in os.environ.get(
@@ -840,7 +860,9 @@ add_check(
     external=True,
     gate="scripts/entitlement-proof-report.sh full",
     evidence=(
-        f"missing entitlements: {', '.join(missing_entitlements)}"
+        f"entitlement proof accepted: {entitlement_file}"
+        if entitlement_ok
+        else f"missing entitlements: {', '.join(missing_entitlements)}"
         if entitlement_error is None and missing_entitlements
         else (f"proof={entitlement_file}" if entitlement_error is None else f"proof={entitlement_error}: {entitlement_file}")
     ),
@@ -850,8 +872,28 @@ add_check(
     env=["KIANA_ENTITLEMENT_PROOF_FILE", "KIANA_REQUIRED_ENTITLEMENTS"],
 )
 
-ops_file = Path(os.environ.get("KIANA_RELEASE_OPS_FILE", f"docs/release-ops/{VERSION}.json"))
-ops, ops_error = load_json(ops_file)
+ops_candidates = [
+    Path(value)
+    for value in [
+        os.environ.get("KIANA_RELEASE_OPS_FILE", ""),
+        os.environ.get("KIANA_RELEASE_OPS_OUT", ""),
+    ]
+    if value
+] + [
+    dist_dir / "proofs/release-ops/release-ops.json",
+    Path("target/release-ops/release-ops.json"),
+    Path(f"docs/release-ops/{VERSION}.json"),
+]
+ops_file = ops_candidates[-1]
+ops = None
+ops_error = "missing"
+for candidate in ops_candidates:
+    candidate_ops, candidate_error = load_json(candidate)
+    if candidate_error is None:
+        ops_file = candidate
+        ops = candidate_ops
+        ops_error = None
+        break
 credential_review = ops.get("credential_review") if isinstance(ops, dict) else {}
 credential_review = credential_review if isinstance(credential_review, dict) else {}
 ops_ok = (
@@ -882,7 +924,11 @@ add_check(
     ok=ops_ok,
     external=True,
     gate="scripts/release-ops-report.sh full",
-    evidence=f"proof={ops_file}" if ops_error is None else f"proof={ops_error}: {ops_file}",
+    evidence=(
+        f"release operations proof accepted: {ops_file}"
+        if ops_ok
+        else (f"proof={ops_file}" if ops_error is None else f"proof={ops_error}: {ops_file}")
+    ),
     required_action="Record private vulnerability route, release credential ownership, support contact, retention policy, and credential review in kiana.release-ops.v1.",
     paths=[ops_file],
     commands=["bash scripts/release-ops-report.sh full", "bash scripts/stage-commercial-release-proofs.sh"],

@@ -274,4 +274,84 @@ if "product acceptance proof accepted" not in check.get("evidence", ""):
     raise SystemExit("acceptance.product evidence does not name accepted staged proof")
 PY
 
+mkdir -p "$tmp_dist/proofs/entitlement" "$tmp_dist/proofs/release-ops"
+cat > "$tmp_dist/proofs/entitlement/entitlement-proof.json" <<'JSON'
+{
+  "schema": "kiana.entitlement-proof.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "license operations",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "account_id": "acct_live_fixture",
+  "organization": "Acme Corp",
+  "plan": "Enterprise",
+  "license_status": "active",
+  "entitlements": ["commercial-use", "enterprise-support", "managed-policy"],
+  "license_key_fingerprint": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "support_contact": "support@acme.example",
+  "backend": {
+    "name": "entitlement-service",
+    "environment": "production",
+    "checked_at": "2026-01-01T00:00:01Z",
+    "request_id": "req_entitlement_fixture"
+  }
+}
+JSON
+cat > "$tmp_dist/proofs/release-ops/release-ops.json" <<'JSON'
+{
+  "schema": "kiana.release-ops.v1",
+  "version": "0.1.0",
+  "status": "accepted",
+  "accepted": true,
+  "accepted_by": "release engineering",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "security_contact": "security@acme.example",
+  "vulnerability_report_channel": "https://acme.example/security",
+  "release_credentials_owner": "release engineering",
+  "support_contact": "support@acme.example",
+  "artifact_retention_days": 365,
+  "log_retention_days": 90,
+  "credential_review": {
+    "status": "accepted",
+    "reviewed_by": "security lead",
+    "reviewed_at": "2026-01-01T00:00:01Z",
+    "scope": "release signing and publishing credentials"
+  }
+}
+JSON
+
+DIST_DIR="$tmp_dist" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_proof_report" >/dev/null
+
+"$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+by_id = {item["id"]: item for item in report.get("checks", [])}
+expected = {
+    "acceptance.entitlement": "entitlement proof accepted",
+    "acceptance.release-ops": "release operations proof accepted",
+}
+for check_id, evidence_text in expected.items():
+    check = by_id.get(check_id)
+    if not check:
+        raise SystemExit(f"{check_id} check is missing")
+    if check.get("status") != "satisfied":
+        raise SystemExit(f"{check_id} was not satisfied by staged proof")
+    if check_id in handoff:
+        raise SystemExit(f"{check_id} should not appear as a blocking handoff assignment")
+    if evidence_text not in check.get("evidence", ""):
+        raise SystemExit(f"{check_id} evidence does not name accepted staged proof")
+PY
+
 echo "commercial release handoff smoke passed"
