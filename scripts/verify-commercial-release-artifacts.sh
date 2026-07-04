@@ -951,6 +951,99 @@ PY
   fi
 }
 
+require_winget_manifest_contract() {
+  local expected_version="$1"
+  local current_dist_dir="$2"
+  shift 2
+  local python
+  python="$(python_bin)"
+  if [[ -z "$python" ]]; then
+    fail "python3 or python is required to validate winget manifest"
+    return
+  fi
+  if "$python" - "$expected_version" "$current_dist_dir" "$@" <<'PY'
+import hashlib
+import re
+import sys
+from pathlib import Path
+
+expected_version = sys.argv[1]
+dist_dir = Path(sys.argv[2])
+manifests = [Path(value) for value in sys.argv[3:]]
+placeholder_markers = (
+    "github.com/kiana-project/kiana",
+    "example.com",
+    "example.test",
+    "localhost",
+    "127.0.0.1",
+    "pending_",
+    "blocked_",
+    "dry_run",
+)
+
+def real_url(value):
+    return (
+        isinstance(value, str)
+        and value.startswith("https://")
+        and not any(marker in value.lower() for marker in placeholder_markers)
+    )
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+def first_checksum(path):
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.split()
+            if parts:
+                return parts[0]
+    return ""
+
+checks = []
+for manifest in manifests:
+    try:
+        content = manifest.read_text(encoding="utf-8")
+    except OSError:
+        checks.append(False)
+        continue
+    fields = {}
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        fields[key.strip()] = value.strip().strip('"').strip("'")
+    installer_url = fields.get("InstallerUrl", "")
+    installer_sha = fields.get("InstallerSha256", "")
+    zip_name = installer_url.rsplit("/", 1)[-1] if isinstance(installer_url, str) else ""
+    zip_file = dist_dir / zip_name
+    zip_checksum = dist_dir / f"{zip_name}.sha256"
+    checks.append(
+        fields.get("InstallerType") == "zip"
+        and fields.get("ManifestType") == "installer"
+        and fields.get("PackageVersion") == expected_version
+        and real_url(installer_url)
+        and installer_url.endswith(".zip")
+        and re.fullmatch(r"[0-9a-fA-F]{64}", installer_sha or "") is not None
+        and zip_file.is_file()
+        and zip_checksum.is_file()
+        and installer_sha.lower() == file_sha256(zip_file)
+        and installer_sha.lower() == first_checksum(zip_checksum).lower()
+    )
+
+sys.exit(0 if checks and all(checks) else 1)
+PY
+  then
+    pass "winget manifest commercial contract"
+  else
+    fail "winget manifest failed commercial contract"
+  fi
+}
+
 require_source_control_contract() {
   local file="$1"
   local expected_version="$2"
@@ -1231,6 +1324,7 @@ else
   winget_installer_manifests=("${manifest_dir}/winget/"*"/${version}/"*".installer.yaml")
   if (( ${#winget_installer_manifests[@]} > 0 )); then
     pass "winget channel manifest is not blocked"
+    require_winget_manifest_contract "$version" "$dist_dir" "${winget_installer_manifests[@]}"
   else
     fail "winget channel manifest is not blocked but no installer manifest was generated"
   fi

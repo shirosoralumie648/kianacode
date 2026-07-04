@@ -183,6 +183,7 @@ EOF
 
   if [[ "$target" == windows-* ]]; then
     printf 'windows portable zip fixture\n' > "$dist_dir/${package}.zip"
+    write_checksum "$dist_dir/${package}.zip" "$dist_dir/${package}.zip.sha256"
   fi
 done
 
@@ -201,10 +202,20 @@ class Kiana < Formula
 end
 EOF
 
-cat > "$manifest_dir/winget/Kiana/${version}/Kiana.Kiana.installer.yaml" <<'EOF'
+cat > "$manifest_dir/winget/Kiana/${version}/Kiana.Kiana.installer.yaml" <<EOF
 PackageIdentifier: Kiana.Kiana
-PackageVersion: fixture
-Installers: []
+PackageVersion: ${version}
+InstallerType: zip
+NestedInstallerType: portable
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/acme/kiana/releases/download/v${version}/kiana-${version}-windows-x86_64.zip
+  InstallerSha256: $(hash_file "$dist_dir/kiana-${version}-windows-x86_64.zip")
+  NestedInstallerFiles:
+  - RelativeFilePath: kiana-${version}-windows-x86_64/kiana.exe
+    PortableCommandAlias: kiana
+ManifestType: installer
+ManifestVersion: 1.6.0
 EOF
 
 cat > "$manifest_dir/enterprise/offline-manifest.json" <<EOF
@@ -515,6 +526,21 @@ if [[ "$homebrew_mismatch_status" -eq 0 ]] ||
   exit 1
 fi
 mv "${homebrew_formula}.valid" "$homebrew_formula"
+
+winget_manifest="$manifest_dir/winget/Kiana/${version}/Kiana.Kiana.installer.yaml"
+cp "$winget_manifest" "${winget_manifest}.valid"
+perl -0pi -e 's/InstallerSha256: [0-9a-fA-F]{64}/InstallerSha256: '"${bad_sha}"'/' "$winget_manifest"
+set +e
+winget_mismatch_output="$(run_commercial_verifier 2>&1)"
+winget_mismatch_status=$?
+set -e
+if [[ "$winget_mismatch_status" -eq 0 ]] ||
+  ! grep -Fq 'winget manifest failed commercial contract' <<<"$winget_mismatch_output"; then
+  echo "commercial verifier accepted a winget manifest checksum mismatch" >&2
+  echo "$winget_mismatch_output" >&2
+  exit 1
+fi
+mv "${winget_manifest}.valid" "$winget_manifest"
 
 enterprise_manifest="$manifest_dir/enterprise/offline-manifest.json"
 cp "$enterprise_manifest" "${enterprise_manifest}.valid"
