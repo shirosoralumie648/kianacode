@@ -126,7 +126,7 @@ Acceptance Tests:
 |---|---|---|---|---|---|
 | Repo map | 已有 deterministic repo-map | 语言覆盖、ranking 和大 repo budget 仍需加强 | `kiana-query/src/repo_map.rs` | multi-language golden | P1 |
 | Git checkpoint/undo | 已有 checkpoint/diff/undo 和 late user edit protection | conflict UX 和 non-git fallback 不完整 | `kiana-commands/src/checkpoint.rs`, `kiana-commands/src/diff.rs` | fixture repo conflict tests | P0 |
-| Repair loop | 已有 opt-in non-streaming/streaming repair | public summary、multi-check grouping、cost cap 需补 | `kiana-entrypoints/src/runner.rs`, `kiana-commands/src/review.rs` | mock model repair scenarios | P0 |
+| Repair loop | 已有 opt-in non-streaming/streaming repair 和 public attempt/check/final summary | multi-check grouping、cost cap 需补 | `kiana-entrypoints/src/runner.rs`, `kiana-commands/src/review.rs` | mock model repair scenarios | P0 |
 | Eval | release smoke 已有 | task replay/eval harness 未建设 | `scripts/`, future `kiana-eval` | replay fixture tests | P2 |
 
 ## 6. Atomic Implementation Tasks
@@ -169,7 +169,7 @@ Implementation Notes:
 - 输出 concise text 和 stream-json event。
 
 Acceptance Criteria:
-- repair 被触发时用户能看到失败检查和修复轮数。
+- repair 被触发时用户能看到失败检查、修复轮数和 retrying final status。
 - check pass 时 summary 显示 no repair needed。
 - 超出预算时有非零/structured failure。
 

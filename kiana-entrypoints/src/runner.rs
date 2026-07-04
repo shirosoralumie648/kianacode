@@ -557,7 +557,13 @@ pub async fn run_assistant_turn_with_permission_handler(
         if tool_uses.is_empty() {
             final_text = response_text;
             if repair_checks && repair_attempts < max_repair_attempts {
-                if let Some(feedback) = repair_feedback_if_checks_failed(&tool_context.cwd).await? {
+                if let Some(feedback) = repair_feedback_if_checks_failed(
+                    &tool_context.cwd,
+                    repair_attempts + 1,
+                    max_repair_attempts,
+                )
+                .await?
+                {
                     repair_attempts += 1;
                     messages.push(Message {
                         role: "user".to_string(),
@@ -636,7 +642,11 @@ pub async fn run_assistant_turn_with_permission_handler(
     ))
 }
 
-async fn repair_feedback_if_checks_failed(cwd: &str) -> Result<Option<String>> {
+async fn repair_feedback_if_checks_failed(
+    cwd: &str,
+    repair_attempt: u32,
+    max_repair_attempts: u32,
+) -> Result<Option<String>> {
     let review = kiana_commands::review::ReviewCommand;
     let report = kiana_commands::Command::execute(
         &review,
@@ -659,14 +669,46 @@ async fn repair_feedback_if_checks_failed(cwd: &str) -> Result<Option<String>> {
     if failed == 0 && skipped == 0 {
         return Ok(None);
     }
-    Ok(Some(format_repair_feedback(&report)))
+    Ok(Some(format_repair_feedback(
+        &report,
+        repair_attempt,
+        max_repair_attempts,
+    )))
 }
 
-fn format_repair_feedback(report: &Value) -> String {
+fn format_repair_feedback(report: &Value, repair_attempt: u32, max_repair_attempts: u32) -> String {
     let summary = report.pointer("/checks/summary").unwrap_or(&Value::Null);
+    let failed = summary.get("failed").and_then(Value::as_u64).unwrap_or(0);
+    let skipped = summary.get("skipped").and_then(Value::as_u64).unwrap_or(0);
+    let attention_checks = report
+        .pointer("/checks/results")
+        .and_then(Value::as_array)
+        .map(|results| {
+            results
+                .iter()
+                .filter(|result| {
+                    matches!(
+                        result.get("status").and_then(Value::as_str),
+                        Some("failed" | "skipped")
+                    )
+                })
+                .filter_map(|result| result.get("id").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let failed_checks = if attention_checks.is_empty() {
+        "none".to_string()
+    } else {
+        attention_checks.join(",")
+    };
     let mut lines = vec![
         "Repair checks failed.".to_string(),
         "Fix the reported failures, then finish the turn.".to_string(),
+        format!("repair_attempt: {repair_attempt}/{max_repair_attempts}"),
+        "final_status: retrying".to_string(),
+        format!("check_summary: failed={failed} skipped={skipped}"),
+        format!("failed_checks: {failed_checks}"),
         format!("summary: {}", compact_json(summary)),
     ];
     if let Some(results) = report.pointer("/checks/results").and_then(Value::as_array) {
@@ -962,7 +1004,11 @@ where
             if repair_checks && repair_attempts < max_repair_attempts {
                 let feedback = abortable_runner_result(
                     &mut run_abort_signal,
-                    repair_feedback_if_checks_failed(&tool_context.cwd),
+                    repair_feedback_if_checks_failed(
+                        &tool_context.cwd,
+                        repair_attempts + 1,
+                        max_repair_attempts,
+                    ),
                 )
                 .await?;
                 if let Some(feedback) = feedback {
@@ -8041,6 +8087,10 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(repair_feedback.contains("Repair checks failed"));
+        assert!(repair_feedback.contains("repair_attempt: 1/1"));
+        assert!(repair_feedback.contains("final_status: retrying"));
+        assert!(repair_feedback.contains("check_summary: failed=1 skipped=0"));
+        assert!(repair_feedback.contains("failed_checks: release_smoke"));
         assert!(repair_feedback.contains("release_smoke"));
 
         server.abort();
@@ -8107,6 +8157,10 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(repair_feedback.contains("Repair checks failed"));
+        assert!(repair_feedback.contains("repair_attempt: 1/1"));
+        assert!(repair_feedback.contains("final_status: retrying"));
+        assert!(repair_feedback.contains("check_summary: failed=1 skipped=0"));
+        assert!(repair_feedback.contains("failed_checks: release_smoke"));
         assert!(repair_feedback.contains("release_smoke"));
 
         server.abort();
