@@ -2,6 +2,7 @@ use crate::local_state::kiana_home_dir;
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use kiana_types::hooks::parse_hook_config;
 use kiana_types::plugin::{
     all_plugin_roots_in, disabled_plugin_names, find_manifest_path, plugin_is_disabled,
     set_plugin_enabled,
@@ -1751,6 +1752,7 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
             "no commands, agents, skills, hooks, output styles, apps, or MCP config found".into(),
         );
     }
+    validate_plugin_component_json(&root, &mut errors);
 
     Ok(PluginInfo {
         id: manifest_name.clone().unwrap_or(folder_name),
@@ -1768,6 +1770,170 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
         install_receipt,
         install_receipt_integrity,
     })
+}
+
+fn validate_plugin_component_json(root: &Path, errors: &mut Vec<String>) {
+    validate_mcp_component_file(root, errors);
+    validate_lsp_component_file(root, errors);
+    validate_hooks_component_file(root, errors);
+    validate_app_component_file(root, errors);
+}
+
+fn validate_component_json_file(
+    path: &Path,
+    label: &str,
+    errors: &mut Vec<String>,
+) -> Option<Value> {
+    if !path.is_file() {
+        return None;
+    }
+    let contents = match std::fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) => {
+            errors.push(format!("failed to read {label}: {error}"));
+            return None;
+        }
+    };
+    match serde_json::from_str::<Value>(&contents) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            errors.push(format!("{label} is not valid JSON: {error}"));
+            None
+        }
+    }
+}
+
+fn validate_mcp_component_file(root: &Path, errors: &mut Vec<String>) {
+    let Some(value) = validate_component_json_file(&root.join(".mcp.json"), ".mcp.json", errors)
+    else {
+        return;
+    };
+    let servers = value
+        .get("mcpServers")
+        .or_else(|| value.get("mcp_servers"))
+        .unwrap_or(&value);
+    match servers {
+        Value::Object(object) => {
+            for (name, config) in object {
+                validate_plugin_mcp_server(name, config, ".mcp.json", errors);
+            }
+        }
+        Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                let Some(name) = item
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                else {
+                    errors.push(format!(
+                        ".mcp.json[{index}] missing non-empty string field 'name'"
+                    ));
+                    continue;
+                };
+                validate_plugin_mcp_server(name, item, ".mcp.json", errors);
+            }
+        }
+        _ => errors.push(
+            ".mcp.json must be an object, an array, or contain object/array mcpServers".into(),
+        ),
+    }
+}
+
+fn validate_plugin_mcp_server(name: &str, config: &Value, label: &str, errors: &mut Vec<String>) {
+    let name = name.trim();
+    if name.is_empty() {
+        errors.push(format!("{label} contains an empty MCP server name"));
+        return;
+    }
+    if name.contains('/') || name.contains('\\') || name == "." || name == ".." {
+        errors.push(format!(
+            "{label} MCP server '{name}' contains unsafe path characters"
+        ));
+    }
+    let Some(object) = config.as_object() else {
+        errors.push(format!(
+            "{label} MCP server '{name}' config must be a JSON object"
+        ));
+        return;
+    };
+    let has_command = object
+        .get("command")
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty());
+    let has_url = object
+        .get("url")
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty());
+    let has_transport = object
+        .get("transport")
+        .or_else(|| object.get("type"))
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty());
+    if !has_command && !has_url && !has_transport {
+        errors.push(format!(
+            "{label} MCP server '{name}' requires command, url, type, or transport"
+        ));
+    }
+}
+
+fn validate_lsp_component_file(root: &Path, errors: &mut Vec<String>) {
+    let Some(value) = validate_component_json_file(&root.join(".lsp.json"), ".lsp.json", errors)
+    else {
+        return;
+    };
+    let servers = value.get("lspServers").unwrap_or(&value);
+    let Some(object) = servers.as_object() else {
+        errors.push(".lsp.json must be an object or contain object lspServers".into());
+        return;
+    };
+    for (name, config) in object {
+        let name = name.trim();
+        if name.is_empty() {
+            errors.push(".lsp.json contains an empty LSP server name".into());
+            continue;
+        }
+        let Some(config) = config.as_object() else {
+            errors.push(format!(
+                ".lsp.json LSP server '{name}' config must be a JSON object"
+            ));
+            continue;
+        };
+        if !config
+            .get("command")
+            .and_then(Value::as_str)
+            .is_some_and(|command| !command.trim().is_empty())
+        {
+            errors.push(format!(
+                ".lsp.json LSP server '{name}' requires non-empty string field 'command'"
+            ));
+        }
+    }
+}
+
+fn validate_hooks_component_file(root: &Path, errors: &mut Vec<String>) {
+    let label = "hooks/hooks.json";
+    let Some(value) =
+        validate_component_json_file(&root.join("hooks").join("hooks.json"), label, errors)
+    else {
+        return;
+    };
+    if let Err(error) = parse_hook_config(value) {
+        errors.push(format!(
+            "{label} invalid hook schema at {}: {}",
+            error.location, error.message
+        ));
+    }
+}
+
+fn validate_app_component_file(root: &Path, errors: &mut Vec<String>) {
+    let Some(value) = validate_component_json_file(&root.join("app.json"), "app.json", errors)
+    else {
+        return;
+    };
+    if !value.is_object() {
+        errors.push("app.json must contain a JSON object".into());
+    }
 }
 
 fn read_plugin_install_receipt(
@@ -2979,6 +3145,60 @@ mod tests {
             .await
             .unwrap();
         assert!(validation.value.contains("Validation passed"));
+
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_validate_rejects_invalid_component_json_files() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("component-json-validation");
+        let cwd = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("contract-tools");
+        write_manifest(&plugin_root, "contract-tools");
+        fs::write(plugin_root.join(".mcp.json"), "{ bad json").unwrap();
+        fs::write(
+            plugin_root.join(".lsp.json"),
+            serde_json::to_string_pretty(&json!({
+                "lspServers": {
+                    "rust-analyzer": {}
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::create_dir_all(plugin_root.join("hooks")).unwrap();
+        fs::write(
+            plugin_root.join("hooks").join("hooks.json"),
+            serde_json::to_string_pretty(&json!({
+                "PreToolUse": [
+                    {"command": "echo invalid nested object"}
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(plugin_root.join("app.json"), "[]").unwrap();
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        let validation = PluginCommand
+            .execute(context("validate contract-tools", &cwd))
+            .await
+            .unwrap();
+
+        assert!(validation.value.contains("Validation failed"));
+        assert!(validation.value.contains(".mcp.json is not valid JSON"));
+        assert!(validation.value.contains(
+            ".lsp.json LSP server 'rust-analyzer' requires non-empty string field 'command'"
+        ));
+        assert!(validation
+            .value
+            .contains("hooks/hooks.json invalid hook schema at PreToolUse[0]"));
+        assert!(validation
+            .value
+            .contains("app.json must contain a JSON object"));
 
         std::env::remove_var("KIANA_PLUGINS_DIR");
         let _ = fs::remove_dir_all(root);
