@@ -190,8 +190,11 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
             source_info.display_name()
         ));
     }
-    let managed_policy =
-        enforce_managed_plugin_policy(source_info.display_name(), source.marketplace.as_deref())?;
+    let managed_policy = enforce_managed_plugin_policy(
+        source_info.display_name(),
+        source.marketplace.as_deref(),
+        source.signature.as_ref(),
+    )?;
 
     let install_name = safe_plugin_dir_name(source_info.display_name())?;
     let install_root = scoped_plugin_root_dir(context, install_scope);
@@ -1667,6 +1670,7 @@ fn update_stable_hash(hash: &mut u64, bytes: &[u8]) {
 fn enforce_managed_plugin_policy(
     plugin_name: &str,
     marketplace: Option<&str>,
+    signature: Option<&Value>,
 ) -> Result<Option<ManagedPluginPolicyDecision>> {
     let Some(path) = managed_plugin_policy_path() else {
         return Ok(None);
@@ -1704,7 +1708,7 @@ fn enforce_managed_plugin_policy(
     if policy.is_empty() {
         return Ok(None);
     }
-    policy.evaluate(plugin_name, marketplace, path)
+    policy.evaluate(plugin_name, marketplace, signature, path)
 }
 
 fn managed_plugin_policy_path() -> Option<PathBuf> {
@@ -2535,6 +2539,8 @@ struct ManagedPluginPolicy {
     deny_marketplaces: Vec<String>,
     #[serde(default, alias = "deny_path_installs", alias = "deny-path-installs")]
     deny_path_installs: bool,
+    #[serde(default, alias = "require_signature", alias = "require-signature")]
+    require_signature: bool,
 }
 
 impl ManagedPluginPolicy {
@@ -2544,12 +2550,14 @@ impl ManagedPluginPolicy {
             && self.allow_marketplaces.is_empty()
             && self.deny_marketplaces.is_empty()
             && !self.deny_path_installs
+            && !self.require_signature
     }
 
     fn evaluate(
         &self,
         plugin_name: &str,
         marketplace: Option<&str>,
+        signature: Option<&Value>,
         source: PathBuf,
     ) -> Result<Option<ManagedPluginPolicyDecision>> {
         let plugin_candidates = plugin_policy_candidates(plugin_name, marketplace);
@@ -2568,6 +2576,13 @@ impl ManagedPluginPolicy {
                 plugin_name,
                 source.display(),
                 marketplace.unwrap_or("none")
+            ));
+        }
+        if self.require_signature && marketplace.is_some() && signature.is_none() {
+            return Err(anyhow!(
+                "plugin '{}' is denied by managed plugin policy {}: marketplace signature is required",
+                plugin_name,
+                source.display()
             ));
         }
         if plugin_rule_matches(&self.deny, &plugin_candidates) {
@@ -4325,6 +4340,65 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("plugin 'review-tools' is denied by managed plugin policy"));
+        assert!(!plugins_dir.join("review-tools").exists());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_policy {
+            Some(value) => std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", value),
+            None => std::env::remove_var("KIANA_MANAGED_PLUGIN_POLICY_FILE"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_rejects_unsigned_marketplace_when_managed_policy_requires_signature() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_policy = std::env::var_os("KIANA_MANAGED_PLUGIN_POLICY_FILE");
+        let root = temp_root("managed-plugin-require-signature");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let source_plugin = marketplace_root.join("review-tools");
+        let policy_file = root.join("managed-plugin-policy.json");
+        fs::create_dir_all(&cwd).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::write(
+            &policy_file,
+            serde_json::to_string_pretty(&json!({
+                "plugins": {
+                    "requireSignature": true,
+                    "allow": ["review-tools@tools-marketplace"],
+                    "allowMarketplaces": ["tools-marketplace"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", &policy_file);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let error = PluginCommand
+            .execute(context("install review-tools@tools-marketplace", &cwd))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("plugin 'review-tools' is denied by managed plugin policy"));
+        assert!(error.contains("marketplace signature is required"));
         assert!(!plugins_dir.join("review-tools").exists());
 
         match previous_home {

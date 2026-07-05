@@ -819,9 +819,22 @@ JSON
   grep -Fq -- '"name": "tools-marketplace"' <<<"$output"
   grep -Fq -- '"source": "directory"' <<<"$output"
 
-  output="$(run_clean_kiana "$binary" plugin install review-tools@tools-marketplace)"
+  managed_policy_file="$tmp_root/managed-plugin-policy.json"
+  cat > "$managed_policy_file" <<'JSON'
+{
+  "schema": "kiana.managed-plugin-policy.v1",
+  "plugins": {
+    "requireSignature": true,
+    "allow": ["review-tools@tools-marketplace"],
+    "allowMarketplaces": ["tools-marketplace"]
+  }
+}
+JSON
+
+  output="$(KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file" run_clean_kiana "$binary" plugin install review-tools@tools-marketplace)"
   grep -Fq -- "Installed plugin: review-tools" <<<"$output"
   grep -Fq -- "marketplace: tools-marketplace" <<<"$output"
+  grep -Fq -- "managed_policy: allowed (managed plugin policy matched)" <<<"$output"
   grep -Fq -- "receipt: " <<<"$output"
   test -f "$smoke_home/.kiana/plugins/review-tools/commands/audit.md"
   test -f "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
@@ -851,6 +864,8 @@ JSON
   grep -Fq -- '"schema": "kiana.plugin-install-receipt.v1"' <<<"$output"
   grep -Fq -- '"install_receipt_integrity": {' <<<"$output"
   grep -Fq -- '"status": "verified"' <<<"$output"
+  grep -Fq -- '"managed_policy": {' <<<"$output"
+  grep -Fq -- '"reason": "managed plugin policy matched"' <<<"$output"
 
   printf '\n# tampered\n' >> "$smoke_home/.kiana/plugins/review-tools/commands/audit.md"
   output="$(run_clean_kiana "$binary" plugin show review-tools)"
@@ -867,9 +882,10 @@ JSON
   grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
   test ! -e "$smoke_home/.kiana/plugins/review-tools"
 
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope project)"
+  output="$(cd "$tmp_root" && KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file" run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope project)"
   grep -Fq -- "Installed plugin: review-tools" <<<"$output"
   grep -Fq -- "path: $tmp_root/.kiana/plugins/review-tools" <<<"$output"
+  grep -Fq -- "managed_policy: allowed (managed plugin policy matched)" <<<"$output"
   test -f "$tmp_root/.kiana/plugins/review-tools/commands/audit.md"
   test -f "$tmp_root/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin list --scope project review-tools)"

@@ -291,10 +291,12 @@ else
 fi
 
 if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
-  grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs; then
-  pass "managed plugin allow/deny policy is wired"
+  grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs &&
+  grep -Fq 'require_signature' kiana-commands/src/plugin.rs &&
+  grep -Fq 'marketplace signature is required' kiana-commands/src/plugin.rs; then
+  pass "managed plugin allow/deny/signature policy is wired"
 else
-  fail "managed plugin allow/deny policy is not wired"
+  fail "managed plugin allow/deny/signature policy is not wired"
 fi
 
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
@@ -546,10 +548,12 @@ else
   fail "plugin install receipt signature metadata is not schema-pinned and smoke-covered"
 fi
 
-if grep -Fq '"const": "kiana.managed-plugin-policy.v1"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json; then
-  pass "managed plugin policy JSON schema version is pinned"
+if grep -Fq '"const": "kiana.managed-plugin-policy.v1"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json &&
+  grep -Fq '"requireSignature"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json &&
+  grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file"' scripts/release-smoke.sh; then
+  pass "managed plugin policy JSON schema and signature smoke are pinned"
 else
-  fail "managed plugin policy JSON schema is missing kiana.managed-plugin-policy.v1 const"
+  fail "managed plugin policy JSON schema or signature smoke coverage is missing"
 fi
 
 if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then

@@ -41,6 +41,9 @@
         },
         "denyPathInstalls": {
           "type": "boolean"
+        },
+        "requireSignature": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
