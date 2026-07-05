@@ -121,6 +121,18 @@ pub struct ContextArtifactsCacheReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactStore {
+    pub schema: String,
+    pub root: String,
+    pub artifacts_schema: String,
+    pub dependency_graph_schema: String,
+    pub artifact_count: usize,
+    pub dependency_count: usize,
+    pub artifacts: ContextArtifacts,
+    pub dependency_graph: ContextArtifactDependencyGraph,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextArtifactDependencyGraph {
     pub schema: String,
     pub root: String,
@@ -402,6 +414,26 @@ pub fn build_context_artifact_dependency_graph(
         root: root.to_string_lossy().to_string(),
         nodes,
         edges,
+    })
+}
+
+pub fn build_context_artifact_store(
+    root: impl AsRef<Path>,
+    options: ContextArtifactOptions,
+) -> Result<ContextArtifactStore> {
+    let root = canonical_root(root.as_ref(), "context artifact store")?;
+    let artifacts = build_context_artifacts(&root, options)?;
+    let dependency_graph = build_context_artifact_dependency_graph(&root, options)?;
+
+    Ok(ContextArtifactStore {
+        schema: "kiana.context-artifact-store.v1".to_string(),
+        root: root.to_string_lossy().to_string(),
+        artifacts_schema: artifacts.schema.clone(),
+        dependency_graph_schema: dependency_graph.schema.clone(),
+        artifact_count: artifacts.artifacts.len(),
+        dependency_count: dependency_graph.edges.len(),
+        artifacts,
+        dependency_graph,
     })
 }
 
@@ -1444,6 +1476,48 @@ mod tests {
             edge.source == source.id
                 && edge.target == target.id
                 && edge.relation == "path_reference"
+                && edge.evidence == "docs/design.md references src/lib.rs"
+        }));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifact_store_reports_manifest_and_dependency_graph() {
+        let root = fixture_root("artifact-store");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+
+        let store = build_context_artifact_store(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(store.schema, "kiana.context-artifact-store.v1");
+        assert_eq!(store.artifacts_schema, "kiana.context-artifacts.v1");
+        assert_eq!(
+            store.dependency_graph_schema,
+            "kiana.context-artifact-dependency-graph.v1"
+        );
+        assert_eq!(store.artifact_count, 3);
+        assert_eq!(store.dependency_count, 2);
+        assert_eq!(store.artifacts.artifacts.len(), 3);
+        assert!(store.dependency_graph.edges.iter().any(|edge| {
+            edge.relation == "test_of" && edge.evidence == "tests/lib_test.rs matches src/lib.rs"
+        }));
+        assert!(store.dependency_graph.edges.iter().any(|edge| {
+            edge.relation == "path_reference"
                 && edge.evidence == "docs/design.md references src/lib.rs"
         }));
 

@@ -116,6 +116,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-context-artifact-store.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-pack.v1.schema.json" \
@@ -249,6 +250,10 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifact-graph --json | grep -Fq '"evidence": "tests/lib_test.rs matches src/lib.rs"'
   run_installed context artifact-graph --json | grep -Fq '"relation": "path_reference"'
   run_installed context artifact-graph --json | grep -Fq '"evidence": "docs/path-only.md references src/lib.rs"'
+  run_installed context artifact-store --json | grep -Fq '"schema": "kiana.context-artifact-store.v1"'
+  run_installed context artifact-store --json | grep -Fq '"artifact_count": 3'
+  run_installed context artifact-store --json | grep -Fq '"dependency_count": 2'
+  run_installed context artifact-store --json | grep -Fq '"dependency_graph_schema": "kiana.context-artifact-dependency-graph.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'

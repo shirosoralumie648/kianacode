@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-context-artifact-store.v1.schema.json",
+  "title": "Kiana Context Artifact Store v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "root",
+    "artifacts_schema",
+    "dependency_graph_schema",
+    "artifact_count",
+    "dependency_count",
+    "artifacts",
+    "dependency_graph"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.context-artifact-store.v1"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifacts_schema": {
+      "const": "kiana.context-artifacts.v1"
+    },
+    "dependency_graph_schema": {
+      "const": "kiana.context-artifact-dependency-graph.v1"
+    },
+    "artifact_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dependency_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifacts": {
+      "type": "object"
+    },
+    "dependency_graph": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

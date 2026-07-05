@@ -3,11 +3,12 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_artifact_dependency_graph, build_context_artifacts, build_context_index,
-    build_context_pack, build_persistent_context_artifacts, build_persistent_context_index,
-    build_repo_map, search_context_index, ContextArtifactDependencyGraph, ContextArtifactOptions,
-    ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions,
-    ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
+    build_context_artifact_dependency_graph, build_context_artifact_store, build_context_artifacts,
+    build_context_index, build_context_pack, build_persistent_context_artifacts,
+    build_persistent_context_index, build_repo_map, search_context_index,
+    ContextArtifactDependencyGraph, ContextArtifactOptions, ContextArtifactStore, ContextArtifacts,
+    ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions, ContextSearchOptions,
+    ContextSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -42,6 +43,9 @@ impl Command for ContextCommand {
         }
         if let Some(rest) = args.strip_prefix("artifacts") {
             return artifacts_result(&context, rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("artifact-store") {
+            return artifact_store_result(&context, rest.trim());
         }
         if let Some(rest) = args.strip_prefix("artifact-graph") {
             return artifact_graph_result(&context, rest.trim());
@@ -82,7 +86,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -268,6 +272,51 @@ fn artifact_graph_result(context: &CommandContext, args: &str) -> anyhow::Result
     }
     Ok(CommandResult::text(format_context_artifact_graph_text(
         &graph,
+    )))
+}
+
+fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut root = None;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+
+    let store = build_context_artifact_store(
+        context_root(context, root),
+        ContextArtifactOptions { max_bytes_per_file },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&store)?));
+    }
+    Ok(CommandResult::text(format_context_artifact_store_text(
+        &store,
     )))
 }
 
@@ -589,6 +638,20 @@ fn format_context_artifact_graph_text(graph: &ContextArtifactDependencyGraph) ->
         ));
     }
     lines.join("\n")
+}
+
+fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
+    vec![
+        "Context artifact store".to_string(),
+        format!("root: {}", store.root),
+        format!(
+            "schema: {} artifacts={} dependencies={}",
+            store.schema, store.artifact_count, store.dependency_count
+        ),
+        format!("artifacts_schema: {}", store.artifacts_schema),
+        format!("dependency_graph_schema: {}", store.dependency_graph_schema),
+    ]
+    .join("\n")
 }
 
 fn format_context_search_text(results: &ContextSearchResults) -> String {
@@ -1140,6 +1203,48 @@ mod tests {
             edge["relation"] == "path_reference"
                 && edge["evidence"] == "docs/design.md references src/lib.rs"
         }));
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_artifact_store_json_reports_manifest() {
+        let root = fixture_root("artifact-store-command");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "artifact-store --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-artifact-store.v1");
+        assert_eq!(value["artifacts_schema"], "kiana.context-artifacts.v1");
+        assert_eq!(
+            value["dependency_graph_schema"],
+            "kiana.context-artifact-dependency-graph.v1"
+        );
+        assert_eq!(value["artifact_count"], 3);
+        assert_eq!(value["dependency_count"], 2);
+        assert_eq!(value["artifacts"]["artifacts"].as_array().unwrap().len(), 3);
+        assert!(value["dependency_graph"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|edge| edge["relation"] == "path_reference"
+                && edge["evidence"] == "docs/design.md references src/lib.rs"));
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
