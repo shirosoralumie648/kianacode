@@ -682,7 +682,9 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
         }
         match &entry.source {
             MarketplaceSource::Directory { path } => {
-                if let Some(root) = find_plugin_in_marketplace_dir(Path::new(path), &plugin_name)? {
+                if let Some(root) =
+                    find_plugin_in_marketplace_dir(Path::new(path), &plugin_name).await?
+                {
                     return Ok(InstallSource {
                         root: root.root,
                         marketplace: Some(entry.name),
@@ -691,7 +693,8 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
                 }
             }
             MarketplaceSource::File { path } => {
-                if let Some(root) = find_plugin_in_marketplace_file(Path::new(path), &plugin_name)?
+                if let Some(root) =
+                    find_plugin_in_marketplace_file(Path::new(path), &plugin_name).await?
                 {
                     return Ok(InstallSource {
                         root: root.root,
@@ -1099,11 +1102,12 @@ async fn run_git_command(args: &[String], cwd: Option<&Path>) -> Result<()> {
     Err(anyhow!("git {} failed: {}", args.join(" "), stderr.trim()))
 }
 
-fn find_plugin_in_marketplace_dir(
+async fn find_plugin_in_marketplace_dir(
     marketplace_root: &Path,
     plugin_name: &str,
 ) -> Result<Option<MarketplacePluginResolution>> {
-    if let Some(path) = find_plugin_from_marketplace_manifest(marketplace_root, plugin_name)? {
+    if let Some(path) = find_plugin_from_marketplace_manifest(marketplace_root, plugin_name).await?
+    {
         return Ok(Some(path));
     }
     if plugin_dir_matches(marketplace_root, plugin_name)? {
@@ -1123,14 +1127,14 @@ fn find_plugin_in_marketplace_dir(
     Ok(None)
 }
 
-fn find_plugin_in_marketplace_file(
+async fn find_plugin_in_marketplace_file(
     marketplace_file: &Path,
     plugin_name: &str,
 ) -> Result<Option<MarketplacePluginResolution>> {
-    find_plugin_from_marketplace_manifest_file(marketplace_file, plugin_name)
+    find_plugin_from_marketplace_manifest_file(marketplace_file, plugin_name).await
 }
 
-fn find_plugin_from_marketplace_manifest(
+async fn find_plugin_from_marketplace_manifest(
     marketplace_root: &Path,
     plugin_name: &str,
 ) -> Result<Option<MarketplacePluginResolution>> {
@@ -1145,7 +1149,7 @@ fn find_plugin_from_marketplace_manifest(
     ] {
         if path.is_file() {
             if let Some(plugin_root) =
-                find_plugin_from_marketplace_manifest_file(&path, plugin_name)?
+                find_plugin_from_marketplace_manifest_file(&path, plugin_name).await?
             {
                 return Ok(Some(plugin_root));
             }
@@ -1154,18 +1158,35 @@ fn find_plugin_from_marketplace_manifest(
     Ok(None)
 }
 
-fn find_plugin_from_marketplace_manifest_file(
+async fn find_plugin_from_marketplace_manifest_file(
     manifest_path: &Path,
     plugin_name: &str,
 ) -> Result<Option<MarketplacePluginResolution>> {
     let contents = std::fs::read_to_string(manifest_path)?;
     let manifest: LocalMarketplaceManifest = serde_json::from_str(&contents)?;
+    let marketplace_name = manifest.name.clone().unwrap_or_else(|| {
+        manifest_path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("marketplace")
+            .to_string()
+    });
     let base = marketplace_manifest_base_dir(manifest_path)?;
     for entry in manifest.plugins {
         if normalize_target(&entry.name) != normalize_target(plugin_name) {
             continue;
         }
-        let plugin_root = marketplace_entry_source_path(&base, &entry.source)?;
+        let plugin_root = if marketplace_entry_source_is_local(&entry.source) {
+            marketplace_entry_source_path(&base, &entry.source)?
+        } else {
+            marketplace_entry_remote_source_path(
+                &marketplace_name,
+                &entry.name,
+                &entry.source,
+                manifest_path.parent(),
+            )
+            .await?
+        };
         if !plugin_root.exists() {
             return Err(anyhow!(
                 "marketplace entry '{}' points to missing plugin path {}",
@@ -4559,6 +4580,90 @@ mod tests {
             .unwrap();
         assert!(list.value.contains("ops-tools@1.2.3 [valid enabled]"));
         assert!(list.value.contains("skills=1"));
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_from_local_marketplace_file_remote_git_source() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("local-marketplace-remote-git-source");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("local-remote-marketplace");
+        let plugin_repo = root.join("git").join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&marketplace_root).unwrap();
+        write_manifest(&plugin_repo, "review-tools");
+        fs::create_dir_all(plugin_repo.join("commands")).unwrap();
+        fs::write(plugin_repo.join("commands").join("audit.md"), "# audit").unwrap();
+        run_git(&plugin_repo, &["init"]);
+        run_git(&plugin_repo, &["add", "."]);
+        run_git(
+            &plugin_repo,
+            &[
+                "-c",
+                "user.name=Kiana Test",
+                "-c",
+                "user.email=kiana@example.invalid",
+                "commit",
+                "-m",
+                "initial plugin",
+            ],
+        );
+        let plugin_repo_url = format!("file://{}", plugin_repo.canonicalize().unwrap().display());
+        fs::write(
+            marketplace_root.join("marketplace.json"),
+            serde_json::to_string_pretty(&json!({
+                "name": "local-remote-marketplace",
+                "owner": { "name": "Kiana Tests" },
+                "plugins": [
+                    {
+                        "name": "review-tools",
+                        "source": {
+                            "source": "git",
+                            "url": plugin_repo_url
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let installed = PluginCommand
+            .execute(context(
+                "install review-tools@local-remote-marketplace",
+                &cwd,
+            ))
+            .await
+            .unwrap();
+        assert!(installed.value.contains("Installed plugin: review-tools"));
+        assert!(installed
+            .value
+            .contains("marketplace: local-remote-marketplace"));
+        assert!(plugins_dir
+            .join("review-tools")
+            .join("commands")
+            .join("audit.md")
+            .is_file());
 
         match previous_home {
             Some(value) => std::env::set_var("KIANA_HOME", value),

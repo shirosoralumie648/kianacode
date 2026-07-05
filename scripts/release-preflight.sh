@@ -276,6 +276,13 @@ else
   fail "release smoke does not exercise plugin install receipt integrity"
 fi
 
+if grep -Fq 'plugin_install_from_local_marketplace_file_remote_git_source' kiana-commands/src/plugin.rs &&
+  grep -Fq 'marketplace_entry_remote_source_path' kiana-commands/src/plugin.rs; then
+  pass "local marketplace remote plugin source install is covered"
+else
+  fail "local marketplace remote plugin source install is not covered"
+fi
+
 if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
   grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs; then
   pass "managed plugin allow/deny policy is wired"
