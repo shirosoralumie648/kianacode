@@ -3,10 +3,11 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_artifact_dependency_graph, build_context_artifact_store, build_context_artifacts,
-    build_context_index, build_context_pack, build_persistent_context_artifact_store,
-    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
-    search_context_index, ContextArtifactDependencyGraph, ContextArtifactOptions,
+    build_context_artifact_dependency_graph, build_context_artifact_readiness,
+    build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
+    build_persistent_context_artifact_store, build_persistent_context_artifacts,
+    build_persistent_context_index, build_repo_map, search_context_index,
+    ContextArtifactDependencyGraph, ContextArtifactOptions, ContextArtifactReadiness,
     ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
     ContextPackOptions, ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
 };
@@ -47,6 +48,9 @@ impl Command for ContextCommand {
         if let Some(rest) = args.strip_prefix("artifact-store") {
             return artifact_store_result(&context, rest.trim());
         }
+        if let Some(rest) = args.strip_prefix("artifact-readiness") {
+            return artifact_readiness_result(&context, rest.trim());
+        }
         if let Some(rest) = args.strip_prefix("artifact-graph") {
             return artifact_graph_result(&context, rest.trim());
         }
@@ -86,7 +90,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-readiness [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -335,6 +339,56 @@ fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result
     }
     Ok(CommandResult::text(format_context_artifact_store_text(
         &store,
+    )))
+}
+
+fn artifact_readiness_result(
+    context: &CommandContext,
+    args: &str,
+) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut root = None;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+
+    let readiness = build_context_artifact_readiness(
+        context_root(context, root),
+        ContextArtifactOptions { max_bytes_per_file },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(
+            &readiness,
+        )?));
+    }
+    Ok(CommandResult::text(format_context_artifact_readiness_text(
+        &readiness,
     )))
 }
 
@@ -690,6 +744,36 @@ fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
             cache.reused_dependencies,
             cache.added_dependencies,
             cache.removed_dependencies
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifact_readiness_text(readiness: &ContextArtifactReadiness) -> String {
+    let mut lines = vec![
+        "Context artifact readiness".to_string(),
+        format!("root: {}", readiness.root),
+        format!(
+            "schema: {} status={} artifacts={} dependencies={}",
+            readiness.schema,
+            readiness.status,
+            readiness.artifact_count,
+            readiness.dependency_count
+        ),
+        format!("artifact_store_schema: {}", readiness.artifact_store_schema),
+        format!(
+            "missing_roles: {}",
+            if readiness.missing_roles.is_empty() {
+                "none".to_string()
+            } else {
+                readiness.missing_roles.join(",")
+            }
+        ),
+    ];
+    for role in &readiness.required_roles {
+        lines.push(format!(
+            "- {} required={} present={} count={}",
+            role.role, role.required, role.present, role.count
         ));
     }
     lines.join("\n")
@@ -1301,6 +1385,58 @@ mod tests {
             .iter()
             .any(|edge| edge["relation"] == "path_reference"
                 && edge["evidence"] == "docs/design.md references src/lib.rs"));
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_artifact_readiness_json_reports_missing_roles() {
+        let root = fixture_root("artifact-readiness-command");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "artifact-readiness --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-artifact-readiness.v1");
+        assert_eq!(value["status"], "incomplete");
+        assert_eq!(
+            value["artifact_store_schema"],
+            "kiana.context-artifact-store.v1"
+        );
+        assert_eq!(value["artifact_count"], 3);
+        assert_eq!(value["dependency_count"], 2);
+        assert_eq!(value["missing_roles"], json!(["prd", "tasks"]));
+        assert!(value["required_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "design"
+                && role["required"] == true
+                && role["present"] == true
+                && role["count"] == 1));
+        assert!(value["required_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "prd"
+                && role["required"] == true
+                && role["present"] == false
+                && role["count"] == 0));
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }

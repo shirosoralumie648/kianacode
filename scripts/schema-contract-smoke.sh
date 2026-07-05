@@ -40,6 +40,7 @@ tmp_context_index="$(mktemp)"
 tmp_context_artifacts="$(mktemp)"
 tmp_context_artifact_graph="$(mktemp)"
 tmp_context_artifact_store="$(mktemp)"
+tmp_context_artifact_readiness="$(mktemp)"
 tmp_repo_map="$(mktemp)"
 tmp_diff="$(mktemp)"
 tmp_checkpoint="$(mktemp)"
@@ -53,7 +54,7 @@ tmp_release_signature="$(mktemp)"
 tmp_enterprise_offline_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -395,6 +396,28 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-context-artifact-store.v1.schema.json \
   "$tmp_context_artifact_store" >/dev/null
+
+cat > "$tmp_context_artifact_readiness" <<'JSON'
+{
+  "schema": "kiana.context-artifact-readiness.v1",
+  "root": "/workspace",
+  "artifact_store_schema": "kiana.context-artifact-store.v1",
+  "status": "incomplete",
+  "artifact_count": 3,
+  "dependency_count": 2,
+  "required_roles": [
+    { "role": "prd", "required": true, "present": false, "count": 0 },
+    { "role": "design", "required": true, "present": true, "count": 1 },
+    { "role": "tasks", "required": true, "present": false, "count": 0 },
+    { "role": "source", "required": true, "present": true, "count": 1 },
+    { "role": "test", "required": true, "present": true, "count": 1 }
+  ],
+  "missing_roles": ["prd", "tasks"]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-context-artifact-readiness.v1.schema.json \
+  "$tmp_context_artifact_readiness" >/dev/null
 
 cat > "$tmp_repo_map" <<'JSON'
 {

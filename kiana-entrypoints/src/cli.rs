@@ -8,11 +8,11 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
 use kiana_query::{
-    build_context_artifact_dependency_graph, build_context_artifact_store, build_context_artifacts,
-    build_context_index, build_context_pack, build_persistent_context_artifact_store,
-    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
-    search_context_index, ContextArtifactOptions, ContextIndexOptions, ContextPackOptions,
-    ContextSearchOptions, RepoMapOptions,
+    build_context_artifact_dependency_graph, build_context_artifact_readiness,
+    build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
+    build_persistent_context_artifact_store, build_persistent_context_artifacts,
+    build_persistent_context_index, build_repo_map, search_context_index, ContextArtifactOptions,
+    ContextIndexOptions, ContextPackOptions, ContextSearchOptions, RepoMapOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -5428,6 +5428,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_context_artifact_store_handler),
         )
         .route(
+            "/app/context/artifact-readiness",
+            axum::routing::get(direct_connect_app_context_artifact_readiness_handler),
+        )
+        .route(
             "/app/context/repo-map",
             axum::routing::get(direct_connect_app_context_repo_map_handler),
         )
@@ -8196,6 +8200,11 @@ struct DirectConnectContextArtifactStoreQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct DirectConnectContextArtifactReadinessQuery {
+    max_bytes_per_file: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 struct DirectConnectRepoMapQuery {
     max_tokens: Option<u64>,
 }
@@ -8338,6 +8347,34 @@ async fn direct_connect_app_context_artifact_store_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::BAD_REQUEST,
             format!("failed to build context artifact store: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_context_artifact_readiness_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextArtifactReadinessQuery>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let options = ContextArtifactOptions {
+        max_bytes_per_file: query.max_bytes_per_file,
+    };
+    match build_context_artifact_readiness(&state.workspace, options)
+        .and_then(|readiness| serde_json::to_value(readiness).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to build context artifact readiness: {error}"),
         ),
     }
 }
@@ -9444,6 +9481,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "context.artifacts.cache.write",
         "context.artifact_graph.read",
         "context.artifact_store.read",
+        "context.artifact_readiness.read",
         "context.repo_map.read",
         "context.search.read",
         "context.pack.read",
@@ -9534,6 +9572,12 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
             "GET",
             "/app/context/artifact-store",
             "kiana.context-artifact-store.v1",
+            Value::String("optional max_bytes_per_file caps indexed file bytes".to_string()),
+        ),
+        direct_connect_app_endpoint_with_query(
+            "GET",
+            "/app/context/artifact-readiness",
+            "kiana.context-artifact-readiness.v1",
             Value::String("optional max_bytes_per_file caps indexed file bytes".to_string()),
         ),
         direct_connect_app_endpoint("GET", "/app/context/repo-map", "kiana.repo-map.v1"),
@@ -19022,6 +19066,12 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String(
+                "context.artifact_readiness.read".to_string()
+            )));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.search.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19384,6 +19434,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/artifact-store"
                     && endpoint["schema"] == "kiana.context-artifact-store.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/artifact-readiness"
+                    && endpoint["schema"] == "kiana.context-artifact-readiness.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -21062,6 +21121,36 @@ mod tests {
             .join(".kiana")
             .join("context-artifact-store.json")
             .is_file());
+
+        let context_artifact_readiness: Value = client
+            .get(format!("http://{addr}/app/context/artifact-readiness"))
+            .bearer_auth("secret")
+            .query(&[("max_bytes_per_file", "1024")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            context_artifact_readiness["schema"],
+            "kiana.context-artifact-readiness.v1"
+        );
+        assert_eq!(context_artifact_readiness["status"], "incomplete");
+        assert_eq!(
+            context_artifact_readiness["artifact_store_schema"],
+            "kiana.context-artifact-store.v1"
+        );
+        assert_eq!(context_artifact_readiness["artifact_count"], 3);
+        assert_eq!(
+            context_artifact_readiness["missing_roles"],
+            serde_json::json!(["prd", "design", "tasks", "test"])
+        );
+        assert!(context_artifact_readiness["required_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "source" && role["present"] == true && role["count"] == 1));
 
         let context_search: Value = client
             .get(format!("http://{addr}/app/context/search"))

@@ -402,6 +402,7 @@ smoke_context_index_search_json() {
   cached_artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json --cache .kiana/context-artifacts.json 2>&1)"
   artifact_graph_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-graph --json 2>&1)"
   artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-store --json 2>&1)"
+  artifact_readiness_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-readiness --json 2>&1)"
   cached_artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-store --json --cache .kiana/context-artifact-store.json 2>&1)"
   search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
   path_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search docs/path-only.md --json --limit 1 2>&1)"
@@ -409,7 +410,7 @@ smoke_context_index_search_json() {
   path_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 2>&1)"
   root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_dir" --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
-  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_ARTIFACT_READINESS_JSON="$artifact_readiness_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
 import json
 import os
 import sys
@@ -420,6 +421,7 @@ try:
     cached_artifacts = json.loads(os.environ["CONTEXT_CACHED_ARTIFACTS_JSON"])
     artifact_graph = json.loads(os.environ["CONTEXT_ARTIFACT_GRAPH_JSON"])
     artifact_store = json.loads(os.environ["CONTEXT_ARTIFACT_STORE_JSON"])
+    artifact_readiness = json.loads(os.environ["CONTEXT_ARTIFACT_READINESS_JSON"])
     cached_artifact_store = json.loads(os.environ["CONTEXT_CACHED_ARTIFACT_STORE_JSON"])
     search = json.loads(os.environ["CONTEXT_SEARCH_JSON"])
     path_search = json.loads(os.environ["CONTEXT_PATH_SEARCH_JSON"])
@@ -433,6 +435,7 @@ except Exception as exc:
     print(os.environ.get("CONTEXT_CACHED_ARTIFACTS_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACT_GRAPH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACT_STORE_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_ARTIFACT_READINESS_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_CACHED_ARTIFACT_STORE_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_SEARCH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PATH_SEARCH_JSON", ""), file=sys.stderr)
@@ -468,6 +471,12 @@ checks = [
     artifact_store.get("artifacts", {}).get("schema") == "kiana.context-artifacts.v1",
     artifact_store.get("dependency_graph", {}).get("schema") == "kiana.context-artifact-dependency-graph.v1",
     any(edge.get("relation") == "path_reference" for edge in artifact_store.get("dependency_graph", {}).get("edges", [])),
+    artifact_readiness.get("schema") == "kiana.context-artifact-readiness.v1",
+    artifact_readiness.get("artifact_store_schema") == "kiana.context-artifact-store.v1",
+    artifact_readiness.get("status") == "incomplete",
+    artifact_readiness.get("missing_roles") == ["prd", "design", "tasks"],
+    any(role.get("role") == "source" and role.get("present") is True and role.get("count") == 1 for role in artifact_readiness.get("required_roles", [])),
+    any(role.get("role") == "prd" and role.get("present") is False and role.get("count") == 0 for role in artifact_readiness.get("required_roles", [])),
     cached_artifact_store.get("schema") == "kiana.context-artifact-store.v1",
     any(role.get("role") == "source" and role.get("count") == 1 for role in cached_artifact_store.get("artifact_roles", [])),
     cached_artifact_store.get("cache", {}).get("status") == "created",

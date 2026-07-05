@@ -116,6 +116,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-context-artifact-readiness.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-store.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
@@ -256,6 +257,9 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifact-store --json | grep -Fq '"role": "source"'
   run_installed context artifact-store --json | grep -Fq '"role": "test"'
   run_installed context artifact-store --json | grep -Fq '"dependency_graph_schema": "kiana.context-artifact-dependency-graph.v1"'
+  run_installed context artifact-readiness --json | grep -Fq '"schema": "kiana.context-artifact-readiness.v1"'
+  run_installed context artifact-readiness --json | grep -Fq '"status": "incomplete"'
+  run_installed context artifact-readiness --json | grep -Fq '"missing_roles"'
   run_installed context artifact-store --json --cache .kiana/context-artifact-store.json | grep -Fq '"status": "created"'
   run_installed context artifact-store --json --cache .kiana/context-artifact-store.json | grep -Fq '"reused_artifacts": 3'
   run_installed context artifact-store --json --cache .kiana/context-artifact-store.json | grep -Fq '"reused_dependencies": 2'

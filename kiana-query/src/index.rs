@@ -142,6 +142,26 @@ pub struct ContextArtifactRoleSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactReadiness {
+    pub schema: String,
+    pub root: String,
+    pub artifact_store_schema: String,
+    pub status: String,
+    pub artifact_count: usize,
+    pub dependency_count: usize,
+    pub required_roles: Vec<ContextArtifactReadinessRole>,
+    pub missing_roles: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactReadinessRole {
+    pub role: String,
+    pub required: bool,
+    pub present: bool,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextArtifactStoreCacheReport {
     pub path: String,
     pub status: String,
@@ -489,6 +509,49 @@ pub fn build_persistent_context_artifact_store(
     })?;
 
     Ok(store)
+}
+
+pub fn build_context_artifact_readiness(
+    root: impl AsRef<Path>,
+    options: ContextArtifactOptions,
+) -> Result<ContextArtifactReadiness> {
+    let store = build_context_artifact_store(root, options)?;
+    let role_counts = store
+        .artifact_roles
+        .iter()
+        .map(|role| (role.role.as_str(), role.count))
+        .collect::<BTreeMap<_, _>>();
+    let mut required_roles = Vec::new();
+    let mut missing_roles = Vec::new();
+
+    for role in ["prd", "design", "tasks", "source", "test"] {
+        let count = *role_counts.get(role).unwrap_or(&0);
+        let present = count > 0;
+        if !present {
+            missing_roles.push(role.to_string());
+        }
+        required_roles.push(ContextArtifactReadinessRole {
+            role: role.to_string(),
+            required: true,
+            present,
+            count,
+        });
+    }
+
+    Ok(ContextArtifactReadiness {
+        schema: "kiana.context-artifact-readiness.v1".to_string(),
+        root: store.root,
+        artifact_store_schema: store.schema,
+        status: if missing_roles.is_empty() {
+            "ready".to_string()
+        } else {
+            "incomplete".to_string()
+        },
+        artifact_count: store.artifact_count,
+        dependency_count: store.dependency_count,
+        required_roles,
+        missing_roles,
+    })
 }
 
 pub fn build_persistent_context_index(
@@ -1815,6 +1878,56 @@ mod tests {
         assert_eq!(store.artifact_roles[3].count, 1);
         assert_eq!(store.artifact_roles[4].role, "test");
         assert_eq!(store.artifact_roles[4].count, 1);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifact_readiness_reports_missing_required_roles() {
+        let root = fixture_root("artifact-readiness-missing");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+
+        let readiness = build_context_artifact_readiness(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(readiness.schema, "kiana.context-artifact-readiness.v1");
+        assert_eq!(readiness.status, "incomplete");
+        assert_eq!(
+            readiness.artifact_store_schema,
+            "kiana.context-artifact-store.v1"
+        );
+        assert_eq!(readiness.artifact_count, 3);
+        assert_eq!(readiness.dependency_count, 2);
+        assert_eq!(readiness.missing_roles, vec!["prd", "tasks"]);
+        assert!(readiness.required_roles.iter().any(|role| {
+            role.role == "design" && role.required && role.present && role.count == 1
+        }));
+        assert!(readiness.required_roles.iter().any(|role| {
+            role.role == "source" && role.required && role.present && role.count == 1
+        }));
+        assert!(readiness.required_roles.iter().any(|role| {
+            role.role == "test" && role.required && role.present && role.count == 1
+        }));
+        assert!(readiness.required_roles.iter().any(|role| {
+            role.role == "prd" && role.required && !role.present && role.count == 0
+        }));
+        assert!(readiness.required_roles.iter().any(|role| {
+            role.role == "tasks" && role.required && !role.present && role.count == 0
+        }));
 
         let _ = fs::remove_dir_all(root);
     }
