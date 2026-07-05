@@ -473,6 +473,7 @@ Exit criteria:
 Progress:
 
 - 2026-07-05: Added persistent local artifact-store cache reporting. `kiana context artifact-store --json --cache <path>` now writes `kiana.context-artifact-store.v1` manifests with created, updated, or recovered cache status plus artifact and dependency delta counts, giving the local knowledge layer a durable manifest handoff before embeddings, notebooks, or team runtime. Focused coverage is in `cargo test -p kiana-query persistent_context_artifact_store_reports_cache_recovery_and_deltas --locked` and `cargo test -p kiana-commands context_artifact_store_json_persists_cache_report --locked`.
+- 2026-07-05: Added product-shell parity for artifact-store cache refresh. `/app/context/artifact-store?cache=true` now refreshes the default workspace `.kiana/context-artifact-store.json` manifest with the same `kiana.context-artifact-store.v1` cache status and artifact/dependency deltas as the CLI path, so Web/IDE clients can inspect and refresh the deterministic local knowledge manifest without shelling out. Focused coverage is in `cargo test -p kiana-entrypoints direct_connect_app_contract_exposes_product_shell_endpoints --locked`.
 - Indexing is incremental and disabled by default until configured.
 - Notebook execution is isolated, timed, and permission-gated.
 

@@ -9,9 +9,10 @@ use kiana_commands::{
 };
 use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_store, build_context_artifacts,
-    build_context_index, build_context_pack, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, search_context_index, ContextArtifactOptions,
-    ContextIndexOptions, ContextPackOptions, ContextSearchOptions, RepoMapOptions,
+    build_context_index, build_context_pack, build_persistent_context_artifact_store,
+    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
+    search_context_index, ContextArtifactOptions, ContextIndexOptions, ContextPackOptions,
+    ContextSearchOptions, RepoMapOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -8189,6 +8190,12 @@ struct DirectConnectContextArtifactGraphQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct DirectConnectContextArtifactStoreQuery {
+    cache: Option<bool>,
+    max_bytes_per_file: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 struct DirectConnectRepoMapQuery {
     max_tokens: Option<u64>,
 }
@@ -8299,7 +8306,7 @@ async fn direct_connect_app_context_artifact_graph_handler(
 async fn direct_connect_app_context_artifact_store_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
-    axum::extract::Query(query): axum::extract::Query<DirectConnectContextArtifactGraphQuery>,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextArtifactStoreQuery>,
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
 
@@ -8313,9 +8320,20 @@ async fn direct_connect_app_context_artifact_store_handler(
     let options = ContextArtifactOptions {
         max_bytes_per_file: query.max_bytes_per_file,
     };
-    match build_context_artifact_store(&state.workspace, options)
-        .and_then(|store| serde_json::to_value(store).map_err(Into::into))
-    {
+    let store = if query.cache.unwrap_or(false) {
+        build_persistent_context_artifact_store(
+            &state.workspace,
+            options,
+            state
+                .workspace
+                .join(".kiana")
+                .join("context-artifact-store.json"),
+        )
+    } else {
+        build_context_artifact_store(&state.workspace, options)
+    };
+
+    match store.and_then(|store| serde_json::to_value(store).map_err(Into::into)) {
         Ok(value) => axum::Json(value).into_response(),
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::BAD_REQUEST,
@@ -21000,6 +21018,35 @@ mod tests {
             .unwrap()
             .iter()
             .any(|artifact| artifact["path"] == "src/lib.rs"));
+
+        let cached_context_artifact_store: Value = client
+            .get(format!("http://{addr}/app/context/artifact-store"))
+            .bearer_auth("secret")
+            .query(&[("cache", "true"), ("max_bytes_per_file", "1024")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            cached_context_artifact_store["schema"],
+            "kiana.context-artifact-store.v1"
+        );
+        assert_eq!(cached_context_artifact_store["cache"]["status"], "created");
+        assert_eq!(cached_context_artifact_store["cache"]["added_artifacts"], 3);
+        assert_eq!(
+            cached_context_artifact_store["cache"]["added_dependencies"],
+            0
+        );
+        assert!(cached_context_artifact_store["cache"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with(".kiana/context-artifact-store.json"));
+        assert!(workspace
+            .join(".kiana")
+            .join("context-artifact-store.json")
+            .is_file());
 
         let context_search: Value = client
             .get(format!("http://{addr}/app/context/search"))
