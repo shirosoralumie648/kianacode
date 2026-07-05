@@ -745,7 +745,7 @@ smoke_plugin_marketplace() {
   local marketplace_dir="$tmp_root/tools-marketplace"
   local output
 
-  mkdir -p "$marketplace_dir/review-tools/.codex-plugin" "$marketplace_dir/review-tools/commands"
+  mkdir -p "$marketplace_dir/.codex-plugin" "$marketplace_dir/review-tools/.codex-plugin" "$marketplace_dir/review-tools/commands"
   cat > "$marketplace_dir/review-tools/.codex-plugin/plugin.json" <<'JSON'
 {
   "name": "review-tools",
@@ -754,6 +754,59 @@ smoke_plugin_marketplace() {
 }
 JSON
   printf '# audit\n' > "$marketplace_dir/review-tools/commands/audit.md"
+  receipt_source_hash="$(python3 - "$marketplace_dir/review-tools" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+hash_value = 0xcbf29ce484222325
+
+def update(data: bytes):
+    global hash_value
+    for byte in data:
+        hash_value ^= byte
+        hash_value = (hash_value * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+
+entries = []
+for path in sorted(p for p in root.rglob("*") if p.is_file()):
+    rel = path.relative_to(root).as_posix()
+    if rel == ".kiana-install-receipt.json":
+        continue
+    file_hash = 0xcbf29ce484222325
+    for byte in path.read_bytes():
+        file_hash ^= byte
+        file_hash = (file_hash * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    entries.append((rel, path.stat().st_size, f"{file_hash:016x}"))
+
+for rel, size, file_hash in entries:
+    update(rel.encode())
+    update(b"\0")
+    update(str(size).encode())
+    update(b"\0")
+    update(file_hash.encode())
+    update(b"\0")
+
+print(f"{hash_value:016x}")
+PY
+)"
+  cat > "$marketplace_dir/.codex-plugin/marketplace.json" <<JSON
+{
+  "name": "tools-marketplace",
+  "plugins": [
+    {
+      "name": "review-tools",
+      "source": "./review-tools",
+      "signature": {
+        "scheme": "external-signature-v1",
+        "signer": "Kiana Smoke Marketplace",
+        "keyId": "smoke-key-1",
+        "contentHash": "$receipt_source_hash",
+        "signature": "smoke-signature"
+      }
+    }
+  ]
+}
+JSON
 
   output="$(run_clean_kiana "$binary" plugin marketplace list --json)"
   grep -Fq -- "[]" <<<"$output"
@@ -774,6 +827,10 @@ JSON
   test -f "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   grep -Fq -- '"schema": "kiana.plugin-install-receipt.v1"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   grep -Fq -- '"path": "commands/audit.md"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  grep -Fq -- '"signature": {' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  grep -Fq -- '"scheme": "external-signature-v1"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  grep -Fq -- '"signer": "Kiana Smoke Marketplace"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  grep -Fq -- '"contentHash": "' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   grep -Fq -- '"integrity": {' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   grep -Fq -- '"method": "stable-hash-v1"' "$smoke_home/.kiana/plugins/review-tools/.kiana-install-receipt.json"
 

@@ -537,6 +537,15 @@ else
   fail "plugin install receipt integrity is not sealed and exposed"
 fi
 
+if grep -Fq '"signature"' docs/schemas/kiana-plugin-install-receipt.v1.schema.json &&
+  grep -Fq '"contentHash"' docs/schemas/kiana-plugin-install-receipt.v1.schema.json &&
+  grep -Fq 'plugin_install_records_marketplace_signature_metadata_in_receipt' kiana-commands/src/plugin.rs &&
+  grep -Fq '"signature": {' scripts/release-smoke.sh; then
+  pass "plugin install receipt signature metadata is schema-pinned and smoke-covered"
+else
+  fail "plugin install receipt signature metadata is not schema-pinned and smoke-covered"
+fi
+
 if grep -Fq '"const": "kiana.managed-plugin-policy.v1"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json; then
   pass "managed plugin policy JSON schema version is pinned"
 else

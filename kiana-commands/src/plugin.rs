@@ -661,6 +661,7 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
             root: plugin_root_from_target(&path),
             marketplace: None,
             policy: MarketplacePluginPolicy::default(),
+            signature: None,
         });
     }
 
@@ -689,6 +690,7 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
                         root: root.root,
                         marketplace: Some(entry.name),
                         policy: root.policy,
+                        signature: root.signature,
                     });
                 }
             }
@@ -700,6 +702,7 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
                         root: root.root,
                         marketplace: Some(entry.name),
                         policy: root.policy,
+                        signature: root.signature,
                     });
                 }
             }
@@ -711,6 +714,7 @@ async fn resolve_install_source(context: &CommandContext, target: &str) -> Resul
                         root: root.root,
                         marketplace: Some(entry.name),
                         policy: root.policy,
+                        signature: root.signature,
                     });
                 }
             }
@@ -814,6 +818,7 @@ async fn find_plugin_from_remote_marketplace_manifest_file(
         return Ok(Some(MarketplacePluginResolution {
             root: plugin_root,
             policy: MarketplacePluginPolicy::from_entry(&entry),
+            signature: entry.signature,
         }));
     }
     Ok(None)
@@ -1137,6 +1142,7 @@ async fn find_plugin_in_marketplace_dir(
         return Ok(Some(MarketplacePluginResolution {
             root: marketplace_root.to_path_buf(),
             policy: MarketplacePluginPolicy::default(),
+            signature: None,
         }));
     }
     for plugin_root in all_plugin_roots_in(marketplace_root) {
@@ -1144,6 +1150,7 @@ async fn find_plugin_in_marketplace_dir(
             return Ok(Some(MarketplacePluginResolution {
                 root: plugin_root,
                 policy: MarketplacePluginPolicy::default(),
+                signature: None,
             }));
         }
     }
@@ -1227,6 +1234,7 @@ async fn find_plugin_from_marketplace_manifest_file(
         return Ok(Some(MarketplacePluginResolution {
             root: plugin_root,
             policy: MarketplacePluginPolicy::from_entry(&entry),
+            signature: entry.signature,
         }));
     }
     Ok(None)
@@ -1517,6 +1525,7 @@ fn write_plugin_install_receipt(
         install_path: destination.display().to_string(),
         marketplace: source.marketplace.clone(),
         policy: source.policy.clone(),
+        signature: source.signature.clone(),
         managed_policy: managed_policy.map(ManagedPluginPolicyReceipt::from),
         file_count: files.len(),
         content_hash: aggregate_receipt_hash(&files),
@@ -2313,6 +2322,7 @@ struct InstallSource {
     root: PathBuf,
     marketplace: Option<String>,
     policy: MarketplacePluginPolicy,
+    signature: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2329,6 +2339,8 @@ struct LocalMarketplacePluginEntry {
     source: Value,
     #[serde(default)]
     interface: Option<Value>,
+    #[serde(default)]
+    signature: Option<Value>,
     #[serde(default)]
     policy: MarketplacePluginPolicy,
     #[serde(default, alias = "installPolicy", alias = "install-policy")]
@@ -2418,6 +2430,7 @@ struct MarketplacePluginSummary {
 struct MarketplacePluginResolution {
     root: PathBuf,
     policy: MarketplacePluginPolicy,
+    signature: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2432,6 +2445,8 @@ struct PluginInstallReceipt {
     #[serde(skip_serializing_if = "Option::is_none")]
     marketplace: Option<String>,
     policy: MarketplacePluginPolicy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    signature: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     managed_policy: Option<ManagedPluginPolicyReceipt>,
     file_count: usize,
@@ -3641,6 +3656,99 @@ mod tests {
             None => std::env::remove_var("KIANA_HOME"),
         }
         std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_records_marketplace_signature_metadata_in_receipt() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("install-signature-metadata");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("signed-marketplace");
+        let marketplace_manifest_dir = marketplace_root.join(".codex-plugin");
+        let source_plugin = marketplace_root.join("review-tools");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&marketplace_manifest_dir).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        let expected_content_hash = super::aggregate_receipt_hash(
+            &super::collect_plugin_receipt_files(&source_plugin).unwrap(),
+        );
+        fs::write(
+            marketplace_manifest_dir.join("marketplace.json"),
+            serde_json::to_string_pretty(&json!({
+                "name": "signed-marketplace",
+                "plugins": [
+                    {
+                        "name": "review-tools",
+                        "source": "./review-tools",
+                        "signature": {
+                            "scheme": "external-signature-v1",
+                            "signer": "ACME Marketplace",
+                            "keyId": "acme-prod-1",
+                            "contentHash": expected_content_hash,
+                            "signature": "sig-ed25519-test"
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        PluginCommand
+            .execute(context("install review-tools@signed-marketplace", &cwd))
+            .await
+            .unwrap();
+
+        let receipt_path = plugins_dir
+            .join("review-tools")
+            .join(".kiana-install-receipt.json");
+        let receipt: Value =
+            serde_json::from_str(&fs::read_to_string(&receipt_path).unwrap()).unwrap();
+        assert_eq!(receipt["signature"]["scheme"], "external-signature-v1");
+        assert_eq!(receipt["signature"]["signer"], "ACME Marketplace");
+        assert_eq!(receipt["signature"]["keyId"], "acme-prod-1");
+        assert_eq!(receipt["signature"]["contentHash"], expected_content_hash);
+        assert_eq!(receipt["signature"]["signature"], "sig-ed25519-test");
+
+        let shown = PluginCommand
+            .execute(context("show review-tools", &cwd))
+            .await
+            .unwrap();
+        let shown_json: Value = serde_json::from_str(&shown.value).unwrap();
+        assert_eq!(
+            shown_json["install_receipt"]["signature"]["scheme"],
+            "external-signature-v1"
+        );
+        assert_eq!(
+            shown_json["install_receipt_integrity"]["status"],
+            "verified"
+        );
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
         let _ = fs::remove_dir_all(root);
     }
 

@@ -43,6 +43,33 @@
       "type": "string",
       "minLength": 1
     },
+    "signature": {
+      "type": "object",
+      "required": ["scheme", "signer", "keyId", "contentHash", "signature"],
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keyId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "policy": {
       "type": "object",
       "properties": {
