@@ -18624,7 +18624,23 @@ mod tests {
         )
         .unwrap();
         std::fs::write(plugin_root.join(".lsp.json"), "{}").unwrap();
-        std::fs::write(plugin_root.join("app.json"), "{}").unwrap();
+        std::fs::write(
+            plugin_root.join("app.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "id": "review-workbench",
+                "title": "Review Workbench",
+                "description": "Review app surface",
+                "entry": "apps/review/index.html",
+                "routes": [
+                    {
+                        "path": "/review",
+                        "title": "Review"
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
         std::fs::write(plugin_root.join(".mcp.json"), "{}").unwrap();
         std::fs::create_dir_all(workspace.join("src")).unwrap();
         std::fs::write(
@@ -19747,6 +19763,11 @@ mod tests {
         assert_eq!(app_tools["components"]["lsp_servers"], 1);
         assert_eq!(app_tools["components"]["apps"], 1);
         assert_eq!(app_tools["components"]["mcp_servers"], 1);
+        assert_eq!(app_tools["app_manifest"]["id"], "review-workbench");
+        assert_eq!(app_tools["app_manifest"]["title"], "Review Workbench");
+        assert_eq!(app_tools["app_manifest"]["entry"], "apps/review/index.html");
+        assert_eq!(app_tools["app_manifest"]["routes"][0]["path"], "/review");
+        assert_eq!(app_tools["app_manifest"]["routes"][0]["title"], "Review");
         let disabled_tools = plugin_items
             .iter()
             .find(|plugin| plugin["id"] == "disabled-tools")

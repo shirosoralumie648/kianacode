@@ -330,6 +330,13 @@ for app_schema in conversations config-resolved events settings secrets sandbox 
   fi
 done
 
+if grep -Fq '"app_manifest"' docs/schemas/kiana-app-server-plugins.v1.schema.json &&
+  grep -Fq '"app_manifest"' kiana-commands/src/plugin.rs; then
+  pass "app-server plugin app manifest metadata is exposed"
+else
+  fail "app-server plugin app manifest metadata is not exposed"
+fi
+
 if grep -Fq '"const": "kiana.checks.dry_run.v1"' docs/schemas/kiana-checks-dry-run.v1.schema.json &&
   grep -Fq '"rustfmt"' docs/schemas/kiana-checks-dry-run.v1.schema.json &&
   grep -Fq '"cargo_check"' docs/schemas/kiana-checks-dry-run.v1.schema.json; then

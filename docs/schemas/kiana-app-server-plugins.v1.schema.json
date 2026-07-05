@@ -103,6 +103,13 @@
             },
             "additionalProperties": false
           },
+          "app_manifest": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
           "errors": {
             "type": "array",
             "items": {

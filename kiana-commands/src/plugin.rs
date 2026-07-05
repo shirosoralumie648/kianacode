@@ -1686,6 +1686,7 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
     let mut manifest = None;
+    let mut app_manifest = None;
     let mut manifest_name = None;
     let mut version = None;
     let mut description = None;
@@ -1753,6 +1754,9 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
         );
     }
     validate_plugin_component_json(&root, &mut errors);
+    if components.apps > 0 {
+        app_manifest = read_plugin_app_manifest(&root, &mut errors);
+    }
 
     Ok(PluginInfo {
         id: manifest_name.clone().unwrap_or(folder_name),
@@ -1767,9 +1771,29 @@ fn read_plugin(root: PathBuf) -> Result<PluginInfo> {
         errors,
         warnings,
         manifest,
+        app_manifest,
         install_receipt,
         install_receipt_integrity,
     })
+}
+
+fn read_plugin_app_manifest(root: &Path, errors: &mut Vec<String>) -> Option<Value> {
+    let path = root.join("app.json");
+    if !path.is_file() {
+        return None;
+    }
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(error) => {
+            errors.push(format!("failed to read app.json: {error}"));
+            return None;
+        }
+    };
+    match serde_json::from_str::<Value>(&contents) {
+        Ok(value) if value.is_object() => Some(value),
+        Ok(_) => None,
+        Err(_) => None,
+    }
 }
 
 fn validate_plugin_component_json(root: &Path, errors: &mut Vec<String>) {
@@ -2151,6 +2175,7 @@ fn plugin_init_summary(plugin: &PluginInfo, scope: MarketplaceScope) -> Value {
         "enabled": plugin.enabled,
         "valid": plugin.valid,
         "components": &plugin.components,
+        "app_manifest": &plugin.app_manifest,
         "errors": &plugin.errors,
         "warnings": &plugin.warnings,
     })
@@ -2561,6 +2586,8 @@ struct PluginInfo {
     errors: Vec<String>,
     warnings: Vec<String>,
     manifest: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    app_manifest: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     install_receipt: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
