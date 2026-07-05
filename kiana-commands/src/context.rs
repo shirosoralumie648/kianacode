@@ -455,6 +455,12 @@ fn format_context_pack_text(pack: &ContextPack) -> String {
             pack.skipped_files,
             pack.snippets.len()
         ),
+        format!(
+            "artifact_graph: schema={} nodes={} edges={}",
+            pack.artifact_graph.schema,
+            pack.artifact_graph.nodes.len(),
+            pack.artifact_graph.edges.len()
+        ),
     ];
     for snippet in &pack.snippets {
         lines.push(format!(
@@ -470,6 +476,15 @@ fn format_context_pack_text(pack: &ContextPack) -> String {
         if !snippet.excerpt.is_empty() {
             lines.push(snippet.excerpt.clone());
         }
+    }
+    for edge in &pack.artifact_graph.edges {
+        lines.push(format!(
+            "  graph: {} -> {} relation={} terms={}",
+            edge.source,
+            edge.target,
+            edge.relation,
+            edge.matched_terms.join(",")
+        ));
     }
     lines.join("\n")
 }
@@ -809,6 +824,33 @@ mod tests {
 
         let _ = fs::remove_dir_all(cwd);
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_pack_text_reports_artifact_graph_summary() {
+        let root = fixture_root("pack-text-artifact-graph");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn checkout() {}\n// checkout workflow\n",
+        )
+        .unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "pack checkout --limit 1 --max-snippet-lines 1".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+
+        assert!(result
+            .value
+            .contains("artifact_graph: schema=kiana.context-artifact-graph.v1 nodes=1 edges=1"));
+        assert!(result.value.contains("graph: query:checkout -> snippet:"));
+        assert!(result.value.contains("relation=matched terms=checkout"));
+
+        let _ = fs::remove_dir_all(root);
     }
 
     fn fixture_root(name: &str) -> PathBuf {
