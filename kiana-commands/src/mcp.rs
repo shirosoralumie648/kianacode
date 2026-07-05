@@ -342,7 +342,7 @@ impl ParsedMcpAdd {
             "stdio" => {
                 if !self.headers.is_empty() {
                     return Err(anyhow!(
-                        "MCP headers are only supported for http or sse servers"
+                        "MCP headers are only supported for http, sse, or ws servers"
                     ));
                 }
                 object.insert("command".to_string(), Value::String(command_or_url));
@@ -356,7 +356,7 @@ impl ParsedMcpAdd {
                     object.insert("env".to_string(), Value::Object(self.env));
                 }
             }
-            "http" | "sse" => {
+            "http" | "sse" | "ws" => {
                 if !self.args.is_empty() {
                     return Err(anyhow!(
                         "MCP {} servers do not take command arguments; use stdio transport for commands",
@@ -380,7 +380,7 @@ impl ParsedMcpAdd {
 }
 
 fn add_usage() -> &'static str {
-    "kiana mcp add [--transport stdio|http|sse] [-e KEY=value] [-H Header:Value] [--scope user|project|local] <name> [--] <command-or-url> [args...]"
+    "kiana mcp add [--transport stdio|http|sse|ws] [-e KEY=value] [-H Header:Value] [--scope user|project|local] <name> [--] <command-or-url> [args...]"
 }
 
 fn parse_mcp_add_args(rest: &str) -> anyhow::Result<ParsedMcpAdd> {
@@ -555,8 +555,9 @@ fn parse_mcp_add_transport(value: &str) -> anyhow::Result<&'static str> {
         "stdio" => Ok("stdio"),
         "http" => Ok("http"),
         "sse" => Ok("sse"),
+        "ws" | "websocket" => Ok("ws"),
         other => Err(anyhow!(
-            "MCP add transport '{other}' is not implemented yet; supported transports: stdio, http, sse"
+            "MCP add transport '{other}' is not implemented yet; supported transports: stdio, http, sse, ws"
         )),
     }
 }
@@ -603,6 +604,7 @@ fn mcp_add_transport_label(transport: &str) -> &'static str {
     match transport {
         "http" => "HTTP",
         "sse" => "SSE",
+        "ws" => "WebSocket",
         _ => "stdio",
     }
 }
@@ -1553,6 +1555,38 @@ mod tests {
             "https://example.test/mcp"
         );
         assert_eq!(config["mcpServers"]["docs"]["headers"]["X-Api-Key"], "abc");
+
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn mcp_add_writes_ws_project_mcp_config_with_headers() {
+        let _guard = crate::local_state::env_lock().lock().unwrap();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let root = temp_project("mcp-add-ws");
+        std::fs::create_dir_all(&root).unwrap();
+        std::env::set_current_dir(&root).unwrap();
+        std::env::remove_var(kiana_tools::mcp_tool::MCP_SERVERS_ENV);
+
+        let result = McpCommand
+            .execute(CommandContext {
+                args: "add --transport ws live wss://example.test/ws --header Authorization:Bearer-token --scope project".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+
+        assert!(result.value.contains("Added WebSocket MCP server live"));
+        let config: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(root.join(".mcp.json")).unwrap())
+                .unwrap();
+        assert_eq!(config["mcpServers"]["live"]["type"], "ws");
+        assert_eq!(config["mcpServers"]["live"]["url"], "wss://example.test/ws");
+        assert_eq!(
+            config["mcpServers"]["live"]["headers"]["Authorization"],
+            "Bearer-token"
+        );
 
         std::env::set_current_dir(previous_cwd).unwrap();
         let _ = std::fs::remove_dir_all(root);
