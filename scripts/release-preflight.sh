@@ -51,6 +51,7 @@ for file in \
   docs/proof-templates/platform-security.example.json \
   docs/schemas/kiana-app-server-contract.v1.schema.json \
   docs/schemas/kiana-app-server-conversations.v1.schema.json \
+  docs/schemas/kiana-app-server-config-resolved.v1.schema.json \
   docs/schemas/kiana-app-server-events.v1.schema.json \
   docs/schemas/kiana-app-server-settings.v1.schema.json \
   docs/schemas/kiana-app-server-secrets.v1.schema.json \
@@ -209,6 +210,9 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.index.cache.write' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'build_persistent_context_index' kiana-entrypoints/src/cli.rs &&
   grep -Fq '.kiana/context-index.json' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'config.resolved.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/config/resolved' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.app-server.config-resolved.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'auth.status.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/auth/status' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'license.status.read' kiana-entrypoints/src/cli.rs &&
@@ -255,9 +259,9 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
+  pass "app-server config resolved, auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
-  fail "app-server auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
+  fail "app-server config resolved, auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&
@@ -313,7 +317,7 @@ else
   fail "app-server contract JSON schema is missing kiana.app-server.contract.v1 const"
 fi
 
-for app_schema in conversations events settings secrets sandbox plugins git-status live-provider-smoke distribution-review; do
+for app_schema in conversations config-resolved events settings secrets sandbox plugins git-status live-provider-smoke distribution-review; do
   schema_file="docs/schemas/kiana-app-server-${app_schema}.v1.schema.json"
   schema_name="kiana.app-server.${app_schema}.v1"
   if grep -Fq "\"const\": \"${schema_name}\"" "$schema_file"; then

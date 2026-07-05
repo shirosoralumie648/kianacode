@@ -5286,6 +5286,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_settings_handler),
         )
         .route(
+            "/app/config/resolved",
+            axum::routing::get(direct_connect_app_config_resolved_handler),
+        )
+        .route(
             "/app/doctor",
             axum::routing::get(direct_connect_app_doctor_handler),
         )
@@ -5852,6 +5856,102 @@ fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
             })
             .collect(),
     )
+}
+
+async fn direct_connect_app_config_resolved_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get("config") else {
+        return direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "config command is not registered",
+        );
+    };
+    let result = command
+        .execute(CommandContext {
+            args: "resolved --json".to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await;
+
+    match result.and_then(|result| serde_json::from_str::<Value>(&result.value).map_err(Into::into))
+    {
+        Ok(mut config) => {
+            apply_app_state_resolved_config_overrides(&mut config, &state.base_options);
+            axum::Json(serde_json::json!({
+                "schema": "kiana.app-server.config-resolved.v1",
+                "workspace": state.workspace.display().to_string(),
+                "config": config
+            }))
+            .into_response()
+        }
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build resolved config report: {error}"),
+        ),
+    }
+}
+
+fn apply_app_state_resolved_config_overrides(
+    config: &mut Value,
+    base_options: &HashMap<String, Value>,
+) {
+    let Some(values) = config.get_mut("values").and_then(Value::as_object_mut) else {
+        return;
+    };
+
+    if direct_connect_nonempty_base_option(base_options, "api_key").is_some() {
+        values.insert(
+            "api_key".to_string(),
+            serde_json::json!({
+                "value": "redacted",
+                "source": "app_state"
+            }),
+        );
+    }
+    if let Some(value) = direct_connect_nonempty_base_option(base_options, "base_url") {
+        values.insert(
+            "base_url".to_string(),
+            serde_json::json!({
+                "value": value,
+                "source": "app_state"
+            }),
+        );
+    }
+    if let Some(value) = direct_connect_nonempty_base_option(base_options, "model") {
+        values.insert(
+            "model".to_string(),
+            serde_json::json!({
+                "value": value,
+                "source": "app_state"
+            }),
+        );
+    }
+}
+
+fn direct_connect_nonempty_base_option<'a>(
+    base_options: &'a HashMap<String, Value>,
+    key: &str,
+) -> Option<&'a str> {
+    base_options
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 async fn direct_connect_app_doctor_handler(
@@ -8960,6 +9060,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "conversation.files.read",
             "conversation.files.write",
             "settings.read",
+            "config.resolved.read",
             "doctor.read",
             "release.blockers.read",
             "release.local_rc_evidence.read",
@@ -9025,6 +9126,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/settings",
                 "schema": "kiana.app-server.settings.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/config/resolved",
+                "schema": "kiana.app-server.config-resolved.v1"
             },
             {
                 "method": "GET",
@@ -18435,6 +18541,10 @@ mod tests {
                     Value::String("must-not-leak".to_string()),
                 ),
                 (
+                    "model".to_string(),
+                    Value::String("opus-4.8-1m".to_string()),
+                ),
+                (
                     "permission_mode".to_string(),
                     Value::String("ask".to_string()),
                 ),
@@ -18611,6 +18721,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("config.resolved.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("plugins.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -18711,6 +18825,15 @@ mod tests {
                 endpoint["method"] == "POST"
                     && endpoint["path"] == "/app/conversations/{session_id}/files"
                     && endpoint["schema"] == "kiana.app-server.conversation-files.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/config/resolved"
+                    && endpoint["schema"] == "kiana.app-server.config-resolved.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -19247,7 +19370,7 @@ mod tests {
         assert_eq!(settings["auth"]["type"], "bearer");
         assert_eq!(
             settings["base_option_keys"],
-            serde_json::json!(["api_key", "permission_mode"])
+            serde_json::json!(["api_key", "model", "permission_mode"])
         );
         let setting_sections = settings["sections"].as_array().unwrap();
         let setting_titles = setting_sections
@@ -19276,6 +19399,45 @@ mod tests {
                     .iter()
                     .any(|row| row["label"] == "commercial_security")));
         assert!(!settings.to_string().contains("must-not-leak"));
+
+        let config_resolved: Value = client
+            .get(format!("http://{addr}/app/config/resolved"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            config_resolved["schema"],
+            "kiana.app-server.config-resolved.v1"
+        );
+        assert_eq!(
+            config_resolved["workspace"],
+            workspace.display().to_string()
+        );
+        assert_eq!(
+            config_resolved["config"]["schema"],
+            "kiana.config-resolved.v1"
+        );
+        assert_eq!(
+            config_resolved["config"]["config_file"]["path"],
+            workspace.join("config.toml").display().to_string()
+        );
+        assert_eq!(
+            config_resolved["config"]["values"]["api_key"]["value"],
+            "redacted"
+        );
+        assert_eq!(
+            config_resolved["config"]["values"]["api_key"]["source"],
+            "app_state"
+        );
+        assert_eq!(
+            config_resolved["config"]["values"]["model"]["value"],
+            "opus-4.8-1m"
+        );
+        assert!(!config_resolved.to_string().contains("must-not-leak"));
 
         let secrets: Value = client
             .get(format!("http://{addr}/app/secrets"))
