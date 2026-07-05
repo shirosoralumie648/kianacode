@@ -473,7 +473,9 @@ fi
 
 if grep -Fq '"const": "kiana.context-artifacts.v1"' docs/schemas/kiana-context-artifacts.v1.schema.json &&
   grep -Fq '"const": "file"' docs/schemas/kiana-context-artifacts.v1.schema.json &&
-  grep -Fq '"content_hash"' docs/schemas/kiana-context-artifacts.v1.schema.json; then
+  grep -Fq '"content_hash"' docs/schemas/kiana-context-artifacts.v1.schema.json &&
+  grep -Fq '"reused_artifacts"' docs/schemas/kiana-context-artifacts.v1.schema.json &&
+  grep -Fq '"recovered"' docs/schemas/kiana-context-artifacts.v1.schema.json; then
   pass "context artifacts JSON schema version is pinned"
 else
   fail "context artifacts JSON schema is missing required inventory anchors"

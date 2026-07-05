@@ -238,6 +238,9 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifacts --json | grep -Fq '"schema": "kiana.context-artifacts.v1"'
   run_installed context artifacts --json | grep -Fq '"kind": "file"'
   run_installed context artifacts --json | grep -Fq '"path": "src/lib.rs"'
+  run_installed context artifacts --json --cache .kiana/context-artifacts.json | grep -Fq '"status": "created"'
+  run_installed context artifacts --json --cache .kiana/context-artifacts.json | grep -Fq '"reused_artifacts": 2'
+  test -f .kiana/context-artifacts.json
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'

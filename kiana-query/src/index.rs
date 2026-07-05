@@ -95,6 +95,8 @@ pub struct ContextArtifacts {
     pub files_indexed: usize,
     pub skipped_files: usize,
     pub artifacts: Vec<ContextArtifactItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<ContextArtifactsCacheReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +108,16 @@ pub struct ContextArtifactItem {
     pub bytes: u64,
     pub line_count: usize,
     pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactsCacheReport {
+    pub path: String,
+    pub status: String,
+    pub reused_artifacts: usize,
+    pub added_artifacts: usize,
+    pub changed_artifacts: usize,
+    pub removed_artifacts: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -262,7 +274,38 @@ pub fn build_context_artifacts(
         files_indexed: artifacts.len(),
         skipped_files,
         artifacts,
+        cache: None,
     })
+}
+
+pub fn build_persistent_context_artifacts(
+    root: impl AsRef<Path>,
+    options: ContextArtifactOptions,
+    cache_path: impl AsRef<Path>,
+) -> Result<ContextArtifacts> {
+    let mut report = build_context_artifacts(root, options)?;
+    let root = PathBuf::from(&report.root);
+    let cache_path = normalize_cache_path(&root, cache_path.as_ref());
+    let previous = read_cached_artifacts(&cache_path)?;
+    let cache = artifacts_cache_report(&cache_path, &previous, &report);
+
+    report.cache = Some(cache);
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create context artifacts cache dir {}",
+                parent.display()
+            )
+        })?;
+    }
+    fs::write(&cache_path, serde_json::to_string_pretty(&report)? + "\n").with_context(|| {
+        format!(
+            "failed to write context artifacts cache {}",
+            cache_path.display()
+        )
+    })?;
+
+    Ok(report)
 }
 
 pub fn build_persistent_context_index(
@@ -431,6 +474,12 @@ enum CachedContextIndex {
     Invalid,
 }
 
+enum CachedContextArtifacts {
+    Missing,
+    Valid(ContextArtifacts),
+    Invalid,
+}
+
 fn read_cached_index(path: &Path) -> Result<CachedContextIndex> {
     match fs::read_to_string(path) {
         Ok(contents) => match serde_json::from_str(&contents) {
@@ -442,6 +491,20 @@ fn read_cached_index(path: &Path) -> Result<CachedContextIndex> {
         }
         Err(error) => Err(error)
             .with_context(|| format!("failed to read context index cache {}", path.display())),
+    }
+}
+
+fn read_cached_artifacts(path: &Path) -> Result<CachedContextArtifacts> {
+    match fs::read_to_string(path) {
+        Ok(contents) => match serde_json::from_str(&contents) {
+            Ok(report) => Ok(CachedContextArtifacts::Valid(report)),
+            Err(_) => Ok(CachedContextArtifacts::Invalid),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(CachedContextArtifacts::Missing)
+        }
+        Err(error) => Err(error)
+            .with_context(|| format!("failed to read context artifacts cache {}", path.display())),
     }
 }
 
@@ -503,6 +566,67 @@ fn cache_report(
         added_files,
         changed_files,
         removed_files,
+    }
+}
+
+fn artifacts_cache_report(
+    path: &Path,
+    previous: &CachedContextArtifacts,
+    current: &ContextArtifacts,
+) -> ContextArtifactsCacheReport {
+    let previous = match previous {
+        CachedContextArtifacts::Valid(previous) => previous,
+        CachedContextArtifacts::Missing | CachedContextArtifacts::Invalid => {
+            return ContextArtifactsCacheReport {
+                path: path.to_string_lossy().to_string(),
+                status: match previous {
+                    CachedContextArtifacts::Missing => "created",
+                    CachedContextArtifacts::Invalid => "recovered",
+                    CachedContextArtifacts::Valid(_) => unreachable!(),
+                }
+                .to_string(),
+                reused_artifacts: 0,
+                added_artifacts: current.artifacts.len(),
+                changed_artifacts: 0,
+                removed_artifacts: 0,
+            };
+        }
+    };
+
+    let previous_artifacts = previous
+        .artifacts
+        .iter()
+        .map(|artifact| (artifact.path.as_str(), artifact.content_hash.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let current_artifacts = current
+        .artifacts
+        .iter()
+        .map(|artifact| (artifact.path.as_str(), artifact.content_hash.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut reused_artifacts = 0;
+    let mut added_artifacts = 0;
+    let mut changed_artifacts = 0;
+
+    for (path, hash) in &current_artifacts {
+        match previous_artifacts.get(*path) {
+            Some(previous_hash) if *previous_hash == *hash => reused_artifacts += 1,
+            Some(_) => changed_artifacts += 1,
+            None => added_artifacts += 1,
+        }
+    }
+
+    let removed_artifacts = previous_artifacts
+        .keys()
+        .filter(|path| !current_artifacts.contains_key(*path))
+        .count();
+
+    ContextArtifactsCacheReport {
+        path: path.to_string_lossy().to_string(),
+        status: "updated".to_string(),
+        reused_artifacts,
+        added_artifacts,
+        changed_artifacts,
+        removed_artifacts,
     }
 }
 
@@ -1073,6 +1197,66 @@ mod tests {
         assert_eq!(report.artifacts[0].language.as_deref(), Some("rust"));
         assert_eq!(report.artifacts[0].content_hash.len(), 16);
         assert!(report.artifacts[0].id.starts_with("file:src/lib.rs:"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persistent_context_artifacts_reports_incremental_cache_status() {
+        let root = fixture_root("artifacts-cache");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        let cache_path = root.join(".kiana").join("context-artifacts.json");
+
+        let first = build_persistent_context_artifacts(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+            &cache_path,
+        )
+        .unwrap();
+        let first_cache = first.cache.as_ref().unwrap();
+        assert_eq!(first_cache.status, "created");
+        assert_eq!(first_cache.added_artifacts, 1);
+        assert_eq!(first_cache.reused_artifacts, 0);
+        assert!(Path::new(&first_cache.path).ends_with(".kiana/context-artifacts.json"));
+
+        let second = build_persistent_context_artifacts(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+            &cache_path,
+        )
+        .unwrap();
+        let second_cache = second.cache.as_ref().unwrap();
+        assert_eq!(second_cache.status, "updated");
+        assert_eq!(second_cache.reused_artifacts, 1);
+        assert_eq!(second_cache.added_artifacts, 0);
+        assert_eq!(second_cache.changed_artifacts, 0);
+        assert_eq!(second_cache.removed_artifacts, 0);
+
+        fs::write(root.join("src/lib.rs"), "pub fn release_v2() {}\n").unwrap();
+        let third = build_persistent_context_artifacts(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+            &cache_path,
+        )
+        .unwrap();
+        let third_cache = third.cache.as_ref().unwrap();
+        assert_eq!(third_cache.status, "updated");
+        assert_eq!(third_cache.reused_artifacts, 0);
+        assert_eq!(third_cache.added_artifacts, 0);
+        assert_eq!(third_cache.changed_artifacts, 1);
+        assert_eq!(third_cache.removed_artifacts, 0);
+
+        let saved: ContextArtifacts =
+            serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+        assert_eq!(saved.schema, "kiana.context-artifacts.v1");
+        assert_eq!(saved.cache.as_ref().unwrap().changed_artifacts, 1);
 
         let _ = fs::remove_dir_all(root);
     }

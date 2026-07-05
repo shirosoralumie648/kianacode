@@ -273,7 +273,15 @@ cat > "$tmp_context_artifacts" <<'JSON'
       "line_count": 1,
       "content_hash": "0123456789abcdef"
     }
-  ]
+  ],
+  "cache": {
+    "path": "/workspace/.kiana/context-artifacts.json",
+    "status": "created",
+    "reused_artifacts": 0,
+    "added_artifacts": 1,
+    "changed_artifacts": 0,
+    "removed_artifacts": 0
+  }
 }
 JSON
 "$python" scripts/validate-json-schema.py \

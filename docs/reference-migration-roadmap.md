@@ -468,7 +468,7 @@ Scope:
 Exit criteria:
 
 - Multi-agent workflows can run with deterministic fake models.
-- Local artifact inventories are exposed through `kiana.context-artifacts.v1`, and context-pack snippet dependency changes are traceable through a deterministic `kiana.context-artifact-graph.v1`; broader durable artifact dependency tracking still belongs to the later artifact-store/team-runtime work.
+- Local artifact inventories are exposed through `kiana.context-artifacts.v1` with optional persistent cache delta reporting, and context-pack snippet dependency changes are traceable through a deterministic `kiana.context-artifact-graph.v1`; broader durable artifact dependency tracking still belongs to the later artifact-store/team-runtime work.
 - Indexing is incremental and disabled by default until configured.
 - Notebook execution is isolated, timed, and permission-gated.
 

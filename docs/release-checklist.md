@@ -165,6 +165,10 @@ commercial release.
 - App-server context indexing supports `cache=true` on `/app/context/index`,
   writing the default workspace `.kiana/context-index.json` artifact with the
   same cache status fields as `kiana context index --cache`.
+- App-server context artifact inventory supports `cache=true` on
+  `/app/context/artifacts`, writing the default workspace
+  `.kiana/context-artifacts.json` artifact with the same cache status fields as
+  `kiana context artifacts --cache`.
 - App-server repo-map endpoint emits active-workspace language, symbol, and
   token-budget structure for Web/IDE clients without shelling out to
   `kiana context repo-map --json`.

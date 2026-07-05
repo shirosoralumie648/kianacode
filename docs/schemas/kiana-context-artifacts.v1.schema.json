@@ -69,6 +69,43 @@
         },
         "additionalProperties": false
       }
+    },
+    "cache": {
+      "type": "object",
+      "required": [
+        "path",
+        "status",
+        "reused_artifacts",
+        "added_artifacts",
+        "changed_artifacts",
+        "removed_artifacts"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": ["created", "updated", "recovered"]
+        },
+        "reused_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

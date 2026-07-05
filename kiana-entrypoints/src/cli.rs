@@ -9,8 +9,9 @@ use kiana_commands::{
 };
 use kiana_query::{
     build_context_artifacts, build_context_index, build_context_pack,
-    build_persistent_context_index, build_repo_map, search_context_index, ContextArtifactOptions,
-    ContextIndexOptions, ContextPackOptions, ContextSearchOptions, RepoMapOptions,
+    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
+    search_context_index, ContextArtifactOptions, ContextIndexOptions, ContextPackOptions,
+    ContextSearchOptions, RepoMapOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -8170,6 +8171,7 @@ struct DirectConnectContextIndexQuery {
 
 #[derive(Debug, Deserialize)]
 struct DirectConnectContextArtifactsQuery {
+    cache: Option<bool>,
     max_bytes_per_file: Option<usize>,
 }
 
@@ -8228,14 +8230,23 @@ async fn direct_connect_app_context_artifacts_handler(
         );
     }
 
-    match build_context_artifacts(
-        &state.workspace,
-        ContextArtifactOptions {
-            max_bytes_per_file: query.max_bytes_per_file,
-        },
-    )
-    .and_then(|report| serde_json::to_value(report).map_err(Into::into))
-    {
+    let options = ContextArtifactOptions {
+        max_bytes_per_file: query.max_bytes_per_file,
+    };
+    let report = if query.cache.unwrap_or(false) {
+        build_persistent_context_artifacts(
+            &state.workspace,
+            options,
+            state
+                .workspace
+                .join(".kiana")
+                .join("context-artifacts.json"),
+        )
+    } else {
+        build_context_artifacts(&state.workspace, options)
+    };
+
+    match report.and_then(|report| serde_json::to_value(report).map_err(Into::into)) {
         Ok(value) => axum::Json(value).into_response(),
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::BAD_REQUEST,
@@ -9336,6 +9347,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "context.index.read",
             "context.index.cache.write",
             "context.artifacts.read",
+            "context.artifacts.cache.write",
             "context.repo_map.read",
             "context.search.read",
             "context.pack.read"
@@ -9537,7 +9549,8 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             {
                 "method": "GET",
                 "path": "/app/context/artifacts",
-                "schema": "kiana.context-artifacts.v1"
+                "schema": "kiana.context-artifacts.v1",
+                "query": "optional cache boolean writes .kiana/context-artifacts.json; optional max_bytes_per_file caps indexed file bytes"
             },
             {
                 "method": "GET",
@@ -19035,6 +19048,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.artifacts.cache.write".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.search.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -20942,6 +20959,31 @@ mod tests {
                     .as_str()
                     .unwrap()
                     .starts_with("file:src/lib.rs:")));
+
+        let cached_context_artifacts: Value = client
+            .get(format!("http://{addr}/app/context/artifacts"))
+            .bearer_auth("secret")
+            .query(&[("cache", "true"), ("max_bytes_per_file", "1024")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            cached_context_artifacts["schema"],
+            "kiana.context-artifacts.v1"
+        );
+        assert_eq!(cached_context_artifacts["cache"]["status"], "created");
+        assert_eq!(cached_context_artifacts["cache"]["added_artifacts"], 3);
+        assert!(cached_context_artifacts["cache"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with(".kiana/context-artifacts.json"));
+        assert!(workspace
+            .join(".kiana")
+            .join("context-artifacts.json")
+            .is_file());
 
         let context_search: Value = client
             .get(format!("http://{addr}/app/context/search"))
