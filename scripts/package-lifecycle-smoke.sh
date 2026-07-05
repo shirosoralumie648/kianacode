@@ -229,9 +229,13 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"occurrences": 0'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-pack.v1"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "src/lib.rs"'
+  run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-artifact-graph.v1"'
+  run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"relation": "matched"'
   run_installed context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first module summary"'
+  run_installed context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-artifact-graph.v1"'
   run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "bundle/notes.md"'
   run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first artifact line"'
+  run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-artifact-graph.v1"'
 )
 
 offline_manifest="$archive_dir/manifests/enterprise/offline-manifest.json"

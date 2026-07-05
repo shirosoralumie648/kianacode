@@ -20898,6 +20898,44 @@ mod tests {
         assert_eq!(context_pack["max_snippet_lines"], 1);
         assert_eq!(context_pack["snippets"].as_array().unwrap().len(), 1);
         assert_eq!(context_pack["snippets"][0]["path"], "src/lib.rs");
+        assert_eq!(
+            context_pack["artifact_graph"]["schema"],
+            "kiana.context-artifact-graph.v1"
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["nodes"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["edges"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["nodes"][0]["path"],
+            "src/lib.rs"
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["nodes"][0]["content_hash"],
+            context_pack["snippets"][0]["content_hash"]
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["edges"][0]["source"],
+            "query:checkout"
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["edges"][0]["target"],
+            context_pack["artifact_graph"]["nodes"][0]["id"]
+        );
+        assert_eq!(
+            context_pack["artifact_graph"]["edges"][0]["relation"],
+            "matched"
+        );
 
         let repo_map: Value = client
             .get(format!("http://{addr}/app/context/repo-map"))
