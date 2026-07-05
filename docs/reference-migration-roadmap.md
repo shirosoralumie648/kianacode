@@ -445,6 +445,7 @@ Exit criteria:
 Progress:
 
 - 2026-07-05: Strengthened the direct-connect `/app/secrets` readiness surface from an empty redaction placeholder into a pinned `kiana.app-server.secrets.v1` credential-metadata contract. Web/IDE clients can now inspect Anthropic API-key, Anthropic OAuth token-file, OpenAI-compatible API-key, and enterprise license-key source/status summaries without receiving raw secret values; the endpoint still advertises `read_supported=false` and `write_supported=false`. Focused coverage is in `cargo test -p kiana-entrypoints direct_connect_app_contract_exposes_product_shell_endpoints --locked`.
+- 2026-07-05: Added the direct-connect `/app/models/current` readiness surface for model selectors. The new pinned `kiana.app-server.model-current.v1` response reports the effective source, provider id, model id, and resolved capability profile for the active model so Web/IDE clients can render the current selection without shelling out or duplicating config precedence logic. Focused coverage is in `cargo test -p kiana-entrypoints direct_connect_app_contract_exposes_product_shell_endpoints --locked`.
 
 ### Phase 8: Advanced Agent And Knowledge Features
 

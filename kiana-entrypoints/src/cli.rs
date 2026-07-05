@@ -5374,6 +5374,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_model_list_handler),
         )
         .route(
+            "/app/models/current",
+            axum::routing::get(direct_connect_app_model_current_handler),
+        )
+        .route(
             "/app/models/smoke",
             axum::routing::get(direct_connect_app_model_smoke_handler),
         )
@@ -7738,6 +7742,84 @@ async fn direct_connect_app_model_list_handler(
     }
 }
 
+async fn direct_connect_app_model_current_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(direct_connect_app_model_current_payload(&state)).into_response()
+}
+
+fn direct_connect_app_model_current_payload(state: &DirectConnectServerState) -> Value {
+    let (model_id, source) =
+        if let Some(model_id) = direct_connect_nonempty_base_option(&state.base_options, "model") {
+            (model_id.to_string(), "app_state".to_string())
+        } else if let Ok(model_id) = std::env::var("ANTHROPIC_MODEL") {
+            let model_id = model_id.trim().to_string();
+            if !model_id.is_empty() {
+                (model_id, "ANTHROPIC_MODEL".to_string())
+            } else {
+                let config = kiana_bootstrap::config::load_config();
+                (config.model, "config".to_string())
+            }
+        } else {
+            let config = kiana_bootstrap::config::load_config();
+            (config.model, "config".to_string())
+        };
+    let provider_id = direct_connect_current_model_provider_id(&model_id);
+    let profile = kiana_services::api::provider::model_profile(provider_id, &model_id)
+        .map(|profile| serde_json::to_value(profile).unwrap_or_else(|_| Value::Null))
+        .unwrap_or(Value::Null);
+
+    serde_json::json!({
+        "schema": "kiana.app-server.model-current.v1",
+        "workspace": state.workspace.display().to_string(),
+        "configured": !model_id.trim().is_empty(),
+        "source": source,
+        "provider_id": provider_id,
+        "model_id": model_id,
+        "profile": profile
+    })
+}
+
+fn direct_connect_current_model_provider_id(model_id: &str) -> &'static str {
+    let profiles = kiana_services::api::provider::built_in_model_profiles();
+    if let Some(profile) = profiles.iter().find(|profile| profile.model_id == model_id) {
+        return match profile.provider_id.as_str() {
+            kiana_services::api::provider::OPENAI_COMPATIBLE_PROVIDER_ID => {
+                kiana_services::api::provider::OPENAI_COMPATIBLE_PROVIDER_ID
+            }
+            kiana_services::api::provider::OLLAMA_PROVIDER_ID => {
+                kiana_services::api::provider::OLLAMA_PROVIDER_ID
+            }
+            kiana_services::api::provider::FAKE_PROVIDER_ID => {
+                kiana_services::api::provider::FAKE_PROVIDER_ID
+            }
+            _ => kiana_services::api::provider::ANTHROPIC_PROVIDER_ID,
+        };
+    }
+    if model_id.starts_with("gpt-") || model_id.starts_with("o1") || model_id.starts_with("o3") {
+        kiana_services::api::provider::OPENAI_COMPATIBLE_PROVIDER_ID
+    } else if model_id.starts_with("llama")
+        || model_id.starts_with("mistral")
+        || model_id.starts_with("qwen")
+    {
+        kiana_services::api::provider::OLLAMA_PROVIDER_ID
+    } else if model_id.starts_with("fake-") {
+        kiana_services::api::provider::FAKE_PROVIDER_ID
+    } else {
+        kiana_services::api::provider::ANTHROPIC_PROVIDER_ID
+    }
+}
+
 async fn direct_connect_app_model_smoke_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
@@ -9203,6 +9285,7 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "license.status.read",
             "model.catalog.read",
             "model.list.read",
+            "model.current.read",
             "model.smoke.read",
             "git.status.read",
             "diff.read",
@@ -9357,6 +9440,11 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
                 "method": "GET",
                 "path": "/app/models/list",
                 "schema": "kiana.model-list.v1"
+            },
+            {
+                "method": "GET",
+                "path": "/app/models/current",
+                "schema": "kiana.app-server.model-current.v1"
             },
             {
                 "method": "GET",
@@ -18870,6 +18958,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("model.current.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.index.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19009,6 +19101,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/models/list"
                     && endpoint["schema"] == "kiana.model-list.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/models/current"
+                    && endpoint["schema"] == "kiana.app-server.model-current.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -19772,6 +19873,27 @@ mod tests {
                 && profile["streaming_mode"] == "synthetic"
         }));
         assert_eq!(model_list["summary"]["profiles"], profiles.len());
+
+        let current_model: Value = client
+            .get(format!("http://{addr}/app/models/current"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(current_model["schema"], "kiana.app-server.model-current.v1");
+        assert_eq!(current_model["workspace"], workspace.display().to_string());
+        assert_eq!(current_model["source"], "app_state");
+        assert_eq!(current_model["provider_id"], "anthropic");
+        assert_eq!(current_model["model_id"], "opus-4.8-1m");
+        assert_eq!(current_model["configured"], true);
+        assert_eq!(current_model["profile"]["provider_id"], "anthropic");
+        assert_eq!(current_model["profile"]["model_id"], "opus-4.8-1m");
+        assert_eq!(current_model["profile"]["supports_tools"], true);
+        assert_eq!(current_model["profile"]["streaming_mode"], "native");
+        assert_eq!(current_model["profile"]["native_streaming"], true);
 
         let doctor: Value = client
             .get(format!("http://{addr}/app/doctor"))

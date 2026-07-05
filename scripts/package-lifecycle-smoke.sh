@@ -110,6 +110,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-events.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-git-status.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-model-current.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-plugins.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \

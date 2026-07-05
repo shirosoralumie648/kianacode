@@ -57,6 +57,7 @@ for file in \
   docs/schemas/kiana-app-server-secrets.v1.schema.json \
   docs/schemas/kiana-app-server-sandbox.v1.schema.json \
   docs/schemas/kiana-app-server-plugins.v1.schema.json \
+  docs/schemas/kiana-app-server-model-current.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
   docs/schemas/kiana-app-server-live-provider-smoke.v1.schema.json \
   docs/schemas/kiana-app-server-distribution-review.v1.schema.json \
@@ -221,7 +222,9 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.catalog.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/catalog' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.list.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'model.current.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/list' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/models/current' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.smoke.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/smoke' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.repo_map.read' kiana-entrypoints/src/cli.rs &&
@@ -317,7 +320,7 @@ else
   fail "app-server contract JSON schema is missing kiana.app-server.contract.v1 const"
 fi
 
-for app_schema in conversations config-resolved events settings secrets sandbox plugins git-status live-provider-smoke distribution-review; do
+for app_schema in conversations config-resolved events settings secrets sandbox plugins model-current git-status live-provider-smoke distribution-review; do
   schema_file="docs/schemas/kiana-app-server-${app_schema}.v1.schema.json"
   schema_name="kiana.app-server.${app_schema}.v1"
   if grep -Fq "\"const\": \"${schema_name}\"" "$schema_file"; then
