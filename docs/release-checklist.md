@@ -35,8 +35,8 @@ commercial release.
   `scripts/release-smoke.sh`.
 - Local app-server `/app` contract returns `kiana.app-server.contract.v1` and
   exposes bearer-protected conversations, session event snapshots, settings,
-  redacted secrets, sandbox, git-status, context-index, context-search, and
-  context-pack endpoints.
+  redacted secrets, sandbox, git-status, context-index, context-artifacts,
+  context-search, and context-pack endpoints.
 - `scripts/package-release.sh` produces tarballs and checksums for every target.
 - `scripts/package-lifecycle-smoke.sh` runs on each release runner after
   packaging and before artifact signing.
@@ -158,17 +158,19 @@ commercial release.
   Web/IDE clients can render provider/model availability without shelling out to
   `kiana model catalog --json`.
 - App-server context endpoints return `kiana.context-index.v1`,
-  `kiana.repo-map.v1`, `kiana.context-search.v1`, and
-  `kiana.context-pack.v1` from the active workspace so Web/IDE clients can use
-  repository knowledge without shelling out to the CLI.
+  `kiana.context-artifacts.v1`, `kiana.repo-map.v1`,
+  `kiana.context-search.v1`, and `kiana.context-pack.v1` from the active
+  workspace so Web/IDE clients can use repository knowledge without shelling
+  out to the CLI.
 - App-server context indexing supports `cache=true` on `/app/context/index`,
   writing the default workspace `.kiana/context-index.json` artifact with the
   same cache status fields as `kiana context index --cache`.
 - App-server repo-map endpoint emits active-workspace language, symbol, and
   token-budget structure for Web/IDE clients without shelling out to
   `kiana context repo-map --json`.
-- Local context index/search workflows are accepted for repository knowledge
-  lookup before richer RAG features are promoted as supported surfaces.
+- Local context index/artifact/search workflows are accepted for repository
+  knowledge lookup before richer RAG features are promoted as supported
+  surfaces.
 - Product acceptance is recorded in `kiana.product-acceptance.v1` format and
   passes `scripts/product-acceptance-report.sh full`; combined artifact
   verification also checks accepted_by, accepted_at, scope, and required

@@ -3,8 +3,9 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_index, build_context_pack, build_persistent_context_index, build_repo_map,
-    search_context_index, ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions,
+    build_context_artifacts, build_context_index, build_context_pack,
+    build_persistent_context_index, build_repo_map, search_context_index, ContextArtifactOptions,
+    ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions,
     ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
@@ -37,6 +38,9 @@ impl Command for ContextCommand {
         }
         if let Some(rest) = args.strip_prefix("index") {
             return index_result(&context, rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("artifacts") {
+            return artifacts_result(&context, rest.trim());
         }
         if let Some(rest) = args.strip_prefix("search") {
             return search_result(&context, rest.trim());
@@ -74,7 +78,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -160,6 +164,49 @@ fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandR
         return Ok(CommandResult::text(serde_json::to_string_pretty(&index)?));
     }
     Ok(CommandResult::text(format_context_index_text(&index)))
+}
+
+fn artifacts_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut root = None;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+
+    let report = build_context_artifacts(
+        context_root(context, root),
+        ContextArtifactOptions { max_bytes_per_file },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
+    }
+    Ok(CommandResult::text(format_context_artifacts_text(&report)))
 }
 
 fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -410,6 +457,32 @@ fn format_context_index_text(index: &ContextIndex) -> String {
             cache.added_files,
             cache.changed_files,
             cache.removed_files
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifacts_text(report: &ContextArtifacts) -> String {
+    let mut lines = vec![
+        "Context artifacts".to_string(),
+        format!("root: {}", report.root),
+        format!(
+            "files_indexed: {} skipped_files: {} artifacts={}",
+            report.files_indexed,
+            report.skipped_files,
+            report.artifacts.len()
+        ),
+    ];
+    for artifact in &report.artifacts {
+        lines.push(format!(
+            "- {} [{}] kind={} bytes={} lines={} hash={} id={}",
+            artifact.path,
+            artifact.language.as_deref().unwrap_or("unknown"),
+            artifact.kind,
+            artifact.bytes,
+            artifact.line_count,
+            artifact.content_hash,
+            artifact.id
         ));
     }
     lines.join("\n")
@@ -851,6 +924,39 @@ mod tests {
         assert!(result.value.contains("relation=matched terms=checkout"));
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn context_artifacts_json_reports_local_inventory() {
+        let root = fixture_root("artifacts-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "artifacts --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-artifacts.v1");
+        assert_eq!(value["files_indexed"], 1);
+        assert_eq!(value["skipped_files"], 0);
+        assert_eq!(value["artifacts"].as_array().unwrap().len(), 1);
+        assert_eq!(value["artifacts"][0]["kind"], "file");
+        assert_eq!(value["artifacts"][0]["path"], "src/lib.rs");
+        assert_eq!(value["artifacts"][0]["language"], "rust");
+        assert_eq!(
+            value["artifacts"][0]["content_hash"]
+                .as_str()
+                .unwrap()
+                .len(),
+            16
+        );
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
 
     fn fixture_root(name: &str) -> PathBuf {

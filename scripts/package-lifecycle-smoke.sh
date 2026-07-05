@@ -235,6 +235,9 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   cd "$context_fixture"
   run_installed context index --json | grep -Fq '"schema": "kiana.context-index.v1"'
   run_installed context index --json | grep -Fq '"path": "src/lib.rs"'
+  run_installed context artifacts --json | grep -Fq '"schema": "kiana.context-artifacts.v1"'
+  run_installed context artifacts --json | grep -Fq '"kind": "file"'
+  run_installed context artifacts --json | grep -Fq '"path": "src/lib.rs"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'

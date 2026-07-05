@@ -461,14 +461,14 @@ Scope:
 - Role profiles: PM, Architect, Engineer, QA, Data Analyst.
 - Artifact store: PRD, design, tasks, source, tests, dependency graph.
 - Team runtime with termination conditions and replay.
-- Local RAG/indexing: first FTS and snippets, then embeddings.
+- Local RAG/indexing: first deterministic file inventories, FTS, and snippets, then embeddings.
 - Notebook/data interpreter as an isolated worker or MCP.
 - Eval harness and benchmark fixtures.
 
 Exit criteria:
 
 - Multi-agent workflows can run with deterministic fake models.
-- Context-pack snippet dependency changes are traceable through a deterministic `kiana.context-artifact-graph.v1`; broader durable artifact dependency tracking still belongs to the later artifact-store/team-runtime work.
+- Local artifact inventories are exposed through `kiana.context-artifacts.v1`, and context-pack snippet dependency changes are traceable through a deterministic `kiana.context-artifact-graph.v1`; broader durable artifact dependency tracking still belongs to the later artifact-store/team-runtime work.
 - Indexing is incremental and disabled by default until configured.
 - Notebook execution is isolated, timed, and permission-gated.
 

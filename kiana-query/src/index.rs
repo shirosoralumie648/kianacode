@@ -54,6 +54,19 @@ impl Default for ContextPackOptions {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ContextArtifactOptions {
+    pub max_bytes_per_file: Option<usize>,
+}
+
+impl Default for ContextArtifactOptions {
+    fn default() -> Self {
+        Self {
+            max_bytes_per_file: Some(DEFAULT_MAX_BYTES_PER_FILE),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextIndex {
     pub schema: String,
@@ -68,6 +81,26 @@ pub struct ContextIndex {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextIndexedFile {
+    pub path: String,
+    pub language: Option<String>,
+    pub bytes: u64,
+    pub line_count: usize,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifacts {
+    pub schema: String,
+    pub root: String,
+    pub files_indexed: usize,
+    pub skipped_files: usize,
+    pub artifacts: Vec<ContextArtifactItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactItem {
+    pub id: String,
+    pub kind: String,
     pub path: String,
     pub language: Option<String>,
     pub bytes: u64,
@@ -191,6 +224,44 @@ pub fn build_context_index(
         total_bytes,
         files,
         cache: None,
+    })
+}
+
+pub fn build_context_artifacts(
+    root: impl AsRef<Path>,
+    options: ContextArtifactOptions,
+) -> Result<ContextArtifacts> {
+    let root = canonical_root(root.as_ref(), "context artifacts")?;
+    let max_bytes = options
+        .max_bytes_per_file
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_BYTES_PER_FILE);
+    let mut artifacts = Vec::new();
+    let mut skipped_files = 0;
+
+    for path in candidate_paths(&root)? {
+        let Some(indexed) = index_file(&root, &path, max_bytes)? else {
+            skipped_files += 1;
+            continue;
+        };
+        let id = format!("file:{}:{}", indexed.path, indexed.content_hash);
+        artifacts.push(ContextArtifactItem {
+            id,
+            kind: "file".to_string(),
+            path: indexed.path,
+            language: indexed.language,
+            bytes: indexed.bytes,
+            line_count: indexed.line_count,
+            content_hash: indexed.content_hash,
+        });
+    }
+
+    Ok(ContextArtifacts {
+        schema: "kiana.context-artifacts.v1".to_string(),
+        root: root.to_string_lossy().to_string(),
+        files_indexed: artifacts.len(),
+        skipped_files,
+        artifacts,
     })
 }
 
@@ -975,6 +1046,33 @@ mod tests {
         assert!(pack.snippets[0]
             .matched_terms
             .contains(&"operations".to_string()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifacts_reports_stable_local_artifact_inventory() {
+        let root = fixture_root("artifacts-inventory");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+
+        let report = build_context_artifacts(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.schema, "kiana.context-artifacts.v1");
+        assert_eq!(report.files_indexed, 1);
+        assert_eq!(report.skipped_files, 0);
+        assert_eq!(report.artifacts.len(), 1);
+        assert_eq!(report.artifacts[0].kind, "file");
+        assert_eq!(report.artifacts[0].path, "src/lib.rs");
+        assert_eq!(report.artifacts[0].language.as_deref(), Some("rust"));
+        assert_eq!(report.artifacts[0].content_hash.len(), 16);
+        assert!(report.artifacts[0].id.starts_with("file:src/lib.rs:"));
 
         let _ = fs::remove_dir_all(root);
     }
