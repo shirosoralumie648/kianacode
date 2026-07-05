@@ -493,6 +493,20 @@ mod tests {
     }
 
     #[test]
+    fn package_lifecycle_smoke_checks_every_packaged_schema() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap();
+        let lifecycle_smoke =
+            std::fs::read_to_string(root.join("scripts").join("package-lifecycle-smoke.sh"))
+                .expect("missing scripts/package-lifecycle-smoke.sh");
+
+        assert!(lifecycle_smoke.contains("for schema in docs/schemas/*.json"));
+        assert!(lifecycle_smoke.contains("package schema file missing"));
+        assert!(lifecycle_smoke.contains("package schema file differs from source"));
+    }
+
+    #[test]
     fn release_smoke_script_exercises_install_path_with_temp_dir() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()

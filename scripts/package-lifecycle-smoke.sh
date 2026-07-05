@@ -157,6 +157,18 @@ do
   fi
 done
 
+for schema in docs/schemas/*.json; do
+  packaged_schema="$package_root/docs/schemas/$(basename "$schema")"
+  if [[ ! -f "$packaged_schema" ]]; then
+    echo "package schema file missing: $packaged_schema" >&2
+    exit 1
+  fi
+  if ! cmp -s "$schema" "$packaged_schema"; then
+    echo "package schema file differs from source: $packaged_schema" >&2
+    exit 1
+  fi
+done
+
 package_python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
 if [[ -z "$package_python_bin" ]]; then
   echo "python3 or python is required to validate packaged JSON schema contracts" >&2
