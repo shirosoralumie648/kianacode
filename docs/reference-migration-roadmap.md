@@ -468,7 +468,7 @@ Scope:
 Exit criteria:
 
 - Multi-agent workflows can run with deterministic fake models.
-- Artifact dependency changes are traceable.
+- Context-pack snippet dependency changes are traceable through a deterministic `kiana.context-artifact-graph.v1`; broader durable artifact dependency tracking still belongs to the later artifact-store/team-runtime work.
 - Indexing is incremental and disabled by default until configured.
 - Notebook execution is isolated, timed, and permission-gated.
 
@@ -527,7 +527,7 @@ Live service tests must remain opt-in through environment variables. The default
 | Provider sprawl | High maintenance cost | Start with Anthropic, OpenAI-compatible, Ollama/mock |
 | Project plugins before trust gate | Security exposure | Trust gate before project resources |
 | Hooks before permission policy | Inconsistent decisions | Implement permissions and hook result contract together |
-| Indexing/RAG too early | Large complexity increase | Start with repo map and FTS snippets only |
+| Indexing/RAG too early | Large complexity increase | Start with repo map, lexical snippets, and deterministic snippet artifact graphs before adding embeddings or vector stores |
 | Remote/live validation gaps | Misleading release readiness | Keep live smoke opt-in and explicitly reported |
 | Existing docs overstate progress | Planning confusion | Treat `RELEASE.md` and smoke gates as current truth |
 

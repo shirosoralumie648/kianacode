@@ -119,6 +119,7 @@ pub struct ContextPack {
     pub files_indexed: usize,
     pub skipped_files: usize,
     pub snippets: Vec<ContextPackSnippet>,
+    pub artifact_graph: ContextArtifactGraph,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,6 +133,32 @@ pub struct ContextPackSnippet {
     pub start_line: usize,
     pub end_line: usize,
     pub excerpt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactGraph {
+    pub schema: String,
+    pub nodes: Vec<ContextArtifactNode>,
+    pub edges: Vec<ContextArtifactEdge>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactNode {
+    pub id: String,
+    pub kind: String,
+    pub path: String,
+    pub language: Option<String>,
+    pub content_hash: String,
+    pub start_line: usize,
+    pub end_line: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactEdge {
+    pub source: String,
+    pub target: String,
+    pub relation: String,
+    pub matched_terms: Vec<String>,
 }
 
 pub fn build_context_index(
@@ -298,6 +325,7 @@ pub fn build_context_pack(
             .then(left.start_line.cmp(&right.start_line))
     });
     snippets.truncate(limit);
+    let artifact_graph = context_artifact_graph(&snippets, query.trim());
 
     Ok(ContextPack {
         schema: "kiana.context-pack.v1".to_string(),
@@ -309,6 +337,7 @@ pub fn build_context_pack(
         files_indexed,
         skipped_files,
         snippets,
+        artifact_graph,
     })
 }
 
@@ -603,6 +632,48 @@ fn snippet_excerpt(
     (start + 1, end, excerpt)
 }
 
+fn context_artifact_graph(snippets: &[ContextPackSnippet], query: &str) -> ContextArtifactGraph {
+    let nodes = snippets
+        .iter()
+        .map(|snippet| {
+            let id = context_artifact_node_id(snippet);
+            ContextArtifactNode {
+                id,
+                kind: "snippet".to_string(),
+                path: snippet.path.clone(),
+                language: snippet.language.clone(),
+                content_hash: snippet.content_hash.clone(),
+                start_line: snippet.start_line,
+                end_line: snippet.end_line,
+            }
+        })
+        .collect::<Vec<_>>();
+    let query_id = format!("query:{}", query.trim());
+    let edges = nodes
+        .iter()
+        .zip(snippets.iter())
+        .map(|(node, snippet)| ContextArtifactEdge {
+            source: query_id.clone(),
+            target: node.id.clone(),
+            relation: "matched".to_string(),
+            matched_terms: snippet.matched_terms.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    ContextArtifactGraph {
+        schema: "kiana.context-artifact-graph.v1".to_string(),
+        nodes,
+        edges,
+    }
+}
+
+fn context_artifact_node_id(snippet: &ContextPackSnippet) -> String {
+    format!(
+        "snippet:{}:{}-{}:{}",
+        snippet.path, snippet.start_line, snippet.end_line, snippet.content_hash
+    )
+}
+
 fn relative_path(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)
@@ -782,6 +853,63 @@ mod tests {
         assert_eq!(pack.snippets[0].end_line, 2);
         assert!(pack.snippets[0].excerpt.contains("prepare checkout flow"));
         assert_eq!(pack.snippets[0].content_hash.len(), 16);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_pack_reports_stable_artifact_graph_for_snippets() {
+        let root = fixture_root("pack-artifact-graph");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn release() {}\n// release workflow\n",
+        )
+        .unwrap();
+
+        let first = build_context_pack(
+            &root,
+            "release",
+            ContextPackOptions {
+                limit: Some(5),
+                max_bytes_per_file: None,
+                max_snippet_lines: Some(1),
+            },
+        )
+        .unwrap();
+        let second = build_context_pack(
+            &root,
+            "release",
+            ContextPackOptions {
+                limit: Some(5),
+                max_bytes_per_file: None,
+                max_snippet_lines: Some(1),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            first.artifact_graph.schema,
+            "kiana.context-artifact-graph.v1"
+        );
+        assert_eq!(
+            serde_json::to_value(&first.artifact_graph).unwrap(),
+            serde_json::to_value(&second.artifact_graph).unwrap()
+        );
+        assert_eq!(first.artifact_graph.nodes.len(), 1);
+        assert_eq!(first.artifact_graph.nodes[0].kind, "snippet");
+        assert_eq!(first.artifact_graph.nodes[0].path, "src/lib.rs");
+        assert_eq!(first.artifact_graph.nodes[0].start_line, 1);
+        assert_eq!(first.artifact_graph.nodes[0].end_line, 1);
+        assert_eq!(first.artifact_graph.nodes[0].content_hash.len(), 16);
+        assert_eq!(first.artifact_graph.edges.len(), 1);
+        assert_eq!(first.artifact_graph.edges[0].source, "query:release");
+        assert_eq!(
+            first.artifact_graph.edges[0].target,
+            first.artifact_graph.nodes[0].id
+        );
+        assert_eq!(first.artifact_graph.edges[0].relation, "matched");
+        assert_eq!(first.artifact_graph.edges[0].matched_terms, vec!["release"]);
 
         let _ = fs::remove_dir_all(root);
     }

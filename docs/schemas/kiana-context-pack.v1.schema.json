@@ -12,7 +12,8 @@
     "max_snippet_lines",
     "files_indexed",
     "skipped_files",
-    "snippets"
+    "snippets",
+    "artifact_graph"
   ],
   "properties": {
     "schema": {
@@ -104,6 +105,97 @@
         },
         "additionalProperties": false
       }
+    },
+    "artifact_graph": {
+      "type": "object",
+      "required": [
+        "schema",
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kiana.context-artifact-graph.v1"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "kind",
+              "path",
+              "language",
+              "content_hash",
+              "start_line",
+              "end_line"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "const": "snippet"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "language": {
+                "type": ["string", "null"]
+              },
+              "content_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "start_line": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "target",
+              "relation",
+              "matched_terms"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "relation": {
+                "const": "matched"
+              },
+              "matched_terms": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

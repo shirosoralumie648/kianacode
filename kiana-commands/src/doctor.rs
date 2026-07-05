@@ -871,13 +871,14 @@ fn reference_capability_matrix(
             domain: "context/agents",
             status: "in_progress",
             references: vec!["AutoGen", "MetaGPT", "LangChain", "OpenHands"],
-            surfaces: vec!["context-index", "context-search", "context-pack", "subagent-tool-contract"],
+            surfaces: vec!["context-index", "context-search", "context-pack", "context-artifact-graph", "subagent-tool-contract"],
             evidence: vec![
                 "deterministic-context-index",
                 "path-aware-context-search",
                 "root-scoped-context-pack",
+                "context-pack-artifact-graph",
             ],
-            risks: vec!["incremental index, embeddings, artifact graph, notebook isolation, and team runtime remain future work".to_string()],
+            risks: vec!["embeddings/vector search, durable artifact ingestion, notebook isolation, and team runtime remain future work".to_string()],
         },
     ]
 }

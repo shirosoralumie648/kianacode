@@ -470,10 +470,13 @@ else
   fail "context search JSON schema is missing kiana.context-search.v1 const"
 fi
 
-if grep -Fq '"const": "kiana.context-pack.v1"' docs/schemas/kiana-context-pack.v1.schema.json; then
+if grep -Fq '"const": "kiana.context-pack.v1"' docs/schemas/kiana-context-pack.v1.schema.json &&
+  grep -Fq '"artifact_graph"' docs/schemas/kiana-context-pack.v1.schema.json &&
+  grep -Fq '"const": "kiana.context-artifact-graph.v1"' docs/schemas/kiana-context-pack.v1.schema.json &&
+  grep -Fq '"const": "matched"' docs/schemas/kiana-context-pack.v1.schema.json; then
   pass "context pack JSON schema version is pinned"
 else
-  fail "context pack JSON schema is missing kiana.context-pack.v1 const"
+  fail "context pack JSON schema is missing required context artifact graph anchors"
 fi
 
 if grep -Fq '"const": "kiana.commercial-proof-manifest.v1"' docs/schemas/kiana-commercial-proof-manifest.v1.schema.json; then
