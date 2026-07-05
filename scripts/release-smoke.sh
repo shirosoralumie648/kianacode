@@ -388,8 +388,10 @@ smoke_context_index_search_json() {
   artifact_dir="$(mktemp -d "$tmp_root/context-artifacts.XXXXXX")"
   mkdir -p "$project_dir/src"
   mkdir -p "$project_dir/docs"
+  mkdir -p "$project_dir/tests"
   mkdir -p "$artifact_dir/bundle"
   printf '%s\n' 'pub fn release_context_search() {}' '// release release context search' > "$project_dir/src/lib.rs"
+  printf '%s\n' 'use kiana::release_context_search;' > "$project_dir/tests/lib_test.rs"
   printf '%s\n' '# Context Guide' 'release context guide' > "$project_dir/README.md"
   printf '%s\n' 'first module summary' > "$project_dir/docs/path-only.md"
   printf '%s\n' 'first artifact line' > "$artifact_dir/bundle/notes.md"
@@ -397,13 +399,14 @@ smoke_context_index_search_json() {
   index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
   artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json 2>&1)"
   cached_artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json --cache .kiana/context-artifacts.json 2>&1)"
+  artifact_graph_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-graph --json 2>&1)"
   search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
   path_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search docs/path-only.md --json --limit 1 2>&1)"
   pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack release --json --limit 1 --max-snippet-lines 1 2>&1)"
   path_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 2>&1)"
   root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_dir" --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
-  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
 import json
 import os
 import sys
@@ -412,6 +415,7 @@ try:
     index = json.loads(os.environ["CONTEXT_INDEX_JSON"])
     artifacts = json.loads(os.environ["CONTEXT_ARTIFACTS_JSON"])
     cached_artifacts = json.loads(os.environ["CONTEXT_CACHED_ARTIFACTS_JSON"])
+    artifact_graph = json.loads(os.environ["CONTEXT_ARTIFACT_GRAPH_JSON"])
     search = json.loads(os.environ["CONTEXT_SEARCH_JSON"])
     path_search = json.loads(os.environ["CONTEXT_PATH_SEARCH_JSON"])
     pack = json.loads(os.environ["CONTEXT_PACK_JSON"])
@@ -422,6 +426,7 @@ except Exception as exc:
     print(os.environ.get("CONTEXT_INDEX_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACTS_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_CACHED_ARTIFACTS_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_ARTIFACT_GRAPH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_SEARCH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PATH_SEARCH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PACK_JSON", ""), file=sys.stderr)
@@ -431,15 +436,19 @@ except Exception as exc:
 
 checks = [
     index.get("schema") == "kiana.context-index.v1",
-    index.get("files_indexed") == 3,
+    index.get("files_indexed") == 4,
     any(item.get("path") == "src/lib.rs" and item.get("language") == "rust" for item in index.get("files", [])),
     artifacts.get("schema") == "kiana.context-artifacts.v1",
-    artifacts.get("files_indexed") == 3,
+    artifacts.get("files_indexed") == 4,
     any(item.get("path") == "src/lib.rs" and item.get("kind") == "file" and str(item.get("id", "")).startswith("file:src/lib.rs:") for item in artifacts.get("artifacts", [])),
     cached_artifacts.get("schema") == "kiana.context-artifacts.v1",
     cached_artifacts.get("cache", {}).get("status") == "created",
-    cached_artifacts.get("cache", {}).get("added_artifacts") == 3,
+    cached_artifacts.get("cache", {}).get("added_artifacts") == 4,
     str(cached_artifacts.get("cache", {}).get("path", "")).endswith(".kiana/context-artifacts.json"),
+    artifact_graph.get("schema") == "kiana.context-artifact-dependency-graph.v1",
+    len(artifact_graph.get("nodes", [])) == 4,
+    any(node.get("path") == "tests/lib_test.rs" for node in artifact_graph.get("nodes", [])),
+    any(edge.get("relation") == "test_of" and edge.get("evidence") == "tests/lib_test.rs matches src/lib.rs" for edge in artifact_graph.get("edges", [])),
     search.get("schema") == "kiana.context-search.v1",
     search.get("terms") == ["release"],
     search.get("limit") == 1,
@@ -486,6 +495,7 @@ if not all(checks):
     print(json.dumps(index, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifacts, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(cached_artifacts, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(artifact_graph, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(search, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(path_search, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(pack, indent=2, sort_keys=True), file=sys.stderr)

@@ -121,6 +121,31 @@ pub struct ContextArtifactsCacheReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactDependencyGraph {
+    pub schema: String,
+    pub root: String,
+    pub nodes: Vec<ContextArtifactDependencyNode>,
+    pub edges: Vec<ContextArtifactDependencyEdge>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactDependencyNode {
+    pub id: String,
+    pub kind: String,
+    pub path: String,
+    pub language: Option<String>,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactDependencyEdge {
+    pub source: String,
+    pub target: String,
+    pub relation: String,
+    pub evidence: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextIndexCacheReport {
     pub path: String,
     pub status: String,
@@ -306,6 +331,60 @@ pub fn build_persistent_context_artifacts(
     })?;
 
     Ok(report)
+}
+
+pub fn build_context_artifact_dependency_graph(
+    root: impl AsRef<Path>,
+    options: ContextArtifactOptions,
+) -> Result<ContextArtifactDependencyGraph> {
+    let report = build_context_artifacts(root, options)?;
+    let nodes = report
+        .artifacts
+        .iter()
+        .map(|artifact| ContextArtifactDependencyNode {
+            id: artifact.id.clone(),
+            kind: artifact.kind.clone(),
+            path: artifact.path.clone(),
+            language: artifact.language.clone(),
+            content_hash: artifact.content_hash.clone(),
+        })
+        .collect::<Vec<_>>();
+    let artifact_by_path = report
+        .artifacts
+        .iter()
+        .map(|artifact| (artifact.path.as_str(), artifact))
+        .collect::<BTreeMap<_, _>>();
+    let mut edges = Vec::new();
+
+    for artifact in &report.artifacts {
+        let Some(target_path) = test_target_path(&artifact.path) else {
+            continue;
+        };
+        let Some(target) = artifact_by_path.get(target_path.as_str()) else {
+            continue;
+        };
+        edges.push(ContextArtifactDependencyEdge {
+            source: artifact.id.clone(),
+            target: target.id.clone(),
+            relation: "test_of".to_string(),
+            evidence: format!("{} matches {}", artifact.path, target.path),
+        });
+    }
+
+    edges.sort_by(|left, right| {
+        left.source
+            .cmp(&right.source)
+            .then(left.target.cmp(&right.target))
+            .then(left.relation.cmp(&right.relation))
+            .then(left.evidence.cmp(&right.evidence))
+    });
+
+    Ok(ContextArtifactDependencyGraph {
+        schema: "kiana.context-artifact-dependency-graph.v1".to_string(),
+        root: report.root,
+        nodes,
+        edges,
+    })
 }
 
 pub fn build_persistent_context_index(
@@ -869,6 +948,16 @@ fn context_artifact_node_id(snippet: &ContextPackSnippet) -> String {
     )
 }
 
+fn test_target_path(path: &str) -> Option<String> {
+    let rest = path.strip_prefix("tests/")?;
+    for suffix in ["_test.rs", "_tests.rs", ".test.rs", ".tests.rs"] {
+        if let Some(stem) = rest.strip_suffix(suffix) {
+            return Some(format!("src/{stem}.rs"));
+        }
+    }
+    None
+}
+
 fn relative_path(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)
@@ -1257,6 +1346,48 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
         assert_eq!(saved.schema, "kiana.context-artifacts.v1");
         assert_eq!(saved.cache.as_ref().unwrap().changed_artifacts, 1);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifact_dependency_graph_reports_test_relationships() {
+        let root = fixture_root("artifact-dependency-graph");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(
+            root.join("tests/lib_test.rs"),
+            "use kiana::release;\n#[test]\nfn release_works() {}\n",
+        )
+        .unwrap();
+
+        let graph = build_context_artifact_dependency_graph(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(graph.schema, "kiana.context-artifact-dependency-graph.v1");
+        assert_eq!(graph.nodes.len(), 2);
+        let source = graph
+            .nodes
+            .iter()
+            .find(|node| node.path == "tests/lib_test.rs")
+            .unwrap();
+        let target = graph
+            .nodes
+            .iter()
+            .find(|node| node.path == "src/lib.rs")
+            .unwrap();
+        assert!(graph.edges.iter().any(|edge| {
+            edge.source == source.id
+                && edge.target == target.id
+                && edge.relation == "test_of"
+                && edge.evidence == "tests/lib_test.rs matches src/lib.rs"
+        }));
 
         let _ = fs::remove_dir_all(root);
     }

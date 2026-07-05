@@ -115,6 +115,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-pack.v1.schema.json" \
@@ -227,8 +228,10 @@ context_fixture="$tmp_root/context-fixture"
 context_artifact_root="$tmp_root/context-artifact-root"
 mkdir -p "$context_fixture/src"
 mkdir -p "$context_fixture/docs"
+mkdir -p "$context_fixture/tests"
 mkdir -p "$context_artifact_root/bundle"
 printf '%s\n' 'pub fn lifecycle_search() {}' '// lifecycle lifecycle search' > "$context_fixture/src/lib.rs"
+printf '%s\n' 'use kiana::lifecycle_search;' > "$context_fixture/tests/lib_test.rs"
 printf '%s\n' 'first module summary' > "$context_fixture/docs/path-only.md"
 printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
 (
@@ -239,8 +242,11 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifacts --json | grep -Fq '"kind": "file"'
   run_installed context artifacts --json | grep -Fq '"path": "src/lib.rs"'
   run_installed context artifacts --json --cache .kiana/context-artifacts.json | grep -Fq '"status": "created"'
-  run_installed context artifacts --json --cache .kiana/context-artifacts.json | grep -Fq '"reused_artifacts": 2'
+  run_installed context artifacts --json --cache .kiana/context-artifacts.json | grep -Fq '"reused_artifacts": 3'
   test -f .kiana/context-artifacts.json
+  run_installed context artifact-graph --json | grep -Fq '"schema": "kiana.context-artifact-dependency-graph.v1"'
+  run_installed context artifact-graph --json | grep -Fq '"relation": "test_of"'
+  run_installed context artifact-graph --json | grep -Fq '"evidence": "tests/lib_test.rs matches src/lib.rs"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'

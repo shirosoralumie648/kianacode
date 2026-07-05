@@ -3,11 +3,11 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_artifacts, build_context_index, build_context_pack,
-    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
-    search_context_index, ContextArtifactOptions, ContextArtifacts, ContextIndex,
-    ContextIndexOptions, ContextPack, ContextPackOptions, ContextSearchOptions,
-    ContextSearchResults, RepoMap, RepoMapOptions,
+    build_context_artifact_dependency_graph, build_context_artifacts, build_context_index,
+    build_context_pack, build_persistent_context_artifacts, build_persistent_context_index,
+    build_repo_map, search_context_index, ContextArtifactDependencyGraph, ContextArtifactOptions,
+    ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions,
+    ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -42,6 +42,9 @@ impl Command for ContextCommand {
         }
         if let Some(rest) = args.strip_prefix("artifacts") {
             return artifacts_result(&context, rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("artifact-graph") {
+            return artifact_graph_result(&context, rest.trim());
         }
         if let Some(rest) = args.strip_prefix("search") {
             return search_result(&context, rest.trim());
@@ -79,7 +82,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -221,6 +224,51 @@ fn artifacts_result(context: &CommandContext, args: &str) -> anyhow::Result<Comm
         return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
     }
     Ok(CommandResult::text(format_context_artifacts_text(&report)))
+}
+
+fn artifact_graph_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut root = None;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+
+    let graph = build_context_artifact_dependency_graph(
+        context_root(context, root),
+        ContextArtifactOptions { max_bytes_per_file },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&graph)?));
+    }
+    Ok(CommandResult::text(format_context_artifact_graph_text(
+        &graph,
+    )))
 }
 
 fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -508,6 +556,36 @@ fn format_context_artifacts_text(report: &ContextArtifacts) -> String {
             cache.added_artifacts,
             cache.changed_artifacts,
             cache.removed_artifacts
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifact_graph_text(graph: &ContextArtifactDependencyGraph) -> String {
+    let mut lines = vec![
+        "Context artifact graph".to_string(),
+        format!("root: {}", graph.root),
+        format!(
+            "schema: {} nodes={} edges={}",
+            graph.schema,
+            graph.nodes.len(),
+            graph.edges.len()
+        ),
+    ];
+    for node in &graph.nodes {
+        lines.push(format!(
+            "- {} [{}] kind={} hash={} id={}",
+            node.path,
+            node.language.as_deref().unwrap_or("unknown"),
+            node.kind,
+            node.content_hash,
+            node.id
+        ));
+    }
+    for edge in &graph.edges {
+        lines.push(format!(
+            "  edge: {} -> {} relation={} evidence={}",
+            edge.source, edge.target, edge.relation, edge.evidence
         ));
     }
     lines.join("\n")
@@ -1024,6 +1102,36 @@ mod tests {
         assert_eq!(second_value["cache"]["changed_artifacts"], 0);
 
         let _ = fs::remove_dir_all(Path::new(second_value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_artifact_graph_json_reports_test_edges() {
+        let root = fixture_root("artifact-graph-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "artifact-graph --json".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(
+            value["schema"],
+            "kiana.context-artifact-dependency-graph.v1"
+        );
+        assert_eq!(value["nodes"].as_array().unwrap().len(), 2);
+        assert!(value["edges"].as_array().unwrap().iter().any(|edge| {
+            edge["relation"] == "test_of"
+                && edge["evidence"] == "tests/lib_test.rs matches src/lib.rs"
+        }));
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
 
     fn fixture_root(name: &str) -> PathBuf {

@@ -38,6 +38,7 @@ tmp_app_events="$(mktemp)"
 tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_context_artifacts="$(mktemp)"
+tmp_context_artifact_graph="$(mktemp)"
 tmp_repo_map="$(mktemp)"
 tmp_diff="$(mktemp)"
 tmp_checkpoint="$(mktemp)"
@@ -51,7 +52,7 @@ tmp_release_signature="$(mktemp)"
 tmp_enterprise_offline_manifest="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -287,6 +288,40 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-context-artifacts.v1.schema.json \
   "$tmp_context_artifacts" >/dev/null
+
+cat > "$tmp_context_artifact_graph" <<'JSON'
+{
+  "schema": "kiana.context-artifact-dependency-graph.v1",
+  "root": "/workspace",
+  "nodes": [
+    {
+      "id": "file:src/lib.rs:0123456789abcdef",
+      "kind": "file",
+      "path": "src/lib.rs",
+      "language": "rust",
+      "content_hash": "0123456789abcdef"
+    },
+    {
+      "id": "file:tests/lib_test.rs:fedcba9876543210",
+      "kind": "file",
+      "path": "tests/lib_test.rs",
+      "language": "rust",
+      "content_hash": "fedcba9876543210"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:tests/lib_test.rs:fedcba9876543210",
+      "target": "file:src/lib.rs:0123456789abcdef",
+      "relation": "test_of",
+      "evidence": "tests/lib_test.rs matches src/lib.rs"
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json \
+  "$tmp_context_artifact_graph" >/dev/null
 
 cat > "$tmp_repo_map" <<'JSON'
 {

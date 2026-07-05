@@ -8,10 +8,10 @@ use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
 };
 use kiana_query::{
-    build_context_artifacts, build_context_index, build_context_pack,
-    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
-    search_context_index, ContextArtifactOptions, ContextIndexOptions, ContextPackOptions,
-    ContextSearchOptions, RepoMapOptions,
+    build_context_artifact_dependency_graph, build_context_artifacts, build_context_index,
+    build_context_pack, build_persistent_context_artifacts, build_persistent_context_index,
+    build_repo_map, search_context_index, ContextArtifactOptions, ContextIndexOptions,
+    ContextPackOptions, ContextSearchOptions, RepoMapOptions,
 };
 use kiana_screens::settings::SettingsSection;
 use kiana_tools::tool_execution::{
@@ -5419,6 +5419,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_context_artifacts_handler),
         )
         .route(
+            "/app/context/artifact-graph",
+            axum::routing::get(direct_connect_app_context_artifact_graph_handler),
+        )
+        .route(
             "/app/context/repo-map",
             axum::routing::get(direct_connect_app_context_repo_map_handler),
         )
@@ -8176,6 +8180,11 @@ struct DirectConnectContextArtifactsQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct DirectConnectContextArtifactGraphQuery {
+    max_bytes_per_file: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 struct DirectConnectRepoMapQuery {
     max_tokens: Option<u64>,
 }
@@ -8251,6 +8260,34 @@ async fn direct_connect_app_context_artifacts_handler(
         Err(error) => direct_connect_json_error(
             axum::http::StatusCode::BAD_REQUEST,
             format!("failed to build context artifacts: {error}"),
+        ),
+    }
+}
+
+async fn direct_connect_app_context_artifact_graph_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextArtifactGraphQuery>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let options = ContextArtifactOptions {
+        max_bytes_per_file: query.max_bytes_per_file,
+    };
+    match build_context_artifact_dependency_graph(&state.workspace, options)
+        .and_then(|graph| serde_json::to_value(graph).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to build context artifact graph: {error}"),
         ),
     }
 }
@@ -9306,280 +9343,148 @@ fn direct_connect_app_contract(state: &DirectConnectServerState, active_sessions
             "type": if state.auth_token.is_some() { "bearer" } else { "none" },
             "required": state.auth_token.is_some(),
         },
-        "capabilities": [
-            "conversations.read",
-            "events.snapshot.read",
-            "events.websocket",
-            "conversation.files.read",
-            "conversation.files.write",
-            "settings.read",
-            "config.resolved.read",
-            "doctor.read",
-            "release.blockers.read",
-            "release.local_rc_evidence.read",
-            "release.product_acceptance.read",
-            "release.entitlement.read",
-            "release.ops.read",
-            "release.platform_security.read",
-            "release.source_control.read",
-            "release.signature.read",
-            "release.enterprise_offline_manifest.read",
-            "release.proof_manifest.read",
-            "release.live_provider_smoke.read",
-            "release.remote_code_session_smoke.read",
-            "release.distribution_review.read",
-            "secrets.redacted",
-            "sandbox.read",
-            "plugins.read",
-            "auth.status.read",
-            "license.status.read",
-            "model.catalog.read",
-            "model.list.read",
-            "model.current.read",
-            "model.smoke.read",
-            "git.status.read",
-            "diff.read",
-            "checkpoint.create",
-            "checks.dry_run.read",
-            "checks.run.read",
-            "review.dry_run.read",
-            "review.run.read",
-            "context.index.read",
-            "context.index.cache.write",
-            "context.artifacts.read",
-            "context.artifacts.cache.write",
-            "context.repo_map.read",
-            "context.search.read",
-            "context.pack.read"
-        ],
-        "endpoints": [
-            {
-                "method": "GET",
-                "path": "/app",
-                "schema": "kiana.app-server.contract.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/conversations",
-                "schema": "kiana.app-server.conversations.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/conversations/{session_id}/events",
-                "schema": "kiana.app-server.events.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/conversations/{session_id}/files",
-                "schema": "kiana.app-server.conversation-files.v1"
-            },
-            {
-                "method": "POST",
-                "path": "/app/conversations/{session_id}/files",
-                "schema": "kiana.app-server.conversation-files.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/settings",
-                "schema": "kiana.app-server.settings.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/config/resolved",
-                "schema": "kiana.app-server.config-resolved.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/doctor",
-                "schema": "kiana.app-server.doctor.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/blockers",
-                "schema": "kiana.commercial-release-blockers.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/local-rc-evidence",
-                "schema": "kiana.local-rc-evidence.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/product-acceptance",
-                "schema": "kiana.product-acceptance.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/entitlement",
-                "schema": "kiana.entitlement-proof.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/ops",
-                "schema": "kiana.release-ops.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/platform-security",
-                "schema": "kiana.platform-security-proof.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/source-control",
-                "schema": "kiana.source-control-proof.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/signature",
-                "schema": "kiana.release-signature.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/enterprise-offline-manifest",
-                "schema": "kiana.enterprise.offline-manifest.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/proof-manifest",
-                "schema": "kiana.commercial-proof-manifest.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/live-provider-smoke",
-                "schema": "kiana.app-server.live-provider-smoke.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/remote-code-session-smoke",
-                "schema": "kiana.remote-code-session-smoke.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/release/distribution",
-                "schema": "kiana.app-server.distribution-review.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/secrets",
-                "schema": "kiana.app-server.secrets.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/sandbox",
-                "schema": "kiana.app-server.sandbox.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/plugins",
-                "schema": "kiana.app-server.plugins.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/auth/status",
-                "schema": "kiana.auth-status.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/license/status",
-                "schema": "kiana.license-status.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/models/catalog",
-                "schema": "kiana.model-catalog.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/models/list",
-                "schema": "kiana.model-list.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/models/current",
-                "schema": "kiana.app-server.model-current.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/models/smoke",
-                "schema": "kiana.model-smoke.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/git/status",
-                "schema": "kiana.app-server.git-status.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/diff",
-                "schema": "kiana.diff.v1"
-            },
-            {
-                "method": "POST",
-                "path": "/app/checkpoints",
-                "schema": "kiana.checkpoint.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/checks/dry-run",
-                "schema": "kiana.checks.dry_run.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/checks",
-                "schema": "kiana.checks.run.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/review/dry-run",
-                "schema": "kiana.review.dry_run.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/review",
-                "schema": "kiana.review.run.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/context/index",
-                "schema": "kiana.context-index.v1",
-                "query": {
-                    "cache": "optional boolean; when true writes .kiana/context-index.json in the active workspace"
-                }
-            },
-            {
-                "method": "GET",
-                "path": "/app/context/artifacts",
-                "schema": "kiana.context-artifacts.v1",
-                "query": "optional cache boolean writes .kiana/context-artifacts.json; optional max_bytes_per_file caps indexed file bytes"
-            },
-            {
-                "method": "GET",
-                "path": "/app/context/repo-map",
-                "schema": "kiana.repo-map.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/context/search",
-                "schema": "kiana.context-search.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/app/context/pack",
-                "schema": "kiana.context-pack.v1"
-            },
-            {
-                "method": "POST",
-                "path": "/sessions",
-                "schema": "kiana.direct-connect.session-create.v1"
-            },
-            {
-                "method": "GET",
-                "path": "/sessions/{session_id}/ws",
-                "schema": "kiana.direct-connect.events.websocket.v1"
-            }
-        ],
+        "capabilities": direct_connect_app_capabilities(),
+        "endpoints": direct_connect_app_endpoints(),
         "active_sessions": active_sessions,
     })
+}
+
+fn direct_connect_app_capabilities() -> Vec<&'static str> {
+    vec![
+        "conversations.read",
+        "events.snapshot.read",
+        "events.websocket",
+        "conversation.files.read",
+        "conversation.files.write",
+        "settings.read",
+        "config.resolved.read",
+        "doctor.read",
+        "release.blockers.read",
+        "release.local_rc_evidence.read",
+        "release.product_acceptance.read",
+        "release.entitlement.read",
+        "release.ops.read",
+        "release.platform_security.read",
+        "release.source_control.read",
+        "release.signature.read",
+        "release.enterprise_offline_manifest.read",
+        "release.proof_manifest.read",
+        "release.live_provider_smoke.read",
+        "release.remote_code_session_smoke.read",
+        "release.distribution_review.read",
+        "secrets.redacted",
+        "sandbox.read",
+        "plugins.read",
+        "auth.status.read",
+        "license.status.read",
+        "model.catalog.read",
+        "model.list.read",
+        "model.current.read",
+        "model.smoke.read",
+        "git.status.read",
+        "diff.read",
+        "checkpoint.create",
+        "checks.dry_run.read",
+        "checks.run.read",
+        "review.dry_run.read",
+        "review.run.read",
+        "context.index.read",
+        "context.index.cache.write",
+        "context.artifacts.read",
+        "context.artifacts.cache.write",
+        "context.artifact_graph.read",
+        "context.repo_map.read",
+        "context.search.read",
+        "context.pack.read",
+    ]
+}
+
+fn direct_connect_app_endpoint(method: &str, path: &str, schema: &str) -> Value {
+    serde_json::json!({
+        "method": method,
+        "path": path,
+        "schema": schema,
+    })
+}
+
+fn direct_connect_app_endpoint_with_query(
+    method: &str,
+    path: &str,
+    schema: &str,
+    query: Value,
+) -> Value {
+    let mut endpoint = direct_connect_app_endpoint(method, path, schema);
+    if let Some(object) = endpoint.as_object_mut() {
+        object.insert("query".to_string(), query);
+    }
+    endpoint
+}
+
+fn direct_connect_app_endpoints() -> Vec<Value> {
+    vec![
+        direct_connect_app_endpoint("GET", "/app", "kiana.app-server.contract.v1"),
+        direct_connect_app_endpoint("GET", "/app/conversations", "kiana.app-server.conversations.v1"),
+        direct_connect_app_endpoint("GET", "/app/conversations/{session_id}/events", "kiana.app-server.events.v1"),
+        direct_connect_app_endpoint("GET", "/app/conversations/{session_id}/files", "kiana.app-server.conversation-files.v1"),
+        direct_connect_app_endpoint("POST", "/app/conversations/{session_id}/files", "kiana.app-server.conversation-files.v1"),
+        direct_connect_app_endpoint("GET", "/app/settings", "kiana.app-server.settings.v1"),
+        direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
+        direct_connect_app_endpoint("GET", "/app/doctor", "kiana.app-server.doctor.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/blockers", "kiana.commercial-release-blockers.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/local-rc-evidence", "kiana.local-rc-evidence.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/product-acceptance", "kiana.product-acceptance.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/entitlement", "kiana.entitlement-proof.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/ops", "kiana.release-ops.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/platform-security", "kiana.platform-security-proof.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/source-control", "kiana.source-control-proof.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/signature", "kiana.release-signature.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/enterprise-offline-manifest", "kiana.enterprise.offline-manifest.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/proof-manifest", "kiana.commercial-proof-manifest.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/live-provider-smoke", "kiana.app-server.live-provider-smoke.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/remote-code-session-smoke", "kiana.remote-code-session-smoke.v1"),
+        direct_connect_app_endpoint("GET", "/app/release/distribution", "kiana.app-server.distribution-review.v1"),
+        direct_connect_app_endpoint("GET", "/app/secrets", "kiana.app-server.secrets.v1"),
+        direct_connect_app_endpoint("GET", "/app/sandbox", "kiana.app-server.sandbox.v1"),
+        direct_connect_app_endpoint("GET", "/app/plugins", "kiana.app-server.plugins.v1"),
+        direct_connect_app_endpoint("GET", "/app/auth/status", "kiana.auth-status.v1"),
+        direct_connect_app_endpoint("GET", "/app/license/status", "kiana.license-status.v1"),
+        direct_connect_app_endpoint("GET", "/app/models/catalog", "kiana.model-catalog.v1"),
+        direct_connect_app_endpoint("GET", "/app/models/list", "kiana.model-list.v1"),
+        direct_connect_app_endpoint("GET", "/app/models/current", "kiana.app-server.model-current.v1"),
+        direct_connect_app_endpoint("GET", "/app/models/smoke", "kiana.model-smoke.v1"),
+        direct_connect_app_endpoint("GET", "/app/git/status", "kiana.app-server.git-status.v1"),
+        direct_connect_app_endpoint("GET", "/app/diff", "kiana.diff.v1"),
+        direct_connect_app_endpoint("POST", "/app/checkpoints", "kiana.checkpoint.v1"),
+        direct_connect_app_endpoint("GET", "/app/checks/dry-run", "kiana.checks.dry_run.v1"),
+        direct_connect_app_endpoint("GET", "/app/checks", "kiana.checks.run.v1"),
+        direct_connect_app_endpoint("GET", "/app/review/dry-run", "kiana.review.dry_run.v1"),
+        direct_connect_app_endpoint("GET", "/app/review", "kiana.review.run.v1"),
+        direct_connect_app_endpoint_with_query(
+            "GET",
+            "/app/context/index",
+            "kiana.context-index.v1",
+            serde_json::json!({
+                "cache": "optional boolean; when true writes .kiana/context-index.json in the active workspace"
+            }),
+        ),
+        direct_connect_app_endpoint_with_query(
+            "GET",
+            "/app/context/artifacts",
+            "kiana.context-artifacts.v1",
+            Value::String("optional cache boolean writes .kiana/context-artifacts.json; optional max_bytes_per_file caps indexed file bytes".to_string()),
+        ),
+        direct_connect_app_endpoint_with_query(
+            "GET",
+            "/app/context/artifact-graph",
+            "kiana.context-artifact-dependency-graph.v1",
+            Value::String("optional max_bytes_per_file caps indexed file bytes".to_string()),
+        ),
+        direct_connect_app_endpoint("GET", "/app/context/repo-map", "kiana.repo-map.v1"),
+        direct_connect_app_endpoint("GET", "/app/context/search", "kiana.context-search.v1"),
+        direct_connect_app_endpoint("GET", "/app/context/pack", "kiana.context-pack.v1"),
+        direct_connect_app_endpoint("POST", "/sessions", "kiana.direct-connect.session-create.v1"),
+        direct_connect_app_endpoint("GET", "/sessions/{session_id}/ws", "kiana.direct-connect.events.websocket.v1"),
+    ]
 }
 
 fn direct_connect_git_status_report(workspace: &Path) -> Value {
@@ -19052,6 +18957,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.artifact_graph.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.search.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19396,6 +19305,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/artifacts"
                     && endpoint["schema"] == "kiana.context-artifacts.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/artifact-graph"
+                    && endpoint["schema"] == "kiana.context-artifact-dependency-graph.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -20984,6 +20902,27 @@ mod tests {
             .join(".kiana")
             .join("context-artifacts.json")
             .is_file());
+
+        let context_artifact_graph: Value = client
+            .get(format!("http://{addr}/app/context/artifact-graph"))
+            .bearer_auth("secret")
+            .query(&[("max_bytes_per_file", "1024")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            context_artifact_graph["schema"],
+            "kiana.context-artifact-dependency-graph.v1"
+        );
+        assert_eq!(context_artifact_graph["nodes"].as_array().unwrap().len(), 3);
+        assert!(context_artifact_graph["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["path"] == "src/lib.rs" && node["kind"] == "file"));
 
         let context_search: Value = client
             .get(format!("http://{addr}/app/context/search"))

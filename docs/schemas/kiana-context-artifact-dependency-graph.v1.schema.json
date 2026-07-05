@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-context-artifact-dependency-graph.v1.schema.json",
+  "title": "Kiana Context Artifact Dependency Graph v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "root",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.context-artifact-dependency-graph.v1"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "path",
+          "language",
+          "content_hash"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^file:.+:[0-9a-f]{16}$"
+          },
+          "kind": {
+            "const": "file"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
+            "type": ["string", "null"]
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "relation",
+          "evidence"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "enum": ["test_of"]
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
