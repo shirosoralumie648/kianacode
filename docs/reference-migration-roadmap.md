@@ -442,6 +442,10 @@ Exit criteria:
 - App-server has JSON fixtures and contract tests.
 - Web or IDE clients consume stable protocol, not internal Rust-only types.
 
+Progress:
+
+- 2026-07-05: Strengthened the direct-connect `/app/secrets` readiness surface from an empty redaction placeholder into a pinned `kiana.app-server.secrets.v1` credential-metadata contract. Web/IDE clients can now inspect Anthropic API-key, Anthropic OAuth token-file, OpenAI-compatible API-key, and enterprise license-key source/status summaries without receiving raw secret values; the endpoint still advertises `read_supported=false` and `write_supported=false`. Focused coverage is in `cargo test -p kiana-entrypoints direct_connect_app_contract_exposes_product_shell_endpoints --locked`.
+
 ### Phase 8: Advanced Agent And Knowledge Features
 
 References: AutoGen, MetaGPT, LangChain, OpenHands.

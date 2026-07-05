@@ -7360,14 +7360,135 @@ async fn direct_connect_app_secrets_handler(
         );
     }
 
-    axum::Json(serde_json::json!({
+    axum::Json(direct_connect_app_secrets_payload(&state.base_options)).into_response()
+}
+
+fn direct_connect_app_secrets_payload(base_options: &HashMap<String, Value>) -> Value {
+    let anthropic_api_key =
+        direct_connect_secret_presence("anthropic_api_key", "Anthropic API key", || {
+            if direct_connect_nonempty_base_option(base_options, "api_key").is_some() {
+                Some("app_state".to_string())
+            } else if std::env::var("ANTHROPIC_API_KEY")
+                .ok()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                Some("ANTHROPIC_API_KEY".to_string())
+            } else {
+                None
+            }
+        });
+    let anthropic_oauth_token = direct_connect_oauth_secret_presence();
+    let openai_compatible_api_key = direct_connect_secret_presence(
+        "openai_compatible_api_key",
+        "OpenAI-compatible API key",
+        || {
+            for key in ["KIANA_OPENAI_API_KEY", "OPENAI_API_KEY"] {
+                if std::env::var(key)
+                    .ok()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Some(key.to_string());
+                }
+            }
+            None
+        },
+    );
+    let enterprise_license_key =
+        direct_connect_secret_presence("enterprise_license_key", "Enterprise license key", || {
+            if std::env::var("KIANA_LICENSE_KEY")
+                .ok()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                Some("KIANA_LICENSE_KEY".to_string())
+            } else {
+                None
+            }
+        });
+    let values = vec![
+        anthropic_api_key,
+        anthropic_oauth_token,
+        openai_compatible_api_key,
+        enterprise_license_key,
+    ];
+    let set = values
+        .iter()
+        .filter(|value| value.get("status").and_then(Value::as_str) == Some("set"))
+        .count();
+    let invalid = values
+        .iter()
+        .filter(|value| value.get("status").and_then(Value::as_str) == Some("invalid"))
+        .count();
+    let missing = values
+        .iter()
+        .filter(|value| value.get("status").and_then(Value::as_str) == Some("missing"))
+        .count();
+
+    serde_json::json!({
         "schema": "kiana.app-server.secrets.v1",
-        "values": [],
+        "metadata_supported": true,
+        "values": values,
+        "summary": {
+            "total": set + invalid + missing,
+            "set": set,
+            "missing": missing,
+            "invalid": invalid
+        },
         "read_supported": false,
         "write_supported": false,
         "policy": "secret values are never returned by the local app-server contract",
-    }))
-    .into_response()
+    })
+}
+
+fn direct_connect_secret_presence<F>(id: &str, label: &str, source: F) -> Value
+where
+    F: FnOnce() -> Option<String>,
+{
+    match source() {
+        Some(source) => serde_json::json!({
+            "id": id,
+            "label": label,
+            "status": "set",
+            "source": source,
+            "value": "redacted",
+            "readable": false,
+            "writable": false
+        }),
+        None => serde_json::json!({
+            "id": id,
+            "label": label,
+            "status": "missing",
+            "source": "none",
+            "value": "missing",
+            "readable": false,
+            "writable": false
+        }),
+    }
+}
+
+fn direct_connect_oauth_secret_presence() -> Value {
+    let inspection = kiana_services::oauth::inspect_oauth_tokens(
+        kiana_services::oauth::DEFAULT_OAUTH_EXPIRY_SKEW,
+    );
+    let (status, value) = match inspection.status {
+        kiana_services::oauth::OAuthTokenFileStatus::Valid => ("set", "redacted"),
+        kiana_services::oauth::OAuthTokenFileStatus::Missing => ("missing", "missing"),
+        kiana_services::oauth::OAuthTokenFileStatus::Invalid => ("invalid", "invalid"),
+    };
+    serde_json::json!({
+        "id": "anthropic_oauth_token",
+        "label": "Anthropic OAuth token",
+        "status": status,
+        "source": "oauth_file",
+        "value": value,
+        "readable": false,
+        "writable": false,
+        "file": inspection.file,
+        "store": inspection.store,
+        "refreshable": inspection.refreshable,
+        "expired": inspection.expired,
+        "expiring": inspection.expiring,
+        "error": inspection.error
+    })
 }
 
 async fn direct_connect_app_sandbox_handler(
@@ -19449,8 +19570,42 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(secrets["schema"], "kiana.app-server.secrets.v1");
-        assert_eq!(secrets["values"], serde_json::json!([]));
+        assert_eq!(secrets["metadata_supported"], true);
         assert_eq!(secrets["read_supported"], false);
+        assert_eq!(secrets["write_supported"], false);
+        assert!(secrets["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|secret| secret["id"] == "anthropic_api_key"
+                && secret["status"] == "set"
+                && secret["source"] == "app_state"
+                && secret["value"] == "redacted"
+                && secret["readable"] == false));
+        assert!(secrets["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|secret| secret["id"] == "anthropic_oauth_token"
+                && secret["status"] == "missing"
+                && secret["source"] == "oauth_file"));
+        assert!(secrets["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|secret| secret["id"] == "openai_compatible_api_key"
+                && secret["status"] == "missing"
+                && secret["source"] == "none"));
+        assert!(secrets["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|secret| secret["id"] == "enterprise_license_key"
+                && secret["status"] == "missing"
+                && secret["source"] == "none"));
+        assert_eq!(secrets["summary"]["set"], 1);
+        assert_eq!(secrets["summary"]["missing"], 3);
+        assert!(!secrets.to_string().contains("must-not-leak"));
 
         let sandbox: Value = client
             .get(format!("http://{addr}/app/sandbox"))
