@@ -4,11 +4,11 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_store, build_context_artifacts,
-    build_context_index, build_context_pack, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, search_context_index,
-    ContextArtifactDependencyGraph, ContextArtifactOptions, ContextArtifactStore, ContextArtifacts,
-    ContextIndex, ContextIndexOptions, ContextPack, ContextPackOptions, ContextSearchOptions,
-    ContextSearchResults, RepoMap, RepoMapOptions,
+    build_context_index, build_context_pack, build_persistent_context_artifact_store,
+    build_persistent_context_artifacts, build_persistent_context_index, build_repo_map,
+    search_context_index, ContextArtifactDependencyGraph, ContextArtifactOptions,
+    ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
+    ContextPackOptions, ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -86,7 +86,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -278,6 +278,7 @@ fn artifact_graph_result(context: &CommandContext, args: &str) -> anyhow::Result
 fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
     let mut root = None;
+    let mut cache = None;
     let mut max_bytes_per_file = None;
     let mut parts = args.split_whitespace();
     while let Some(arg) = parts.next() {
@@ -289,6 +290,12 @@ fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result
                     .ok_or_else(|| anyhow!("--root requires a directory path"))?;
                 root = Some(parse_root(value)?);
             }
+            "--cache" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--cache requires a file path"))?;
+                cache = Some(parse_path(value, "--cache")?);
+            }
             "--max-bytes-per-file" => {
                 let value = parts
                     .next()
@@ -299,6 +306,10 @@ fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result
                 let value = arg.trim_start_matches("--root=");
                 root = Some(parse_root(value)?);
             }
+            _ if arg.starts_with("--cache=") => {
+                let value = arg.trim_start_matches("--cache=");
+                cache = Some(parse_path(value, "--cache")?);
+            }
             _ if arg.starts_with("--max-bytes-per-file=") => {
                 let value = arg.trim_start_matches("--max-bytes-per-file=");
                 max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
@@ -308,10 +319,17 @@ fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result
         }
     }
 
-    let store = build_context_artifact_store(
-        context_root(context, root),
-        ContextArtifactOptions { max_bytes_per_file },
-    )?;
+    let store = match cache {
+        Some(cache_path) => build_persistent_context_artifact_store(
+            context_root(context, root),
+            ContextArtifactOptions { max_bytes_per_file },
+            cache_path,
+        )?,
+        None => build_context_artifact_store(
+            context_root(context, root),
+            ContextArtifactOptions { max_bytes_per_file },
+        )?,
+    };
     if json {
         return Ok(CommandResult::text(serde_json::to_string_pretty(&store)?));
     }
@@ -641,7 +659,7 @@ fn format_context_artifact_graph_text(graph: &ContextArtifactDependencyGraph) ->
 }
 
 fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
-    vec![
+    let mut lines = vec![
         "Context artifact store".to_string(),
         format!("root: {}", store.root),
         format!(
@@ -650,8 +668,22 @@ fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
         ),
         format!("artifacts_schema: {}", store.artifacts_schema),
         format!("dependency_graph_schema: {}", store.dependency_graph_schema),
-    ]
-    .join("\n")
+    ];
+    if let Some(cache) = &store.cache {
+        lines.push(format!(
+            "cache: {} status={} reused_artifacts={} added_artifacts={} changed_artifacts={} removed_artifacts={} reused_dependencies={} added_dependencies={} removed_dependencies={}",
+            cache.path,
+            cache.status,
+            cache.reused_artifacts,
+            cache.added_artifacts,
+            cache.changed_artifacts,
+            cache.removed_artifacts,
+            cache.reused_dependencies,
+            cache.added_dependencies,
+            cache.removed_dependencies
+        ));
+    }
+    lines.join("\n")
 }
 
 fn format_context_search_text(results: &ContextSearchResults) -> String {
@@ -1247,6 +1279,58 @@ mod tests {
                 && edge["evidence"] == "docs/design.md references src/lib.rs"));
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_artifact_store_json_persists_cache_report() {
+        let root = fixture_root("artifact-store-cache-command");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+        let cache_path = root.join(".kiana").join("context-artifact-store.json");
+
+        let first = ContextCommand
+            .execute(CommandContext {
+                args: format!(
+                    "artifact-store --json --cache {}",
+                    cache_path.to_string_lossy().replace('\\', "/")
+                ),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let first_value: serde_json::Value = serde_json::from_str(&first.value).unwrap();
+        assert_eq!(first_value["schema"], "kiana.context-artifact-store.v1");
+        assert_eq!(first_value["cache"]["status"], "created");
+        assert_eq!(first_value["cache"]["added_artifacts"], 3);
+        assert_eq!(first_value["cache"]["added_dependencies"], 2);
+        assert!(cache_path.is_file());
+
+        let second = ContextCommand
+            .execute(CommandContext {
+                args: format!(
+                    "artifact-store --json --cache {}",
+                    cache_path.to_string_lossy().replace('\\', "/")
+                ),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let second_value: serde_json::Value = serde_json::from_str(&second.value).unwrap();
+        assert_eq!(second_value["cache"]["status"], "updated");
+        assert_eq!(second_value["cache"]["reused_artifacts"], 3);
+        assert_eq!(second_value["cache"]["added_artifacts"], 0);
+        assert_eq!(second_value["cache"]["reused_dependencies"], 2);
+        assert_eq!(second_value["cache"]["added_dependencies"], 0);
+
+        let _ = fs::remove_dir_all(Path::new(second_value["root"].as_str().unwrap()));
     }
 
     fn fixture_root(name: &str) -> PathBuf {

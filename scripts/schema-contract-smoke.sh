@@ -375,6 +375,17 @@ cat > "$tmp_context_artifact_store" <<'JSON'
       }
     ],
     "edges": []
+  },
+  "cache": {
+    "path": "/workspace/.kiana/context-artifact-store.json",
+    "status": "created",
+    "reused_artifacts": 0,
+    "added_artifacts": 1,
+    "changed_artifacts": 0,
+    "removed_artifacts": 0,
+    "reused_dependencies": 0,
+    "added_dependencies": 0,
+    "removed_dependencies": 0
   }
 }
 JSON

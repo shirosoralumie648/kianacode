@@ -468,7 +468,11 @@ Scope:
 Exit criteria:
 
 - Multi-agent workflows can run with deterministic fake models.
-- Local artifact inventories are exposed through `kiana.context-artifacts.v1` with optional persistent cache delta reporting, context-pack snippet matches are traceable through `kiana.context-artifact-graph.v1`, file-level source/test plus repo-local path-reference relationships are exposed through `kiana.context-artifact-dependency-graph.v1`, and `kiana.context-artifact-store.v1` bundles the current inventory plus dependency graph into a deterministic manifest; broader durable artifact persistence still belongs to the later team-runtime work.
+- Local artifact inventories are exposed through `kiana.context-artifacts.v1` with optional persistent cache delta reporting, context-pack snippet matches are traceable through `kiana.context-artifact-graph.v1`, file-level source/test plus repo-local path-reference relationships are exposed through `kiana.context-artifact-dependency-graph.v1`, and `kiana.context-artifact-store.v1` bundles the current inventory plus dependency graph into a deterministic manifest with optional persistent cache delta reporting; broader durable artifact semantics beyond manifest persistence still belongs to the later team-runtime work.
+
+Progress:
+
+- 2026-07-05: Added persistent local artifact-store cache reporting. `kiana context artifact-store --json --cache <path>` now writes `kiana.context-artifact-store.v1` manifests with created, updated, or recovered cache status plus artifact and dependency delta counts, giving the local knowledge layer a durable manifest handoff before embeddings, notebooks, or team runtime. Focused coverage is in `cargo test -p kiana-query persistent_context_artifact_store_reports_cache_recovery_and_deltas --locked` and `cargo test -p kiana-commands context_artifact_store_json_persists_cache_report --locked`.
 - Indexing is incremental and disabled by default until configured.
 - Notebook execution is isolated, timed, and permission-gated.
 

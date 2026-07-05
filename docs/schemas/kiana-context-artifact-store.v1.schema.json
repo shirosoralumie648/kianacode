@@ -40,6 +40,62 @@
     },
     "dependency_graph": {
       "type": "object"
+    },
+    "cache": {
+      "type": "object",
+      "required": [
+        "path",
+        "status",
+        "reused_artifacts",
+        "added_artifacts",
+        "changed_artifacts",
+        "removed_artifacts",
+        "reused_dependencies",
+        "added_dependencies",
+        "removed_dependencies"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "created",
+            "updated",
+            "recovered"
+          ]
+        },
+        "reused_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_artifacts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reused_dependencies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_dependencies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_dependencies": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

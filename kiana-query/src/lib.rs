@@ -19,11 +19,12 @@ pub use config::{is_env_truthy, QueryConfig, QueryGates};
 pub use deps::QueryDeps;
 pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_store, build_context_artifacts,
-    build_context_index, build_context_pack, build_persistent_context_artifacts,
-    build_persistent_context_index, search_context_index, ContextArtifactDependencyEdge,
-    ContextArtifactDependencyGraph, ContextArtifactDependencyNode, ContextArtifactItem,
-    ContextArtifactOptions, ContextArtifactStore, ContextArtifacts, ContextArtifactsCacheReport,
-    ContextIndex, ContextIndexCacheReport, ContextIndexOptions, ContextIndexedFile, ContextPack,
+    build_context_index, build_context_pack, build_persistent_context_artifact_store,
+    build_persistent_context_artifacts, build_persistent_context_index, search_context_index,
+    ContextArtifactDependencyEdge, ContextArtifactDependencyGraph, ContextArtifactDependencyNode,
+    ContextArtifactItem, ContextArtifactOptions, ContextArtifactStore,
+    ContextArtifactStoreCacheReport, ContextArtifacts, ContextArtifactsCacheReport, ContextIndex,
+    ContextIndexCacheReport, ContextIndexOptions, ContextIndexedFile, ContextPack,
     ContextPackOptions, ContextPackSnippet, ContextSearchHit, ContextSearchOptions,
     ContextSearchResults,
 };

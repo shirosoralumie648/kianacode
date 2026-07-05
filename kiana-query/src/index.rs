@@ -130,6 +130,21 @@ pub struct ContextArtifactStore {
     pub dependency_count: usize,
     pub artifacts: ContextArtifacts,
     pub dependency_graph: ContextArtifactDependencyGraph,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<ContextArtifactStoreCacheReport>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactStoreCacheReport {
+    pub path: String,
+    pub status: String,
+    pub reused_artifacts: usize,
+    pub added_artifacts: usize,
+    pub changed_artifacts: usize,
+    pub removed_artifacts: usize,
+    pub reused_dependencies: usize,
+    pub added_dependencies: usize,
+    pub removed_dependencies: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -434,7 +449,38 @@ pub fn build_context_artifact_store(
         dependency_count: dependency_graph.edges.len(),
         artifacts,
         dependency_graph,
+        cache: None,
     })
+}
+
+pub fn build_persistent_context_artifact_store(
+    root: impl AsRef<Path>,
+    options: ContextArtifactOptions,
+    cache_path: impl AsRef<Path>,
+) -> Result<ContextArtifactStore> {
+    let mut store = build_context_artifact_store(root, options)?;
+    let root = PathBuf::from(&store.root);
+    let cache_path = normalize_cache_path(&root, cache_path.as_ref());
+    let previous = read_cached_artifact_store(&cache_path)?;
+    let cache = artifact_store_cache_report(&cache_path, &previous, &store);
+
+    store.cache = Some(cache);
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create context artifact store cache dir {}",
+                parent.display()
+            )
+        })?;
+    }
+    fs::write(&cache_path, serde_json::to_string_pretty(&store)? + "\n").with_context(|| {
+        format!(
+            "failed to write context artifact store cache {}",
+            cache_path.display()
+        )
+    })?;
+
+    Ok(store)
 }
 
 pub fn build_persistent_context_index(
@@ -609,6 +655,12 @@ enum CachedContextArtifacts {
     Invalid,
 }
 
+enum CachedContextArtifactStore {
+    Missing,
+    Valid(ContextArtifactStore),
+    Invalid,
+}
+
 fn read_cached_index(path: &Path) -> Result<CachedContextIndex> {
     match fs::read_to_string(path) {
         Ok(contents) => match serde_json::from_str(&contents) {
@@ -634,6 +686,24 @@ fn read_cached_artifacts(path: &Path) -> Result<CachedContextArtifacts> {
         }
         Err(error) => Err(error)
             .with_context(|| format!("failed to read context artifacts cache {}", path.display())),
+    }
+}
+
+fn read_cached_artifact_store(path: &Path) -> Result<CachedContextArtifactStore> {
+    match fs::read_to_string(path) {
+        Ok(contents) => match serde_json::from_str(&contents) {
+            Ok(store) => Ok(CachedContextArtifactStore::Valid(store)),
+            Err(_) => Ok(CachedContextArtifactStore::Invalid),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(CachedContextArtifactStore::Missing)
+        }
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "failed to read context artifact store cache {}",
+                path.display()
+            )
+        }),
     }
 }
 
@@ -757,6 +827,107 @@ fn artifacts_cache_report(
         changed_artifacts,
         removed_artifacts,
     }
+}
+
+fn artifact_store_cache_report(
+    path: &Path,
+    previous: &CachedContextArtifactStore,
+    current: &ContextArtifactStore,
+) -> ContextArtifactStoreCacheReport {
+    let previous = match previous {
+        CachedContextArtifactStore::Valid(previous) => previous,
+        CachedContextArtifactStore::Missing | CachedContextArtifactStore::Invalid => {
+            return ContextArtifactStoreCacheReport {
+                path: path.to_string_lossy().to_string(),
+                status: match previous {
+                    CachedContextArtifactStore::Missing => "created",
+                    CachedContextArtifactStore::Invalid => "recovered",
+                    CachedContextArtifactStore::Valid(_) => unreachable!(),
+                }
+                .to_string(),
+                reused_artifacts: 0,
+                added_artifacts: current.artifacts.artifacts.len(),
+                changed_artifacts: 0,
+                removed_artifacts: 0,
+                reused_dependencies: 0,
+                added_dependencies: current.dependency_graph.edges.len(),
+                removed_dependencies: 0,
+            };
+        }
+    };
+
+    let previous_artifacts = previous
+        .artifacts
+        .artifacts
+        .iter()
+        .map(|artifact| (artifact.path.as_str(), artifact.content_hash.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let current_artifacts = current
+        .artifacts
+        .artifacts
+        .iter()
+        .map(|artifact| (artifact.path.as_str(), artifact.content_hash.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut reused_artifacts = 0;
+    let mut added_artifacts = 0;
+    let mut changed_artifacts = 0;
+
+    for (path, hash) in &current_artifacts {
+        match previous_artifacts.get(*path) {
+            Some(previous_hash) if *previous_hash == *hash => reused_artifacts += 1,
+            Some(_) => changed_artifacts += 1,
+            None => added_artifacts += 1,
+        }
+    }
+
+    let removed_artifacts = previous_artifacts
+        .keys()
+        .filter(|path| !current_artifacts.contains_key(*path))
+        .count();
+
+    let previous_edges = previous
+        .dependency_graph
+        .edges
+        .iter()
+        .map(dependency_edge_key)
+        .collect::<BTreeSet<_>>();
+    let current_edges = current
+        .dependency_graph
+        .edges
+        .iter()
+        .map(dependency_edge_key)
+        .collect::<BTreeSet<_>>();
+    let reused_dependencies = current_edges
+        .iter()
+        .filter(|edge| previous_edges.contains(*edge))
+        .count();
+    let added_dependencies = current_edges
+        .iter()
+        .filter(|edge| !previous_edges.contains(*edge))
+        .count();
+    let removed_dependencies = previous_edges
+        .iter()
+        .filter(|edge| !current_edges.contains(*edge))
+        .count();
+
+    ContextArtifactStoreCacheReport {
+        path: path.to_string_lossy().to_string(),
+        status: "updated".to_string(),
+        reused_artifacts,
+        added_artifacts,
+        changed_artifacts,
+        removed_artifacts,
+        reused_dependencies,
+        added_dependencies,
+        removed_dependencies,
+    }
+}
+
+fn dependency_edge_key(edge: &ContextArtifactDependencyEdge) -> String {
+    format!(
+        "{}\u{1f}{}\u{1f}{}\u{1f}{}",
+        edge.source, edge.target, edge.relation, edge.evidence
+    )
 }
 
 fn candidate_paths(root: &Path) -> Result<Vec<PathBuf>> {
@@ -1520,6 +1691,84 @@ mod tests {
             edge.relation == "path_reference"
                 && edge.evidence == "docs/design.md references src/lib.rs"
         }));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn persistent_context_artifact_store_reports_cache_recovery_and_deltas() {
+        let root = fixture_root("artifact-store-cache");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+        let cache_path = root.join(".kiana").join("context-artifact-store.json");
+        fs::create_dir_all(cache_path.parent().unwrap()).unwrap();
+        fs::write(&cache_path, "{not valid json").unwrap();
+
+        let recovered = build_persistent_context_artifact_store(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+            &cache_path,
+        )
+        .unwrap();
+        let recovered_cache = recovered.cache.as_ref().unwrap();
+        assert_eq!(recovered.schema, "kiana.context-artifact-store.v1");
+        assert_eq!(recovered_cache.status, "recovered");
+        assert_eq!(recovered_cache.added_artifacts, 3);
+        assert_eq!(recovered_cache.reused_artifacts, 0);
+        assert_eq!(recovered_cache.added_dependencies, 2);
+        assert_eq!(recovered_cache.reused_dependencies, 0);
+        assert!(Path::new(&recovered_cache.path).ends_with(".kiana/context-artifact-store.json"));
+
+        let second = build_persistent_context_artifact_store(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+            &cache_path,
+        )
+        .unwrap();
+        let second_cache = second.cache.as_ref().unwrap();
+        assert_eq!(second_cache.status, "updated");
+        assert_eq!(second_cache.reused_artifacts, 3);
+        assert_eq!(second_cache.added_artifacts, 0);
+        assert_eq!(second_cache.changed_artifacts, 0);
+        assert_eq!(second_cache.removed_artifacts, 0);
+        assert_eq!(second_cache.reused_dependencies, 2);
+        assert_eq!(second_cache.added_dependencies, 0);
+        assert_eq!(second_cache.removed_dependencies, 0);
+
+        fs::write(root.join("src/lib.rs"), "pub fn release_v2() {}\n").unwrap();
+        let third = build_persistent_context_artifact_store(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+            &cache_path,
+        )
+        .unwrap();
+        let third_cache = third.cache.as_ref().unwrap();
+        assert_eq!(third_cache.status, "updated");
+        assert_eq!(third_cache.reused_artifacts, 2);
+        assert_eq!(third_cache.changed_artifacts, 1);
+        assert_eq!(third_cache.reused_dependencies, 0);
+        assert_eq!(third_cache.added_dependencies, 2);
+        assert_eq!(third_cache.removed_dependencies, 2);
+
+        let saved: ContextArtifactStore =
+            serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+        assert_eq!(saved.schema, "kiana.context-artifact-store.v1");
+        assert_eq!(saved.cache.as_ref().unwrap().changed_artifacts, 1);
+        assert_eq!(saved.cache.as_ref().unwrap().added_dependencies, 2);
 
         let _ = fs::remove_dir_all(root);
     }
