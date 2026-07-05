@@ -293,10 +293,12 @@ fi
 if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
   grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs &&
   grep -Fq 'require_signature' kiana-commands/src/plugin.rs &&
-  grep -Fq 'marketplace signature is required' kiana-commands/src/plugin.rs; then
-  pass "managed plugin allow/deny/signature policy is wired"
+  grep -Fq 'marketplace signature is required' kiana-commands/src/plugin.rs &&
+  grep -Fq 'validate_marketplace_signature_content_hash' kiana-commands/src/plugin.rs &&
+  grep -Fq 'plugin_install_rejects_signature_content_hash_mismatch_when_managed_policy_requires_signature' kiana-commands/src/plugin.rs; then
+  pass "managed plugin allow/deny/signature content-hash policy is wired"
 else
-  fail "managed plugin allow/deny/signature policy is not wired"
+  fail "managed plugin allow/deny/signature content-hash policy is not wired"
 fi
 
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
