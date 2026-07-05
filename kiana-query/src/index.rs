@@ -128,10 +128,17 @@ pub struct ContextArtifactStore {
     pub dependency_graph_schema: String,
     pub artifact_count: usize,
     pub dependency_count: usize,
+    pub artifact_roles: Vec<ContextArtifactRoleSummary>,
     pub artifacts: ContextArtifacts,
     pub dependency_graph: ContextArtifactDependencyGraph,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<ContextArtifactStoreCacheReport>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactRoleSummary {
+    pub role: String,
+    pub count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -447,6 +454,7 @@ pub fn build_context_artifact_store(
         dependency_graph_schema: dependency_graph.schema.clone(),
         artifact_count: artifacts.artifacts.len(),
         dependency_count: dependency_graph.edges.len(),
+        artifact_roles: artifact_role_summary(&artifacts.artifacts),
         artifacts,
         dependency_graph,
         cache: None,
@@ -928,6 +936,87 @@ fn dependency_edge_key(edge: &ContextArtifactDependencyEdge) -> String {
         "{}\u{1f}{}\u{1f}{}\u{1f}{}",
         edge.source, edge.target, edge.relation, edge.evidence
     )
+}
+
+fn artifact_role_summary(artifacts: &[ContextArtifactItem]) -> Vec<ContextArtifactRoleSummary> {
+    let mut counts = BTreeMap::<String, usize>::new();
+    for artifact in artifacts {
+        *counts
+            .entry(artifact_role(&artifact.path).to_string())
+            .or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(role, count)| ContextArtifactRoleSummary { role, count })
+        .collect()
+}
+
+fn artifact_role(path: &str) -> &'static str {
+    let normalized = path.replace('\\', "/").to_ascii_lowercase();
+    let file_name = normalized
+        .rsplit('/')
+        .next()
+        .unwrap_or(normalized.as_str())
+        .trim_end_matches(".md")
+        .trim_end_matches(".txt");
+
+    if normalized.starts_with("tests/")
+        || normalized.contains("/tests/")
+        || file_name.ends_with("_test")
+        || file_name.ends_with(".test")
+        || file_name.ends_with("_spec")
+        || file_name.ends_with(".spec")
+    {
+        return "test";
+    }
+    if normalized.starts_with("src/")
+        || normalized.starts_with("crates/")
+        || matches!(
+            Path::new(path)
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .map(|extension| extension.to_ascii_lowercase())
+                .as_deref(),
+            Some(
+                "rs" | "py"
+                    | "ts"
+                    | "tsx"
+                    | "js"
+                    | "jsx"
+                    | "go"
+                    | "java"
+                    | "kt"
+                    | "swift"
+                    | "c"
+                    | "cc"
+                    | "cpp"
+                    | "h"
+                    | "hpp"
+            )
+        )
+    {
+        return "source";
+    }
+    if file_name.contains("prd")
+        || file_name.contains("product-requirement")
+        || file_name.contains("requirements")
+    {
+        return "prd";
+    }
+    if file_name.contains("design")
+        || file_name.contains("architecture")
+        || file_name.contains("adr")
+    {
+        return "design";
+    }
+    if file_name.contains("task")
+        || file_name.contains("todo")
+        || file_name.contains("roadmap")
+        || file_name.contains("backlog")
+    {
+        return "tasks";
+    }
+    "artifact"
 }
 
 fn candidate_paths(root: &Path) -> Result<Vec<PathBuf>> {
@@ -1691,6 +1780,41 @@ mod tests {
             edge.relation == "path_reference"
                 && edge.evidence == "docs/design.md references src/lib.rs"
         }));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifact_store_reports_artifact_role_summary() {
+        let root = fixture_root("artifact-store-roles");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("docs/prd.md"), "# PRD\n").unwrap();
+        fs::write(root.join("docs/design.md"), "# Design\n").unwrap();
+        fs::write(root.join("docs/tasks.md"), "- Ship\n").unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
+
+        let store = build_context_artifact_store(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(store.artifact_roles.len(), 5);
+        assert_eq!(store.artifact_roles[0].role, "design");
+        assert_eq!(store.artifact_roles[0].count, 1);
+        assert_eq!(store.artifact_roles[1].role, "prd");
+        assert_eq!(store.artifact_roles[1].count, 1);
+        assert_eq!(store.artifact_roles[2].role, "source");
+        assert_eq!(store.artifact_roles[2].count, 1);
+        assert_eq!(store.artifact_roles[3].role, "tasks");
+        assert_eq!(store.artifact_roles[3].count, 1);
+        assert_eq!(store.artifact_roles[4].role, "test");
+        assert_eq!(store.artifact_roles[4].count, 1);
 
         let _ = fs::remove_dir_all(root);
     }

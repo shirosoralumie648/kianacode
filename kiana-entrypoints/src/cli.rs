@@ -21009,6 +21009,16 @@ mod tests {
             "kiana.context-artifact-store.v1"
         );
         assert_eq!(context_artifact_store["artifact_count"], 3);
+        assert!(context_artifact_store["artifact_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "source" && role["count"] == 1));
+        assert!(context_artifact_store["artifact_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "artifact" && role["count"] == 2));
         assert_eq!(
             context_artifact_store["dependency_graph_schema"],
             "kiana.context-artifact-dependency-graph.v1"
@@ -21035,6 +21045,11 @@ mod tests {
         );
         assert_eq!(cached_context_artifact_store["cache"]["status"], "created");
         assert_eq!(cached_context_artifact_store["cache"]["added_artifacts"], 3);
+        assert!(cached_context_artifact_store["artifact_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "source" && role["count"] == 1));
         assert_eq!(
             cached_context_artifact_store["cache"]["added_dependencies"],
             0

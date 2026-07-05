@@ -253,6 +253,8 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifact-store --json | grep -Fq '"schema": "kiana.context-artifact-store.v1"'
   run_installed context artifact-store --json | grep -Fq '"artifact_count": 3'
   run_installed context artifact-store --json | grep -Fq '"dependency_count": 2'
+  run_installed context artifact-store --json | grep -Fq '"role": "source"'
+  run_installed context artifact-store --json | grep -Fq '"role": "test"'
   run_installed context artifact-store --json | grep -Fq '"dependency_graph_schema": "kiana.context-artifact-dependency-graph.v1"'
   run_installed context artifact-store --json --cache .kiana/context-artifact-store.json | grep -Fq '"status": "created"'
   run_installed context artifact-store --json --cache .kiana/context-artifact-store.json | grep -Fq '"reused_artifacts": 3'

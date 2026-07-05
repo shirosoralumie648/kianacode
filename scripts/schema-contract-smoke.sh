@@ -345,6 +345,9 @@ cat > "$tmp_context_artifact_store" <<'JSON'
   "dependency_graph_schema": "kiana.context-artifact-dependency-graph.v1",
   "artifact_count": 1,
   "dependency_count": 0,
+  "artifact_roles": [
+    { "role": "source", "count": 1 }
+  ],
   "artifacts": {
     "schema": "kiana.context-artifacts.v1",
     "root": "/workspace",

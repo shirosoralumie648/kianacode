@@ -668,6 +668,15 @@ fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
         ),
         format!("artifacts_schema: {}", store.artifacts_schema),
         format!("dependency_graph_schema: {}", store.dependency_graph_schema),
+        format!(
+            "artifact_roles: {}",
+            store
+                .artifact_roles
+                .iter()
+                .map(|role| format!("{}={}", role.role, role.count))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
     ];
     if let Some(cache) = &store.cache {
         lines.push(format!(
@@ -1270,6 +1279,21 @@ mod tests {
         );
         assert_eq!(value["artifact_count"], 3);
         assert_eq!(value["dependency_count"], 2);
+        assert!(value["artifact_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "design" && role["count"] == 1));
+        assert!(value["artifact_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "source" && role["count"] == 1));
+        assert!(value["artifact_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["role"] == "test" && role["count"] == 1));
         assert_eq!(value["artifacts"]["artifacts"].as_array().unwrap().len(), 3);
         assert!(value["dependency_graph"]["edges"]
             .as_array()

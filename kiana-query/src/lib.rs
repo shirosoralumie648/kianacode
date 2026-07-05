@@ -22,7 +22,7 @@ pub use index::{
     build_context_index, build_context_pack, build_persistent_context_artifact_store,
     build_persistent_context_artifacts, build_persistent_context_index, search_context_index,
     ContextArtifactDependencyEdge, ContextArtifactDependencyGraph, ContextArtifactDependencyNode,
-    ContextArtifactItem, ContextArtifactOptions, ContextArtifactStore,
+    ContextArtifactItem, ContextArtifactOptions, ContextArtifactRoleSummary, ContextArtifactStore,
     ContextArtifactStoreCacheReport, ContextArtifacts, ContextArtifactsCacheReport, ContextIndex,
     ContextIndexCacheReport, ContextIndexOptions, ContextIndexedFile, ContextPack,
     ContextPackOptions, ContextPackSnippet, ContextSearchHit, ContextSearchOptions,
