@@ -71,7 +71,7 @@
             "minLength": 1
           },
           "relation": {
-            "enum": ["test_of"]
+            "enum": ["test_of", "path_reference"]
           },
           "evidence": {
             "type": "string",

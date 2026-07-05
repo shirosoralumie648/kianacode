@@ -338,6 +338,7 @@ pub fn build_context_artifact_dependency_graph(
     options: ContextArtifactOptions,
 ) -> Result<ContextArtifactDependencyGraph> {
     let report = build_context_artifacts(root, options)?;
+    let root = PathBuf::from(&report.root);
     let nodes = report
         .artifacts
         .iter()
@@ -371,6 +372,23 @@ pub fn build_context_artifact_dependency_graph(
         });
     }
 
+    for artifact in &report.artifacts {
+        let path = root.join(&artifact.path);
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        for target in &report.artifacts {
+            if artifact.path == target.path || !content.contains(&target.path) {
+                continue;
+            }
+            edges.push(ContextArtifactDependencyEdge {
+                source: artifact.id.clone(),
+                target: target.id.clone(),
+                relation: "path_reference".to_string(),
+                evidence: format!("{} references {}", artifact.path, target.path),
+            });
+        }
+    }
+
     edges.sort_by(|left, right| {
         left.source
             .cmp(&right.source)
@@ -381,7 +399,7 @@ pub fn build_context_artifact_dependency_graph(
 
     Ok(ContextArtifactDependencyGraph {
         schema: "kiana.context-artifact-dependency-graph.v1".to_string(),
-        root: report.root,
+        root: root.to_string_lossy().to_string(),
         nodes,
         edges,
     })
@@ -1387,6 +1405,46 @@ mod tests {
                 && edge.target == target.id
                 && edge.relation == "test_of"
                 && edge.evidence == "tests/lib_test.rs matches src/lib.rs"
+        }));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifact_dependency_graph_reports_path_references() {
+        let root = fixture_root("artifact-dependency-graph-path-reference");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
+
+        let graph = build_context_artifact_dependency_graph(
+            &root,
+            ContextArtifactOptions {
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        let source = graph
+            .nodes
+            .iter()
+            .find(|node| node.path == "docs/design.md")
+            .unwrap();
+        let target = graph
+            .nodes
+            .iter()
+            .find(|node| node.path == "src/lib.rs")
+            .unwrap();
+        assert!(graph.edges.iter().any(|edge| {
+            edge.source == source.id
+                && edge.target == target.id
+                && edge.relation == "path_reference"
+                && edge.evidence == "docs/design.md references src/lib.rs"
         }));
 
         let _ = fs::remove_dir_all(root);

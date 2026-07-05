@@ -307,6 +307,13 @@ cat > "$tmp_context_artifact_graph" <<'JSON'
       "path": "tests/lib_test.rs",
       "language": "rust",
       "content_hash": "fedcba9876543210"
+    },
+    {
+      "id": "file:docs/design.md:abcdef0123456789",
+      "kind": "file",
+      "path": "docs/design.md",
+      "language": "markdown",
+      "content_hash": "abcdef0123456789"
     }
   ],
   "edges": [
@@ -315,6 +322,12 @@ cat > "$tmp_context_artifact_graph" <<'JSON'
       "target": "file:src/lib.rs:0123456789abcdef",
       "relation": "test_of",
       "evidence": "tests/lib_test.rs matches src/lib.rs"
+    },
+    {
+      "source": "file:docs/design.md:abcdef0123456789",
+      "target": "file:src/lib.rs:0123456789abcdef",
+      "relation": "path_reference",
+      "evidence": "docs/design.md references src/lib.rs"
     }
   ]
 }

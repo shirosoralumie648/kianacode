@@ -1107,8 +1107,14 @@ mod tests {
     #[tokio::test]
     async fn context_artifact_graph_json_reports_test_edges() {
         let root = fixture_root("artifact-graph-command");
+        fs::create_dir_all(root.join("docs")).unwrap();
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(
+            root.join("docs/design.md"),
+            "The release API is implemented in src/lib.rs.\n",
+        )
+        .unwrap();
         fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
         fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
 
@@ -1125,10 +1131,14 @@ mod tests {
             value["schema"],
             "kiana.context-artifact-dependency-graph.v1"
         );
-        assert_eq!(value["nodes"].as_array().unwrap().len(), 2);
+        assert_eq!(value["nodes"].as_array().unwrap().len(), 3);
         assert!(value["edges"].as_array().unwrap().iter().any(|edge| {
             edge["relation"] == "test_of"
                 && edge["evidence"] == "tests/lib_test.rs matches src/lib.rs"
+        }));
+        assert!(value["edges"].as_array().unwrap().iter().any(|edge| {
+            edge["relation"] == "path_reference"
+                && edge["evidence"] == "docs/design.md references src/lib.rs"
         }));
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));

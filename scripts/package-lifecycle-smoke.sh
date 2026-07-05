@@ -232,7 +232,7 @@ mkdir -p "$context_fixture/tests"
 mkdir -p "$context_artifact_root/bundle"
 printf '%s\n' 'pub fn lifecycle_search() {}' '// lifecycle lifecycle search' > "$context_fixture/src/lib.rs"
 printf '%s\n' 'use kiana::lifecycle_search;' > "$context_fixture/tests/lib_test.rs"
-printf '%s\n' 'first module summary' > "$context_fixture/docs/path-only.md"
+printf '%s\n' 'first module summary referencing src/lib.rs' > "$context_fixture/docs/path-only.md"
 printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
 (
   cd "$context_fixture"
@@ -247,6 +247,8 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifact-graph --json | grep -Fq '"schema": "kiana.context-artifact-dependency-graph.v1"'
   run_installed context artifact-graph --json | grep -Fq '"relation": "test_of"'
   run_installed context artifact-graph --json | grep -Fq '"evidence": "tests/lib_test.rs matches src/lib.rs"'
+  run_installed context artifact-graph --json | grep -Fq '"relation": "path_reference"'
+  run_installed context artifact-graph --json | grep -Fq '"evidence": "docs/path-only.md references src/lib.rs"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"schema": "kiana.context-search.v1"'
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'
@@ -255,7 +257,7 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-artifact-graph.v1"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"relation": "matched"'
-  run_installed context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first module summary"'
+  run_installed context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first module summary referencing src/lib.rs"'
   run_installed context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-artifact-graph.v1"'
   run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "bundle/notes.md"'
   run_installed context pack bundle/notes.md --root "$context_artifact_root" --json --limit 1 --max-snippet-lines 1 | grep -Fq '"excerpt": "first artifact line"'

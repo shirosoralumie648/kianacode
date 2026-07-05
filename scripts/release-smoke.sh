@@ -393,7 +393,7 @@ smoke_context_index_search_json() {
   printf '%s\n' 'pub fn release_context_search() {}' '// release release context search' > "$project_dir/src/lib.rs"
   printf '%s\n' 'use kiana::release_context_search;' > "$project_dir/tests/lib_test.rs"
   printf '%s\n' '# Context Guide' 'release context guide' > "$project_dir/README.md"
-  printf '%s\n' 'first module summary' > "$project_dir/docs/path-only.md"
+  printf '%s\n' 'first module summary referencing src/lib.rs' > "$project_dir/docs/path-only.md"
   printf '%s\n' 'first artifact line' > "$artifact_dir/bundle/notes.md"
 
   index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
@@ -449,6 +449,7 @@ checks = [
     len(artifact_graph.get("nodes", [])) == 4,
     any(node.get("path") == "tests/lib_test.rs" for node in artifact_graph.get("nodes", [])),
     any(edge.get("relation") == "test_of" and edge.get("evidence") == "tests/lib_test.rs matches src/lib.rs" for edge in artifact_graph.get("edges", [])),
+    any(edge.get("relation") == "path_reference" and edge.get("evidence") == "docs/path-only.md references src/lib.rs" for edge in artifact_graph.get("edges", [])),
     search.get("schema") == "kiana.context-search.v1",
     search.get("terms") == ["release"],
     search.get("limit") == 1,
@@ -458,7 +459,7 @@ checks = [
     path_search.get("schema") == "kiana.context-search.v1",
     path_search.get("hits", [{}])[0].get("path") == "docs/path-only.md",
     path_search.get("hits", [{}])[0].get("occurrences") == 0,
-    path_search.get("hits", [{}])[0].get("line") == "first module summary",
+    path_search.get("hits", [{}])[0].get("line") == "first module summary referencing src/lib.rs",
     pack.get("schema") == "kiana.context-pack.v1",
     pack.get("terms") == ["release"],
     pack.get("limit") == 1,
@@ -480,7 +481,7 @@ checks = [
     path_pack.get("schema") == "kiana.context-pack.v1",
     path_pack.get("snippets", [{}])[0].get("path") == "docs/path-only.md",
     path_pack.get("snippets", [{}])[0].get("occurrences") == 0,
-    path_pack.get("snippets", [{}])[0].get("excerpt") == "first module summary",
+    path_pack.get("snippets", [{}])[0].get("excerpt") == "first module summary referencing src/lib.rs",
     path_pack.get("artifact_graph", {}).get("schema") == "kiana.context-artifact-graph.v1",
     path_pack.get("artifact_graph", {}).get("nodes", [{}])[0].get("path") == "docs/path-only.md",
     root_pack.get("schema") == "kiana.context-pack.v1",
