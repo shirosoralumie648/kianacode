@@ -283,6 +283,13 @@ else
   fail "local marketplace remote plugin source install is not covered"
 fi
 
+if grep -Fq 'plugin_install_from_remote_marketplace_pip_file_package_source' kiana-commands/src/plugin.rs &&
+  grep -Fq 'resolve_remote_file_package_source' kiana-commands/src/plugin.rs; then
+  pass "offline pip file plugin source install is covered"
+else
+  fail "offline pip file plugin source install is not covered"
+fi
+
 if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
   grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs; then
   pass "managed plugin allow/deny policy is wired"
