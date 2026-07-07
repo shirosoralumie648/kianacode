@@ -139,6 +139,11 @@ def valid_fingerprint(mapping, key):
     return isinstance(value, str) and bool(FINGERPRINT_PATTERN.fullmatch(value))
 
 
+def version_tuple(value):
+    parts = [int(part) for part in re.findall(r"\d+", value or "")[:3]]
+    return tuple(parts + [0] * (3 - len(parts)))
+
+
 def unique_paths(paths):
     seen = set()
     result = []
@@ -506,6 +511,11 @@ def default_acceptance_artifacts(check_id, paths):
             "complete Cargo registry source cache for every locked registry package",
             "successful locked/offline Cargo metadata or release-smoke run",
         ],
+        "compliance.native-computer-use-advisories": [
+            "upstream xcap/xcb/wayland-scanner update that removes quick-xml < 0.41 from the optional native-computer-use chain",
+            "or release-security accepted RustSec exception for native-computer-use commercial enablement",
+            "release notes or product scope confirming default commercial binaries do not enable native-computer-use",
+        ],
     }.get(check_id, [])
 
 
@@ -660,6 +670,13 @@ def locked_registry_packages(lock_path):
     return sorted(set(packages)), None
 
 
+def locked_registry_package_versions(package_name):
+    packages, error = locked_registry_packages(ROOT / "Cargo.lock")
+    if error:
+        return [], error
+    return sorted(version for name, version in packages if name == package_name), None
+
+
 def cargo_registry_src_roots():
     cargo_home = Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo"))
     src_root = cargo_home / "registry" / "src"
@@ -707,6 +724,61 @@ add_check(
         "bash scripts/release-smoke.sh",
     ],
     env=["CARGO_HOME", "CARGO_REGISTRIES_CRATES_IO_PROTOCOL", "CARGO_NET_GIT_FETCH_WITH_CLI"],
+)
+
+quick_xml_versions, quick_xml_error = locked_registry_package_versions("quick-xml")
+old_quick_xml_versions = [
+    version for version in quick_xml_versions if version_tuple(version) < version_tuple("0.41.0")
+]
+entrypoints_toml = ROOT / "kiana-entrypoints" / "Cargo.toml"
+computer_mcp_toml = ROOT / "kiana-computer-mcp" / "Cargo.toml"
+native_source_files_available = entrypoints_toml.is_file() and computer_mcp_toml.is_file()
+native_computer_use_declared = (
+    native_source_files_available
+    and "native-computer-use" in entrypoints_toml.read_text(encoding="utf-8")
+    and "dep:xcap" in computer_mcp_toml.read_text(encoding="utf-8")
+)
+native_advisory_accepted = os.environ.get("KIANA_NATIVE_COMPUTER_USE_RUSTSEC_ACCEPTED", "") == "1"
+native_advisory_ok = (
+    quick_xml_error is None
+    and native_source_files_available
+    and (not native_computer_use_declared or not old_quick_xml_versions or native_advisory_accepted)
+)
+native_advisory_evidence = (
+    "native-computer-use quick-xml advisory exception accepted by release-security"
+    if native_advisory_accepted
+    else (
+        "no vulnerable optional native-computer-use quick-xml versions found"
+        if native_advisory_ok
+        else (
+            "source feature declarations are unavailable in this packaged release root"
+            if not native_source_files_available
+            else f"optional native-computer-use lockfile quick-xml versions below 0.41.0: {', '.join(old_quick_xml_versions) or quick_xml_error}"
+        )
+    )
+)
+add_check(
+    id="compliance.native-computer-use-advisories",
+    category="build-test",
+    title="Optional native computer-use advisory exception is fixed or accepted",
+    ok=native_advisory_ok,
+    external=True,
+    gate="scripts/compliance-audit.sh",
+    evidence=native_advisory_evidence,
+    required_action="Upgrade the optional native-computer-use capture dependency chain or attach release-security acceptance before enabling that feature in a commercial release.",
+    paths=["Cargo.lock", "kiana-computer-mcp/Cargo.toml", "kiana-entrypoints/Cargo.toml"],
+    commands=[
+        "cargo audit",
+        "cargo tree -i quick-xml@0.41.0 --locked",
+        "cargo build --release --locked --offline -p kiana-entrypoints --bin kiana",
+    ],
+    env=["KIANA_NATIVE_COMPUTER_USE_RUSTSEC_ACCEPTED"],
+    owner="release-security",
+    verification_commands=[
+        "bash scripts/compliance-audit.sh --local-rc",
+        "bash scripts/compliance-audit.sh",
+        "cargo build -p kiana-entrypoints --bin kiana --features native-computer-use --locked",
+    ],
 )
 
 

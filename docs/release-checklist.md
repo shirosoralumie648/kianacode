@@ -53,7 +53,9 @@ commercial release.
   artifact set before verification, writes `dist/proofs/PROOF-MANIFEST.json`,
   and records `dist/proofs/HANDOFF.md` without creating accepted evidence.
 - `scripts/compliance-audit.sh --local-rc` produces `SBOM.cdx.json` and
-  `compliance-report.json`.
+  `compliance-report.json`; local RC mode verifies the default resolved
+  dependency graph before allowing lockfile-only RustSec exceptions from the
+  optional `native-computer-use` capture stack.
 - `scripts/schema-contract-smoke.sh` passes and validates proof templates, the
   commercial blocker report, and the local RC evidence report against the pinned
   schemas using the packaged schema validator.
@@ -69,7 +71,11 @@ commercial release.
 
 - `SECURITY.md`, `PRIVACY.md`, and `TELEMETRY.md` are current.
 - Dependency advisory and license review results are attached to the release.
-- Any allowed advisory warnings are listed in `deny.toml` or release notes with an owner and follow-up path.
+- Any allowed advisory warnings are listed in `deny.toml`, the compliance
+  report, or release notes with an owner and follow-up path.
+- The optional `native-computer-use` feature is either excluded from the
+  commercial scope or has release-security acceptance for any upstream
+  `xcap`/`xcb`/`wayland-scanner` advisory exception.
 - SBOM output is attached or linked.
 - Release binaries are signed; macOS artifacts are notarized when applicable.
 - `scripts/sign-release-artifacts.sh` runs with real `KIANA_SIGNING_COMMAND`

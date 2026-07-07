@@ -20133,9 +20133,9 @@ mod tests {
                     "release_artifacts": 1,
                     "manifests": 2,
                     "proofs": 2,
-                    "blockers_total": 12,
+                    "blockers_total": 13,
                     "local_blockers": 0,
-                    "external_blockers": 12
+                    "external_blockers": 13
                 },
                 "release_artifacts": [{
                     "target": "linux-x86_64",
@@ -20158,9 +20158,9 @@ mod tests {
                 }],
                 "blockers": {
                     "status": "blocked",
-                    "blocking": 12,
+                    "blocking": 13,
                     "local_blocking": 0,
-                    "external_blocking": 12,
+                    "external_blocking": 13,
                     "blocking_ids": ["source.remote"]
                 }
             }))

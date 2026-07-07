@@ -22,7 +22,12 @@ minor versions may include breaking CLI, config, or storage changes. Use
 - Local compliance tool bootstrap through `scripts/install-compliance-tools.sh`.
 - Dependency hardening for the release candidate: removed `rmcp`, upgraded
   `reqwest`/`tokio-tungstenite`/TLS stack dependencies, and replaced direct
-  `ansi_term` usage so `cargo audit` no longer reports vulnerability errors.
+  `ansi_term` usage so the default release dependency graph clears those
+  earlier vulnerability errors.
+- Local RC compliance now distinguishes the default release dependency graph
+  from lockfile-only optional `native-computer-use` capture dependencies, while
+  the commercial blocker report keeps that optional advisory exception assigned
+  to release-security before the feature can enter commercial scope.
 - Direct-connect reference parity: `cc+unix:///path/to/socket` open targets and
   `kiana server --unix <path>` now have Unix-domain-socket implementations on
   Unix platforms, with explicit unsupported-platform errors on Windows.
