@@ -241,6 +241,11 @@ run_installed model smoke --json | grep -Fq '"tools": false'
 run_installed model smoke --json | grep -Fq '"provider_id": "fake"'
 run_installed model smoke --tools --json | grep -Fq '"tools": true'
 run_installed model smoke --tools --json | grep -Fq '"capability": "tools"'
+(
+  cd "$package_root"
+  KIANA_PYTHON_BIN="$package_python_bin" run_installed release blockers --json | grep -Fq '"schema": "kiana.commercial-release-blockers.v1"'
+  KIANA_PYTHON_BIN="$package_python_bin" run_installed release blockers --json | grep -Fq '"local_blocking"'
+)
 context_fixture="$tmp_root/context-fixture"
 context_artifact_root="$tmp_root/context-artifact-root"
 mkdir -p "$context_fixture/src"

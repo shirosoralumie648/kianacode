@@ -225,6 +225,23 @@ else
   fail "release smoke does not exercise auto-mode fake provider critique"
 fi
 
+if grep -Fq 'release blockers --json' scripts/release-smoke.sh &&
+  grep -Fq 'kiana.commercial-release-blockers.v1' scripts/release-smoke.sh &&
+  grep -Fq 'KIANA_PYTHON_BIN' scripts/release-smoke.sh &&
+  grep -Fq 'local_blocking' scripts/release-smoke.sh; then
+  pass "release blockers CLI smoke gate is wired"
+else
+  fail "release smoke does not exercise release blockers CLI JSON"
+fi
+
+if grep -Fq 'run_installed release blockers --json' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'KIANA_PYTHON_BIN' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'kiana.commercial-release-blockers.v1' scripts/package-lifecycle-smoke.sh; then
+  pass "package lifecycle smoke covers release blockers CLI"
+else
+  fail "package lifecycle smoke does not cover release blockers CLI"
+fi
+
 if grep -Fq 'context index --json' scripts/release-smoke.sh &&
   grep -Fq 'context ingest --source' scripts/release-smoke.sh &&
   grep -Fq 'context search release --json --limit 1' scripts/release-smoke.sh &&
@@ -378,6 +395,15 @@ if grep -Fq 'auto-mode-critique' kiana-commands/src/doctor.rs &&
   pass "doctor provider registry reports auto-mode fake provider critique evidence"
 else
   fail "doctor provider registry is missing auto-mode fake provider critique evidence"
+fi
+
+if grep -Fq 'release blockers --json' kiana-commands/src/release.rs &&
+  grep -Fq 'commercial-release-blockers-report.sh' kiana-commands/src/release.rs &&
+  grep -Fq 'KIANA_RELEASE_BLOCKERS_SCRIPT' kiana-commands/src/release.rs &&
+  grep -Fq 'KIANA_PYTHON_BIN' scripts/commercial-release-blockers-report.sh; then
+  pass "release blockers CLI wraps commercial blocker report"
+else
+  fail "release blockers CLI is not wired to commercial blocker report"
 fi
 
 if grep -Fq 'plugin_install_from_local_marketplace_file_remote_git_source' kiana-commands/src/plugin.rs &&

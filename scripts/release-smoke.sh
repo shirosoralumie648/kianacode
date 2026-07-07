@@ -539,6 +539,46 @@ smoke_auto_mode_fake_critique() {
   fi
 }
 
+smoke_release_blockers_json() {
+  local binary="$1"
+  local output
+  local python_bin
+
+  python_bin="$(doctor_json_python)"
+  if ! output="$(KIANA_PYTHON_BIN="$python_bin" run_clean_kiana "$binary" release blockers --json 2>&1)"; then
+    echo "release blockers CLI failed for: $binary" >&2
+    echo "$output" >&2
+    return 1
+  fi
+  RELEASE_BLOCKERS_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["RELEASE_BLOCKERS_JSON"])
+except Exception as exc:
+    print(f"release blockers JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("RELEASE_BLOCKERS_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("schema") != "kiana.commercial-release-blockers.v1":
+    print("release blockers schema mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+
+summary = report.get("summary", {})
+if not isinstance(summary, dict) or "blocking" not in summary or "local_blocking" not in summary:
+    print("release blockers summary missing blocker counts", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if not isinstance(report.get("checks"), list):
+    print("release blockers checks missing", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 smoke_context_index_search_json() {
   local binary="$1"
   local binary_path="$binary"
@@ -1258,6 +1298,7 @@ help_smoke_cases=(
   "auth status --help::Usage: kiana auth status"
   "license --help::Usage: kiana license"
   "license status --help::Usage: kiana license status"
+  "release --help::Usage: kiana release"
   "completion --help::Usage: kiana completion <shell>"
   "plugin --help::--scope user|project|local"
   "plugin install --help::Usage: kiana plugin install"
@@ -1320,6 +1361,7 @@ smoke_commercial_security_doctor_json "$release_bin"
 smoke_model_smoke_json "$release_bin"
 smoke_model_catalog_json "$release_bin"
 smoke_auto_mode_fake_critique "$release_bin"
+smoke_release_blockers_json "$release_bin"
 smoke_context_index_search_json "$release_bin"
 smoke_license_status_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
@@ -1339,6 +1381,7 @@ smoke_commercial_security_doctor_json "$installed_bin"
 smoke_model_smoke_json "$installed_bin"
 smoke_model_catalog_json "$installed_bin"
 smoke_auto_mode_fake_critique "$installed_bin"
+smoke_release_blockers_json "$installed_bin"
 smoke_context_index_search_json "$installed_bin"
 smoke_license_status_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do

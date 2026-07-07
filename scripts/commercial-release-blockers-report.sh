@@ -48,6 +48,10 @@ EOF
 done
 
 python_bin() {
+  if [[ -n "${KIANA_PYTHON_BIN:-}" ]]; then
+    printf '%s\n' "$KIANA_PYTHON_BIN"
+    return 0
+  fi
   command -v python3 2>/dev/null || command -v python 2>/dev/null || {
     echo "commercial release blockers report requires python3 or python" >&2
     exit 1

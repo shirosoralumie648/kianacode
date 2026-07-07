@@ -1,7 +1,8 @@
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
+use std::process::Command as ProcessCommand;
 
 pub struct ReleaseCommand;
 
@@ -24,62 +25,233 @@ impl Command for ReleaseCommand {
     }
 
     async fn execute(&self, context: CommandContext) -> anyhow::Result<CommandResult> {
-        match context.args.trim() {
-            "" => {}
-            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
-            _ => return Err(anyhow!(usage())),
-        }
-
-        let script = release_smoke_script_path();
-        let workflow = release_smoke_workflow_path();
-        let live_gate = release_live_gate_token_status();
-        let mut lines = vec!["Release readiness".to_string()];
-        lines.push(format!(
-            "smoke_script: {} ({})",
-            release_smoke_script_label(&script),
-            if script.is_file() { "found" } else { "missing" }
-        ));
-        lines.push(format!(
-            "ci_workflow: {} ({})",
-            release_smoke_workflow_label(&workflow),
-            if workflow.is_file() {
-                "found"
-            } else {
-                "missing"
+        let args = split_words(&context.args);
+        match args.first().map(String::as_str) {
+            None => release_readiness(),
+            Some("help" | "--help" | "-h") => {
+                reject_extra("release help", args.get(1..).unwrap_or_default())?;
+                Ok(CommandResult::text(usage()))
             }
-        ));
-        lines.push("gate: cargo fmt --all --check".to_string());
-        lines.push("gate: cargo test --workspace --locked --offline --no-fail-fast".to_string());
-        lines.push(
-            "gate: cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"
-                .to_string(),
-        );
-        lines.push("gate: ./target/release/kiana --version".to_string());
-        lines.push("gate: ./target/release/kiana doctor".to_string());
-        lines.push("gate: temp INSTALL_DIR make install + installed kiana doctor".to_string());
-        lines.push("commercial_gate: bash scripts/release-preflight.sh".to_string());
-        lines.push("commercial_gate: bash scripts/provider-live-smoke.sh --required".to_string());
-        lines.push("commercial_gate: bash scripts/remote-live-smoke.sh --required".to_string());
-        lines.push("commercial_gate: bash scripts/sign-release-artifacts.sh".to_string());
-        lines.push("commercial_gate: bash scripts/entitlement-proof-report.sh full".to_string());
-        lines.push("commercial_gate: bash scripts/product-acceptance-report.sh full".to_string());
-        lines.push("commercial_gate: bash scripts/release-ops-report.sh full".to_string());
-        lines.push(
-            "commercial_gate: bash scripts/verify-commercial-release-artifacts.sh".to_string(),
-        );
-        lines
-            .push("optional_live_gate: kiana remote-session code-session smoke --json".to_string());
-        lines.push(format!("optional_live_gate_status: {}", live_gate.label()));
-        if let Some(fix) = live_gate.fix() {
-            lines.push(format!("optional_live_gate_fix: {fix}"));
+            Some("blockers") => release_blockers(args.get(1..).unwrap_or_default()),
+            Some(_) => Err(anyhow!(usage())),
         }
-        lines.push("usage: bash scripts/release-smoke.sh".to_string());
-        Ok(CommandResult::text(lines.join("\n")))
     }
 }
 
+fn release_readiness() -> anyhow::Result<CommandResult> {
+    let script = release_smoke_script_path();
+    let workflow = release_smoke_workflow_path();
+    let live_gate = release_live_gate_token_status();
+    let mut lines = vec!["Release readiness".to_string()];
+    lines.push(format!(
+        "smoke_script: {} ({})",
+        release_smoke_script_label(&script),
+        if script.is_file() { "found" } else { "missing" }
+    ));
+    lines.push(format!(
+        "ci_workflow: {} ({})",
+        release_smoke_workflow_label(&workflow),
+        if workflow.is_file() {
+            "found"
+        } else {
+            "missing"
+        }
+    ));
+    lines.push("gate: cargo fmt --all --check".to_string());
+    lines.push("gate: cargo test --workspace --locked --offline --no-fail-fast".to_string());
+    lines.push(
+        "gate: cargo build --release --locked --offline -p kiana-entrypoints --bin kiana"
+            .to_string(),
+    );
+    lines.push("gate: ./target/release/kiana --version".to_string());
+    lines.push("gate: ./target/release/kiana doctor".to_string());
+    lines.push("gate: temp INSTALL_DIR make install + installed kiana doctor".to_string());
+    lines.push("commercial_gate: kiana release blockers --json".to_string());
+    lines.push("commercial_gate: bash scripts/release-preflight.sh".to_string());
+    lines.push("commercial_gate: bash scripts/provider-live-smoke.sh --required".to_string());
+    lines.push("commercial_gate: bash scripts/remote-live-smoke.sh --required".to_string());
+    lines.push("commercial_gate: bash scripts/sign-release-artifacts.sh".to_string());
+    lines.push("commercial_gate: bash scripts/entitlement-proof-report.sh full".to_string());
+    lines.push("commercial_gate: bash scripts/product-acceptance-report.sh full".to_string());
+    lines.push("commercial_gate: bash scripts/release-ops-report.sh full".to_string());
+    lines.push("commercial_gate: bash scripts/verify-commercial-release-artifacts.sh".to_string());
+    lines.push("optional_live_gate: kiana remote-session code-session smoke --json".to_string());
+    lines.push(format!("optional_live_gate_status: {}", live_gate.label()));
+    if let Some(fix) = live_gate.fix() {
+        lines.push(format!("optional_live_gate_fix: {fix}"));
+    }
+    lines.push("usage: bash scripts/release-smoke.sh".to_string());
+    Ok(CommandResult::text(lines.join("\n")))
+}
+
 fn usage() -> &'static str {
-    "Usage: kiana release"
+    "Usage: kiana release [blockers]\n       kiana release blockers [--json] [--dist-dir <dir>]"
+}
+
+#[derive(Default)]
+struct ReleaseBlockersArgs {
+    json: bool,
+    dist_dir: Option<PathBuf>,
+}
+
+fn release_blockers(args: &[String]) -> anyhow::Result<CommandResult> {
+    let args = parse_release_blockers_args(args)?;
+    let output = commercial_release_blockers_report(&args)?;
+    Ok(CommandResult::text(output.trim_end().to_string()))
+}
+
+fn parse_release_blockers_args(args: &[String]) -> anyhow::Result<ReleaseBlockersArgs> {
+    let mut parsed = ReleaseBlockersArgs::default();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--json" | "json" => parsed.json = true,
+            "--dist-dir" => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| anyhow!("kiana release blockers --dist-dir requires a value"))?;
+                parsed.dist_dir = Some(non_empty_path("--dist-dir", value)?);
+            }
+            value if value.starts_with("--dist-dir=") => {
+                parsed.dist_dir = Some(non_empty_path(
+                    "--dist-dir",
+                    value.trim_start_matches("--dist-dir="),
+                )?);
+            }
+            "help" | "--help" | "-h" => return Err(anyhow!(release_blockers_usage())),
+            other => {
+                return Err(anyhow!(
+                    "unknown release blockers argument '{}'\n\n{}",
+                    other,
+                    release_blockers_usage()
+                ))
+            }
+        }
+        index += 1;
+    }
+    Ok(parsed)
+}
+
+fn release_blockers_usage() -> &'static str {
+    "Usage: kiana release blockers [--json] [--dist-dir <dir>]"
+}
+
+fn commercial_release_blockers_report(args: &ReleaseBlockersArgs) -> anyhow::Result<String> {
+    let root = workspace_root()?;
+    let run_root = release_blockers_run_root(&root);
+    let mut script_command = release_blockers_script_command();
+    if args.json {
+        script_command.push_str(" --json");
+    }
+    let mut failures = Vec::new();
+    for bash in release_bash_candidates() {
+        let mut command = ProcessCommand::new(&bash);
+        command
+            .arg("-lc")
+            .arg(&script_command)
+            .current_dir(&run_root);
+        if let Some(dist_dir) = args.dist_dir.as_ref() {
+            command.env("DIST_DIR", dist_dir);
+        }
+        match command.output() {
+            Ok(output) if output.status.success() => {
+                return String::from_utf8(output.stdout)
+                    .context("commercial release blockers report was not valid UTF-8");
+            }
+            Ok(output) => failures.push(format!(
+                "{} exited with status {}: {}",
+                bash.display(),
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Err(error) => failures.push(format!("{} failed to start: {error}", bash.display())),
+        }
+    }
+    Err(anyhow!(
+        "failed to run scripts/commercial-release-blockers-report.sh: {}",
+        failures.join(" | ")
+    ))
+}
+
+fn release_blockers_script_command() -> String {
+    std::env::var("KIANA_RELEASE_BLOCKERS_SCRIPT")
+        .map(|path| format!("bash {}", shell_quote(&path)))
+        .unwrap_or_else(|_| "./scripts/commercial-release-blockers-report.sh".to_string())
+}
+
+fn release_blockers_run_root(workspace_root: &Path) -> PathBuf {
+    if std::env::var_os("KIANA_RELEASE_BLOCKERS_SCRIPT").is_some() {
+        return std::env::current_dir().unwrap_or_else(|_| workspace_root.to_path_buf());
+    }
+    let mut current = std::env::current_dir().unwrap_or_else(|_| workspace_root.to_path_buf());
+    loop {
+        if current
+            .join("scripts")
+            .join("commercial-release-blockers-report.sh")
+            .is_file()
+        {
+            return current;
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    workspace_root.to_path_buf()
+}
+
+fn workspace_root() -> anyhow::Result<PathBuf> {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn release_bash_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = std::env::var_os("KIANA_BASH") {
+        candidates.push(PathBuf::from(path));
+    }
+    #[cfg(windows)]
+    {
+        candidates.push(PathBuf::from(r"C:\Program Files\Git\bin\bash.exe"));
+        candidates.push(PathBuf::from(r"C:\Program Files\Git\usr\bin\bash.exe"));
+        candidates.push(PathBuf::from(r"C:\Program Files (x86)\Git\bin\bash.exe"));
+        candidates.push(PathBuf::from(
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+        ));
+    }
+    candidates.push(PathBuf::from("bash"));
+    candidates
+}
+
+fn non_empty_path(flag: &str, value: &str) -> anyhow::Result<PathBuf> {
+    let value = value.trim();
+    if value.is_empty() {
+        Err(anyhow!("{flag} requires a value"))
+    } else {
+        Ok(PathBuf::from(value))
+    }
+}
+
+fn reject_extra(command: &str, extra: &[String]) -> anyhow::Result<()> {
+    if extra.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "unknown {command} argument '{}'\n\n{}",
+            extra[0],
+            usage()
+        ))
+    }
+}
+
+fn split_words(input: &str) -> Vec<String> {
+    input.split_whitespace().map(str::to_string).collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,7 +397,11 @@ mod tests {
     use super::ReleaseCommand;
     use crate::{Command, CommandContext};
     use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::process::Command as ProcessCommand;
     use std::sync::{Mutex, OnceLock};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -261,6 +437,35 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-release-{label}-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn test_bash() -> Option<String> {
+        let mut candidates = Vec::new();
+        #[cfg(windows)]
+        {
+            candidates.push(r"C:\Program Files\Git\bin\bash.exe".to_string());
+            candidates.push(r"C:\Program Files\Git\usr\bin\bash.exe".to_string());
+        }
+        candidates.push("bash".to_string());
+        candidates.into_iter().find(|candidate| {
+            ProcessCommand::new(candidate)
+                .arg("--version")
+                .output()
+                .is_ok_and(|output| output.status.success())
+        })
     }
 
     #[tokio::test]
@@ -311,6 +516,9 @@ mod tests {
             .contains("gate: temp INSTALL_DIR make install + installed kiana doctor"));
         assert!(result
             .value
+            .contains("commercial_gate: kiana release blockers --json"));
+        assert!(result
+            .value
             .contains("commercial_gate: bash scripts/provider-live-smoke.sh --required"));
         assert!(result
             .value
@@ -330,6 +538,40 @@ mod tests {
         assert!(result
             .value
             .contains("commercial_gate: bash scripts/verify-commercial-release-artifacts.sh"));
+    }
+
+    #[tokio::test]
+    async fn release_blockers_json_runs_script_with_dist_dir() {
+        let _lock = env_lock().lock().unwrap();
+        let bash = test_bash().expect("bash is required for release blockers command test");
+        let root = unique_temp_dir("blockers");
+        let script = root.join("blockers.sh");
+        fs::write(
+            &script,
+            "#!/usr/bin/env bash\nset -euo pipefail\nprintf '{\"schema\":\"kiana.commercial-release-blockers.v1\",\"dist\":\"%s\",\"args\":\"%s\"}\\n' \"${DIST_DIR:-}\" \"$*\"\n",
+        )
+        .unwrap();
+        let script_value = script.to_string_lossy().to_string();
+        let _guard = EnvGuard::set(&[
+            ("KIANA_BASH", Some(&bash)),
+            ("KIANA_RELEASE_BLOCKERS_SCRIPT", Some(&script_value)),
+            ("DIST_DIR", None),
+        ]);
+
+        let result = ReleaseCommand
+            .execute(CommandContext {
+                args: "blockers --json --dist-dir target/release-blockers-fixture".to_string(),
+                app_state: HashMap::new(),
+            })
+            .await
+            .unwrap();
+        let report: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.commercial-release-blockers.v1");
+        assert_eq!(report["dist"], "target/release-blockers-fixture");
+        assert_eq!(report["args"], "--json");
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[tokio::test]
