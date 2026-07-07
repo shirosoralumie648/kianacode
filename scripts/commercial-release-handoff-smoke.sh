@@ -993,15 +993,23 @@ KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed \
   "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-blockers.json" >/dev/null
 test -s "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md"
 
-"$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md" <<'PY'
+"$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md" "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-blockers.json" <<'PY'
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
+blockers_path = Path(sys.argv[3])
+blockers_report = json.loads(blockers_path.read_text(encoding="utf-8"))
 proofs = report.get("proofs", [])
 by_schema = {proof.get("schema"): proof for proof in proofs}
+blockers = report.get("blockers", {})
+handoff_artifacts = {
+    artifact.get("kind"): artifact
+    for artifact in blockers.get("handoff_artifacts", [])
+}
 expected = {
     "kiana.source-control-proof.v1": "local_rc_only",
     "kiana.product-acceptance.v1": "headless_smoke_only",
@@ -1025,6 +1033,32 @@ if "## Blocking Assignments" not in handoff:
     raise SystemExit("local RC commercial release handoff is missing blocking assignments")
 if "signing.release-artifacts" not in handoff:
     raise SystemExit("local RC commercial release handoff is missing signing blocker assignment")
+blocking_ids = blockers.get("blocking_ids", [])
+external_blocking_ids = [
+    check.get("id", "")
+    for check in blockers_report.get("checks", [])
+    if check.get("status") == "blocking" and check.get("external") is True
+]
+if blockers.get("external_blocking_ids") != external_blocking_ids:
+    raise SystemExit("local RC evidence external blocking IDs do not match blocker report")
+if blockers.get("handoff_status") != "external_action_required":
+    raise SystemExit("local RC evidence did not flag external action requirement")
+for blocker_id in blocking_ids:
+    if blocker_id not in handoff:
+        raise SystemExit(f"local RC handoff markdown is missing blocker ID {blocker_id}")
+expected_artifacts = {
+    "blockers_json": blockers_path,
+    "handoff_markdown": Path(sys.argv[2]),
+}
+for kind, path in expected_artifacts.items():
+    artifact = handoff_artifacts.get(kind)
+    if not artifact:
+        raise SystemExit(f"local RC evidence is missing handoff artifact {kind}")
+    if artifact.get("path") != str(path):
+        raise SystemExit(f"local RC evidence handoff path mismatch for {kind}: {artifact}")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if artifact.get("sha256") != digest:
+        raise SystemExit(f"local RC evidence handoff hash mismatch for {kind}: {artifact}")
 PY
 
 echo "commercial release handoff smoke passed"

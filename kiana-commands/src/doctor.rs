@@ -773,6 +773,7 @@ fn reference_capability_matrix(
                 "trust-gates",
                 "bash-powershell-exec-policy",
                 "network-ssrf-policy",
+                "commercial-security-release-smoke",
             ],
             risks: security_risks,
         },
@@ -1274,7 +1275,12 @@ mod tests {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .any(|surface| surface == "commercial-security")));
+                    .any(|surface| surface == "commercial-security")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "commercial-security-release-smoke")));
         assert!(capabilities
             .iter()
             .any(|item| item["id"] == "tool-lifecycle-mcp"

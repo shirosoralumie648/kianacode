@@ -21424,7 +21424,18 @@ mod tests {
                     "blocking": 13,
                     "local_blocking": 0,
                     "external_blocking": 13,
-                    "blocking_ids": ["source.remote"]
+                    "blocking_ids": ["source.remote"],
+                    "external_blocking_ids": ["source.remote"],
+                    "handoff_status": "external_action_required",
+                    "handoff_artifacts": [{
+                        "kind": "blockers_json",
+                        "path": "dist/proofs/local-rc/blockers/commercial-release-blockers.json",
+                        "sha256": "571df486310be5fd8d2f156fefb1bde471819469cbadd7da496661d31685b507"
+                    }, {
+                        "kind": "handoff_markdown",
+                        "path": "dist/proofs/local-rc/blockers/commercial-release-handoff.md",
+                        "sha256": "c5b71ee1539499b16c41126e922bb05355318745e27015a5e82c864c24b375c0"
+                    }]
                 }
             }))
             .unwrap(),
@@ -21452,6 +21463,19 @@ mod tests {
             .unwrap()
             .iter()
             .any(|proof| proof["schema"] == "kiana.product-acceptance.v1"));
+        assert_eq!(
+            local_rc_evidence["blockers"]["handoff_status"],
+            "external_action_required"
+        );
+        assert_eq!(
+            local_rc_evidence["blockers"]["external_blocking_ids"][0],
+            "source.remote"
+        );
+        assert!(local_rc_evidence["blockers"]["handoff_artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|artifact| artifact["kind"] == "handoff_markdown"));
 
         let product_acceptance_path = std::env::temp_dir().join(format!(
             "kiana-product-acceptance-{}.json",

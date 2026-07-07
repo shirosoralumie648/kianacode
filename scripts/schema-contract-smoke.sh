@@ -1381,7 +1381,21 @@ cat > "$tmp_local_rc_evidence" <<'JSON'
     "blocking": 13,
     "local_blocking": 0,
     "external_blocking": 13,
-    "blocking_ids": ["source.remote", "source.version-tag"]
+    "blocking_ids": ["source.remote", "source.version-tag"],
+    "external_blocking_ids": ["source.remote", "source.version-tag"],
+    "handoff_status": "external_action_required",
+    "handoff_artifacts": [
+      {
+        "kind": "blockers_json",
+        "path": "dist/proofs/local-rc/blockers/commercial-release-blockers.json",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "kind": "handoff_markdown",
+        "path": "dist/proofs/local-rc/blockers/commercial-release-handoff.md",
+        "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      }
+    ]
   }
 }
 JSON

@@ -65,6 +65,11 @@ Progress update 2026-07-08:
 - The same local ingest surface is available to app clients as
   `POST /app/context/ingest` for workspace-contained source directories, while
   CLI workflows can import external reference directories.
+- Release readiness now has a commercial security smoke gate and a stronger
+  local RC blocker handoff contract: release smoke proves the commercial
+  `doctor --json` security posture for release and installed binaries, and
+  `kiana.local-rc-evidence.v1` records external blocker IDs plus hash-bound
+  blocker JSON/Markdown handoff artifacts.
 
 Primary gaps:
 

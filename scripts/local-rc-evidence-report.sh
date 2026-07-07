@@ -35,7 +35,10 @@ VERSION_VALUE="$version" \
 LOCAL_RC_EVIDENCE_OUT="$out" \
 LOCAL_RC_LIFECYCLE_STATUS="$lifecycle_status" \
 BLOCKERS_JSON="$tmp_blockers" \
+BLOCKER_REPORT_OUT="$blocker_report_out" \
+BLOCKER_HANDOFF_OUT="$blocker_handoff_out" \
 "$(python_bin)" - <<'PY'
+import hashlib
 import json
 import os
 import shutil
@@ -61,6 +64,15 @@ def read_json(path: Path) -> dict:
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
+
+def sha256_file(path: Path) -> str:
+    if not path.is_file():
+        raise SystemExit(f"handoff artifact is missing: {path}")
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 def stage_local_rc_proof_drafts() -> None:
     def current_platform() -> str:
@@ -165,6 +177,25 @@ local_blocking_ids = [
     for check in checks
     if check.get("status") == "blocking" and check.get("owner_status") == "local-owner"
 ]
+external_blocking_ids = [
+    check.get("id", "")
+    for check in checks
+    if check.get("status") == "blocking" and bool(check.get("external"))
+]
+blocker_report_path = Path(os.environ["BLOCKER_REPORT_OUT"])
+blocker_handoff_path = Path(os.environ["BLOCKER_HANDOFF_OUT"])
+handoff_artifacts = [
+    {
+        "kind": "blockers_json",
+        "path": str(blocker_report_path),
+        "sha256": sha256_file(blocker_report_path),
+    },
+    {
+        "kind": "handoff_markdown",
+        "path": str(blocker_handoff_path),
+        "sha256": sha256_file(blocker_handoff_path),
+    },
+]
 
 local_blockers = int(summary.get("local_blocking", 0) or 0)
 required_proof_schemas = [
@@ -249,6 +280,9 @@ report = {
         "local_blocking": local_blockers,
         "external_blocking": int(summary.get("external_blocking", 0) or 0),
         "blocking_ids": blocking_ids,
+        "external_blocking_ids": external_blocking_ids,
+        "handoff_status": "external_action_required" if external_blocking_ids else "not_required",
+        "handoff_artifacts": handoff_artifacts,
     },
 }
 

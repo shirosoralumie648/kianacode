@@ -329,6 +329,81 @@ if not all(checks):
 PY
 }
 
+smoke_commercial_security_doctor_json() {
+  local binary="$1"
+  local output
+  local python_bin
+  local fake_bwrap=""
+  local settings_json=""
+
+  case "$(uname -s)" in
+    Linux*)
+      fake_bwrap="$tmp_root/commercial-security-bwrap"
+      printf '#!/bin/sh\n' > "$fake_bwrap"
+      chmod +x "$fake_bwrap"
+      settings_json="{\"sandbox\":{\"enabled\":true,\"failIfUnavailable\":true,\"allowUnsandboxedCommands\":false,\"bwrapPath\":\"$fake_bwrap\"}}"
+      ;;
+  esac
+
+  if [[ -n "$settings_json" ]]; then
+    output="$(
+      unset KIANA_PERMISSION_MODE
+      KIANA_PERMISSION_PROFILE=commercial \
+        KIANA_SETTINGS_JSON="$settings_json" \
+        run_clean_kiana "$binary" doctor --json 2>&1
+    )"
+  else
+    output="$(
+      unset KIANA_PERMISSION_MODE KIANA_SETTINGS_JSON
+      KIANA_PERMISSION_PROFILE=commercial \
+        run_clean_kiana "$binary" doctor --json 2>&1
+    )"
+  fi
+  python_bin="$(doctor_json_python)"
+  DOCTOR_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["DOCTOR_JSON"])
+except Exception as exc:
+    print(f"commercial doctor JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("DOCTOR_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+commercial = report.get("commercial_security", {})
+capabilities = report.get("reference_capabilities", [])
+controls = set(commercial.get("controls", []))
+required_controls = {
+    "permission_profile:commercial",
+    "permission_mode:ask",
+    "exec_policy:bash+powershell",
+    "exec_policy:destructive-root-sync-deny",
+}
+security_ready = any(
+    isinstance(item, dict)
+    and item.get("id") == "security-policy"
+    and item.get("status") == "ready"
+    for item in capabilities
+)
+checks = [
+    report.get("schema") == "kiana.doctor.v1",
+    commercial.get("ready") is True,
+    commercial.get("status") == "ready",
+    commercial.get("issues") == [],
+    required_controls.issubset(controls),
+    commercial.get("isolation")
+    in ["linux_bwrap", "windows_exec_policy", "macos_exec_policy"],
+    security_ready,
+]
+if not all(checks):
+    print("commercial doctor JSON failed readiness smoke checks", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 smoke_model_smoke_json() {
   local binary="$1"
   local output
@@ -1212,6 +1287,7 @@ installed_bin="$install_dir/kiana$(exe_ext)"
 smoke_version "$release_bin"
 smoke_doctor "$release_bin"
 smoke_doctor_json "$release_bin"
+smoke_commercial_security_doctor_json "$release_bin"
 smoke_model_smoke_json "$release_bin"
 smoke_model_catalog_json "$release_bin"
 smoke_context_index_search_json "$release_bin"
@@ -1229,6 +1305,7 @@ install_release_binary
 smoke_version "$installed_bin"
 smoke_doctor "$installed_bin"
 smoke_doctor_json "$installed_bin"
+smoke_commercial_security_doctor_json "$installed_bin"
 smoke_model_smoke_json "$installed_bin"
 smoke_model_catalog_json "$installed_bin"
 smoke_context_index_search_json "$installed_bin"

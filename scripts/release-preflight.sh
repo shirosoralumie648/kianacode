@@ -352,6 +352,16 @@ else
   fail "commercial permission profile does not lock mutating normal allow rules behind explicit project trust and managed approval"
 fi
 
+if grep -Fq 'smoke_commercial_security_doctor_json "$release_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'smoke_commercial_security_doctor_json "$installed_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'KIANA_PERMISSION_PROFILE=commercial' scripts/release-smoke.sh &&
+  grep -Fq 'commercial doctor JSON failed readiness smoke checks' scripts/release-smoke.sh &&
+  grep -Fq 'commercial-security-release-smoke' kiana-commands/src/doctor.rs; then
+  pass "commercial security doctor release smoke is wired"
+else
+  fail "commercial security doctor release smoke is not wired"
+fi
+
 if grep -Fq 'plugin_install_from_local_marketplace_file_remote_git_source' kiana-commands/src/plugin.rs &&
   grep -Fq 'marketplace_entry_remote_source_path' kiana-commands/src/plugin.rs; then
   pass "local marketplace remote plugin source install is covered"
@@ -660,6 +670,17 @@ if grep -Fq 'commercial-release-blockers.json' scripts/local-rc-evidence-report.
   pass "local RC evidence stages commercial blocker JSON and handoff markdown"
 else
   fail "local RC evidence does not stage commercial blocker JSON and handoff markdown"
+fi
+
+if grep -Fq '"handoff_artifacts"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq '"external_blocking_ids"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq '"handoff_status"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq 'sha256_file' scripts/local-rc-evidence-report.sh &&
+  grep -Fq 'BLOCKER_REPORT_OUT' scripts/local-rc-evidence-report.sh &&
+  grep -Fq 'handoff_artifacts' scripts/commercial-release-handoff-smoke.sh; then
+  pass "local RC evidence records blocker handoff artifacts and hashes"
+else
+  fail "local RC evidence does not record blocker handoff artifacts and hashes"
 fi
 
 if grep -Fq '"const": "kiana.app-server.distribution-review.v1"' docs/schemas/kiana-app-server-distribution-review.v1.schema.json &&

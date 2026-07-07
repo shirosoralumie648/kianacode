@@ -134,13 +134,64 @@
     },
     "blockers": {
       "type": "object",
-      "required": ["status", "blocking", "local_blocking", "external_blocking", "blocking_ids"],
+      "required": [
+        "status",
+        "blocking",
+        "local_blocking",
+        "external_blocking",
+        "blocking_ids",
+        "external_blocking_ids",
+        "handoff_status",
+        "handoff_artifacts"
+      ],
       "properties": {
         "status": { "type": "string", "enum": ["ready", "blocked"] },
         "blocking": { "type": "integer", "minimum": 0 },
         "local_blocking": { "type": "integer", "minimum": 0 },
         "external_blocking": { "type": "integer", "minimum": 0 },
-        "blocking_ids": { "type": "array", "items": { "type": "string" } }
+        "blocking_ids": { "type": "array", "items": { "type": "string" } },
+        "external_blocking_ids": { "type": "array", "items": { "type": "string" } },
+        "handoff_status": {
+          "type": "string",
+          "enum": ["external_action_required", "not_required"]
+        },
+        "handoff_artifacts": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["kind", "path", "sha256"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["blockers_json", "handoff_markdown"]
+              },
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            },
+            "additionalProperties": false
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "kind": { "const": "blockers_json" }
+                },
+                "required": ["kind"]
+              }
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "kind": { "const": "handoff_markdown" }
+                },
+                "required": ["kind"]
+              }
+            }
+          ]
+        }
       },
       "additionalProperties": false
     }
