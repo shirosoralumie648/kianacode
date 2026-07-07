@@ -450,6 +450,7 @@ smoke_context_index_search_json() {
   local artifact_dir
   local artifacts_output
   local cached_artifacts_output
+  local artifact_ingest_output
   local cached_artifact_store_output
 
   if [[ "$binary_path" != /* ]]; then
@@ -470,6 +471,7 @@ smoke_context_index_search_json() {
   index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
   artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json 2>&1)"
   cached_artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json --cache .kiana/context-artifacts.json 2>&1)"
+  artifact_ingest_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context ingest --source "$artifact_dir" --json 2>&1)"
   artifact_graph_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-graph --json 2>&1)"
   artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-store --json 2>&1)"
   artifact_readiness_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-readiness --json 2>&1)"
@@ -481,7 +483,7 @@ smoke_context_index_search_json() {
   path_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 2>&1)"
   root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_dir" --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
-  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_ARTIFACT_READINESS_JSON="$artifact_readiness_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_VECTOR_SEARCH_JSON="$vector_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_INGEST_JSON="$artifact_ingest_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_ARTIFACT_READINESS_JSON="$artifact_readiness_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_VECTOR_SEARCH_JSON="$vector_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
 import json
 import os
 import sys
@@ -490,6 +492,7 @@ try:
     index = json.loads(os.environ["CONTEXT_INDEX_JSON"])
     artifacts = json.loads(os.environ["CONTEXT_ARTIFACTS_JSON"])
     cached_artifacts = json.loads(os.environ["CONTEXT_CACHED_ARTIFACTS_JSON"])
+    artifact_ingest = json.loads(os.environ["CONTEXT_ARTIFACT_INGEST_JSON"])
     artifact_graph = json.loads(os.environ["CONTEXT_ARTIFACT_GRAPH_JSON"])
     artifact_store = json.loads(os.environ["CONTEXT_ARTIFACT_STORE_JSON"])
     artifact_readiness = json.loads(os.environ["CONTEXT_ARTIFACT_READINESS_JSON"])
@@ -505,6 +508,7 @@ except Exception as exc:
     print(os.environ.get("CONTEXT_INDEX_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACTS_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_CACHED_ARTIFACTS_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_ARTIFACT_INGEST_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACT_GRAPH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACT_STORE_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ARTIFACT_READINESS_JSON", ""), file=sys.stderr)
@@ -528,6 +532,13 @@ checks = [
     cached_artifacts.get("cache", {}).get("status") == "created",
     cached_artifacts.get("cache", {}).get("added_artifacts") == 4,
     str(cached_artifacts.get("cache", {}).get("path", "")).endswith(".kiana/context-artifacts.json"),
+    artifact_ingest.get("schema") == "kiana.context-artifact-ingest.v1",
+    artifact_ingest.get("artifacts_schema") == "kiana.context-artifacts.v1",
+    artifact_ingest.get("ingested_files") == 1,
+    artifact_ingest.get("skipped_files") == 0,
+    artifact_ingest.get("manifest_path") == ".kiana/context-ingest/manifest.json",
+    artifact_ingest.get("store_dir") == ".kiana/context-ingest",
+    any(item.get("source_path") == "bundle/notes.md" and str(item.get("stored_path", "")).startswith(".kiana/context-ingest/files/") for item in artifact_ingest.get("artifacts", [])),
     artifact_graph.get("schema") == "kiana.context-artifact-dependency-graph.v1",
     len(artifact_graph.get("nodes", [])) == 4,
     any(node.get("path") == "tests/lib_test.rs" for node in artifact_graph.get("nodes", [])),
@@ -606,10 +617,11 @@ checks = [
     root_pack.get("artifact_graph", {}).get("nodes", [{}])[0].get("path") == "bundle/notes.md",
 ]
 if not all(checks):
-    print("context index/search/vector-search/pack JSON failed smoke checks", file=sys.stderr)
+    print("context index/ingest/search/vector-search/pack JSON failed smoke checks", file=sys.stderr)
     print(json.dumps(index, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifacts, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(cached_artifacts, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(artifact_ingest, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifact_graph, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifact_store, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(cached_artifact_store, indent=2, sort_keys=True), file=sys.stderr)

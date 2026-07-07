@@ -51,6 +51,19 @@ Kiana already has:
 - TUI and screen skeletons in `kiana-entrypoints/src/tui.rs` and `kiana-screens/src`.
 - Release smoke in `scripts/release-smoke.sh` and `RELEASE.md`.
 
+Progress update 2026-07-08:
+
+- Local knowledge ingestion now has a deterministic copied-file contract:
+  `kiana context ingest --source DIR --json` emits
+  `kiana.context-artifact-ingest.v1`, writes
+  `.kiana/context-ingest/manifest.json`, and stores copied text artifacts under
+  `.kiana/context-ingest/files/<hash>/...`. This gives future parallel agents a
+  stable way to import `reference/` project notes, PRDs, designs, tasks, and
+  support bundles before richer RAG/vector-store semantics are promoted.
+- The same local ingest surface is available to app clients as
+  `POST /app/context/ingest` for workspace-contained source directories, while
+  CLI workflows can import external reference directories.
+
 Primary gaps:
 
 - Public runtime/session/tool events still rely too much on generic JSON.

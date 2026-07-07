@@ -3,7 +3,7 @@ use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 const DEFAULT_LIMIT: usize = 10;
 const DEFAULT_MAX_BYTES_PER_FILE: usize = 128 * 1024;
@@ -84,6 +84,21 @@ impl Default for ContextArtifactOptions {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ContextArtifactIngestOptions {
+    pub store_dir: Option<PathBuf>,
+    pub max_bytes_per_file: Option<usize>,
+}
+
+impl Default for ContextArtifactIngestOptions {
+    fn default() -> Self {
+        Self {
+            store_dir: Some(PathBuf::from(".kiana/context-ingest")),
+            max_bytes_per_file: Some(DEFAULT_MAX_BYTES_PER_FILE),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextIndex {
     pub schema: String,
@@ -121,6 +136,32 @@ pub struct ContextArtifactItem {
     pub id: String,
     pub kind: String,
     pub path: String,
+    pub language: Option<String>,
+    pub bytes: u64,
+    pub line_count: usize,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactIngest {
+    pub schema: String,
+    pub root: String,
+    pub source_root: String,
+    pub store_dir: String,
+    pub manifest_path: String,
+    pub artifacts_schema: String,
+    pub ingested_files: usize,
+    pub skipped_files: usize,
+    pub total_bytes: u64,
+    pub artifacts: Vec<ContextIngestedArtifact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextIngestedArtifact {
+    pub id: String,
+    pub kind: String,
+    pub source_path: String,
+    pub stored_path: String,
     pub language: Option<String>,
     pub bytes: u64,
     pub line_count: usize,
@@ -423,6 +464,74 @@ pub fn build_persistent_context_artifacts(
         format!(
             "failed to write context artifacts cache {}",
             cache_path.display()
+        )
+    })?;
+
+    Ok(report)
+}
+
+pub fn ingest_context_artifacts(
+    root: impl AsRef<Path>,
+    source_root: impl AsRef<Path>,
+    options: ContextArtifactIngestOptions,
+) -> Result<ContextArtifactIngest> {
+    let root = canonical_root(root.as_ref(), "context artifact ingest root")?;
+    let source_root = canonical_root(source_root.as_ref(), "context artifact ingest source")?;
+    let max_bytes = options
+        .max_bytes_per_file
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_BYTES_PER_FILE);
+    let store_dir = resolve_ingest_store_dir(
+        &root,
+        options
+            .store_dir
+            .as_deref()
+            .unwrap_or_else(|| Path::new(".kiana/context-ingest")),
+    )?;
+    let manifest_path = store_dir.join("manifest.json");
+    let files_dir = store_dir.join("files");
+    let mut artifacts = Vec::new();
+    let mut skipped_files = 0;
+    let mut total_bytes = 0_u64;
+
+    for path in candidate_paths(&source_root)? {
+        let Some(artifact) =
+            ingest_artifact_file(&root, &source_root, &path, &files_dir, max_bytes)?
+        else {
+            skipped_files += 1;
+            continue;
+        };
+        total_bytes += artifact.bytes;
+        artifacts.push(artifact);
+    }
+
+    let report = ContextArtifactIngest {
+        schema: "kiana.context-artifact-ingest.v1".to_string(),
+        root: display_path(&root),
+        source_root: display_path(&source_root),
+        store_dir: relative_or_display_path(&root, &store_dir),
+        manifest_path: relative_or_display_path(&root, &manifest_path),
+        artifacts_schema: "kiana.context-artifacts.v1".to_string(),
+        ingested_files: artifacts.len(),
+        skipped_files,
+        total_bytes,
+        artifacts,
+    };
+
+    fs::create_dir_all(&store_dir).with_context(|| {
+        format!(
+            "failed to create context artifact ingest store {}",
+            store_dir.display()
+        )
+    })?;
+    fs::write(
+        &manifest_path,
+        serde_json::to_string_pretty(&report)? + "\n",
+    )
+    .with_context(|| {
+        format!(
+            "failed to write context artifact ingest manifest {}",
+            manifest_path.display()
         )
     })?;
 
@@ -1220,6 +1329,50 @@ fn index_file(root: &Path, path: &Path, max_bytes: usize) -> Result<Option<Conte
     }))
 }
 
+fn ingest_artifact_file(
+    workspace_root: &Path,
+    source_root: &Path,
+    path: &Path,
+    files_dir: &Path,
+    max_bytes: usize,
+) -> Result<Option<ContextIngestedArtifact>> {
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    if bytes.len() > max_bytes || bytes.contains(&0) {
+        return Ok(None);
+    }
+    let Ok(content) = String::from_utf8(bytes.clone()) else {
+        return Ok(None);
+    };
+    let source_path = relative_path(source_root, path);
+    let content_hash = stable_hash(content.as_bytes());
+    let stored_abs = files_dir.join(&content_hash).join(Path::new(&source_path));
+    if let Some(parent) = stored_abs.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create context artifact ingest dir {}",
+                parent.display()
+            )
+        })?;
+    }
+    fs::write(&stored_abs, bytes).with_context(|| {
+        format!(
+            "failed to write context artifact ingest file {}",
+            stored_abs.display()
+        )
+    })?;
+
+    Ok(Some(ContextIngestedArtifact {
+        id: format!("ingest:{source_path}:{content_hash}"),
+        kind: artifact_role(&source_path).to_string(),
+        source_path,
+        stored_path: relative_or_display_path(workspace_root, &stored_abs),
+        language: language_for_path(path).map(str::to_string),
+        bytes: content.len() as u64,
+        line_count: content.lines().count(),
+        content_hash,
+    }))
+}
+
 fn search_file(
     root: &Path,
     path: &Path,
@@ -1539,6 +1692,34 @@ fn test_target_path(path: &str) -> Option<String> {
 
 fn relative_path(root: &Path, path: &Path) -> String {
     portable_path(path.strip_prefix(root).unwrap_or(path))
+}
+
+fn relative_or_display_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .map(portable_path)
+        .unwrap_or_else(|_| display_path(path))
+}
+
+fn resolve_ingest_store_dir(root: &Path, store_dir: &Path) -> Result<PathBuf> {
+    if store_dir
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(anyhow!(
+            "context artifact ingest store must stay inside the workspace root"
+        ));
+    }
+    let resolved = if store_dir.is_absolute() {
+        store_dir.to_path_buf()
+    } else {
+        root.join(store_dir)
+    };
+    if !resolved.starts_with(root) {
+        return Err(anyhow!(
+            "context artifact ingest store must stay inside the workspace root"
+        ));
+    }
+    Ok(resolved)
 }
 
 fn display_path(path: &Path) -> String {
@@ -2154,6 +2335,81 @@ mod tests {
         assert_eq!(store.artifact_roles[4].count, 1);
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_artifact_ingest_copies_text_artifacts_and_writes_manifest() {
+        let root = fixture_root("artifact-ingest-root");
+        let source = fixture_root("artifact-ingest-source");
+        fs::create_dir_all(source.join("docs")).unwrap();
+        fs::write(source.join("docs/prd.md"), "# PRD\nShip the release\n").unwrap();
+        fs::write(
+            source.join("docs/design.md"),
+            "# Design\nUse local artifacts\n",
+        )
+        .unwrap();
+        fs::write(source.join("docs/large.md"), "x".repeat(80)).unwrap();
+        fs::write(source.join("raw.bin"), b"abc\0def").unwrap();
+
+        let report = ingest_context_artifacts(
+            &root,
+            &source,
+            ContextArtifactIngestOptions {
+                store_dir: None,
+                max_bytes_per_file: Some(64),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.schema, "kiana.context-artifact-ingest.v1");
+        assert_eq!(report.artifacts_schema, "kiana.context-artifacts.v1");
+        assert_eq!(report.ingested_files, 2);
+        assert_eq!(report.skipped_files, 1);
+        assert_eq!(report.store_dir, ".kiana/context-ingest");
+        assert_eq!(report.manifest_path, ".kiana/context-ingest/manifest.json");
+        assert!(report
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.source_path == "docs/prd.md"
+                && artifact.kind == "prd"
+                && artifact
+                    .stored_path
+                    .starts_with(".kiana/context-ingest/files/")
+                && artifact.content_hash.len() == 16));
+        for artifact in &report.artifacts {
+            assert!(root.join(&artifact.stored_path).is_file());
+        }
+        let saved: ContextArtifactIngest =
+            serde_json::from_str(&fs::read_to_string(root.join(&report.manifest_path)).unwrap())
+                .unwrap();
+        assert_eq!(saved.schema, "kiana.context-artifact-ingest.v1");
+        assert_eq!(saved.ingested_files, 2);
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(source);
+    }
+
+    #[test]
+    fn context_artifact_ingest_rejects_store_outside_workspace() {
+        let root = fixture_root("artifact-ingest-root-boundary");
+        let source = fixture_root("artifact-ingest-source-boundary");
+        let outside = fixture_root("artifact-ingest-outside");
+        fs::write(source.join("notes.md"), "notes\n").unwrap();
+
+        let error = ingest_context_artifacts(
+            &root,
+            &source,
+            ContextArtifactIngestOptions {
+                store_dir: Some(outside.join("store")),
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("inside the workspace root"));
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(outside);
     }
 
     #[test]

@@ -79,6 +79,7 @@ for file in \
   docs/schemas/kiana-model-list.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-artifacts.v1.schema.json \
+  docs/schemas/kiana-context-artifact-ingest.v1.schema.json \
   docs/schemas/kiana-repo-map.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
   docs/schemas/kiana-context-vector-search.v1.schema.json \
@@ -212,11 +213,12 @@ else
 fi
 
 if grep -Fq 'context index --json' scripts/release-smoke.sh &&
+  grep -Fq 'context ingest --source' scripts/release-smoke.sh &&
   grep -Fq 'context search release --json --limit 1' scripts/release-smoke.sh &&
   grep -Fq 'context vector-search release flow --json --limit 1' scripts/release-smoke.sh; then
-  pass "context index/search/vector-search JSON gates are wired"
+  pass "context index/ingest/search/vector-search JSON gates are wired"
 else
-  fail "release smoke does not exercise context index/search/vector-search --json"
+  fail "release smoke does not exercise context index/ingest/search/vector-search --json"
 fi
 
 if grep -Fq 'license status --json' scripts/release-smoke.sh; then
@@ -297,10 +299,12 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/review' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'release.distribution_review.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/release/distribution' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'context.artifact_ingest.write' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.search.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.vector_search.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.pack.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/index' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/context/ingest' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/search' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/vector-search' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/pack' kiana-entrypoints/src/cli.rs &&
@@ -315,6 +319,7 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.model-catalog.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.model-list.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.context-artifact-ingest.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-vector-search.v1' kiana-entrypoints/src/cli.rs &&
@@ -558,6 +563,15 @@ if grep -Fq '"const": "kiana.context-artifacts.v1"' docs/schemas/kiana-context-a
   pass "context artifacts JSON schema version is pinned"
 else
   fail "context artifacts JSON schema is missing required inventory anchors"
+fi
+
+if grep -Fq '"const": "kiana.context-artifact-ingest.v1"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
+  grep -Fq '"manifest_path"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
+  grep -Fq '"stored_path"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
+  grep -Fq '"artifacts_schema"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json; then
+  pass "context artifact ingest JSON schema version is pinned"
+else
+  fail "context artifact ingest JSON schema is missing required manifest anchors"
 fi
 
 if grep -Fq '"const": "kiana.context-pack.v1"' docs/schemas/kiana-context-pack.v1.schema.json &&

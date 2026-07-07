@@ -11,9 +11,10 @@ use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, search_context_index, search_context_vectors,
-    ContextArtifactOptions, ContextIndexOptions, ContextPackOptions, ContextSearchOptions,
-    ContextVectorSearchOptions, RepoMapOptions,
+    build_persistent_context_index, build_repo_map, ingest_context_artifacts, search_context_index,
+    search_context_vectors, ContextArtifactIngestOptions, ContextArtifactOptions,
+    ContextIndexOptions, ContextPackOptions, ContextSearchOptions, ContextVectorSearchOptions,
+    RepoMapOptions,
 };
 use kiana_screens::{history::HistoryEntry, settings::SettingsSection};
 use kiana_tools::permissions::effective_tool_permissions;
@@ -5443,6 +5444,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_context_artifacts_handler),
         )
         .route(
+            "/app/context/ingest",
+            axum::routing::post(direct_connect_app_context_ingest_handler),
+        )
+        .route(
             "/app/context/artifact-graph",
             axum::routing::get(direct_connect_app_context_artifact_graph_handler),
         )
@@ -8815,6 +8820,13 @@ struct DirectConnectContextArtifactsQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct DirectConnectContextIngestRequest {
+    source: String,
+    store: Option<String>,
+    max_bytes_per_file: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 struct DirectConnectContextArtifactGraphQuery {
     max_bytes_per_file: Option<usize>,
 }
@@ -8908,6 +8920,77 @@ async fn direct_connect_app_context_artifacts_handler(
             format!("failed to build context artifacts: {error}"),
         ),
     }
+}
+
+async fn direct_connect_app_context_ingest_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::Json(body): axum::Json<DirectConnectContextIngestRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_app_context_ingest_report(&state, body)
+        .and_then(|report| serde_json::to_value(report).map_err(Into::into))
+    {
+        Ok(value) => axum::Json(value).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to ingest context artifacts: {error}"),
+        ),
+    }
+}
+
+fn direct_connect_app_context_ingest_report(
+    state: &DirectConnectServerState,
+    body: DirectConnectContextIngestRequest,
+) -> Result<kiana_query::ContextArtifactIngest> {
+    let source = body.source.trim();
+    if source.is_empty() {
+        return Err(anyhow!("source is required"));
+    }
+    let source = PathBuf::from(source);
+    let source = if source.is_absolute() {
+        source
+    } else {
+        state.workspace.join(source)
+    };
+    let workspace = state
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve workspace {}", state.workspace.display()))?;
+    let source = source.canonicalize().with_context(|| {
+        format!(
+            "failed to resolve context ingest source {}",
+            source.display()
+        )
+    })?;
+    if !source.starts_with(&workspace) {
+        return Err(anyhow!(
+            "context ingest source must stay inside the workspace root"
+        ));
+    }
+
+    let store_dir = body
+        .store
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
+    ingest_context_artifacts(
+        &workspace,
+        source,
+        ContextArtifactIngestOptions {
+            store_dir,
+            max_bytes_per_file: body.max_bytes_per_file,
+        },
+    )
 }
 
 async fn direct_connect_app_context_artifact_graph_handler(
@@ -10127,6 +10210,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "context.index.cache.write",
         "context.artifacts.read",
         "context.artifacts.cache.write",
+        "context.artifact_ingest.write",
         "context.artifact_graph.read",
         "context.artifact_store.read",
         "context.artifact_readiness.read",
@@ -10216,6 +10300,18 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
             "/app/context/artifacts",
             "kiana.context-artifacts.v1",
             Value::String("optional cache boolean writes .kiana/context-artifacts.json; optional max_bytes_per_file caps indexed file bytes".to_string()),
+        ),
+        direct_connect_app_endpoint_with_query(
+            "POST",
+            "/app/context/ingest",
+            "kiana.context-artifact-ingest.v1",
+            serde_json::json!({
+                "body": {
+                    "source": "required workspace-relative source directory to ingest",
+                    "store": "optional workspace-relative store directory; defaults to .kiana/context-ingest",
+                    "max_bytes_per_file": "optional positive byte cap for source files"
+                }
+            }),
         ),
         direct_connect_app_endpoint_with_query(
             "GET",
@@ -19804,6 +19900,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.artifact_ingest.write".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.artifact_graph.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -20220,6 +20320,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/artifacts"
                     && endpoint["schema"] == "kiana.context-artifacts.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "POST"
+                    && endpoint["path"] == "/app/context/ingest"
+                    && endpoint["schema"] == "kiana.context-artifact-ingest.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -22095,6 +22204,51 @@ mod tests {
             .join(".kiana")
             .join("context-artifacts.json")
             .is_file());
+
+        std::fs::create_dir_all(workspace.join("support")).unwrap();
+        std::fs::write(workspace.join("support/brief.md"), "# Brief\nShip ingest\n").unwrap();
+        let context_ingest: Value = client
+            .post(format!("http://{addr}/app/context/ingest"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "source": "support",
+                "max_bytes_per_file": 1024
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(context_ingest["schema"], "kiana.context-artifact-ingest.v1");
+        assert_eq!(
+            context_ingest["artifacts_schema"],
+            "kiana.context-artifacts.v1"
+        );
+        assert_eq!(context_ingest["ingested_files"], 1);
+        assert_eq!(context_ingest["skipped_files"], 0);
+        assert_eq!(
+            context_ingest["manifest_path"],
+            ".kiana/context-ingest/manifest.json"
+        );
+        assert!(context_ingest["artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|artifact| artifact["source_path"] == "brief.md"
+                && artifact["kind"] == "artifact"
+                && artifact["stored_path"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with(".kiana/context-ingest/files/")));
+        let stored_path = context_ingest["artifacts"][0]["stored_path"]
+            .as_str()
+            .unwrap();
+        assert!(workspace.join(stored_path).is_file());
+        assert!(workspace
+            .join(".kiana/context-ingest/manifest.json")
+            .is_file());
+        let _ = std::fs::remove_dir_all(workspace.join("support"));
 
         let context_artifact_graph: Value = client
             .get(format!("http://{addr}/app/context/artifact-graph"))

@@ -6,8 +6,9 @@ use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, search_context_index, search_context_vectors,
-    ContextArtifactDependencyGraph, ContextArtifactOptions, ContextArtifactReadiness,
+    build_persistent_context_index, build_repo_map, ingest_context_artifacts, search_context_index,
+    search_context_vectors, ContextArtifactDependencyGraph, ContextArtifactIngest,
+    ContextArtifactIngestOptions, ContextArtifactOptions, ContextArtifactReadiness,
     ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
     ContextPackOptions, ContextSearchOptions, ContextSearchResults, ContextVectorSearchOptions,
     ContextVectorSearchResults, RepoMap, RepoMapOptions,
@@ -45,6 +46,9 @@ impl Command for ContextCommand {
         }
         if let Some(rest) = args.strip_prefix("artifacts") {
             return artifacts_result(&context, rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("ingest") {
+            return ingest_result(&context, rest.trim());
         }
         if let Some(rest) = args.strip_prefix("artifact-store") {
             return artifact_store_result(&context, rest.trim());
@@ -94,7 +98,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-readiness [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|vector-search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|ingest --source DIR [--json] [--root DIR] [--store DIR] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-readiness [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|vector-search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -236,6 +240,85 @@ fn artifacts_result(context: &CommandContext, args: &str) -> anyhow::Result<Comm
         return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
     }
     Ok(CommandResult::text(format_context_artifacts_text(&report)))
+}
+
+fn ingest_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut root = None;
+    let mut source = None;
+    let mut store_dir = None;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
+            "--source" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--source requires a directory path"))?;
+                source = Some(parse_path(value, "--source")?);
+            }
+            "--store" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--store requires a directory path"))?;
+                store_dir = Some(parse_path(value, "--store")?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
+            }
+            _ if arg.starts_with("--source=") => {
+                let value = arg.trim_start_matches("--source=");
+                source = Some(parse_path(value, "--source")?);
+            }
+            _ if arg.starts_with("--store=") => {
+                let value = arg.trim_start_matches("--store=");
+                store_dir = Some(parse_path(value, "--store")?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+    let workspace = context_root(context, root);
+    let source = source.ok_or_else(|| {
+        anyhow!("Usage: kiana context ingest --source DIR [--json] [--store DIR]")
+    })?;
+    let source = if source.is_absolute() {
+        source
+    } else {
+        workspace.join(source)
+    };
+    let report = ingest_context_artifacts(
+        &workspace,
+        source,
+        ContextArtifactIngestOptions {
+            store_dir,
+            max_bytes_per_file,
+        },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
+    }
+    Ok(CommandResult::text(format_context_artifact_ingest_text(
+        &report,
+    )))
 }
 
 fn artifact_graph_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -750,6 +833,38 @@ fn format_context_artifacts_text(report: &ContextArtifacts) -> String {
             cache.added_artifacts,
             cache.changed_artifacts,
             cache.removed_artifacts
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifact_ingest_text(report: &ContextArtifactIngest) -> String {
+    let mut lines = vec![
+        "Context artifact ingest".to_string(),
+        format!("root: {}", report.root),
+        format!("source_root: {}", report.source_root),
+        format!("store_dir: {}", report.store_dir),
+        format!("manifest_path: {}", report.manifest_path),
+        format!(
+            "schema: {} artifacts_schema: {} ingested_files: {} skipped_files: {} total_bytes: {}",
+            report.schema,
+            report.artifacts_schema,
+            report.ingested_files,
+            report.skipped_files,
+            report.total_bytes
+        ),
+    ];
+    for artifact in &report.artifacts {
+        lines.push(format!(
+            "- {} -> {} [{}] kind={} bytes={} lines={} hash={} id={}",
+            artifact.source_path,
+            artifact.stored_path,
+            artifact.language.as_deref().unwrap_or("unknown"),
+            artifact.kind,
+            artifact.bytes,
+            artifact.line_count,
+            artifact.content_hash,
+            artifact.id
         ));
     }
     lines.join("\n")
@@ -1381,6 +1496,51 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_ingest_json_copies_source_artifacts() {
+        let root = fixture_root("ingest-command-root");
+        let source = fixture_root("ingest-command-source");
+        fs::create_dir_all(source.join("docs")).unwrap();
+        fs::write(source.join("docs/prd.md"), "# PRD\nShip a local RC\n").unwrap();
+        fs::write(source.join("docs/large.md"), "x".repeat(80)).unwrap();
+        fs::write(source.join("raw.bin"), b"abc\0def").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: format!(
+                    "ingest --json --source {} --max-bytes-per-file 64",
+                    source.to_string_lossy().replace('\\', "/")
+                ),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-artifact-ingest.v1");
+        assert_eq!(value["artifacts_schema"], "kiana.context-artifacts.v1");
+        assert_eq!(value["ingested_files"], 1);
+        assert_eq!(value["skipped_files"], 1);
+        assert_eq!(value["store_dir"], ".kiana/context-ingest");
+        assert_eq!(
+            value["manifest_path"],
+            ".kiana/context-ingest/manifest.json"
+        );
+        assert_eq!(value["artifacts"][0]["source_path"], "docs/prd.md");
+        assert_eq!(value["artifacts"][0]["kind"], "prd");
+        assert!(value["artifacts"][0]["stored_path"]
+            .as_str()
+            .unwrap()
+            .starts_with(".kiana/context-ingest/files/"));
+        assert!(root
+            .join(value["artifacts"][0]["stored_path"].as_str().unwrap())
+            .is_file());
+        assert!(root.join(".kiana/context-ingest/manifest.json").is_file());
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(source);
     }
 
     #[tokio::test]

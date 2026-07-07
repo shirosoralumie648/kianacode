@@ -871,17 +871,18 @@ fn reference_capability_matrix(
             domain: "context/agents",
             status: "in_progress",
             references: vec!["AutoGen", "MetaGPT", "LangChain", "OpenHands"],
-            surfaces: vec!["context-index", "context-search", "context-vector-search", "context-pack", "context-artifact-graph", "team-runtime", "notebook-execution", "subagent-tool-contract"],
+            surfaces: vec!["context-index", "context-search", "context-vector-search", "context-pack", "context-artifact-ingest", "context-artifact-graph", "team-runtime", "notebook-execution", "subagent-tool-contract"],
             evidence: vec![
                 "deterministic-context-index",
                 "path-aware-context-search",
                 "deterministic-hash-vector-search",
                 "root-scoped-context-pack",
+                "durable-context-artifact-ingest",
                 "context-pack-artifact-graph",
                 "deterministic-team-runtime-smoke",
                 "notebook-execution-isolation-smoke",
             ],
-            risks: vec!["production embedding backends/vector stores, durable artifact ingestion, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX remain future work".to_string()],
+            risks: vec!["production embedding backends/vector stores, production artifact sync semantics beyond local file ingest, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX remain future work".to_string()],
         },
     ]
 }
@@ -1302,6 +1303,11 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "deterministic-hash-vector-search")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "durable-context-artifact-ingest")
                 && item["evidence"]
                     .as_array()
                     .unwrap()

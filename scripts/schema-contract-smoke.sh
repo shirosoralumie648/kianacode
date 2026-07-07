@@ -42,6 +42,7 @@ tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_context_vector_search="$(mktemp)"
 tmp_context_artifacts="$(mktemp)"
+tmp_context_artifact_ingest="$(mktemp)"
 tmp_context_artifact_graph="$(mktemp)"
 tmp_context_artifact_store="$(mktemp)"
 tmp_context_artifact_readiness="$(mktemp)"
@@ -61,7 +62,7 @@ tmp_platform_security="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
 cat > "$tmp_managed_plugin_policy" <<'JSON'
 {
   "schema": "kiana.managed-plugin-policy.v1",
@@ -429,6 +430,35 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-context-artifacts.v1.schema.json \
   "$tmp_context_artifacts" >/dev/null
+
+cat > "$tmp_context_artifact_ingest" <<'JSON'
+{
+  "schema": "kiana.context-artifact-ingest.v1",
+  "root": "/workspace",
+  "source_root": "/workspace/reference",
+  "store_dir": ".kiana/context-ingest",
+  "manifest_path": ".kiana/context-ingest/manifest.json",
+  "artifacts_schema": "kiana.context-artifacts.v1",
+  "ingested_files": 1,
+  "skipped_files": 0,
+  "total_bytes": 21,
+  "artifacts": [
+    {
+      "id": "ingest:docs/prd.md:0123456789abcdef",
+      "kind": "prd",
+      "source_path": "docs/prd.md",
+      "stored_path": ".kiana/context-ingest/files/0123456789abcdef/docs/prd.md",
+      "language": "markdown",
+      "bytes": 21,
+      "line_count": 1,
+      "content_hash": "0123456789abcdef"
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-context-artifact-ingest.v1.schema.json \
+  "$tmp_context_artifact_ingest" >/dev/null
 
 cat > "$tmp_context_artifact_graph" <<'JSON'
 {
