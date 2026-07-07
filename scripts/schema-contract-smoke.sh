@@ -35,6 +35,8 @@ done
 tmp_runtime_event="$(mktemp)"
 tmp_runtime_result="$(mktemp)"
 tmp_app_events="$(mktemp)"
+tmp_app_permissions_status="$(mktemp)"
+tmp_app_trust_status="$(mktemp)"
 tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_context_artifacts="$(mktemp)"
@@ -56,7 +58,7 @@ tmp_distribution_review="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
 cat > "$tmp_managed_plugin_policy" <<'JSON'
 {
   "schema": "kiana.managed-plugin-policy.v1",
@@ -192,6 +194,61 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-events.v1.schema.json \
   "$tmp_app_events" >/dev/null
+
+cat > "$tmp_app_permissions_status" <<'JSON'
+{
+  "schema": "kiana.app-server.permissions-status.v1",
+  "workspace": "/workspace",
+  "profile": "commercial",
+  "mode": "ask",
+  "sources": ["file_profile", "managed_policy", "managed_profile"],
+  "file": {
+    "path": "/workspace/permissions.json",
+    "status": "loaded",
+    "loaded": true,
+    "error": null
+  },
+  "managed_policy": {
+    "path": "/workspace/managed-permissions.json",
+    "status": "loaded",
+    "loaded": true,
+    "error": null
+  },
+  "rules": {
+    "allowed_tools": ["Read"],
+    "disallowed_tools": ["Bash"],
+    "ask_tools": ["Edit"],
+    "managed_allowed_tools": ["Glob"],
+    "managed_disallowed_tools": ["Write"],
+    "managed_ask_tools": ["Bash"]
+  },
+  "interactive_prompts": {
+    "supported": true,
+    "non_interactive_requires_allow_rule": true
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-app-server-permissions-status.v1.schema.json \
+  "$tmp_app_permissions_status" >/dev/null
+
+cat > "$tmp_app_trust_status" <<'JSON'
+{
+  "schema": "kiana.app-server.trust-status.v1",
+  "workspace": "/workspace",
+  "project_trust": "trusted",
+  "project_trusted": true,
+  "source": "default",
+  "file": {
+    "path": "/workspace/.kiana/trust.json",
+    "status": "missing",
+    "exists": false
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-app-server-trust-status.v1.schema.json \
+  "$tmp_app_trust_status" >/dev/null
 
 cat > "$tmp_auth_status" <<'JSON'
 {
@@ -1023,7 +1080,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

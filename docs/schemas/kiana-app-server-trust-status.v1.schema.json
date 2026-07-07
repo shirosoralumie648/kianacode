@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-trust-status.v1.schema.json",
+  "title": "Kiana App Server Trust Status v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "workspace",
+    "project_trust",
+    "project_trusted",
+    "source",
+    "file"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.trust-status.v1"
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_trust": {
+      "type": "string",
+      "enum": ["trusted", "untrusted"]
+    },
+    "project_trusted": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["session", "file", "default"]
+    },
+    "file": {
+      "type": "object",
+      "required": ["path", "status", "exists"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["found", "missing"]
+        },
+        "exists": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

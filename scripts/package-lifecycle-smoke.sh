@@ -112,11 +112,13 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-git-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-distribution-review.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-model-current.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-permissions-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-plugins.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-prompt-history.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-trust-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-commands.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-readiness.v1.schema.json" \

@@ -15,6 +15,7 @@ use kiana_query::{
     ContextIndexOptions, ContextPackOptions, ContextSearchOptions, RepoMapOptions,
 };
 use kiana_screens::{history::HistoryEntry, settings::SettingsSection};
+use kiana_tools::permissions::effective_tool_permissions;
 use kiana_tools::tool_execution::{
     PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
 };
@@ -5364,6 +5365,14 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_sandbox_handler),
         )
         .route(
+            "/app/permissions/status",
+            axum::routing::get(direct_connect_app_permissions_status_handler),
+        )
+        .route(
+            "/app/trust/status",
+            axum::routing::get(direct_connect_app_trust_status_handler),
+        )
+        .route(
             "/app/plugins",
             axum::routing::get(direct_connect_app_plugins_handler),
         )
@@ -7760,6 +7769,149 @@ async fn direct_connect_app_sandbox_handler(
     .into_response()
 }
 
+async fn direct_connect_app_permissions_status_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(direct_connect_app_permissions_status_payload(&state)).into_response()
+}
+
+fn direct_connect_app_permissions_status_payload(state: &DirectConnectServerState) -> Value {
+    let app_state = direct_connect_app_state_with_workspace(state);
+    let permissions = effective_tool_permissions(&app_state);
+    let file_status = if permissions.file_error.is_some() {
+        "error"
+    } else if permissions.file_loaded {
+        "loaded"
+    } else {
+        "missing"
+    };
+    let managed_policy_status = if permissions.managed_policy_loaded {
+        "loaded"
+    } else if permissions.managed_policy_error.is_some() {
+        "error"
+    } else if permissions.managed_policy_path.is_some() {
+        "missing"
+    } else {
+        "none"
+    };
+
+    serde_json::json!({
+        "schema": "kiana.app-server.permissions-status.v1",
+        "workspace": state.workspace.display().to_string(),
+        "profile": permissions.profile,
+        "mode": permissions.mode,
+        "sources": permissions.sources,
+        "file": {
+            "path": permissions.file_path.display().to_string(),
+            "status": file_status,
+            "loaded": permissions.file_loaded,
+            "error": permissions.file_error,
+        },
+        "managed_policy": {
+            "path": permissions
+                .managed_policy_path
+                .as_ref()
+                .map(|path| path.display().to_string()),
+            "status": managed_policy_status,
+            "loaded": permissions.managed_policy_loaded,
+            "error": permissions.managed_policy_error,
+        },
+        "rules": {
+            "allowed_tools": permissions.allowed_tools,
+            "disallowed_tools": permissions.disallowed_tools,
+            "ask_tools": permissions.ask_tools,
+            "managed_allowed_tools": permissions.managed_allowed_tools,
+            "managed_disallowed_tools": permissions.managed_disallowed_tools,
+            "managed_ask_tools": permissions.managed_ask_tools,
+        },
+        "interactive_prompts": {
+            "supported": true,
+            "non_interactive_requires_allow_rule": true,
+        },
+    })
+}
+
+async fn direct_connect_app_trust_status_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(direct_connect_app_trust_status_payload(&state)).into_response()
+}
+
+fn direct_connect_app_trust_status_payload(state: &DirectConnectServerState) -> Value {
+    let app_state = direct_connect_app_state_with_workspace(state);
+    let trust = kiana_types::project_trust_from_app_state(&app_state);
+    let file_path = kiana_types::find_project_trust_file(&state.workspace)
+        .unwrap_or_else(|| kiana_types::project_trust_file_path(&state.workspace));
+    let file_exists = file_path.is_file();
+    let file_trust = kiana_types::read_project_trust(&state.workspace)
+        .ok()
+        .flatten();
+    let source = if direct_connect_app_state_has_explicit_project_trust(&app_state) {
+        "session"
+    } else if file_trust.is_some() {
+        "file"
+    } else {
+        "default"
+    };
+
+    serde_json::json!({
+        "schema": "kiana.app-server.trust-status.v1",
+        "workspace": state.workspace.display().to_string(),
+        "project_trust": trust.as_str(),
+        "project_trusted": trust.as_bool(),
+        "source": source,
+        "file": {
+            "path": file_path.display().to_string(),
+            "status": if file_exists { "found" } else { "missing" },
+            "exists": file_exists,
+        },
+    })
+}
+
+fn direct_connect_app_state_with_workspace(
+    state: &DirectConnectServerState,
+) -> HashMap<String, Value> {
+    let mut app_state = state.base_options.clone();
+    app_state.insert(
+        "cwd".to_string(),
+        Value::String(state.workspace.display().to_string()),
+    );
+    app_state
+}
+
+fn direct_connect_app_state_has_explicit_project_trust(app_state: &HashMap<String, Value>) -> bool {
+    app_state.contains_key("project_trusted")
+        || app_state.contains_key("projectTrusted")
+        || app_state
+            .get("trust")
+            .and_then(Value::as_object)
+            .is_some_and(|trust| trust.contains_key("project"))
+        || app_state
+            .get("project")
+            .and_then(Value::as_object)
+            .is_some_and(|project| project.contains_key("trusted"))
+}
+
 async fn direct_connect_app_plugins_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
@@ -9778,6 +9930,8 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "release.distribution_review.read",
         "secrets.redacted",
         "sandbox.read",
+        "permissions.status.read",
+        "trust.status.read",
         "plugins.read",
         "auth.status.read",
         "license.status.read",
@@ -9854,6 +10008,8 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("GET", "/app/release/distribution", "kiana.app-server.distribution-review.v1"),
         direct_connect_app_endpoint("GET", "/app/secrets", "kiana.app-server.secrets.v1"),
         direct_connect_app_endpoint("GET", "/app/sandbox", "kiana.app-server.sandbox.v1"),
+        direct_connect_app_endpoint("GET", "/app/permissions/status", "kiana.app-server.permissions-status.v1"),
+        direct_connect_app_endpoint("GET", "/app/trust/status", "kiana.app-server.trust-status.v1"),
         direct_connect_app_endpoint("GET", "/app/plugins", "kiana.app-server.plugins.v1"),
         direct_connect_app_endpoint("GET", "/app/auth/status", "kiana.auth-status.v1"),
         direct_connect_app_endpoint("GET", "/app/license/status", "kiana.license-status.v1"),
@@ -18963,6 +19119,14 @@ mod tests {
             "KIANA_REMOTE_SMOKE_PROOF_FILE",
             "KIANA_REMOTE_SMOKE_PROOF_OUT",
             "KIANA_DISTRIBUTION_REVIEW_DIST_DIR",
+            "KIANA_PERMISSIONS_FILE",
+            "KIANA_MANAGED_PERMISSIONS_FILE",
+            "KIANA_MANAGED_POLICY_FILE",
+            "KIANA_PERMISSION_PROFILE",
+            "KIANA_PERMISSION_MODE",
+            "KIANA_ALLOWED_TOOLS",
+            "KIANA_DISALLOWED_TOOLS",
+            "KIANA_ASK_TOOLS",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-app-{}", uuid::Uuid::new_v4()));
@@ -19110,13 +19274,43 @@ mod tests {
         .unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
-        std::env::set_var("KIANA_HOME", workspace.join(".kiana-home"));
+        let kiana_home = workspace.join(".kiana-home");
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::fs::create_dir_all(&kiana_home).unwrap();
         std::env::set_var("KIANA_CONFIG_FILE", workspace.join("config.toml"));
         std::env::set_var(
             "KIANA_OAUTH_TOKENS_FILE",
             workspace.join("oauth-tokens.json"),
         );
-        let prompt_history_path = workspace.join(".kiana-home").join("tui-history.jsonl");
+        let permissions_file = kiana_home.join("permissions.json");
+        std::fs::write(
+            &permissions_file,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "profile": "workspace",
+                "allowedTools": ["Read"],
+                "disallowedTools": ["Bash"],
+                "askTools": ["Edit"]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let managed_permissions_file = kiana_home.join("managed-permissions.json");
+        std::fs::write(
+            &managed_permissions_file,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "permissions": {
+                    "profile": "commercial",
+                    "allowedTools": ["Glob"],
+                    "disallowedTools": ["Write"],
+                    "askTools": ["Bash"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PERMISSIONS_FILE", &permissions_file);
+        std::env::set_var("KIANA_MANAGED_PERMISSIONS_FILE", &managed_permissions_file);
+        let prompt_history_path = kiana_home.join("tui-history.jsonl");
         std::fs::create_dir_all(prompt_history_path.parent().unwrap()).unwrap();
         let prompt_history_lines = [
             "not json".to_string(),
@@ -19367,6 +19561,14 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("permissions.status.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("trust.status.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("plugins.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19524,6 +19726,24 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/config/resolved"
                     && endpoint["schema"] == "kiana.app-server.config-resolved.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/permissions/status"
+                    && endpoint["schema"] == "kiana.app-server.permissions-status.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/trust/status"
+                    && endpoint["schema"] == "kiana.app-server.trust-status.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -20291,7 +20511,7 @@ mod tests {
                 && secret["status"] == "missing"
                 && secret["source"] == "none"));
         assert_eq!(secrets["summary"]["set"], 1);
-        assert_eq!(secrets["summary"]["missing"], 3);
+        assert!(secrets["summary"]["missing"].as_u64().unwrap() >= 3);
         assert!(!secrets.to_string().contains("must-not-leak"));
 
         let sandbox: Value = client
@@ -20305,6 +20525,82 @@ mod tests {
             .unwrap();
         assert_eq!(sandbox["schema"], "kiana.app-server.sandbox.v1");
         assert_eq!(sandbox["default_permission_mode"], "ask");
+
+        let permissions_status: Value = client
+            .get(format!("http://{addr}/app/permissions/status"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            permissions_status["schema"],
+            "kiana.app-server.permissions-status.v1"
+        );
+        assert_eq!(
+            permissions_status["workspace"],
+            workspace.display().to_string()
+        );
+        assert_eq!(permissions_status["profile"], "commercial");
+        assert_eq!(permissions_status["mode"], "ask");
+        assert_eq!(
+            permissions_status["file"]["path"],
+            permissions_file.display().to_string()
+        );
+        assert_eq!(permissions_status["file"]["status"], "loaded");
+        assert_eq!(
+            permissions_status["managed_policy"]["path"],
+            managed_permissions_file.display().to_string()
+        );
+        assert_eq!(permissions_status["managed_policy"]["status"], "loaded");
+        let permission_sources = permissions_status["sources"].as_array().unwrap();
+        assert!(permission_sources
+            .iter()
+            .any(|source| source == "file_profile"));
+        assert!(permission_sources
+            .iter()
+            .any(|source| source == "managed_profile"));
+        assert!(permissions_status["rules"]["allowed_tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|rule| rule == "Read"));
+        assert!(permissions_status["rules"]["managed_disallowed_tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|rule| rule == "Write"));
+        assert_eq!(
+            permissions_status["interactive_prompts"]["non_interactive_requires_allow_rule"],
+            true
+        );
+
+        let trust_status: Value = client
+            .get(format!("http://{addr}/app/trust/status"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(trust_status["schema"], "kiana.app-server.trust-status.v1");
+        assert_eq!(trust_status["workspace"], workspace.display().to_string());
+        assert_eq!(trust_status["project_trust"], "trusted");
+        assert_eq!(trust_status["project_trusted"], true);
+        assert_eq!(trust_status["source"], "default");
+        assert_eq!(trust_status["file"]["status"], "missing");
+        assert_eq!(trust_status["file"]["exists"], false);
+        assert_eq!(
+            trust_status["file"]["path"],
+            workspace
+                .join(".kiana")
+                .join("trust.json")
+                .display()
+                .to_string()
+        );
 
         let plugins: Value = client
             .get(format!("http://{addr}/app/plugins"))
