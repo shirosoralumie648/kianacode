@@ -142,6 +142,7 @@ for file in \
   "$package_root/scripts/validate-json-schema.py" \
   "$package_root/scripts/schema-contract-smoke.sh" \
   "$package_root/scripts/commercial-release-blockers-report.sh" \
+  "$package_root/scripts/source-control-proof-report.sh" \
   "$package_root/scripts/local-rc-evidence-report.sh" \
   "$package_root/scripts/stage-commercial-release-proofs.sh" \
   "$package_root/scripts/entitlement-proof-report.sh" \

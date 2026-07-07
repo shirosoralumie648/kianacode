@@ -14,11 +14,12 @@ python="$(python_bin)"
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
 tmp_source_control="$(mktemp)"
+tmp_source_control_out="$(mktemp)"
 tmp_proof_report="$(mktemp)"
 tmp_proof_handoff="$(mktemp)"
 tmp_dist="$(mktemp -d)"
 tmp_local_rc_dist="$(mktemp -d)"
-trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_proof_report" "$tmp_proof_handoff"; rm -rf "$tmp_dist" "$tmp_local_rc_dist"' EXIT
+trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_source_control_out" "$tmp_proof_report" "$tmp_proof_handoff"; rm -rf "$tmp_dist" "$tmp_local_rc_dist"' EXIT
 
 KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
   bash scripts/commercial-release-blockers-report.sh \
@@ -112,6 +113,28 @@ cat > "$tmp_source_control" <<'JSON'
   "reviewed": true
 }
 JSON
+
+KIANA_SOURCE_CONTROL_PROOF_FILE="$tmp_source_control" \
+KIANA_SOURCE_CONTROL_PROOF_OUT="$tmp_source_control_out" \
+  bash scripts/source-control-proof-report.sh full >/dev/null
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-source-control-proof.v1.schema.json \
+  "$tmp_source_control_out" >/dev/null
+
+"$python" - "$tmp_source_control_out" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if report.get("schema") != "kiana.source-control-proof.v1":
+    raise SystemExit("source-control proof report schema mismatch")
+if report.get("status") != "accepted" or report.get("accepted") is not True:
+    raise SystemExit("source-control proof report did not preserve accepted proof")
+if report.get("release_tag") != "v0.1.0":
+    raise SystemExit("source-control proof report release tag mismatch")
+PY
 
 KIANA_SOURCE_CONTROL_PROOF_FILE="$tmp_source_control" \
   bash scripts/commercial-release-blockers-report.sh \
@@ -781,6 +804,8 @@ if "platform security proofs accepted" not in check.get("evidence", ""):
 PY
 
 mkdir -p "$tmp_local_rc_dist/source-proofs"
+KIANA_SOURCE_CONTROL_PROOF_OUT="$tmp_local_rc_dist/source-proofs/source-control.json" \
+  bash scripts/source-control-proof-report.sh --local-rc >/dev/null
 cat > "$tmp_local_rc_dist/source-proofs/product-acceptance.json" <<'JSON'
 {
   "schema": "kiana.product-acceptance.v1",
@@ -846,6 +871,7 @@ cat > "$tmp_local_rc_dist/source-proofs/platform-security-windows.json" <<'JSON'
 JSON
 
 DIST_DIR="$tmp_local_rc_dist" \
+KIANA_SOURCE_CONTROL_PROOF_OUT="$tmp_local_rc_dist/source-proofs/source-control.json" \
 KIANA_PRODUCT_ACCEPTANCE_OUT="$tmp_local_rc_dist/source-proofs/product-acceptance.json" \
 KIANA_ENTITLEMENT_PROOF_OUT="$tmp_local_rc_dist/source-proofs/entitlement-proof.json" \
 KIANA_RELEASE_OPS_OUT="$tmp_local_rc_dist/source-proofs/release-ops.json" \
@@ -866,6 +892,7 @@ report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 proofs = report.get("proofs", [])
 by_schema = {proof.get("schema"): proof for proof in proofs}
 expected = {
+    "kiana.source-control-proof.v1": "local_rc_only",
     "kiana.product-acceptance.v1": "headless_smoke_only",
     "kiana.entitlement-proof.v1": "local_rc_only",
     "kiana.release-ops.v1": "local_rc_only",

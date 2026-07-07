@@ -96,6 +96,7 @@ for file in \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
   scripts/commercial-release-blockers-report.sh \
+  scripts/source-control-proof-report.sh \
   scripts/local-rc-evidence-report.sh \
   scripts/commercial-release-handoff-smoke.sh \
   scripts/stage-commercial-release-proofs.sh \
@@ -127,6 +128,20 @@ else
     pass "local RC compliance audit passed"
   else
     fail "local RC compliance audit failed"
+  fi
+fi
+
+if [[ "$mode" == "full" ]]; then
+  if "$bash_bin" scripts/source-control-proof-report.sh full; then
+    pass "source-control proof gate passed"
+  else
+    fail "source-control proof gate failed"
+  fi
+else
+  if "$bash_bin" scripts/source-control-proof-report.sh --local-rc; then
+    pass "local RC source-control proof generated"
+  else
+    fail "local RC source-control proof generation failed"
   fi
 fi
 
@@ -500,6 +515,15 @@ if grep -Fq '"const": "kiana.source-control-proof.v1"' docs/schemas/kiana-source
   pass "source-control proof JSON schema version is pinned"
 else
   fail "source-control proof JSON schema is missing kiana.source-control-proof.v1 const"
+fi
+
+if grep -Fq 'source-control proof accepted' scripts/source-control-proof-report.sh &&
+  grep -Fq 'source-control local RC proof written' scripts/source-control-proof-report.sh &&
+  grep -Fq 'KIANA_SOURCE_CONTROL_PROOF_FILE' scripts/source-control-proof-report.sh &&
+  grep -Fq 'KIANA_SOURCE_CONTROL_PROOF_OUT' scripts/source-control-proof-report.sh; then
+  pass "source-control proof report gate is wired"
+else
+  fail "source-control proof report gate is not wired"
 fi
 
 if grep -Fq '"const": "kiana.commercial-release-blockers.v1"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json; then

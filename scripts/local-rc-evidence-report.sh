@@ -66,6 +66,10 @@ def stage_local_rc_proof_drafts() -> None:
     platform = current_platform()
     fixed_candidates = [
         (
+            Path(os.environ.get("KIANA_SOURCE_CONTROL_PROOF_OUT", "target/source-control/source-control.json")),
+            dist_dir / "proofs/local-rc/source-control/source-control.json",
+        ),
+        (
             Path(os.environ.get("KIANA_PRODUCT_ACCEPTANCE_OUT", "target/product-acceptance/product-acceptance.json")),
             dist_dir / "proofs/local-rc/product/product-acceptance.json",
         ),
