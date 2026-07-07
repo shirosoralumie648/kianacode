@@ -623,6 +623,84 @@ mod runtime_event_tests {
     }
 
     #[test]
+    fn remote_sdk_adapter_preserves_mcp_prompt_tool_lifecycle_metadata() {
+        let assistant_events = runtime_events_from_sdk_message(
+            "session-1",
+            "turn-mcp-prompt",
+            None,
+            0,
+            "2026-07-07T00:00:00Z",
+            SDKMessage::Assistant(SDKAssistantMessage {
+                uuid: "assistant-mcp-prompt".to_string(),
+                error: None,
+                message: json!({
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_prompt",
+                            "name": "GetMcpPromptTool",
+                            "input": {
+                                "server_name": "docs",
+                                "name": "release-checklist",
+                                "arguments": {
+                                    "topic": "commercial-readiness"
+                                }
+                            },
+                            "workbench": "mcp"
+                        }
+                    ]
+                }),
+            }),
+        );
+
+        assert_eq!(assistant_events.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&assistant_events[0]).unwrap()["type"],
+            "assistant_message"
+        );
+        let call = serde_json::to_value(&assistant_events[1]).unwrap();
+        assert_eq!(call["type"], "tool_call");
+        assert_eq!(call["name"], "GetMcpPromptTool");
+        assert_eq!(call["tool_call_id"], "toolu_prompt");
+        assert_eq!(call["workbench"], "mcp");
+        assert_eq!(call["input"]["name"], "release-checklist");
+
+        let user_events = runtime_events_from_sdk_message(
+            "session-1",
+            "turn-mcp-prompt-result",
+            Some("turn-mcp-prompt".to_string()),
+            1,
+            "2026-07-07T00:00:01Z",
+            SDKMessage::User(SDKUserMessage {
+                uuid: "user-mcp-prompt".to_string(),
+                timestamp: Some("2026-07-07T00:00:01Z".to_string()),
+                message: Some(json!({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_prompt",
+                            "content": "Use the commercial release checklist.",
+                            "is_error": false,
+                            "workbench": "mcp"
+                        }
+                    ]
+                })),
+                tool_use_result: None,
+            }),
+        );
+
+        assert_eq!(user_events.len(), 2);
+        let result = serde_json::to_value(&user_events[1]).unwrap();
+        assert_eq!(result["type"], "tool_result");
+        assert_eq!(result["tool_call_id"], "toolu_prompt");
+        assert_eq!(result["workbench"], "mcp");
+        assert_eq!(result["is_error"], false);
+        assert_eq!(result["content"], "Use the commercial release checklist.");
+    }
+
+    #[test]
     fn remote_control_adapter_emits_runtime_permission_request() {
         let request = SDKControlRequest {
             request_id: "perm-1".to_string(),

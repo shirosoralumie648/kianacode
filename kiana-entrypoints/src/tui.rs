@@ -2986,6 +2986,71 @@ mod tests {
     }
 
     #[test]
+    fn maps_mcp_prompt_runtime_events_to_conversation_messages() {
+        let events = vec![
+            kiana_types::RuntimeEvent::new(
+                "evt-mcp-prompt-call",
+                "session-1",
+                "turn-0",
+                None,
+                0,
+                "126",
+                kiana_types::RuntimeEventPayload::ToolCall(kiana_types::RuntimeToolCallEvent {
+                    tool_call_id: "toolu_prompt".to_string(),
+                    name: "GetMcpPromptTool".to_string(),
+                    workbench: Some("mcp".to_string()),
+                    input: json!({
+                        "server_name": "docs",
+                        "name": "release-checklist",
+                        "arguments": {
+                            "topic": "commercial-readiness"
+                        }
+                    }),
+                }),
+            ),
+            kiana_types::RuntimeEvent::new(
+                "evt-mcp-prompt-result",
+                "session-1",
+                "turn-0",
+                None,
+                1,
+                "127",
+                kiana_types::RuntimeEventPayload::ToolResult(kiana_types::RuntimeToolResultEvent {
+                    tool_call_id: "toolu_prompt".to_string(),
+                    name: Some("GetMcpPromptTool".to_string()),
+                    workbench: Some("mcp".to_string()),
+                    is_error: false,
+                    content: json!("Use the commercial release checklist."),
+                    changed_files: None,
+                    error: None,
+                }),
+            ),
+        ];
+
+        let conversation = runtime_events_to_conversation(events);
+
+        assert_eq!(conversation.len(), 2);
+        assert_eq!(conversation[0].role, MessageRole::Tool);
+        assert!(conversation[0]
+            .content
+            .contains("Tool requested: GetMcpPromptTool"));
+        assert!(conversation[0]
+            .content
+            .contains("tool_use_id: toolu_prompt"));
+        assert!(conversation[0].content.contains("workbench: mcp"));
+        assert!(conversation[0].content.contains("release-checklist"));
+        assert_eq!(conversation[1].role, MessageRole::Tool);
+        assert!(conversation[1]
+            .content
+            .contains("tool_use_id: toolu_prompt"));
+        assert!(conversation[1].content.contains("workbench: mcp"));
+        assert!(conversation[1].content.contains("result: success"));
+        assert!(conversation[1]
+            .content
+            .contains("Use the commercial release checklist."));
+    }
+
+    #[test]
     fn maps_tool_result_error_metadata_to_conversation_messages() {
         let events = vec![kiana_types::RuntimeEvent::new(
             "evt-tool-error",

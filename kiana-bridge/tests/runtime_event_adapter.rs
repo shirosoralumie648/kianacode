@@ -76,6 +76,81 @@ fn bridge_sdk_adapter_emits_runtime_events_for_messages_tools_and_results() {
 }
 
 #[test]
+fn bridge_sdk_adapter_preserves_mcp_prompt_tool_lifecycle_metadata() {
+    let events = kiana_bridge::runtime_events_from_bridge_sdk_message(
+        "session-1",
+        "turn-mcp-prompt",
+        None,
+        0,
+        "2026-07-07T00:00:00Z",
+        SDKMessage::Assistant {
+            uuid: "assistant-mcp-prompt".to_string(),
+            message: MessageContent {
+                content: ContentBlock::Blocks(vec![HashMap::from([
+                    ("type".to_string(), json!("tool_use")),
+                    ("id".to_string(), json!("toolu_prompt")),
+                    ("name".to_string(), json!("GetMcpPromptTool")),
+                    (
+                        "input".to_string(),
+                        json!({
+                            "server_name": "docs",
+                            "name": "release-checklist",
+                            "arguments": {
+                                "topic": "commercial-readiness"
+                            }
+                        }),
+                    ),
+                    ("workbench".to_string(), json!("mcp")),
+                ])]),
+            },
+        },
+    );
+
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+        serde_json::to_value(&events[0]).unwrap()["type"],
+        "assistant_message"
+    );
+    let call = serde_json::to_value(&events[1]).unwrap();
+    assert_eq!(call["type"], "tool_call");
+    assert_eq!(call["name"], "GetMcpPromptTool");
+    assert_eq!(call["tool_call_id"], "toolu_prompt");
+    assert_eq!(call["workbench"], "mcp");
+    assert_eq!(call["input"]["name"], "release-checklist");
+
+    let result_events = kiana_bridge::runtime_events_from_bridge_sdk_message(
+        "session-1",
+        "turn-mcp-prompt-result",
+        Some("turn-mcp-prompt".to_string()),
+        1,
+        "2026-07-07T00:00:01Z",
+        SDKMessage::User {
+            uuid: "user-mcp-prompt".to_string(),
+            message: MessageContent {
+                content: ContentBlock::Blocks(vec![HashMap::from([
+                    ("type".to_string(), json!("tool_result")),
+                    ("tool_use_id".to_string(), json!("toolu_prompt")),
+                    (
+                        "content".to_string(),
+                        json!("Use the commercial release checklist."),
+                    ),
+                    ("is_error".to_string(), json!(false)),
+                    ("workbench".to_string(), json!("mcp")),
+                ])]),
+            },
+        },
+    );
+
+    assert_eq!(result_events.len(), 2);
+    let result = serde_json::to_value(&result_events[1]).unwrap();
+    assert_eq!(result["type"], "tool_result");
+    assert_eq!(result["tool_call_id"], "toolu_prompt");
+    assert_eq!(result["workbench"], "mcp");
+    assert_eq!(result["is_error"], false);
+    assert_eq!(result["content"], "Use the commercial release checklist.");
+}
+
+#[test]
 fn bridge_sdk_adapter_emits_runtime_event_stream_delta_and_results() {
     let stream_events = kiana_bridge::runtime_events_from_bridge_sdk_message(
         "session-1",
