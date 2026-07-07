@@ -12,6 +12,13 @@ sign_dist_dir="$tmp_root/sign-dist"
 verify_command="$tmp_root/verify-fixture-signature.sh"
 sign_command="$tmp_root/sign-fixture-artifact.sh"
 
+python_bin() {
+  command -v python3 2>/dev/null || command -v python 2>/dev/null || {
+    echo "commercial release verifier smoke requires python3 or python" >&2
+    exit 1
+  }
+}
+
 cleanup() {
   rm -rf "$tmp_root"
 }
@@ -544,7 +551,7 @@ mv "${winget_manifest}.valid" "$winget_manifest"
 
 enterprise_manifest="$manifest_dir/enterprise/offline-manifest.json"
 cp "$enterprise_manifest" "${enterprise_manifest}.valid"
-"${PYTHON:-python3}" - "$enterprise_manifest" <<'PY'
+"${PYTHON:-$(python_bin)}" - "$enterprise_manifest" <<'PY'
 import json
 import sys
 

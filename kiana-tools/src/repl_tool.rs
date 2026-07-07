@@ -329,6 +329,8 @@ mod tests {
 
     #[tokio::test]
     async fn runs_primitive_calls_in_order() {
+        let _guard = crate::test_support::lock_env();
+        clear_permission_env_for_test();
         let root = std::env::temp_dir().join(format!("kiana-repl-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
         let file = root.join("note.txt");
@@ -383,6 +385,7 @@ mod tests {
         assert!(content.contains("2. Edit: ok"));
         assert!(content.contains("3. Bash: ok"));
         assert!(content.contains("goodbye world"));
+        clear_permission_env_for_test();
         let _ = fs::remove_dir_all(root);
     }
 
@@ -456,6 +459,8 @@ mod tests {
 
     #[tokio::test]
     async fn stops_on_validation_error_by_default() {
+        let _guard = crate::test_support::lock_env();
+        clear_permission_env_for_test();
         let mut context = test_context(".".to_string());
 
         let output = ReplTool::new()
@@ -477,6 +482,7 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("command cannot be empty"));
+        clear_permission_env_for_test();
     }
 
     #[derive(Debug)]

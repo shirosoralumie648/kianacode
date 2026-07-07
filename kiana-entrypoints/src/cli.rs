@@ -6311,21 +6311,53 @@ fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .ok_or_else(|| anyhow!("failed to resolve Kiana workspace root"))?;
-    let output = std::process::Command::new("bash")
-        .arg("scripts/commercial-release-blockers-report.sh")
-        .arg("--json")
-        .current_dir(root)
-        .output()
-        .context("failed to run scripts/commercial-release-blockers-report.sh --json")?;
-    if !output.status.success() {
-        return Err(anyhow!(
-            "commercial release blockers report exited with status {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
+    let mut failures = Vec::new();
+    for bash in direct_connect_bash_candidates() {
+        match std::process::Command::new(&bash)
+            .arg("-lc")
+            .arg("./scripts/commercial-release-blockers-report.sh --json")
+            .current_dir(root)
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                return serde_json::from_slice::<Value>(&output.stdout).with_context(|| {
+                    format!(
+                        "failed to parse commercial release blockers JSON report from {}",
+                        bash.display()
+                    )
+                });
+            }
+            Ok(output) => failures.push(format!(
+                "{} exited with status {}: {}",
+                bash.display(),
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Err(error) => failures.push(format!("{} failed to start: {error}", bash.display())),
+        }
+    }
+    Err(anyhow!(
+        "failed to run scripts/commercial-release-blockers-report.sh --json: {}",
+        failures.join(" | ")
+    ))
+}
+
+fn direct_connect_bash_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = std::env::var_os("KIANA_BASH") {
+        candidates.push(PathBuf::from(path));
+    }
+    #[cfg(windows)]
+    {
+        candidates.push(PathBuf::from(r"C:\Program Files\Git\bin\bash.exe"));
+        candidates.push(PathBuf::from(r"C:\Program Files\Git\usr\bin\bash.exe"));
+        candidates.push(PathBuf::from(r"C:\Program Files (x86)\Git\bin\bash.exe"));
+        candidates.push(PathBuf::from(
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
         ));
     }
-    serde_json::from_slice::<Value>(&output.stdout)
-        .context("failed to parse commercial release blockers JSON report")
+    candidates.push(PathBuf::from("bash"));
+    candidates
 }
 
 fn direct_connect_local_rc_evidence_report() -> Result<Value> {
@@ -7330,8 +7362,8 @@ fn direct_connect_distribution_target_from_archive(file_name: &str) -> String {
 fn direct_connect_relative_path(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)
-        .display()
-        .to_string()
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 fn direct_connect_first_existing_path<const N: usize>(
@@ -18789,6 +18821,7 @@ mod tests {
         .unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
+        std::env::set_var("KIANA_HOME", workspace.join(".kiana-home"));
         std::env::set_var("KIANA_CONFIG_FILE", workspace.join("config.toml"));
         std::env::set_var(
             "KIANA_OAUTH_TOKENS_FILE",

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 cd "$(dirname "$0")/.."
+
+trap 'status=$?; echo "release smoke failed at line $LINENO: $BASH_COMMAND" >&2; exit "$status"' ERR
 
 if [[ "${KIANA_RELEASE_SMOKE_SKIP_BUILD_GATES:-0}" != "1" ]]; then
   cargo fmt --all --check
@@ -70,6 +72,71 @@ tmp_root="$(mktemp -d)"
 install_dir="$tmp_root/install"
 smoke_home="$tmp_root/home"
 trap 'rm -rf "$tmp_root"' EXIT
+
+path_variants() {
+  local path="$1"
+
+  printf '%s\n' "$path"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$path" 2>/dev/null || true
+    cygpath -w "$path" 2>/dev/null || true
+  fi
+}
+
+assert_output_path() {
+  local output="$1"
+  local prefix="$2"
+  local path="$3"
+  local candidate
+
+  while IFS= read -r candidate; do
+    if [[ -n "$candidate" ]] && grep -Fq -- "$prefix$candidate" <<<"$output"; then
+      return 0
+    fi
+  done < <(path_variants "$path")
+
+  echo "release smoke path assertion failed: ${prefix}${path}" >&2
+  echo "$output" >&2
+  exit 1
+}
+
+assert_exact_output_path() {
+  local output="$1"
+  local path="$2"
+  local candidate
+
+  while IFS= read -r candidate; do
+    if [[ -n "$candidate" ]] && grep -Fxq -- "$candidate" <<<"$output"; then
+      return 0
+    fi
+  done < <(path_variants "$path")
+
+  echo "release smoke exact path assertion failed: $path" >&2
+  echo "$output" >&2
+  exit 1
+}
+
+assert_json_path() {
+  local output="$1"
+  local field="$2"
+  local path="$3"
+  local candidate
+  local escaped
+
+  while IFS= read -r candidate; do
+    if [[ -z "$candidate" ]]; then
+      continue
+    fi
+    escaped="${candidate//\\/\\\\}"
+    if grep -Fq -- "\"$field\": \"$escaped\"" <<<"$output"; then
+      return 0
+    fi
+  done < <(path_variants "$path")
+
+  echo "release smoke JSON path assertion failed: $field=$path" >&2
+  echo "$output" >&2
+  exit 1
+}
 
 run_clean_kiana() {
   local path_for_child="${PATH:-}"
@@ -831,7 +898,7 @@ smoke_plugin_marketplace() {
 }
 JSON
   printf '# audit\n' > "$marketplace_dir/review-tools/commands/audit.md"
-  receipt_source_hash="$(python3 - "$marketplace_dir/review-tools" <<'PY'
+  receipt_source_hash="$("$(doctor_json_python)" - "$marketplace_dir/review-tools" <<'PY'
 import pathlib
 import sys
 
@@ -935,7 +1002,7 @@ JSON
   output="$(run_clean_kiana "$binary" reload-plugins)"
   grep -Fq -- "Reloaded: 1 plugins" <<<"$output"
   grep -Fq -- "1 commands" <<<"$output"
-  grep -Fq -- "user: $smoke_home/.kiana/plugins" <<<"$output"
+  assert_output_path "$output" "user: " "$smoke_home/.kiana/plugins"
   output="$(run_clean_kiana "$binary" plugin show review-tools)"
   grep -Fq -- '"install_receipt": {' <<<"$output"
   grep -Fq -- '"schema": "kiana.plugin-install-receipt.v1"' <<<"$output"
@@ -961,15 +1028,15 @@ JSON
 
   output="$(cd "$tmp_root" && KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file" run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope project)"
   grep -Fq -- "Installed plugin: review-tools" <<<"$output"
-  grep -Fq -- "path: $tmp_root/.kiana/plugins/review-tools" <<<"$output"
+  assert_output_path "$output" "path: " "$tmp_root/.kiana/plugins/review-tools"
   grep -Fq -- "managed_policy: allowed (managed plugin policy matched)" <<<"$output"
   test -f "$tmp_root/.kiana/plugins/review-tools/commands/audit.md"
   test -f "$tmp_root/.kiana/plugins/review-tools/.kiana-install-receipt.json"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
-  grep -Fq -- "path: $tmp_root/.kiana/plugins" <<<"$output"
+  assert_output_path "$output" "path: " "$tmp_root/.kiana/plugins"
   grep -Fq -- "review-tools@1.0.0 [valid enabled]" <<<"$output"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin path review-tools --scope project)"
-  grep -Fxq -- "$tmp_root/.kiana/plugins/review-tools" <<<"$output"
+  assert_exact_output_path "$output" "$tmp_root/.kiana/plugins/review-tools"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin show review-tools --scope project)"
   grep -Fq -- '"manifest_name": "review-tools"' <<<"$output"
   grep -Fq -- '"status": "verified"' <<<"$output"
@@ -983,8 +1050,8 @@ JSON
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" reload-plugins)"
   grep -Fq -- "Reloaded: 1 plugins" <<<"$output"
   grep -Fq -- "1 commands" <<<"$output"
-  grep -Fq -- "project: $tmp_root/.kiana/plugins" <<<"$output"
-  grep -Fq -- "local: $tmp_root/.kiana/plugins.local" <<<"$output"
+  assert_output_path "$output" "project: " "$tmp_root/.kiana/plugins"
+  assert_output_path "$output" "local: " "$tmp_root/.kiana/plugins.local"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin disable review-tools --scope project)"
   grep -Fq -- "Plugin disabled: review-tools" <<<"$output"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
@@ -999,14 +1066,14 @@ JSON
 
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope local)"
   grep -Fq -- "Installed plugin: review-tools" <<<"$output"
-  grep -Fq -- "path: $tmp_root/.kiana/plugins.local/review-tools" <<<"$output"
+  assert_output_path "$output" "path: " "$tmp_root/.kiana/plugins.local/review-tools"
   test -f "$tmp_root/.kiana/plugins.local/review-tools/commands/audit.md"
   test -f "$tmp_root/.kiana/plugins.local/review-tools/.kiana-install-receipt.json"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
   grep -Fq -- '"manifest_name": "review-tools"' <<<"$output"
-  grep -Fq -- "\"root\": \"$tmp_root/.kiana/plugins.local/review-tools\"" <<<"$output"
+  assert_json_path "$output" "root" "$tmp_root/.kiana/plugins.local/review-tools"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin path review-tools --scope local)"
-  grep -Fxq -- "$tmp_root/.kiana/plugins.local/review-tools" <<<"$output"
+  assert_exact_output_path "$output" "$tmp_root/.kiana/plugins.local/review-tools"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin validate --scope local)"
   grep -Fq -- "Validating plugin: review-tools" <<<"$output"
   grep -Fq -- "Validation passed" <<<"$output"
@@ -1017,7 +1084,7 @@ JSON
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" reload-plugins)"
   grep -Fq -- "Reloaded: 1 plugins" <<<"$output"
   grep -Fq -- "1 commands" <<<"$output"
-  grep -Fq -- "local: $tmp_root/.kiana/plugins.local" <<<"$output"
+  assert_output_path "$output" "local: " "$tmp_root/.kiana/plugins.local"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin disable review-tools --scope local)"
   grep -Fq -- "Plugin disabled: review-tools" <<<"$output"
   output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin json --scope local review-tools)"

@@ -5287,7 +5287,7 @@ mod tests {
     }
 
     fn shell_path_candidates(path: &str) -> Vec<String> {
-        let candidates = vec![path.to_string()];
+        let mut candidates = vec![path.to_string()];
         #[cfg(windows)]
         {
             let normalized = path.replace('\\', "/");

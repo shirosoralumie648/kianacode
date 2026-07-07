@@ -309,7 +309,7 @@ pub fn build_context_index(
 
     Ok(ContextIndex {
         schema: "kiana.context-index.v1".to_string(),
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         files_indexed: files.len(),
         skipped_files,
         total_bytes,
@@ -349,7 +349,7 @@ pub fn build_context_artifacts(
 
     Ok(ContextArtifacts {
         schema: "kiana.context-artifacts.v1".to_string(),
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         files_indexed: artifacts.len(),
         skipped_files,
         artifacts,
@@ -453,7 +453,7 @@ pub fn build_context_artifact_dependency_graph(
 
     Ok(ContextArtifactDependencyGraph {
         schema: "kiana.context-artifact-dependency-graph.v1".to_string(),
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         nodes,
         edges,
     })
@@ -469,7 +469,7 @@ pub fn build_context_artifact_store(
 
     Ok(ContextArtifactStore {
         schema: "kiana.context-artifact-store.v1".to_string(),
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         artifacts_schema: artifacts.schema.clone(),
         dependency_graph_schema: dependency_graph.schema.clone(),
         artifact_count: artifacts.artifacts.len(),
@@ -630,7 +630,7 @@ pub fn search_context_index(
 
     Ok(ContextSearchResults {
         schema: "kiana.context-search.v1".to_string(),
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         query: query.trim().to_string(),
         terms,
         limit,
@@ -689,7 +689,7 @@ pub fn build_context_pack(
 
     Ok(ContextPack {
         schema: "kiana.context-pack.v1".to_string(),
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         query: query.trim().to_string(),
         terms,
         limit,
@@ -787,7 +787,7 @@ fn cache_report(
         CachedContextIndex::Valid(previous) => previous,
         CachedContextIndex::Missing | CachedContextIndex::Invalid => {
             return ContextIndexCacheReport {
-                path: path.to_string_lossy().to_string(),
+                path: portable_path(path),
                 status: match previous {
                     CachedContextIndex::Missing => "created",
                     CachedContextIndex::Invalid => "recovered",
@@ -830,7 +830,7 @@ fn cache_report(
         .count();
 
     ContextIndexCacheReport {
-        path: path.to_string_lossy().to_string(),
+        path: portable_path(path),
         status: "updated".to_string(),
         reused_files,
         added_files,
@@ -848,7 +848,7 @@ fn artifacts_cache_report(
         CachedContextArtifacts::Valid(previous) => previous,
         CachedContextArtifacts::Missing | CachedContextArtifacts::Invalid => {
             return ContextArtifactsCacheReport {
-                path: path.to_string_lossy().to_string(),
+                path: portable_path(path),
                 status: match previous {
                     CachedContextArtifacts::Missing => "created",
                     CachedContextArtifacts::Invalid => "recovered",
@@ -891,7 +891,7 @@ fn artifacts_cache_report(
         .count();
 
     ContextArtifactsCacheReport {
-        path: path.to_string_lossy().to_string(),
+        path: portable_path(path),
         status: "updated".to_string(),
         reused_artifacts,
         added_artifacts,
@@ -909,7 +909,7 @@ fn artifact_store_cache_report(
         CachedContextArtifactStore::Valid(previous) => previous,
         CachedContextArtifactStore::Missing | CachedContextArtifactStore::Invalid => {
             return ContextArtifactStoreCacheReport {
-                path: path.to_string_lossy().to_string(),
+                path: portable_path(path),
                 status: match previous {
                     CachedContextArtifactStore::Missing => "created",
                     CachedContextArtifactStore::Invalid => "recovered",
@@ -982,7 +982,7 @@ fn artifact_store_cache_report(
         .count();
 
     ContextArtifactStoreCacheReport {
-        path: path.to_string_lossy().to_string(),
+        path: portable_path(path),
         status: "updated".to_string(),
         reused_artifacts,
         added_artifacts,
@@ -1332,10 +1332,22 @@ fn test_target_path(path: &str) -> Option<String> {
 }
 
 fn relative_path(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
+    portable_path(path.strip_prefix(root).unwrap_or(path))
+}
+
+fn display_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = value.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        value.into_owned()
+    }
+}
+
+fn portable_path(path: &Path) -> String {
+    display_path(path).replace('\\', "/")
 }
 
 fn stable_hash(bytes: &[u8]) -> String {

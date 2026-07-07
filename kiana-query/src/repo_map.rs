@@ -68,7 +68,7 @@ pub fn build_repo_map(root: impl AsRef<Path>, options: RepoMapOptions) -> Result
     }
 
     Ok(RepoMap {
-        root: root.to_string_lossy().to_string(),
+        root: display_path(&root),
         token_budget,
         estimated_tokens,
         truncated: omitted_files > 0,
@@ -135,6 +135,17 @@ fn map_file(root: &Path, path: &Path) -> Result<Option<RepoMapFile>> {
         estimated_tokens,
         symbols,
     }))
+}
+
+fn display_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = value.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        value.into_owned()
+    }
 }
 
 fn estimate_entry_tokens(path: &str, language: Option<&str>, symbols: &[String]) -> u64 {

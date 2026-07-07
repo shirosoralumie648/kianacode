@@ -508,6 +508,14 @@ else
   fail "commercial release blockers JSON schema is missing kiana.commercial-release-blockers.v1 const"
 fi
 
+if grep -Fq '"owner_status"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json &&
+  grep -Fq '"acceptance_artifacts"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json &&
+  grep -Fq -- '--handoff-md' scripts/commercial-release-blockers-report.sh; then
+  pass "commercial release blocker handoff contract is wired"
+else
+  fail "commercial release blocker handoff contract is missing"
+fi
+
 if grep -Fq '"const": "kiana.local-rc-evidence.v1"' docs/schemas/kiana-local-rc-evidence.v1.schema.json; then
   pass "local RC evidence JSON schema version is pinned"
 else

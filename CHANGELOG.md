@@ -167,6 +167,13 @@ minor versions may include breaking CLI, config, or storage changes. Use
   the current repository.
 - Added pinned app-server subresponse schemas for conversations, settings,
   secrets, sandbox, and git-status release/package gates.
+- Hardened app-server and release smoke gates for Windows commercial release
+  runners: release blocker reports prefer Git Bash over WSL `bash.exe`, public
+  context/distribution JSON paths avoid Windows verbatim prefixes and use stable
+  separators where appropriate, checkpoint app-contract tests keep `KIANA_HOME`
+  inside the fixture workspace, release verifier smoke discovers `python3` or
+  `python`, and release smoke now reports failing commands while accepting
+  Git Bash POSIX, Windows forward-slash, or Windows native plugin paths.
 - `/app/settings` now exposes the same readiness sections as the TUI settings
   hub for product clients.
 - Added a bearer-protected `/app/plugins` app-server endpoint and pinned

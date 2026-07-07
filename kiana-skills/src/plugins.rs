@@ -365,7 +365,15 @@ fn fallback_plugin_name(plugin_root: &Path) -> String {
 }
 
 fn path_string(path: &Path) -> String {
-    path.display().to_string()
+    let value = path.to_string_lossy();
+    let normalized = if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = value.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        value.into_owned()
+    };
+    normalized.replace('\\', "/")
 }
 
 #[derive(Debug, Clone, Serialize)]
