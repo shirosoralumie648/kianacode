@@ -52,9 +52,10 @@ tmp_proof_manifest="$(mktemp)"
 tmp_source_control="$(mktemp)"
 tmp_release_signature="$(mktemp)"
 tmp_enterprise_offline_manifest="$(mktemp)"
+tmp_distribution_review="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence"' EXIT
 cat > "$tmp_runtime_event" <<'JSON'
 {
   "event_id": "evt-tool-result",
@@ -877,6 +878,82 @@ JSON
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   "$tmp_enterprise_offline_manifest" >/dev/null
 
+cat > "$tmp_distribution_review" <<'JSON'
+{
+  "schema": "kiana.app-server.distribution-review.v1",
+  "version": "0.1.0",
+  "dist_dir": "dist",
+  "summary": {
+    "artifacts": 2,
+    "platforms": {
+      "linux": true,
+      "macos": false,
+      "windows": true
+    },
+    "channels_ready": 2,
+    "blocking": 2
+  },
+  "artifacts": [
+    {
+      "target": "linux-x86_64",
+      "archive": "kiana-0.1.0-linux-x86_64.tar.gz",
+      "path": "kiana-0.1.0-linux-x86_64.tar.gz",
+      "sha256_file": "kiana-0.1.0-linux-x86_64.tar.gz.sha256",
+      "binary_sha256_file": "kiana-0.1.0-linux-x86_64.binary.sha256"
+    },
+    {
+      "target": "windows-x86_64",
+      "archive": "kiana-0.1.0-windows-x86_64.zip",
+      "path": "kiana-0.1.0-windows-x86_64.zip",
+      "sha256_file": "kiana-0.1.0-windows-x86_64.zip.sha256",
+      "binary_sha256_file": "kiana-0.1.0-windows-x86_64.binary.sha256"
+    }
+  ],
+  "channels": {
+    "github_releases": {
+      "status": "ready",
+      "artifact_count": 2
+    },
+    "homebrew": {
+      "status": "ready",
+      "formulae": ["manifests/homebrew/kiana-linux-x86_64.rb"]
+    },
+    "winget": {
+      "status": "blocked",
+      "manifests": ["manifests/winget/Kiana.Kiana/0.1.0/Kiana.Kiana.installer.yaml"],
+      "blocked_path": "manifests/winget/BLOCKED.md"
+    }
+  },
+  "enterprise_offline_manifest": {
+    "present": true,
+    "path": "manifests/enterprise/offline-manifest.json",
+    "valid": true,
+    "schema": "kiana.enterprise.offline-manifest.v1",
+    "artifact_count": 2,
+    "channels": {
+      "github_releases": "generated_from_release_base_url",
+      "homebrew": "generated",
+      "winget": "blocked_no_windows_publishable_artifact"
+    }
+  },
+  "blockers": [
+    {
+      "id": "distribution.platform-artifacts",
+      "blocking": true,
+      "message": "missing platform artifacts: macos"
+    },
+    {
+      "id": "distribution.winget",
+      "blocking": true,
+      "message": "winget channel is explicitly blocked"
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-app-server-distribution-review.v1.schema.json \
+  "$tmp_distribution_review" >/dev/null
+
 cat > "$tmp_local_rc_evidence" <<'JSON'
 {
   "schema": "kiana.local-rc-evidence.v1",
@@ -930,7 +1007,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

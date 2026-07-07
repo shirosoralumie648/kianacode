@@ -97,6 +97,7 @@ for file in \
   scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
   scripts/commercial-release-blockers-report.sh \
   scripts/source-control-proof-report.sh \
+  scripts/distribution-review-report.sh \
   scripts/local-rc-evidence-report.sh \
   scripts/commercial-release-handoff-smoke.sh \
   scripts/stage-commercial-release-proofs.sh \
@@ -544,6 +545,15 @@ if grep -Fq '"const": "kiana.local-rc-evidence.v1"' docs/schemas/kiana-local-rc-
   pass "local RC evidence JSON schema version is pinned"
 else
   fail "local RC evidence JSON schema is missing kiana.local-rc-evidence.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.app-server.distribution-review.v1"' docs/schemas/kiana-app-server-distribution-review.v1.schema.json &&
+  grep -Fq 'KIANA_DISTRIBUTION_REVIEW_OUT' scripts/distribution-review-report.sh &&
+  grep -Fq 'kiana.app-server.distribution-review.v1' scripts/distribution-review-report.sh &&
+  grep -Fq 'distribution-review.json' scripts/local-rc-evidence-report.sh; then
+  pass "distribution review handoff report is wired into local RC evidence"
+else
+  fail "distribution review handoff report is not wired into local RC evidence"
 fi
 
 if grep -Fq '"$id": "https://kiana.local/schemas/kiana-runtime-event.v1.schema.json"' docs/schemas/kiana-runtime-event.v1.schema.json &&

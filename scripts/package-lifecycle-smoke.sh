@@ -110,6 +110,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-events.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-git-status.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-distribution-review.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-model-current.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-plugins.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
@@ -143,6 +144,7 @@ for file in \
   "$package_root/scripts/schema-contract-smoke.sh" \
   "$package_root/scripts/commercial-release-blockers-report.sh" \
   "$package_root/scripts/source-control-proof-report.sh" \
+  "$package_root/scripts/distribution-review-report.sh" \
   "$package_root/scripts/local-rc-evidence-report.sh" \
   "$package_root/scripts/stage-commercial-release-proofs.sh" \
   "$package_root/scripts/entitlement-proof-report.sh" \

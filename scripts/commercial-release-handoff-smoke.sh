@@ -803,7 +803,71 @@ if "platform security proofs accepted" not in check.get("evidence", ""):
     raise SystemExit("acceptance.platform-security evidence does not name accepted staged proofs")
 PY
 
-mkdir -p "$tmp_local_rc_dist/source-proofs"
+mkdir -p "$tmp_local_rc_dist/source-proofs" "$tmp_local_rc_dist/manifests/homebrew" "$tmp_local_rc_dist/manifests/winget" "$tmp_local_rc_dist/manifests/enterprise"
+"$python" - "$tmp_local_rc_dist" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+dist = Path(sys.argv[1])
+version = "0.1.0"
+target = "linux-x86_64"
+package = f"kiana-{version}-{target}"
+archive_name = f"{package}.tar.gz"
+archive = dist / archive_name
+archive.write_text("local RC distribution fixture\n", encoding="utf-8")
+
+archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+binary_sha = "1" * 64
+(dist / f"{archive_name}.sha256").write_text(
+    f"{archive_sha}  {archive_name}\n",
+    encoding="utf-8",
+)
+(dist / f"{package}.binary.sha256").write_text(
+    f"{binary_sha}  {package}/kiana\n",
+    encoding="utf-8",
+)
+(dist / "manifests" / "homebrew" / "kiana-linux-x86_64.rb").write_text(
+    "class Kiana < Formula\nend\n",
+    encoding="utf-8",
+)
+(dist / "manifests" / "winget" / "BLOCKED.md").write_text(
+    "blocked until Windows artifact is publishable\n",
+    encoding="utf-8",
+)
+(dist / "manifests" / "enterprise" / "offline-manifest.json").write_text(
+    json.dumps(
+        {
+            "schema": "kiana.enterprise.offline-manifest.v1",
+            "version": version,
+            "release_base_url": "https://downloads.example.test/kiana/v0.1.0",
+            "artifacts": [
+                {
+                    "target": target,
+                    "archive": archive_name,
+                    "url": f"https://downloads.example.test/kiana/v0.1.0/{archive_name}",
+                    "sha256": archive_sha,
+                    "binary_sha256": binary_sha,
+                    "local_path": archive_name,
+                    "checksum_path": f"{archive_name}.sha256",
+                    "binary_checksum_path": f"{package}.binary.sha256",
+                }
+            ],
+            "channels": {
+                "github_releases": "generated_from_release_base_url",
+                "homebrew": "generated",
+                "winget": "blocked_no_windows_publishable_artifact",
+            },
+            "generated_by": "commercial-release-handoff-smoke fixture",
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
 KIANA_SOURCE_CONTROL_PROOF_OUT="$tmp_local_rc_dist/source-proofs/source-control.json" \
   bash scripts/source-control-proof-report.sh --local-rc >/dev/null
 cat > "$tmp_local_rc_dist/source-proofs/product-acceptance.json" <<'JSON'
@@ -882,6 +946,9 @@ KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed \
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-local-rc-evidence.v1.schema.json \
   "$tmp_local_rc_dist/proofs/local-rc-evidence.json" >/dev/null
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-app-server-distribution-review.v1.schema.json \
+  "$tmp_local_rc_dist/proofs/local-rc/distribution/distribution-review.json" >/dev/null
 
 "$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" <<'PY'
 import json
@@ -897,6 +964,7 @@ expected = {
     "kiana.entitlement-proof.v1": "local_rc_only",
     "kiana.release-ops.v1": "local_rc_only",
     "kiana.platform-security-proof.v1": "local_rc_only",
+    "kiana.app-server.distribution-review.v1": "",
 }
 if report.get("summary", {}).get("proofs") != len(expected):
     raise SystemExit("local RC evidence did not stage the expected proof draft count")

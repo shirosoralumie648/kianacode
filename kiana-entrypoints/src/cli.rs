@@ -7080,10 +7080,22 @@ fn direct_connect_distribution_review_report() -> Result<Value> {
         .iter()
         .filter_map(|artifact| artifact.get("target").and_then(Value::as_str))
         .collect::<HashSet<_>>();
-    let homebrew_formulae =
-        direct_connect_distribution_manifest_files(&dist_dir, &["manifests", "homebrew"], "rb")?;
-    let winget_manifests =
-        direct_connect_distribution_manifest_files(&dist_dir, &["manifests", "winget"], "yaml")?;
+    let homebrew_formulae = direct_connect_distribution_manifest_files(
+        &dist_dir,
+        &["manifests", "homebrew"],
+        "rb",
+        false,
+    )?;
+    let homebrew_blocked_path = dist_dir
+        .join("manifests")
+        .join("homebrew")
+        .join("BLOCKED.md");
+    let winget_manifests = direct_connect_distribution_manifest_files(
+        &dist_dir,
+        &["manifests", "winget"],
+        "yaml",
+        true,
+    )?;
     let winget_blocked_path = dist_dir.join("manifests").join("winget").join("BLOCKED.md");
     let enterprise_manifest_path = dist_dir
         .join("manifests")
@@ -7122,13 +7134,14 @@ fn direct_connect_distribution_review_report() -> Result<Value> {
         })
     };
 
-    let missing_platforms = ["macos", "windows"]
+    let missing_platforms = ["linux", "macos", "windows"]
         .into_iter()
         .filter(|platform| !targets.iter().any(|target| target.contains(*platform)))
         .collect::<Vec<_>>();
     let blockers = direct_connect_distribution_review_blockers(
         artifacts.len(),
         &homebrew_formulae,
+        homebrew_blocked_path.is_file(),
         &winget_manifests,
         winget_blocked_path.is_file(),
         enterprise_offline_manifest
@@ -7142,10 +7155,10 @@ fn direct_connect_distribution_review_report() -> Result<Value> {
         .filter(|blocker| blocker.get("blocking").and_then(Value::as_bool) == Some(true))
         .count();
     let channel_status = |ready: bool, blocked: bool| {
-        if ready {
-            "ready"
-        } else if blocked {
+        if blocked {
             "blocked"
+        } else if ready {
+            "ready"
         } else {
             "missing"
         }
@@ -7166,7 +7179,7 @@ fn direct_connect_distribution_review_report() -> Result<Value> {
         .filter(|ready| *ready)
         .count();
     let github_release_status = channel_status(!targets.is_empty(), false);
-    let homebrew_status = channel_status(homebrew_ready, false);
+    let homebrew_status = channel_status(homebrew_ready, homebrew_blocked_path.is_file());
     let winget_status = channel_status(winget_ready, winget_blocked);
     let winget_blocked_path_value = if winget_blocked {
         Value::String(direct_connect_relative_path(
@@ -7236,10 +7249,8 @@ fn direct_connect_distribution_artifacts(dist_dir: &Path) -> Result<Vec<Value>> 
             .unwrap_or_default();
         let target = direct_connect_distribution_target_from_archive(file_name);
         let checksum_path = dist_dir.join(format!("{file_name}.sha256"));
-        let binary_checksum_path = dist_dir.join(format!(
-            "{}.binary.sha256",
-            file_name.strip_suffix(".tar.gz").unwrap_or(file_name)
-        ));
+        let package_name = direct_connect_distribution_package_stem(file_name);
+        let binary_checksum_path = dist_dir.join(format!("{package_name}.binary.sha256"));
         artifacts.push(serde_json::json!({
             "target": target,
             "archive": file_name,
@@ -7263,34 +7274,56 @@ fn direct_connect_distribution_manifest_files(
     dist_dir: &Path,
     segments: &[&str],
     extension: &str,
+    recursive: bool,
 ) -> Result<Vec<String>> {
     let mut dir = dist_dir.to_path_buf();
     for segment in segments {
         dir.push(segment);
     }
-    if !dir.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut files = std::fs::read_dir(&dir)
-        .with_context(|| format!("failed to read manifest directory {}", dir.display()))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.is_file()
-                && path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
-        })
-        .map(|path| direct_connect_relative_path(dist_dir, &path))
-        .collect::<Vec<_>>();
+    let mut files = Vec::new();
+    direct_connect_collect_distribution_manifest_files(
+        dist_dir, &dir, extension, recursive, &mut files,
+    )?;
     files.sort();
     Ok(files)
+}
+
+fn direct_connect_collect_distribution_manifest_files(
+    dist_dir: &Path,
+    dir: &Path,
+    extension: &str,
+    recursive: bool,
+    files: &mut Vec<String>,
+) -> Result<()> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(dir)
+        .with_context(|| format!("failed to read manifest directory {}", dir.display()))?
+    {
+        let path = entry?.path();
+        if recursive && path.is_dir() {
+            direct_connect_collect_distribution_manifest_files(
+                dist_dir, &path, extension, recursive, files,
+            )?;
+            continue;
+        }
+        if path.is_file()
+            && path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
+        {
+            files.push(direct_connect_relative_path(dist_dir, &path));
+        }
+    }
+    Ok(())
 }
 
 fn direct_connect_distribution_review_blockers(
     artifact_count: usize,
     homebrew_formulae: &[String],
+    homebrew_blocked: bool,
     winget_manifests: &[String],
     winget_blocked: bool,
     enterprise_manifest_valid: bool,
@@ -7311,14 +7344,18 @@ fn direct_connect_distribution_review_blockers(
             "message": format!("missing platform artifacts: {}", missing_platforms.join(", ")),
         }));
     }
-    if homebrew_formulae.is_empty() {
+    if homebrew_blocked || homebrew_formulae.is_empty() {
         blockers.push(serde_json::json!({
             "id": "distribution.homebrew",
             "blocking": true,
-            "message": "Homebrew formula is not present",
+            "message": if homebrew_blocked {
+                "Homebrew channel is explicitly blocked"
+            } else {
+                "Homebrew formula is not present"
+            },
         }));
     }
-    if winget_manifests.is_empty() {
+    if winget_blocked || winget_manifests.is_empty() {
         blockers.push(serde_json::json!({
             "id": "distribution.winget",
             "blocking": true,
@@ -7348,15 +7385,19 @@ fn direct_connect_distribution_is_archive(path: &Path) -> bool {
 }
 
 fn direct_connect_distribution_target_from_archive(file_name: &str) -> String {
-    let trimmed = file_name
-        .strip_suffix(".tar.gz")
-        .or_else(|| file_name.strip_suffix(".zip"))
-        .or_else(|| file_name.strip_suffix(".tgz"))
-        .unwrap_or(file_name);
+    let trimmed = direct_connect_distribution_package_stem(file_name);
     trimmed
         .strip_prefix("kiana-")
         .and_then(|rest| rest.split_once('-').map(|(_, target)| target.to_string()))
         .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn direct_connect_distribution_package_stem(file_name: &str) -> &str {
+    file_name
+        .strip_suffix(".tar.gz")
+        .or_else(|| file_name.strip_suffix(".zip"))
+        .or_else(|| file_name.strip_suffix(".tgz"))
+        .unwrap_or(file_name)
 }
 
 fn direct_connect_relative_path(root: &Path, path: &Path) -> String {
@@ -20688,6 +20729,45 @@ mod tests {
             .unwrap()
             .iter()
             .any(|blocker| blocker["id"] == "distribution.platform-artifacts"));
+        std::fs::remove_file(
+            distribution_dist_dir
+                .join("manifests")
+                .join("winget")
+                .join("BLOCKED.md"),
+        )
+        .unwrap();
+        let nested_winget_dir = distribution_dist_dir
+            .join("manifests")
+            .join("winget")
+            .join("Kiana.Kiana")
+            .join("0.1.0");
+        std::fs::create_dir_all(&nested_winget_dir).unwrap();
+        std::fs::write(
+            nested_winget_dir.join("Kiana.Kiana.installer.yaml"),
+            "PackageIdentifier: Kiana.Kiana\nManifestType: installer\n",
+        )
+        .unwrap();
+        let distribution_review_with_winget: Value = client
+            .get(format!("http://{addr}/app/release/distribution"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            distribution_review_with_winget["channels"]["winget"]["status"],
+            "ready"
+        );
+        assert!(
+            distribution_review_with_winget["channels"]["winget"]["manifests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|path| path.as_str()
+                    == Some("manifests/winget/Kiana.Kiana/0.1.0/Kiana.Kiana.installer.yaml"))
+        );
         let _ = std::fs::remove_dir_all(&distribution_dist_dir);
 
         let commercial_proof_manifest_path = std::env::temp_dir().join(format!(
