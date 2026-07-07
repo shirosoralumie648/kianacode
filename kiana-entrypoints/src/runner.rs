@@ -4771,6 +4771,10 @@ mod tests {
     };
     use futures::SinkExt;
     use kiana_tools::tool_execution::{PermissionPromptDecision, PermissionPromptRequest};
+    use kiana_tools::{
+        task_create::TaskCreateTool,
+        team_create::{SendMessageTool, TeamCreateTool},
+    };
     use std::collections::HashSet;
     use std::fs;
     use std::sync::{Arc, Mutex};
@@ -6436,6 +6440,226 @@ mod tests {
         std::env::remove_var("KIANA_TASKS_ROOT");
         std::env::remove_var("KIANA_TASK_LIST_ID");
         std::env::remove_var("KIANA_AGENT_NAME");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn team_runtime_parity_smoke_links_team_tools_resident_loop_and_shutdown() {
+        let _guard = env_lock().lock().unwrap();
+        clear_team_env();
+
+        let root = std::env::temp_dir().join(format!(
+            "kiana-runner-team-runtime-smoke-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let teams_root = root.join("teams");
+        let tasks_root = root.join("tasks");
+        let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
+        let mut context = ToolContext {
+            cwd: root.to_string_lossy().to_string(),
+            read_file_state: HashMap::new(),
+            app_state: HashMap::from([
+                (
+                    "teams_root".to_string(),
+                    json!(teams_root.to_string_lossy().to_string()),
+                ),
+                (
+                    "tasks_root".to_string(),
+                    json!(tasks_root.to_string_lossy().to_string()),
+                ),
+            ]),
+            abort_signal: abort_rx,
+        };
+
+        let created = TeamCreateTool::new()
+            .call(
+                &json!({
+                    "name": "review",
+                    "members": ["runner"]
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+        let team_name = created.data["team_name"].as_str().unwrap().to_string();
+        let team_file_path = created.data["team_file_path"].as_str().unwrap().to_string();
+        let mailbox = teams_root.join(&team_name).join("inboxes/runner.json");
+
+        SendMessageTool::new()
+            .call(
+                &json!({
+                    "to": "runner",
+                    "summary": "follow_up",
+                    "message": "Inspect mailbox handoff"
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+        TaskCreateTool::new()
+            .call(
+                &json!({
+                    "title": "Audit deterministic team runtime",
+                    "description": "Claim through resident loop"
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+
+        std::env::set_var("KIANA_TEAM_NAME", &team_name);
+        std::env::set_var("KIANA_TASK_LIST_ID", &team_name);
+        std::env::set_var("KIANA_AGENT_NAME", "runner");
+        std::env::set_var("KIANA_AGENT_ID", format!("runner@{team_name}"));
+        std::env::set_var("KIANA_TEAM_FILE", &team_file_path);
+        std::env::set_var("KIANA_TEAM_MAILBOX", &mailbox);
+        std::env::set_var("KIANA_TEAMS_ROOT", &teams_root);
+        std::env::set_var("KIANA_TASKS_ROOT", &tasks_root);
+
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let shutdown_sent = Arc::new(Mutex::new(false));
+        let team_app_state = context.app_state.clone();
+        let cwd = root.to_string_lossy().to_string();
+        let calls_for_runner = calls.clone();
+        let shutdown_sent_for_runner = shutdown_sent.clone();
+        let result = run_resident_teammate_loop_with(
+            "Initial resident assignment".to_string(),
+            HashMap::new(),
+            ResidentTeammateLoopConfig {
+                poll_interval: Duration::from_millis(0),
+                max_idle_polls: Some(10),
+                max_turns: Some(5),
+            },
+            move |prompt, options| {
+                let calls = calls_for_runner.clone();
+                let shutdown_sent = shutdown_sent_for_runner.clone();
+                let team_app_state = team_app_state.clone();
+                let cwd = cwd.clone();
+                async move {
+                    let mut mailbox_context = None;
+                    if prompt == "Continue from teammate mailbox." {
+                        let mut app_state = HashMap::new();
+                        if let Some(skip_initial) =
+                            options.get("skip_initial_mailbox_prompt").cloned()
+                        {
+                            app_state
+                                .insert("skip_initial_mailbox_prompt".to_string(), skip_initial);
+                        }
+                        mailbox_context = consume_initial_mailbox_messages(&mut app_state)?;
+                    }
+
+                    if prompt.starts_with("Complete all open tasks.") {
+                        let should_send_shutdown = {
+                            let mut sent = shutdown_sent.lock().unwrap();
+                            if *sent {
+                                false
+                            } else {
+                                *sent = true;
+                                true
+                            }
+                        };
+                        if should_send_shutdown {
+                            let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
+                            let mut shutdown_context = ToolContext {
+                                cwd,
+                                read_file_state: HashMap::new(),
+                                app_state: team_app_state,
+                                abort_signal: abort_rx,
+                            };
+                            SendMessageTool::new()
+                                .call(
+                                    &json!({
+                                        "to": "runner",
+                                        "message": {
+                                            "type": "shutdown_request",
+                                            "reason": "team runtime smoke complete"
+                                        }
+                                    }),
+                                    &mut shutdown_context,
+                                )
+                                .await
+                                .unwrap();
+                        }
+                    }
+
+                    let approved_shutdown = mailbox_context
+                        .as_deref()
+                        .is_some_and(|context| context.contains("# Shutdown Request"));
+                    calls.lock().unwrap().push(json!({
+                        "prompt": prompt,
+                        "mailbox_context": mailbox_context,
+                        "approved_shutdown": approved_shutdown
+                    }));
+                    Ok(json!({
+                        "session_id": "team-runtime-smoke-session",
+                        "teammate_shutdown_approved": approved_shutdown
+                    }))
+                }
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.session_id, "team-runtime-smoke-session");
+        assert_eq!(result.turns, 4);
+        assert_eq!(result.stop_reason, "shutdown_approved");
+        let calls = calls.lock().unwrap();
+        let prompts = calls
+            .iter()
+            .map(|call| call["prompt"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            prompts,
+            vec![
+                "Initial resident assignment".to_string(),
+                "Continue from teammate mailbox.".to_string(),
+                "Complete all open tasks. Start with task #1: \n\n Audit deterministic team runtime\n\nClaim through resident loop".to_string(),
+                "Continue from teammate mailbox.".to_string()
+            ]
+        );
+        assert!(calls[1]["mailbox_context"]
+            .as_str()
+            .unwrap()
+            .contains("Inspect mailbox handoff"));
+        assert!(calls[2]["prompt"]
+            .as_str()
+            .unwrap()
+            .contains("Audit deterministic team runtime"));
+        assert!(calls[3]["mailbox_context"]
+            .as_str()
+            .unwrap()
+            .contains("# Shutdown Request"));
+        assert_eq!(calls[3]["approved_shutdown"], true);
+        drop(calls);
+
+        let mailbox_after: Value =
+            serde_json::from_str(&fs::read_to_string(&mailbox).unwrap()).unwrap();
+        assert!(mailbox_after
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|message| message["read"] == true));
+
+        let task_after: Value = serde_json::from_str(
+            &fs::read_to_string(tasks_root.join(&team_name).join("1.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(task_after["owner"], "runner");
+        assert_eq!(task_after["status"], "in_progress");
+
+        let team_file_after: Value =
+            serde_json::from_str(&fs::read_to_string(&team_file_path).unwrap()).unwrap();
+        let runner = team_file_after["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|member| member["name"] == "runner")
+            .unwrap();
+        assert_eq!(runner["lifecycleStatus"], "shutdown_approved");
+        assert_eq!(runner["isActive"], false);
+
+        clear_team_env();
         let _ = fs::remove_dir_all(root);
     }
 

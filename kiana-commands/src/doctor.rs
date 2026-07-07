@@ -871,14 +871,15 @@ fn reference_capability_matrix(
             domain: "context/agents",
             status: "in_progress",
             references: vec!["AutoGen", "MetaGPT", "LangChain", "OpenHands"],
-            surfaces: vec!["context-index", "context-search", "context-pack", "context-artifact-graph", "subagent-tool-contract"],
+            surfaces: vec!["context-index", "context-search", "context-pack", "context-artifact-graph", "team-runtime", "subagent-tool-contract"],
             evidence: vec![
                 "deterministic-context-index",
                 "path-aware-context-search",
                 "root-scoped-context-pack",
                 "context-pack-artifact-graph",
+                "deterministic-team-runtime-smoke",
             ],
-            risks: vec!["embeddings/vector search, durable artifact ingestion, notebook isolation, and team runtime remain future work".to_string()],
+            risks: vec!["embeddings/vector search, durable artifact ingestion, notebook execution/isolation, and richer role-runtime UX remain future work".to_string()],
         },
     ]
 }
@@ -1289,11 +1290,21 @@ mod tests {
             .iter()
             .any(|item| item["id"] == "knowledge-agent-foundation"
                 && item["status"] == "in_progress"
+                && item["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|surface| surface == "team-runtime")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "deterministic-team-runtime-smoke")
                 && item["risks"]
                     .as_array()
                     .unwrap()
                     .iter()
-                    .any(|risk| risk.as_str().unwrap().contains("team runtime"))));
+                    .any(|risk| risk.as_str().unwrap().contains("richer role-runtime UX"))));
     }
 
     #[tokio::test]

@@ -229,6 +229,12 @@ else
   fail "release smoke does not exercise product shell smoke"
 fi
 
+if grep -Fq 'team_runtime_parity_smoke_links_team_tools_resident_loop_and_shutdown' scripts/release-smoke.sh; then
+  pass "team runtime parity smoke gate is wired"
+else
+  fail "release smoke does not exercise team runtime parity smoke"
+fi
+
 if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.index.cache.write' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'build_persistent_context_index' kiana-entrypoints/src/cli.rs &&
