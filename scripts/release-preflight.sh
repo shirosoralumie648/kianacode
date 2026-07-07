@@ -235,6 +235,12 @@ else
   fail "release smoke does not exercise team runtime parity smoke"
 fi
 
+if grep -Fq 'notebook_execute' scripts/release-smoke.sh; then
+  pass "notebook execution isolation smoke gate is wired"
+else
+  fail "release smoke does not exercise notebook execution isolation smoke"
+fi
+
 if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.index.cache.write' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'build_persistent_context_index' kiana-entrypoints/src/cli.rs &&

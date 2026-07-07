@@ -21,6 +21,7 @@ pub mod lsp_tool;
 pub mod mcp_tool;
 pub mod monitor_tool;
 pub mod notebook_edit;
+pub mod notebook_execute;
 pub mod permissions;
 pub mod powershell_tool;
 pub mod registry;

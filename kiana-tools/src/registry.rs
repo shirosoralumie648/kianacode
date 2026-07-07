@@ -79,6 +79,7 @@ pub fn create_default_registry() -> ToolRegistry {
     registry.register(Arc::new(crate::mcp_tool::ReadMcpResourceTool::new()));
     registry.register(Arc::new(crate::mcp_tool::GetMcpPromptTool::new()));
     registry.register(Arc::new(crate::synthetic_output::SyntheticOutputTool::new()));
+    registry.register(Arc::new(crate::notebook_execute::NotebookExecuteTool::new()));
     registry.register(Arc::new(crate::notebook_edit::NotebookEditTool::new()));
     registry.register(Arc::new(crate::lsp_tool::LspTool::new()));
     registry.register(Arc::new(crate::team_create::TeamCreateTool::new()));
@@ -140,6 +141,7 @@ mod tests {
             "GetMcpPromptTool",
             "Delete",
             "StructuredOutput",
+            "NotebookExecute",
             "NotebookEdit",
             "LSP",
             "TeamCreate",
@@ -225,6 +227,7 @@ mod tests {
         assert_eq!(find_schema("ListMcpPromptsTool")["workbench"], "mcp");
         assert_eq!(find_schema("ReadMcpResourceTool")["workbench"], "mcp");
         assert_eq!(find_schema("GetMcpPromptTool")["workbench"], "mcp");
+        assert_eq!(find_schema("NotebookExecute")["workbench"], "notebook");
         assert_eq!(find_schema("NotebookEdit")["workbench"], "notebook");
         assert!(find_schema("Read").get("workbench").is_none());
     }

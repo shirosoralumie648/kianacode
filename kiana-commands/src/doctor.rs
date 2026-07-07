@@ -871,15 +871,16 @@ fn reference_capability_matrix(
             domain: "context/agents",
             status: "in_progress",
             references: vec!["AutoGen", "MetaGPT", "LangChain", "OpenHands"],
-            surfaces: vec!["context-index", "context-search", "context-pack", "context-artifact-graph", "team-runtime", "subagent-tool-contract"],
+            surfaces: vec!["context-index", "context-search", "context-pack", "context-artifact-graph", "team-runtime", "notebook-execution", "subagent-tool-contract"],
             evidence: vec![
                 "deterministic-context-index",
                 "path-aware-context-search",
                 "root-scoped-context-pack",
                 "context-pack-artifact-graph",
                 "deterministic-team-runtime-smoke",
+                "notebook-execution-isolation-smoke",
             ],
-            risks: vec!["embeddings/vector search, durable artifact ingestion, notebook execution/isolation, and richer role-runtime UX remain future work".to_string()],
+            risks: vec!["embeddings/vector search, durable artifact ingestion, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX remain future work".to_string()],
         },
     ]
 }
@@ -1300,6 +1301,11 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "deterministic-team-runtime-smoke")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "notebook-execution-isolation-smoke")
                 && item["risks"]
                     .as_array()
                     .unwrap()

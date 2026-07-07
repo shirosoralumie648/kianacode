@@ -9,6 +9,7 @@ if [[ "${KIANA_RELEASE_SMOKE_SKIP_BUILD_GATES:-0}" != "1" ]]; then
   cargo fmt --all --check
   cargo test --workspace --locked --offline --no-fail-fast
   cargo test -p kiana-entrypoints --locked --offline team_runtime_parity_smoke_links_team_tools_resident_loop_and_shutdown
+  cargo test -p kiana-tools --locked --offline notebook_execute
   bash scripts/product-shell-smoke.sh
   cargo build --release --locked --offline -p kiana-entrypoints --bin kiana
 fi
