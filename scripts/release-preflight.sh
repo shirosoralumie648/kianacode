@@ -240,8 +240,11 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/catalog' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.list.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.current.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'model.current.write' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'direct_connect_app_model_current_post_handler' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/list' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/current' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'POST", "/app/models/current"' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'model.smoke.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/models/smoke' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.repo_map.read' kiana-entrypoints/src/cli.rs &&
@@ -279,9 +282,9 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
-  pass "app-server config resolved, auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
+  pass "app-server config resolved, auth status, license status, model catalog/list/current read-write/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
-  fail "app-server config resolved, auth status, license status, model catalog/list/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
+  fail "app-server config resolved, auth status, license status, model catalog/list/current read-write/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, or cache endpoints are not wired"
 fi
 
 if grep -Fq 'kiana.plugin-install-receipt.v1' scripts/release-smoke.sh &&

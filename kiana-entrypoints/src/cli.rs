@@ -5377,7 +5377,8 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
         )
         .route(
             "/app/models/current",
-            axum::routing::get(direct_connect_app_model_current_handler),
+            axum::routing::get(direct_connect_app_model_current_handler)
+                .post(direct_connect_app_model_current_post_handler),
         )
         .route(
             "/app/models/smoke",
@@ -7849,6 +7850,89 @@ async fn direct_connect_app_model_current_handler(
     axum::Json(direct_connect_app_model_current_payload(&state)).into_response()
 }
 
+#[derive(Debug, Deserialize)]
+struct DirectConnectModelCurrentRequest {
+    #[serde(default, alias = "modelId", alias = "model")]
+    model_id: Option<String>,
+    #[serde(default, alias = "providerId")]
+    provider_id: Option<String>,
+}
+
+async fn direct_connect_app_model_current_post_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::Json(body): axum::Json<DirectConnectModelCurrentRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+    if let Some(source) = direct_connect_active_model_override_source(&state.base_options) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::CONFLICT,
+            format!("current model is controlled by {source}; remove the runtime override before writing model config"),
+        );
+    }
+
+    match direct_connect_update_current_model(&state, body).await {
+        Ok(payload) => axum::Json(payload).into_response(),
+        Err(error) => {
+            direct_connect_json_error(axum::http::StatusCode::BAD_REQUEST, error.to_string())
+        }
+    }
+}
+
+async fn direct_connect_update_current_model(
+    state: &DirectConnectServerState,
+    request: DirectConnectModelCurrentRequest,
+) -> Result<Value> {
+    let model_id = request
+        .model_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow!("model_id is required"))?;
+    let profile = kiana_services::api::provider::built_in_model_profiles()
+        .into_iter()
+        .find(|profile| profile.model_id == model_id)
+        .ok_or_else(|| anyhow!("model_id '{}' is not in the built-in model list", model_id))?;
+    if let Some(provider_id) = request
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if provider_id != profile.provider_id {
+            return Err(anyhow!(
+                "provider_id '{}' does not match model_id '{}' provider '{}'",
+                provider_id,
+                model_id,
+                profile.provider_id
+            ));
+        }
+    }
+
+    let registry = create_default_command_registry();
+    let command = registry
+        .get("model")
+        .ok_or_else(|| anyhow!("model command is not registered"))?;
+    command
+        .execute(CommandContext {
+            args: model_id.to_string(),
+            app_state: HashMap::from([(
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            )]),
+        })
+        .await?;
+
+    Ok(direct_connect_app_model_current_payload(state))
+}
+
 fn direct_connect_app_model_current_payload(state: &DirectConnectServerState) -> Value {
     let (model_id, source) =
         if let Some(model_id) = direct_connect_nonempty_base_option(&state.base_options, "model") {
@@ -7879,6 +7963,22 @@ fn direct_connect_app_model_current_payload(state: &DirectConnectServerState) ->
         "model_id": model_id,
         "profile": profile
     })
+}
+
+fn direct_connect_active_model_override_source(
+    base_options: &HashMap<String, Value>,
+) -> Option<&'static str> {
+    if direct_connect_nonempty_base_option(base_options, "model").is_some() {
+        return Some("app_state");
+    }
+    if std::env::var("ANTHROPIC_MODEL")
+        .ok()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return Some("ANTHROPIC_MODEL");
+    }
+    None
 }
 
 fn direct_connect_current_model_provider_id(model_id: &str) -> &'static str {
@@ -9540,6 +9640,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "model.catalog.read",
         "model.list.read",
         "model.current.read",
+        "model.current.write",
         "model.smoke.read",
         "git.status.read",
         "diff.read",
@@ -9613,6 +9714,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("GET", "/app/models/catalog", "kiana.model-catalog.v1"),
         direct_connect_app_endpoint("GET", "/app/models/list", "kiana.model-list.v1"),
         direct_connect_app_endpoint("GET", "/app/models/current", "kiana.app-server.model-current.v1"),
+        direct_connect_app_endpoint("POST", "/app/models/current", "kiana.app-server.model-current.v1"),
         direct_connect_app_endpoint("GET", "/app/models/smoke", "kiana.model-smoke.v1"),
         direct_connect_app_endpoint("GET", "/app/git/status", "kiana.app-server.git-status.v1"),
         direct_connect_app_endpoint("GET", "/app/diff", "kiana.diff.v1"),
@@ -19116,6 +19218,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("model.current.write".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.index.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19284,6 +19390,15 @@ mod tests {
             .iter()
             .any(|endpoint| {
                 endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/models/current"
+                    && endpoint["schema"] == "kiana.app-server.model-current.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "POST"
                     && endpoint["path"] == "/app/models/current"
                     && endpoint["schema"] == "kiana.app-server.model-current.v1"
             }));
@@ -20111,6 +20226,18 @@ mod tests {
         assert_eq!(current_model["profile"]["supports_tools"], true);
         assert_eq!(current_model["profile"]["streaming_mode"], "native");
         assert_eq!(current_model["profile"]["native_streaming"], true);
+
+        let model_write_conflict = client
+            .post(format!("http://{addr}/app/models/current"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "model_id": "gpt-4.1",
+                "provider_id": "openai-compatible"
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(model_write_conflict.status(), reqwest::StatusCode::CONFLICT);
 
         let doctor: Value = client
             .get(format!("http://{addr}/app/doctor"))
@@ -21527,6 +21654,97 @@ mod tests {
             .unwrap();
         assert_eq!(git_status["schema"], "kiana.app-server.git-status.v1");
         assert_eq!(git_status["workspace"], workspace.display().to_string());
+
+        server.abort();
+        let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn direct_connect_app_model_current_post_updates_config_when_no_runtime_override() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&["ANTHROPIC_MODEL", "KIANA_CONFIG_FILE", "KIANA_HOME"]);
+        let workspace =
+            std::env::temp_dir().join(format!("kiana-direct-model-post-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::env::remove_var("ANTHROPIC_MODEL");
+        std::env::set_var("KIANA_HOME", workspace.join(".kiana-home"));
+        std::env::set_var("KIANA_CONFIG_FILE", workspace.join("config.toml"));
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server_args = DirectConnectServerArgs {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            auth_token: Some("secret".to_string()),
+            unix_socket: None,
+            workspace: Some(workspace.clone()),
+            idle_timeout_ms: 1000,
+            max_sessions: 32,
+        };
+        let state = direct_connect_server_state(
+            server_args,
+            addr,
+            Some("secret".to_string()),
+            HashMap::new(),
+        )
+        .unwrap();
+        let app = direct_connect_server_router(state);
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let client = reqwest::Client::new();
+
+        let invalid_provider = client
+            .post(format!("http://{addr}/app/models/current"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "model_id": "gpt-4.1",
+                "provider_id": "anthropic"
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(invalid_provider.status(), reqwest::StatusCode::BAD_REQUEST);
+
+        let updated: Value = client
+            .post(format!("http://{addr}/app/models/current"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "model_id": "gpt-4.1",
+                "provider_id": "openai-compatible"
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(updated["schema"], "kiana.app-server.model-current.v1");
+        assert_eq!(updated["workspace"], workspace.display().to_string());
+        assert_eq!(updated["source"], "config");
+        assert_eq!(updated["provider_id"], "openai-compatible");
+        assert_eq!(updated["model_id"], "gpt-4.1");
+        assert_eq!(updated["configured"], true);
+        assert_eq!(updated["profile"]["provider_id"], "openai-compatible");
+        assert_eq!(updated["profile"]["model_id"], "gpt-4.1");
+        assert_eq!(updated["profile"]["supports_tools"], true);
+        assert_eq!(updated["profile"]["streaming_mode"], "synthetic");
+
+        let current: Value = client
+            .get(format!("http://{addr}/app/models/current"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(current["source"], "config");
+        assert_eq!(current["provider_id"], "openai-compatible");
+        assert_eq!(current["model_id"], "gpt-4.1");
+
+        let config = std::fs::read_to_string(workspace.join("config.toml")).unwrap();
+        assert!(config.contains("gpt-4.1"));
 
         server.abort();
         let _ = std::fs::remove_dir_all(workspace);
