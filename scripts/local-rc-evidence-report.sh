@@ -28,6 +28,8 @@ BLOCKERS_JSON="$tmp_blockers" \
 "$(python_bin)" - <<'PY'
 import json
 import os
+import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +44,69 @@ def first_sha(path: Path) -> str:
     if not path.is_file():
         return ""
     return path.read_text(encoding="utf-8").split()[0]
+
+def read_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+def stage_local_rc_proof_drafts() -> None:
+    def current_platform() -> str:
+        if sys.platform.startswith("win"):
+            return "windows"
+        if sys.platform == "darwin":
+            return "macos"
+        if sys.platform.startswith("linux"):
+            return "linux"
+        return "unknown"
+
+    local_rc_statuses = {"headless_smoke_only", "headless_smoke_partial", "local_rc_only"}
+    platform = current_platform()
+    fixed_candidates = [
+        (
+            Path(os.environ.get("KIANA_PRODUCT_ACCEPTANCE_OUT", "target/product-acceptance/product-acceptance.json")),
+            dist_dir / "proofs/local-rc/product/product-acceptance.json",
+        ),
+        (
+            Path(os.environ.get("KIANA_ENTITLEMENT_PROOF_OUT", "target/entitlement-proof/entitlement-proof.json")),
+            dist_dir / "proofs/local-rc/entitlement/entitlement-proof.json",
+        ),
+        (
+            Path(os.environ.get("KIANA_RELEASE_OPS_OUT", "target/release-ops/release-ops.json")),
+            dist_dir / "proofs/local-rc/release-ops/release-ops.json",
+        ),
+    ]
+    platform_candidates = []
+    if platform != "unknown":
+        platform_path = Path(
+            os.environ.get(
+                "KIANA_PLATFORM_SECURITY_PROOF_OUT",
+                f"target/platform-security/platform-security-{platform}.json",
+            )
+        )
+        platform_candidates.append(
+            (platform_path, dist_dir / "proofs/local-rc/platform-security" / platform_path.name)
+        )
+    managed_destinations = [dest for _, dest in fixed_candidates]
+    managed_destinations.extend(
+        sorted((dist_dir / "proofs/local-rc/platform-security").glob("platform-security-*.json"))
+    )
+    for dest in managed_destinations:
+        if dest.is_file():
+            dest.unlink()
+    for source, dest in fixed_candidates + platform_candidates:
+        if not source.is_file():
+            continue
+        data = read_json(source)
+        if data.get("version") != version:
+            continue
+        if data.get("accepted") is True or data.get("status") not in local_rc_statuses:
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if source.resolve() != dest.resolve():
+            shutil.copy2(source, dest)
 
 release_artifacts = []
 for archive in sorted(dist_dir.glob(f"kiana-{version}-*.tar.gz")):
@@ -63,14 +128,12 @@ blocked_channels = []
 for blocked in sorted(manifest_dir.glob("*/*BLOCKED.md")):
     blocked_channels.append(str(blocked))
 
+stage_local_rc_proof_drafts()
 proofs = []
 for proof in sorted((dist_dir / "proofs").glob("**/*.json")):
     if proof == out:
         continue
-    try:
-        data = json.loads(proof.read_text(encoding="utf-8"))
-    except Exception:
-        data = {}
+    data = read_json(proof)
     proofs.append({
         "path": str(proof),
         "schema": str(data.get("schema", "")),

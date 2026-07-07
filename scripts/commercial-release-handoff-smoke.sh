@@ -17,7 +17,8 @@ tmp_source_control="$(mktemp)"
 tmp_proof_report="$(mktemp)"
 tmp_proof_handoff="$(mktemp)"
 tmp_dist="$(mktemp -d)"
-trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_proof_report" "$tmp_proof_handoff"; rm -rf "$tmp_dist"' EXIT
+tmp_local_rc_dist="$(mktemp -d)"
+trap 'rm -f "$tmp_report" "$tmp_handoff" "$tmp_source_control" "$tmp_proof_report" "$tmp_proof_handoff"; rm -rf "$tmp_dist" "$tmp_local_rc_dist"' EXIT
 
 KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
   bash scripts/commercial-release-blockers-report.sh \
@@ -777,6 +778,109 @@ if "acceptance.platform-security" in handoff:
     raise SystemExit("acceptance.platform-security should not appear as a blocking handoff assignment")
 if "platform security proofs accepted" not in check.get("evidence", ""):
     raise SystemExit("acceptance.platform-security evidence does not name accepted staged proofs")
+PY
+
+mkdir -p "$tmp_local_rc_dist/source-proofs"
+cat > "$tmp_local_rc_dist/source-proofs/product-acceptance.json" <<'JSON'
+{
+  "schema": "kiana.product-acceptance.v1",
+  "version": "0.1.0",
+  "status": "headless_smoke_only",
+  "accepted": false,
+  "accepted_by": "",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "scope": "headless smoke only",
+  "workflows": ["permission", "diff", "history", "onboarding", "resume", "settings", "app-server", "context-search", "context-cache-recovery"]
+}
+JSON
+cat > "$tmp_local_rc_dist/source-proofs/entitlement-proof.json" <<'JSON'
+{
+  "schema": "kiana.entitlement-proof.v1",
+  "version": "0.1.0",
+  "status": "local_rc_only",
+  "accepted": false,
+  "accepted_by": "",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "account_id": "",
+  "organization": "",
+  "plan": "",
+  "license_status": "missing",
+  "entitlements": ["commercial-use", "enterprise-support", "managed-policy"],
+  "license_key_fingerprint": "",
+  "support_contact": "",
+  "backend": {"name": "", "environment": "", "checked_at": "2026-01-01T00:00:00Z", "request_id": ""}
+}
+JSON
+cat > "$tmp_local_rc_dist/source-proofs/release-ops.json" <<'JSON'
+{
+  "schema": "kiana.release-ops.v1",
+  "version": "0.1.0",
+  "status": "local_rc_only",
+  "accepted": false,
+  "accepted_by": "",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "security_contact": "",
+  "vulnerability_report_channel": "",
+  "release_credentials_owner": "",
+  "support_contact": "",
+  "artifact_retention_days": 90,
+  "log_retention_days": 30,
+  "credential_review": {"status": "pending", "reviewed_by": "", "reviewed_at": "", "scope": "local RC only"}
+}
+JSON
+cat > "$tmp_local_rc_dist/source-proofs/platform-security-windows.json" <<'JSON'
+{
+  "schema": "kiana.platform-security-proof.v1",
+  "version": "0.1.0",
+  "status": "local_rc_only",
+  "accepted": false,
+  "accepted_by": "",
+  "accepted_at": "2026-01-01T00:00:00Z",
+  "platform": "windows",
+  "runner": "windows-local-rc",
+  "isolation": "windows_exec_policy",
+  "controls": ["permission_profile:commercial", "permission_mode:ask"],
+  "doctor_status": "unknown",
+  "evidence": [{"label": "mode", "value": "local_rc_only"}]
+}
+JSON
+
+DIST_DIR="$tmp_local_rc_dist" \
+KIANA_PRODUCT_ACCEPTANCE_OUT="$tmp_local_rc_dist/source-proofs/product-acceptance.json" \
+KIANA_ENTITLEMENT_PROOF_OUT="$tmp_local_rc_dist/source-proofs/entitlement-proof.json" \
+KIANA_RELEASE_OPS_OUT="$tmp_local_rc_dist/source-proofs/release-ops.json" \
+KIANA_PLATFORM_SECURITY_PROOF_OUT="$tmp_local_rc_dist/source-proofs/platform-security-windows.json" \
+KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed \
+  bash scripts/local-rc-evidence-report.sh >/dev/null
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-local-rc-evidence.v1.schema.json \
+  "$tmp_local_rc_dist/proofs/local-rc-evidence.json" >/dev/null
+
+"$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+proofs = report.get("proofs", [])
+by_schema = {proof.get("schema"): proof for proof in proofs}
+expected = {
+    "kiana.product-acceptance.v1": "headless_smoke_only",
+    "kiana.entitlement-proof.v1": "local_rc_only",
+    "kiana.release-ops.v1": "local_rc_only",
+    "kiana.platform-security-proof.v1": "local_rc_only",
+}
+if report.get("summary", {}).get("proofs") != len(expected):
+    raise SystemExit("local RC evidence did not stage the expected proof draft count")
+for schema, status in expected.items():
+    proof = by_schema.get(schema)
+    if not proof:
+        raise SystemExit(f"local RC evidence missing staged proof for {schema}")
+    if proof.get("status") != status or proof.get("accepted") is not False:
+        raise SystemExit(f"local RC evidence staged proof has wrong status: {proof}")
+    if "proofs" not in proof.get("path", "") or "local-rc" not in proof.get("path", ""):
+        raise SystemExit(f"local RC proof was not staged under proofs/local-rc: {proof}")
 PY
 
 echo "commercial release handoff smoke passed"
