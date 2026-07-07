@@ -39,6 +39,7 @@ tmp_app_command_run="$(mktemp)"
 tmp_app_permissions_status="$(mktemp)"
 tmp_app_trust_status="$(mktemp)"
 tmp_app_team_status="$(mktemp)"
+tmp_team_plan="$(mktemp)"
 tmp_tasks="$(mktemp)"
 tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
@@ -65,7 +66,7 @@ tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
 tmp_plugin_app_manifest="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_team_plan" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest"' EXIT
 cat > "$tmp_plugin_app_manifest" <<'JSON'
 {
   "schema": "kiana.plugin-app-manifest.v1",
@@ -392,6 +393,109 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-team-status.v1.schema.json \
   "$tmp_app_team_status" >/dev/null
+
+cat > "$tmp_team_plan" <<'JSON'
+{
+  "schema": "kiana.team-plan.v1",
+  "workspace": "/workspace",
+  "team": {
+    "name": "default",
+    "source": "default_task_list"
+  },
+  "task_list": {
+    "id": "default",
+    "tasks_dir": "/workspace/.kiana/tasks/default",
+    "count": 5,
+    "status_counts": {
+      "pending": 4,
+      "completed": 1
+    }
+  },
+  "role_runtime": {
+    "status": "ready",
+    "ready_for_fake_runtime": true,
+    "required_roles": ["pm", "architect", "engineer", "qa", "data-analyst"],
+    "missing_roles": [],
+    "role_task_count": 5,
+    "blocked_task_count": 1,
+    "dependency_edge_count": 1
+  },
+  "roles": [
+    {
+      "id": "pm",
+      "name": "PM",
+      "aliases": ["pm", "product-manager", "product-owner"],
+      "present": true,
+      "task_count": 1,
+      "open_task_count": 0,
+      "completed_task_count": 1,
+      "task_ids": ["1"]
+    },
+    {
+      "id": "architect",
+      "name": "Architect",
+      "aliases": ["architect", "architecture", "tech-lead"],
+      "present": true,
+      "task_count": 1,
+      "open_task_count": 1,
+      "completed_task_count": 0,
+      "task_ids": ["2"]
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "aliases": ["engineer", "developer", "coder"],
+      "present": true,
+      "task_count": 1,
+      "open_task_count": 1,
+      "completed_task_count": 0,
+      "task_ids": ["3"]
+    },
+    {
+      "id": "qa",
+      "name": "QA",
+      "aliases": ["qa", "tester", "quality-assurance"],
+      "present": true,
+      "task_count": 1,
+      "open_task_count": 1,
+      "completed_task_count": 0,
+      "task_ids": ["4"]
+    },
+    {
+      "id": "data-analyst",
+      "name": "Data Analyst",
+      "aliases": ["data-analyst", "analyst", "data-scientist"],
+      "present": true,
+      "task_count": 1,
+      "open_task_count": 1,
+      "completed_task_count": 0,
+      "task_ids": ["5"]
+    }
+  ],
+  "artifact_readiness": {
+    "status": "ready",
+    "required_roles": [
+      { "role": "prd", "present": true, "count": 1, "task_ids": ["1"] },
+      { "role": "design", "present": true, "count": 1, "task_ids": ["2"] },
+      { "role": "tasks", "present": true, "count": 1, "task_ids": ["3"] },
+      { "role": "source", "present": true, "count": 1, "task_ids": ["4"] },
+      { "role": "test", "present": true, "count": 1, "task_ids": ["5"] }
+    ],
+    "missing_roles": []
+  },
+  "tasks": {
+    "schema": "kiana.tasks.v1",
+    "task_list_id": "default",
+    "tasks_dir": "/workspace/.kiana/tasks/default",
+    "count": 0,
+    "status_counts": {},
+    "tasks": []
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-team-plan.v1.schema.json \
+  "$tmp_team_plan" >/dev/null
 
 cat > "$tmp_auth_status" <<'JSON'
 {
@@ -1405,7 +1509,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_team_plan" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest" "$tmp_report" "$tmp_handoff"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

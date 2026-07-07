@@ -5299,6 +5299,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_team_status_handler),
         )
         .route(
+            "/app/team/plan",
+            axum::routing::get(direct_connect_app_team_plan_handler),
+        )
+        .route(
             "/app/commands",
             axum::routing::get(direct_connect_app_commands_handler),
         )
@@ -5975,6 +5979,28 @@ async fn direct_connect_app_team_status_handler(
     }
 }
 
+async fn direct_connect_app_team_plan_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_app_team_plan_payload(&state) {
+        Ok(payload) => axum::Json(payload).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build team plan report: {error}"),
+        ),
+    }
+}
+
 fn direct_connect_app_team_status_payload(state: &DirectConnectServerState) -> Result<Value> {
     let app_state = direct_connect_app_state_with_workspace(state);
     let context = CommandContext {
@@ -5995,6 +6021,15 @@ fn direct_connect_app_team_status_payload(state: &DirectConnectServerState) -> R
         },
         "tasks": tasks,
     }))
+}
+
+fn direct_connect_app_team_plan_payload(state: &DirectConnectServerState) -> Result<Value> {
+    let app_state = direct_connect_app_state_with_workspace(state);
+    let context = CommandContext {
+        args: String::new(),
+        app_state,
+    };
+    kiana_commands::tasks::team_plan_report(&context, None)
 }
 
 fn direct_connect_app_team_metadata(
@@ -10332,6 +10367,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("GET", "/app/settings", "kiana.app-server.settings.v1"),
         direct_connect_app_endpoint("GET", "/app/prompt-history", "kiana.app-server.prompt-history.v1"),
         direct_connect_app_endpoint("GET", "/app/team/status", "kiana.app-server.team-status.v1"),
+        direct_connect_app_endpoint("GET", "/app/team/plan", "kiana.team-plan.v1"),
         direct_connect_app_endpoint("GET", "/app/commands", "kiana.app-server.commands.v1"),
         direct_connect_app_endpoint("POST", "/app/commands/run", "kiana.app-server.command-run.v1"),
         direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
@@ -20133,6 +20169,15 @@ mod tests {
             .iter()
             .any(|endpoint| {
                 endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/team/plan"
+                    && endpoint["schema"] == "kiana.team-plan.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/commands"
                     && endpoint["schema"] == "kiana.app-server.commands.v1"
             }));
@@ -20869,6 +20914,30 @@ mod tests {
                     .unwrap()
                     .ends_with(".kiana/tasks/default")
         );
+
+        let team_plan: Value = client
+            .get(format!("http://{addr}/app/team/plan"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(team_plan["schema"], "kiana.team-plan.v1");
+        assert_eq!(team_plan["workspace"], workspace.display().to_string());
+        assert_eq!(team_plan["task_list"]["id"], "default");
+        assert_eq!(team_plan["role_runtime"]["status"], "incomplete");
+        assert!(team_plan["role_runtime"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role == "pm"));
+        assert!(team_plan["artifact_readiness"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role == "prd"));
 
         let commands: Value = client
             .get(format!("http://{addr}/app/commands"))

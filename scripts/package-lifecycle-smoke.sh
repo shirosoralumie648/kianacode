@@ -119,6 +119,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-prompt-history.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-team-status.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-team-plan.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-trust-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-commands.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-command-run.v1.schema.json" \

@@ -874,7 +874,7 @@ fn reference_capability_matrix(
             domain: "context/agents",
             status: "in_progress",
             references: vec!["AutoGen", "MetaGPT", "LangChain", "OpenHands"],
-            surfaces: vec!["context-index", "context-search", "context-vector-search", "context-pack", "context-artifact-ingest", "context-artifact-graph", "team-runtime", "notebook-execution", "subagent-tool-contract"],
+            surfaces: vec!["context-index", "context-search", "context-vector-search", "context-pack", "context-artifact-ingest", "context-artifact-graph", "team-runtime", "team-plan", "notebook-execution", "subagent-tool-contract"],
             evidence: vec![
                 "deterministic-context-index",
                 "path-aware-context-search",
@@ -886,6 +886,7 @@ fn reference_capability_matrix(
                 "deterministic-team-runtime-smoke",
                 "schema-gated-task-status",
                 "app-server-team-status-contract",
+                "role-runtime-team-plan",
                 "notebook-execution-isolation-smoke",
             ],
             risks: vec!["production embedding backends/vector stores, remote or multi-source artifact synchronization beyond local file ingest, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX beyond local status reporting remain future work".to_string()],
@@ -1359,6 +1360,11 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "app-server-team-status-contract")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "role-runtime-team-plan")
                 && item["evidence"]
                     .as_array()
                     .unwrap()

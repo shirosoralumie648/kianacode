@@ -62,6 +62,7 @@ for file in \
   docs/schemas/kiana-app-server-model-current.v1.schema.json \
   docs/schemas/kiana-app-server-prompt-history.v1.schema.json \
   docs/schemas/kiana-app-server-team-status.v1.schema.json \
+  docs/schemas/kiana-team-plan.v1.schema.json \
   docs/schemas/kiana-app-server-commands.v1.schema.json \
   docs/schemas/kiana-app-server-command-run.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
@@ -321,6 +322,7 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.auth-status.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.model-catalog.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.model-list.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.team-plan.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-artifact-ingest.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
@@ -444,6 +446,16 @@ if grep -Fq '"const": "kiana.tasks.v1"' docs/schemas/kiana-tasks.v1.schema.json 
   pass "tasks JSON schema version is pinned"
 else
   fail "tasks JSON schema is missing required task status anchors"
+fi
+
+if grep -Fq '"const": "kiana.team-plan.v1"' docs/schemas/kiana-team-plan.v1.schema.json &&
+  grep -Fq '"role_runtime"' docs/schemas/kiana-team-plan.v1.schema.json &&
+  grep -Fq '"artifact_readiness"' docs/schemas/kiana-team-plan.v1.schema.json &&
+  grep -Fq 'team_plan_report' kiana-commands/src/tasks.rs &&
+  grep -Fq '/app/team/plan' kiana-entrypoints/src/cli.rs; then
+  pass "team plan role-runtime preflight schema and app endpoint are wired"
+else
+  fail "team plan role-runtime preflight schema or app endpoint is not wired"
 fi
 
 if grep -Fq '"id"' docs/schemas/kiana-plugin-app-manifest.v1.schema.json &&

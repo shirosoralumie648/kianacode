@@ -30,6 +30,7 @@ impl Command for TasksCommand {
         match command.unwrap_or("list") {
             "" | "list" | "status" => list_tasks(&context, optional_task_list_arg(rest)?),
             "json" => tasks_json(&context, optional_task_list_arg(rest)?),
+            "plan" => team_plan(&context, rest),
             "show" | "get" => show_task(&context, rest),
             "path" => Ok(CommandResult::text(
                 task_list_dir(&context, optional_task_list_arg(rest)?)
@@ -86,6 +87,45 @@ fn tasks_json(context: &CommandContext, task_list: Option<&str>) -> Result<Comma
     )?))
 }
 
+fn team_plan(context: &CommandContext, rest: &str) -> Result<CommandResult> {
+    let (json_output, task_list) = parse_plan_args(rest)?;
+    let report = team_plan_report(context, task_list)?;
+    if json_output {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&report)?));
+    }
+
+    let status = report["role_runtime"]["status"]
+        .as_str()
+        .unwrap_or("incomplete");
+    let missing_roles = report["role_runtime"]["missing_roles"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default();
+    let missing_artifacts = report["artifact_readiness"]["missing_roles"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default();
+    Ok(CommandResult::text(format!(
+        "Team plan\nstatus: {}\ntask_list_id: {}\nmissing_roles: {}\nmissing_artifacts: {}\nusage: kiana tasks plan --json",
+        status,
+        report["task_list"]["id"].as_str().unwrap_or("default"),
+        if missing_roles.is_empty() { "-" } else { &missing_roles },
+        if missing_artifacts.is_empty() { "-" } else { &missing_artifacts }
+    )))
+}
+
 pub fn tasks_report(context: &CommandContext, task_list: Option<&str>) -> Result<Value> {
     let tasks = load_tasks(context, task_list)?;
     let task_list_id = task_list_id(context, task_list);
@@ -102,6 +142,142 @@ pub fn tasks_report(context: &CommandContext, task_list: Option<&str>) -> Result
         "count": tasks.len(),
         "status_counts": status_counts,
         "tasks": tasks,
+    }))
+}
+
+pub fn team_plan_report(context: &CommandContext, task_list: Option<&str>) -> Result<Value> {
+    let tasks_report = tasks_report(context, task_list)?;
+    let task_list_id = tasks_report["task_list_id"]
+        .as_str()
+        .unwrap_or("default")
+        .to_string();
+    let tasks = tasks_report["tasks"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let role_profiles = [
+        ("pm", "PM", ["pm", "product-manager", "product-owner"]),
+        (
+            "architect",
+            "Architect",
+            ["architect", "architecture", "tech-lead"],
+        ),
+        ("engineer", "Engineer", ["engineer", "developer", "coder"]),
+        ("qa", "QA", ["qa", "tester", "quality-assurance"]),
+        (
+            "data-analyst",
+            "Data Analyst",
+            ["data-analyst", "analyst", "data-scientist"],
+        ),
+    ];
+    let required_artifact_roles = ["prd", "design", "tasks", "source", "test"];
+    let mut role_rows = Vec::new();
+    let mut missing_roles = Vec::new();
+    let mut role_task_count = 0usize;
+    for (role_id, display_name, aliases) in role_profiles {
+        let mut task_ids = Vec::new();
+        let mut open_task_count = 0usize;
+        let mut completed_task_count = 0usize;
+        for task in &tasks {
+            if task_owner_role(task).as_deref() != Some(role_id) {
+                continue;
+            }
+            if let Some(id) = task_id(task) {
+                task_ids.push(id.to_string());
+            }
+            role_task_count += 1;
+            if task_status(task).is_some_and(|status| status == "completed") {
+                completed_task_count += 1;
+            } else if task_status(task).map_or(true, is_open_status) {
+                open_task_count += 1;
+            }
+        }
+        let present = !task_ids.is_empty();
+        if !present {
+            missing_roles.push(role_id.to_string());
+        }
+        role_rows.push(json!({
+            "id": role_id,
+            "name": display_name,
+            "aliases": aliases,
+            "present": present,
+            "task_count": task_ids.len(),
+            "open_task_count": open_task_count,
+            "completed_task_count": completed_task_count,
+            "task_ids": task_ids,
+        }));
+    }
+
+    let mut artifact_rows = Vec::new();
+    let mut missing_artifact_roles = Vec::new();
+    for artifact_role in required_artifact_roles {
+        let mut task_ids = Vec::new();
+        for task in &tasks {
+            if task_artifact_role(task).as_deref() == Some(artifact_role) {
+                if let Some(id) = task_id(task) {
+                    task_ids.push(id.to_string());
+                }
+            }
+        }
+        let present = !task_ids.is_empty();
+        if !present {
+            missing_artifact_roles.push(artifact_role.to_string());
+        }
+        artifact_rows.push(json!({
+            "role": artifact_role,
+            "present": present,
+            "count": task_ids.len(),
+            "task_ids": task_ids,
+        }));
+    }
+
+    let blocked_task_count = tasks
+        .iter()
+        .filter(|task| {
+            task_string_array(task, "blockedBy", "blocked_by")
+                .is_some_and(|items| !items.is_empty())
+        })
+        .count();
+    let dependency_edge_count = tasks
+        .iter()
+        .map(|task| {
+            task_string_array(task, "blocks", "blocks")
+                .map(|items| items.len())
+                .unwrap_or_default()
+                + task_string_array(task, "blockedBy", "blocked_by")
+                    .map(|items| items.len())
+                    .unwrap_or_default()
+        })
+        .sum::<usize>();
+    let artifacts_ready = missing_artifact_roles.is_empty();
+    let roles_ready = missing_roles.is_empty();
+    let ready_for_fake_runtime = roles_ready && artifacts_ready && role_task_count > 0;
+    Ok(json!({
+        "schema": "kiana.team-plan.v1",
+        "workspace": cwd(context).display().to_string(),
+        "team": team_metadata(context, &task_list_id),
+        "task_list": {
+            "id": tasks_report["task_list_id"].clone(),
+            "tasks_dir": tasks_report["tasks_dir"].clone(),
+            "count": tasks_report["count"].clone(),
+            "status_counts": tasks_report["status_counts"].clone(),
+        },
+        "role_runtime": {
+            "status": if ready_for_fake_runtime { "ready" } else { "incomplete" },
+            "ready_for_fake_runtime": ready_for_fake_runtime,
+            "required_roles": role_profiles.iter().map(|(id, _, _)| *id).collect::<Vec<_>>(),
+            "missing_roles": missing_roles,
+            "role_task_count": role_task_count,
+            "blocked_task_count": blocked_task_count,
+            "dependency_edge_count": dependency_edge_count,
+        },
+        "roles": role_rows,
+        "artifact_readiness": {
+            "status": if artifacts_ready { "ready" } else { "incomplete" },
+            "required_roles": artifact_rows,
+            "missing_roles": missing_artifact_roles,
+        },
+        "tasks": tasks_report,
     }))
 }
 
@@ -319,6 +495,119 @@ fn task_status(task: &Value) -> Option<&str> {
     task.get("status").and_then(Value::as_str)
 }
 
+fn task_owner_role(task: &Value) -> Option<String> {
+    let owner = task.get("owner").and_then(Value::as_str).or_else(|| {
+        task.get("metadata")
+            .and_then(Value::as_object)
+            .and_then(|metadata| metadata.get("owner").and_then(Value::as_str))
+    })?;
+    canonical_role_id(owner)
+}
+
+fn canonical_role_id(value: &str) -> Option<String> {
+    match normalize_key(value).as_str() {
+        "pm" | "product-manager" | "product-owner" => Some("pm".to_string()),
+        "architect" | "architecture" | "tech-lead" => Some("architect".to_string()),
+        "engineer" | "developer" | "coder" => Some("engineer".to_string()),
+        "qa" | "tester" | "quality-assurance" => Some("qa".to_string()),
+        "data-analyst" | "analyst" | "data-scientist" => Some("data-analyst".to_string()),
+        _ => None,
+    }
+}
+
+fn task_artifact_role(task: &Value) -> Option<String> {
+    let value = task
+        .get("artifact_role")
+        .or_else(|| task.get("artifactRole"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            task.get("metadata")
+                .and_then(Value::as_object)
+                .and_then(|metadata| {
+                    metadata
+                        .get("artifact_role")
+                        .or_else(|| metadata.get("artifactRole"))
+                        .and_then(Value::as_str)
+                })
+        })?;
+    canonical_artifact_role(value)
+}
+
+fn canonical_artifact_role(value: &str) -> Option<String> {
+    match normalize_key(value).as_str() {
+        "prd" | "requirements" | "product-requirements" => Some("prd".to_string()),
+        "design" | "architecture" | "spec" => Some("design".to_string()),
+        "task" | "tasks" | "plan" => Some("tasks".to_string()),
+        "source" | "src" | "code" => Some("source".to_string()),
+        "test" | "tests" | "qa" => Some("test".to_string()),
+        _ => None,
+    }
+}
+
+fn normalize_key(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut last_dash = false;
+    for ch in value.trim().chars() {
+        if ch.is_ascii_alphanumeric() {
+            normalized.push(ch.to_ascii_lowercase());
+            last_dash = false;
+        } else if !last_dash {
+            normalized.push('-');
+            last_dash = true;
+        }
+    }
+    normalized.trim_matches('-').to_string()
+}
+
+fn is_open_status(status: &str) -> bool {
+    !matches!(status, "completed" | "cancelled" | "killed")
+}
+
+fn task_string_array(task: &Value, camel_key: &str, snake_key: &str) -> Option<Vec<String>> {
+    task.get(camel_key)
+        .or_else(|| task.get(snake_key))
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+}
+
+fn team_metadata(context: &CommandContext, task_list_id: &str) -> Value {
+    let team_name = context
+        .app_state
+        .get("team_context")
+        .or_else(|| context.app_state.get("teamContext"))
+        .and_then(Value::as_object)
+        .and_then(|team| {
+            team.get("team_name")
+                .or_else(|| team.get("teamName"))
+                .and_then(Value::as_str)
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let source = if team_name.is_some() {
+        "team_context"
+    } else if context.app_state.contains_key("task_list_id")
+        || context.app_state.contains_key("taskListId")
+    {
+        "task_list_id"
+    } else if context.app_state.contains_key("session_id")
+        || context.app_state.contains_key("sessionId")
+    {
+        "session_id"
+    } else {
+        "default_task_list"
+    };
+    json!({
+        "name": team_name.unwrap_or(task_list_id),
+        "source": source,
+    })
+}
+
 fn compare_tasks(a: &Value, b: &Value) -> std::cmp::Ordering {
     let a_id = task_id(a).unwrap_or_default();
     let b_id = task_id(b).unwrap_or_default();
@@ -351,6 +640,19 @@ fn parse_show_args(rest: &str) -> Result<(String, Option<&str>)> {
         return Err(anyhow!("{}", usage()));
     }
     Ok((task_id.to_string(), task_list))
+}
+
+fn parse_plan_args(rest: &str) -> Result<(bool, Option<&str>)> {
+    let mut json_output = false;
+    let mut task_list = None;
+    for part in rest.split_whitespace() {
+        match part {
+            "--json" | "-j" => json_output = true,
+            value if task_list.is_none() => task_list = Some(value),
+            _ => return Err(anyhow!("{}", usage())),
+        }
+    }
+    Ok((json_output, task_list))
 }
 
 fn split_word(value: &str) -> (Option<&str>, &str) {
@@ -392,7 +694,7 @@ fn sanitize_path_component(value: &str) -> String {
 }
 
 fn usage() -> &'static str {
-    "Usage:\n  kiana tasks [list|status] [task_list_id]\n  kiana tasks json [task_list_id]\n  kiana tasks show <task_id> [task_list_id]\n  kiana tasks path [task_list_id]\n  kiana tasks <pending|in_progress|running|completed|failed|cancelled|killed> [task_list_id]"
+    "Usage:\n  kiana tasks [list|status] [task_list_id]\n  kiana tasks json [task_list_id]\n  kiana tasks plan [--json] [task_list_id]\n  kiana tasks show <task_id> [task_list_id]\n  kiana tasks path [task_list_id]\n  kiana tasks <pending|in_progress|running|completed|failed|cancelled|killed> [task_list_id]"
 }
 
 #[cfg(test)]
@@ -545,6 +847,92 @@ mod tests {
         assert!(report["tasks_dir"].as_str().unwrap().contains("session-2"));
 
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn team_plan_reports_missing_artifacts_and_role_assignments() {
+        let app_state = HashMap::from([(
+            "tasks".to_string(),
+            json!([
+                {
+                    "id": "1",
+                    "title": "Write PRD",
+                    "status": "pending",
+                    "owner": "pm",
+                    "metadata": { "artifact_role": "prd" }
+                },
+                {
+                    "id": "2",
+                    "title": "Implement core",
+                    "status": "in_progress",
+                    "owner": "engineer",
+                    "metadata": { "artifact_role": "source" },
+                    "blockedBy": ["1"]
+                }
+            ]),
+        )]);
+
+        let result = TasksCommand
+            .execute(context("plan --json", app_state))
+            .await
+            .unwrap();
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.team-plan.v1");
+        assert_eq!(report["role_runtime"]["status"], "incomplete");
+        assert_eq!(report["role_runtime"]["blocked_task_count"], 1);
+        assert!(report["role_runtime"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role == "architect"));
+        assert!(report["role_runtime"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role == "qa"));
+        assert!(report["artifact_readiness"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role == "design"));
+        assert!(report["roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|role| role["id"] == "engineer" && role["task_ids"][0] == "2"));
+    }
+
+    #[tokio::test]
+    async fn team_plan_ready_when_roles_and_artifacts_are_covered() {
+        let app_state = HashMap::from([(
+            "tasks".to_string(),
+            json!([
+                { "id": "1", "title": "PRD", "status": "completed", "owner": "product-manager", "metadata": { "artifact_role": "prd" } },
+                { "id": "2", "title": "Design", "status": "completed", "owner": "architect", "metadata": { "artifact_role": "design" } },
+                { "id": "3", "title": "Plan", "status": "pending", "owner": "qa", "metadata": { "artifact_role": "tasks" } },
+                { "id": "4", "title": "Code", "status": "pending", "owner": "engineer", "metadata": { "artifact_role": "source" } },
+                { "id": "5", "title": "Analysis tests", "status": "pending", "owner": "data analyst", "metadata": { "artifact_role": "test" } }
+            ]),
+        )]);
+
+        let result = TasksCommand
+            .execute(context("plan --json", app_state))
+            .await
+            .unwrap();
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["role_runtime"]["status"], "ready");
+        assert_eq!(report["role_runtime"]["ready_for_fake_runtime"], true);
+        assert_eq!(report["artifact_readiness"]["status"], "ready");
+        assert!(report["role_runtime"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(report["artifact_readiness"]["missing_roles"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]
