@@ -5292,6 +5292,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_prompt_history_handler),
         )
         .route(
+            "/app/commands",
+            axum::routing::get(direct_connect_app_commands_handler),
+        )
+        .route(
             "/app/config/resolved",
             axum::routing::get(direct_connect_app_config_resolved_handler),
         )
@@ -5920,6 +5924,82 @@ fn direct_connect_app_prompt_history_payload(
         "count": entries_json.len(),
         "entries": entries_json,
     })
+}
+
+async fn direct_connect_app_commands_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    axum::Json(direct_connect_app_commands_payload(&state)).into_response()
+}
+
+fn direct_connect_app_commands_payload(state: &DirectConnectServerState) -> Value {
+    let registry = create_default_command_registry();
+    let mut commands = registry
+        .list()
+        .into_iter()
+        .map(|command| {
+            let name = command.name();
+            let (source_kind, plugin_name) = direct_connect_app_command_source(name);
+            serde_json::json!({
+                "name": name,
+                "slash": format!("/{name}"),
+                "description": command.description(),
+                "command_type": direct_connect_app_command_type_name(command.command_type()),
+                "enabled": command.is_enabled(),
+                "supports_non_interactive": command.supports_non_interactive(),
+                "routes_to": direct_connect_app_command_route(command.command_type()),
+                "source": {
+                    "kind": source_kind,
+                    "plugin": plugin_name,
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    commands.sort_by(|left, right| {
+        left["name"]
+            .as_str()
+            .unwrap_or_default()
+            .cmp(right["name"].as_str().unwrap_or_default())
+    });
+    serde_json::json!({
+        "schema": "kiana.app-server.commands.v1",
+        "workspace": state.workspace.display().to_string(),
+        "count": commands.len(),
+        "commands": commands,
+    })
+}
+
+fn direct_connect_app_command_type_name(command_type: CommandType) -> &'static str {
+    match command_type {
+        CommandType::Local => "local",
+        CommandType::LocalJsx => "local_jsx",
+        CommandType::Prompt => "prompt",
+    }
+}
+
+fn direct_connect_app_command_route(command_type: CommandType) -> &'static str {
+    match command_type {
+        CommandType::Local | CommandType::LocalJsx => "local_command",
+        CommandType::Prompt => "assistant_prompt",
+    }
+}
+
+fn direct_connect_app_command_source(name: &str) -> (&'static str, Value) {
+    if let Some((plugin, _)) = name.split_once(':') {
+        ("plugin", Value::String(plugin.to_string()))
+    } else {
+        ("core", Value::Null)
+    }
 }
 
 fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
@@ -9680,6 +9760,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "conversation.files.write",
         "settings.read",
         "prompt.history.read",
+        "commands.read",
         "config.resolved.read",
         "doctor.read",
         "release.blockers.read",
@@ -9755,6 +9836,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("POST", "/app/conversations/{session_id}/files", "kiana.app-server.conversation-files.v1"),
         direct_connect_app_endpoint("GET", "/app/settings", "kiana.app-server.settings.v1"),
         direct_connect_app_endpoint("GET", "/app/prompt-history", "kiana.app-server.prompt-history.v1"),
+        direct_connect_app_endpoint("GET", "/app/commands", "kiana.app-server.commands.v1"),
         direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
         direct_connect_app_endpoint("GET", "/app/doctor", "kiana.app-server.doctor.v1"),
         direct_connect_app_endpoint("GET", "/app/release/blockers", "kiana.commercial-release-blockers.v1"),
@@ -19277,6 +19359,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("commands.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("config.resolved.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19420,6 +19506,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/prompt-history"
                     && endpoint["schema"] == "kiana.app-server.prompt-history.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/commands"
+                    && endpoint["schema"] == "kiana.app-server.commands.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -20074,6 +20169,44 @@ mod tests {
         assert_eq!(prompt_history["entries"][0]["timestamp"], "2");
         assert_eq!(prompt_history["entries"][1]["prompt"], "older prompt");
         assert!(!prompt_history.to_string().contains(".kiana-home"));
+
+        let commands: Value = client
+            .get(format!("http://{addr}/app/commands"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(commands["schema"], "kiana.app-server.commands.v1");
+        assert_eq!(commands["workspace"], workspace.display().to_string());
+        let command_entries = commands["commands"].as_array().unwrap();
+        assert_eq!(
+            commands["count"].as_u64().unwrap(),
+            command_entries.len() as u64
+        );
+        let model_command = command_entries
+            .iter()
+            .find(|command| command["name"] == "model")
+            .expect("model command missing");
+        assert_eq!(model_command["slash"], "/model");
+        assert_eq!(model_command["source"]["kind"], "core");
+        assert_eq!(model_command["source"]["plugin"], Value::Null);
+        assert_eq!(model_command["routes_to"], "local_command");
+        let plugin_command = command_entries
+            .iter()
+            .find(|command| command["name"] == "app-tools:audit")
+            .expect("plugin command missing");
+        assert_eq!(plugin_command["slash"], "/app-tools:audit");
+        assert_eq!(plugin_command["command_type"], "prompt");
+        assert_eq!(plugin_command["supports_non_interactive"], true);
+        assert_eq!(plugin_command["routes_to"], "assistant_prompt");
+        assert_eq!(plugin_command["source"]["kind"], "plugin");
+        assert_eq!(plugin_command["source"]["plugin"], "app-tools");
+        assert!(!command_entries
+            .iter()
+            .any(|command| command["name"] == "disabled-tools:disabled"));
 
         let config_resolved: Value = client
             .get(format!("http://{addr}/app/config/resolved"))
