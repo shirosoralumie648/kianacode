@@ -721,9 +721,15 @@ fi
 
 if grep -Fq '"const": "accepted"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
   grep -Fq '"doctor_status"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"doctor_report_sha256"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"doctor_command"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq '"runner_id"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
   grep -Fq '"linux_bwrap"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
   grep -Fq '"windows_exec_policy"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
-  grep -Fq '"macos_exec_policy"' docs/schemas/kiana-platform-security-proof.v1.schema.json; then
+  grep -Fq '"macos_exec_policy"' docs/schemas/kiana-platform-security-proof.v1.schema.json &&
+  grep -Fq 'explicit_project_trust:required' scripts/platform-security-proof-report.sh &&
+  grep -Fq 'doctor_report_sha256' scripts/stage-commercial-release-proofs.sh &&
+  grep -Fq 'doctor_report_sha256' scripts/verify-commercial-release-artifacts.sh; then
   pass "platform security accepted-state schema contract is pinned"
 else
   fail "platform security accepted-state schema contract is not pinned"

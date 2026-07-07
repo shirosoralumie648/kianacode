@@ -595,6 +595,19 @@ for platform in ["linux", "macos", "windows"]:
     source, data = seen_platforms[platform]
     controls = data.get("controls")
     evidence = data.get("evidence")
+    evidence_labels = {
+        item.get("label"): item.get("value")
+        for item in evidence
+        if isinstance(item, dict)
+    }
+    required_controls = {
+        "permission_profile:commercial",
+        "permission_mode:ask",
+        "explicit_project_trust:required",
+        "managed_allow_required_for_mutations",
+        f"isolation:{EXPECTED_ISOLATION[platform]}",
+        "network_policy:explicit-provider-credentials",
+    }
     if require_contract(
         f"platform security proof {platform}",
         [
@@ -605,13 +618,24 @@ for platform in ["linux", "macos", "windows"]:
             filled(data, "accepted_by"),
             filled(data, "accepted_at"),
             filled(data, "runner"),
+            filled(data, "runner_id"),
+            filled(data, "generated_at"),
+            filled(data, "doctor_command"),
             not_placeholder(data, "accepted_by"),
             not_placeholder(data, "runner"),
+            not_placeholder(data, "runner_id"),
+            not_placeholder(data, "doctor_command"),
             data.get("platform") == platform,
             data.get("isolation") == EXPECTED_ISOLATION[platform],
             data.get("doctor_status") == "ready",
             isinstance(controls, list) and len(controls) > 0,
             isinstance(evidence, list) and len(evidence) > 0,
+            required_controls.issubset(set(controls or [])),
+            isinstance(data.get("doctor_report_sha256"), str)
+            and re.fullmatch(r"[a-f0-9]{64}", data["doctor_report_sha256"]) is not None,
+            evidence_labels.get("doctor_report_sha256") == data.get("doctor_report_sha256"),
+            evidence_labels.get("doctor_command") == data.get("doctor_command"),
+            evidence_labels.get("runner_id") == data.get("runner_id"),
         ],
         data,
         source,

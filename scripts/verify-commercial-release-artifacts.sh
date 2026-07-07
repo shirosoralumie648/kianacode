@@ -112,7 +112,7 @@ require_release_ops_contract() {
     fail "python3 or python is required to validate release ops proof"
     return
   fi
-  if "$python" - "$file" "$expected_version" <<'PY'
+if "$python" - "$file" "$expected_version" <<'PY'
 import json
 import sys
 
@@ -201,7 +201,7 @@ require_entitlement_contract() {
     fail "python3 or python is required to validate entitlement proof"
     return
   fi
-  if "$python" - "$file" "$expected_version" "${KIANA_REQUIRED_ENTITLEMENTS:-commercial-use,enterprise-support,managed-policy}" <<'PY'
+if "$python" - "$file" "$expected_version" "${KIANA_REQUIRED_ENTITLEMENTS:-commercial-use,enterprise-support,managed-policy}" <<'PY'
 import json
 import re
 import sys
@@ -501,6 +501,7 @@ require_platform_security_contract() {
   fi
   if "$python" - "$file" "$expected_version" <<'PY'
 import json
+import re
 import sys
 
 path, expected_version = sys.argv[1:3]
@@ -515,6 +516,19 @@ expected_isolation = {
 }.get(platform)
 controls = report.get("controls")
 evidence = report.get("evidence")
+evidence_labels = {
+    item.get("label"): item.get("value")
+    for item in evidence
+    if isinstance(item, dict)
+}
+required_controls = {
+    "permission_profile:commercial",
+    "permission_mode:ask",
+    "explicit_project_trust:required",
+    "managed_allow_required_for_mutations",
+    f"isolation:{expected_isolation}",
+    "network_policy:explicit-provider-credentials",
+}
 placeholder_markers = (
     "todo",
     "tbd",
@@ -543,13 +557,24 @@ checks = [
     filled("accepted_by"),
     filled("accepted_at"),
     filled("runner"),
+    filled("runner_id"),
+    filled("generated_at"),
+    filled("doctor_command"),
     not_placeholder("accepted_by"),
     not_placeholder("runner"),
+    not_placeholder("runner_id"),
+    not_placeholder("doctor_command"),
     platform in {"linux", "macos", "windows"},
     report.get("isolation") == expected_isolation,
     report.get("doctor_status") == "ready",
     isinstance(controls, list) and len(controls) > 0,
     isinstance(evidence, list) and len(evidence) > 0,
+    required_controls.issubset(set(controls or [])),
+    isinstance(report.get("doctor_report_sha256"), str)
+    and re.fullmatch(r"[a-f0-9]{64}", report["doctor_report_sha256"]) is not None,
+    evidence_labels.get("doctor_report_sha256") == report.get("doctor_report_sha256"),
+    evidence_labels.get("doctor_command") == report.get("doctor_command"),
+    evidence_labels.get("runner_id") == report.get("runner_id"),
 ]
 sys.exit(0 if all(checks) else 1)
 PY

@@ -16,7 +16,8 @@
   ],
   "isolation": "windows_exec_policy",
   "notes": [
-    "Example only. Replace platform/isolation/evidence with accepted Linux, macOS, or Windows release-runner proof before moving to docs/platform-security/<version>-<platform>.json."
+    "Example only. Replace platform/isolation/evidence with accepted Linux, macOS, or Windows release-runner proof before moving to docs/platform-security/<version>-<platform>.json.",
+    "Accepted proofs must include doctor_command, doctor_report_sha256, runner_id, generated_at, and matching evidence labels."
   ],
   "platform": "windows",
   "runner": "",

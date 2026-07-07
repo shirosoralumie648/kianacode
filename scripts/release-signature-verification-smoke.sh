@@ -437,6 +437,7 @@ for platform in linux macos windows; do
     macos) isolation="macos_exec_policy" ;;
     windows) isolation="windows_exec_policy" ;;
   esac
+  doctor_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   cat > "$dist_dir/proofs/platform-security/platform-security-${platform}.json" <<EOF
 {
   "schema": "kiana.platform-security-proof.v1",
@@ -447,13 +448,32 @@ for platform in linux macos windows; do
   "accepted_at": "2026-01-01T00:00:00Z",
   "platform": "$platform",
   "runner": "${platform}-release-runner",
+  "runner_id": "${platform}-release-runner-1",
+  "generated_at": "2026-01-01T00:00:01Z",
   "isolation": "$isolation",
-  "controls": ["permission_profile:commercial", "permission_mode:ask"],
+  "controls": [
+    "permission_profile:commercial",
+    "permission_mode:ask",
+    "explicit_project_trust:required",
+    "managed_allow_required_for_mutations",
+    "isolation:$isolation",
+    "network_policy:explicit-provider-credentials"
+  ],
   "doctor_status": "ready",
+  "doctor_command": "kiana doctor --json",
+  "doctor_report_sha256": "$doctor_sha",
   "evidence": [
     {
-      "label": "fixture",
-      "value": "${platform} platform security accepted"
+      "label": "doctor_command",
+      "value": "kiana doctor --json"
+    },
+    {
+      "label": "doctor_report_sha256",
+      "value": "$doctor_sha"
+    },
+    {
+      "label": "runner_id",
+      "value": "${platform}-release-runner-1"
     }
   ]
 }

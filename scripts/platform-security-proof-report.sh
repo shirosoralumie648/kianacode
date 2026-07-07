@@ -71,7 +71,9 @@ report = {
     "controls": [
         "permission_profile:commercial",
         "permission_mode:ask",
-        "exec_policy:bash+powershell",
+        "explicit_project_trust:required",
+        "managed_allow_required_for_mutations",
+        f"isolation:{isolation}",
         "network_policy:explicit-provider-credentials",
     ],
     "doctor_status": "unknown",
@@ -108,6 +110,7 @@ PLATFORM_SECURITY_ISOLATION="$(isolation_for_platform)" \
 "$(python_bin)" - <<'PY'
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -142,6 +145,23 @@ def not_placeholder(key):
 
 controls = report.get("controls") or []
 evidence = report.get("evidence") or []
+evidence_labels = {
+    item.get("label"): item.get("value")
+    for item in evidence
+    if isinstance(item, dict)
+}
+required_controls = {
+    "permission_profile:commercial",
+    "permission_mode:ask",
+    "explicit_project_trust:required",
+    "managed_allow_required_for_mutations",
+    f"isolation:{isolation}",
+    "network_policy:explicit-provider-credentials",
+}
+
+def valid_sha256(value):
+    return isinstance(value, str) and re.fullmatch(r"[a-f0-9]{64}", value) is not None
+
 checks = [
     report.get("schema") == "kiana.platform-security-proof.v1",
     report.get("version") == version,
@@ -150,13 +170,23 @@ checks = [
     filled("accepted_by"),
     filled("accepted_at"),
     filled("runner"),
+    filled("runner_id"),
+    filled("generated_at"),
+    filled("doctor_command"),
     not_placeholder("accepted_by"),
     not_placeholder("runner"),
+    not_placeholder("runner_id"),
+    not_placeholder("doctor_command"),
     report.get("platform") == platform,
     report.get("isolation") == isolation,
     report.get("doctor_status") == "ready",
     isinstance(controls, list) and len(controls) > 0,
     isinstance(evidence, list) and len(evidence) > 0,
+    required_controls.issubset(set(controls)),
+    valid_sha256(report.get("doctor_report_sha256")),
+    evidence_labels.get("doctor_report_sha256") == report.get("doctor_report_sha256"),
+    evidence_labels.get("doctor_command") == report.get("doctor_command"),
+    evidence_labels.get("runner_id") == report.get("runner_id"),
 ]
 if not all(checks):
     print("platform security proof failed commercial checks", file=sys.stderr)
