@@ -547,6 +547,15 @@ else
   fail "local RC evidence JSON schema is missing kiana.local-rc-evidence.v1 const"
 fi
 
+if grep -Fq 'commercial-release-blockers.json' scripts/local-rc-evidence-report.sh &&
+  grep -Fq 'commercial-release-handoff.md' scripts/local-rc-evidence-report.sh &&
+  grep -Fq 'KIANA_COMMERCIAL_BLOCKERS_OUT' scripts/local-rc-evidence-report.sh &&
+  grep -Fq -- '--handoff-md' scripts/local-rc-evidence-report.sh; then
+  pass "local RC evidence stages commercial blocker JSON and handoff markdown"
+else
+  fail "local RC evidence does not stage commercial blocker JSON and handoff markdown"
+fi
+
 if grep -Fq '"const": "kiana.app-server.distribution-review.v1"' docs/schemas/kiana-app-server-distribution-review.v1.schema.json &&
   grep -Fq 'KIANA_DISTRIBUTION_REVIEW_OUT' scripts/distribution-review-report.sh &&
   grep -Fq 'kiana.app-server.distribution-review.v1' scripts/distribution-review-report.sh &&

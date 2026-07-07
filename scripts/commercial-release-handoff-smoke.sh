@@ -988,13 +988,18 @@ KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed \
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-distribution-review.v1.schema.json \
   "$tmp_local_rc_dist/proofs/local-rc/distribution/distribution-review.json" >/dev/null
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-blockers.json" >/dev/null
+test -s "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md"
 
-"$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" <<'PY'
+"$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+handoff = Path(sys.argv[2]).read_text(encoding="utf-8")
 proofs = report.get("proofs", [])
 by_schema = {proof.get("schema"): proof for proof in proofs}
 expected = {
@@ -1004,6 +1009,7 @@ expected = {
     "kiana.release-ops.v1": "local_rc_only",
     "kiana.platform-security-proof.v1": "local_rc_only",
     "kiana.app-server.distribution-review.v1": "",
+    "kiana.commercial-release-blockers.v1": "blocked",
 }
 if report.get("summary", {}).get("proofs") != len(expected):
     raise SystemExit("local RC evidence did not stage the expected proof draft count")
@@ -1015,6 +1021,10 @@ for schema, status in expected.items():
         raise SystemExit(f"local RC evidence staged proof has wrong status: {proof}")
     if "proofs" not in proof.get("path", "") or "local-rc" not in proof.get("path", ""):
         raise SystemExit(f"local RC proof was not staged under proofs/local-rc: {proof}")
+if "## Blocking Assignments" not in handoff:
+    raise SystemExit("local RC commercial release handoff is missing blocking assignments")
+if "signing.release-artifacts" not in handoff:
+    raise SystemExit("local RC commercial release handoff is missing signing blocker assignment")
 PY
 
 echo "commercial release handoff smoke passed"

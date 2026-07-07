@@ -18,10 +18,17 @@ python_bin() {
 mkdir -p "$(dirname "$out")"
 tmp_blockers="$(mktemp)"
 trap 'rm -f "$tmp_blockers"' EXIT
+blocker_handoff_dir="${dist_dir}/proofs/local-rc/blockers"
+blocker_report_out="${blocker_handoff_dir}/commercial-release-blockers.json"
+blocker_handoff_out="${blocker_handoff_dir}/commercial-release-handoff.md"
 DIST_DIR="$dist_dir" \
   KIANA_DISTRIBUTION_REVIEW_OUT="${KIANA_DISTRIBUTION_REVIEW_OUT:-${dist_dir}/proofs/local-rc/distribution/distribution-review.json}" \
   bash scripts/distribution-review-report.sh >/dev/null
-bash scripts/commercial-release-blockers-report.sh --json > "$tmp_blockers"
+DIST_DIR="$dist_dir" \
+KIANA_COMMERCIAL_BLOCKERS_OUT="$blocker_report_out" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$blocker_handoff_out" > "$tmp_blockers"
 
 DIST_DIR="$dist_dir" \
 VERSION_VALUE="$version" \
