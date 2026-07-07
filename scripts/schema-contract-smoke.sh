@@ -1037,7 +1037,7 @@ cat > "$tmp_local_rc_evidence" <<'JSON'
   "summary": {
     "release_artifacts": 1,
     "manifests": 2,
-    "proofs": 3,
+    "proofs": 5,
     "blockers_total": 13,
     "local_blockers": 0,
     "external_blockers": 13
@@ -1057,11 +1057,70 @@ cat > "$tmp_local_rc_evidence" <<'JSON'
     "winget_manifests": [],
     "blocked_channels": ["dist/manifests/winget/BLOCKED.md"]
   },
+  "readiness": {
+    "ready": true,
+    "release_artifacts_present": true,
+    "lifecycle_smoke_passed": true,
+    "required_proofs_present": true,
+    "local_blockers_clear": true,
+    "required_proof_schemas": [
+      {
+        "schema": "kiana.source-control-proof.v1",
+        "present": true,
+        "paths": ["dist/proofs/local-rc/source-control/source-control.json"]
+      },
+      {
+        "schema": "kiana.product-acceptance.v1",
+        "present": true,
+        "paths": ["dist/proofs/local-rc/product/product-acceptance.json"]
+      },
+      {
+        "schema": "kiana.entitlement-proof.v1",
+        "present": true,
+        "paths": ["dist/proofs/local-rc/entitlement/entitlement-proof.json"]
+      },
+      {
+        "schema": "kiana.release-ops.v1",
+        "present": true,
+        "paths": ["dist/proofs/local-rc/release-ops/release-ops.json"]
+      },
+      {
+        "schema": "kiana.platform-security-proof.v1",
+        "present": true,
+        "paths": ["dist/proofs/local-rc/platform-security/platform-security-linux.json"]
+      }
+    ],
+    "issues": []
+  },
   "proofs": [
     {
-      "path": "dist/proofs/product/product-acceptance-local-rc.json",
+      "path": "dist/proofs/local-rc/source-control/source-control.json",
+      "schema": "kiana.source-control-proof.v1",
+      "status": "local_rc_only",
+      "accepted": false
+    },
+    {
+      "path": "dist/proofs/local-rc/product/product-acceptance.json",
       "schema": "kiana.product-acceptance.v1",
-      "status": "local_rc",
+      "status": "headless_smoke_only",
+      "accepted": false
+    },
+    {
+      "path": "dist/proofs/local-rc/entitlement/entitlement-proof.json",
+      "schema": "kiana.entitlement-proof.v1",
+      "status": "local_rc_only",
+      "accepted": false
+    },
+    {
+      "path": "dist/proofs/local-rc/release-ops/release-ops.json",
+      "schema": "kiana.release-ops.v1",
+      "status": "local_rc_only",
+      "accepted": false
+    },
+    {
+      "path": "dist/proofs/local-rc/platform-security/platform-security-linux.json",
+      "schema": "kiana.platform-security-proof.v1",
+      "status": "local_rc_only",
       "accepted": false
     }
   ],

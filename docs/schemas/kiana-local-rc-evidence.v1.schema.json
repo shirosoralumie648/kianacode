@@ -12,6 +12,7 @@
     "summary",
     "release_artifacts",
     "distribution_manifests",
+    "readiness",
     "proofs",
     "blockers"
   ],
@@ -67,6 +68,56 @@
       },
       "additionalProperties": false
     },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "ready",
+        "release_artifacts_present",
+        "lifecycle_smoke_passed",
+        "required_proofs_present",
+        "local_blockers_clear",
+        "required_proof_schemas",
+        "issues"
+      ],
+      "properties": {
+        "ready": { "type": "boolean" },
+        "release_artifacts_present": { "type": "boolean" },
+        "lifecycle_smoke_passed": { "type": "boolean" },
+        "required_proofs_present": { "type": "boolean" },
+        "local_blockers_clear": { "type": "boolean" },
+        "required_proof_schemas": {
+          "type": "array",
+          "minItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["schema", "present", "paths"],
+            "properties": {
+              "schema": {
+                "type": "string",
+                "enum": [
+                  "kiana.source-control-proof.v1",
+                  "kiana.product-acceptance.v1",
+                  "kiana.entitlement-proof.v1",
+                  "kiana.release-ops.v1",
+                  "kiana.platform-security-proof.v1"
+                ]
+              },
+              "present": { "type": "boolean" },
+              "paths": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    },
     "proofs": {
       "type": "array",
       "items": {
@@ -94,5 +145,39 @@
       "additionalProperties": false
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "local_rc_ready" }
+        }
+      },
+      "then": {
+        "properties": {
+          "readiness": {
+            "properties": {
+              "ready": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "local_rc_incomplete" }
+        }
+      },
+      "then": {
+        "properties": {
+          "readiness": {
+            "properties": {
+              "ready": { "const": false }
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

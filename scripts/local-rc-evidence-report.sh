@@ -160,9 +160,58 @@ with open(os.environ["BLOCKERS_JSON"], "r", encoding="utf-8") as handle:
 summary = blockers_report.get("summary") or {}
 checks = blockers_report.get("checks") or []
 blocking_ids = [check.get("id", "") for check in checks if check.get("status") == "blocking"]
+local_blocking_ids = [
+    check.get("id", "")
+    for check in checks
+    if check.get("status") == "blocking" and check.get("owner_status") == "local-owner"
+]
 
 local_blockers = int(summary.get("local_blocking", 0) or 0)
-status = "local_rc_ready" if release_artifacts and local_blockers == 0 else "local_rc_incomplete"
+required_proof_schemas = [
+    "kiana.source-control-proof.v1",
+    "kiana.product-acceptance.v1",
+    "kiana.entitlement-proof.v1",
+    "kiana.release-ops.v1",
+    "kiana.platform-security-proof.v1",
+]
+required_proofs = []
+missing_required_proofs = []
+for schema in required_proof_schemas:
+    paths = sorted(proof["path"] for proof in proofs if proof.get("schema") == schema)
+    present = bool(paths)
+    if not present:
+        missing_required_proofs.append(schema)
+    required_proofs.append({
+        "schema": schema,
+        "present": present,
+        "paths": paths,
+    })
+
+release_artifacts_present = bool(release_artifacts)
+lifecycle_smoke_passed = (
+    release_artifacts_present
+    and all(artifact.get("lifecycle_smoke") == "passed" for artifact in release_artifacts)
+)
+required_proofs_present = not missing_required_proofs
+local_blockers_clear = local_blockers == 0
+readiness_issues = []
+if not release_artifacts_present:
+    readiness_issues.append("missing release artifacts")
+if not lifecycle_smoke_passed:
+    readiness_issues.append("package lifecycle smoke has not passed for every release artifact")
+if not required_proofs_present:
+    readiness_issues.append(
+        "missing required local RC proof schemas: " + ", ".join(missing_required_proofs)
+    )
+if not local_blockers_clear:
+    readiness_issues.append("local commercial blockers remain: " + ", ".join(local_blocking_ids))
+readiness_ready = (
+    release_artifacts_present
+    and lifecycle_smoke_passed
+    and required_proofs_present
+    and local_blockers_clear
+)
+status = "local_rc_ready" if readiness_ready else "local_rc_incomplete"
 report = {
     "schema": "kiana.local-rc-evidence.v1",
     "version": version,
@@ -183,6 +232,15 @@ report = {
         "homebrew_formulae": homebrew_formulae,
         "winget_manifests": winget_manifests,
         "blocked_channels": blocked_channels,
+    },
+    "readiness": {
+        "ready": readiness_ready,
+        "release_artifacts_present": release_artifacts_present,
+        "lifecycle_smoke_passed": lifecycle_smoke_passed,
+        "required_proofs_present": required_proofs_present,
+        "local_blockers_clear": local_blockers_clear,
+        "required_proof_schemas": required_proofs,
+        "issues": readiness_issues,
     },
     "proofs": proofs,
     "blockers": {

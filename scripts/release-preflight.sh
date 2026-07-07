@@ -569,6 +569,17 @@ else
   fail "local RC evidence JSON schema is missing kiana.local-rc-evidence.v1 const"
 fi
 
+if grep -Fq '"readiness"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq '"required_proof_schemas"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq '"lifecycle_smoke_passed"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq 'required_proof_schemas' scripts/local-rc-evidence-report.sh &&
+  grep -Fq 'lifecycle_smoke_passed' scripts/local-rc-evidence-report.sh &&
+  grep -Fq 'local_rc_ready" if readiness_ready' scripts/local-rc-evidence-report.sh; then
+  pass "local RC evidence readiness requires lifecycle smoke and required proof drafts"
+else
+  fail "local RC evidence readiness is not gated by lifecycle smoke and required proof drafts"
+fi
+
 if grep -Fq 'commercial-release-blockers.json' scripts/local-rc-evidence-report.sh &&
   grep -Fq 'commercial-release-handoff.md' scripts/local-rc-evidence-report.sh &&
   grep -Fq 'KIANA_COMMERCIAL_BLOCKERS_OUT' scripts/local-rc-evidence-report.sh &&
