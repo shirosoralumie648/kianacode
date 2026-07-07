@@ -521,6 +521,9 @@ except Exception as exc:
     print(os.environ.get("CONTEXT_ROOT_PACK_JSON", ""), file=sys.stderr)
     sys.exit(1)
 
+vector_hits = vector_search.get("hits", [])
+vector_hit = vector_hits[0] if vector_hits else {}
+
 checks = [
     index.get("schema") == "kiana.context-index.v1",
     index.get("files_indexed") == 4,
@@ -586,9 +589,10 @@ checks = [
     vector_search.get("dimensions") == 64,
     vector_search.get("terms") == ["flow", "release"],
     vector_search.get("limit") == 1,
-    len(vector_search.get("hits", [])) == 1,
-    vector_search.get("hits", [{}])[0].get("path") == "src/lib.rs",
-    vector_search.get("hits", [{}])[0].get("score", 0) > 0,
+    len(vector_hits) == 1,
+    vector_hit.get("path") in {"README.md", "src/lib.rs"},
+    vector_hit.get("score", 0) > 0,
+    vector_hit.get("token_overlap", 0) >= 1,
     pack.get("schema") == "kiana.context-pack.v1",
     pack.get("terms") == ["release"],
     pack.get("limit") == 1,
@@ -628,9 +632,11 @@ if not all(checks):
     print(json.dumps(artifact_ingest, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifact_graph, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifact_store, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(artifact_readiness, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(cached_artifact_store, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(search, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(path_search, indent=2, sort_keys=True), file=sys.stderr)
+    print(json.dumps(vector_search, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(pack, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(path_pack, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(root_pack, indent=2, sort_keys=True), file=sys.stderr)

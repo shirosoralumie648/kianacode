@@ -144,7 +144,10 @@ commercial release.
 - Runtime event snapshots conform to `kiana-runtime-event.v1` and the packaged
   `docs/sdk-runtime-events.md` compatibility policy.
 - App-server plugin visibility returns `kiana.app-server.plugins.v1` without
-  exposing plugin secrets or bypassing managed plugin policy.
+  exposing plugin secrets or bypassing managed plugin policy, and any plugin
+  app manifest exposed there has already passed the pinned
+  `kiana.plugin-app-manifest.v1` `id`/`title`/`entry`/`routes` contract through
+  `kiana plugin validate`.
 - App-server diff returns `kiana.diff.v1` from the active workspace so Web/IDE
   clients can display changed files plus staged and unstaged stats without
   shelling out to `kiana diff --json`.
@@ -225,6 +228,9 @@ commercial release.
   `KIANA_MANAGED_PLUGIN_POLICY_FILE` or shared `KIANA_MANAGED_POLICY_FILE`
   plugin allow/deny rules and require external receipt-signing policy where
   applicable.
+- Third-party app plugins include `app.json` manifests that satisfy
+  `kiana.plugin-app-manifest.v1`; release packages include that schema and
+  schema smoke validates a representative manifest.
 - `kiana doctor` reports `commercial_security: ready` on target release
   environments, or release notes explicitly scope unsupported platforms.
 - Enterprise account, license, policy, and support expectations are documented;

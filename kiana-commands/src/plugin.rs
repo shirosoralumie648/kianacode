@@ -17,6 +17,7 @@ use std::time::Duration;
 
 const PLUGIN_INSTALL_RECEIPT_SCHEMA: &str = "kiana.plugin-install-receipt.v1";
 const PLUGIN_INSTALL_RECEIPT_FILE: &str = ".kiana-install-receipt.json";
+const PLUGIN_APP_MANIFEST_SCHEMA: &str = "kiana.plugin-app-manifest.v1";
 const KIANA_MANAGED_PLUGIN_POLICY_FILE_ENV: &str = "KIANA_MANAGED_PLUGIN_POLICY_FILE";
 
 pub struct PluginCommand;
@@ -2015,9 +2016,127 @@ fn validate_app_component_file(root: &Path, errors: &mut Vec<String>) {
     else {
         return;
     };
-    if !value.is_object() {
+    validate_plugin_app_manifest_value(&value, errors);
+}
+
+fn validate_plugin_app_manifest_value(value: &Value, errors: &mut Vec<String>) {
+    let Some(object) = value.as_object() else {
         errors.push("app.json must contain a JSON object".into());
+        return;
+    };
+
+    if let Some(schema) = object.get("schema") {
+        if schema.as_str() != Some(PLUGIN_APP_MANIFEST_SCHEMA) {
+            errors.push(format!(
+                "app.json field 'schema' must be \"{PLUGIN_APP_MANIFEST_SCHEMA}\" when present"
+            ));
+        }
     }
+
+    let id = plugin_app_manifest_string_field(object, "id", errors);
+    plugin_app_manifest_string_field(object, "title", errors);
+    let entry = plugin_app_manifest_string_field(object, "entry", errors);
+
+    if let Some(id) = id {
+        if !is_safe_plugin_app_id(id) {
+            errors.push(
+                "app.json field 'id' must start with an ASCII letter or digit and contain only ASCII letters, digits, '.', '_', or '-'"
+                    .into(),
+            );
+        }
+    }
+
+    if let Some(entry) = entry {
+        if !is_safe_plugin_app_entry(entry) {
+            errors.push(
+                "app.json field 'entry' must be a relative forward-slash path without '.', '..', empty, or backslash segments"
+                    .into(),
+            );
+        }
+    }
+
+    if let Some(routes) = object.get("routes") {
+        let Some(routes) = routes.as_array() else {
+            errors.push("app.json field 'routes' must be an array".into());
+            return;
+        };
+        for (index, route) in routes.iter().enumerate() {
+            let Some(route) = route.as_object() else {
+                errors.push(format!("app.json routes[{index}] must be a JSON object"));
+                continue;
+            };
+            let path = plugin_app_manifest_route_string_field(route, index, "path", errors);
+            plugin_app_manifest_route_string_field(route, index, "title", errors);
+            if let Some(path) = path {
+                if !path.starts_with('/') {
+                    errors.push(format!("app.json routes[{index}].path must start with /"));
+                }
+                if path.contains('\\') {
+                    errors.push(format!(
+                        "app.json routes[{index}].path must not contain backslashes"
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn plugin_app_manifest_string_field<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    field: &str,
+    errors: &mut Vec<String>,
+) -> Option<&'a str> {
+    let value = object
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if value.is_none() {
+        errors.push(format!(
+            "app.json field '{field}' must be a non-empty string"
+        ));
+    }
+    value
+}
+
+fn plugin_app_manifest_route_string_field<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    index: usize,
+    field: &str,
+    errors: &mut Vec<String>,
+) -> Option<&'a str> {
+    let value = object
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if value.is_none() {
+        errors.push(format!(
+            "app.json routes[{index}].{field} must be a non-empty string"
+        ));
+    }
+    value
+}
+
+fn is_safe_plugin_app_id(id: &str) -> bool {
+    let mut chars = id.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphanumeric() {
+        return false;
+    }
+    chars.all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
+}
+
+fn is_safe_plugin_app_entry(entry: &str) -> bool {
+    let entry = entry.trim();
+    if entry.is_empty() || entry.starts_with('/') || entry.contains('\\') {
+        return false;
+    }
+    !entry
+        .split('/')
+        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
 }
 
 fn read_plugin_install_receipt(
@@ -3476,6 +3595,70 @@ mod tests {
         assert!(validation
             .value
             .contains("app.json must contain a JSON object"));
+
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_validate_rejects_invalid_app_manifest_contract() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("app-manifest-validation");
+        let cwd = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-tools");
+        write_manifest(&plugin_root, "review-tools");
+        fs::create_dir_all(plugin_root.join("apps")).unwrap();
+        fs::write(
+            plugin_root.join("app.json"),
+            serde_json::to_string_pretty(&json!({
+                "schema": "kiana.plugin-app-manifest.v0",
+                "id": "/review-tools",
+                "title": "Review Tools",
+                "entry": "../apps/review/index.html",
+                "routes": [
+                    {
+                        "path": "review",
+                        "title": "Review"
+                    },
+                    {
+                        "path": "/admin\\settings"
+                    },
+                    "bad-route"
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        let validation = PluginCommand
+            .execute(context("validate review-tools", &cwd))
+            .await
+            .unwrap();
+
+        assert!(validation.value.contains("Validation failed"));
+        assert!(validation.value.contains(
+            "app.json field 'schema' must be \"kiana.plugin-app-manifest.v1\" when present"
+        ));
+        assert!(validation
+            .value
+            .contains("app.json field 'id' must start with an ASCII letter or digit"));
+        assert!(validation
+            .value
+            .contains("app.json field 'entry' must be a relative forward-slash path"));
+        assert!(validation
+            .value
+            .contains("app.json routes[0].path must start with /"));
+        assert!(validation
+            .value
+            .contains("app.json routes[1].title must be a non-empty string"));
+        assert!(validation
+            .value
+            .contains("app.json routes[1].path must not contain backslashes"));
+        assert!(validation
+            .value
+            .contains("app.json routes[2] must be a JSON object"));
 
         std::env::remove_var("KIANA_PLUGINS_DIR");
         let _ = fs::remove_dir_all(root);

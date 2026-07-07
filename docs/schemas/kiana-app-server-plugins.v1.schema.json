@@ -108,6 +108,52 @@
               "object",
               "null"
             ],
+            "required": [
+              "id",
+              "title",
+              "entry"
+            ],
+            "properties": {
+              "schema": {
+                "const": "kiana.plugin-app-manifest.v1"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!/)(?!.*\\\\)(?!.*(^|/)\\.\\.?(/|$)).+"
+              },
+              "routes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "title"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^/(?!.*\\\\).*"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            },
             "additionalProperties": true
           },
           "errors": {

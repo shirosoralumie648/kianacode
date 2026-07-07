@@ -845,6 +845,7 @@ fn reference_capability_matrix(
                 "scoped-plugin-roots",
                 "plugin-install-receipt-integrity",
                 "plugin-component-json-preflight",
+                "plugin-app-manifest-schema",
                 "plugin-enable-disable-visibility",
                 "hook-trust-boundaries",
             ],
@@ -1289,7 +1290,12 @@ mod tests {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .any(|evidence| evidence == "plugin-component-json-preflight")));
+                    .any(|evidence| evidence == "plugin-component-json-preflight")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "plugin-app-manifest-schema")));
         assert!(capabilities
             .iter()
             .any(|item| item["id"] == "knowledge-agent-foundation"

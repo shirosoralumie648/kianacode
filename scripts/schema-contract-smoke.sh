@@ -62,7 +62,25 @@ tmp_platform_security="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
+tmp_plugin_app_manifest="$(mktemp)"
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest"' EXIT
+cat > "$tmp_plugin_app_manifest" <<'JSON'
+{
+  "schema": "kiana.plugin-app-manifest.v1",
+  "id": "review-workbench",
+  "title": "Review Workbench",
+  "entry": "apps/review/index.html",
+  "routes": [
+    {
+      "path": "/review",
+      "title": "Review"
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-plugin-app-manifest.v1.schema.json \
+  "$tmp_plugin_app_manifest" >/dev/null
 cat > "$tmp_managed_plugin_policy" <<'JSON'
 {
   "schema": "kiana.managed-plugin-policy.v1",

@@ -90,6 +90,7 @@ for file in \
   docs/schemas/kiana-runtime-event.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
   docs/schemas/kiana-managed-plugin-policy.v1.schema.json \
+  docs/schemas/kiana-plugin-app-manifest.v1.schema.json \
   docs/schemas/kiana-plugin-install-receipt.v1.schema.json \
   docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json \
   docs/schemas/kiana-entitlement-proof.v1.schema.json \
@@ -424,11 +425,15 @@ for app_schema in conversations config-resolved events settings secrets sandbox 
   fi
 done
 
-if grep -Fq '"app_manifest"' docs/schemas/kiana-app-server-plugins.v1.schema.json &&
-  grep -Fq '"app_manifest"' kiana-commands/src/plugin.rs; then
-  pass "app-server plugin app manifest metadata is exposed"
+if grep -Fq '"id"' docs/schemas/kiana-plugin-app-manifest.v1.schema.json &&
+  grep -Fq '"entry"' docs/schemas/kiana-plugin-app-manifest.v1.schema.json &&
+  grep -Fq '"routes"' docs/schemas/kiana-plugin-app-manifest.v1.schema.json &&
+  grep -Fq '"app_manifest"' docs/schemas/kiana-app-server-plugins.v1.schema.json &&
+  grep -Fq 'validate_plugin_app_manifest_value' kiana-commands/src/plugin.rs &&
+  grep -Fq 'plugin_validate_rejects_invalid_app_manifest_contract' kiana-commands/src/plugin.rs; then
+  pass "plugin app manifest contract is schema-pinned and validated"
 else
-  fail "app-server plugin app manifest metadata is not exposed"
+  fail "plugin app manifest contract is not schema-pinned and validated"
 fi
 
 if grep -Fq '"const": "kiana.checks.dry_run.v1"' docs/schemas/kiana-checks-dry-run.v1.schema.json &&
