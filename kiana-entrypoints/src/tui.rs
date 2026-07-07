@@ -28,8 +28,8 @@ use tokio::sync::{
     oneshot, watch,
 };
 
-const TUI_PROMPT_HISTORY_LIMIT: usize = 200;
-const TUI_PROMPT_HISTORY_FILE: &str = "tui-history.jsonl";
+pub(crate) const TUI_PROMPT_HISTORY_LIMIT: usize = 200;
+pub(crate) const TUI_PROMPT_HISTORY_FILE: &str = "tui-history.jsonl";
 
 pub async fn run_tui() -> Result<()> {
     ensure_tui_terminal(
@@ -1300,7 +1300,7 @@ async fn load_resume_entries(cwd: &Path) -> Result<Vec<SessionEntry>> {
         .collect())
 }
 
-fn prompt_history_path() -> PathBuf {
+pub(crate) fn prompt_history_path() -> PathBuf {
     tui_kiana_home_dir().join(TUI_PROMPT_HISTORY_FILE)
 }
 
@@ -1322,7 +1322,7 @@ fn load_prompt_history_entries() -> Result<Vec<HistoryEntry>> {
     load_prompt_history_entries_from_path(&prompt_history_path())
 }
 
-fn load_prompt_history_entries_from_path(path: &Path) -> Result<Vec<HistoryEntry>> {
+pub(crate) fn load_prompt_history_entries_from_path(path: &Path) -> Result<Vec<HistoryEntry>> {
     if !path.exists() {
         return Ok(Vec::new());
     }

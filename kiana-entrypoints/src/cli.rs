@@ -14,7 +14,7 @@ use kiana_query::{
     build_persistent_context_index, build_repo_map, search_context_index, ContextArtifactOptions,
     ContextIndexOptions, ContextPackOptions, ContextSearchOptions, RepoMapOptions,
 };
-use kiana_screens::settings::SettingsSection;
+use kiana_screens::{history::HistoryEntry, settings::SettingsSection};
 use kiana_tools::tool_execution::{
     PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
 };
@@ -5288,6 +5288,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_settings_handler),
         )
         .route(
+            "/app/prompt-history",
+            axum::routing::get(direct_connect_app_prompt_history_handler),
+        )
+        .route(
             "/app/config/resolved",
             axum::routing::get(direct_connect_app_config_resolved_handler),
         )
@@ -5858,6 +5862,64 @@ async fn direct_connect_app_settings_handler(
         "sections": app_settings_sections_json(sections),
     }))
     .into_response()
+}
+
+async fn direct_connect_app_prompt_history_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let history_path = crate::tui::prompt_history_path();
+    match crate::tui::load_prompt_history_entries_from_path(&history_path) {
+        Ok(entries) => axum::Json(direct_connect_app_prompt_history_payload(
+            &state,
+            &history_path,
+            entries,
+        ))
+        .into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            error.to_string(),
+        ),
+    }
+}
+
+fn direct_connect_app_prompt_history_payload(
+    state: &DirectConnectServerState,
+    history_path: &Path,
+    entries: Vec<HistoryEntry>,
+) -> Value {
+    let entries_json = entries
+        .iter()
+        .map(|entry| {
+            serde_json::json!({
+                "prompt": &entry.prompt,
+                "timestamp": &entry.timestamp,
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "schema": "kiana.app-server.prompt-history.v1",
+        "workspace": state.workspace.display().to_string(),
+        "storage": {
+            "kind": "kiana_home",
+            "file": history_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(crate::tui::TUI_PROMPT_HISTORY_FILE),
+        },
+        "limit": crate::tui::TUI_PROMPT_HISTORY_LIMIT,
+        "count": entries_json.len(),
+        "entries": entries_json,
+    })
 }
 
 fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
@@ -9617,6 +9679,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "conversation.files.read",
         "conversation.files.write",
         "settings.read",
+        "prompt.history.read",
         "config.resolved.read",
         "doctor.read",
         "release.blockers.read",
@@ -9691,6 +9754,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("GET", "/app/conversations/{session_id}/files", "kiana.app-server.conversation-files.v1"),
         direct_connect_app_endpoint("POST", "/app/conversations/{session_id}/files", "kiana.app-server.conversation-files.v1"),
         direct_connect_app_endpoint("GET", "/app/settings", "kiana.app-server.settings.v1"),
+        direct_connect_app_endpoint("GET", "/app/prompt-history", "kiana.app-server.prompt-history.v1"),
         direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
         direct_connect_app_endpoint("GET", "/app/doctor", "kiana.app-server.doctor.v1"),
         direct_connect_app_endpoint("GET", "/app/release/blockers", "kiana.commercial-release-blockers.v1"),
@@ -18970,6 +19034,29 @@ mod tests {
             "KIANA_OAUTH_TOKENS_FILE",
             workspace.join("oauth-tokens.json"),
         );
+        let prompt_history_path = workspace.join(".kiana-home").join("tui-history.jsonl");
+        std::fs::create_dir_all(prompt_history_path.parent().unwrap()).unwrap();
+        let prompt_history_lines = [
+            "not json".to_string(),
+            serde_json::to_string(&HistoryEntry::new(
+                "newer prompt".to_string(),
+                "2".to_string(),
+            ))
+            .unwrap(),
+            serde_json::to_string(&HistoryEntry::new(
+                "older prompt".to_string(),
+                "1".to_string(),
+            ))
+            .unwrap(),
+            serde_json::to_string(&HistoryEntry::new(
+                "newer prompt".to_string(),
+                "0".to_string(),
+            ))
+            .unwrap(),
+            serde_json::to_string(&HistoryEntry::new("   ".to_string(), "0".to_string())).unwrap(),
+        ]
+        .join("\n");
+        std::fs::write(&prompt_history_path, format!("{prompt_history_lines}\n")).unwrap();
         for key in [
             "ANTHROPIC_API_KEY",
             "KIANA_OPENAI_API_KEY",
@@ -19186,6 +19273,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("prompt.history.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("config.resolved.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19320,6 +19411,15 @@ mod tests {
                 endpoint["method"] == "POST"
                     && endpoint["path"] == "/app/conversations/{session_id}/files"
                     && endpoint["schema"] == "kiana.app-server.conversation-files.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/prompt-history"
+                    && endpoint["schema"] == "kiana.app-server.prompt-history.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -19948,6 +20048,32 @@ mod tests {
                     .iter()
                     .any(|row| row["label"] == "commercial_security")));
         assert!(!settings.to_string().contains("must-not-leak"));
+
+        let prompt_history: Value = client
+            .get(format!("http://{addr}/app/prompt-history"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            prompt_history["schema"],
+            "kiana.app-server.prompt-history.v1"
+        );
+        assert_eq!(prompt_history["workspace"], workspace.display().to_string());
+        assert_eq!(prompt_history["storage"]["kind"], "kiana_home");
+        assert_eq!(prompt_history["storage"]["file"], "tui-history.jsonl");
+        assert_eq!(
+            prompt_history["limit"],
+            crate::tui::TUI_PROMPT_HISTORY_LIMIT
+        );
+        assert_eq!(prompt_history["count"], 2);
+        assert_eq!(prompt_history["entries"][0]["prompt"], "newer prompt");
+        assert_eq!(prompt_history["entries"][0]["timestamp"], "2");
+        assert_eq!(prompt_history["entries"][1]["prompt"], "older prompt");
+        assert!(!prompt_history.to_string().contains(".kiana-home"));
 
         let config_resolved: Value = client
             .get(format!("http://{addr}/app/config/resolved"))

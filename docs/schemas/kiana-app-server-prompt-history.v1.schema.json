@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-prompt-history.v1.schema.json",
+  "title": "Kiana App Server Prompt History v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "workspace",
+    "storage",
+    "limit",
+    "count",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.prompt-history.v1"
+    },
+    "workspace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "storage": {
+      "type": "object",
+      "required": ["kind", "file"],
+      "properties": {
+        "kind": {
+          "const": "kiana_home"
+        },
+        "file": {
+          "const": "tui-history.jsonl"
+        }
+      },
+      "additionalProperties": false
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prompt", "timestamp"],
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
