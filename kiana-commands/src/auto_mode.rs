@@ -2,7 +2,12 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use kiana_bootstrap::config::{load_config, AutoModeSettings};
+use kiana_services::api::messages::{Message, MessagesRequest, MessagesResponse};
+use kiana_services::api::provider::{
+    FakeProvider, FakeProviderStep, Provider, FAKE_MODEL_ID, FAKE_PROVIDER_ID,
+};
 use serde::Serialize;
+use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 pub struct AutoModeCommand;
@@ -43,7 +48,7 @@ impl Command for AutoModeCommand {
                 reject_extra("config", args.get(1..).unwrap_or_default())?;
                 rules_json(effective_auto_mode_rules())
             }
-            "critique" => critique_rules(args.get(1..).unwrap_or_default()),
+            "critique" => critique_rules(args.get(1..).unwrap_or_default()).await,
             "help" | "--help" | "-h" => {
                 reject_extra("help", args.get(1..).unwrap_or_default())?;
                 Ok(CommandResult::text(usage()))
@@ -118,7 +123,7 @@ fn default_auto_mode_rules() -> AutoModeRules {
     }
 }
 
-fn critique_rules(args: &[String]) -> Result<CommandResult> {
+async fn critique_rules(args: &[String]) -> Result<CommandResult> {
     let parsed = parse_critique_args(args)?;
     let custom = configured_auto_mode_rules();
     if custom.allow.is_empty() && custom.soft_deny.is_empty() && custom.environment.is_empty() {
@@ -127,14 +132,30 @@ fn critique_rules(args: &[String]) -> Result<CommandResult> {
         ));
     }
 
+    let fake_model = parsed
+        .model
+        .as_deref()
+        .and_then(resolve_fake_critique_model);
+    let mode = if fake_model.is_some() {
+        "fake provider critique"
+    } else {
+        "local structural audit"
+    };
     let mut lines = vec![
         "Auto mode rule critique".to_string(),
-        "mode: local structural audit".to_string(),
+        format!("mode: {mode}"),
     ];
-    if let Some(model) = parsed.model {
-        lines.push(format!(
-            "model: {model} (not contacted by this offline command)"
-        ));
+    match (&parsed.model, &fake_model) {
+        (_, Some(model)) => {
+            lines.push(format!("provider: {FAKE_PROVIDER_ID}"));
+            lines.push(format!("model: {model}"));
+        }
+        (Some(model), None) => {
+            lines.push(format!(
+                "model: {model} (not contacted; offline critique only supports the fake provider)"
+            ));
+        }
+        (None, None) => {}
     }
     lines.push(format!("allow_rules: {}", custom.allow.len()));
     lines.push(format!("soft_deny_rules: {}", custom.soft_deny.len()));
@@ -145,12 +166,124 @@ fn critique_rules(args: &[String]) -> Result<CommandResult> {
         findings.push("No obvious structural issues found.".to_string());
     }
     lines.push("findings:".to_string());
-    lines.extend(findings.into_iter().map(|finding| format!("- {finding}")));
-    lines.push(
-        "note: model-backed critique is still a remaining parity gap in this Rust build."
-            .to_string(),
-    );
+    lines.extend(findings.iter().map(|finding| format!("- {finding}")));
+    if let Some(model) = fake_model {
+        let provider_text = fake_provider_critique(&model, &custom, &findings).await?;
+        lines.push("model_findings:".to_string());
+        lines.extend(
+            provider_text
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(|line| format!("- {line}")),
+        );
+    } else {
+        lines.push(
+            "note: pass --model fake to run the deterministic provider-backed critique path without network."
+                .to_string(),
+        );
+    }
     Ok(CommandResult::text(lines.join("\n")))
+}
+
+fn resolve_fake_critique_model(model: &str) -> Option<String> {
+    let trimmed = model.trim();
+    if trimmed.eq_ignore_ascii_case(FAKE_PROVIDER_ID) || trimmed.eq_ignore_ascii_case(FAKE_MODEL_ID)
+    {
+        return Some(FAKE_MODEL_ID.to_string());
+    }
+    trimmed
+        .strip_prefix(&format!("{FAKE_PROVIDER_ID}/"))
+        .filter(|model| !model.trim().is_empty())
+        .map(|model| model.trim().to_string())
+}
+
+async fn fake_provider_critique(
+    model: &str,
+    rules: &AutoModeSettings,
+    findings: &[String],
+) -> Result<String> {
+    let provider = FakeProvider::new(
+        model.to_string(),
+        vec![FakeProviderStep::AssistantText {
+            text: fake_provider_critique_text(rules, findings),
+        }],
+    );
+    let response = provider
+        .create_message(MessagesRequest {
+            model: model.to_string(),
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: json!(critique_prompt(rules, findings)),
+            }],
+            max_tokens: 512,
+            system: Some(json!(
+                "Review custom auto mode rules and return concise release-readiness findings."
+            )),
+            temperature: Some(0.0),
+            tools: None,
+            thinking: None,
+            stream: None,
+        })
+        .await?;
+    let text = response_text(&response);
+    if text.is_empty() {
+        Ok("Fake provider returned no critique text.".to_string())
+    } else {
+        Ok(text)
+    }
+}
+
+fn critique_prompt(rules: &AutoModeSettings, findings: &[String]) -> String {
+    format!(
+        "allow={:?}\nsoft_deny={:?}\nenvironment={:?}\nstructural_findings={:?}",
+        rules.allow, rules.soft_deny, rules.environment, findings
+    )
+}
+
+fn fake_provider_critique_text(rules: &AutoModeSettings, findings: &[String]) -> String {
+    let mut lines = vec![
+        "Fake provider critique: reviewed custom auto mode rules without network.".to_string(),
+    ];
+    if findings
+        .iter()
+        .any(|finding| finding.contains("both allow and soft_deny"))
+    {
+        lines.push(
+            "Resolve allow/soft_deny overlaps before enabling automatic execution.".to_string(),
+        );
+    } else {
+        lines.push("No blocking allow/soft_deny conflict was detected.".to_string());
+    }
+    if rules.environment.is_empty() {
+        lines.push(
+            "Add environment guidance so reviewers know which sandbox, approval, and trust assumptions apply."
+                .to_string(),
+        );
+    } else {
+        lines.push(
+            "Environment guidance is present; keep it specific to sandbox and approval expectations."
+                .to_string(),
+        );
+    }
+    lines.push(format!(
+        "Rule coverage: allow={}, soft_deny={}, environment={}.",
+        rules.allow.len(),
+        rules.soft_deny.len(),
+        rules.environment.len()
+    ));
+    lines.join("\n")
+}
+
+fn response_text(response: &MessagesResponse) -> String {
+    response
+        .content
+        .iter()
+        .filter_map(|block| block.get("text").and_then(Value::as_str))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
 }
 
 #[derive(Default)]

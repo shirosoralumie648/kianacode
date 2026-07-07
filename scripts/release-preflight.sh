@@ -216,6 +216,15 @@ else
   fail "release smoke does not exercise model catalog --json"
 fi
 
+if grep -Fq 'auto-mode critique --model fake' scripts/release-smoke.sh &&
+  grep -Fq 'mode: fake provider critique' scripts/release-smoke.sh &&
+  grep -Fq 'provider: fake' scripts/release-smoke.sh &&
+  grep -Fq 'model_findings:' scripts/release-smoke.sh; then
+  pass "auto-mode fake provider critique smoke gate is wired"
+else
+  fail "release smoke does not exercise auto-mode fake provider critique"
+fi
+
 if grep -Fq 'context index --json' scripts/release-smoke.sh &&
   grep -Fq 'context ingest --source' scripts/release-smoke.sh &&
   grep -Fq 'context search release --json --limit 1' scripts/release-smoke.sh &&
@@ -362,6 +371,13 @@ if grep -Fq 'smoke_commercial_security_doctor_json "$release_bin"' scripts/relea
   pass "commercial security doctor release smoke is wired"
 else
   fail "commercial security doctor release smoke is not wired"
+fi
+
+if grep -Fq 'auto-mode-critique' kiana-commands/src/doctor.rs &&
+  grep -Fq 'fake-provider-auto-mode-critique' kiana-commands/src/doctor.rs; then
+  pass "doctor provider registry reports auto-mode fake provider critique evidence"
+else
+  fail "doctor provider registry is missing auto-mode fake provider critique evidence"
 fi
 
 if grep -Fq 'plugin_install_from_local_marketplace_file_remote_git_source' kiana-commands/src/plugin.rs &&

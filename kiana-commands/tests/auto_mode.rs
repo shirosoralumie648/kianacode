@@ -101,3 +101,34 @@ async fn auto_mode_config_replaces_only_sections_with_custom_rules() {
 
     std::env::remove_var("KIANA_SETTINGS_JSON");
 }
+
+#[tokio::test]
+async fn auto_mode_critique_uses_fake_provider_for_custom_rules() {
+    let _guard = env_lock().lock().unwrap();
+    isolate_config_env("fake-critique");
+    std::env::set_var(
+        "KIANA_SETTINGS_JSON",
+        r#"{"settings":{"autoMode":{"allow":["Run cargo test in this repository"],"soft_deny":["Do not delete user files without explicit approval"],"environment":["Use deterministic fake provider critique in release smoke"]}}}"#,
+    );
+
+    let registry = create_default_command_registry();
+    let command = registry
+        .get("auto-mode")
+        .expect("missing auto-mode command");
+    let result = command
+        .execute(context("critique --model fake"))
+        .await
+        .unwrap();
+
+    assert!(result.value.contains("mode: fake provider critique"));
+    assert!(result.value.contains("provider: fake"));
+    assert!(result.value.contains("model: fake-model"));
+    assert!(result.value.contains("model_findings:"));
+    assert!(result
+        .value
+        .contains("Fake provider critique: reviewed custom auto mode rules without network."));
+    assert!(!result.value.contains("not contacted"));
+    assert!(!result.value.contains("remaining parity gap"));
+
+    std::env::remove_var("KIANA_SETTINGS_JSON");
+}

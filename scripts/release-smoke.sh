@@ -510,6 +510,35 @@ if ollama is None or ollama.get("status") != "skipped":
 PY
 }
 
+smoke_auto_mode_fake_critique() {
+  local binary="$1"
+  local output
+  local settings_json
+
+  settings_json='{"settings":{"autoMode":{"allow":["Run cargo test in this repository"],"soft_deny":["Do not delete user files without explicit approval"],"environment":["Use deterministic fake provider critique in release smoke"]}}}'
+  output="$(KIANA_SETTINGS_JSON="$settings_json" run_clean_kiana "$binary" auto-mode critique --model fake 2>&1)"
+  for expected in \
+    "mode: fake provider critique" \
+    "provider: fake" \
+    "model: fake-model" \
+    "model_findings:" \
+    "Fake provider critique: reviewed custom auto mode rules without network."
+  do
+    if ! grep -Fq -- "$expected" <<<"$output"; then
+      echo "auto-mode fake provider critique smoke failed for: $binary" >&2
+      echo "missing expected text: $expected" >&2
+      echo "$output" >&2
+      exit 1
+    fi
+  done
+  if grep -Fq -- "not contacted" <<<"$output" ||
+    grep -Fq -- "remaining parity gap" <<<"$output"; then
+    echo "auto-mode fake provider critique stayed on local-only fallback for: $binary" >&2
+    echo "$output" >&2
+    exit 1
+  fi
+}
+
 smoke_context_index_search_json() {
   local binary="$1"
   local binary_path="$binary"
@@ -1290,6 +1319,7 @@ smoke_doctor_json "$release_bin"
 smoke_commercial_security_doctor_json "$release_bin"
 smoke_model_smoke_json "$release_bin"
 smoke_model_catalog_json "$release_bin"
+smoke_auto_mode_fake_critique "$release_bin"
 smoke_context_index_search_json "$release_bin"
 smoke_license_status_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
@@ -1308,6 +1338,7 @@ smoke_doctor_json "$installed_bin"
 smoke_commercial_security_doctor_json "$installed_bin"
 smoke_model_smoke_json "$installed_bin"
 smoke_model_catalog_json "$installed_bin"
+smoke_auto_mode_fake_critique "$installed_bin"
 smoke_context_index_search_json "$installed_bin"
 smoke_license_status_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do

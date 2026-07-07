@@ -782,9 +782,10 @@ fn reference_capability_matrix(
             domain: "provider/model/auth",
             status: "local_ready_external_required",
             references: vec!["cline", "continue", "pi", "langchain"],
-            surfaces: vec!["model-list", "model-catalog", "model-smoke", "auth-status", "provider-standard"],
+            surfaces: vec!["model-list", "model-catalog", "model-smoke", "auto-mode-critique", "auth-status", "provider-standard"],
             evidence: vec![
                 "fake-provider-standard-tests",
+                "fake-provider-auto-mode-critique",
                 "openai-compatible-tool-loop",
                 "ollama-tool-loop",
                 "offline-model-catalog",
@@ -1199,7 +1200,17 @@ mod tests {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .any(|surface| surface == "model-smoke")));
+                    .any(|surface| surface == "model-smoke")
+                && item["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|surface| surface == "auto-mode-critique")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "fake-provider-auto-mode-critique")));
         assert!(report["reference_capabilities"]
             .as_array()
             .unwrap()
@@ -1295,6 +1306,19 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "mcp-prompt-lifecycle")));
+        assert!(capabilities
+            .iter()
+            .any(|item| item["id"] == "provider-registry"
+                && item["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|surface| surface == "auto-mode-critique")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "fake-provider-auto-mode-critique")));
         assert!(capabilities.iter().any(|item| item["id"] == "product-shell"
             && item["status"] == "local_ready_external_required"
             && item["evidence"]
