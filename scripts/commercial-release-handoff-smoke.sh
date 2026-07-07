@@ -85,6 +85,14 @@ if "source.remote" not in handoff:
 if "release-manager-test" not in handoff:
     raise SystemExit("owner override is missing from the handoff markdown")
 
+native = by_id.get("compliance.native-computer-use-advisories")
+if not native:
+    raise SystemExit("compliance.native-computer-use-advisories check is missing")
+if native.get("status") != "satisfied":
+    raise SystemExit("native computer-use advisory should be satisfied when the optional release feature is disabled")
+if "not enabled" not in native.get("evidence", ""):
+    raise SystemExit("native computer-use advisory evidence should state the optional release feature is disabled")
+
 blocking = [check for check in checks if check.get("status") == "blocking"]
 if blocking:
     for check in blocking:
@@ -95,6 +103,37 @@ if blocking:
 else:
     if "No blocking checks were detected." not in handoff:
         raise SystemExit("ready handoff does not state that no blockers were detected")
+PY
+
+KIANA_NATIVE_COMPUTER_USE_RELEASE_ENABLED=1 \
+KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
+  bash scripts/commercial-release-blockers-report.sh \
+    --json \
+    --handoff-md "$tmp_handoff" > "$tmp_report"
+
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_report" >/dev/null
+
+"$python" - "$tmp_report" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+native = {check["id"]: check for check in report.get("checks", [])}.get(
+    "compliance.native-computer-use-advisories"
+)
+if not native:
+    raise SystemExit("native computer-use advisory check is missing")
+if native.get("status") != "blocking":
+    raise SystemExit("native computer-use advisory should block when the optional release feature is enabled without acceptance")
+evidence = native.get("evidence", "")
+if (
+    "quick-xml versions below 0.41.0" not in evidence
+    and "source feature declarations are unavailable" not in evidence
+):
+    raise SystemExit("native computer-use advisory evidence does not explain the enabled-feature blocker")
 PY
 
 cat > "$tmp_source_control" <<'JSON'

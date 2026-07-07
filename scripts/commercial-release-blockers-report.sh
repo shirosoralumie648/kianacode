@@ -738,22 +738,40 @@ native_computer_use_declared = (
     and "native-computer-use" in entrypoints_toml.read_text(encoding="utf-8")
     and "dep:xcap" in computer_mcp_toml.read_text(encoding="utf-8")
 )
+native_computer_use_release_enabled = (
+    os.environ.get("KIANA_NATIVE_COMPUTER_USE_RELEASE_ENABLED", "") == "1"
+    or os.environ.get("CARGO_FEATURE_NATIVE_COMPUTER_USE", "") == "1"
+)
 native_advisory_accepted = os.environ.get("KIANA_NATIVE_COMPUTER_USE_RUSTSEC_ACCEPTED", "") == "1"
 native_advisory_ok = (
-    quick_xml_error is None
-    and native_source_files_available
-    and (not native_computer_use_declared or not old_quick_xml_versions or native_advisory_accepted)
+    (not native_source_files_available and not native_computer_use_release_enabled)
+    or (
+        quick_xml_error is None
+        and native_source_files_available
+        and (
+            not native_computer_use_declared
+            or not native_computer_use_release_enabled
+            or not old_quick_xml_versions
+            or native_advisory_accepted
+        )
+    )
 )
 native_advisory_evidence = (
     "native-computer-use quick-xml advisory exception accepted by release-security"
     if native_advisory_accepted
     else (
-        "no vulnerable optional native-computer-use quick-xml versions found"
+        "optional native-computer-use feature is not enabled for this commercial release package"
         if native_advisory_ok
+        and not native_computer_use_release_enabled
+        and (native_computer_use_declared or not native_source_files_available)
         else (
-            "source feature declarations are unavailable in this packaged release root"
-            if not native_source_files_available
-            else f"optional native-computer-use lockfile quick-xml versions below 0.41.0: {', '.join(old_quick_xml_versions) or quick_xml_error}"
+            "no vulnerable optional native-computer-use quick-xml versions found"
+            if native_advisory_ok
+            else (
+                "source feature declarations are unavailable in this packaged release root"
+                if not native_source_files_available
+                else f"optional native-computer-use lockfile quick-xml versions below 0.41.0: {', '.join(old_quick_xml_versions) or quick_xml_error}"
+            )
         )
     )
 )
@@ -772,7 +790,7 @@ add_check(
         "cargo tree -i quick-xml@0.41.0 --locked",
         "cargo build --release --locked --offline -p kiana-entrypoints --bin kiana",
     ],
-    env=["KIANA_NATIVE_COMPUTER_USE_RUSTSEC_ACCEPTED"],
+    env=["KIANA_NATIVE_COMPUTER_USE_RELEASE_ENABLED", "KIANA_NATIVE_COMPUTER_USE_RUSTSEC_ACCEPTED"],
     owner="release-security",
     verification_commands=[
         "bash scripts/compliance-audit.sh --local-rc",
