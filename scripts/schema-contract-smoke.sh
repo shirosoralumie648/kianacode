@@ -35,6 +35,7 @@ done
 tmp_runtime_event="$(mktemp)"
 tmp_runtime_result="$(mktemp)"
 tmp_app_events="$(mktemp)"
+tmp_app_command_run="$(mktemp)"
 tmp_app_permissions_status="$(mktemp)"
 tmp_app_trust_status="$(mktemp)"
 tmp_auth_status="$(mktemp)"
@@ -58,7 +59,7 @@ tmp_distribution_review="$(mktemp)"
 tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy"' EXIT
 cat > "$tmp_managed_plugin_policy" <<'JSON'
 {
   "schema": "kiana.managed-plugin-policy.v1",
@@ -194,6 +195,40 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-events.v1.schema.json \
   "$tmp_app_events" >/dev/null
+
+cat > "$tmp_app_command_run" <<'JSON'
+{
+  "schema": "kiana.app-server.command-run.v1",
+  "workspace": "/workspace",
+  "command": {
+    "name": "version",
+    "slash": "/version",
+    "description": "Show version",
+    "command_type": "local",
+    "enabled": true,
+    "supports_non_interactive": true,
+    "routes_to": "local_command",
+    "source": {
+      "kind": "core",
+      "plugin": null
+    }
+  },
+  "request": {
+    "args": [],
+    "arg_count": 0
+  },
+  "status": "ok",
+  "executed": true,
+  "output": {
+    "output_type": "text",
+    "value": "0.1.0",
+    "metadata": null
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-app-server-command-run.v1.schema.json \
+  "$tmp_app_command_run" >/dev/null
 
 cat > "$tmp_app_permissions_status" <<'JSON'
 {

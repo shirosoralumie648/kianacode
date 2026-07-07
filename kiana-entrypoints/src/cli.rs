@@ -5297,6 +5297,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_commands_handler),
         )
         .route(
+            "/app/commands/run",
+            axum::routing::post(direct_connect_app_command_run_handler),
+        )
+        .route(
             "/app/config/resolved",
             axum::routing::get(direct_connect_app_config_resolved_handler),
         )
@@ -6009,6 +6013,156 @@ fn direct_connect_app_command_source(name: &str) -> (&'static str, Value) {
     } else {
         ("core", Value::Null)
     }
+}
+
+const DIRECT_CONNECT_COMMAND_RUN_MAX_ARGS: usize = 64;
+const DIRECT_CONNECT_COMMAND_RUN_MAX_ARG_LEN: usize = 2048;
+
+#[derive(Debug, Deserialize)]
+struct DirectConnectCommandRunRequest {
+    #[serde(default, alias = "command")]
+    name: Option<String>,
+    #[serde(default, alias = "argv")]
+    args: Vec<String>,
+}
+
+async fn direct_connect_app_command_run_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::Json(body): axum::Json<DirectConnectCommandRunRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_app_command_run_payload(&state, body).await {
+        Ok(payload) => axum::Json(payload).into_response(),
+        Err((status, message)) => direct_connect_json_error(status, message),
+    }
+}
+
+async fn direct_connect_app_command_run_payload(
+    state: &DirectConnectServerState,
+    request: DirectConnectCommandRunRequest,
+) -> std::result::Result<Value, (axum::http::StatusCode, String)> {
+    let name = request
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.trim_start_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                "command name is required".to_string(),
+            )
+        })?;
+    if request.args.len() > DIRECT_CONNECT_COMMAND_RUN_MAX_ARGS {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("commands/run accepts at most {DIRECT_CONNECT_COMMAND_RUN_MAX_ARGS} arguments"),
+        ));
+    }
+    if let Some((index, _)) = request
+        .args
+        .iter()
+        .enumerate()
+        .find(|(_, value)| value.len() > DIRECT_CONNECT_COMMAND_RUN_MAX_ARG_LEN)
+    {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("argument {index} exceeds {DIRECT_CONNECT_COMMAND_RUN_MAX_ARG_LEN} bytes"),
+        ));
+    }
+
+    let registry = create_default_command_registry();
+    let Some(command) = registry.get(&name) else {
+        return Err((
+            axum::http::StatusCode::NOT_FOUND,
+            format!("command '{name}' is not registered"),
+        ));
+    };
+    if command.is_hidden() {
+        return Err((
+            axum::http::StatusCode::NOT_FOUND,
+            format!("command '{name}' is not registered"),
+        ));
+    }
+    if !command.is_enabled() {
+        return Err((
+            axum::http::StatusCode::CONFLICT,
+            format!("command '{name}' is disabled"),
+        ));
+    }
+    if !command.supports_non_interactive() {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("command '{name}' does not support non-interactive app-server execution"),
+        ));
+    }
+
+    let command_type = command.command_type();
+    let command_args = request.args.join(" ");
+    let result = command
+        .execute(CommandContext {
+            args: command_args,
+            app_state: HashMap::from([
+                (
+                    "cwd".to_string(),
+                    Value::String(state.workspace.display().to_string()),
+                ),
+                (
+                    COMMAND_ARGV_APP_STATE_KEY.to_string(),
+                    Value::Array(request.args.iter().cloned().map(Value::String).collect()),
+                ),
+            ]),
+        })
+        .await
+        .map_err(|error| {
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                format!("failed to run command '{name}': {error}"),
+            )
+        })?;
+    let output = serde_json::to_value(result).map_err(|error| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to serialize command '{name}' result: {error}"),
+        )
+    })?;
+    let (source_kind, plugin_name) = direct_connect_app_command_source(&name);
+    let arg_count = request.args.len();
+    let args = request.args;
+    Ok(serde_json::json!({
+        "schema": "kiana.app-server.command-run.v1",
+        "workspace": state.workspace.display().to_string(),
+        "command": {
+            "name": name.clone(),
+            "slash": format!("/{name}"),
+            "description": command.description(),
+            "command_type": direct_connect_app_command_type_name(command_type.clone()),
+            "enabled": command.is_enabled(),
+            "supports_non_interactive": command.supports_non_interactive(),
+            "routes_to": direct_connect_app_command_route(command_type.clone()),
+            "source": {
+                "kind": source_kind,
+                "plugin": plugin_name,
+            },
+        },
+        "request": {
+            "args": args,
+            "arg_count": arg_count,
+        },
+        "status": "ok",
+        "executed": !matches!(command_type, CommandType::Prompt),
+        "output": output,
+    }))
 }
 
 fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
@@ -9913,6 +10067,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "settings.read",
         "prompt.history.read",
         "commands.read",
+        "commands.run",
         "config.resolved.read",
         "doctor.read",
         "release.blockers.read",
@@ -9991,6 +10146,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("GET", "/app/settings", "kiana.app-server.settings.v1"),
         direct_connect_app_endpoint("GET", "/app/prompt-history", "kiana.app-server.prompt-history.v1"),
         direct_connect_app_endpoint("GET", "/app/commands", "kiana.app-server.commands.v1"),
+        direct_connect_app_endpoint("POST", "/app/commands/run", "kiana.app-server.command-run.v1"),
         direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
         direct_connect_app_endpoint("GET", "/app/doctor", "kiana.app-server.doctor.v1"),
         direct_connect_app_endpoint("GET", "/app/release/blockers", "kiana.commercial-release-blockers.v1"),
@@ -19557,6 +19713,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("commands.run".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("config.resolved.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19717,6 +19877,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/commands"
                     && endpoint["schema"] == "kiana.app-server.commands.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "POST"
+                    && endpoint["path"] == "/app/commands/run"
+                    && endpoint["schema"] == "kiana.app-server.command-run.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -20427,6 +20596,66 @@ mod tests {
         assert!(!command_entries
             .iter()
             .any(|command| command["name"] == "disabled-tools:disabled"));
+
+        let version_run: Value = client
+            .post(format!("http://{addr}/app/commands/run"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "name": "version",
+                "args": [],
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(version_run["schema"], "kiana.app-server.command-run.v1");
+        assert_eq!(version_run["workspace"], workspace.display().to_string());
+        assert_eq!(version_run["command"]["name"], "version");
+        assert_eq!(version_run["command"]["routes_to"], "local_command");
+        assert_eq!(version_run["executed"], true);
+        assert_eq!(version_run["request"]["arg_count"], 0);
+        assert_eq!(version_run["output"]["output_type"], "text");
+        assert_eq!(version_run["output"]["value"], env!("CARGO_PKG_VERSION"));
+
+        let prompt_run: Value = client
+            .post(format!("http://{addr}/app/commands/run"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "name": "app-tools:audit",
+                "args": ["src/lib.rs"],
+            }))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(prompt_run["schema"], "kiana.app-server.command-run.v1");
+        assert_eq!(prompt_run["command"]["command_type"], "prompt");
+        assert_eq!(prompt_run["command"]["routes_to"], "assistant_prompt");
+        assert_eq!(prompt_run["executed"], false);
+        assert_eq!(
+            prompt_run["request"]["args"],
+            serde_json::json!(["src/lib.rs"])
+        );
+        assert_eq!(prompt_run["output"]["output_type"], "text");
+        assert!(prompt_run["output"]["value"]
+            .as_str()
+            .unwrap()
+            .contains("Audit command"));
+
+        let missing_command = client
+            .post(format!("http://{addr}/app/commands/run"))
+            .bearer_auth("secret")
+            .json(&serde_json::json!({
+                "name": "missing-command",
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(missing_command.status(), reqwest::StatusCode::NOT_FOUND);
 
         let config_resolved: Value = client
             .get(format!("http://{addr}/app/config/resolved"))

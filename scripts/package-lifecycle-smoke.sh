@@ -120,6 +120,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-prompt-history.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-trust-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-commands.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-command-run.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-readiness.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-artifact-store.v1.schema.json" \
