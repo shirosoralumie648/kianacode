@@ -964,11 +964,18 @@ JSON
   grep -Fq -- '"source": "directory"' <<<"$output"
 
   managed_policy_file="$tmp_root/managed-plugin-policy.json"
-  cat > "$managed_policy_file" <<'JSON'
+  if [[ "${OS:-}" == "Windows_NT" || "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+    signature_verification_command='if x%KIANA_PLUGIN_SIGNATURE_VALUE%==xsmoke-signature (exit /b 0) else (exit /b 2)'
+  else
+    signature_verification_command='test x$KIANA_PLUGIN_SIGNATURE_VALUE = xsmoke-signature'
+  fi
+  cat > "$managed_policy_file" <<JSON
 {
   "schema": "kiana.managed-plugin-policy.v1",
   "plugins": {
     "requireSignature": true,
+    "requireSignatureVerification": true,
+    "signatureVerificationCommand": "$signature_verification_command",
     "allow": ["review-tools@tools-marketplace"],
     "allowMarketplaces": ["tools-marketplace"]
   }

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::process::Command as ProcessCommand;
 use std::time::Duration;
 
 const PLUGIN_INSTALL_RECEIPT_SCHEMA: &str = "kiana.plugin-install-receipt.v1";
@@ -2543,6 +2544,18 @@ struct ManagedPluginPolicy {
     deny_path_installs: bool,
     #[serde(default, alias = "require_signature", alias = "require-signature")]
     require_signature: bool,
+    #[serde(
+        default,
+        alias = "require_signature_verification",
+        alias = "require-signature-verification"
+    )]
+    require_signature_verification: bool,
+    #[serde(
+        default,
+        alias = "signature_verification_command",
+        alias = "signature-verification-command"
+    )]
+    signature_verification_command: Option<String>,
 }
 
 impl ManagedPluginPolicy {
@@ -2553,6 +2566,13 @@ impl ManagedPluginPolicy {
             && self.deny_marketplaces.is_empty()
             && !self.deny_path_installs
             && !self.require_signature
+            && !self.require_signature_verification
+            && self
+                .signature_verification_command
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or_default()
+                .is_empty()
     }
 
     fn evaluate(
@@ -2581,19 +2601,46 @@ impl ManagedPluginPolicy {
                 marketplace.unwrap_or("none")
             ));
         }
-        if self.require_signature && marketplace.is_some() && signature.is_none() {
+        let requires_signature_metadata =
+            self.require_signature || self.require_signature_verification;
+        if requires_signature_metadata && marketplace.is_some() && signature.is_none() {
             return Err(anyhow!(
                 "plugin '{}' is denied by managed plugin policy {}: marketplace signature is required",
                 plugin_name,
                 source.display()
             ));
         }
-        if self.require_signature && marketplace.is_some() {
-            validate_marketplace_signature_content_hash(
+        let verified_content_hash = if requires_signature_metadata && marketplace.is_some() {
+            Some(validate_marketplace_signature_content_hash(
                 plugin_name,
                 signature.expect("signature checked above"),
                 plugin_root,
                 &source,
+            )?)
+        } else {
+            None
+        };
+        if self.require_signature_verification && marketplace.is_some() {
+            let Some(command) = self
+                .signature_verification_command
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            else {
+                return Err(anyhow!(
+                    "plugin '{}' is denied by managed plugin policy {}: marketplace signature verification command is required",
+                    plugin_name,
+                    source.display()
+                ));
+            };
+            verify_marketplace_signature_command(
+                plugin_name,
+                marketplace.unwrap_or(""),
+                signature.expect("signature checked above"),
+                plugin_root,
+                &source,
+                verified_content_hash.as_deref().unwrap_or_default(),
+                command,
             )?;
         }
         if plugin_rule_matches(&self.deny, &plugin_candidates) {
@@ -2635,7 +2682,7 @@ fn validate_marketplace_signature_content_hash(
     signature: &Value,
     plugin_root: &Path,
     source: &Path,
-) -> Result<()> {
+) -> Result<String> {
     let Some(expected_content_hash) = signature.get("contentHash").and_then(Value::as_str) else {
         return Err(anyhow!(
             "plugin '{}' is denied by managed plugin policy {}: marketplace signature contentHash is required",
@@ -2651,7 +2698,101 @@ fn validate_marketplace_signature_content_hash(
             source.display()
         ));
     }
+    Ok(actual_content_hash)
+}
+
+fn verify_marketplace_signature_command(
+    plugin_name: &str,
+    marketplace: &str,
+    signature: &Value,
+    plugin_root: &Path,
+    source: &Path,
+    content_hash: &str,
+    command: &str,
+) -> Result<()> {
+    let signature_json = serde_json::to_string(signature)?;
+    let mut process = shell_command(command);
+    let output = process
+        .current_dir(plugin_root)
+        .env("KIANA_PLUGIN_NAME", plugin_name)
+        .env("KIANA_PLUGIN_MARKETPLACE", marketplace)
+        .env("KIANA_PLUGIN_ROOT", plugin_root)
+        .env("KIANA_PLUGIN_CONTENT_HASH", content_hash)
+        .env(
+            "KIANA_PLUGIN_SIGNATURE_CONTENT_HASH",
+            signature
+                .get("contentHash")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )
+        .env(
+            "KIANA_PLUGIN_SIGNATURE_SCHEME",
+            signature
+                .get("scheme")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )
+        .env(
+            "KIANA_PLUGIN_SIGNATURE_SIGNER",
+            signature
+                .get("signer")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )
+        .env(
+            "KIANA_PLUGIN_SIGNATURE_KEY_ID",
+            signature
+                .get("keyId")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )
+        .env(
+            "KIANA_PLUGIN_SIGNATURE_VALUE",
+            signature
+                .get("signature")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )
+        .env("KIANA_PLUGIN_SIGNATURE_JSON", signature_json)
+        .output()
+        .map_err(|error| {
+            anyhow!(
+                "plugin '{}' is denied by managed plugin policy {}: marketplace signature verification command failed to start: {}",
+                plugin_name,
+                source.display(),
+                error
+            )
+        })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("exit status {}", output.status)
+        };
+        return Err(anyhow!(
+            "plugin '{}' is denied by managed plugin policy {}: marketplace signature verification failed: {}",
+            plugin_name,
+            source.display(),
+            detail
+        ));
+    }
     Ok(())
+}
+
+fn shell_command(command: &str) -> ProcessCommand {
+    if cfg!(windows) {
+        let mut process = ProcessCommand::new("cmd");
+        process.arg("/C").arg(command);
+        process
+    } else {
+        let mut process = ProcessCommand::new("sh");
+        process.arg("-c").arg(command);
+        process
+    }
 }
 
 fn plugin_policy_candidates(plugin_name: &str, marketplace: Option<&str>) -> Vec<String> {
@@ -4519,6 +4660,193 @@ mod tests {
             .to_string();
         assert!(error.contains("plugin 'review-tools' is denied by managed plugin policy"));
         assert!(error.contains("marketplace signature contentHash does not match plugin content"));
+        assert!(!plugins_dir.join("review-tools").exists());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_policy {
+            Some(value) => std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", value),
+            None => std::env::remove_var("KIANA_MANAGED_PLUGIN_POLICY_FILE"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_runs_managed_signature_verification_command() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_policy = std::env::var_os("KIANA_MANAGED_PLUGIN_POLICY_FILE");
+        let root = temp_root("managed-plugin-signature-verification");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let marketplace_manifest_dir = marketplace_root.join(".codex-plugin");
+        let source_plugin = marketplace_root.join("review-tools");
+        let policy_file = root.join("managed-plugin-policy.json");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&marketplace_manifest_dir).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        let expected_content_hash = super::aggregate_receipt_hash(
+            &super::collect_plugin_receipt_files(&source_plugin).unwrap(),
+        );
+        fs::write(
+            marketplace_manifest_dir.join("marketplace.json"),
+            serde_json::to_string_pretty(&json!({
+                "name": "tools-marketplace",
+                "plugins": [
+                    {
+                        "name": "review-tools",
+                        "source": "./review-tools",
+                        "signature": {
+                            "scheme": "external-signature-v1",
+                            "signer": "ACME Marketplace",
+                            "keyId": "acme-prod-1",
+                            "contentHash": expected_content_hash,
+                            "signature": "sig-ed25519-test"
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let verification_command = if cfg!(windows) {
+            r#"if "%KIANA_PLUGIN_SIGNATURE_VALUE%"=="sig-ed25519-test" (exit /b 0) else (exit /b 2)"#
+        } else {
+            r#"test "$KIANA_PLUGIN_SIGNATURE_VALUE" = sig-ed25519-test"#
+        };
+        fs::write(
+            &policy_file,
+            serde_json::to_string_pretty(&json!({
+                "plugins": {
+                    "requireSignatureVerification": true,
+                    "signatureVerificationCommand": verification_command,
+                    "allow": ["review-tools@tools-marketplace"],
+                    "allowMarketplaces": ["tools-marketplace"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", &policy_file);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let installed = PluginCommand
+            .execute(context("install review-tools@tools-marketplace", &cwd))
+            .await
+            .unwrap();
+        assert!(installed
+            .value
+            .contains("managed_policy: allowed (managed plugin policy matched)"));
+        assert!(plugins_dir.join("review-tools").exists());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_policy {
+            Some(value) => std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", value),
+            None => std::env::remove_var("KIANA_MANAGED_PLUGIN_POLICY_FILE"),
+        }
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn plugin_install_rejects_failed_managed_signature_verification_command() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_policy = std::env::var_os("KIANA_MANAGED_PLUGIN_POLICY_FILE");
+        let root = temp_root("managed-plugin-signature-verification-failed");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let plugins_dir = kiana_home.join("plugins");
+        let marketplace_root = root.join("marketplaces").join("tools-marketplace");
+        let marketplace_manifest_dir = marketplace_root.join(".codex-plugin");
+        let source_plugin = marketplace_root.join("review-tools");
+        let policy_file = root.join("managed-plugin-policy.json");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&marketplace_manifest_dir).unwrap();
+        write_manifest(&source_plugin, "review-tools");
+        fs::create_dir_all(source_plugin.join("commands")).unwrap();
+        fs::write(source_plugin.join("commands").join("audit.md"), "# audit").unwrap();
+        let expected_content_hash = super::aggregate_receipt_hash(
+            &super::collect_plugin_receipt_files(&source_plugin).unwrap(),
+        );
+        fs::write(
+            marketplace_manifest_dir.join("marketplace.json"),
+            serde_json::to_string_pretty(&json!({
+                "name": "tools-marketplace",
+                "plugins": [
+                    {
+                        "name": "review-tools",
+                        "source": "./review-tools",
+                        "signature": {
+                            "scheme": "external-signature-v1",
+                            "signer": "ACME Marketplace",
+                            "keyId": "acme-prod-1",
+                            "contentHash": expected_content_hash,
+                            "signature": "sig-ed25519-test"
+                        }
+                    }
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let verification_command = if cfg!(windows) {
+            "echo signature denied 1>&2 && exit /b 7"
+        } else {
+            "echo signature denied >&2; exit 7"
+        };
+        fs::write(
+            &policy_file,
+            serde_json::to_string_pretty(&json!({
+                "plugins": {
+                    "requireSignatureVerification": true,
+                    "signatureVerificationCommand": verification_command,
+                    "allow": ["review-tools@tools-marketplace"],
+                    "allowMarketplaces": ["tools-marketplace"]
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+        std::env::set_var("KIANA_MANAGED_PLUGIN_POLICY_FILE", &policy_file);
+
+        PluginCommand
+            .execute(context(
+                &format!("marketplace add {}", marketplace_root.display()),
+                &cwd,
+            ))
+            .await
+            .unwrap();
+
+        let error = PluginCommand
+            .execute(context("install review-tools@tools-marketplace", &cwd))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("plugin 'review-tools' is denied by managed plugin policy"));
+        assert!(error.contains("marketplace signature verification failed"));
+        assert!(error.contains("signature denied"));
         assert!(!plugins_dir.join("review-tools").exists());
 
         match previous_home {

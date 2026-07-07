@@ -146,6 +146,7 @@ for file in \
   "$package_root/scripts/source-control-proof-report.sh" \
   "$package_root/scripts/distribution-review-report.sh" \
   "$package_root/scripts/local-rc-evidence-report.sh" \
+  "$package_root/scripts/commercial-release-handoff-smoke.sh" \
   "$package_root/scripts/stage-commercial-release-proofs.sh" \
   "$package_root/scripts/entitlement-proof-report.sh" \
   "$package_root/scripts/product-acceptance-report.sh" \

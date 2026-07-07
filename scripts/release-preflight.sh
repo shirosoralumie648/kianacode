@@ -310,12 +310,15 @@ fi
 if grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE' kiana-commands/src/plugin.rs &&
   grep -Fq 'managed plugin policy' kiana-commands/src/plugin.rs &&
   grep -Fq 'require_signature' kiana-commands/src/plugin.rs &&
+  grep -Fq 'require_signature_verification' kiana-commands/src/plugin.rs &&
+  grep -Fq 'verify_marketplace_signature_command' kiana-commands/src/plugin.rs &&
   grep -Fq 'marketplace signature is required' kiana-commands/src/plugin.rs &&
   grep -Fq 'validate_marketplace_signature_content_hash' kiana-commands/src/plugin.rs &&
-  grep -Fq 'plugin_install_rejects_signature_content_hash_mismatch_when_managed_policy_requires_signature' kiana-commands/src/plugin.rs; then
-  pass "managed plugin allow/deny/signature content-hash policy is wired"
+  grep -Fq 'plugin_install_rejects_signature_content_hash_mismatch_when_managed_policy_requires_signature' kiana-commands/src/plugin.rs &&
+  grep -Fq 'plugin_install_runs_managed_signature_verification_command' kiana-commands/src/plugin.rs; then
+  pass "managed plugin allow/deny/signature content-hash/signature-verification policy is wired"
 else
-  fail "managed plugin allow/deny/signature content-hash policy is not wired"
+  fail "managed plugin allow/deny/signature content-hash/signature-verification policy is not wired"
 fi
 
 if grep -Fq '"app-server"' scripts/product-acceptance-report.sh &&
@@ -617,10 +620,12 @@ fi
 
 if grep -Fq '"const": "kiana.managed-plugin-policy.v1"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json &&
   grep -Fq '"requireSignature"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json &&
+  grep -Fq '"requireSignatureVerification"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json &&
+  grep -Fq '"signatureVerificationCommand"' docs/schemas/kiana-managed-plugin-policy.v1.schema.json &&
   grep -Fq 'KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file"' scripts/release-smoke.sh; then
-  pass "managed plugin policy JSON schema and signature smoke are pinned"
+  pass "managed plugin policy JSON schema, signature metadata, and verification smoke are pinned"
 else
-  fail "managed plugin policy JSON schema or signature smoke coverage is missing"
+  fail "managed plugin policy JSON schema, signature metadata, or verification smoke coverage is missing"
 fi
 
 if grep -Fq '"const": "kiana.license-status.v1"' docs/schemas/kiana-license-status.v1.schema.json; then
