@@ -23,6 +23,7 @@ pub use runtime::{
 };
 pub use simple_types::{FileSuggestion, MessageQueueEntry, NotebookCell, StatusLineItem};
 pub use trust::{
-    find_project_trust_file, project_trust_file_path, project_trust_from_app_state,
-    read_project_trust, remove_project_trust, write_project_trust, ProjectTrust,
+    find_project_trust_file, has_explicit_project_trust, project_trust_file_path,
+    project_trust_from_app_state, read_project_trust, remove_project_trust, write_project_trust,
+    ProjectTrust,
 };

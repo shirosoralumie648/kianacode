@@ -1,4 +1,4 @@
-use kiana_types::{project_trust_from_app_state, ProjectTrust};
+use kiana_types::{has_explicit_project_trust, project_trust_from_app_state, ProjectTrust};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -376,9 +376,15 @@ pub fn permission_check_for_tool(
     let settings = effective_tool_permissions(app_state);
     let is_read_only = is_read_only || known_read_only_tool(tool_name);
 
-    if !is_read_only && project_trust_from_app_state(app_state) == ProjectTrust::Untrusted {
+    let project_trust = project_trust_from_app_state(app_state);
+    if !is_read_only && project_trust == ProjectTrust::Untrusted {
         return ToolPermissionCheck::Deny(format!(
             "Tool {tool_name} is denied in an untrusted project. Run `kiana trust trust` from this project to allow mutating tools."
+        ));
+    }
+    if !is_read_only && settings.profile == "commercial" && !has_explicit_project_trust(app_state) {
+        return ToolPermissionCheck::Deny(format!(
+            "Tool {tool_name} is denied in commercial profile because project trust is not explicitly set. Run `kiana trust trust` from this project before allowing mutating tools."
         ));
     }
 
@@ -922,8 +928,10 @@ mod tests {
     #[test]
     fn commercial_profile_requires_permission_for_mutating_tools() {
         with_isolated_permission_env("commercial-profile", |_| {
-            let app_state =
-                HashMap::from([("permission_profile".to_string(), json!("commercial"))]);
+            let app_state = HashMap::from([
+                ("permission_profile".to_string(), json!("commercial")),
+                ("project_trusted".to_string(), json!(true)),
+            ]);
 
             let settings = effective_tool_permissions(&app_state);
             assert_eq!(settings.profile, "commercial");
@@ -938,12 +946,32 @@ mod tests {
     }
 
     #[test]
+    fn commercial_profile_requires_explicit_project_trust_for_mutating_tools() {
+        with_isolated_permission_env("commercial-explicit-trust", |_| {
+            let app_state =
+                HashMap::from([("permission_profile".to_string(), json!("commercial"))]);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(
+                matches!(bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is not explicitly set"))
+            );
+            assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
+        });
+    }
+
+    #[test]
     fn commercial_profile_does_not_let_normal_allow_rules_bypass_mutating_tools() {
         with_isolated_permission_env("commercial-normal-allow", |_| {
             let app_state = HashMap::from([
                 ("permission_profile".to_string(), json!("commercial")),
                 ("permission_mode".to_string(), json!("bypassPermissions")),
                 ("allowed_tools".to_string(), json!(["Bash", "Read"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             let bash = permission_check_for_tool(
@@ -981,6 +1009,7 @@ mod tests {
             let app_state = HashMap::from([
                 ("permission_profile".to_string(), json!("commercial")),
                 ("allowed_tools".to_string(), json!(["Bash"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             let bash = permission_check_for_tool(

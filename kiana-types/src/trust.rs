@@ -72,6 +72,15 @@ pub fn project_trust_from_app_state(app_state: &HashMap<String, Value>) -> Proje
     ProjectTrust::Trusted
 }
 
+pub fn has_explicit_project_trust(app_state: &HashMap<String, Value>) -> bool {
+    has_app_state_project_trust(app_state)
+        || app_state_path(app_state, "cwd")
+            .or_else(|| app_state_path(app_state, "project_root"))
+            .or_else(|| app_state_path(app_state, "projectRoot"))
+            .and_then(|cwd| read_project_trust(&cwd).ok().flatten())
+            .is_some()
+}
+
 pub fn project_trust_file_path(cwd: impl AsRef<Path>) -> PathBuf {
     cwd.as_ref().join(".kiana").join("trust.json")
 }
@@ -138,6 +147,19 @@ fn app_state_bool(app_state: &HashMap<String, Value>, key: &str) -> Option<bool>
     }
 }
 
+fn has_app_state_project_trust(app_state: &HashMap<String, Value>) -> bool {
+    app_state.contains_key("project_trusted")
+        || app_state.contains_key("projectTrusted")
+        || app_state
+            .get("trust")
+            .and_then(Value::as_object)
+            .is_some_and(|trust| trust.contains_key("project"))
+        || app_state
+            .get("project")
+            .and_then(Value::as_object)
+            .is_some_and(|project| project.contains_key("trusted"))
+}
+
 fn app_state_path(app_state: &HashMap<String, Value>, key: &str) -> Option<PathBuf> {
     app_state
         .get(key)
@@ -191,6 +213,39 @@ mod tests {
             project_trust_from_app_state(&app_state),
             ProjectTrust::Untrusted
         );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn explicit_project_trust_requires_app_state_or_file_source() {
+        let root = std::env::temp_dir().join(format!(
+            "kiana-project-trust-explicit-types-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let project = root.join("project");
+        fs::create_dir_all(&project).unwrap();
+
+        let default_state = HashMap::from([("cwd".to_string(), json!(project.clone()))]);
+        assert_eq!(
+            project_trust_from_app_state(&default_state),
+            ProjectTrust::Trusted
+        );
+        assert!(!has_explicit_project_trust(&default_state));
+
+        let explicit_state = HashMap::from([
+            ("cwd".to_string(), json!(project.clone())),
+            ("project_trusted".to_string(), json!(true)),
+        ]);
+        assert!(has_explicit_project_trust(&explicit_state));
+
+        fs::create_dir_all(project.join(".kiana")).unwrap();
+        fs::write(
+            project.join(".kiana").join("trust.json"),
+            serde_json::to_string_pretty(&json!({ "trusted": true })).unwrap(),
+        )
+        .unwrap();
+        assert!(has_explicit_project_trust(&default_state));
 
         let _ = fs::remove_dir_all(root);
     }

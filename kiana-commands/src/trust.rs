@@ -128,7 +128,7 @@ fn reset_trust(context: &CommandContext) -> Result<CommandResult> {
 }
 
 fn trust_source(context: &CommandContext, cwd: &std::path::Path) -> &'static str {
-    if has_explicit_project_trust(&context.app_state) {
+    if has_app_state_project_trust(&context.app_state) {
         "session"
     } else if read_project_trust(cwd).ok().flatten().is_some() {
         "file"
@@ -137,7 +137,7 @@ fn trust_source(context: &CommandContext, cwd: &std::path::Path) -> &'static str
     }
 }
 
-fn has_explicit_project_trust(app_state: &std::collections::HashMap<String, Value>) -> bool {
+fn has_app_state_project_trust(app_state: &std::collections::HashMap<String, Value>) -> bool {
     app_state.contains_key("project_trusted")
         || app_state.contains_key("projectTrusted")
         || app_state
