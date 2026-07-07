@@ -813,7 +813,7 @@ fn reference_capability_matrix(
         ReferenceCapabilityReport {
             id: "product-shell",
             domain: "tui/app-server",
-            status: "in_progress",
+            status: "local_ready_external_required",
             references: vec!["codex", "cline", "OpenHands", "Roo-Code", "pi"],
             surfaces: vec!["tui", "settings-readiness", "prompt-history", "app-server"],
             evidence: vec![
@@ -822,6 +822,7 @@ fn reference_capability_matrix(
                 "direct-connect-app-contract",
                 "app-server-events-view",
                 "app-server-release-proof-surfaces",
+                "product-acceptance-local-rc",
             ],
             risks: vec!["target-customer walkthrough and acceptance proof remain external release blockers".to_string()],
         },
@@ -1227,6 +1228,9 @@ mod tests {
             .contains("capability: provider-registry status=local_ready_external_required"));
         assert!(result
             .value
+            .contains("capability: product-shell status=local_ready_external_required"));
+        assert!(result
+            .value
             .contains("capability: remote-commercial-release status="));
         assert!(result
             .value
@@ -1282,6 +1286,18 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "mcp-prompt-lifecycle")));
+        assert!(capabilities.iter().any(|item| item["id"] == "product-shell"
+            && item["status"] == "local_ready_external_required"
+            && item["evidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|evidence| evidence == "direct-connect-app-contract")
+            && item["evidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|evidence| evidence == "product-acceptance-local-rc")));
         assert!(capabilities
             .iter()
             .any(|item| item["id"] == "plugin-extension-contracts"
