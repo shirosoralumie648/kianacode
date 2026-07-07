@@ -84,6 +84,15 @@ PLACEHOLDER_MARKERS = (
     "example.test",
 )
 FINGERPRINT_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+RESOLUTION_SCOPES = [
+    "local-automation",
+    "release-owner",
+    "release-security",
+    "release-environment",
+    "final-artifact-derived",
+    "live-service",
+    "acceptance-owner",
+]
 
 
 def run(command):
@@ -472,6 +481,24 @@ def default_owner(category, external):
     }.get(category, "release-owner")
 
 
+def default_resolution_scope(check_id, category, external):
+    if not external:
+        return "local-automation"
+    if check_id in {"source.remote", "source.version-tag"}:
+        return "release-owner"
+    if check_id in {"signing.release-artifacts", "compliance.native-computer-use-advisories"}:
+        return "release-security"
+    if check_id in {"distribution.platform-artifacts", "acceptance.platform-security"}:
+        return "release-environment"
+    if check_id in {"distribution.package-channels", "distribution.enterprise-offline-manifest"}:
+        return "final-artifact-derived"
+    if category == "live-service":
+        return "live-service"
+    if category == "acceptance":
+        return "acceptance-owner"
+    return "release-owner"
+
+
 def default_handoff_notes(external, paths, env):
     notes = []
     if external:
@@ -541,6 +568,7 @@ def add_check(
     env=None,
     owner=None,
     owner_status=None,
+    resolution_scope=None,
     acceptance_artifacts=None,
     verification_commands=None,
     handoff_notes=None,
@@ -555,6 +583,9 @@ def add_check(
         if owner_env
         else ("role-owner-required" if external else "local-owner")
     )
+    effective_resolution_scope = resolution_scope or default_resolution_scope(id, category, external)
+    if effective_resolution_scope not in RESOLUTION_SCOPES:
+        raise SystemExit(f"{id} has invalid resolution scope: {effective_resolution_scope}")
     effective_acceptance_artifacts = list(
         acceptance_artifacts or default_acceptance_artifacts(id, paths)
     )
@@ -576,6 +607,7 @@ def add_check(
             "env": env,
             "owner": effective_owner,
             "owner_status": effective_owner_status,
+            "resolution_scope": effective_resolution_scope,
             "acceptance_artifacts": sorted(str(item) for item in effective_acceptance_artifacts),
             "verification_commands": effective_verification_commands,
             "handoff_notes": effective_handoff_notes,
@@ -1393,6 +1425,10 @@ add_check(
 blocking_checks = [check for check in checks if check["status"] == "blocking"]
 external_blocking = [check for check in blocking_checks if check["external"]]
 local_blocking = [check for check in blocking_checks if not check["external"]]
+blocking_by_resolution_scope = {
+    scope: sum(1 for check in blocking_checks if check["resolution_scope"] == scope)
+    for scope in RESOLUTION_SCOPES
+}
 report = {
     "schema": "kiana.commercial-release-blockers.v1",
     "version": VERSION,
@@ -1405,6 +1441,7 @@ report = {
         "blocking": len(blocking_checks),
         "external_blocking": len(external_blocking),
         "local_blocking": len(local_blocking),
+        "blocking_by_resolution_scope": blocking_by_resolution_scope,
     },
     "checks": checks,
 }
@@ -1428,6 +1465,12 @@ def render_handoff_markdown(report):
             f"{summary['local_blocking']} local, "
             f"{summary['satisfied']} satisfied"
         ),
+        "Resolution scopes: "
+        + ", ".join(
+            f"{scope}={count}"
+            for scope, count in summary["blocking_by_resolution_scope"].items()
+            if count
+        ),
         "",
         "## Blocking Assignments",
         "",
@@ -1438,8 +1481,8 @@ def render_handoff_markdown(report):
 
     lines.extend(
         [
-            "| ID | Owner | Status | Gate | Acceptance Artifacts | Verification |",
-            "| --- | --- | --- | --- | --- | --- |",
+            "| ID | Owner | Scope | Status | Gate | Acceptance Artifacts | Verification |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
         ]
     )
     for check in blocking_checks:
@@ -1451,6 +1494,7 @@ def render_handoff_markdown(report):
                 [
                     md_escape(check["id"]),
                     md_escape(check["owner"]),
+                    md_escape(check["resolution_scope"]),
                     md_escape(check["owner_status"]),
                     md_escape(check["gate"]),
                     artifacts or "n/a",
@@ -1468,6 +1512,7 @@ def render_handoff_markdown(report):
                 "",
                 f"- Title: {check['title']}",
                 f"- Owner: {check['owner']} ({check['owner_status']})",
+                f"- Resolution scope: {check['resolution_scope']}",
                 f"- Evidence: {check['evidence']}",
                 f"- Required action: {check['required_action']}",
                 f"- Gate: {check['gate']}",
@@ -1528,7 +1573,7 @@ else:
         print("Blocking:")
         for check in blocking_checks:
             owner = "external" if check["external"] else "local"
-            print(f"- {check['id']} [{owner}]: {check['title']}")
+            print(f"- {check['id']} [{owner}, {check['resolution_scope']}]: {check['title']}")
             print(f"  owner: {check['owner']} ({check['owner_status']})")
             print(f"  evidence: {check['evidence']}")
             print(f"  gate: {check['gate']}")

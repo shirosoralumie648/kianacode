@@ -1487,6 +1487,24 @@ cat > "$tmp_local_rc_evidence" <<'JSON'
     "external_blocking": 13,
     "blocking_ids": ["source.remote", "source.version-tag"],
     "external_blocking_ids": ["source.remote", "source.version-tag"],
+    "blocking_by_resolution_scope": {
+      "local-automation": 0,
+      "release-owner": 2,
+      "release-security": 0,
+      "release-environment": 0,
+      "final-artifact-derived": 0,
+      "live-service": 0,
+      "acceptance-owner": 0
+    },
+    "blocking_ids_by_resolution_scope": {
+      "local-automation": [],
+      "release-owner": ["source.remote", "source.version-tag"],
+      "release-security": [],
+      "release-environment": [],
+      "final-artifact-derived": [],
+      "live-service": [],
+      "acceptance-owner": []
+    },
     "handoff_status": "external_action_required",
     "handoff_artifacts": [
       {
@@ -1525,9 +1543,21 @@ checks = report.get("checks", [])
 if not checks:
     raise SystemExit("commercial blockers report has no checks")
 for check in checks:
-    for key in ["owner", "owner_status", "acceptance_artifacts", "verification_commands", "handoff_notes"]:
+    for key in ["owner", "owner_status", "resolution_scope", "acceptance_artifacts", "verification_commands", "handoff_notes"]:
         if key not in check:
             raise SystemExit(f"commercial blockers report missing {key}")
+summary_scopes = report.get("summary", {}).get("blocking_by_resolution_scope", {})
+for scope in [
+    "local-automation",
+    "release-owner",
+    "release-security",
+    "release-environment",
+    "final-artifact-derived",
+    "live-service",
+    "acceptance-owner",
+]:
+    if scope not in summary_scopes:
+        raise SystemExit(f"commercial blockers report missing scope count {scope}")
 if "## Blocking Assignments" not in handoff:
     raise SystemExit("commercial blockers handoff is missing assignment section")
 if "source.remote" not in handoff:

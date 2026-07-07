@@ -182,6 +182,28 @@ external_blocking_ids = [
     for check in checks
     if check.get("status") == "blocking" and bool(check.get("external"))
 ]
+resolution_scopes = [
+    "local-automation",
+    "release-owner",
+    "release-security",
+    "release-environment",
+    "final-artifact-derived",
+    "live-service",
+    "acceptance-owner",
+]
+summary_scope_counts = summary.get("blocking_by_resolution_scope") or {}
+blocking_ids_by_resolution_scope = {
+    scope: [
+        check.get("id", "")
+        for check in checks
+        if check.get("status") == "blocking" and check.get("resolution_scope") == scope
+    ]
+    for scope in resolution_scopes
+}
+blocking_by_resolution_scope = {
+    scope: int(summary_scope_counts.get(scope, len(blocking_ids_by_resolution_scope[scope])) or 0)
+    for scope in resolution_scopes
+}
 blocker_report_path = Path(os.environ["BLOCKER_REPORT_OUT"])
 blocker_handoff_path = Path(os.environ["BLOCKER_HANDOFF_OUT"])
 handoff_artifacts = [
@@ -281,6 +303,8 @@ report = {
         "external_blocking": int(summary.get("external_blocking", 0) or 0),
         "blocking_ids": blocking_ids,
         "external_blocking_ids": external_blocking_ids,
+        "blocking_by_resolution_scope": blocking_by_resolution_scope,
+        "blocking_ids_by_resolution_scope": blocking_ids_by_resolution_scope,
         "handoff_status": "external_action_required" if external_blocking_ids else "not_required",
         "handoff_artifacts": handoff_artifacts,
     },

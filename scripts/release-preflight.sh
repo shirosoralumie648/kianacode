@@ -710,6 +710,8 @@ else
 fi
 
 if grep -Fq '"owner_status"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json &&
+  grep -Fq '"resolution_scope"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json &&
+  grep -Fq '"blocking_by_resolution_scope"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json &&
   grep -Fq '"acceptance_artifacts"' docs/schemas/kiana-commercial-release-blockers.v1.schema.json &&
   grep -Fq -- '--handoff-md' scripts/commercial-release-blockers-report.sh; then
   pass "commercial release blocker handoff contract is wired"
@@ -745,7 +747,9 @@ fi
 
 if grep -Fq '"handoff_artifacts"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
   grep -Fq '"external_blocking_ids"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq '"blocking_ids_by_resolution_scope"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
   grep -Fq '"handoff_status"' docs/schemas/kiana-local-rc-evidence.v1.schema.json &&
+  grep -Fq 'blocking_ids_by_resolution_scope' scripts/local-rc-evidence-report.sh &&
   grep -Fq 'sha256_file' scripts/local-rc-evidence-report.sh &&
   grep -Fq 'BLOCKER_REPORT_OUT' scripts/local-rc-evidence-report.sh &&
   grep -Fq 'handoff_artifacts' scripts/commercial-release-handoff-smoke.sh; then

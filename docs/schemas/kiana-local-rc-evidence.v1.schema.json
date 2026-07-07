@@ -141,6 +141,8 @@
         "external_blocking",
         "blocking_ids",
         "external_blocking_ids",
+        "blocking_by_resolution_scope",
+        "blocking_ids_by_resolution_scope",
         "handoff_status",
         "handoff_artifacts"
       ],
@@ -151,6 +153,50 @@
         "external_blocking": { "type": "integer", "minimum": 0 },
         "blocking_ids": { "type": "array", "items": { "type": "string" } },
         "external_blocking_ids": { "type": "array", "items": { "type": "string" } },
+        "blocking_by_resolution_scope": {
+          "type": "object",
+          "required": [
+            "local-automation",
+            "release-owner",
+            "release-security",
+            "release-environment",
+            "final-artifact-derived",
+            "live-service",
+            "acceptance-owner"
+          ],
+          "properties": {
+            "local-automation": { "type": "integer", "minimum": 0 },
+            "release-owner": { "type": "integer", "minimum": 0 },
+            "release-security": { "type": "integer", "minimum": 0 },
+            "release-environment": { "type": "integer", "minimum": 0 },
+            "final-artifact-derived": { "type": "integer", "minimum": 0 },
+            "live-service": { "type": "integer", "minimum": 0 },
+            "acceptance-owner": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "blocking_ids_by_resolution_scope": {
+          "type": "object",
+          "required": [
+            "local-automation",
+            "release-owner",
+            "release-security",
+            "release-environment",
+            "final-artifact-derived",
+            "live-service",
+            "acceptance-owner"
+          ],
+          "properties": {
+            "local-automation": { "type": "array", "items": { "type": "string" } },
+            "release-owner": { "type": "array", "items": { "type": "string" } },
+            "release-security": { "type": "array", "items": { "type": "string" } },
+            "release-environment": { "type": "array", "items": { "type": "string" } },
+            "final-artifact-derived": { "type": "array", "items": { "type": "string" } },
+            "live-service": { "type": "array", "items": { "type": "string" } },
+            "acceptance-owner": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
         "handoff_status": {
           "type": "string",
           "enum": ["external_action_required", "not_required"]

@@ -52,6 +52,7 @@ if not checks:
 required_keys = {
     "owner",
     "owner_status",
+    "resolution_scope",
     "acceptance_artifacts",
     "verification_commands",
     "handoff_notes",
@@ -68,6 +69,16 @@ for check in checks:
         "specific-owner-assigned",
     }:
         raise SystemExit(f"{check['id']} has invalid owner_status {check['owner_status']!r}")
+    if check["resolution_scope"] not in {
+        "local-automation",
+        "release-owner",
+        "release-security",
+        "release-environment",
+        "final-artifact-derived",
+        "live-service",
+        "acceptance-owner",
+    }:
+        raise SystemExit(f"{check['id']} has invalid resolution_scope {check['resolution_scope']!r}")
     for key in ["acceptance_artifacts", "verification_commands", "handoff_notes"]:
         if not isinstance(check[key], list):
             raise SystemExit(f"{check['id']} {key} is not a list")
@@ -80,6 +91,8 @@ if source_remote["owner"] != "release-manager-test":
     raise SystemExit("source.remote owner override was not applied")
 if source_remote["owner_status"] != "specific-owner-assigned":
     raise SystemExit("source.remote owner override did not mark a specific owner")
+if source_remote["resolution_scope"] != "release-owner":
+    raise SystemExit("source.remote resolution scope should be release-owner")
 if "source.remote" not in handoff:
     raise SystemExit("source.remote is missing from the handoff markdown")
 if "release-manager-test" not in handoff:
@@ -90,6 +103,8 @@ if not native:
     raise SystemExit("compliance.native-computer-use-advisories check is missing")
 if native.get("status") != "satisfied":
     raise SystemExit("native computer-use advisory should be satisfied when the optional release feature is disabled")
+if native.get("resolution_scope") != "release-security":
+    raise SystemExit("native computer-use advisory resolution scope should be release-security")
 if "not enabled" not in native.get("evidence", ""):
     raise SystemExit("native computer-use advisory evidence should state the optional release feature is disabled")
 
@@ -1041,6 +1056,14 @@ external_blocking_ids = [
 ]
 if blockers.get("external_blocking_ids") != external_blocking_ids:
     raise SystemExit("local RC evidence external blocking IDs do not match blocker report")
+scope_ids = blockers.get("blocking_ids_by_resolution_scope", {})
+scope_counts = blockers.get("blocking_by_resolution_scope", {})
+if not isinstance(scope_ids, dict) or not isinstance(scope_counts, dict):
+    raise SystemExit("local RC evidence is missing blocker resolution scope maps")
+if sorted(sum(scope_ids.values(), [])) != sorted(blocking_ids):
+    raise SystemExit("local RC evidence scope blocking IDs do not cover every blocker")
+if sum(int(value) for value in scope_counts.values()) != blockers.get("blocking"):
+    raise SystemExit("local RC evidence scope blocker counts do not sum to blocking total")
 if blockers.get("handoff_status") != "external_action_required":
     raise SystemExit("local RC evidence did not flag external action requirement")
 for blocker_id in blocking_ids:
