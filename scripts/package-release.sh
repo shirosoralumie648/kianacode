@@ -35,11 +35,12 @@ fi
 
 cargo build --release --locked --offline -p kiana-entrypoints --bin kiana
 
-mkdir -p "$stage/docs/proof-templates" "$stage/docs/schemas" "$stage/scripts"
+mkdir -p "$stage/docs/proof-templates" "$stage/docs/reference_audit" "$stage/docs/schemas" "$stage/scripts"
 cp "target/release/kiana${exe_ext}" "$stage/"
 cp VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md SECURITY.md PRIVACY.md TELEMETRY.md "$stage/"
 cp LICENSE-MIT LICENSE-APACHE "$stage/"
-cp docs/reference-migration-roadmap.md docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md docs/sdk-runtime-events.md "$stage/docs/"
+cp docs/reference-migration-roadmap.md docs/reference-feature-matrix.md docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md docs/sdk-runtime-events.md "$stage/docs/"
+cp docs/reference_audit/*.md "$stage/docs/reference_audit/"
 cp docs/proof-templates/README.md docs/proof-templates/*.example.json "$stage/docs/proof-templates/"
 cp docs/schemas/*.json "$stage/docs/schemas/"
 cp scripts/install-release-binary.sh scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh scripts/validate-json-schema.py scripts/schema-contract-smoke.sh scripts/commercial-release-blockers-report.sh scripts/source-control-proof-report.sh scripts/distribution-review-report.sh scripts/local-rc-evidence-report.sh scripts/commercial-release-handoff-smoke.sh scripts/stage-commercial-release-proofs.sh scripts/entitlement-proof-report.sh scripts/product-acceptance-report.sh scripts/release-ops-report.sh scripts/platform-security-proof-report.sh scripts/provider-live-smoke.sh scripts/remote-live-smoke.sh scripts/sign-release-artifacts.sh scripts/verify-commercial-release-artifacts.sh scripts/release-signature-verification-smoke.sh "$stage/scripts/"

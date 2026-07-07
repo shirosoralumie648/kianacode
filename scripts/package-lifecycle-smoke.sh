@@ -99,6 +99,9 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
+  "$package_root/docs/reference-migration-roadmap.md" \
+  "$package_root/docs/reference-feature-matrix.md" \
+  "$package_root/docs/reference_audit/kiana_capability_matrix.md" \
   "$package_root/docs/proof-templates/README.md" \
   "$package_root/docs/proof-templates/product-acceptance.example.json" \
   "$package_root/docs/proof-templates/entitlement-proof.example.json" \
@@ -171,6 +174,18 @@ for file in \
 do
   if [[ ! -f "$file" ]]; then
     echo "package missing required file: $file" >&2
+    exit 1
+  fi
+done
+
+for source_doc in docs/reference-migration-roadmap.md docs/reference-feature-matrix.md docs/reference_audit/*.md; do
+  packaged_doc="$package_root/$source_doc"
+  if [[ ! -f "$packaged_doc" ]]; then
+    echo "package reference evidence missing: $packaged_doc" >&2
+    exit 1
+  fi
+  if ! cmp -s "$source_doc" "$packaged_doc"; then
+    echo "package reference evidence differs from source: $packaged_doc" >&2
     exit 1
   fi
 done

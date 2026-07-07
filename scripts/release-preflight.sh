@@ -41,6 +41,14 @@ require_manifest_field() {
 for file in \
   VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
+  docs/reference-migration-roadmap.md docs/reference-feature-matrix.md \
+  docs/reference_audit/aider.md docs/reference_audit/autogen.md \
+  docs/reference_audit/claude-code-main.md docs/reference_audit/claude-code-rev-main.md \
+  docs/reference_audit/claude-code-rust.md docs/reference_audit/cline.md \
+  docs/reference_audit/codex.md docs/reference_audit/continue.md \
+  docs/reference_audit/kiana_capability_matrix.md docs/reference_audit/langchain.md \
+  docs/reference_audit/MetaGPT.md docs/reference_audit/OpenHands.md \
+  docs/reference_audit/pi.md docs/reference_audit/Roo-Code.md \
   docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   docs/sdk-runtime-events.md \
   docs/proof-templates/README.md \
@@ -240,6 +248,15 @@ if grep -Fq 'run_installed release blockers --json' scripts/package-lifecycle-sm
   pass "package lifecycle smoke covers release blockers CLI"
 else
   fail "package lifecycle smoke does not cover release blockers CLI"
+fi
+
+if grep -Fq 'docs/reference-feature-matrix.md' scripts/package-release.sh &&
+  grep -Fq 'docs/reference_audit/*.md' scripts/package-release.sh &&
+  grep -Fq 'docs/reference_audit/*.md' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'package reference evidence differs from source' scripts/package-lifecycle-smoke.sh; then
+  pass "release package carries reference feature matrix and audit evidence"
+else
+  fail "release package does not carry reference feature matrix and audit evidence"
 fi
 
 if grep -Fq 'context index --json' scripts/release-smoke.sh &&
