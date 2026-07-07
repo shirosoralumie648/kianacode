@@ -442,6 +442,14 @@ cat > "$tmp_context_artifact_ingest" <<'JSON'
   "ingested_files": 1,
   "skipped_files": 0,
   "total_bytes": 21,
+  "sync": {
+    "path": ".kiana/context-ingest/manifest.json",
+    "status": "created",
+    "reused_files": 0,
+    "added_files": 1,
+    "changed_files": 0,
+    "removed_files": 0
+  },
   "artifacts": [
     {
       "id": "ingest:docs/prd.md:0123456789abcdef",

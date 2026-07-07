@@ -153,7 +153,32 @@ pub struct ContextArtifactIngest {
     pub ingested_files: usize,
     pub skipped_files: usize,
     pub total_bytes: u64,
+    #[serde(default)]
+    pub sync: ContextArtifactIngestSyncReport,
     pub artifacts: Vec<ContextIngestedArtifact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextArtifactIngestSyncReport {
+    pub path: String,
+    pub status: String,
+    pub reused_files: usize,
+    pub added_files: usize,
+    pub changed_files: usize,
+    pub removed_files: usize,
+}
+
+impl Default for ContextArtifactIngestSyncReport {
+    fn default() -> Self {
+        Self {
+            path: String::new(),
+            status: "created".to_string(),
+            reused_files: 0,
+            added_files: 0,
+            changed_files: 0,
+            removed_files: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -490,6 +515,24 @@ pub fn ingest_context_artifacts(
     )?;
     let manifest_path = store_dir.join("manifest.json");
     let files_dir = store_dir.join("files");
+    let previous_manifest = read_cached_ingest_manifest(&manifest_path)?;
+    if source_root.starts_with(&store_dir) {
+        return Err(anyhow!(
+            "context artifact ingest source must not be inside the ingest store"
+        ));
+    }
+    match fs::remove_dir_all(&files_dir) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "failed to clear context artifact ingest files {}",
+                    files_dir.display()
+                )
+            });
+        }
+    }
     let mut artifacts = Vec::new();
     let mut skipped_files = 0;
     let mut total_bytes = 0_u64;
@@ -515,6 +558,7 @@ pub fn ingest_context_artifacts(
         ingested_files: artifacts.len(),
         skipped_files,
         total_bytes,
+        sync: ingest_sync_report(&root, &manifest_path, &previous_manifest, &artifacts),
         artifacts,
     };
 
@@ -953,6 +997,12 @@ enum CachedContextArtifactStore {
     Invalid,
 }
 
+enum CachedContextArtifactIngest {
+    Missing,
+    Valid(ContextArtifactIngest),
+    Invalid,
+}
+
 fn read_cached_index(path: &Path) -> Result<CachedContextIndex> {
     match fs::read_to_string(path) {
         Ok(contents) => match serde_json::from_str(&contents) {
@@ -993,6 +1043,24 @@ fn read_cached_artifact_store(path: &Path) -> Result<CachedContextArtifactStore>
         Err(error) => Err(error).with_context(|| {
             format!(
                 "failed to read context artifact store cache {}",
+                path.display()
+            )
+        }),
+    }
+}
+
+fn read_cached_ingest_manifest(path: &Path) -> Result<CachedContextArtifactIngest> {
+    match fs::read_to_string(path) {
+        Ok(contents) => match serde_json::from_str(&contents) {
+            Ok(report) => Ok(CachedContextArtifactIngest::Valid(report)),
+            Err(_) => Ok(CachedContextArtifactIngest::Invalid),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(CachedContextArtifactIngest::Missing)
+        }
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "failed to read context artifact ingest manifest {}",
                 path.display()
             )
         }),
@@ -1052,6 +1120,77 @@ fn cache_report(
 
     ContextIndexCacheReport {
         path: portable_path(path),
+        status: "updated".to_string(),
+        reused_files,
+        added_files,
+        changed_files,
+        removed_files,
+    }
+}
+
+fn ingest_sync_report(
+    root: &Path,
+    path: &Path,
+    previous: &CachedContextArtifactIngest,
+    current_artifacts: &[ContextIngestedArtifact],
+) -> ContextArtifactIngestSyncReport {
+    let previous = match previous {
+        CachedContextArtifactIngest::Valid(previous) => previous,
+        CachedContextArtifactIngest::Missing | CachedContextArtifactIngest::Invalid => {
+            return ContextArtifactIngestSyncReport {
+                path: relative_or_display_path(root, path),
+                status: match previous {
+                    CachedContextArtifactIngest::Missing => "created",
+                    CachedContextArtifactIngest::Invalid => "recovered",
+                    CachedContextArtifactIngest::Valid(_) => unreachable!(),
+                }
+                .to_string(),
+                reused_files: 0,
+                added_files: current_artifacts.len(),
+                changed_files: 0,
+                removed_files: 0,
+            };
+        }
+    };
+
+    let previous_artifacts = previous
+        .artifacts
+        .iter()
+        .map(|artifact| {
+            (
+                artifact.source_path.as_str(),
+                artifact.content_hash.as_str(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let current_artifacts = current_artifacts
+        .iter()
+        .map(|artifact| {
+            (
+                artifact.source_path.as_str(),
+                artifact.content_hash.as_str(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut reused_files = 0;
+    let mut added_files = 0;
+    let mut changed_files = 0;
+
+    for (path, hash) in &current_artifacts {
+        match previous_artifacts.get(*path) {
+            Some(previous_hash) if *previous_hash == *hash => reused_files += 1,
+            Some(_) => changed_files += 1,
+            None => added_files += 1,
+        }
+    }
+
+    let removed_files = previous_artifacts
+        .keys()
+        .filter(|path| !current_artifacts.contains_key(*path))
+        .count();
+
+    ContextArtifactIngestSyncReport {
+        path: relative_or_display_path(root, path),
         status: "updated".to_string(),
         reused_files,
         added_files,
@@ -2367,6 +2506,12 @@ mod tests {
         assert_eq!(report.skipped_files, 1);
         assert_eq!(report.store_dir, ".kiana/context-ingest");
         assert_eq!(report.manifest_path, ".kiana/context-ingest/manifest.json");
+        assert_eq!(report.sync.path, ".kiana/context-ingest/manifest.json");
+        assert_eq!(report.sync.status, "created");
+        assert_eq!(report.sync.reused_files, 0);
+        assert_eq!(report.sync.added_files, 2);
+        assert_eq!(report.sync.changed_files, 0);
+        assert_eq!(report.sync.removed_files, 0);
         assert!(report
             .artifacts
             .iter()
@@ -2384,6 +2529,77 @@ mod tests {
                 .unwrap();
         assert_eq!(saved.schema, "kiana.context-artifact-ingest.v1");
         assert_eq!(saved.ingested_files, 2);
+        assert_eq!(saved.sync.status, "created");
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(source);
+    }
+
+    #[test]
+    fn context_artifact_ingest_reports_sync_deltas_and_removes_stale_files() {
+        let root = fixture_root("artifact-ingest-sync-root");
+        let source = fixture_root("artifact-ingest-sync-source");
+        fs::create_dir_all(source.join("docs")).unwrap();
+        fs::write(source.join("docs/prd.md"), "# PRD\nfirst\n").unwrap();
+        fs::write(source.join("docs/design.md"), "# Design\nfirst\n").unwrap();
+
+        let first = ingest_context_artifacts(
+            &root,
+            &source,
+            ContextArtifactIngestOptions {
+                store_dir: None,
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+        let stale_design_path = first
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.source_path == "docs/design.md")
+            .unwrap()
+            .stored_path
+            .clone();
+        assert!(root.join(&stale_design_path).is_file());
+
+        fs::write(source.join("docs/prd.md"), "# PRD\nchanged\n").unwrap();
+        fs::remove_file(source.join("docs/design.md")).unwrap();
+        fs::write(source.join("docs/tasks.md"), "- Ship\n").unwrap();
+
+        let second = ingest_context_artifacts(
+            &root,
+            &source,
+            ContextArtifactIngestOptions {
+                store_dir: None,
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(second.sync.status, "updated");
+        assert_eq!(second.sync.reused_files, 0);
+        assert_eq!(second.sync.added_files, 1);
+        assert_eq!(second.sync.changed_files, 1);
+        assert_eq!(second.sync.removed_files, 1);
+        assert!(!root.join(stale_design_path).exists());
+        assert!(second
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.source_path == "docs/tasks.md"
+                && artifact.kind == "tasks"
+                && root.join(&artifact.stored_path).is_file()));
+
+        fs::write(root.join(&second.manifest_path), "{not-json").unwrap();
+        let recovered = ingest_context_artifacts(
+            &root,
+            &source,
+            ContextArtifactIngestOptions {
+                store_dir: None,
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(recovered.sync.status, "recovered");
+        assert_eq!(recovered.sync.added_files, recovered.ingested_files);
 
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(source);

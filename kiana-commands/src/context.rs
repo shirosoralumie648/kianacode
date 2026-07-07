@@ -853,6 +853,15 @@ fn format_context_artifact_ingest_text(report: &ContextArtifactIngest) -> String
             report.skipped_files,
             report.total_bytes
         ),
+        format!(
+            "sync: {} status={} reused={} added={} changed={} removed={}",
+            report.sync.path,
+            report.sync.status,
+            report.sync.reused_files,
+            report.sync.added_files,
+            report.sync.changed_files,
+            report.sync.removed_files
+        ),
     ];
     for artifact in &report.artifacts {
         lines.push(format!(
@@ -1528,6 +1537,10 @@ mod tests {
             value["manifest_path"],
             ".kiana/context-ingest/manifest.json"
         );
+        assert_eq!(value["sync"]["path"], ".kiana/context-ingest/manifest.json");
+        assert_eq!(value["sync"]["status"], "created");
+        assert_eq!(value["sync"]["added_files"], 1);
+        assert_eq!(value["sync"]["reused_files"], 0);
         assert_eq!(value["artifacts"][0]["source_path"], "docs/prd.md");
         assert_eq!(value["artifacts"][0]["kind"], "prd");
         assert!(value["artifacts"][0]["stored_path"]

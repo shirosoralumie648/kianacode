@@ -568,6 +568,8 @@ fi
 if grep -Fq '"const": "kiana.context-artifact-ingest.v1"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
   grep -Fq '"manifest_path"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
   grep -Fq '"stored_path"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
+  grep -Fq '"sync"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
+  grep -Fq '"removed_files"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json &&
   grep -Fq '"artifacts_schema"' docs/schemas/kiana-context-artifact-ingest.v1.schema.json; then
   pass "context artifact ingest JSON schema version is pinned"
 else

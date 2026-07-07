@@ -878,11 +878,12 @@ fn reference_capability_matrix(
                 "deterministic-hash-vector-search",
                 "root-scoped-context-pack",
                 "durable-context-artifact-ingest",
+                "context-artifact-ingest-sync",
                 "context-pack-artifact-graph",
                 "deterministic-team-runtime-smoke",
                 "notebook-execution-isolation-smoke",
             ],
-            risks: vec!["production embedding backends/vector stores, production artifact sync semantics beyond local file ingest, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX remain future work".to_string()],
+            risks: vec!["production embedding backends/vector stores, remote or multi-source artifact synchronization beyond local file ingest, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX remain future work".to_string()],
         },
     ]
 }
@@ -1308,6 +1309,11 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "durable-context-artifact-ingest")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "context-artifact-ingest-sync")
                 && item["evidence"]
                     .as_array()
                     .unwrap()

@@ -57,9 +57,11 @@ Progress update 2026-07-08:
   `kiana context ingest --source DIR --json` emits
   `kiana.context-artifact-ingest.v1`, writes
   `.kiana/context-ingest/manifest.json`, and stores copied text artifacts under
-  `.kiana/context-ingest/files/<hash>/...`. This gives future parallel agents a
-  stable way to import `reference/` project notes, PRDs, designs, tasks, and
-  support bundles before richer RAG/vector-store semantics are promoted.
+  `.kiana/context-ingest/files/<hash>/...`. Repeated runs report sync status
+  plus reused, added, changed, and removed file counts, and stale copied files
+  are cleared from the local store. This gives future parallel agents a stable
+  way to import `reference/` project notes, PRDs, designs, tasks, and support
+  bundles before richer RAG/vector-store semantics are promoted.
 - The same local ingest surface is available to app clients as
   `POST /app/context/ingest` for workspace-contained source directories, while
   CLI workflows can import external reference directories.

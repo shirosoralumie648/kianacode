@@ -22231,6 +22231,13 @@ mod tests {
             context_ingest["manifest_path"],
             ".kiana/context-ingest/manifest.json"
         );
+        assert_eq!(
+            context_ingest["sync"]["path"],
+            ".kiana/context-ingest/manifest.json"
+        );
+        assert_eq!(context_ingest["sync"]["status"], "created");
+        assert_eq!(context_ingest["sync"]["added_files"], 1);
+        assert_eq!(context_ingest["sync"]["reused_files"], 0);
         assert!(context_ingest["artifacts"]
             .as_array()
             .unwrap()

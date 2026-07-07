@@ -187,8 +187,10 @@ commercial release.
 - App-server context artifact ingest supports bearer-protected
   `/app/context/ingest` for workspace-contained source directories and writes
   `.kiana/context-ingest/manifest.json` with copied content-hashed files under
-  `.kiana/context-ingest/files/`; CLI release workflows can import external
-  reference directories with `kiana context ingest --source`.
+  `.kiana/context-ingest/files/`. Each ingest report includes sync status plus
+  reused, added, changed, and removed file counts, and stale copied files are
+  cleared on rerun; CLI release workflows can import external reference
+  directories with `kiana context ingest --source`.
 - App-server repo-map endpoint emits active-workspace language, symbol, and
   token-budget structure for Web/IDE clients without shelling out to
   `kiana context repo-map --json`.

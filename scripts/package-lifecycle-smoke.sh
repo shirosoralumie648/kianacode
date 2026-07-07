@@ -258,6 +258,7 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context artifacts --json --cache .kiana/context-artifacts.json | grep -Fq '"reused_artifacts": 3'
   test -f .kiana/context-artifacts.json
   run_installed context ingest --source "$context_artifact_root" --json | grep -Fq '"schema": "kiana.context-artifact-ingest.v1"'
+  run_installed context ingest --source "$context_artifact_root" --json | grep -Fq '"sync"'
   run_installed context ingest --source "$context_artifact_root" --json | grep -Fq '"source_path": "bundle/notes.md"'
   run_installed context ingest --source "$context_artifact_root" --json | grep -Fq '"stored_path": ".kiana/context-ingest/files/'
   run_installed context ingest --source "$context_artifact_root" --json | grep -Fq '"manifest_path": ".kiana/context-ingest/manifest.json"'
