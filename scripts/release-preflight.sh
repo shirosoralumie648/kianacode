@@ -316,6 +316,15 @@ else
   fail "release smoke does not exercise plugin install receipt integrity"
 fi
 
+if grep -Fq 'commercial_profile_does_not_let_normal_allow_rules_bypass_mutating_tools' kiana-tools/src/permissions.rs &&
+  grep -Fq 'commercial_profile_allows_mutating_tools_from_managed_allow_rules' kiana-tools/src/permissions.rs &&
+  grep -Fq 'normal allow rule' kiana-tools/src/permissions.rs &&
+  grep -Fq 'managed_allowed_tools' kiana-tools/src/permissions.rs; then
+  pass "commercial permission profile requires managed allow for mutating normal-allow bypasses"
+else
+  fail "commercial permission profile does not lock mutating normal allow rules behind managed approval"
+fi
+
 if grep -Fq 'plugin_install_from_local_marketplace_file_remote_git_source' kiana-commands/src/plugin.rs &&
   grep -Fq 'marketplace_entry_remote_source_path' kiana-commands/src/plugin.rs; then
   pass "local marketplace remote plugin source install is covered"

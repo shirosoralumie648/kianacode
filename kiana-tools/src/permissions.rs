@@ -420,11 +420,16 @@ pub fn permission_check_for_tool(
         return ToolPermissionCheck::Allow;
     }
 
-    if settings
+    if let Some(rule) = settings
         .allowed_tools
         .iter()
-        .any(|rule| rule_matches_tool(rule, tool_name, input))
+        .find(|rule| rule_matches_tool(rule, tool_name, input))
     {
+        if settings.profile == "commercial" && !is_read_only {
+            return ToolPermissionCheck::Ask(format!(
+                "Tool {tool_name} requires permission in commercial profile; normal allow rule \"{rule}\" cannot bypass managed approval."
+            ));
+        }
         return ToolPermissionCheck::Allow;
     }
 
@@ -435,6 +440,12 @@ pub fn permission_check_for_tool(
     {
         return ToolPermissionCheck::Ask(format!(
             "Tool {tool_name} requires permission by ask rule \"{rule}\"."
+        ));
+    }
+
+    if settings.profile == "commercial" && !is_read_only {
+        return ToolPermissionCheck::Ask(format!(
+            "Tool {tool_name} requires permission in commercial profile."
         ));
     }
 
@@ -923,6 +934,64 @@ mod tests {
                 ToolPermissionCheck::Ask(_)
             ));
             assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
+        });
+    }
+
+    #[test]
+    fn commercial_profile_does_not_let_normal_allow_rules_bypass_mutating_tools() {
+        with_isolated_permission_env("commercial-normal-allow", |_| {
+            let app_state = HashMap::from([
+                ("permission_profile".to_string(), json!("commercial")),
+                ("permission_mode".to_string(), json!("bypassPermissions")),
+                ("allowed_tools".to_string(), json!(["Bash", "Read"])),
+            ]);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(
+                matches!(bash, ToolPermissionCheck::Ask(reason) if reason.contains("normal allow rule"))
+            );
+            assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
+        });
+    }
+
+    #[test]
+    fn commercial_profile_allows_mutating_tools_from_managed_allow_rules() {
+        with_isolated_permission_env("commercial-managed-allow", |_| {
+            let managed_path = std::env::temp_dir().join(format!(
+                "kiana-commercial-managed-permissions-{}.json",
+                uuid::Uuid::new_v4()
+            ));
+            std::fs::write(
+                &managed_path,
+                r#"{
+                  "permissions": {
+                    "profile": "commercial",
+                    "allowedTools": ["Bash"]
+                  }
+                }"#,
+            )
+            .unwrap();
+            std::env::set_var("KIANA_MANAGED_POLICY_FILE", &managed_path);
+
+            let app_state = HashMap::from([
+                ("permission_profile".to_string(), json!("commercial")),
+                ("allowed_tools".to_string(), json!(["Bash"])),
+            ]);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(matches!(bash, ToolPermissionCheck::Allow));
+
+            let _ = std::fs::remove_file(managed_path);
         });
     }
 
