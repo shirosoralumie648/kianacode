@@ -126,6 +126,7 @@ for file in \
   "$package_root/docs/schemas/kiana-context-artifact-store.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-context-vector-search.v1.schema.json" \
   "$package_root/docs/schemas/kiana-context-pack.v1.schema.json" \
   "$package_root/docs/schemas/kiana-commercial-proof-manifest.v1.schema.json" \
   "$package_root/docs/schemas/kiana-commercial-release-blockers.v1.schema.json" \
@@ -277,6 +278,9 @@ printf '%s\n' 'first artifact line' > "$context_artifact_root/bundle/notes.md"
   run_installed context search lifecycle --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"path": "docs/path-only.md"'
   run_installed context search docs/path-only.md --json --limit 1 | grep -Fq '"occurrences": 0'
+  run_installed context vector-search lifecycle flow --json --limit 1 | grep -Fq '"schema": "kiana.context-vector-search.v1"'
+  run_installed context vector-search lifecycle flow --json --limit 1 | grep -Fq '"embedding_model": "kiana.deterministic-hash-embedding.v1"'
+  run_installed context vector-search lifecycle flow --json --limit 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-pack.v1"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"path": "src/lib.rs"'
   run_installed context pack lifecycle --json --limit 1 --max-snippet-lines 1 | grep -Fq '"schema": "kiana.context-artifact-graph.v1"'

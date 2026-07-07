@@ -21,13 +21,15 @@ pub use index::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, search_context_index, ContextArtifactDependencyEdge,
-    ContextArtifactDependencyGraph, ContextArtifactDependencyNode, ContextArtifactItem,
-    ContextArtifactOptions, ContextArtifactReadiness, ContextArtifactReadinessRole,
-    ContextArtifactRoleSummary, ContextArtifactStore, ContextArtifactStoreCacheReport,
-    ContextArtifacts, ContextArtifactsCacheReport, ContextIndex, ContextIndexCacheReport,
-    ContextIndexOptions, ContextIndexedFile, ContextPack, ContextPackOptions, ContextPackSnippet,
-    ContextSearchHit, ContextSearchOptions, ContextSearchResults,
+    build_persistent_context_index, search_context_index, search_context_vectors,
+    ContextArtifactDependencyEdge, ContextArtifactDependencyGraph, ContextArtifactDependencyNode,
+    ContextArtifactItem, ContextArtifactOptions, ContextArtifactReadiness,
+    ContextArtifactReadinessRole, ContextArtifactRoleSummary, ContextArtifactStore,
+    ContextArtifactStoreCacheReport, ContextArtifacts, ContextArtifactsCacheReport, ContextIndex,
+    ContextIndexCacheReport, ContextIndexOptions, ContextIndexedFile, ContextPack,
+    ContextPackOptions, ContextPackSnippet, ContextSearchHit, ContextSearchOptions,
+    ContextSearchResults, ContextVectorSearchHit, ContextVectorSearchOptions,
+    ContextVectorSearchResults,
 };
 pub use repo_map::{build_repo_map, RepoMap, RepoMapFile, RepoMapOptions};
 pub use stop_hooks::{

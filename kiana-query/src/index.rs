@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 const DEFAULT_LIMIT: usize = 10;
 const DEFAULT_MAX_BYTES_PER_FILE: usize = 128 * 1024;
 const DEFAULT_MAX_SNIPPET_LINES: usize = 5;
+const DEFAULT_VECTOR_DIMENSIONS: usize = 64;
+const DETERMINISTIC_VECTOR_MODEL: &str = "kiana.deterministic-hash-embedding.v1";
 
 #[derive(Debug, Clone, Copy)]
 pub struct ContextIndexOptions {
@@ -29,6 +31,21 @@ pub struct ContextSearchOptions {
 }
 
 impl Default for ContextSearchOptions {
+    fn default() -> Self {
+        Self {
+            limit: Some(DEFAULT_LIMIT),
+            max_bytes_per_file: Some(DEFAULT_MAX_BYTES_PER_FILE),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ContextVectorSearchOptions {
+    pub limit: Option<usize>,
+    pub max_bytes_per_file: Option<usize>,
+}
+
+impl Default for ContextVectorSearchOptions {
     fn default() -> Self {
         Self {
             limit: Some(DEFAULT_LIMIT),
@@ -228,6 +245,31 @@ pub struct ContextSearchHit {
     pub score: u64,
     pub occurrences: u64,
     pub matched_terms: Vec<String>,
+    pub line_number: usize,
+    pub line: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextVectorSearchResults {
+    pub schema: String,
+    pub root: String,
+    pub query: String,
+    pub terms: Vec<String>,
+    pub embedding_model: String,
+    pub dimensions: usize,
+    pub limit: usize,
+    pub files_indexed: usize,
+    pub skipped_files: usize,
+    pub hits: Vec<ContextVectorSearchHit>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextVectorSearchHit {
+    pub path: String,
+    pub language: Option<String>,
+    pub content_hash: String,
+    pub score: f64,
+    pub token_overlap: usize,
     pub line_number: usize,
     pub line: String,
 }
@@ -633,6 +675,76 @@ pub fn search_context_index(
         root: display_path(&root),
         query: query.trim().to_string(),
         terms,
+        limit,
+        files_indexed,
+        skipped_files,
+        hits,
+    })
+}
+
+pub fn search_context_vectors(
+    root: impl AsRef<Path>,
+    query: &str,
+    options: ContextVectorSearchOptions,
+) -> Result<ContextVectorSearchResults> {
+    let root = canonical_root(root.as_ref(), "context vector search")?;
+    let terms = query_terms(query);
+    if terms.is_empty() {
+        return Err(anyhow!(
+            "context vector search query must contain at least one term"
+        ));
+    }
+    let limit = options
+        .limit
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_LIMIT);
+    let max_bytes = options
+        .max_bytes_per_file
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_BYTES_PER_FILE);
+    let query_embedding =
+        normalized_hash_embedding(vector_features(query, None), DEFAULT_VECTOR_DIMENSIONS);
+    let mut hits = Vec::new();
+    let mut files_indexed = 0;
+    let mut skipped_files = 0;
+
+    for path in candidate_paths(&root)? {
+        let Some(hit) = vector_search_file(
+            &root,
+            &path,
+            &terms,
+            &query_embedding,
+            max_bytes,
+            DEFAULT_VECTOR_DIMENSIONS,
+        )?
+        else {
+            skipped_files += 1;
+            continue;
+        };
+        files_indexed += 1;
+        if hit.score > 0.0 {
+            hits.push(hit);
+        }
+    }
+
+    hits.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(right.token_overlap.cmp(&left.token_overlap))
+            .then(left.path.cmp(&right.path))
+            .then(left.line_number.cmp(&right.line_number))
+    });
+    hits.truncate(limit);
+
+    Ok(ContextVectorSearchResults {
+        schema: "kiana.context-vector-search.v1".to_string(),
+        root: display_path(&root),
+        query: query.trim().to_string(),
+        terms,
+        embedding_model: DETERMINISTIC_VECTOR_MODEL.to_string(),
+        dimensions: DEFAULT_VECTOR_DIMENSIONS,
         limit,
         files_indexed,
         skipped_files,
@@ -1188,12 +1300,106 @@ fn pack_file(
     }))
 }
 
+fn vector_search_file(
+    root: &Path,
+    path: &Path,
+    terms: &[String],
+    query_embedding: &[f64],
+    max_bytes: usize,
+    dimensions: usize,
+) -> Result<Option<ContextVectorSearchHit>> {
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    if bytes.len() > max_bytes || bytes.contains(&0) {
+        return Ok(None);
+    }
+    let Ok(content) = String::from_utf8(bytes) else {
+        return Ok(None);
+    };
+    let rel = relative_path(root, path);
+    let file_embedding =
+        normalized_hash_embedding(vector_features(&content, Some(&rel)), dimensions);
+    let score = cosine_similarity(query_embedding, &file_embedding);
+    let content_terms = tokenize(&content).into_iter().collect::<BTreeSet<_>>();
+    let path_terms = tokenize(&rel).into_iter().collect::<BTreeSet<_>>();
+    let token_overlap = terms
+        .iter()
+        .filter(|term| content_terms.contains(*term) || path_terms.contains(*term))
+        .count();
+    let (line_number, line) = first_matching_line_or_start(&content, terms, token_overlap > 0);
+
+    Ok(Some(ContextVectorSearchHit {
+        path: rel,
+        language: language_for_path(path).map(str::to_string),
+        content_hash: stable_hash(content.as_bytes()),
+        score,
+        token_overlap,
+        line_number,
+        line,
+    }))
+}
+
 fn query_terms(query: &str) -> Vec<String> {
     tokenize(query)
         .into_iter()
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
+}
+
+fn vector_features(content: &str, rel_path: Option<&str>) -> Vec<(String, f64)> {
+    let tokens = tokenize(content);
+    let mut features = Vec::new();
+    for token in &tokens {
+        features.push((format!("tok:{token}"), 1.0));
+        for trigram in char_ngrams(token, 3) {
+            features.push((format!("tri:{trigram}"), 0.2));
+        }
+    }
+    for pair in tokens.windows(2) {
+        features.push((format!("bi:{}:{}", pair[0], pair[1]), 0.8));
+    }
+    if let Some(rel_path) = rel_path {
+        for token in tokenize(rel_path) {
+            features.push((format!("path:{token}"), 1.5));
+        }
+    }
+    features
+}
+
+fn char_ngrams(token: &str, n: usize) -> Vec<String> {
+    let chars = token.chars().collect::<Vec<_>>();
+    if n == 0 || chars.len() < n {
+        return Vec::new();
+    }
+    chars
+        .windows(n)
+        .map(|window| window.iter().collect::<String>())
+        .collect()
+}
+
+fn normalized_hash_embedding(features: Vec<(String, f64)>, dimensions: usize) -> Vec<f64> {
+    let dimensions = dimensions.max(1);
+    let mut vector = vec![0.0; dimensions];
+    for (feature, weight) in features {
+        let hash = stable_hash_u64(feature.as_bytes());
+        let index = (hash as usize) % dimensions;
+        vector[index] += weight;
+    }
+    let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
+    if norm > 0.0 {
+        for value in &mut vector {
+            *value /= norm;
+        }
+    }
+    vector
+}
+
+fn cosine_similarity(left: &[f64], right: &[f64]) -> f64 {
+    left.iter()
+        .zip(right.iter())
+        .map(|(left, right)| left * right)
+        .sum::<f64>()
+        .max(0.0)
 }
 
 fn tokenize(value: &str) -> Vec<String> {
@@ -1351,12 +1557,16 @@ fn portable_path(path: &Path) -> String {
 }
 
 fn stable_hash(bytes: &[u8]) -> String {
+    format!("{:016x}", stable_hash_u64(bytes))
+}
+
+fn stable_hash_u64(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in bytes {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    format!("{hash:016x}")
+    hash
 }
 
 #[cfg(test)]
@@ -1487,6 +1697,58 @@ mod tests {
             .matched_terms
             .contains(&"path_only".to_string()));
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_vector_search_reports_deterministic_hash_embedding_hits() {
+        let root = fixture_root("vector-search");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::write(
+            root.join("src/checkout.rs"),
+            "pub fn authorize_checkout() {}\n// payment workflow settles invoices\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("docs/refund.md"),
+            "# Refunds\nrefund policy and return inventory notes\n",
+        )
+        .unwrap();
+
+        let results = search_context_vectors(
+            &root,
+            "checkout flow",
+            ContextVectorSearchOptions {
+                limit: Some(1),
+                max_bytes_per_file: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(results.schema, "kiana.context-vector-search.v1");
+        assert_eq!(results.embedding_model, DETERMINISTIC_VECTOR_MODEL);
+        assert_eq!(results.dimensions, DEFAULT_VECTOR_DIMENSIONS);
+        assert_eq!(results.limit, 1);
+        assert_eq!(results.hits.len(), 1);
+        assert_eq!(results.hits[0].path, "src/checkout.rs");
+        assert_eq!(results.hits[0].language.as_deref(), Some("rust"));
+        assert_eq!(results.hits[0].content_hash.len(), 16);
+        assert!(results.hits[0].score > 0.0);
+        assert!(results.hits[0].token_overlap >= 1);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_vector_search_rejects_empty_queries() {
+        let root = fixture_root("vector-empty");
+        fs::write(root.join("notes.md"), "notes\n").unwrap();
+
+        let error = search_context_vectors(&root, "   ", ContextVectorSearchOptions::default())
+            .unwrap_err();
+
+        assert!(error.to_string().contains("query must contain"));
         let _ = fs::remove_dir_all(root);
     }
 

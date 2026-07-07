@@ -11,8 +11,9 @@ use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, search_context_index, ContextArtifactOptions,
-    ContextIndexOptions, ContextPackOptions, ContextSearchOptions, RepoMapOptions,
+    build_persistent_context_index, build_repo_map, search_context_index, search_context_vectors,
+    ContextArtifactOptions, ContextIndexOptions, ContextPackOptions, ContextSearchOptions,
+    ContextVectorSearchOptions, RepoMapOptions,
 };
 use kiana_screens::{history::HistoryEntry, settings::SettingsSection};
 use kiana_tools::permissions::effective_tool_permissions;
@@ -5462,6 +5463,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_context_search_handler),
         )
         .route(
+            "/app/context/vector-search",
+            axum::routing::get(direct_connect_app_context_vector_search_handler),
+        )
+        .route(
             "/app/context/pack",
             axum::routing::get(direct_connect_app_context_pack_handler),
         )
@@ -9046,6 +9051,14 @@ async fn direct_connect_app_context_search_handler(
     direct_connect_app_context_handler(state, headers, query, "search").await
 }
 
+async fn direct_connect_app_context_vector_search_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<DirectConnectContextQuery>,
+) -> axum::response::Response {
+    direct_connect_app_context_handler(state, headers, query, "vector-search").await
+}
+
 async fn direct_connect_app_context_pack_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
@@ -9094,6 +9107,14 @@ async fn direct_connect_context_query_report(
             &state.workspace,
             &query.q,
             ContextSearchOptions {
+                limit: query.limit,
+                max_bytes_per_file: query.max_bytes_per_file,
+            },
+        )?)?),
+        "vector-search" => Ok(serde_json::to_value(search_context_vectors(
+            &state.workspace,
+            &query.q,
+            ContextVectorSearchOptions {
                 limit: query.limit,
                 max_bytes_per_file: query.max_bytes_per_file,
             },
@@ -10111,6 +10132,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "context.artifact_readiness.read",
         "context.repo_map.read",
         "context.search.read",
+        "context.vector_search.read",
         "context.pack.read",
     ]
 }
@@ -10215,6 +10237,11 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         ),
         direct_connect_app_endpoint("GET", "/app/context/repo-map", "kiana.repo-map.v1"),
         direct_connect_app_endpoint("GET", "/app/context/search", "kiana.context-search.v1"),
+        direct_connect_app_endpoint(
+            "GET",
+            "/app/context/vector-search",
+            "kiana.context-vector-search.v1",
+        ),
         direct_connect_app_endpoint("GET", "/app/context/pack", "kiana.context-pack.v1"),
         direct_connect_app_endpoint("POST", "/sessions", "kiana.direct-connect.session-create.v1"),
         direct_connect_app_endpoint("GET", "/sessions/{session_id}/ws", "kiana.direct-connect.events.websocket.v1"),
@@ -19795,6 +19822,10 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("context.vector_search.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("context.pack.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -20225,6 +20256,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/context/search"
                     && endpoint["schema"] == "kiana.context-search.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/context/vector-search"
+                    && endpoint["schema"] == "kiana.context-vector-search.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -22191,6 +22231,30 @@ mod tests {
         assert_eq!(context_search["limit"], 1);
         assert_eq!(context_search["hits"].as_array().unwrap().len(), 1);
         assert_eq!(context_search["hits"][0]["path"], "src/lib.rs");
+
+        let context_vector_search: Value = client
+            .get(format!("http://{addr}/app/context/vector-search"))
+            .bearer_auth("secret")
+            .query(&[("q", "checkout flow"), ("limit", "1")])
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            context_vector_search["schema"],
+            "kiana.context-vector-search.v1"
+        );
+        assert_eq!(context_vector_search["query"], "checkout flow");
+        assert_eq!(
+            context_vector_search["embedding_model"],
+            "kiana.deterministic-hash-embedding.v1"
+        );
+        assert_eq!(context_vector_search["dimensions"], 64);
+        assert_eq!(context_vector_search["limit"], 1);
+        assert_eq!(context_vector_search["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(context_vector_search["hits"][0]["path"], "src/lib.rs");
 
         let context_pack: Value = client
             .get(format!("http://{addr}/app/context/pack"))

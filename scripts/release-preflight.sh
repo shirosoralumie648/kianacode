@@ -81,6 +81,7 @@ for file in \
   docs/schemas/kiana-context-artifacts.v1.schema.json \
   docs/schemas/kiana-repo-map.v1.schema.json \
   docs/schemas/kiana-context-search.v1.schema.json \
+  docs/schemas/kiana-context-vector-search.v1.schema.json \
   docs/schemas/kiana-context-pack.v1.schema.json \
   docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
@@ -211,10 +212,11 @@ else
 fi
 
 if grep -Fq 'context index --json' scripts/release-smoke.sh &&
-  grep -Fq 'context search release --json --limit 1' scripts/release-smoke.sh; then
-  pass "context index/search JSON gates are wired"
+  grep -Fq 'context search release --json --limit 1' scripts/release-smoke.sh &&
+  grep -Fq 'context vector-search release flow --json --limit 1' scripts/release-smoke.sh; then
+  pass "context index/search/vector-search JSON gates are wired"
 else
-  fail "release smoke does not exercise context index/search --json"
+  fail "release smoke does not exercise context index/search/vector-search --json"
 fi
 
 if grep -Fq 'license status --json' scripts/release-smoke.sh; then
@@ -296,9 +298,11 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'release.distribution_review.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/release/distribution' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.search.read' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'context.vector_search.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'context.pack.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/index' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/search' kiana-entrypoints/src/cli.rs &&
+  grep -Fq '/app/context/vector-search' kiana-entrypoints/src/cli.rs &&
   grep -Fq '/app/context/pack' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.diff.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.checkpoint.v1' kiana-entrypoints/src/cli.rs &&
@@ -313,6 +317,7 @@ if grep -Fq 'context.index.read' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-index.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.repo-map.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-search.v1' kiana-entrypoints/src/cli.rs &&
+  grep -Fq 'kiana.context-vector-search.v1' kiana-entrypoints/src/cli.rs &&
   grep -Fq 'kiana.context-pack.v1' kiana-entrypoints/src/cli.rs; then
   pass "app-server prompt history, commands read/run, permissions, trust, config resolved, auth status, license status, model catalog/list/current read-write/smoke, release distribution review, checkpoint, diff, repo-map, context, checks dry-run/run, review dry-run/run, and cache endpoints are wired"
 else
@@ -534,6 +539,15 @@ if grep -Fq '"const": "kiana.context-search.v1"' docs/schemas/kiana-context-sear
   pass "context search JSON schema version is pinned"
 else
   fail "context search JSON schema is missing kiana.context-search.v1 const"
+fi
+
+if grep -Fq '"const": "kiana.context-vector-search.v1"' docs/schemas/kiana-context-vector-search.v1.schema.json &&
+  grep -Fq '"const": "kiana.deterministic-hash-embedding.v1"' docs/schemas/kiana-context-vector-search.v1.schema.json &&
+  grep -Fq '"dimensions"' docs/schemas/kiana-context-vector-search.v1.schema.json &&
+  grep -Fq '"score"' docs/schemas/kiana-context-vector-search.v1.schema.json; then
+  pass "context vector search JSON schema version is pinned"
+else
+  fail "context vector search JSON schema is missing required embedding anchors"
 fi
 
 if grep -Fq '"const": "kiana.context-artifacts.v1"' docs/schemas/kiana-context-artifacts.v1.schema.json &&

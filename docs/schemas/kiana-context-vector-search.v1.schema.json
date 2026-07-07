@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-context-vector-search.v1.schema.json",
+  "title": "Kiana Context Vector Search v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "root",
+    "query",
+    "terms",
+    "embedding_model",
+    "dimensions",
+    "limit",
+    "files_indexed",
+    "skipped_files",
+    "hits"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.context-vector-search.v1"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "query": {
+      "type": "string"
+    },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "embedding_model": {
+      "const": "kiana.deterministic-hash-embedding.v1"
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "files_indexed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skipped_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "language",
+          "content_hash",
+          "score",
+          "token_overlap",
+          "line_number",
+          "line"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "language": {
+            "type": ["string", "null"]
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0
+          },
+          "token_overlap": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "line_number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "line": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

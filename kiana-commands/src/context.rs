@@ -6,10 +6,11 @@ use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, search_context_index,
+    build_persistent_context_index, build_repo_map, search_context_index, search_context_vectors,
     ContextArtifactDependencyGraph, ContextArtifactOptions, ContextArtifactReadiness,
     ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
-    ContextPackOptions, ContextSearchOptions, ContextSearchResults, RepoMap, RepoMapOptions,
+    ContextPackOptions, ContextSearchOptions, ContextSearchResults, ContextVectorSearchOptions,
+    ContextVectorSearchResults, RepoMap, RepoMapOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -57,6 +58,9 @@ impl Command for ContextCommand {
         if let Some(rest) = args.strip_prefix("search") {
             return search_result(&context, rest.trim());
         }
+        if let Some(rest) = args.strip_prefix("vector-search") {
+            return vector_search_result(&context, rest.trim());
+        }
         if let Some(rest) = args.strip_prefix("pack") {
             return pack_result(&context, rest.trim());
         }
@@ -90,7 +94,7 @@ impl Command for ContextCommand {
 }
 
 fn usage() -> &'static str {
-    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-readiness [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
+    "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-readiness [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|vector-search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
 fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -459,6 +463,75 @@ fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
     Ok(CommandResult::text(format_context_search_text(&results)))
 }
 
+fn vector_search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+    let mut json = false;
+    let mut root = None;
+    let mut limit = None;
+    let mut max_bytes_per_file = None;
+    let mut query = Vec::new();
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
+                root = Some(parse_root(value)?);
+            }
+            "--limit" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--limit=") => {
+                let value = arg.trim_start_matches("--limit=");
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                root = Some(parse_root(value)?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" if query.is_empty() => {
+                return Ok(CommandResult::text(usage()))
+            }
+            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
+            _ => query.push(arg.to_string()),
+        }
+    }
+    if query.is_empty() {
+        return Err(anyhow!(
+            "Usage: kiana context vector-search <query> [--json] [--limit N]"
+        ));
+    }
+
+    let results = search_context_vectors(
+        context_root(context, root),
+        &query.join(" "),
+        ContextVectorSearchOptions {
+            limit,
+            max_bytes_per_file,
+        },
+    )?;
+    if json {
+        return Ok(CommandResult::text(serde_json::to_string_pretty(&results)?));
+    }
+    Ok(CommandResult::text(format_context_vector_search_text(
+        &results,
+    )))
+}
+
 fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
     let mut root = None;
@@ -807,6 +880,32 @@ fn format_context_search_text(results: &ContextSearchResults) -> String {
     lines.join("\n")
 }
 
+fn format_context_vector_search_text(results: &ContextVectorSearchResults) -> String {
+    let mut lines = vec![
+        "Context vector search".to_string(),
+        format!("root: {}", results.root),
+        format!(
+            "query: {} terms={} model={} dimensions={} files_indexed={} skipped_files={}",
+            results.query,
+            results.terms.join(","),
+            results.embedding_model,
+            results.dimensions,
+            results.files_indexed,
+            results.skipped_files
+        ),
+    ];
+    for hit in &results.hits {
+        lines.push(format!(
+            "- {}:{} score={:.6} token_overlap={} hash={}",
+            hit.path, hit.line_number, hit.score, hit.token_overlap, hit.content_hash
+        ));
+        if !hit.line.is_empty() {
+            lines.push(format!("  {}", hit.line));
+        }
+    }
+    lines.join("\n")
+}
+
 fn format_context_pack_text(pack: &ContextPack) -> String {
     let mut lines = vec![
         "Context pack".to_string(),
@@ -1117,6 +1216,40 @@ mod tests {
         assert_eq!(value["hits"][0]["path"], "docs/path-only.md");
         assert_eq!(value["hits"][0]["occurrences"], 0);
         assert_eq!(value["hits"][0]["line"], "first module summary");
+
+        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn context_vector_search_json_returns_hash_embedding_hits() {
+        let root = fixture_root("vector-search-command");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn checkout_flow() {}\n// checkout workflow for invoices\n",
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "refund notes\n").unwrap();
+
+        let result = ContextCommand
+            .execute(CommandContext {
+                args: "vector-search checkout flow --json --limit 1".to_string(),
+                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
+            })
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(value["schema"], "kiana.context-vector-search.v1");
+        assert_eq!(
+            value["embedding_model"],
+            "kiana.deterministic-hash-embedding.v1"
+        );
+        assert_eq!(value["dimensions"], 64);
+        assert_eq!(value["limit"], 1);
+        assert_eq!(value["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(value["hits"][0]["path"], "src/lib.rs");
+        assert!(value["hits"][0]["score"].as_f64().unwrap() > 0.0);
 
         let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }

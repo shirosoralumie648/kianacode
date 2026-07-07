@@ -442,6 +442,7 @@ smoke_context_index_search_json() {
   local index_output
   local search_output
   local path_search_output
+  local vector_search_output
   local pack_output
   local path_pack_output
   local root_pack_output
@@ -475,11 +476,12 @@ smoke_context_index_search_json() {
   cached_artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-store --json --cache .kiana/context-artifact-store.json 2>&1)"
   search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
   path_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search docs/path-only.md --json --limit 1 2>&1)"
+  vector_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context vector-search release flow --json --limit 1 2>&1)"
   pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack release --json --limit 1 --max-snippet-lines 1 2>&1)"
   path_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 2>&1)"
   root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_dir" --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
-  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_ARTIFACT_READINESS_JSON="$artifact_readiness_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
+  CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_ARTIFACT_READINESS_JSON="$artifact_readiness_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_VECTOR_SEARCH_JSON="$vector_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
 import json
 import os
 import sys
@@ -494,6 +496,7 @@ try:
     cached_artifact_store = json.loads(os.environ["CONTEXT_CACHED_ARTIFACT_STORE_JSON"])
     search = json.loads(os.environ["CONTEXT_SEARCH_JSON"])
     path_search = json.loads(os.environ["CONTEXT_PATH_SEARCH_JSON"])
+    vector_search = json.loads(os.environ["CONTEXT_VECTOR_SEARCH_JSON"])
     pack = json.loads(os.environ["CONTEXT_PACK_JSON"])
     path_pack = json.loads(os.environ["CONTEXT_PATH_PACK_JSON"])
     root_pack = json.loads(os.environ["CONTEXT_ROOT_PACK_JSON"])
@@ -508,6 +511,7 @@ except Exception as exc:
     print(os.environ.get("CONTEXT_CACHED_ARTIFACT_STORE_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_SEARCH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PATH_SEARCH_JSON", ""), file=sys.stderr)
+    print(os.environ.get("CONTEXT_VECTOR_SEARCH_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PACK_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_PATH_PACK_JSON", ""), file=sys.stderr)
     print(os.environ.get("CONTEXT_ROOT_PACK_JSON", ""), file=sys.stderr)
@@ -562,6 +566,14 @@ checks = [
     path_search.get("hits", [{}])[0].get("path") == "docs/path-only.md",
     path_search.get("hits", [{}])[0].get("occurrences") == 0,
     path_search.get("hits", [{}])[0].get("line") == "first module summary referencing src/lib.rs",
+    vector_search.get("schema") == "kiana.context-vector-search.v1",
+    vector_search.get("embedding_model") == "kiana.deterministic-hash-embedding.v1",
+    vector_search.get("dimensions") == 64,
+    vector_search.get("terms") == ["flow", "release"],
+    vector_search.get("limit") == 1,
+    len(vector_search.get("hits", [])) == 1,
+    vector_search.get("hits", [{}])[0].get("path") == "src/lib.rs",
+    vector_search.get("hits", [{}])[0].get("score", 0) > 0,
     pack.get("schema") == "kiana.context-pack.v1",
     pack.get("terms") == ["release"],
     pack.get("limit") == 1,
@@ -594,7 +606,7 @@ checks = [
     root_pack.get("artifact_graph", {}).get("nodes", [{}])[0].get("path") == "bundle/notes.md",
 ]
 if not all(checks):
-    print("context index/search/pack JSON failed smoke checks", file=sys.stderr)
+    print("context index/search/vector-search/pack JSON failed smoke checks", file=sys.stderr)
     print(json.dumps(index, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(artifacts, indent=2, sort_keys=True), file=sys.stderr)
     print(json.dumps(cached_artifacts, indent=2, sort_keys=True), file=sys.stderr)
