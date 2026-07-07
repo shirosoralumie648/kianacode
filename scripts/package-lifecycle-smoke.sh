@@ -118,6 +118,7 @@ for file in \
   "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-prompt-history.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-app-server-team-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-trust-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-commands.v1.schema.json" \
   "$package_root/docs/schemas/kiana-app-server-command-run.v1.schema.json" \
@@ -138,6 +139,7 @@ for file in \
   "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
   "$package_root/docs/schemas/kiana-managed-plugin-policy.v1.schema.json" \
   "$package_root/docs/schemas/kiana-plugin-app-manifest.v1.schema.json" \
+  "$package_root/docs/schemas/kiana-tasks.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-list.v1.schema.json" \
   "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
   "$package_root/docs/schemas/kiana-macos-notarization.v1.schema.json" \

@@ -1,7 +1,8 @@
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub struct TasksCommand;
@@ -81,8 +82,27 @@ fn list_tasks_with_status(
 
 fn tasks_json(context: &CommandContext, task_list: Option<&str>) -> Result<CommandResult> {
     Ok(CommandResult::text(serde_json::to_string_pretty(
-        &load_tasks(context, task_list)?,
+        &tasks_report(context, task_list)?,
     )?))
+}
+
+pub fn tasks_report(context: &CommandContext, task_list: Option<&str>) -> Result<Value> {
+    let tasks = load_tasks(context, task_list)?;
+    let task_list_id = task_list_id(context, task_list);
+    let tasks_dir = task_list_dir(context, task_list);
+    let mut status_counts = BTreeMap::new();
+    for task in &tasks {
+        let status = task_status(task).unwrap_or("unknown").to_string();
+        *status_counts.entry(status).or_insert(0usize) += 1;
+    }
+    Ok(json!({
+        "schema": "kiana.tasks.v1",
+        "task_list_id": task_list_id,
+        "tasks_dir": tasks_dir.display().to_string(),
+        "count": tasks.len(),
+        "status_counts": status_counts,
+        "tasks": tasks,
+    }))
 }
 
 fn show_task(context: &CommandContext, rest: &str) -> Result<CommandResult> {
@@ -487,8 +507,42 @@ mod tests {
             .execute(context("json review", app_state))
             .await
             .unwrap();
+        let parsed: Value = serde_json::from_str(&json.value).unwrap();
+        assert_eq!(parsed["schema"], "kiana.tasks.v1");
+        assert_eq!(parsed["task_list_id"], "review");
+        assert_eq!(parsed["count"], 2);
+        assert_eq!(parsed["status_counts"]["completed"], 1);
+        assert_eq!(parsed["status_counts"]["pending"], 1);
         assert!(json.value.contains("\"id\": \"1\""));
         assert!(json.value.contains("\"id\": \"2\""));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn tasks_json_reports_schema_status_counts_and_task_order() {
+        let root = temp_root();
+        write_task(&root, "session-2", "2", "completed", "Second task");
+        write_task(&root, "session-2", "1", "pending", "First task");
+        let app_state = HashMap::from([
+            ("cwd".to_string(), json!(root.to_string_lossy().to_string())),
+            ("session_id".to_string(), json!("session-2")),
+        ]);
+
+        let result = TasksCommand
+            .execute(context("json", app_state))
+            .await
+            .unwrap();
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert_eq!(report["schema"], "kiana.tasks.v1");
+        assert_eq!(report["task_list_id"], "session-2");
+        assert_eq!(report["count"], 2);
+        assert_eq!(report["status_counts"]["pending"], 1);
+        assert_eq!(report["status_counts"]["completed"], 1);
+        assert_eq!(report["tasks"][0]["id"], "1");
+        assert_eq!(report["tasks"][1]["id"], "2");
+        assert!(report["tasks_dir"].as_str().unwrap().contains("session-2"));
 
         let _ = std::fs::remove_dir_all(root);
     }

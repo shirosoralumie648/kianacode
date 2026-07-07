@@ -61,6 +61,7 @@ for file in \
   docs/schemas/kiana-app-server-plugins.v1.schema.json \
   docs/schemas/kiana-app-server-model-current.v1.schema.json \
   docs/schemas/kiana-app-server-prompt-history.v1.schema.json \
+  docs/schemas/kiana-app-server-team-status.v1.schema.json \
   docs/schemas/kiana-app-server-commands.v1.schema.json \
   docs/schemas/kiana-app-server-command-run.v1.schema.json \
   docs/schemas/kiana-app-server-git-status.v1.schema.json \
@@ -77,6 +78,7 @@ for file in \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-model-list.v1.schema.json \
+  docs/schemas/kiana-tasks.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-artifacts.v1.schema.json \
   docs/schemas/kiana-context-artifact-ingest.v1.schema.json \
@@ -415,7 +417,7 @@ else
   fail "app-server contract JSON schema is missing kiana.app-server.contract.v1 const"
 fi
 
-for app_schema in conversations config-resolved events settings secrets sandbox permissions-status trust-status plugins model-current prompt-history commands command-run git-status live-provider-smoke distribution-review; do
+for app_schema in conversations config-resolved events settings secrets sandbox permissions-status trust-status plugins model-current prompt-history team-status commands command-run git-status live-provider-smoke distribution-review; do
   schema_file="docs/schemas/kiana-app-server-${app_schema}.v1.schema.json"
   schema_name="kiana.app-server.${app_schema}.v1"
   if grep -Fq "\"const\": \"${schema_name}\"" "$schema_file"; then
@@ -424,6 +426,15 @@ for app_schema in conversations config-resolved events settings secrets sandbox 
     fail "app-server ${app_schema} JSON schema is missing ${schema_name} const"
   fi
 done
+
+if grep -Fq '"const": "kiana.tasks.v1"' docs/schemas/kiana-tasks.v1.schema.json &&
+  grep -Fq '"task_list_id"' docs/schemas/kiana-tasks.v1.schema.json &&
+  grep -Fq '"status_counts"' docs/schemas/kiana-tasks.v1.schema.json &&
+  grep -Fq '"tasks"' docs/schemas/kiana-tasks.v1.schema.json; then
+  pass "tasks JSON schema version is pinned"
+else
+  fail "tasks JSON schema is missing required task status anchors"
+fi
 
 if grep -Fq '"id"' docs/schemas/kiana-plugin-app-manifest.v1.schema.json &&
   grep -Fq '"entry"' docs/schemas/kiana-plugin-app-manifest.v1.schema.json &&

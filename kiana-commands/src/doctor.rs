@@ -883,9 +883,11 @@ fn reference_capability_matrix(
                 "context-artifact-ingest-sync",
                 "context-pack-artifact-graph",
                 "deterministic-team-runtime-smoke",
+                "schema-gated-task-status",
+                "app-server-team-status-contract",
                 "notebook-execution-isolation-smoke",
             ],
-            risks: vec!["production embedding backends/vector stores, remote or multi-source artifact synchronization beyond local file ingest, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX remain future work".to_string()],
+            risks: vec!["production embedding backends/vector stores, remote or multi-source artifact synchronization beyond local file ingest, notebook kernel parity/stronger OS sandboxing, and richer role-runtime UX beyond local status reporting remain future work".to_string()],
         },
     ]
 }
@@ -1341,6 +1343,16 @@ mod tests {
                     .unwrap()
                     .iter()
                     .any(|evidence| evidence == "deterministic-team-runtime-smoke")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "schema-gated-task-status")
+                && item["evidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|evidence| evidence == "app-server-team-status-contract")
                 && item["evidence"]
                     .as_array()
                     .unwrap()

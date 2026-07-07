@@ -5295,6 +5295,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::get(direct_connect_app_prompt_history_handler),
         )
         .route(
+            "/app/team/status",
+            axum::routing::get(direct_connect_app_team_status_handler),
+        )
+        .route(
             "/app/commands",
             axum::routing::get(direct_connect_app_commands_handler),
         )
@@ -5946,6 +5950,80 @@ fn direct_connect_app_prompt_history_payload(
         "limit": crate::tui::TUI_PROMPT_HISTORY_LIMIT,
         "count": entries_json.len(),
         "entries": entries_json,
+    })
+}
+
+async fn direct_connect_app_team_status_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    match direct_connect_app_team_status_payload(&state) {
+        Ok(payload) => axum::Json(payload).into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build team status report: {error}"),
+        ),
+    }
+}
+
+fn direct_connect_app_team_status_payload(state: &DirectConnectServerState) -> Result<Value> {
+    let app_state = direct_connect_app_state_with_workspace(state);
+    let context = CommandContext {
+        args: String::new(),
+        app_state: app_state.clone(),
+    };
+    let tasks = kiana_commands::tasks::tasks_report(&context, None)?;
+    let task_list_id = tasks["task_list_id"].as_str().unwrap_or("default");
+    Ok(serde_json::json!({
+        "schema": "kiana.app-server.team-status.v1",
+        "workspace": state.workspace.display().to_string(),
+        "team": direct_connect_app_team_metadata(&app_state, task_list_id),
+        "task_list": {
+            "id": tasks["task_list_id"].clone(),
+            "tasks_dir": tasks["tasks_dir"].clone(),
+            "count": tasks["count"].clone(),
+            "status_counts": tasks["status_counts"].clone(),
+        },
+        "tasks": tasks,
+    }))
+}
+
+fn direct_connect_app_team_metadata(
+    app_state: &HashMap<String, Value>,
+    task_list_id: &str,
+) -> Value {
+    let team_name = app_state
+        .get("team_context")
+        .or_else(|| app_state.get("teamContext"))
+        .and_then(Value::as_object)
+        .and_then(|team| {
+            team.get("team_name")
+                .or_else(|| team.get("teamName"))
+                .and_then(Value::as_str)
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let source = if team_name.is_some() {
+        "team_context"
+    } else if app_state.contains_key("task_list_id") || app_state.contains_key("taskListId") {
+        "task_list_id"
+    } else if app_state.contains_key("session_id") || app_state.contains_key("sessionId") {
+        "session_id"
+    } else {
+        "default_task_list"
+    };
+    serde_json::json!({
+        "name": team_name.unwrap_or(task_list_id),
+        "source": source,
     })
 }
 
@@ -10170,6 +10248,8 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "conversation.files.write",
         "settings.read",
         "prompt.history.read",
+        "team.status.read",
+        "tasks.read",
         "commands.read",
         "commands.run",
         "config.resolved.read",
@@ -10251,6 +10331,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("POST", "/app/conversations/{session_id}/files", "kiana.app-server.conversation-files.v1"),
         direct_connect_app_endpoint("GET", "/app/settings", "kiana.app-server.settings.v1"),
         direct_connect_app_endpoint("GET", "/app/prompt-history", "kiana.app-server.prompt-history.v1"),
+        direct_connect_app_endpoint("GET", "/app/team/status", "kiana.app-server.team-status.v1"),
         direct_connect_app_endpoint("GET", "/app/commands", "kiana.app-server.commands.v1"),
         direct_connect_app_endpoint("POST", "/app/commands/run", "kiana.app-server.command-run.v1"),
         direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
@@ -19385,6 +19466,7 @@ mod tests {
             "KIANA_PLATFORM_SECURITY_PROOF_DIR",
             "KIANA_SOURCE_CONTROL_PROOF_FILE",
             "KIANA_SOURCE_CONTROL_PROOF_OUT",
+            "KIANA_TASKS_ROOT",
             "KIANA_RELEASE_SIGNATURE_PROOF_FILE",
             "KIANA_RELEASE_SIGNATURE_PROOF_OUT",
             "KIANA_ENTERPRISE_OFFLINE_MANIFEST_FILE",
@@ -19612,6 +19694,34 @@ mod tests {
         ]
         .join("\n");
         std::fs::write(&prompt_history_path, format!("{prompt_history_lines}\n")).unwrap();
+        let tasks_dir = workspace.join(".kiana").join("tasks").join("default");
+        std::fs::create_dir_all(&tasks_dir).unwrap();
+        std::fs::write(
+            tasks_dir.join("1.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "id": "1",
+                "title": "Review task status",
+                "subject": "Review task status",
+                "status": "pending",
+                "owner": "planner",
+                "blockedBy": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            tasks_dir.join("2.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "id": "2",
+                "title": "Ship app status",
+                "subject": "Ship app status",
+                "status": "completed",
+                "owner": "builder",
+                "blockedBy": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
         for key in [
             "ANTHROPIC_API_KEY",
             "KIANA_OPENAI_API_KEY",
@@ -19832,6 +19942,14 @@ mod tests {
         assert!(contract["capabilities"]
             .as_array()
             .unwrap()
+            .contains(&Value::String("team.status.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("tasks.read".to_string())));
+        assert!(contract["capabilities"]
+            .as_array()
+            .unwrap()
             .contains(&Value::String("commands.read".to_string())));
         assert!(contract["capabilities"]
             .as_array()
@@ -19999,6 +20117,15 @@ mod tests {
                 endpoint["method"] == "GET"
                     && endpoint["path"] == "/app/prompt-history"
                     && endpoint["schema"] == "kiana.app-server.prompt-history.v1"
+            }));
+        assert!(contract["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|endpoint| {
+                endpoint["method"] == "GET"
+                    && endpoint["path"] == "/app/team/status"
+                    && endpoint["schema"] == "kiana.app-server.team-status.v1"
             }));
         assert!(contract["endpoints"]
             .as_array()
@@ -20707,6 +20834,41 @@ mod tests {
         assert_eq!(prompt_history["entries"][0]["timestamp"], "2");
         assert_eq!(prompt_history["entries"][1]["prompt"], "older prompt");
         assert!(!prompt_history.to_string().contains(".kiana-home"));
+
+        let team_status: Value = client
+            .get(format!("http://{addr}/app/team/status"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(team_status["schema"], "kiana.app-server.team-status.v1");
+        assert_eq!(team_status["workspace"], workspace.display().to_string());
+        assert_eq!(team_status["team"]["name"], "default");
+        assert_eq!(team_status["team"]["source"], "default_task_list");
+        assert_eq!(team_status["task_list"]["id"], "default");
+        assert_eq!(team_status["task_list"]["count"], 2);
+        assert_eq!(team_status["task_list"]["status_counts"]["pending"], 1);
+        assert_eq!(team_status["task_list"]["status_counts"]["completed"], 1);
+        assert_eq!(team_status["tasks"]["schema"], "kiana.tasks.v1");
+        assert_eq!(team_status["tasks"]["count"], 2);
+        assert_eq!(team_status["tasks"]["tasks"][0]["id"], "1");
+        assert_eq!(
+            team_status["tasks"]["tasks"][0]["subject"],
+            "Review task status"
+        );
+        assert!(
+            team_status["tasks"]["tasks_dir"]
+                .as_str()
+                .unwrap()
+                .ends_with(".kiana\\tasks\\default")
+                || team_status["tasks"]["tasks_dir"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with(".kiana/tasks/default")
+        );
 
         let commands: Value = client
             .get(format!("http://{addr}/app/commands"))

@@ -38,6 +38,8 @@ tmp_app_events="$(mktemp)"
 tmp_app_command_run="$(mktemp)"
 tmp_app_permissions_status="$(mktemp)"
 tmp_app_trust_status="$(mktemp)"
+tmp_app_team_status="$(mktemp)"
+tmp_tasks="$(mktemp)"
 tmp_auth_status="$(mktemp)"
 tmp_context_index="$(mktemp)"
 tmp_context_vector_search="$(mktemp)"
@@ -63,7 +65,7 @@ tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
 tmp_plugin_app_manifest="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest"' EXIT
 cat > "$tmp_plugin_app_manifest" <<'JSON'
 {
   "schema": "kiana.plugin-app-manifest.v1",
@@ -305,6 +307,91 @@ JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-trust-status.v1.schema.json \
   "$tmp_app_trust_status" >/dev/null
+
+cat > "$tmp_tasks" <<'JSON'
+{
+  "schema": "kiana.tasks.v1",
+  "task_list_id": "default",
+  "tasks_dir": "/workspace/.kiana/tasks/default",
+  "count": 2,
+  "status_counts": {
+    "pending": 1,
+    "completed": 1
+  },
+  "tasks": [
+    {
+      "id": "1",
+      "title": "Review task status",
+      "subject": "Review task status",
+      "status": "pending",
+      "owner": "planner",
+      "blockedBy": []
+    },
+    {
+      "id": "2",
+      "title": "Ship app status",
+      "subject": "Ship app status",
+      "status": "completed",
+      "owner": "builder",
+      "blockedBy": []
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-tasks.v1.schema.json \
+  "$tmp_tasks" >/dev/null
+
+cat > "$tmp_app_team_status" <<'JSON'
+{
+  "schema": "kiana.app-server.team-status.v1",
+  "workspace": "/workspace",
+  "team": {
+    "name": "default",
+    "source": "default_task_list"
+  },
+  "task_list": {
+    "id": "default",
+    "tasks_dir": "/workspace/.kiana/tasks/default",
+    "count": 2,
+    "status_counts": {
+      "pending": 1,
+      "completed": 1
+    }
+  },
+  "tasks": {
+    "schema": "kiana.tasks.v1",
+    "task_list_id": "default",
+    "tasks_dir": "/workspace/.kiana/tasks/default",
+    "count": 2,
+    "status_counts": {
+      "pending": 1,
+      "completed": 1
+    },
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Review task status",
+        "subject": "Review task status",
+        "status": "pending",
+        "owner": "planner",
+        "blockedBy": []
+      },
+      {
+        "id": "2",
+        "title": "Ship app status",
+        "subject": "Ship app status",
+        "status": "completed",
+        "owner": "builder",
+        "blockedBy": []
+      }
+    ]
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-app-server-team-status.v1.schema.json \
+  "$tmp_app_team_status" >/dev/null
 
 cat > "$tmp_auth_status" <<'JSON'
 {
