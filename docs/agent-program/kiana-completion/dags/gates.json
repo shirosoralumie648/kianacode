@@ -1,0 +1,809 @@
+{
+  "schema": "kiana.agent-wave-gates.v1",
+  "program_id": "kiana-completion-2026-07-13",
+  "spec_commit": "a55c521",
+  "task_catalog": {
+    "expected_total_tasks": 170,
+    "expected_enabling_tasks": 24,
+    "expected_domain_tasks": 146,
+    "expected_domains": 18,
+    "expected_ownership_packages": 30,
+    "expected_tasks_by_wave": {
+      "W0": 4,
+      "W1": 13,
+      "W2": 14,
+      "W3": 44,
+      "W4": 47,
+      "W5": 40,
+      "W6": 8
+    }
+  },
+  "scheduler_invariants": {
+    "maximum_active_agents": 32,
+    "maximum_active_builders_after_w0": 16,
+    "maximum_canonical_branch_writers": 1,
+    "maximum_workspace_test_slots": 1,
+    "maximum_release_gate_slots": 1,
+    "builder_concurrency_before_w0_exit": 0,
+    "builder_concurrency_unlock_gate": "W0-EXIT",
+    "one_workpacket_per_agent": true,
+    "one_implementer_per_workpacket": true,
+    "canonical_fast_forward_only": true,
+    "exclusive_contract_owner_packages": [
+      "P01",
+      "P06",
+      "P11",
+      "P13",
+      "P17",
+      "P25",
+      "P26",
+      "P28",
+      "P29"
+    ],
+    "required_semantic_locks": [
+      "contract:RuntimeEvent",
+      "contract:Session",
+      "contract:Tool",
+      "contract:Workflow",
+      "registry:commands",
+      "registry:tools",
+      "global:Cargo.lock",
+      "global:schema-index",
+      "global:release-workflow",
+      "policy:commercial-security"
+    ]
+  },
+  "dependency_unlock_policy": {
+    "policy_id": "canonical-baseline-only",
+    "task_card_ready_is_not_dependency_acceptance": true,
+    "worker_reported_completion_is_not_dependency_acceptance": true,
+    "review_passed_without_integration_is_not_dependency_acceptance": true,
+    "staging_branch_presence_is_not_dependency_acceptance": true,
+    "required_runtime_task_state": "accepted",
+    "required_commit_membership": "dependency accepted commit is reachable from the current canonical baseline and present in the new packet base commit",
+    "required_artifact_binding": "every declared dependency artifact hash matches the artifact recorded by its accepted VerificationPacket",
+    "required_contract_binding": "every contract hash in the new packet equals the contract hash in the current canonical baseline",
+    "required_approval_state": "all required approvals exist, match the accepted artifact and commit, and are not revoked",
+    "ready_set_recompile_trigger": "a new canonical baseline generation is recorded after fast-forward integration",
+    "stale_base_action": "relock the task, discard the old lease token, and compile a new WorkPacket attempt",
+    "failed_condition_action": "keep the task blocked and record the unmet task, artifact, approval, or baseline condition"
+  },
+  "global_task_gates": [
+    {
+      "gate_id": "GATE-W0-BASELINE",
+      "task_ids": [
+        "E01",
+        "E02",
+        "E03",
+        "E04"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "E02",
+        "E03",
+        "E04"
+      ],
+      "unlocks_wave": "W1",
+      "acceptance_rule": "All four tasks are accepted, E02 is the approved final base commit, and E04 validates all 170 task and ownership references."
+    },
+    {
+      "gate_id": "GATE-PUBLIC-CONTRACTS",
+      "task_ids": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "unlocks_task_dependencies": true,
+      "acceptance_rule": "Runtime/session, tool/policy, workflow/evidence, and app/release contract hashes are approved and integrated before any consumer packet is compiled."
+    },
+    {
+      "gate_id": "GATE-CONTROL-PLANE",
+      "task_ids": [
+        "E23",
+        "E24"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "E23",
+        "E24"
+      ],
+      "unlocks_task_dependencies": true,
+      "acceptance_rule": "SQLite leases and fencing, integration queues, merge trains, and resource semaphores pass restart and concurrency verification."
+    },
+    {
+      "gate_id": "GATE-HOTSPOT-DECOMPOSITION",
+      "task_ids": [
+        "E05",
+        "E06",
+        "E07",
+        "E08",
+        "E09",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15",
+        "E16",
+        "E17",
+        "E18"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "E07",
+        "E08",
+        "E09",
+        "E11",
+        "E12",
+        "E14",
+        "E17"
+      ],
+      "unlocks_wave": "W3",
+      "acceptance_rule": "All fourteen extractions retain their captured behavior, public contracts, route sets, registry order, and release blocker semantics."
+    },
+    {
+      "gate_id": "GATE-CROSS-DOMAIN-SCHEMAS",
+      "task_ids": [
+        "D16-07"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "D16-07"
+      ],
+      "unlocks_task_dependencies": true,
+      "acceptance_rule": "Cross-domain schema smoke binds the accepted D13 through D17 evidence and rejects incomplete or mismatched contracts."
+    },
+    {
+      "gate_id": "GATE-RELEASE-WATCHDOG-PROVENANCE",
+      "task_ids": [
+        "D18-01",
+        "D18-02"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "D18-01",
+        "D18-02"
+      ],
+      "unlocks_wave": "W6",
+      "acceptance_rule": "Release execution is bounded and every candidate binds source, dependency, toolchain, workflow, and artifact provenance before platform release jobs begin."
+    },
+    {
+      "gate_id": "GATE-COMMERCIAL-RELEASE",
+      "task_ids": [
+        "D18-03",
+        "D18-04",
+        "D18-05",
+        "D18-06",
+        "D18-07",
+        "D18-08",
+        "D18-09",
+        "D18-10"
+      ],
+      "required_terminal_state": "accepted",
+      "requires_canonical_baseline": true,
+      "requires_approval_task_ids": [
+        "D18-03",
+        "D18-04",
+        "D18-05",
+        "D18-06",
+        "D18-07",
+        "D18-08",
+        "D18-09",
+        "D18-10"
+      ],
+      "unlocks_program_completion": true,
+      "acceptance_rule": "Linux, macOS, Windows, enterprise offline, entitlement, live product, signed artifact, channel, and customer acceptance evidence all validate and D18-10 reports zero blockers."
+    }
+  ],
+  "wave_gates": [
+    {
+      "wave_id": "W0",
+      "name": "Baseline intake and canonicalization",
+      "expected_task_count": 4,
+      "maximum_active_builders": 0,
+      "task_scope": {
+        "exact_task_ids": [
+          "E01",
+          "E02",
+          "E03",
+          "E04"
+        ],
+        "domain_ids": [],
+        "ownership_packages": [
+          "P30"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W0-ENTRY-E01",
+          "kind": "task_catalog_status",
+          "task_ids": [
+            "E01"
+          ],
+          "required_status": "ready"
+        },
+        {
+          "condition_id": "W0-ENTRY-FREEZE",
+          "kind": "dispatch_policy",
+          "required_value": "Only baseline intake, review, and coordination may mutate planning state; no Builder WorkPacket may be leased."
+        }
+      ],
+      "exit_gate_id": "W0-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W0-EXIT-TASKS",
+          "kind": "accepted_tasks_in_canonical_baseline",
+          "task_ids": [
+            "E01",
+            "E02",
+            "E03",
+            "E04"
+          ]
+        },
+        {
+          "condition_id": "W0-EXIT-BASE",
+          "kind": "approved_baseline_commit",
+          "task_id": "E02",
+          "required_program_field": "baseline.final_base_commit",
+          "required_status": "materialized"
+        },
+        {
+          "condition_id": "W0-EXIT-CATALOG",
+          "kind": "catalog_integrity",
+          "task_id": "E04",
+          "required_counts": {
+            "tasks": 170,
+            "domains": 18,
+            "ownership_packages": 30,
+            "references": 38
+          }
+        },
+        {
+          "condition_id": "W0-EXIT-OWNERSHIP",
+          "kind": "ownership_completeness",
+          "required_value": "Every preserved source path and every task write path resolves to an ownership package with no unknown path."
+        }
+      ],
+      "required_verification_levels": [
+        "focused"
+      ],
+      "on_failure": "Keep maximum_active_builders at 0 and stop all new dispatch."
+    },
+    {
+      "wave_id": "W1",
+      "name": "Reliability, public contracts, and control plane",
+      "expected_task_count": 13,
+      "maximum_active_builders": 8,
+      "recommended_builder_ramp": [
+        4,
+        8
+      ],
+      "task_scope": {
+        "global_task_ids": [
+          "E19",
+          "E20",
+          "E21",
+          "E22",
+          "E23",
+          "E24"
+        ],
+        "domain_task_ids": [
+          "D01-01",
+          "D01-02",
+          "D02-01",
+          "D03-01",
+          "D05-01",
+          "D06-01",
+          "D06-03"
+        ],
+        "domain_ids": [
+          "D01",
+          "D02",
+          "D03",
+          "D05",
+          "D06"
+        ],
+        "ownership_packages": [
+          "P01",
+          "P11",
+          "P12",
+          "P13",
+          "P14",
+          "P25",
+          "P26",
+          "P28",
+          "P29",
+          "P30"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W1-ENTRY-BASELINE",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-W0-BASELINE"
+        },
+        {
+          "condition_id": "W1-ENTRY-CANONICAL",
+          "kind": "canonical_baseline_generation",
+          "required_value": "The packet base commit is compiled after E04 and contains the accepted E01 through E04 commits."
+        }
+      ],
+      "exit_gate_id": "W1-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W1-EXIT-TASKS",
+          "kind": "accepted_wave_tasks_in_canonical_baseline",
+          "wave_id": "W1",
+          "expected_count": 13
+        },
+        {
+          "condition_id": "W1-EXIT-CONTRACTS",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-PUBLIC-CONTRACTS"
+        },
+        {
+          "condition_id": "W1-EXIT-CONTROL",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-CONTROL-PLANE"
+        },
+        {
+          "condition_id": "W1-EXIT-BLOCKERS",
+          "kind": "severity_blocker_count",
+          "maximum_open_p0": 0,
+          "maximum_open_p1_in_w1_scope": 0
+        }
+      ],
+      "required_verification_levels": [
+        "focused",
+        "domain",
+        "integration"
+      ],
+      "on_failure": "Stop dependent dispatch, quarantine stale attempts, and retain the last accepted canonical baseline."
+    },
+    {
+      "wave_id": "W2",
+      "name": "Behavior-preserving hotspot decomposition",
+      "expected_task_count": 14,
+      "maximum_active_builders": 12,
+      "task_scope": {
+        "exact_task_ids": [
+          "E05",
+          "E06",
+          "E07",
+          "E08",
+          "E09",
+          "E10",
+          "E11",
+          "E12",
+          "E13",
+          "E14",
+          "E15",
+          "E16",
+          "E17",
+          "E18"
+        ],
+        "domain_ids": [],
+        "ownership_packages": [
+          "P07",
+          "P08",
+          "P13",
+          "P15",
+          "P16",
+          "P17",
+          "P19",
+          "P21",
+          "P24",
+          "P25",
+          "P26",
+          "P27",
+          "P29",
+          "P30"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W2-ENTRY-W1",
+          "kind": "wave_exit_passed",
+          "wave_exit_gate_id": "W1-EXIT"
+        },
+        {
+          "condition_id": "W2-ENTRY-GOLDENS",
+          "kind": "behavior_baseline_available",
+          "required_value": "Every E05 through E18 packet has captured route, schema, registry, output, or release-gate behavior appropriate to its scope."
+        }
+      ],
+      "exit_gate_id": "W2-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W2-EXIT-TASKS",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-HOTSPOT-DECOMPOSITION"
+        },
+        {
+          "condition_id": "W2-EXIT-CONTRACT-DRIFT",
+          "kind": "contract_hash_drift",
+          "maximum_unapproved_drift": 0
+        },
+        {
+          "condition_id": "W2-EXIT-BEHAVIOR",
+          "kind": "behavior_regression_count",
+          "maximum_regressions": 0
+        }
+      ],
+      "required_verification_levels": [
+        "focused",
+        "integration"
+      ],
+      "on_failure": "Reject the extraction train and restore the last accepted behavior-preserving baseline."
+    },
+    {
+      "wave_id": "W3",
+      "name": "Runtime, session, tool, workflow, and task execution",
+      "expected_task_count": 44,
+      "maximum_active_builders": 16,
+      "task_scope": {
+        "task_selector": "task.wave == W3",
+        "domain_ids": [
+          "D01",
+          "D02",
+          "D03",
+          "D04",
+          "D05",
+          "D06",
+          "D07",
+          "D09",
+          "D11",
+          "D16"
+        ],
+        "ownership_packages": [
+          "P01",
+          "P06",
+          "P10",
+          "P11",
+          "P12",
+          "P13",
+          "P14",
+          "P16",
+          "P20",
+          "P21",
+          "P25",
+          "P27"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W3-ENTRY-W2",
+          "kind": "wave_exit_passed",
+          "wave_exit_gate_id": "W2-EXIT"
+        },
+        {
+          "condition_id": "W3-ENTRY-DEPENDENCIES",
+          "kind": "canonical_dependency_resolution",
+          "policy_id": "canonical-baseline-only"
+        }
+      ],
+      "exit_gate_id": "W3-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W3-EXIT-TASKS",
+          "kind": "accepted_wave_tasks_in_canonical_baseline",
+          "wave_id": "W3",
+          "expected_count": 44
+        },
+        {
+          "condition_id": "W3-EXIT-RECOVERY",
+          "kind": "verification_category_passed",
+          "required_categories": [
+            "domain",
+            "concurrency",
+            "recovery",
+            "serial_and_default_parallel"
+          ]
+        },
+        {
+          "condition_id": "W3-EXIT-BLOCKERS",
+          "kind": "severity_blocker_count",
+          "maximum_open_p0": 0,
+          "maximum_open_p1_in_wave_scope": 0
+        }
+      ],
+      "required_verification_levels": [
+        "focused",
+        "domain",
+        "integration"
+      ],
+      "on_failure": "Stop the affected domain lane and every downstream task whose canonical dependency is not accepted."
+    },
+    {
+      "wave_id": "W4",
+      "name": "Provider, MCP, remote, knowledge, notebook, and client domains",
+      "expected_task_count": 47,
+      "maximum_active_builders": 16,
+      "task_scope": {
+        "task_selector": "task.wave == W4",
+        "domain_ids": [
+          "D07",
+          "D08",
+          "D09",
+          "D10",
+          "D12",
+          "D13",
+          "D14",
+          "D15",
+          "D16"
+        ],
+        "ownership_packages": [
+          "P06",
+          "P07",
+          "P08",
+          "P09",
+          "P10",
+          "P13",
+          "P15",
+          "P17",
+          "P18",
+          "P19",
+          "P22",
+          "P23",
+          "P24",
+          "P26"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W4-ENTRY-W3",
+          "kind": "wave_exit_passed",
+          "wave_exit_gate_id": "W3-EXIT"
+        },
+        {
+          "condition_id": "W4-ENTRY-DEPENDENCIES",
+          "kind": "canonical_dependency_resolution",
+          "policy_id": "canonical-baseline-only"
+        }
+      ],
+      "exit_gate_id": "W4-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W4-EXIT-TASKS",
+          "kind": "accepted_wave_tasks_in_canonical_baseline",
+          "wave_id": "W4",
+          "expected_count": 47
+        },
+        {
+          "condition_id": "W4-EXIT-E2E",
+          "kind": "domain_end_to_end_verification",
+          "domain_ids": [
+            "D07",
+            "D08",
+            "D09",
+            "D10",
+            "D12",
+            "D13",
+            "D14",
+            "D15",
+            "D16"
+          ]
+        },
+        {
+          "condition_id": "W4-EXIT-FAILURE-PATHS",
+          "kind": "negative_path_coverage",
+          "required_value": "Authentication, timeout, restart, malformed response, denied policy, stale state, and unavailable backend fixtures pass for every applicable domain."
+        }
+      ],
+      "required_verification_levels": [
+        "focused",
+        "domain",
+        "integration"
+      ],
+      "on_failure": "Block cross-domain wiring and retain the last accepted provider, transport, client, and knowledge-domain baselines."
+    },
+    {
+      "wave_id": "W5",
+      "name": "Cross-domain wiring, UI, observability, and release readiness",
+      "expected_task_count": 40,
+      "maximum_active_builders": 12,
+      "recommended_builder_ramp": [
+        8,
+        12
+      ],
+      "task_scope": {
+        "task_selector": "task.wave == W5",
+        "domain_ids": [
+          "D01",
+          "D02",
+          "D03",
+          "D04",
+          "D05",
+          "D06",
+          "D07",
+          "D08",
+          "D09",
+          "D10",
+          "D11",
+          "D12",
+          "D13",
+          "D14",
+          "D15",
+          "D16",
+          "D17",
+          "D18"
+        ],
+        "ownership_packages": [
+          "P04",
+          "P06",
+          "P07",
+          "P08",
+          "P10",
+          "P11",
+          "P13",
+          "P14",
+          "P15",
+          "P18",
+          "P19",
+          "P20",
+          "P21",
+          "P22",
+          "P25",
+          "P26",
+          "P27",
+          "P28",
+          "P29"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W5-ENTRY-W4",
+          "kind": "wave_exit_passed",
+          "wave_exit_gate_id": "W4-EXIT"
+        },
+        {
+          "condition_id": "W5-ENTRY-DEPENDENCIES",
+          "kind": "canonical_dependency_resolution",
+          "policy_id": "canonical-baseline-only"
+        }
+      ],
+      "exit_gate_id": "W5-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W5-EXIT-TASKS",
+          "kind": "accepted_wave_tasks_in_canonical_baseline",
+          "wave_id": "W5",
+          "expected_count": 40
+        },
+        {
+          "condition_id": "W5-EXIT-INTEGRATION",
+          "kind": "verification_level_passed",
+          "verification_level": "integration"
+        },
+        {
+          "condition_id": "W5-EXIT-SCHEMA",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-CROSS-DOMAIN-SCHEMAS"
+        },
+        {
+          "condition_id": "W5-EXIT-RELEASE-FOUNDATION",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-RELEASE-WATCHDOG-PROVENANCE"
+        },
+        {
+          "condition_id": "W5-EXIT-BLOCKERS",
+          "kind": "severity_blocker_count",
+          "maximum_open_p0": 0,
+          "maximum_open_p1": 0,
+          "maximum_stale_required_evidence": 0
+        }
+      ],
+      "required_verification_levels": [
+        "focused",
+        "domain",
+        "integration"
+      ],
+      "on_failure": "Reject the integration train, bisect the minimum failing packet set, and keep commercial dispatch disabled."
+    },
+    {
+      "wave_id": "W6",
+      "name": "Platform and commercial acceptance",
+      "expected_task_count": 8,
+      "maximum_active_builders": 4,
+      "recommended_builder_ramp": [
+        2,
+        4
+      ],
+      "task_scope": {
+        "exact_task_ids": [
+          "D18-03",
+          "D18-04",
+          "D18-05",
+          "D18-06",
+          "D18-07",
+          "D18-08",
+          "D18-09",
+          "D18-10"
+        ],
+        "domain_ids": [
+          "D18"
+        ],
+        "ownership_packages": [
+          "P28",
+          "P29"
+        ]
+      },
+      "entry_conditions": [
+        {
+          "condition_id": "W6-ENTRY-W5",
+          "kind": "wave_exit_passed",
+          "wave_exit_gate_id": "W5-EXIT"
+        },
+        {
+          "condition_id": "W6-ENTRY-RELEASE-FOUNDATION",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-RELEASE-WATCHDOG-PROVENANCE"
+        },
+        {
+          "condition_id": "W6-ENTRY-CANDIDATE",
+          "kind": "immutable_release_candidate",
+          "required_value": "One source commit, version, dependency lock hash, workflow identity, and artifact manifest are frozen before platform jobs start."
+        }
+      ],
+      "exit_gate_id": "W6-EXIT",
+      "exit_conditions": [
+        {
+          "condition_id": "W6-EXIT-COMMERCIAL",
+          "kind": "global_gate_passed",
+          "gate_id": "GATE-COMMERCIAL-RELEASE"
+        },
+        {
+          "condition_id": "W6-EXIT-BLOCKERS",
+          "kind": "commercial_blocker_report",
+          "task_id": "D18-10",
+          "required_status": "ready",
+          "required_blocking_count": 0
+        },
+        {
+          "condition_id": "W6-EXIT-PROGRAM",
+          "kind": "program_done",
+          "required_domain_count": 18,
+          "required_reference_count": 38,
+          "required_platforms": [
+            "linux",
+            "macos",
+            "windows"
+          ]
+        }
+      ],
+      "required_verification_levels": [
+        "focused",
+        "domain",
+        "integration",
+        "commercial"
+      ],
+      "on_failure": "Stop promotion, preserve the previous verified channel pointer, and restore the applicable commercial blocker."
+    }
+  ],
+  "stop_the_line_conditions": [
+    "canonical baseline drift",
+    "unknown file ownership",
+    "lease or fencing violation",
+    "contract hash drift without accepted approval",
+    "missing, corrupt, stale, or hash-mismatched evidence",
+    "secret disclosure",
+    "canonical branch write by any actor other than the Global Merge Controller",
+    "verification backlog greater than two micro-waves",
+    "the same execution failure recurring twice",
+    "commercial proof issuer or source cannot be authenticated"
+  ]
+}

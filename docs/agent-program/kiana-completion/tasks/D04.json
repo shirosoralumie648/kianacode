@@ -1,0 +1,339 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D04",
+  "expected_count": 7,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-01",
+      "title": "Atomic file mutation evidence",
+      "outcome": "Each FileWrite, FileEdit, or FileDelete commits atomically and emits exact changed-files evidence.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P13"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D03-03",
+        "D03-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/file_write.rs",
+        "kiana-tools/src/file_edit.rs",
+        "kiana-tools/src/file_delete.rs",
+        "kiana-tools/src/tool_execution.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools file_mutation_is_atomic_and_reports_exact_change --lib --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A successful mutation reports before hash, after hash, and operation type.",
+        "A failed or stale mutation preserves the original file and emits no changed-files entry."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-01",
+        "review-packet:D04-01",
+        "verification-packet:D04-01"
+      ],
+      "required_approvals": [
+        "owner:P13",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-02",
+      "title": "Content-addressed checkpoint creation",
+      "outcome": "A checkpoint manifest binds the complete staged, unstaged, and untracked baseline content.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D04-01",
+        "D02-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/checkpoint.rs",
+        "kiana-commands/tests/checkpoint_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test checkpoint_command checkpoint_manifest_binds_all_baseline_content --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The manifest hash covers patches, untracked bytes, file mode, and HEAD identity.",
+        "Creating a checkpoint does not modify the active worktree."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-02",
+        "review-packet:D04-02",
+        "verification-packet:D04-02"
+      ],
+      "required_approvals": [
+        "owner:P20"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-03",
+      "title": "Exact checkpoint restore and undo",
+      "outcome": "Restore and undo return in-scope paths to checkpoint descriptors without touching out-of-scope paths.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D04-02",
+        "D03-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/checkpoint.rs",
+        "kiana-commands/tests/checkpoint_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test checkpoint_command restore_round_trip_preserves_out_of_scope_paths --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Tracked, untracked, deleted, and mode states match the checkpoint manifest after restore.",
+        "A root or hash mismatch causes zero mutation."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-03",
+        "review-packet:D04-03",
+        "verification-packet:D04-03"
+      ],
+      "required_approvals": [
+        "owner:P20",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-04",
+      "title": "Session-scoped diff projection",
+      "outcome": "The diff command aggregates only this session's canonical RuntimeEvent changed-files evidence.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "medium",
+      "depends_on": [
+        "D04-01",
+        "D02-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/diff.rs",
+        "kiana-commands/tests/diff_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test diff_command session_changes_diff_uses_canonical_runtime_events --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Repeated modification, rename, delete, and failed tool evidence is deduplicated in stable order.",
+        "Legacy sessions without evidence report unavailable instead of inferring changes."
+      ],
+      "requires_approval": false,
+      "exclusive": false,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-04",
+        "review-packet:D04-04",
+        "verification-packet:D04-04"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-05",
+      "title": "Typed Git commit transaction",
+      "outcome": "The commit command performs a scope-constrained typed stage-and-commit transaction instead of returning a prompt.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D04-02",
+        "D03-08",
+        "E16"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/commit.rs",
+        "kiana-commands/tests/commit_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test commit_command commit_stages_only_selected_safe_paths --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Only explicit paths can be staged and secret-like or out-of-scope files are rejected.",
+        "Success returns a commit identity without amend or hook bypass."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-05",
+        "review-packet:D04-05",
+        "verification-packet:D04-05"
+      ],
+      "required_approvals": [
+        "owner:P20",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-06",
+      "title": "Isolated checks execution",
+      "outcome": "The checks command runs quality gates in an isolated copy and returns typed findings.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D04-02",
+        "D03-08"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/checks.rs",
+        "kiana-commands/tests/checks_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test checks_command checks_run_does_not_mutate_active_worktree --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The active worktree hash is unchanged after a checks run.",
+        "Each gate records command, status, duration, output hash, and typed timeout or spawn failure."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-06",
+        "review-packet:D04-06",
+        "verification-packet:D04-06"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D04-07",
+      "title": "Review gate over exact patch",
+      "outcome": "The review command generates reproducible findings and a decision for a checkpoint-bound patch.",
+      "domain_id": "D04",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "high",
+      "depends_on": [
+        "D04-03",
+        "D04-04",
+        "D04-06"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/review.rs",
+        "kiana-commands/tests/review_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test review_command review_decision_binds_checkpoint_patch_and_checks --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The report binds checkpoint, patch, and checks hashes and reports stale input after drift.",
+        "A blocking finding always yields a failed decision."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:aider:domain:D04",
+        "reference:continue:domain:D04",
+        "reference:Roo-Code:domain:D04"
+      ],
+      "required_artifacts": [
+        "result-packet:D04-07",
+        "review-packet:D04-07",
+        "verification-packet:D04-07"
+      ],
+      "required_approvals": [
+        "owner:P20"
+      ]
+    }
+  ]
+}

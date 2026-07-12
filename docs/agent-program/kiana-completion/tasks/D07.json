@@ -1,0 +1,366 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D07",
+  "expected_count": 7,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-01",
+      "title": "Skill source trust precedence",
+      "outcome": "Resolve one active skill version from managed, plugin, user, and project sources while enforcing project trust.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P10"
+      ],
+      "wave": "W3",
+      "task_type": "contract",
+      "risk": "high",
+      "depends_on": [
+        "E20"
+      ],
+      "candidate_write_paths": [
+        "kiana-skills/src/loader.rs",
+        "kiana-skills/src/dynamic.rs",
+        "kiana-skills/src/types.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-skills skill_source_precedence_respects_project_trust --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Untrusted project skills are not loaded while trusted sources remain available.",
+        "The active source and every shadow reason are deterministic and auditable."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-01",
+        "review-packet:D07-01",
+        "verification-packet:D07-01",
+        "contract-hash:D07-01"
+      ],
+      "required_approvals": [
+        "owner:P10"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-02",
+      "title": "In-process skill cache lifecycle",
+      "outcome": "Make skill queries reflect plugin install, enable, and disable operations in the same process without stale cache entries.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P10",
+        "P19"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "E11",
+        "D07-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-skills/src/lib.rs",
+        "kiana-skills/src/plugins.rs",
+        "kiana-commands/src/reload_plugins.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-skills plugin_skill_cache_tracks_install_enable_disable_in_process --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Installing or enabling a plugin makes its skills visible without process restart.",
+        "Disabling a plugin removes its skills from every active query surface."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-02",
+        "review-packet:D07-02",
+        "verification-packet:D07-02"
+      ],
+      "required_approvals": [
+        "owner:P19"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-03",
+      "title": "Plugin component contract validation",
+      "outcome": "Validate plugin manifest, MCP, LSP, hook, and app components as one fail-closed pre-install contract.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P19",
+        "P10"
+      ],
+      "wave": "W4",
+      "task_type": "contract",
+      "risk": "high",
+      "depends_on": [
+        "E11"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/plugin.rs",
+        "kiana-commands/src/plugin_commands.rs",
+        "kiana-skills/src/plugins.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands plugin_validate_reports_all_invalid_components_without_installing --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Any invalid component prevents installation before files or state are committed.",
+        "Validation reports the component path and a typed failure reason."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-03",
+        "review-packet:D07-03",
+        "verification-packet:D07-03",
+        "contract-hash:D07-03"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-04",
+      "title": "Plugin receipt authenticity binding",
+      "outcome": "Bind each plugin receipt to installed content, signature metadata, and the exact marketplace source used for installation.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P19"
+      ],
+      "wave": "W4",
+      "task_type": "contract",
+      "risk": "critical",
+      "depends_on": [
+        "D07-03"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/plugin.rs",
+        "kiana-commands/src/plugin_commands.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands plugin_receipt_rejects_post_install_content_or_source_tampering --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Plugin inspection and reload fail closed after installed content or source metadata is changed.",
+        "Receipt verification never treats an unverified signature label as authenticity proof."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-04",
+        "review-packet:D07-04",
+        "verification-packet:D07-04",
+        "contract-hash:D07-04"
+      ],
+      "required_approvals": [
+        "owner:P19",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-05",
+      "title": "Atomic scoped plugin installation",
+      "outcome": "Commit or roll back plugin files, scoped state, and receipt as one installation transaction.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P19",
+        "P17"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D07-04"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/plugin.rs",
+        "kiana-commands/src/plugin_commands.rs",
+        "kiana-commands/src/local_state.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands plugin_install_failure_rolls_back_files_state_and_receipt --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A failure in any installation stage leaves no partial directory, state entry, or receipt.",
+        "User, project, and local scopes retain independent atomic outcomes."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-05",
+        "review-packet:D07-05",
+        "verification-packet:D07-05"
+      ],
+      "required_approvals": [
+        "owner:P19",
+        "owner:P17"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-06",
+      "title": "Hook trust and execution boundary",
+      "outcome": "Enforce source trust, matcher selection, timeout, cancellation, and output validation for every plugin hook execution.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P19",
+        "P09",
+        "P10"
+      ],
+      "wave": "W4",
+      "task_type": "contract",
+      "risk": "critical",
+      "depends_on": [
+        "E20",
+        "D07-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-query/src/stop_hooks.rs",
+        "kiana-commands/src/hooks.rs",
+        "kiana-skills/src/plugins.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-query plugin_hooks_respect_trust_timeout_and_cancellation --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Hooks from untrusted projects or disabled plugins never execute.",
+        "Timed out or cancelled hooks terminate and report their source without leaking hook input secrets."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-06",
+        "review-packet:D07-06",
+        "verification-packet:D07-06",
+        "contract-hash:D07-06"
+      ],
+      "required_approvals": [
+        "owner:P19",
+        "contract-security-controller",
+        "owner:P09",
+        "owner:P10"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D07-07",
+      "title": "Atomic plugin runtime activation",
+      "outcome": "Publish plugin skills, hooks, and MCP or LSP components as one consistent in-process reload snapshot.",
+      "domain_id": "D07",
+      "ownership_packages": [
+        "P19",
+        "P10"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "high",
+      "depends_on": [
+        "E16",
+        "D07-02",
+        "D07-03",
+        "D07-06"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/reload_plugins.rs",
+        "kiana-commands/src/skills.rs",
+        "kiana-commands/src/mcp.rs",
+        "kiana-skills/src/plugins.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands reload_plugins_publishes_one_consistent_component_snapshot --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "All consumers observe either the complete pre-reload snapshot or the complete post-reload snapshot.",
+        "Disabling a plugin removes every component type in the same publication step."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:skills:domain:D07",
+        "reference:awesome-agent-skills:domain:D07",
+        "reference:ECC:domain:D07",
+        "reference:everything-claude-code:domain:D07",
+        "reference:claude-code-main (2):domain:D07"
+      ],
+      "required_artifacts": [
+        "result-packet:D07-07",
+        "review-packet:D07-07",
+        "verification-packet:D07-07"
+      ],
+      "required_approvals": []
+    }
+  ]
+}

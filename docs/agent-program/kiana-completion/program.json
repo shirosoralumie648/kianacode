@@ -1,0 +1,45 @@
+{
+  "schema": "kiana.agent-program.v1",
+  "program_id": "kiana-completion-2026-07-13",
+  "title": "Kiana complete reference-capability and commercial delivery program",
+  "spec_path": "docs/superpowers/specs/2026-07-13-kiana-hundred-agent-completion-program-design.md",
+  "spec_commit": "a55c521",
+  "status": "blocked_on_w0_baseline",
+  "counts": {
+    "references": 38,
+    "domains": 18,
+    "ownership_packages": 30,
+    "enabling_tasks": 24,
+    "domain_tasks": 146,
+    "total_tasks": 170,
+    "standard_roster": 120,
+    "maximum_active_agents": 32,
+    "maximum_active_builders": 16
+  },
+  "baseline": {
+    "audit_input_head": "cbef0efd34e9a227d10b27b67bb48563126fa0ab",
+    "audit_input_status_entries": 117,
+    "all_input_changes_are_user_approved_for_preservation": true,
+    "final_base_commit": null,
+    "final_base_status": "not_materialized",
+    "materialization_task": "E02"
+  },
+  "execution": {
+    "primary_agent_runtime": "codex",
+    "control_plane_phase": "external_first_then_kiana_shadow_cutover",
+    "canonical_branch_writer_limit": 1,
+    "cargo_slots": 4,
+    "workspace_test_slots": 1,
+    "release_gate_slots": 1,
+    "next_ready_task": "E01"
+  },
+  "catalog_paths": {
+    "task_schema": "docs/agent-program/kiana-completion/task-card.schema.json",
+    "domains": "docs/agent-program/kiana-completion/domains.json",
+    "ownership": "docs/agent-program/kiana-completion/ownership.json",
+    "references": "docs/agent-program/kiana-completion/references.json",
+    "tasks": "docs/agent-program/kiana-completion/tasks",
+    "dag_gates": "docs/agent-program/kiana-completion/dags/gates.json",
+    "verification_gates": "docs/agent-program/kiana-completion/acceptance/verification-gates.json"
+  }
+}

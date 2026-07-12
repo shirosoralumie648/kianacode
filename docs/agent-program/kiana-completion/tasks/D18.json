@@ -1,0 +1,583 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D18",
+  "expected_count": 10,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-01",
+      "title": "Release gate watchdog and selector integrity",
+      "outcome": "Every release stage has a bounded watchdog, actionable process diagnostics, and selectors that identify real tests.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29"
+      ],
+      "wave": "W5",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "E17",
+        "E22",
+        "E24",
+        "D16-05"
+      ],
+      "candidate_write_paths": [
+        "scripts/release-preflight.sh",
+        "scripts/release-smoke.sh",
+        "scripts/tests/release-gate-watchdog-smoke.sh"
+      ],
+      "verification": {
+        "command": "bash scripts/tests/release-gate-watchdog-smoke.sh",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "An injected hung child is terminated as a complete process group within policy and reports stage, process identity, elapsed time, and last command.",
+        "Missing selectors fail before execution, valid fixtures advance to the next gate, and no fix relies on extending timeouts or skipping tests."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-01",
+        "review-packet:D18-01",
+        "verification-packet:D18-01",
+        "release-proof:D18-01"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-02",
+      "title": "Reproducible package SBOM and provenance",
+      "outcome": "Reviewed source and toolchain inputs produce reproducible release content, complete dependency inventory, and verifiable build provenance.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29"
+      ],
+      "wave": "W5",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-01"
+      ],
+      "candidate_write_paths": [
+        "scripts/package-release.sh",
+        "scripts/generate-release-provenance.sh",
+        "scripts/tests/release-provenance-smoke.sh"
+      ],
+      "verification": {
+        "command": "bash scripts/tests/release-provenance-smoke.sh",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Two clean builds have identical normalized manifests and content or provide a complete deterministic explanation for every difference.",
+        "The dependency and license inventory is complete, provenance binds source, dirty state, toolchain, runner, and artifact hashes, and tampering or omission fails verification."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-02",
+        "review-packet:D18-02",
+        "verification-packet:D18-02",
+        "release-proof:D18-02"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-03",
+      "title": "Linux install upgrade rollback acceptance",
+      "outcome": "A signed Linux artifact completes clean non-root install, runtime smoke, upgrade, rollback, and uninstall on supported runners.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-02",
+        "D16-07"
+      ],
+      "candidate_write_paths": [
+        "scripts/package-lifecycle-smoke.sh",
+        "scripts/install-release-binary.sh",
+        "scripts/linux-release-smoke.sh",
+        ".github/workflows/release-linux.yml"
+      ],
+      "verification": {
+        "command": "bash scripts/linux-release-smoke.sh --build-local --require-signature",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A clean supported runner without repository or target artifacts executes version, doctor, and core prompt smoke from the installed package.",
+        "Upgrade preserves configuration and sessions, a bad release rolls back, uninstall retains user data, and proof binds distribution, architecture, kernel, signature, and artifact hash."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-03",
+        "review-packet:D18-03",
+        "verification-packet:D18-03",
+        "release-proof:D18-03"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-04",
+      "title": "macOS codesign notarization and runtime acceptance",
+      "outcome": "A macOS artifact passes architecture, trusted signing, notarization, stapling, Gatekeeper, and installation checks on a real runner.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29",
+        "P28"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-02",
+        "D16-07"
+      ],
+      "candidate_write_paths": [
+        "scripts/macos-release-smoke.sh",
+        ".github/workflows/release-macos.yml",
+        "docs/schemas/kiana-macos-notarization.v1.schema.json"
+      ],
+      "verification": {
+        "command": "bash scripts/macos-release-smoke.sh --require-signing --require-notarization",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Ad-hoc or test identities, unstapled tickets, wrong teams or bundles, and artifact-hash mismatches are rejected on a macOS release runner.",
+        "Accepted proof includes Apple request and status, team identity, notarization timestamps, signing chain, Gatekeeper result, operating system, and architecture."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-04",
+        "review-packet:D18-04",
+        "verification-packet:D18-04",
+        "release-proof:D18-04"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "owner:P28",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-05",
+      "title": "Windows signing installer native-host and sandbox acceptance",
+      "outcome": "A Windows artifact passes trusted signing, installer lifecycle, native-host registration, and sandbox security checks on a real runner.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P28",
+        "P29"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-02",
+        "D16-07"
+      ],
+      "candidate_write_paths": [
+        "scripts/windows-release-smoke.ps1",
+        ".github/workflows/release-windows.yml",
+        "docs/schemas/kiana-platform-security-proof.v1.schema.json"
+      ],
+      "verification": {
+        "command": "pwsh -NoProfile -File scripts/windows-release-smoke.ps1 -RequireAuthenticode -RequireNativeHost -RequireSandbox",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Unsigned, wrong-publisher, or tampered installers, incorrect registry identity, and process or file sandbox escape are rejected.",
+        "Install, upgrade, rollback, uninstall, and Chrome native-host round trip pass and bind runner, build, publisher, signature, and artifact hashes."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-05",
+        "review-packet:D18-05",
+        "verification-packet:D18-05",
+        "release-proof:D18-05"
+      ],
+      "required_approvals": [
+        "owner:P05",
+        "owner:P28",
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-06",
+      "title": "Enterprise offline bundle enforcement",
+      "outcome": "An enterprise bundle completes offline installation, license validation, core workflow, and evidence export with networking forcibly disabled.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29",
+        "P28"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-02",
+        "D18-03",
+        "D18-04",
+        "D18-05"
+      ],
+      "candidate_write_paths": [
+        "scripts/package-release.sh",
+        "scripts/enterprise-offline-smoke.sh",
+        "docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json",
+        "scripts/tests/enterprise-offline-smoke.sh"
+      ],
+      "verification": {
+        "command": "bash scripts/tests/enterprise-offline-smoke.sh",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A network namespace or firewall canary proves zero external connections while the bundle installs and executes its required workflow on a clean isolated runner.",
+        "The manifest covers every dependency and hash, and missing dependencies, expiration, online fallback, and artifact tampering fail."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-06",
+        "review-packet:D18-06",
+        "verification-packet:D18-06",
+        "release-proof:D18-06"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "owner:P28",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-07",
+      "title": "Entitlement expiry revocation and customer binding",
+      "outcome": "Release entitlement decisions enforce issuer, customer, product, feature, expiry, revocation, and offline-grace constraints.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P28",
+        "P29"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-06"
+      ],
+      "candidate_write_paths": [
+        "scripts/entitlement-proof-report.sh",
+        "scripts/tests/entitlement-enforcement-smoke.sh",
+        "docs/schemas/kiana-entitlement-proof.v1.schema.json"
+      ],
+      "verification": {
+        "command": "bash scripts/tests/entitlement-enforcement-smoke.sh",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A valid entitlement opens only authorized features, while expiry, revocation, wrong customer or product, wrong issuer, invalid signature, and clock rollback are rejected.",
+        "Offline grace is auditable and expires closed, and proof omits secrets while binding entitlement hash, trust-root version, and decision time."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-07",
+        "review-packet:D18-07",
+        "verification-packet:D18-07",
+        "release-proof:D18-07"
+      ],
+      "required_approvals": [
+        "owner:P28",
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-08",
+      "title": "Published-artifact live product matrix",
+      "outcome": "A strict release matrix accepts only authenticated live provider, remote, MCP, and Web or IDE proofs from the same published artifact.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D13-09",
+        "D14-06",
+        "D15-08",
+        "D16-07",
+        "D17-07",
+        "D18-03",
+        "D18-04",
+        "D18-05"
+      ],
+      "candidate_write_paths": [
+        "scripts/live-product-e2e-smoke.sh",
+        "scripts/provider-live-smoke.sh",
+        "scripts/remote-live-smoke.sh",
+        "scripts/product-shell-smoke.sh",
+        ".github/workflows/release-live.yml"
+      ],
+      "verification": {
+        "command": "KIANA_LIVE_SMOKE_REQUIRED=1 bash scripts/live-product-e2e-smoke.sh",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Missing credentials, mock endpoints, mismatched artifacts, provider-only non-tool loops, remote without round trip, fake MCP transport, and schema-only clients fail the matrix.",
+        "Every accepted cell binds request, session, endpoint identity, published artifact hash, and timestamps, and the release runner removes credentials after execution."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-08",
+        "review-packet:D18-08",
+        "verification-packet:D18-08",
+        "release-proof:D18-08"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-09",
+      "title": "Signed commercial proof and channel promotion",
+      "outcome": "Trusted signatures jointly bind commercial proof, release artifacts, and candidate or stable channel pointers with verifiable rollback.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29",
+        "P28"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-07",
+        "D18-08"
+      ],
+      "candidate_write_paths": [
+        "scripts/sign-release-artifacts.sh",
+        "scripts/verify-commercial-release-artifacts.sh",
+        "scripts/stage-commercial-release-proofs.sh",
+        "scripts/publish-release-channel.sh",
+        "docs/schemas/kiana-release-signature.v1.schema.json",
+        "docs/schemas/kiana-commercial-proof-manifest.v1.schema.json"
+      ],
+      "verification": {
+        "command": "KIANA_RELEASE_PROOF_REQUIRED=1 bash scripts/verify-commercial-release-artifacts.sh --strict",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Example or self-signed proof, missing or revoked issuers, expired signatures, hash mismatches, and stable promotion before candidate acceptance are rejected.",
+        "Channel promotion is atomic, the previous pointer supports verified rollback, and the manifest includes every required D13 through D18 proof hash."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-09",
+        "review-packet:D18-09",
+        "verification-packet:D18-09",
+        "release-proof:D18-09"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "owner:P28",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D18-10",
+      "title": "Zero-blocker customer release acceptance",
+      "outcome": "Commercial blockers close only when platform, live-service, signing, channel, entitlement, operations, and customer acceptance proof are current and valid.",
+      "domain_id": "D18",
+      "ownership_packages": [
+        "P29"
+      ],
+      "wave": "W6",
+      "task_type": "release",
+      "risk": "critical",
+      "depends_on": [
+        "D18-01",
+        "D18-02",
+        "D18-03",
+        "D18-04",
+        "D18-05",
+        "D18-06",
+        "D18-07",
+        "D18-08",
+        "D18-09",
+        "D16-06"
+      ],
+      "candidate_write_paths": [
+        "scripts/commercial-release-blockers-report.sh",
+        "scripts/commercial-release-handoff-smoke.sh",
+        "scripts/release-ops-report.sh",
+        ".github/workflows/release.yml",
+        "docs/release-checklist.md"
+      ],
+      "verification": {
+        "command": "bash scripts/commercial-release-blockers-report.sh --fail-on-blockers --json",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Local, external, and total blocking counts are zero without skip flags, compliance bypasses, or example proof.",
+        "Customer acceptance binds a named owner, accepted artifact and version, scenarios, results, time, and signature; stale or revoked proof restores blockers and stops stable promotion."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D18",
+        "reference:OpenHands:domain:D18",
+        "reference:12-factor-agents:domain:D18",
+        "reference:claude-code-rust:domain:D18"
+      ],
+      "required_artifacts": [
+        "result-packet:D18-10",
+        "review-packet:D18-10",
+        "verification-packet:D18-10",
+        "release-proof:D18-10"
+      ],
+      "required_approvals": [
+        "owner:P29",
+        "contract-security-controller",
+        "release-controller",
+        "release-security-controller",
+        "product-owner"
+      ]
+    }
+  ]
+}

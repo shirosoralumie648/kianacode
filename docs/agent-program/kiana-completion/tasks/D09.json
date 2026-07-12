@@ -1,0 +1,438 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D09",
+  "expected_count": 9,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-01",
+      "title": "Fallible API header construction",
+      "outcome": "Return a redacted configuration error instead of panicking when an API credential cannot form a valid HTTP header.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W3",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "E19"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/client.rs",
+        "kiana-services/src/api/messages.rs",
+        "kiana-services/src/api/streaming.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services invalid_api_key_header_is_error_not_panic --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Credentials containing forbidden header characters fail safely in synchronous and streaming entrypoints.",
+        "The returned error never includes the credential value."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-01",
+        "review-packet:D09-01",
+        "verification-packet:D09-01"
+      ],
+      "required_approvals": [
+        "owner:P06",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-02",
+      "title": "Typed provider capability registry",
+      "outcome": "Publish one provider, model, and capability snapshot shared by catalog, selection, and runtime execution.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W4",
+      "task_type": "contract",
+      "risk": "high",
+      "depends_on": [
+        "D09-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/provider.rs",
+        "kiana-services/src/api/mod.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services provider_registry_catalog_matches_runtime_capabilities --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Catalog, selector, and runtime agree on streaming, tools, and thinking capabilities.",
+        "Unavailable or unverified capabilities are reported explicitly rather than inferred."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-02",
+        "review-packet:D09-02",
+        "verification-packet:D09-02",
+        "contract-hash:D09-02"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-03",
+      "title": "Anthropic response fidelity",
+      "outcome": "Preserve mixed content, tool calls, thinking blocks, usage, request identity, and typed errors in non-stream Anthropic responses.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D09-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/messages.rs",
+        "kiana-services/src/api/provider.rs",
+        "kiana-services/src/api/errors.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services anthropic_response_preserves_mixed_content_usage_and_error_type --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "No supported content block or usage field is discarded during response conversion.",
+        "Provider status and request identity survive typed error mapping."
+      ],
+      "requires_approval": false,
+      "exclusive": false,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-03",
+        "review-packet:D09-03",
+        "verification-packet:D09-03"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-04",
+      "title": "Streaming retry deduplication",
+      "outcome": "Aggregate streaming deltas and partial usage across disconnect boundaries without duplicating already emitted output.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D09-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/streaming.rs",
+        "kiana-services/src/api/retry.rs",
+        "kiana-services/src/api/provider.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services stream_retry_never_duplicates_emitted_content_or_usage --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A retry never republishes content or usage already delivered to the caller.",
+        "A terminal disconnect retains partial output and partial usage in the error contract."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-04",
+        "review-packet:D09-04",
+        "verification-packet:D09-04"
+      ],
+      "required_approvals": [
+        "owner:P06",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-05",
+      "title": "OpenAI-compatible provider parity",
+      "outcome": "Map OpenAI-compatible text, tool calls, usage, authentication, throttling, and malformed responses into the common provider contract.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D09-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/provider.rs",
+        "kiana-services/src/api/errors.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services openai_compatible_adapter_matches_provider_contract --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Text and tool-call responses preserve their usage and stop reason.",
+        "Authentication, throttling, and malformed responses produce distinct typed errors."
+      ],
+      "requires_approval": false,
+      "exclusive": false,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-05",
+        "review-packet:D09-05",
+        "verification-packet:D09-05"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-06",
+      "title": "Honest Ollama capability boundary",
+      "outcome": "Expose local model discovery, chat, tool support, timeout, and daemon availability without claiming unverified capabilities.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D09-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/provider.rs",
+        "kiana-services/src/api/errors.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services ollama_adapter_reports_unavailable_and_tool_capability_honestly --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A missing daemon fails quickly with an unavailable classification.",
+        "Tool capability is reported only when verified for the selected local model."
+      ],
+      "requires_approval": false,
+      "exclusive": false,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-06",
+        "review-packet:D09-06",
+        "verification-packet:D09-06"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-07",
+      "title": "Transactional OAuth refresh store",
+      "outcome": "Refresh OAuth credentials once under concurrency and persist one owner-restricted atomic token snapshot.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D09-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/oauth.rs",
+        "kiana-services/src/auth.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services concurrent_oauth_refresh_writes_one_valid_token_snapshot --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Concurrent refresh callers perform one refresh and receive the same accepted token generation.",
+        "The token file remains valid, atomic, and owner-restricted throughout replacement."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-07",
+        "review-packet:D09-07",
+        "verification-packet:D09-07"
+      ],
+      "required_approvals": [
+        "owner:P06",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-08",
+      "title": "Unified effective auth and model view",
+      "outcome": "Make auth, model, and resolved-config commands report the same redacted provider and source snapshot.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P18"
+      ],
+      "wave": "W4",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "D09-02",
+        "D09-07"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/auth.rs",
+        "kiana-commands/src/model.rs",
+        "kiana-commands/src/config.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands auth_model_config_share_effective_redacted_provider_snapshot --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "All three commands agree on effective provider, model, endpoint, and source precedence.",
+        "No command response exposes API keys, access tokens, or refresh tokens."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-08",
+        "review-packet:D09-08",
+        "verification-packet:D09-08"
+      ],
+      "required_approvals": [
+        "owner:P18",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D09-09",
+      "title": "Explainable runner provider fallback",
+      "outcome": "Select and fall back between providers without duplicating tool side effects while preserving every attempt reason and usage record.",
+      "domain_id": "D09",
+      "ownership_packages": [
+        "P25"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "E07",
+        "D09-03",
+        "D09-04",
+        "D09-05",
+        "D09-06",
+        "D09-08"
+      ],
+      "candidate_write_paths": [
+        "kiana-entrypoints/src/runner.rs",
+        "kiana-entrypoints/src/sdk.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-entrypoints runner_fallback_preserves_attempt_errors_usage_and_stop_reason --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Fallback never replays a tool mutation from a partially completed attempt.",
+        "The terminal result identifies the actual provider, model, attempt reasons, usage, and stop reason."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:pi:domain:D09",
+        "reference:cline:domain:D09",
+        "reference:langchain:domain:D09",
+        "reference:codex:domain:D09"
+      ],
+      "required_artifacts": [
+        "result-packet:D09-09",
+        "review-packet:D09-09",
+        "verification-packet:D09-09"
+      ],
+      "required_approvals": [
+        "owner:P25",
+        "contract-security-controller"
+      ]
+    }
+  ]
+}

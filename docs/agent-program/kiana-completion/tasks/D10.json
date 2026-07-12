@@ -1,0 +1,356 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D10",
+  "expected_count": 7,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-01",
+      "title": "Idempotent code-session API",
+      "outcome": "Create and access cloud code sessions with typed HTTP errors, idempotency, and one bounded authentication retry.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P23"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D09-07"
+      ],
+      "candidate_write_paths": [
+        "kiana-remote/src/code_session_api.rs",
+        "kiana-remote/src/types.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-remote code_session_create_retries_auth_once_without_duplicate_session --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A 401 refresh retry creates at most one remote session.",
+        "Deterministic client errors are returned without retry."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-01",
+        "review-packet:D10-01",
+        "verification-packet:D10-01"
+      ],
+      "required_approvals": [
+        "owner:P23",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-02",
+      "title": "Remote websocket sequence recovery",
+      "outcome": "Reconnect remote session websockets from a persisted sequence watermark without missing or duplicating events.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P23"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "E19",
+        "D09-07"
+      ],
+      "candidate_write_paths": [
+        "kiana-remote/src/sessions_websocket.rs",
+        "kiana-remote/src/remote_session_manager.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-remote remote_websocket_reconnects_from_watermark_without_duplicate_events --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Reconnect resumes after the last accepted sequence with no gaps or duplicates.",
+        "Echo and redelivery suppression does not discard a distinct user event."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-02",
+        "review-packet:D10-02",
+        "verification-packet:D10-02"
+      ],
+      "required_approvals": [
+        "owner:P23",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-03",
+      "title": "Fenced CCR worker lifecycle",
+      "outcome": "Close the CCR worker register, epoch, heartbeat, delivery, and backpressure lifecycle under a monotonic fencing contract.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P23"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D10-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-remote/src/ccr_v2_worker.rs",
+        "kiana-remote/src/types.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-remote ccr_worker_rejects_stale_epoch_and_flushes_delivery_before_exit --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A stale epoch cannot update worker state or acknowledge delivery.",
+        "Received and processed delivery updates are flushed before terminal exit."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-03",
+        "review-packet:D10-03",
+        "verification-packet:D10-03"
+      ],
+      "required_approvals": [
+        "owner:P23",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-04",
+      "title": "Bounded Git seed bundle",
+      "outcome": "Capture approved repository state in a size-bounded seed bundle whose digest is bound to the uploaded file identity.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P23"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D10-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-remote/src/git_bundle.rs",
+        "kiana-remote/src/code_session_api.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-remote git_seed_bundle_excludes_secrets_and_binds_uploaded_digest --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The uploaded file identity is recorded with the exact local bundle digest.",
+        "Denied sensitive files and out-of-scope repository content cannot enter the bundle."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-04",
+        "review-packet:D10-04",
+        "verification-packet:D10-04"
+      ],
+      "required_approvals": [
+        "owner:P23",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-05",
+      "title": "Bridge transport event ordering",
+      "outcome": "Order runtime events, permission requests, cancellation, assistant output, and terminal result through one bridge transport state machine.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P24"
+      ],
+      "wave": "W4",
+      "task_type": "contract",
+      "risk": "critical",
+      "depends_on": [
+        "E10",
+        "E19",
+        "D10-02",
+        "D10-03"
+      ],
+      "candidate_write_paths": [
+        "kiana-bridge/src/transport.rs",
+        "kiana-bridge/src/sdk_message_adapter.rs",
+        "kiana-bridge/src/session.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-bridge bridge_transport_orders_permission_cancel_assistant_and_result --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A terminal result is unique and follows all accepted assistant output.",
+        "Cancellation prevents subsequent assistant deltas from crossing the bridge."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-05",
+        "review-packet:D10-05",
+        "verification-packet:D10-05",
+        "contract-hash:D10-05"
+      ],
+      "required_approvals": [
+        "owner:P24",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-06",
+      "title": "Recoverable bridge work loop",
+      "outcome": "Refresh active leases and tokens while deferring excess work and completing shutdown or archive without orphan processes.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P24"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D10-01",
+        "D10-03",
+        "D10-04",
+        "D10-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-bridge/src/work.rs",
+        "kiana-bridge/src/api.rs",
+        "kiana-bridge/src/lib.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-bridge bridge_work_loop_refreshes_existing_lease_while_at_capacity --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A full-capacity bridge still refreshes every active session lease and token.",
+        "New work is deferred without acknowledgement loss and shutdown leaves no child process."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-06",
+        "review-packet:D10-06",
+        "verification-packet:D10-06"
+      ],
+      "required_approvals": [
+        "owner:P24",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D10-07",
+      "title": "Cloud session CLI lifecycle",
+      "outcome": "Complete create, send, resume, hydrate, and archive as one recoverable CLI cloud-session flow.",
+      "domain_id": "D10",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "E05",
+        "D09-08",
+        "D10-02",
+        "D10-06"
+      ],
+      "candidate_write_paths": [
+        "kiana-entrypoints/src/cli.rs",
+        "kiana-entrypoints/tests/cli_remote.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-entrypoints --test cli_remote remote_cli_completes_create_send_hydrate_archive_flow --locked --offline",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The full lifecycle succeeds against a protocol-faithful mock service.",
+        "A failure at any stage retains the session identity and a deterministic recovery action."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D10",
+        "reference:codex:domain:D10",
+        "reference:claude-code-rev-main:domain:D10",
+        "reference:12-factor-agents:domain:D10"
+      ],
+      "required_artifacts": [
+        "result-packet:D10-07",
+        "review-packet:D10-07",
+        "verification-packet:D10-07"
+      ],
+      "required_approvals": [
+        "owner:P26",
+        "contract-security-controller"
+      ]
+    }
+  ]
+}

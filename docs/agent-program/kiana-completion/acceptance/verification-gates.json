@@ -1,0 +1,549 @@
+{
+  "schema": "kiana.agent-verification-gates.v1",
+  "program_id": "kiana-completion-2026-07-13",
+  "spec_commit": "a55c521",
+  "gate_order": ["focused", "domain", "integration", "commercial"],
+  "spec_gate_mapping": {
+    "focused": ["G0"],
+    "domain": ["G1"],
+    "integration": ["G2", "G3"],
+    "commercial": ["G4"]
+  },
+  "common_rules": {
+    "fresh_verifier_worktree_required": true,
+    "verifier_must_differ_from_implementer": true,
+    "reviewer_must_differ_from_implementer": true,
+    "verification_exit_code_alone_is_sufficient": false,
+    "skipped_or_ignored_required_test_is_success": false,
+    "self_reported_worker_completion_is_evidence": false,
+    "evidence_must_be_content_addressed": true,
+    "evidence_must_bind_commit_and_base": true,
+    "evidence_must_bind_dependency_and_contract_hashes": true,
+    "evidence_must_record_command_environment_and_toolchain": true,
+    "secrets_must_be_redacted_from_evidence": true,
+    "canonical_acceptance_required_before_dependency_unlock": true,
+    "on_missing_or_invalid_evidence": "fail closed, keep the task or wave blocked, and record the exact missing or invalid evidence identity"
+  },
+  "domain_exit_task_ids": {
+    "D01": "D01-06",
+    "D02": "D02-09",
+    "D03": "D03-09",
+    "D04": "D04-07",
+    "D05": "D05-10",
+    "D06": "D06-11",
+    "D07": "D07-07",
+    "D08": "D08-08",
+    "D09": "D09-09",
+    "D10": "D10-07",
+    "D11": "D11-07",
+    "D12": "D12-09",
+    "D13": "D13-09",
+    "D14": "D14-06",
+    "D15": "D15-08",
+    "D16": "D16-07",
+    "D17": "D17-07",
+    "D18": "D18-02"
+  },
+  "verification_levels": [
+    {
+      "level_id": "focused",
+      "name": "Packet focused verification",
+      "required_for": "every Task Card attempt before review submission",
+      "resource_slot": "packet_verification",
+      "may_run_in_parallel": true,
+      "command_categories": [
+        {
+          "category_id": "named_red_test",
+          "required": true,
+          "command_source": "task.verification.command",
+          "rule": "Run the named test before implementation and capture the expected task-specific failure or absence."
+        },
+        {
+          "category_id": "named_green_test",
+          "required": true,
+          "command_source": "task.verification.command",
+          "rule": "Run the same command after implementation and require every Task Card acceptance assertion to pass."
+        },
+        {
+          "category_id": "format_and_static_scope",
+          "required": true,
+          "commands": [
+            "cargo fmt --all --check",
+            "git diff --check"
+          ],
+          "rule": "Use the applicable formatter for non-Rust client files and verify the actual changed set is a subset of the immutable WorkPacket write paths."
+        },
+        {
+          "category_id": "contract_fixture",
+          "required_when": "task.task_type == contract or candidate_write_paths include docs/schemas",
+          "commands": ["bash scripts/schema-contract-smoke.sh"],
+          "rule": "Contract changes must add a negative fixture and prove old or malformed data fails according to the versioned contract."
+        }
+      ],
+      "required_evidence": [
+        {
+          "evidence_id": "focused-red-run",
+          "required_fields": [
+            "task_id",
+            "attempt_id",
+            "base_commit",
+            "command",
+            "started_at",
+            "finished_at",
+            "exit_code",
+            "failure_reason",
+            "stdout_sha256",
+            "stderr_sha256"
+          ]
+        },
+        {
+          "evidence_id": "focused-green-run",
+          "required_fields": [
+            "task_id",
+            "attempt_id",
+            "packet_commit",
+            "command",
+            "started_at",
+            "finished_at",
+            "exit_code",
+            "acceptance_assertions",
+            "stdout_sha256",
+            "stderr_sha256"
+          ]
+        },
+        {
+          "evidence_id": "focused-touch-manifest",
+          "required_fields": [
+            "packet_id",
+            "declared_write_paths",
+            "actual_changed_paths",
+            "diff_sha256",
+            "scope_deviations"
+          ]
+        },
+        {
+          "evidence_id": "focused-result-packet",
+          "required_fields": [
+            "packet_hash",
+            "result_hash",
+            "packet_commit",
+            "base_commit",
+            "fencing_epoch",
+            "terminal_status"
+          ]
+        }
+      ],
+      "freshness_rules": [
+        "The green run is executed against the exact packet commit submitted for review.",
+        "The verifier reruns the focused command in a clean worktree after the implementer commit exists.",
+        "Any packet commit, base commit, dependency commit, contract hash, or test fixture change invalidates the focused VerificationPacket."
+      ],
+      "approval_rules": [
+        "A Task Card with requires_approval=true must carry an unrevoked approval bound to task_id, packet commit, and acceptance scope before integration.",
+        "Contract, auth, security, policy, schema, and release-workflow packets require their declared exclusive owner and Contract or Security Controller review."
+      ],
+      "fail_closed_rules": [
+        "A missing RED run, an unrelated RED failure, or a RED run that already passes blocks the packet until the test contract is corrected.",
+        "A changed path outside the immutable WorkPacket scope produces scope_violation and quarantines the attempt.",
+        "A timeout, crash, skipped test, ignored test, malformed evidence, or unverified acceptance assertion is a failed gate."
+      ]
+    },
+    {
+      "level_id": "domain",
+      "name": "Domain contract and behavior verification",
+      "required_for": "every domain staging branch before its accepted commits can enter a global integration train",
+      "resource_slot": "domain_verification",
+      "may_run_in_parallel": true,
+      "command_categories": [
+        {
+          "category_id": "domain_crate_or_client_suite",
+          "required": true,
+          "command_source": "all accepted Task Card verification commands for the domain staging commit",
+          "rule": "Run the complete crate, integration-test, or client-test surface affected by the domain, not only the last packet filter."
+        },
+        {
+          "category_id": "domain_exit_task",
+          "required": true,
+          "command_source": "domain_exit_task_ids[domain_id].verification.command",
+          "rule": "Run the domain exit task after all of its dependencies are accepted in the same domain staging baseline."
+        },
+        {
+          "category_id": "domain_contract_compatibility",
+          "required": true,
+          "commands": ["bash scripts/schema-contract-smoke.sh"],
+          "rule": "Run when the domain consumes or produces a public runtime, tool, workflow, app-server, plugin, client, or evidence contract."
+        },
+        {
+          "category_id": "domain_negative_and_recovery_paths",
+          "required": true,
+          "rule": "Exercise the domain-specific malformed input, denied permission, timeout, cancellation, restart, corruption, stale-state, and unavailable-backend cases that apply."
+        }
+      ],
+      "required_evidence": [
+        {
+          "evidence_id": "domain-staging-manifest",
+          "required_fields": [
+            "domain_id",
+            "staging_commit",
+            "accepted_packet_commits",
+            "dependency_commits",
+            "contract_hashes",
+            "ownership_packages",
+            "capability_ids"
+          ]
+        },
+        {
+          "evidence_id": "domain-verification-packet",
+          "required_fields": [
+            "domain_id",
+            "domain_exit_task_id",
+            "commands",
+            "results",
+            "negative_path_results",
+            "recovery_results",
+            "verifier_identity",
+            "verified_commit",
+            "evidence_sha256"
+          ]
+        },
+        {
+          "evidence_id": "domain-review-packet",
+          "required_fields": [
+            "domain_id",
+            "reviewer_identity",
+            "reviewed_commit",
+            "scope_findings",
+            "compatibility_findings",
+            "security_findings",
+            "decision"
+          ]
+        },
+        {
+          "evidence_id": "domain-capability-coverage",
+          "required_fields": [
+            "domain_id",
+            "applicable_capability_ids",
+            "behavior_verified_capability_ids",
+            "approved_exclusion_ids",
+            "open_p0",
+            "open_p1"
+          ]
+        }
+      ],
+      "freshness_rules": [
+        "Domain verification runs after the latest accepted packet commit is present in the domain staging commit.",
+        "A new domain packet, dependency commit, public contract hash, schema fixture, or ownership boundary invalidates the prior domain evidence.",
+        "The domain exit command and capability coverage are regenerated for the exact domain staging commit proposed for integration."
+      ],
+      "approval_rules": [
+        "The Domain Lead and an independent Fresh Verifier must accept the same staging commit.",
+        "Any task-level required approval remains required and cannot be replaced by Domain Lead approval.",
+        "A public contract change requires the matching exclusive ownership package and Contract Controller approval."
+      ],
+      "fail_closed_rules": [
+        "Any applicable capability below behavior_verified blocks Domain Done unless an explicit Product Owner exclusion approval exists.",
+        "Any open P0 or P1, flaky required test, unowned path, stale contract hash, or unexplained scope deviation blocks the domain.",
+        "A schema-only, API-only, test-name-only, or documentation-only artifact cannot satisfy behavior verification."
+      ]
+    },
+    {
+      "level_id": "integration",
+      "name": "Stress and repository integration verification",
+      "required_for": "every merge train and every W3 through W5 wave exit",
+      "resource_slot": "workspace_test",
+      "may_run_in_parallel": false,
+      "command_categories": [
+        {
+          "category_id": "stress_concurrency_recovery",
+          "required": true,
+          "rule": "Run applicable concurrency, crash-window, restart, retry, and recovery tests with fixed seeds at least three times in serial and default-parallel modes."
+        },
+        {
+          "category_id": "workspace_format",
+          "required": true,
+          "commands": ["cargo fmt --all --check"]
+        },
+        {
+          "category_id": "workspace_compile",
+          "required": true,
+          "commands": ["cargo check --workspace --locked --offline"]
+        },
+        {
+          "category_id": "workspace_tests",
+          "required": true,
+          "commands": ["cargo test --workspace --locked --offline --no-fail-fast"],
+          "execution_rule": "The command must run under the accepted D18-01 bounded watchdog and capture the last active test and process wait state on timeout."
+        },
+        {
+          "category_id": "schema_and_handoff",
+          "required": true,
+          "commands": [
+            "bash scripts/schema-contract-smoke.sh",
+            "bash scripts/commercial-release-handoff-smoke.sh"
+          ]
+        },
+        {
+          "category_id": "local_release_candidate",
+          "required": true,
+          "commands": [
+            "bash scripts/release-preflight.sh --local-rc",
+            "bash scripts/release-smoke.sh"
+          ],
+          "execution_rule": "Local release evidence proves repository-local behavior only and cannot satisfy external commercial proof."
+        },
+        {
+          "category_id": "client_build_and_e2e",
+          "required_when": "the train changes P26 client paths or contains D12 tasks",
+          "commands": [
+            "npm --prefix clients run test",
+            "npm --prefix clients/web run build",
+            "npm --prefix clients/ide run package"
+          ]
+        }
+      ],
+      "required_evidence": [
+        {
+          "evidence_id": "integration-train-manifest",
+          "required_fields": [
+            "train_id",
+            "base_commit",
+            "candidate_commit",
+            "packet_hashes",
+            "result_hashes",
+            "review_hashes",
+            "domain_verification_hashes",
+            "fencing_epochs",
+            "touch_set",
+            "contract_hashes"
+          ]
+        },
+        {
+          "evidence_id": "stress-verification",
+          "required_fields": [
+            "candidate_commit",
+            "test_ids",
+            "seeds",
+            "serial_results",
+            "parallel_results",
+            "repeat_count",
+            "recovery_fixture_results"
+          ]
+        },
+        {
+          "evidence_id": "repository-verification",
+          "required_fields": [
+            "candidate_commit",
+            "toolchain",
+            "target",
+            "commands",
+            "exit_codes",
+            "output_hashes",
+            "duration_ms",
+            "watchdog_diagnostics"
+          ]
+        },
+        {
+          "evidence_id": "integration-review",
+          "required_fields": [
+            "train_id",
+            "global_merge_controller",
+            "reviewer_identities",
+            "stale_check",
+            "conflict_check",
+            "security_check",
+            "decision"
+          ]
+        }
+      ],
+      "freshness_rules": [
+        "Every command runs on the exact candidate integration commit in a clean worktree after the train is assembled.",
+        "Any train membership, candidate commit, Cargo.lock, client lockfile, schema, workflow, toolchain, target, or dependency change invalidates the integration packet.",
+        "Repository verification must complete before the canonical fast-forward and must be repeated after any rebase or conflict resolution."
+      ],
+      "approval_rules": [
+        "The Global Merge Controller and a Fresh Verifier must approve the exact candidate commit.",
+        "Auth, security, policy, schema, Cargo.lock, release workflow, migration, and cross-platform sandbox changes run in a single-packet train with the responsible controller approval.",
+        "Canonical integration is a fast-forward performed by the single Global Merge Controller only."
+      ],
+      "fail_closed_rules": [
+        "A hang, watchdog termination, test flake after three fixed-seed repeats, workspace failure, schema failure, or local-RC failure rejects the train.",
+        "A passing serial run cannot replace a failing default-parallel run, and a passing rerun cannot erase the original unexplained failure.",
+        "A stale base, fencing mismatch, path conflict, semantic lock conflict, or verification backlog over two micro-waves stops new integration dispatch."
+      ]
+    },
+    {
+      "level_id": "commercial",
+      "name": "Platform and commercial release verification",
+      "required_for": "W6 exit, stable channel promotion, and Program Done",
+      "resource_slot": "release_gate",
+      "may_run_in_parallel": false,
+      "release_task_commands": [
+        {
+          "task_id": "D18-03",
+          "category_id": "linux_release",
+          "command": "bash scripts/linux-release-smoke.sh --build-local --require-signature"
+        },
+        {
+          "task_id": "D18-04",
+          "category_id": "macos_release",
+          "command": "bash scripts/macos-release-smoke.sh --require-signing --require-notarization"
+        },
+        {
+          "task_id": "D18-05",
+          "category_id": "windows_release",
+          "command": "pwsh -NoProfile -File scripts/windows-release-smoke.ps1 -RequireAuthenticode -RequireNativeHost -RequireSandbox"
+        },
+        {
+          "task_id": "D18-06",
+          "category_id": "enterprise_offline",
+          "command": "bash scripts/tests/enterprise-offline-smoke.sh"
+        },
+        {
+          "task_id": "D18-07",
+          "category_id": "entitlement_enforcement",
+          "command": "bash scripts/tests/entitlement-enforcement-smoke.sh"
+        },
+        {
+          "task_id": "D18-08",
+          "category_id": "live_product_matrix",
+          "command": "KIANA_LIVE_SMOKE_REQUIRED=1 bash scripts/live-product-e2e-smoke.sh"
+        },
+        {
+          "task_id": "D18-09",
+          "category_id": "signed_release_artifacts",
+          "command": "KIANA_RELEASE_PROOF_REQUIRED=1 bash scripts/verify-commercial-release-artifacts.sh --strict"
+        },
+        {
+          "task_id": "D18-10",
+          "category_id": "zero_commercial_blockers",
+          "command": "bash scripts/commercial-release-blockers-report.sh --fail-on-blockers --json"
+        }
+      ],
+      "command_categories": [
+        {
+          "category_id": "platform_artifacts",
+          "required_task_ids": ["D18-03", "D18-04", "D18-05"],
+          "rule": "Build and verify Linux, macOS, and Windows artifacts on native clean release runners."
+        },
+        {
+          "category_id": "enterprise_and_entitlement",
+          "required_task_ids": ["D18-06", "D18-07"],
+          "rule": "Verify offline operation, signed entitlement enforcement, expiry, revocation, issuer, customer, product, and clock rollback behavior."
+        },
+        {
+          "category_id": "live_product_services",
+          "required_task_ids": ["D18-08"],
+          "rule": "Exercise real provider text and tools, remote round trip, MCP transport, and Web or IDE client against the release candidate."
+        },
+        {
+          "category_id": "signing_channels_and_blockers",
+          "required_task_ids": ["D18-09", "D18-10"],
+          "rule": "Verify trusted signatures, notarization, checksums, channel manifests, rollback pointer, customer acceptance, and zero strict blockers."
+        }
+      ],
+      "required_evidence": [
+        {
+          "evidence_id": "release-candidate-identity",
+          "required_fields": [
+            "version",
+            "source_commit",
+            "source_tree",
+            "Cargo.lock_sha256",
+            "client_lockfile_sha256",
+            "workflow_identity",
+            "toolchain",
+            "artifact_manifest_sha256"
+          ]
+        },
+        {
+          "evidence_id": "platform-release-proofs",
+          "required_fields": [
+            "linux",
+            "macos",
+            "windows",
+            "runner_identities",
+            "artifact_sha256s",
+            "signature_identities",
+            "notarization_status",
+            "native_host_status",
+            "sandbox_status"
+          ]
+        },
+        {
+          "evidence_id": "live-service-proofs",
+          "required_fields": [
+            "provider_endpoint_identity",
+            "provider_text_result",
+            "provider_tool_result",
+            "remote_session_identity",
+            "remote_round_trip_result",
+            "mcp_transport_identity",
+            "mcp_result",
+            "web_or_ide_client_result",
+            "started_at",
+            "finished_at"
+          ]
+        },
+        {
+          "evidence_id": "enterprise-entitlement-proofs",
+          "required_fields": [
+            "offline_manifest_sha256",
+            "dependency_sha256s",
+            "entitlement_sha256",
+            "issuer_identity",
+            "trust_root_version",
+            "customer_identity",
+            "product_identity",
+            "decision_time",
+            "expiry_and_revocation_results"
+          ]
+        },
+        {
+          "evidence_id": "release-promotion-proofs",
+          "required_fields": [
+            "proof_manifest_sha256",
+            "channel_manifest_sha256s",
+            "previous_channel_pointer",
+            "candidate_channel_pointer",
+            "rollback_verification",
+            "release_owner_approval",
+            "release_security_approval",
+            "customer_acceptance_approval"
+          ]
+        },
+        {
+          "evidence_id": "commercial-blocker-report",
+          "required_fields": [
+            "schema",
+            "version",
+            "source_commit",
+            "artifact_manifest_sha256",
+            "local_blocking",
+            "external_blocking",
+            "blocking",
+            "generated_at"
+          ]
+        }
+      ],
+      "freshness_rules": [
+        "Every proof binds the same immutable release-candidate source commit and artifact manifest digest.",
+        "Platform, signature, notarization, offline, and channel evidence is generated after the candidate artifact digest and before stable promotion.",
+        "Live provider, remote, MCP, and client evidence is generated no more than 86400 seconds before the D18-10 blocker report.",
+        "Entitlement and signing evidence is valid at blocker-report time and is invalid immediately after expiry, revocation, issuer removal, trust-root change, or artifact hash change.",
+        "Customer acceptance remains valid only for the named version and artifact digest and is invalidated by release-candidate replacement."
+      ],
+      "approval_rules": [
+        "D18-03 through D18-10 require approvals bound to their exact task, release candidate, artifact hashes, and evidence hashes.",
+        "The Release Controller approves promotion, Release Security approves signing, notarization, provenance, and platform security, and the named Customer Acceptance Owner approves product acceptance.",
+        "A Product Owner must approve every excluded reference capability before Program Done.",
+        "No implementer, release script, repository-local fixture, or model-generated text can approve its own commercial proof."
+      ],
+      "fail_closed_rules": [
+        "Missing credentials, mock endpoints, fake providers, local-only MCP, schema-only clients, skipped cells, or local-RC reports cannot satisfy live commercial evidence.",
+        "Self-signed, example, expired, revoked, untrusted-issuer, wrong-customer, wrong-product, wrong-version, or hash-mismatched proof is rejected.",
+        "Any missing platform, signature, notarization, entitlement, channel, support, operations, or customer acceptance proof restores its blocker and stops promotion.",
+        "D18-10 must exit zero and report local_blocking=0, external_blocking=0, and blocking=0 without skip or bypass flags."
+      ]
+    }
+  ]
+}

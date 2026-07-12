@@ -1,0 +1,462 @@
+{
+  "schema": "kiana.agent-ownership-catalog.v1",
+  "expected_count": 30,
+  "packages": [
+    {
+      "id": "P01",
+      "name": "Core contracts",
+      "paths": [
+        "kiana-types/src",
+        "kiana-types/tests"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 2,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P02",
+      "name": "Constants and bootstrap state",
+      "paths": [
+        "kiana-constants",
+        "kiana-bootstrap"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 2,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P03",
+      "name": "Coordinator profiles",
+      "paths": [
+        "kiana-coordinator"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 1,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P04",
+      "name": "Desktop and UI primitives",
+      "paths": [
+        "kiana-color-diff",
+        "kiana-components",
+        "kiana-ink",
+        "kiana-modifiers",
+        "kiana-computer-input",
+        "kiana-screen-capture"
+      ],
+      "current_writer_capacity": 3,
+      "post_split_writer_capacity": 5,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P05",
+      "name": "Browser and native integration",
+      "paths": [
+        "kiana-chrome-mcp",
+        "kiana-computer-mcp",
+        "kiana-url-handler"
+      ],
+      "current_writer_capacity": 3,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P06",
+      "name": "Provider, model, and auth services",
+      "paths": [
+        "kiana-services/src/api",
+        "kiana-services/src/auth.rs",
+        "kiana-services/src/oauth.rs",
+        "kiana-services/tests/provider_*.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P07",
+      "name": "Integration services",
+      "paths": [
+        "kiana-services/src/mcp.rs",
+        "kiana-services/src/lsp.rs",
+        "kiana-services/src/network_policy.rs",
+        "kiana-services/src/analytics.rs",
+        "kiana-services/src/lib.rs",
+        "kiana-services/tests/analytics_*.rs",
+        "kiana-services/tests/observability_*.rs",
+        "kiana-services/src/mcp",
+        "kiana-services/src/observability.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 4,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P08",
+      "name": "Repo intelligence and RAG",
+      "paths": [
+        "kiana-query/src/index.rs",
+        "kiana-query/src/repo_map.rs",
+        "kiana-query/src/index",
+        "kiana-query/src/code_graph.rs",
+        "kiana-query/src/memory",
+        "kiana-query/tests/memory_*.rs",
+        "kiana-query/src/lib.rs",
+        "kiana-query/tests/repo_map_behavior.rs",
+        "kiana-query/tests/context_index_incremental.rs",
+        "kiana-query/tests/embedding_backend.rs",
+        "kiana-query/tests/vector_store_persistence.rs",
+        "kiana-query/tests/hybrid_retrieval.rs",
+        "kiana-query/tests/code_graph.rs",
+        "kiana-query/tests/rag_context_pack.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 4,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P09",
+      "name": "Query loop and hook policy",
+      "paths": [
+        "kiana-query/src/config.rs",
+        "kiana-query/src/deps.rs",
+        "kiana-query/src/transitions.rs",
+        "kiana-query/src/token_budget.rs",
+        "kiana-query/src/stop_hooks.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P10",
+      "name": "Skills and extension loading",
+      "paths": [
+        "kiana-skills",
+        "kiana-skills/src/plugins.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P11",
+      "name": "Workflow, evidence, and integrity core",
+      "paths": [
+        "kiana-tasks/src/workflow.rs",
+        "kiana-tasks/src/evidence.rs",
+        "kiana-tasks/src/integrity.rs",
+        "kiana-tasks/tests"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 4,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P12",
+      "name": "Task board and swarm model",
+      "paths": [
+        "kiana-tasks/src/project_board.rs",
+        "kiana-tasks/src/swarm.rs",
+        "kiana-tasks/src/types.rs",
+        "kiana-tasks/tests/project_board.rs",
+        "kiana-tasks/tests/swarm_*.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P13",
+      "name": "Tool kernel and filesystem",
+      "paths": [
+        "kiana-tools/src/tool.rs",
+        "kiana-tools/src/tool_execution.rs",
+        "kiana-tools/src/registry.rs",
+        "kiana-tools/src/permissions.rs",
+        "kiana-tools/src/file_*.rs",
+        "kiana-tools/src/lib.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P14",
+      "name": "Shell, sandbox, and process tools",
+      "paths": [
+        "kiana-tools/src/bash_tool.rs",
+        "kiana-tools/src/bash_sandbox.rs",
+        "kiana-tools/src/powershell_tool.rs",
+        "kiana-tools/src/exec_policy.rs",
+        "kiana-tools/src/shell.rs",
+        "kiana-tools/src/monitor_tool.rs",
+        "kiana-tools/tests/sandbox_enforcement.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P15",
+      "name": "External workbench tools",
+      "paths": [
+        "kiana-tools/src/mcp_tool.rs",
+        "kiana-tools/src/lsp_tool.rs",
+        "kiana-tools/src/web_fetch.rs",
+        "kiana-tools/src/web_search.rs",
+        "kiana-tools/src/notebook_*.rs",
+        "kiana-tools/src/data_*.rs",
+        "kiana-tools/tests/external_tools.rs",
+        "kiana-tools/tests/notebook_*.rs",
+        "kiana-tools/tests/data_*.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 5,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P16",
+      "name": "Agent, team, and task automation tools",
+      "paths": [
+        "kiana-tools/src/agent.rs",
+        "kiana-tools/src/team_*.rs",
+        "kiana-tools/src/task_*.rs",
+        "kiana-tools/src/cron_*.rs",
+        "kiana-tools/src/agent",
+        "kiana-tools/tests/task_tools.rs",
+        "kiana-tools/tests/team_runtime.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 6,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P17",
+      "name": "Command framework and catalog",
+      "paths": [
+        "kiana-commands/src/lib.rs",
+        "kiana-commands/src/types.rs",
+        "kiana-commands/src/registry.rs",
+        "kiana-commands/src/local_state.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 3,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P18",
+      "name": "Config, model, auth, and trust commands",
+      "paths": [
+        "kiana-commands/src/config.rs",
+        "kiana-commands/src/auth.rs",
+        "kiana-commands/src/model.rs",
+        "kiana-commands/src/license.rs",
+        "kiana-commands/src/trust.rs",
+        "kiana-commands/src/cost.rs",
+        "kiana-commands/src/stats.rs",
+        "kiana-commands/src/usage.rs",
+        "kiana-commands/tests/cost_command.rs",
+        "kiana-commands/tests/usage_cost_stats.rs"
+      ],
+      "current_writer_capacity": 2,
+      "post_split_writer_capacity": 4,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P19",
+      "name": "Plugin, MCP, hooks, and skills commands",
+      "paths": [
+        "kiana-commands/src/plugin.rs",
+        "kiana-commands/src/plugin_commands.rs",
+        "kiana-commands/src/mcp.rs",
+        "kiana-commands/src/hooks.rs",
+        "kiana-commands/src/skills.rs",
+        "kiana-commands/src/reload_plugins.rs",
+        "kiana-commands/src/plugin"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 5,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P20",
+      "name": "Coding, session, and context commands",
+      "paths": [
+        "kiana-commands/src/checkpoint.rs",
+        "kiana-commands/src/diff.rs",
+        "kiana-commands/src/review.rs",
+        "kiana-commands/src/checks.rs",
+        "kiana-commands/src/context.rs",
+        "kiana-commands/src/session.rs",
+        "kiana-commands/src/memory.rs",
+        "kiana-commands/src/commit.rs",
+        "kiana-commands/tests/memory_lifecycle_command.rs",
+        "kiana-commands/tests/session_command.rs",
+        "kiana-commands/tests/checkpoint_command.rs",
+        "kiana-commands/tests/diff_command.rs",
+        "kiana-commands/tests/commit_command.rs",
+        "kiana-commands/tests/checks_command.rs",
+        "kiana-commands/tests/review_command.rs",
+        "kiana-commands/tests/context_rag_*.rs"
+      ],
+      "current_writer_capacity": 3,
+      "post_split_writer_capacity": 6,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P21",
+      "name": "Project, workflow, and swarm commands",
+      "paths": [
+        "kiana-commands/src/tasks.rs",
+        "kiana-commands/src/project.rs",
+        "kiana-commands/src/evidence.rs",
+        "kiana-commands/src/audit.rs",
+        "kiana-commands/src/report.rs",
+        "kiana-commands/src/validate.rs",
+        "kiana-commands/src/swarm_process_identity.rs",
+        "kiana-commands/src/router.rs",
+        "kiana-commands/src/tasks",
+        "kiana-commands/tests/project_command.rs",
+        "kiana-commands/tests/router_command.rs",
+        "kiana-commands/tests/workflow_*.rs",
+        "kiana-commands/tests/swarm_command.rs",
+        "kiana-commands/tests/audit_command.rs",
+        "kiana-commands/tests/report_command.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 7,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P22",
+      "name": "Release, eval, EDA, and doctor commands",
+      "paths": [
+        "kiana-commands/src/release.rs",
+        "kiana-commands/src/doctor.rs",
+        "kiana-commands/src/eval.rs",
+        "kiana-commands/src/eda.rs",
+        "kiana-commands/src/eda_netlist.rs",
+        "kiana-commands/tests/eda_*.rs",
+        "kiana-commands/tests/eval_*.rs",
+        "docs/eval"
+      ],
+      "current_writer_capacity": 3,
+      "post_split_writer_capacity": 5,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P23",
+      "name": "Remote runtime",
+      "paths": [
+        "kiana-remote"
+      ],
+      "current_writer_capacity": 3,
+      "post_split_writer_capacity": 5,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P24",
+      "name": "Bridge runtime",
+      "paths": [
+        "kiana-bridge"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 4,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P25",
+      "name": "Assistant runner, SDK, and session",
+      "paths": [
+        "kiana-entrypoints/src/runner.rs",
+        "kiana-entrypoints/src/sdk.rs",
+        "kiana-entrypoints/tests/cli_runtime_usage.rs",
+        "kiana-entrypoints/tests/sdk_usage_ledger.rs",
+        "kiana-entrypoints/src/lib.rs",
+        "kiana-entrypoints/src/runner",
+        "kiana-entrypoints/tests/cli_session.rs",
+        "kiana-entrypoints/tests/cli_resume.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 5,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P26",
+      "name": "CLI, print, and app server",
+      "paths": [
+        "kiana-entrypoints/src/cli.rs",
+        "kiana-entrypoints/src/bin",
+        "clients",
+        "kiana-entrypoints/src/lib.rs",
+        "kiana-entrypoints/src/cli",
+        "kiana-entrypoints/src/app_server",
+        "kiana-entrypoints/tests/cli_remote.rs"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 8,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P27",
+      "name": "Interactive, background, and MCP surfaces",
+      "paths": [
+        "kiana-entrypoints/src/tui.rs",
+        "kiana-entrypoints/src/repl.rs",
+        "kiana-entrypoints/src/bg.rs",
+        "kiana-entrypoints/src/mcp.rs",
+        "kiana-entrypoints/src/init.rs",
+        "kiana-screens",
+        "kiana-entrypoints/src/tui"
+      ],
+      "current_writer_capacity": 3,
+      "post_split_writer_capacity": 6,
+      "exclusive_contract_owner": false
+    },
+    {
+      "id": "P28",
+      "name": "Schema and contract governance",
+      "paths": [
+        "docs/schemas",
+        "scripts/schema-contract-smoke.sh",
+        "scripts/validate-json-schema.py"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 6,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P29",
+      "name": "Release automation, CI, and proof chain",
+      "paths": [
+        "scripts",
+        ".github/workflows",
+        "docs/release-checklist.md",
+        "docs/commercial-release-readiness.md"
+      ],
+      "current_writer_capacity": 1,
+      "post_split_writer_capacity": 6,
+      "exclusive_contract_owner": true
+    },
+    {
+      "id": "P30",
+      "name": "Product, reference, and design documentation",
+      "paths": [
+        "docs/kiana_project_os",
+        "docs/reference_audit",
+        "docs/reference-migration-roadmap.md",
+        "docs/reference-feature-matrix.md",
+        "docs/superpowers",
+        "docs/agent-program",
+        "tools/agent-program",
+        "docs/kiana-personal-project-os-complete-design.md",
+        "docs/commercial-release-readiness.md"
+      ],
+      "current_writer_capacity": 4,
+      "post_split_writer_capacity": 6,
+      "exclusive_contract_owner": false
+    }
+  ]
+}

@@ -1,0 +1,306 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D14",
+  "expected_count": 6,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D14-01",
+      "title": "Cross-process transactional memory store",
+      "outcome": "User, project, and local memory remain durable, ordered, and lossless across concurrent access and crashes.",
+      "domain_id": "D14",
+      "ownership_packages": [
+        "P08"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "E19"
+      ],
+      "candidate_write_paths": [
+        "kiana-query/src/memory/mod.rs",
+        "kiana-query/src/memory/store.rs",
+        "kiana-query/tests/memory_store.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-query --test memory_store --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Barrier-synchronized writers never lose records or duplicate sequence numbers, and storage scopes never overlap.",
+        "Temporary-write crashes and corrupt tails are recovered or isolated explicitly; every record has identity, revision, content hash, and provenance."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:MemPalace:domain:D14",
+        "reference:claude-memory:domain:D14",
+        "reference:claude-mem-candidate:domain:D14",
+        "reference:memorix:domain:D14"
+      ],
+      "required_artifacts": [
+        "result-packet:D14-01",
+        "review-packet:D14-01",
+        "verification-packet:D14-01"
+      ],
+      "required_approvals": [
+        "owner:P08"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D14-02",
+      "title": "Memory scope and secret policy",
+      "outcome": "Memory writes are classified by scope, source, sensitivity, and retention policy before persistence.",
+      "domain_id": "D14",
+      "ownership_packages": [
+        "P08"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D14-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-query/src/memory/mod.rs",
+        "kiana-query/src/memory/policy.rs",
+        "kiana-query/tests/memory_policy.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-query --test memory_policy --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "User, project, and local lookups cannot disclose records from another scope.",
+        "API keys, tokens, cookies, and private keys never reach storage and generate a redaction finding; unknown sensitivity fails closed with a recorded policy version."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:MemPalace:domain:D14",
+        "reference:claude-memory:domain:D14",
+        "reference:claude-mem-candidate:domain:D14",
+        "reference:memorix:domain:D14"
+      ],
+      "required_artifacts": [
+        "result-packet:D14-02",
+        "review-packet:D14-02",
+        "verification-packet:D14-02"
+      ],
+      "required_approvals": [
+        "owner:P08",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D14-03",
+      "title": "Evidence-gated memory consolidation",
+      "outcome": "Only accepted session and runtime evidence is consolidated into deduplicated memories with retained provenance.",
+      "domain_id": "D14",
+      "ownership_packages": [
+        "P09",
+        "P08"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "E19",
+        "D14-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-query/src/memory/mod.rs",
+        "kiana-query/src/memory/consolidate.rs",
+        "kiana-query/src/stop_hooks.rs",
+        "kiana-query/tests/memory_consolidation.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-query --test memory_consolidation --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Accepted, failed, cancelled, secret-bearing, and duplicate event fixtures persist only supported non-secret conclusions.",
+        "Repeated consolidation is idempotent and every memory binds session and event hashes, confidence, and the creating policy version."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:MemPalace:domain:D14",
+        "reference:claude-memory:domain:D14",
+        "reference:claude-mem-candidate:domain:D14",
+        "reference:memorix:domain:D14"
+      ],
+      "required_artifacts": [
+        "result-packet:D14-03",
+        "review-packet:D14-03",
+        "verification-packet:D14-03"
+      ],
+      "required_approvals": [
+        "owner:P09",
+        "owner:P08"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D14-04",
+      "title": "Source-bound staleness and supersession",
+      "outcome": "Memory freshness follows source hashes, contract revisions, expiration, revocation, and supersession edges.",
+      "domain_id": "D14",
+      "ownership_packages": [
+        "P08"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D14-03"
+      ],
+      "candidate_write_paths": [
+        "kiana-query/src/memory/mod.rs",
+        "kiana-query/src/memory/staleness.rs",
+        "kiana-query/tests/memory_staleness.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-query --test memory_staleness --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Source edits and deletion, contradictory newer records, expiration, clock rollback, and manual revocation produce deterministic states and reasons.",
+        "Stale and revoked records are excluded from active retrieval by default while their audit history remains readable."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:MemPalace:domain:D14",
+        "reference:claude-memory:domain:D14",
+        "reference:claude-mem-candidate:domain:D14",
+        "reference:memorix:domain:D14"
+      ],
+      "required_artifacts": [
+        "result-packet:D14-04",
+        "review-packet:D14-04",
+        "verification-packet:D14-04"
+      ],
+      "required_approvals": [
+        "owner:P08"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D14-05",
+      "title": "Budgeted semantic memory retrieval",
+      "outcome": "Memory retrieval combines scoped relevance, semantics, freshness, and provenance within a hard injection budget.",
+      "domain_id": "D14",
+      "ownership_packages": [
+        "P08"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D13-05",
+        "D13-07",
+        "D14-04"
+      ],
+      "candidate_write_paths": [
+        "kiana-query/src/memory/mod.rs",
+        "kiana-query/src/memory/retrieval.rs",
+        "kiana-query/tests/memory_retrieval.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-query --test memory_retrieval --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Cross-scope, stale, contradictory, tied, empty-query, and constrained-budget fixtures produce stable policy-compliant rankings.",
+        "Every hit includes record and source hashes plus freshness, and injected text never exceeds limits or includes redacted payloads."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:MemPalace:domain:D14",
+        "reference:claude-memory:domain:D14",
+        "reference:claude-mem-candidate:domain:D14",
+        "reference:memorix:domain:D14"
+      ],
+      "required_artifacts": [
+        "result-packet:D14-05",
+        "review-packet:D14-05",
+        "verification-packet:D14-05"
+      ],
+      "required_approvals": [
+        "owner:P08"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D14-06",
+      "title": "Complete memory lifecycle command and proof",
+      "outcome": "The memory command provides restart-safe append, search, consolidation, status, export, and forget behavior with lifecycle proof.",
+      "domain_id": "D14",
+      "ownership_packages": [
+        "P20"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "D14-01",
+        "D14-02",
+        "D14-03",
+        "D14-04",
+        "D14-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/memory.rs",
+        "kiana-commands/tests/memory_lifecycle_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test memory_lifecycle_command --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Independent command processes see the same valid records after restart, while forget creates a tombstone and removes content from active search and export.",
+        "Exports contain no secrets and lifecycle proof binds scope, store head, source hashes, redaction counts, and forget results; tampering breaks fresh replay."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:MemPalace:domain:D14",
+        "reference:claude-memory:domain:D14",
+        "reference:claude-mem-candidate:domain:D14",
+        "reference:memorix:domain:D14"
+      ],
+      "required_artifacts": [
+        "result-packet:D14-06",
+        "review-packet:D14-06",
+        "verification-packet:D14-06"
+      ],
+      "required_approvals": [
+        "owner:P20",
+        "contract-security-controller"
+      ]
+    }
+  ]
+}

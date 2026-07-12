@@ -1,0 +1,345 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D17",
+  "expected_count": 7,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-01",
+      "title": "Provider usage normalization",
+      "outcome": "Every provider adapter normalizes real token, cache, and reasoning usage while preserving unsupported values as unknown.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P06"
+      ],
+      "wave": "W5",
+      "task_type": "contract",
+      "risk": "high",
+      "depends_on": [
+        "E19"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/api/provider.rs",
+        "kiana-services/src/api/streaming.rs",
+        "kiana-services/tests/provider_usage.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services --test provider_usage --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Anthropic, OpenAI-compatible, and Ollama fixtures map streaming and non-streaming usage correctly without double-counting partial and final records.",
+        "Negative, overflowing, and malformed values are rejected, and providers without usage support return an explicit unknown value instead of zero."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-01",
+        "review-packet:D17-01",
+        "verification-packet:D17-01",
+        "contract-hash:D17-01"
+      ],
+      "required_approvals": [
+        "owner:P06"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-02",
+      "title": "Runtime usage event propagation",
+      "outcome": "The runner publishes request-, turn-, and session-bound usage events for every provider turn and terminal result.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P25"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "high",
+      "depends_on": [
+        "D17-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-entrypoints/src/runner.rs",
+        "kiana-entrypoints/tests/cli_runtime_usage.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-entrypoints --test cli_runtime_usage --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Single-turn, multi-tool-loop, provider-error, cancellation, and stream-disconnect cases lose or duplicate no usage events.",
+        "Totals equal provider final usage and retain request, turn, and session identities; unavailable usage remains unknown."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-02",
+        "review-packet:D17-02",
+        "verification-packet:D17-02"
+      ],
+      "required_approvals": [
+        "owner:P25"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-03",
+      "title": "Durable session usage ledger",
+      "outcome": "The SDK persists each turn's usage idempotently and reconstructs trustworthy session totals after concurrency and restart.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P25"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D17-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-entrypoints/src/sdk.rs",
+        "kiana-entrypoints/tests/sdk_usage_ledger.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-entrypoints --test sdk_usage_ledger --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Barrier-synchronized writers never lose usage, and retries with the same request identity never double-count.",
+        "Success, error, and cancellation retain consumed usage; restart reconciliation matches transcript facts, while corrupt or missing segments become blockers rather than zero totals."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-03",
+        "review-packet:D17-03",
+        "verification-packet:D17-03"
+      ],
+      "required_approvals": [
+        "owner:P25",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-04",
+      "title": "Versioned exact cost calculation",
+      "outcome": "Usage is priced by provider, model, effective date, and token tier using exact integer micro-dollar arithmetic.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P18"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D17-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/cost.rs",
+        "kiana-commands/tests/cost_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test cost_command --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Input, output, cache, and reasoning tiers match hand-calculated fixtures without floating-point drift.",
+        "Unknown model, date, or usage returns unpriced detail rather than zero, overflow is rejected, and reports bind catalog version, rate source, currency, and rounding policy."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-04",
+        "review-packet:D17-04",
+        "verification-packet:D17-04"
+      ],
+      "required_approvals": [
+        "owner:P18",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-05",
+      "title": "Durable privacy-safe analytics store",
+      "outcome": "Analytics events are allowlisted, redacted, persisted, exported, and expired without storing prompts or credentials.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P07"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "E19",
+        "D17-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/analytics.rs",
+        "kiana-services/tests/analytics_store.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services --test analytics_store --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Concurrent append, restart, and partial-tail recovery preserve committed event sequences, while opt-out writes nothing.",
+        "Prompts, tool payloads, API keys, and cookies never reach storage; retention deletes expired data and each export batch has sequence and content hashes."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-05",
+        "review-packet:D17-05",
+        "verification-packet:D17-05"
+      ],
+      "required_approvals": [
+        "owner:P07",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-06",
+      "title": "Real usage cost and stats commands",
+      "outcome": "Usage, cost, and stats commands query the durable session ledger and price catalog for traceable totals and unknowns.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P18"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "D17-03",
+        "D17-04",
+        "D17-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/usage.rs",
+        "kiana-commands/src/cost.rs",
+        "kiana-commands/src/stats.rs",
+        "kiana-commands/tests/usage_cost_stats.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test usage_cost_stats --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Session, date, and model filters match independent ledger reconstruction and include usage consumed by failed and cancelled requests.",
+        "Unpriced and zero values remain distinct, JSON binds ledger head, catalog version, and query period, and no fixed zero-cost fallback remains."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-06",
+        "review-packet:D17-06",
+        "verification-packet:D17-06"
+      ],
+      "required_approvals": [
+        "owner:P18",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D17-07",
+      "title": "Correlated observability export and proof",
+      "outcome": "Provider, tool, session, and workflow telemetry shares correlation identities and produces collector-acknowledged observability proof.",
+      "domain_id": "D17",
+      "ownership_packages": [
+        "P07",
+        "P25"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "high",
+      "depends_on": [
+        "D17-02",
+        "D17-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-services/src/observability.rs",
+        "kiana-services/src/lib.rs",
+        "kiana-entrypoints/src/runner.rs",
+        "kiana-services/tests/observability_export.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-services --test observability_export --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A local compatible collector receives complete parent-child spans and latency, error, and usage metrics without prompt or secret payloads.",
+        "Collector failure does not block the core run and records bounded retry and drop counters; proof binds endpoint identity, acknowledgement, run, source revision, and artifact hash."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:codex:domain:D17",
+        "reference:12-factor-agents:domain:D17",
+        "reference:OpenHands:domain:D17"
+      ],
+      "required_artifacts": [
+        "result-packet:D17-07",
+        "review-packet:D17-07",
+        "verification-packet:D17-07"
+      ],
+      "required_approvals": [
+        "owner:P07",
+        "owner:P25"
+      ]
+    }
+  ]
+}

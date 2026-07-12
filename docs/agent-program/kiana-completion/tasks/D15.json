@@ -1,0 +1,391 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D15",
+  "expected_count": 8,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-01",
+      "title": "Notebook execution trust gate",
+      "outcome": "Notebook execution fails closed without explicit project trust, permission, and per-run opt-in.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P15"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "E20"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/notebook_execute.rs",
+        "kiana-tools/tests/notebook_policy.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools --test notebook_policy --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Unknown or untrusted roots, environment-only enablement, revoked approval, path escape, and non-regular notebooks are rejected without starting a process.",
+        "Only an approved trusted run enters the executor and every denial records the controlling policy decision."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-01",
+        "review-packet:D15-01",
+        "verification-packet:D15-01"
+      ],
+      "required_approvals": [
+        "owner:P15",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-02",
+      "title": "Enforced notebook sandbox boundary",
+      "outcome": "Notebook code runs inside an operating-system-enforced boundary that blocks host file, network, and process escape.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P15",
+        "P13"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D15-01"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/notebook_sandbox.rs",
+        "kiana-tools/src/notebook_execute.rs",
+        "kiana-tools/src/lib.rs",
+        "kiana-tools/tests/notebook_sandbox.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools --test notebook_sandbox --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A Linux verifier cannot read host canaries, open loopback or external sockets, spawn escaping children, or follow a symlink outside the workspace.",
+        "A missing sandbox backend rejects execution, and output claims isolation or disabled networking only after those controls are enforced."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-02",
+        "review-packet:D15-02",
+        "verification-packet:D15-02"
+      ],
+      "required_approvals": [
+        "owner:P15",
+        "contract-security-controller",
+        "owner:P13"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-03",
+      "title": "Notebook resource and terminal-state enforcement",
+      "outcome": "Every notebook cell has enforced resource budgets and an atomically published terminal result.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P15"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D15-02"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/notebook_execute.rs",
+        "kiana-tools/tests/notebook_limits.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools --test notebook_limits --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Infinite loops, memory growth, output floods, fork attempts, cancellation, and mixed-success cells terminate within configured limits.",
+        "Cell results expose exit, signal, timeout, and truncation facts, and completion is impossible before both finished time and immutable result are committed."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-03",
+        "review-packet:D15-03",
+        "verification-packet:D15-03"
+      ],
+      "required_approvals": [
+        "owner:P15",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-04",
+      "title": "Atomic nbformat edit concurrency",
+      "outcome": "Notebook edits use optimistic content hashes and atomic replacement to preserve valid notebook structure under concurrency.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P15"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "E20"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/notebook_edit.rs",
+        "kiana-tools/tests/notebook_edit_integrity.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools --test notebook_edit_integrity --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Two synchronized writers allow exactly one update, while stale hashes, invalid cells, malformed notebooks, and path escape are rejected.",
+        "A simulated write crash never leaves truncated JSON and declared metadata and output preservation rules are followed."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-04",
+        "review-packet:D15-04",
+        "verification-packet:D15-04"
+      ],
+      "required_approvals": [
+        "owner:P15"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-05",
+      "title": "Bounded tabular data interpreter",
+      "outcome": "A registered data tool performs bounded schema, profile, filter, group, and aggregate operations on CSV and JSONL inputs.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P15",
+        "P13"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "E16",
+        "D15-03"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/data_interpreter.rs",
+        "kiana-tools/src/registry.rs",
+        "kiana-tools/src/lib.rs",
+        "kiana-tools/tests/data_interpreter.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools --test data_interpreter --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Quoted CSV, null and type conflicts, row limits, non-finite values, overflow, invalid UTF-8, and unsafe paths have deterministic outcomes.",
+        "Aggregates match independently calculated fixtures, limits are present in the tool schema, and over-limit jobs never report partial success."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-05",
+        "review-packet:D15-05",
+        "verification-packet:D15-05"
+      ],
+      "required_approvals": [
+        "owner:P15",
+        "owner:P13"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-06",
+      "title": "Content-addressed data result artifacts",
+      "outcome": "Data-interpreter outputs are replayable artifacts bound to input, operation, row selection, and content hashes.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P15"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D15-05"
+      ],
+      "candidate_write_paths": [
+        "kiana-tools/src/data_interpreter.rs",
+        "kiana-tools/src/data_artifacts.rs",
+        "kiana-tools/tests/data_artifact_provenance.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-tools --test data_artifact_provenance --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "CSV and JSON artifacts stay inside the approved artifact root and their manifests can be recomputed exactly.",
+        "Input or operation changes invalidate proof, formula-injection prefixes are neutralized, and partial writes cannot publish a manifest."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-06",
+        "review-packet:D15-06",
+        "verification-packet:D15-06"
+      ],
+      "required_approvals": [
+        "owner:P15"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-07",
+      "title": "Real KiCad manufacturing and netlist analysis",
+      "outcome": "The EDA review command parses real KiCad netlist and manufacturing artifacts into deterministic structural findings.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P22"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "E21"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/eda.rs",
+        "kiana-commands/src/eda_netlist.rs",
+        "kiana-commands/tests/eda_command.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test eda_command --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Versioned fixtures cover missing power and ground, duplicate references, BOM and placement mismatch, missing layers, malformed input, size limits, and symlink escape.",
+        "Every finding binds artifact hash, location, and rule, and parser uncertainty can never become a passing result."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-07",
+        "review-packet:D15-07",
+        "verification-packet:D15-07"
+      ],
+      "required_approvals": [
+        "owner:P22"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D15-08",
+      "title": "EDA waiver and workflow evidence closure",
+      "outcome": "EDA waivers, rechecks, and final decisions enter the authenticated workflow and evidence chain.",
+      "domain_id": "D15",
+      "ownership_packages": [
+        "P22"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "D15-07",
+        "D16-04"
+      ],
+      "candidate_write_paths": [
+        "kiana-commands/src/eda.rs",
+        "kiana-commands/tests/eda_workflow_evidence.rs"
+      ],
+      "verification": {
+        "command": "cargo test -p kiana-commands --test eda_workflow_evidence --locked --offline --no-fail-fast",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Every waiver has approver, reason, scope, and expiry, and source drift or expiry reopens the blocker.",
+        "Passing proof binds all inputs, rules, findings, waivers, and verification identity; foreign or tampered packets and unresolved high findings cannot complete the workflow."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:OpenHands:domain:D15",
+        "reference:MetaGPT:domain:D15",
+        "reference:pm-skills:domain:D15"
+      ],
+      "required_artifacts": [
+        "result-packet:D15-08",
+        "review-packet:D15-08",
+        "verification-packet:D15-08"
+      ],
+      "required_approvals": [
+        "owner:P22",
+        "contract-security-controller"
+      ]
+    }
+  ]
+}

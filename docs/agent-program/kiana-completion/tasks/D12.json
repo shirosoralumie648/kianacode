@@ -1,0 +1,464 @@
+{
+  "schema": "kiana.agent-task-catalog.v1",
+  "domain_id": "D12",
+  "expected_count": 9,
+  "tasks": [
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-01",
+      "title": "Typed client transport workspace",
+      "outcome": "Provide one reusable HTTP and WebSocket client that validates app-server schemas, bearer handling, and typed failures.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W4",
+      "task_type": "contract",
+      "risk": "critical",
+      "depends_on": [
+        "E06",
+        "E19",
+        "E22"
+      ],
+      "candidate_write_paths": [
+        "clients/package.json",
+        "clients/package-lock.json",
+        "clients/shared/src/app-client.ts",
+        "clients/shared/src/contracts.ts",
+        "clients/shared/test/app-client.test.ts"
+      ],
+      "verification": {
+        "command": "npm --prefix clients run test -- shared/test/app-client.test.ts",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The shared client connects to app-server HTTP and session WebSocket surfaces.",
+        "Schema mismatch fails closed and bearer values never enter errors or logs."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-01",
+        "review-packet:D12-01",
+        "verification-packet:D12-01",
+        "contract-hash:D12-01"
+      ],
+      "required_approvals": [
+        "owner:P26",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-02",
+      "title": "Web connection and onboarding slice",
+      "outcome": "Let the first web view connect to a local server, authenticate, verify readiness, and select a workspace.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D09-08",
+        "D12-01"
+      ],
+      "candidate_write_paths": [
+        "clients/web/package.json",
+        "clients/web/vite.config.ts",
+        "clients/web/src/main.tsx",
+        "clients/web/src/features/connect/ConnectView.tsx",
+        "clients/web/src/features/connect/ConnectView.test.tsx"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/web test -- ConnectView.test.tsx",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The first screen completes connection and workspace readiness without a marketing detour.",
+        "Authentication, server availability, and workspace readiness failures are distinguishable."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-02",
+        "review-packet:D12-02",
+        "verification-packet:D12-02"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-03",
+      "title": "Web conversation history slice",
+      "outcome": "Browse active and archived conversations, resume a selection, and render its server-projected transcript.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W4",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D12-02"
+      ],
+      "candidate_write_paths": [
+        "clients/web/src/features/conversations/ConversationWorkspace.tsx",
+        "clients/web/src/features/conversations/conversationReducer.ts",
+        "clients/web/src/features/conversations/ConversationWorkspace.test.tsx"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/web test -- ConversationWorkspace.test.tsx",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Active and archived conversations retain stable identity and status labels.",
+        "Resuming an archived session renders the same messages and terminal state as the server events view."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-03",
+        "review-packet:D12-03",
+        "verification-packet:D12-03"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-04",
+      "title": "Web live chat and permission slice",
+      "outcome": "Complete a web prompt through streaming, tool progress, permission approval or denial, cancellation, and one terminal result.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D10-07",
+        "D12-03"
+      ],
+      "candidate_write_paths": [
+        "clients/web/src/features/chat/ChatComposer.tsx",
+        "clients/web/src/features/chat/PermissionPrompt.tsx",
+        "clients/web/src/features/chat/sessionSocket.ts",
+        "clients/web/src/features/chat/ChatFlow.test.tsx"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/web test -- ChatFlow.test.tsx",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Permission responses are bound to the current session, turn, and request identity.",
+        "Cancellation or denial prevents late output and still reaches one terminal result."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-04",
+        "review-packet:D12-04",
+        "verification-packet:D12-04"
+      ],
+      "required_approvals": [
+        "owner:P26",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-05",
+      "title": "Web local-coding safety slice",
+      "outcome": "Let a web user scope files, inspect changed files and diff, create a checkpoint, and run checks or review on that change set.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "D12-04"
+      ],
+      "candidate_write_paths": [
+        "clients/web/src/features/coding/FileScopePanel.tsx",
+        "clients/web/src/features/coding/ChangesPanel.tsx",
+        "clients/web/src/features/coding/CodingFlow.test.tsx"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/web test -- CodingFlow.test.tsx",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The user can constrain editable and read-only files before a mutating prompt.",
+        "Diff, checkpoint, checks, and review remain bound to the same visible changed-file set."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-05",
+        "review-packet:D12-05",
+        "verification-packet:D12-05"
+      ],
+      "required_approvals": [
+        "owner:P26",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-06",
+      "title": "Web operations truth slice",
+      "outcome": "Present effective settings, models, plugins, doctor status, and release blockers as one truthful web operations view.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "high",
+      "depends_on": [
+        "D07-07",
+        "D09-08",
+        "D12-02"
+      ],
+      "candidate_write_paths": [
+        "clients/web/src/features/operations/OperationsView.tsx",
+        "clients/web/src/features/operations/SettingsPanel.tsx",
+        "clients/web/src/features/operations/ReleaseStatus.tsx",
+        "clients/web/src/features/operations/OperationsView.test.tsx"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/web test -- OperationsView.test.tsx",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "Effective values include source attribution and redact every credential.",
+        "External commercial blockers are never represented as locally satisfied."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-06",
+        "review-packet:D12-06",
+        "verification-packet:D12-06"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-07",
+      "title": "IDE connection and session slice",
+      "outcome": "Connect an installed IDE extension to Kiana, select a workspace, and list or resume its sessions.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "high",
+      "depends_on": [
+        "D09-08",
+        "D12-01"
+      ],
+      "candidate_write_paths": [
+        "clients/ide/package.json",
+        "clients/ide/src/extension.ts",
+        "clients/ide/src/kianaClient.ts",
+        "clients/ide/src/sessionTree.ts",
+        "clients/ide/test/kianaClient.test.ts"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/ide test -- kianaClient.test.ts",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "The IDE status and session tree reflect real authentication and workspace readiness.",
+        "Resuming a session preserves its server identity and transcript source."
+      ],
+      "requires_approval": false,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-07",
+        "review-packet:D12-07",
+        "verification-packet:D12-07"
+      ],
+      "required_approvals": []
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-08",
+      "title": "IDE live chat and permission slice",
+      "outcome": "Provide streaming chat, tool progress, bound permission decisions, cancellation, and terminal status inside the IDE.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "feature",
+      "risk": "critical",
+      "depends_on": [
+        "D10-07",
+        "D12-07"
+      ],
+      "candidate_write_paths": [
+        "clients/ide/src/chatViewProvider.ts",
+        "clients/ide/src/permissionFlow.ts",
+        "clients/ide/test/chatFlow.test.ts"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/ide test -- chatFlow.test.ts",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A permission decision can affect only its bound session, turn, and request.",
+        "Cancellation produces one terminal state and blocks late stream updates."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-08",
+        "review-packet:D12-08",
+        "verification-packet:D12-08"
+      ],
+      "required_approvals": [
+        "owner:P26",
+        "contract-security-controller"
+      ]
+    },
+    {
+      "schema": "kiana.agent-task-card.v1",
+      "task_id": "D12-09",
+      "title": "Installable IDE local-coding slice",
+      "outcome": "Package an IDE extension that carries an editor selection through file scoping, diff, checkpoint, checks, and review.",
+      "domain_id": "D12",
+      "ownership_packages": [
+        "P26"
+      ],
+      "wave": "W5",
+      "task_type": "integration",
+      "risk": "critical",
+      "depends_on": [
+        "D12-05",
+        "D12-08"
+      ],
+      "candidate_write_paths": [
+        "clients/ide/src/localCodingFlow.ts",
+        "clients/ide/src/diffViewProvider.ts",
+        "clients/ide/test/localCodingFlow.test.ts",
+        "clients/ide/test/extension.e2e.test.ts"
+      ],
+      "verification": {
+        "command": "npm --prefix clients/ide test -- localCodingFlow.test.ts extension.e2e.test.ts && npm --prefix clients/ide run package",
+        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_success": "command exits 0 and all acceptance assertions pass"
+      },
+      "acceptance": [
+        "A clean IDE profile can install the package and complete the selected-file to reviewed-diff flow.",
+        "Every mutation remains constrained to the confirmed file scope and visible change set."
+      ],
+      "requires_approval": true,
+      "exclusive": true,
+      "status": "blocked",
+      "blocked_reason": "W0 baseline and declared dependencies are not accepted",
+      "reference_capabilities": [
+        "reference:continue:domain:D12",
+        "reference:cline:domain:D12",
+        "reference:OpenHands:domain:D12",
+        "reference:herdr:domain:D12",
+        "reference:pi:domain:D12"
+      ],
+      "required_artifacts": [
+        "result-packet:D12-09",
+        "review-packet:D12-09",
+        "verification-packet:D12-09"
+      ],
+      "required_approvals": [
+        "owner:P26",
+        "contract-security-controller"
+      ]
+    }
+  ]
+}
