@@ -324,7 +324,7 @@ Create commit-plan.json with schema kiana.baseline-commit-plan.v1 and this contr
           "paths": ["exact repository path"],
           "verification_commands": ["exact focused command"],
           "approval_required": true,
-          "approval_status": "approved"
+          "approval_status": "pending"
         }
       ]
     }
@@ -361,7 +361,7 @@ Run:
         assert item["reference_drift"] is False
     for item in plan["slices"]:
         assert item["verification_commands"]
-        assert item["approval_status"] == "approved"
+        assert item["approval_status"] in {"pending", "approved"}
     print(f"review_ok paths={len(input_paths)} slices={len(plan['slices'])}")
     PY
 
@@ -369,7 +369,11 @@ Expected: review_ok with the captured path count and a positive slice count.
 
 - [ ] **Step 5: Obtain explicit slice-plan approval**
 
-Present each slice in order with exact paths, owner packages, risk, verification commands and all resolved findings. Do not construct commits until the user explicitly approves this complete plan.
+Present each slice in order with exact paths, owner packages, risk, verification commands and all resolved findings. Do not construct commits until the user explicitly approves this complete plan. After approval, change every slice approval_status from pending to approved and run:
+
+    jq -e 'all(.slices[]; .approval_status == "approved")' docs/agent-program/kiana-completion/baseline/commit-plan.json
+
+Expected: exit 0 before Task 3 begins.
 
 ### Task 3: E02 Build And Verify The Commit Chain Offline
 
