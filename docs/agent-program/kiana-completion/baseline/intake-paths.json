@@ -1,0 +1,2201 @@
+{
+  "entries": [
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c3ff124affada8e30c1df599ef550514672a69054759b3aacfed266793ee11b9",
+        "size": 893
+      },
+      "original_path": null,
+      "path": ".gitignore",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5ecd747649ce898d7de1449a9a6bd27ff60b595cbcad5630b3b25908740458a3",
+        "size": 13726
+      },
+      "original_path": null,
+      "path": ".kiana/agents/reference-repairer.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c992431a136b827ce01c96413667db9c42e228aca97414812625fe57815204fe",
+        "size": 162895
+      },
+      "original_path": null,
+      "path": "Cargo.lock",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "bfc96598402e8579c57e95aedda5214cdd03f072cedc23663df694ddf7244976",
+        "size": 36925
+      },
+      "original_path": null,
+      "path": "USAGE.md",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "03725f0ff68b413ebf911a8fdee272a58813511ed6b0ddf50afc1905a396a349",
+        "size": 78640
+      },
+      "original_path": null,
+      "path": "docs/commercial-release-readiness.md",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "38e5117dfa57904120e0fb38388cd1f13399e60840a43aa1d26fd240c12deca0",
+        "size": 486
+      },
+      "original_path": null,
+      "path": "docs/eval/fixtures/basic-runtime-baseline.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "3150f916d319f4b62556fdaea5bcb5997759212f02ebba921844aad278db7482",
+        "size": 596
+      },
+      "original_path": null,
+      "path": "docs/eval/fixtures/basic-runtime-suite.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "dc0ac86ddc55fbd2fd2bcc4b927f5fc13bb10a97a2302ab72250b3596b875064",
+        "size": 261
+      },
+      "original_path": null,
+      "path": "docs/eval/fixtures/basic-tool-failure.jsonl",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "27cea481e4d9e78e578b1ad1bb25bf59bf38e28b84f39bf466a2d24ea91f6423",
+        "size": 337
+      },
+      "original_path": null,
+      "path": "docs/eval/fixtures/basic-tool-success.jsonl",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c6c6457f923a5e31cf6aafc919aebdfd5d65c6259e299a3cfbe909fad6984c36",
+        "size": 237379
+      },
+      "original_path": null,
+      "path": "docs/kiana-personal-project-os-complete-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a3f22505ea8757696c9aad486f4675d8b7326e32555d4a199eb717cf56a9787b",
+        "size": 33532
+      },
+      "original_path": null,
+      "path": "docs/kiana-product-functional-and-implementation-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "099410c435e63643e2a613cd93e0b66c66a3469655f9b57760c66f708bddedcf",
+        "size": 7967
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/01-system-overview-and-product-logic.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "87f60f59f404841903c549c03ecf802db4f78a15e6680b0d168d68a2f0432100",
+        "size": 14472
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/02-workflow-runtime-and-state-machine.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "cc7ba8a2465a2ffe56d02b1cf05fba38436c278d2869d45914a4068f7e49005b",
+        "size": 7915
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/03-intent-router-and-command-semantics.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "eec784fdebb5cee7abf4bdc4967f3ece03ddba72b8aaac0fa1535c9357a718bd",
+        "size": 5863
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/04-project-orchestrator-wbs-kanban.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "118dd194932483f4a3106606e4b99a44965acff2778a4e3c7d2d4b6670d2f67a",
+        "size": 7972
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/05-evidence-verification-review-ledger.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "36a8cf6c6d265410ebc116bb153c697ebd6e8784bb1350a448376faf70d21fd9",
+        "size": 5056
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/06-context-memory-repo-intelligence.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "cb2b101bb050e98356d473628a1b5873addebeebef15a88c5b3406b1e7f46245",
+        "size": 9052
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/07-bounded-swarm-worker-model.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "7a352d928af479288ebb6d276a819f4e5ddc4d25bd01cd2102e9d29ba8b33b28",
+        "size": 4089
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/08-trust-policy-plugin-mcp-hooks.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "097d6a8b4f34ce63a178af2bc8b6e9a6d25b03f9be4182f59a709c09d0302f8d",
+        "size": 3785
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/09-eda-domain-workflow.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "941a50330368ddee3f2e292922bbf1b34bdd61571ad2fa78eb086a9e835a6600",
+        "size": 5186
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/10-p0-p1-p2-delivery-slices.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "e9d11ce17ad995731516b2a83dc25cdd9d5e23af4e28bf2462fcdcbbfe805e49",
+        "size": 8781
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/11-data-contracts-and-event-taxonomy.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8703648c40c17b0d298b9d710ae04150a9f5c4b80c274f28bd2ebfcac4508c16",
+        "size": 5678
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/12-cli-tui-product-surface.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "81111b54737c6ba9e0539c5693c00ab422b5e673b7c8aac8c276e92364586977",
+        "size": 3748
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/13-plugin-skill-ecosystem-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ba629f05efac48a256b910567f2d04ccd89200e138daf4d8f9f53209dd93787a",
+        "size": 3430
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/14-mcp-tooling-and-provenance.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4452a721315dce382c2fa0b4cc4d5cce0296f2268d9172b88b984ca228a404c1",
+        "size": 3462
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/15-security-audit-and-commercial-readiness.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4f681a88a1231698a1f8dcf01bf0b46bb2571974ec255f47c63b203b303b3451",
+        "size": 3062
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/16-reporting-learning-and-memory-governance.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6aaeb091e85bb9c2c6ea9904b33ab4543c599cc66ec96ea85dadc498019639d8",
+        "size": 3333
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/17-enterprise-offline-and-cloud-workspace.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "661d47319878e90cee1dab1ef88c198b65fd7f618e7244fbdda8d89a3d14f971",
+        "size": 4411
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/18-reference-to-feature-playbook.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5f62e1a1b534d9c451f3b9c92f1a6df25708150f3e70c47c86e10d63d64e6ac3",
+        "size": 3297
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/19-testing-evaluation-and-smoke-strategy.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a31fd87301648fad0da438eb8c9d8e532cf7d5273fac975f5dcf7f622914be8f",
+        "size": 3659
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/20-roadmap-governance-and-scope-control.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "dccbf24ffcfec82afbdacc82fcd6192639049d8213bbb4e22247839296c33353",
+        "size": 4810
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/21-scheduler-dependency-and-priority-model.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ec27dd4c14871590171ffdcd1fe3495d76a72b908f02a0b8fef64d565acf1c07",
+        "size": 4512
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/22-error-failure-and-blocker-taxonomy.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "433843b20d36f7d506808bd827bf7193abb04ae5f1ccc9f270bdd8e7efa1818a",
+        "size": 3567
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/23-artifact-storage-retention-and-redaction.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "869c629f2e72648128e0a1e4ca4bacbe8f7455ca109e27157eafc4dc3339c5bc",
+        "size": 3215
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/24-command-catalog-and-output-contracts.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "197b049fc13d6d8adb55bf760256e0012a77f957fdc0a9b1b2446cb891ecc6ab",
+        "size": 2825
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/25-gate-engine-and-quality-profiles.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f64c3b87c2dc5afb85c9bf2094331d939b45b1243bbb9ebda9c1a18bf3e56567",
+        "size": 3072
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/26-eda-rules-deep-checklists.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4480b6c22c52bd72c0712ee12606960f32a150006c04dc296a1f0707d418b831",
+        "size": 6942
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/27-worker-integration-and-conflict-resolution.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a9c92824c61bb545762965db9dac96b550bc15b1c80d535ce07d45d4416a990f",
+        "size": 2369
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/28-memory-formation-and-stale-invalidation.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8ecd4dae5917fd7c699e0618d7a6d5bee49c463f3ff00ac32fa98512f7f6e5ce",
+        "size": 3014
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/29-report-template-library.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "759c801e69095fc49f4398eda942482c45e21bc65070fe8a7fb8b1e319240b72",
+        "size": 2816
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/30-implementation-governance-without-code.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "b28277dfa93e9726895288e35e835eefed0ecfb45ddd93ff29963a7eb939bbfe",
+        "size": 10667
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/31-project-board-data-model-and-queries.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ba74f36d511a7fae29be666794cd3290ff1bdf16ba7e5ffee585539d27890e19",
+        "size": 9249
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/32-workpacket-schema-deep-dive.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "90455e70e18d4884d2cc165032af875c8e24f6ca72ef7a17d3f3abb36c3911be",
+        "size": 7172
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/33-approval-and-human-decision-protocol.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "835b6c93ef9da3b50cf5296167fcdaf502a68b5b113752d60a7fc354b81005a3",
+        "size": 6215
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/34-domain-rules-and-conditional-injection.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "502fbd51f5bcb8f5bc6b33bf1d10fb8c59ef45e57f39714f8d2265c30d0147de",
+        "size": 5904
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/35-dashboard-projection-model.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a12cce4d4587de926804fe024fd539be51ed4c75b25e44e1251d1277e6b35135",
+        "size": 7338
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/36-release-proof-and-commercial-blocker-ledger.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6e349f06a0efdb4e13cc12efaac8d5b385a782115b359a01b0804305eedc101d",
+        "size": 10346
+      },
+      "original_path": null,
+      "path": "docs/kiana_project_os/README.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "31e879959450c3cc9f38341bfee705410796b4f41884559e9f07c2ccba396256",
+        "size": 107782
+      },
+      "original_path": null,
+      "path": "docs/reference-feature-matrix.md",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "112df2f16927b29082ef54a053b5ce1d6cfd504f3a58086684a75fa6095370cd",
+        "size": 108523
+      },
+      "original_path": null,
+      "path": "docs/reference-migration-roadmap.md",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "46ac83c562697d032e4d8d17adb842fcd58f78bd18ff660da13007fde66d8c10",
+        "size": 19342
+      },
+      "original_path": null,
+      "path": "docs/reference_audit/agentic_workspace_reference_audit_2026-07-08.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+        "size": 16352
+      },
+      "original_path": null,
+      "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "0a275839390c7a196712072d0e567c9b3117fec62b93c7c49d16075525cc66f6",
+        "size": 14568
+      },
+      "original_path": null,
+      "path": "docs/release-checklist.md",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "04d140cabb0aad84bf2f84aa4296ae549a7fdf7f6658edfe70665173a1203c83",
+        "size": 6718
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-app-server-trust-status.v1.schema.json",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c93bd9deedeccac6e230112dcd5110705cd2584d0d9a57c490ffd996cda365cd",
+        "size": 10044
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-commercial-release-blockers.v1.schema.json",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ce2463eae100aaee8b068409523dcaafc28732e22e2d27f825907655944f892f",
+        "size": 9316
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-eda-review.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6ce2c36d3a168310b358348c6640efa55764efe5843b937dbeaa5a5ee2d8395a",
+        "size": 1371
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-eval-baseline.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "10eb007815b8a6b29ba3f922afa9446b275deec171a743ff15f35d5b73b6d99f",
+        "size": 4406
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-eval-report.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "557cfb1f7be4289dc3301fcd34c26914e1ef69e86a2e9fde053c1270993cecce",
+        "size": 1851
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-eval-suite.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a14ff26ab67787f0a193d05c139ec87caf3666bf018b3c471626603b38fca9a2",
+        "size": 804
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-memory-record.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "bb6fcaf1bcf584222eec184afa440936a962a3fe054d06f8acf93ef4c510c8ac",
+        "size": 1701
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-memory-search.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c54061c7603c75e49ed506e874a42b0483a5c0d55a8c6b1aadb51da8cf53cb2e",
+        "size": 965
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-memory-status.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "185ef0ba6b307c66c7bc1f2cd05741ef7abcec5415e3efd9a5ce379bc090ff4f",
+        "size": 2353
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-release-workflow-proof.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c58e4af82bb387a10c8030f2d51962b877961cee7b5b5a967c718b6b77d3f7aa",
+        "size": 2781
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-swarm-process-identity-backend.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5b678420b33b7db53accb3dbc6e5daf8ed3b6fcaedf753de3c0e1a5b9cecc1a4",
+        "size": 2963
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-swarm-worker-health.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c6ad13899d6952fc46f2ccc3cc1bdb0646663286c74d72b1403690690f575358",
+        "size": 2919
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-swarm-worker-state.v2.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "d74b4c9dc7526a06848761bf772f4d414ab156ad742967c4cd55fb25a4aa78f8",
+        "size": 1344
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-swarm-worker-telemetry.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "bbaa94f60e96424005502dc0a020d5d17f971f751ba83bbb73ab25d3ed64bea7",
+        "size": 944
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-workflow-completion.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "571aa82003c5fc2f0fc849f7c828448697dceb46be14e7d6139c482f047f9e0f",
+        "size": 1870
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-workflow-release-binding.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6107ea0fe77337904ddd4421a084e6d982a6f84a95ca1fce9df0943dcb24f51d",
+        "size": 1565
+      },
+      "original_path": null,
+      "path": "docs/schemas/kiana-workflow-transition.v1.schema.json",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "56926f725f67279badb5b6059d80cb2eab85ef329f80a30c7976f46add215409",
+        "size": 3885
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-08-workflow-runtime.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6d3a6c4cb2348c2d6e31a107dff46aaf8a5e2d8bcdaa4ed5b7cf910d63ecf70c",
+        "size": 6937
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-bounded-swarm-dispatch-persistence.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5cfdfae977a14d8c655bd2956f1963ef3c6afd8b3efcbca1eeb7accfe46d96a0",
+        "size": 7333
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-bounded-swarm-pre-dispatch.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "14a83717df7e538039807b4d7799d74f0ff421fea179d84e7dceef3980318552",
+        "size": 2710
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-bounded-swarm-serial-integration.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8eb7b4600b0efa6c9d079b560b7caee269b8fb289b00650f466d29353ae9034a",
+        "size": 4401
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-bounded-swarm-worker-lifecycle.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "952ad84410caae4a42d4b6fa25cf95c62c59646dbb436bb5e9413a02e48cee25",
+        "size": 15116
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-evidence-ledger-verification-gate.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "2d76d0e9b587ea63bc15a08717e87a914a21b9ff9416b31b78b0b60a497178ab",
+        "size": 10013
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-project-board-task-card.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "1dcb048b2bb15efd5672b689a42e6c25bb882697ef02e8e4bc62a98662980b3f",
+        "size": 14172
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-recovery-journal-revision-mac.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "68d2b95547cc68de389f1dd98e2daa77ea987dafc8a8e2f23538dc5ebbb32442",
+        "size": 11272
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-workflow-artifact-binding.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4c20a79a7cb66a2ee642e9f5fb3b707a3b5ce16ee1d04af6d84fb3d53780c9ca",
+        "size": 13442
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-workflow-integrity-eventlog.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "259ed95aeb66127171525ce7e432612fa8518e5d6474f9f41d734901ad316a0e",
+        "size": 3251
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-10-workflow-resume-reconciliation.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f6c188caacb58eb561923b7c0834b6b19b88cc562746efed29257949ca3913d0",
+        "size": 8489
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-bounded-swarm-process-identity.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8783bf0a93eb80cb387929dba8c327e81b429368bfc69b97ba9e68723c72380a",
+        "size": 706
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-commercial-release-workflow-proof-binding.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "cb7c3a40b12317ffb58fbf3c15ffc7869c79969b12088236fd3ce3f94251713f",
+        "size": 4797
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-eda-netlist-structural-review.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "e35271cfb50bf845e1dc4ca9518ee70d71f9e427e4fec089db2abafe72cbe1f6",
+        "size": 5485
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-eda-review-workbench.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "55e314e4c10e56b30509716d694e91910b7b367d68a41fac76c602bfd3c68fc6",
+        "size": 6491
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-offline-eval-harness.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "bb6d9ee6755fc94018925c6e86775abb0474f0534a2c3fa20f08d5a9299a6ca0",
+        "size": 6693
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-project-trust-root-hardening.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a5cd3059d5eb481188b76924561ebce137536653133824942ba961ef26af90ea",
+        "size": 5934
+      },
+      "original_path": null,
+      "path": "docs/superpowers/plans/2026-07-11-workflow-transition-completion.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "7ffb322fc80a9d291e0860d605728dc1bfa4e9328535927b6d79f888687830db",
+        "size": 27511
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-09-kiana-personal-project-os-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "208aafec51179e111c2d8b19330442ab7d3bdc4522cc4b6960f82121af8c1683",
+        "size": 11862
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-10-bounded-swarm-serial-integration-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "32d0dbf449a4a736e053bb3f2b2ac7510da878039512ad26969cfda32e596591",
+        "size": 9986
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-10-bounded-swarm-worker-lifecycle-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "9ef331514131f9d13176a60e533b7f8dafd831d0b8ac38c68e7bf4fcd52ccb47",
+        "size": 16614
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-10-evidence-ledger-verification-gate-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "42d012ad8f8b87d47f21f9d6116d9b762fd2a11d354c6740b6f8e2f4c220c179",
+        "size": 9317
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-10-project-board-task-card-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "574ad8cd4f641d89c9696a345855185ea0f3d763b94974347da7c9f17783986c",
+        "size": 15906
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-10-recovery-journal-revision-mac-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "478195c6402256fae208dc4305b413ecbce9d99fda248757807c93a5422eed2b",
+        "size": 17474
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-10-workflow-integrity-trust-root-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "30608527dd512ffb206a62a890bb8de5aba1b6686b77fa68103ed6703b4ab295",
+        "size": 8329
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-11-bounded-swarm-process-identity-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "7bf0f8f1b48509a879710c9a1a988569941b3e91d8a10a01e1f7d46aaef4c0f8",
+        "size": 5642
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-11-commercial-release-workflow-proof-binding-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "bc83dc23212bc102a45c5a866cdd3227957ce7494773811fb38e48871dc71ca0",
+        "size": 5635
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-11-eda-netlist-structural-review-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "d2396847fb0e3a9bcde04bd88ffeb81adbe613db34e33d541fbcd1d066d47e1e",
+        "size": 8498
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-11-offline-eval-harness-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f7546b0aab837a52f8f23dfd3ed4f63fa9004d5507ef6553e17c6e2513b47e9f",
+        "size": 6214
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-11-project-trust-root-hardening-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "35252cd68bc70a585ca0bdcc51f07258bb8f76e498ed7389f297f074e85148fb",
+        "size": 5249
+      },
+      "original_path": null,
+      "path": "docs/superpowers/specs/2026-07-11-workflow-transition-completion-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ac7f8f85a254fd1f1549ed6a6956ff6ddfef349bb700923d280e41255d41f1df",
+        "size": 14932
+      },
+      "original_path": null,
+      "path": "docs/workflow-runtime-design.md",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6ec8ddb807e905edaab7331abe754920ac56dc4eb19a5793e9c3d26ea3d3f977",
+        "size": 1174
+      },
+      "original_path": null,
+      "path": "kiana-commands/Cargo.toml",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a9eae2dfe868f2418f72013ad9774e3cf2f9a0885ecb38330b8baabfe3b86d05",
+        "size": 58604
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/audit.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "905dcafcf1d5d69330e0c59c78c131ccc8f6f90d9d34f06e44664ba9dda6cb05",
+        "size": 35097
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/diff.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "7c1c0684aaa3a1e0b016f1c37949eabd15d38d5da6d7f40208dc7bf33a34f1cb",
+        "size": 50471
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/eda.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "030c04a958f51f634eafc190b5e22a68ae635bd22a3d7db700a81916ab289afa",
+        "size": 22294
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/eda_netlist.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "3522b35762a64c45b525f79678061f57d1fb34150528121c4fff1aaf34edfc0d",
+        "size": 31517
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/eval.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a25a16bd2320bf79a68f6ac8bf8e944f0a3274a5ecf0ddc1cec6b04ffb91595a",
+        "size": 21750
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/evidence.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "dd94d541c2757eef32ddef21fb29465a096ed431df5e70672c8316f5d022a96a",
+        "size": 1360
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/lib.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ff82aea223f8613e418383a5735c85cea018d38c3057427b2553145c3d318545",
+        "size": 3428
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/local_state.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "9b1253dadd57b512a037d81098e223e7931f870a8e7225b682b98f9542ced9f0",
+        "size": 23681
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/memory.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c7378f2aeab88ff811a364256191836133ba50215ed41434dd3ae8df4394c2c0",
+        "size": 36996
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/output_style.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5fdcf2072ae900e94b08ff3f5a60da3de718d0f5a876602cc9873cacd53f3134",
+        "size": 208369
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/plugin.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8da61e9707b342eb1abee6e790d75206b3a1f4a7064e7268f844b37406d0e479",
+        "size": 34272
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/project.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "baba7aadd22505849f0c961362cdf47e13c343cd7c05de40659c0bc7037f136d",
+        "size": 51065
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/registry.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a95afa7c1812c27dbd57b08526679398c1f0d9dfe4954ddf5bd65acd73b71422",
+        "size": 85469
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/release.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f05b4fc053e3890bf53adb6fa911c6c1a1cff9518ca64277de87a1ae1f1f78e4",
+        "size": 17595
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/report.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "aa1da64c7dc133cd25329ce61fffda68c31fba119c7915f64957be48d3bdffbc",
+        "size": 25521
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/skills.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8a0363c8b5a33f7d3631f6900db2f98789e0a3df9c275bf95e20273cacc6bf5b",
+        "size": 15530
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/swarm_process_identity.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "266a9b8712686ff562f2af19f22d0babe24b40373236e2c37574fb827fb08739",
+        "size": 417934
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/tasks.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6bede1ec1e2d078006f5247a3463bc1a1751012599c3ecd3ae0488f1a2ca588d",
+        "size": 20645
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/trust.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "43dfe8ff0d41fbf5e267d42c8bbeb6570f92fb2192fed8c3c83f825e037678e9",
+        "size": 13907
+      },
+      "original_path": null,
+      "path": "kiana-commands/src/validate.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a8ede8a1c1fc6d426f2241b7ab9b0dc3a65a1d19a03a08dbf487f421450b13bf",
+        "size": 22958
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/audit_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5717afa1cf3d4e5ebe97bde1498dc415cc98db8ead071a9eb3d8931aeb5ee0f5",
+        "size": 15778
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/eda_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "dffff99aa7d2830ec62a207967c59c190489b3d464374bbd250160041bbb133c",
+        "size": 15762
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/eval_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f33289d1dd031abc2cfe82c5faae652777c000e627320f70d78688a2222c9466",
+        "size": 14758
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/evidence_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ee7fe86d1252bbab77b55800352d991e04b37a2dd424043d4ab0b7406a94c029",
+        "size": 15192
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/report_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "63b55c47aac6559d0b1e73a0703e9f3069b8961523df2d79c17df14921357170",
+        "size": 148201
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/swarm_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "d8e8dc1f1d77a49884d0a897d4e92d9b0550a7c81e139bb294c2b440e5311f01",
+        "size": 11980
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/validate_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "76d8c10e27be0dba9ef6bad2398b49ad0b087b8ac6286ebd2cdcf1ee5badce4f",
+        "size": 5573
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/workflow_integrity_audit.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4210e92c1eeb82b07857b1284141901e56a42d73c96fd262f0ad895569769a0d",
+        "size": 14392
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/workflow_integrity_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4145d5ca49cf6a13c5149ae4a78039341ec945aa548ec5795a67d4c97ffe8f05",
+        "size": 14553
+      },
+      "original_path": null,
+      "path": "kiana-commands/tests/workflow_transition_command.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f947c33678c3af20828a483723fbadf319416e383c7fa309ed34bf95636ce962",
+        "size": 917710
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/src/cli.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "aef6a296fdff785167be3987911d6be36a6e2017639343dd7e55d6bcef5940b8",
+        "size": 5188
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/src/lib.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "cc1724d60a224f98935566a2e25477f0e625d89c3c56f1ae719990f9b786de6c",
+        "size": 45036
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/src/mcp.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "66996cf65c3b1bfdebb38d43c35a8685e8441d8c90af5e997eec093b5c65a773",
+        "size": 416855
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/src/runner.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "cc5581f33f7e2430a48368a6b98525e648d675b812ca3b9d356a8d246e23b587",
+        "size": 90583
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/src/sdk.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "2798f06227bc80cd75cc684fedcf539e1f442250ef00379832241ea2cd48afaf",
+        "size": 156734
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/src/tui.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "47bb1b9e28a842fe0f1edcdc99a95db811a1729db7eb92f5490d8a477a105a00",
+        "size": 1399
+      },
+      "original_path": null,
+      "path": "kiana-entrypoints/tests/cli_eval.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "438c430baf519b76a2e3c14293612d27807f84b046adfde761275520e7a947c8",
+        "size": 79407
+      },
+      "original_path": null,
+      "path": "kiana-query/src/stop_hooks.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "bd123f9b5f364a565ec031af1e0e39eaf964cfa98810bfd1c303340dcba0937a",
+        "size": 17109
+      },
+      "original_path": null,
+      "path": "kiana-skills/src/lib.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "b4cc3a0fbc4ad293d6e67341d429f445a1a683f513590468d8853f83549b7016",
+        "size": 7421
+      },
+      "original_path": null,
+      "path": "kiana-skills/src/loader.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a67c651651adaa92fdf5443a024df63c9d25aa00b58d4d025f839fcec0bf109a",
+        "size": 14364
+      },
+      "original_path": null,
+      "path": "kiana-skills/src/plugins.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "e426e5baf985b4ad758df4ef3afcb5874decc679696e6ea483bf48da22a52218",
+        "size": 599
+      },
+      "original_path": null,
+      "path": "kiana-tasks/Cargo.toml",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "0812518ed2e7720665d28b0b162ccbcce26ccfed2fc0d6d6d508a68885a83bc4",
+        "size": 40954
+      },
+      "original_path": null,
+      "path": "kiana-tasks/src/evidence.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "11c6292f5c1518a90a0831a89e9b0cf418c261dc6fa4229a89b6cc5f6225ba44",
+        "size": 15832
+      },
+      "original_path": null,
+      "path": "kiana-tasks/src/integrity.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "0964a27caf1637440797fe56d4ba159418713768105ee298cff835f5beaf0dac",
+        "size": 4162
+      },
+      "original_path": null,
+      "path": "kiana-tasks/src/lib.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "41e2b3186e8c0433f9b33c1de0600d020d80e72f5f6c87fae905d741d3d6de24",
+        "size": 36026
+      },
+      "original_path": null,
+      "path": "kiana-tasks/src/project_board.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "8d5750fc728aa8df8a9c3e9fbf47e1b36b4c2069d1f3c9d25864e37ff70ae734",
+        "size": 39678
+      },
+      "original_path": null,
+      "path": "kiana-tasks/src/swarm.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+        "size": 106394
+      },
+      "original_path": null,
+      "path": "kiana-tasks/src/workflow.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "c9415154df80106fda5c84e7f98ab4855bfd3b2e40e9efcebf70630c8157400f",
+        "size": 17509
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/evidence_ledger.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ebd7312c367ca063a6340075491a06bca1bf5dd3c6ab5a273905a059800467f0",
+        "size": 21872
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/project_board.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "e4577e8fd5b8161e3583ac7a585be2a5ec7b98d26769ce8ad47d54da626bc43f",
+        "size": 10512
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/review_packet.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "e3970f89c8a36390d3e88a6c14a990933927dcc16c3d9b50c1e457e727b345b5",
+        "size": 7715
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/swarm_dispatch.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "b152a965d29d2d24a32e6f433e1f6486713cd44c70cbefeae59d81df33839683",
+        "size": 7611
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/swarm_planner.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "5fc0c80b86739317410090e8797171719ececa96f7f13e00129e6d2188ea73ab",
+        "size": 8355
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/swarm_worker_lifecycle.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "09260d95df9bb7eb51596c24520918ceafe394f8f631f4411976e4ea2fb5c248",
+        "size": 13075
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/workflow_artifact_integrity.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "6867a27a904f3dd41358f587c6d922efd9e07d904caec38745c96578d3b5406b",
+        "size": 13940
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/workflow_integrity.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4d2de28d352cbd420c5752632448dc9c0eff7c8e53a37abaa0001c988af29ba8",
+        "size": 32287
+      },
+      "original_path": null,
+      "path": "kiana-tasks/tests/workflow_runtime.rs",
+      "record_type": "?",
+      "xy": "??"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "e2b9f3de142a78d36652c85f98f9b1533a7aa5d0590b530487ce215838bbbfd7",
+        "size": 201118
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/agent.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "0cbe4034b05bf0835ce2d316e34654c0c95d0512e107d5664ef77b306f40cb17",
+        "size": 10885
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/bash_sandbox.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "3e00470b0540a9a58071e1e7be11e9ed62978f24999fc8a27d5712ab2aedb2ee",
+        "size": 58561
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/bash_tool.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "28b2815e085b18e3d977f05f50613beeef96c344efb2e619a1be538f0fe39cea",
+        "size": 21960
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/discover_skills.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "b62fd3e454de1d03a3b011c8fe90dd4aac79aa26be3c6d05ff4d2540353b9ff8",
+        "size": 94282
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/mcp_tool.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4de2845151951dc6cf3a63631407c66c379aedacf5ab02bcdca2bea64b81be03",
+        "size": 50140
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/permissions.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "06560e103c45419011c16ff99928fa736f9598fdf502bbe6708bc5d825e7e014",
+        "size": 19265
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/remote_trigger.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "feaed8bb98b80abb8922c8ee4a2b10ad17bb6d5efc57c239f61dc8fafe52bfed",
+        "size": 22627
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/repl_tool.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "978d0100062cba55619de6dbd04c4be599123967d299a6ef75926ac2df87d433",
+        "size": 79505
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/task_create.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "aa15338ce216d41761864fa5f229a4152526af1ba7b8bc00d04f962a0674591d",
+        "size": 156693
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/team_create.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "0074cf7f8d2495b6ebbdbd52d492b644fad33a271c05f70a7ed87e3e982a76fe",
+        "size": 60987
+      },
+      "original_path": null,
+      "path": "kiana-tools/src/tool_execution.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f7e0692bc872b1f37ab9514642d1ff9eabf46744c8bbe7a279424f870ba44656",
+        "size": 722
+      },
+      "original_path": null,
+      "path": "kiana-types/Cargo.toml",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "dc906463632138dea285183f65cb82e955c0ea804f0cd59ca27a82ccf3589cf0",
+        "size": 1186
+      },
+      "original_path": null,
+      "path": "kiana-types/src/lib.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a643d2f89dec191a47efc61f949e0ca671228a1d271e40675e1e8cc893263517",
+        "size": 11312
+      },
+      "original_path": null,
+      "path": "kiana-types/src/plugin.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "ed3bc6b21b933b48e9467f9743d93935227a7cd8418170e987f58620786ee70a",
+        "size": 63934
+      },
+      "original_path": null,
+      "path": "kiana-types/src/trust.rs",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "51c606c30056eaced132644def74e7c2f5b13ef2624483c9d8e4282dee097e4a",
+        "size": 75594
+      },
+      "original_path": null,
+      "path": "scripts/commercial-release-blockers-report.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "f42faff2821a0e1ebeaf1c5b6a6b819572e80c3212266978cd9b2da95995f8c9",
+        "size": 43087
+      },
+      "original_path": null,
+      "path": "scripts/commercial-release-handoff-smoke.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4f179e9265a8d7701397be74ac10afe4f6e0f033729b3243ca48165645941b0d",
+        "size": 37619
+      },
+      "original_path": null,
+      "path": "scripts/package-lifecycle-smoke.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "7ff1ef0addab33ad30fc27f655bff5a43ca54622abbb3899ba852559363060da",
+        "size": 7739
+      },
+      "original_path": null,
+      "path": "scripts/package-release.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "66f94d125c547a3b60da3dbbeab257bf7969e5ddda72b534fd4869924b66fcc7",
+        "size": 65593
+      },
+      "original_path": null,
+      "path": "scripts/release-preflight.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "a253aa8792697f2dbffa6d88c05999e48002217fde6557bb68811e2d732352e4",
+        "size": 78637
+      },
+      "original_path": null,
+      "path": "scripts/release-smoke.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "9559905b0e8fdbd96a72642329b71c6520ad03f2d39f5879329b2efdbc3492bf",
+        "size": 66784
+      },
+      "original_path": null,
+      "path": "scripts/schema-contract-smoke.sh",
+      "record_type": "1",
+      "xy": ".M"
+    },
+    {
+      "current": {
+        "kind": "file",
+        "mode": "0777",
+        "sha256": "4c51d722c2049e249b174fe9a09e611629084b611703a9cbbce68153c0c90002",
+        "size": 7528
+      },
+      "original_path": null,
+      "path": "scripts/validate-json-schema.py",
+      "record_type": "1",
+      "xy": ".M"
+    }
+  ],
+  "schema": "kiana.baseline-intake-paths.v1"
+}
