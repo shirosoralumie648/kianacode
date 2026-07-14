@@ -213,16 +213,111 @@ Kiana 1.0 只有在以下条件同时成立时才完成：
 
 ## Traceability
 
-Roadmap creation will populate one row per v1 requirement and map each requirement to exactly one phase.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| All 98 v1 requirements | Unmapped | Pending |
+| CORE-01 | Phase 3 | Pending |
+| CORE-02 | Phase 4 | Pending |
+| CORE-03 | Phase 7 | Pending |
+| CORE-04 | Phase 3 | Pending |
+| CORE-05 | Phase 5 | Pending |
+| CORE-06 | Phase 5 | Pending |
+| CORE-07 | Phase 6 | Pending |
+| CORE-08 | Phase 4 | Pending |
+| CORE-09 | Phase 8 | Pending |
+| CORE-10 | Phase 8 | Pending |
+| CORE-11 | Phase 8 | Pending |
+| CORE-12 | Phase 9 | Pending |
+| CORE-13 | Phase 9 | Pending |
+| CORE-14 | Phase 7 | Pending |
+| CORE-15 | Phase 19 | Pending |
+| CORE-16 | Phase 24 | Pending |
+| COD-01 | Phase 1 | Pending |
+| COD-02 | Phase 10 | Pending |
+| COD-03 | Phase 10 | Pending |
+| COD-04 | Phase 10 | Pending |
+| COD-05 | Phase 10 | Pending |
+| COD-06 | Phase 10 | Pending |
+| COD-07 | Phase 10 | Pending |
+| COD-08 | Phase 10 | Pending |
+| COD-09 | Phase 10 | Pending |
+| COD-10 | Phase 11 | Pending |
+| COD-11 | Phase 11 | Pending |
+| COD-12 | Phase 11 | Pending |
+| COD-13 | Phase 11 | Pending |
+| COD-14 | Phase 11 | Pending |
+| COD-15 | Phase 11 | Pending |
+| COD-16 | Phase 10 | Pending |
+| RES-01 | Phase 12 | Pending |
+| RES-02 | Phase 12 | Pending |
+| RES-03 | Phase 12 | Pending |
+| RES-04 | Phase 12 | Pending |
+| RES-05 | Phase 12 | Pending |
+| RES-06 | Phase 12 | Pending |
+| RES-07 | Phase 13 | Pending |
+| RES-08 | Phase 13 | Pending |
+| RES-09 | Phase 13 | Pending |
+| RES-10 | Phase 13 | Pending |
+| RES-11 | Phase 13 | Pending |
+| RES-12 | Phase 13 | Pending |
+| RES-13 | Phase 13 | Pending |
+| RES-14 | Phase 13 | Pending |
+| DAY-01 | Phase 14 | Pending |
+| DAY-02 | Phase 14 | Pending |
+| DAY-03 | Phase 14 | Pending |
+| DAY-04 | Phase 14 | Pending |
+| DAY-05 | Phase 14 | Pending |
+| DAY-06 | Phase 15 | Pending |
+| DAY-07 | Phase 15 | Pending |
+| DAY-08 | Phase 14 | Pending |
+| DAY-09 | Phase 14 | Pending |
+| DAY-10 | Phase 14 | Pending |
+| DAY-11 | Phase 15 | Pending |
+| DAY-12 | Phase 15 | Pending |
+| SURF-01 | Phase 16 | Pending |
+| SURF-02 | Phase 16 | Pending |
+| SURF-03 | Phase 16 | Pending |
+| SURF-04 | Phase 17 | Pending |
+| SURF-05 | Phase 18 | Pending |
+| SURF-06 | Phase 18 | Pending |
+| SURF-07 | Phase 19 | Pending |
+| SURF-08 | Phase 18 | Pending |
+| SURF-09 | Phase 19 | Pending |
+| SURF-10 | Phase 16 | Pending |
+| CLOUD-01 | Phase 20 | Pending |
+| CLOUD-02 | Phase 20 | Pending |
+| CLOUD-03 | Phase 21 | Pending |
+| CLOUD-04 | Phase 21 | Pending |
+| CLOUD-05 | Phase 20 | Pending |
+| CLOUD-06 | Phase 21 | Pending |
+| CLOUD-07 | Phase 20 | Pending |
+| CLOUD-08 | Phase 21 | Pending |
+| ENT-01 | Phase 22 | Pending |
+| ENT-02 | Phase 22 | Pending |
+| ENT-03 | Phase 22 | Pending |
+| ENT-04 | Phase 22 | Pending |
+| ENT-05 | Phase 23 | Pending |
+| ENT-06 | Phase 22 | Pending |
+| ENT-07 | Phase 23 | Pending |
+| ENT-08 | Phase 23 | Pending |
+| ENT-09 | Phase 22 | Pending |
+| ENT-10 | Phase 23 | Pending |
+| DIF-01 | Phase 8 | Pending |
+| DIF-02 | Phase 8 | Pending |
+| DIF-03 | Phase 8 | Pending |
+| DIF-04 | Phase 9 | Pending |
+| DIF-05 | Phase 19 | Pending |
+| DIF-06 | Phase 19 | Pending |
+| DIF-07 | Phase 7 | Pending |
+| DIF-08 | Phase 12 | Pending |
+| DIF-09 | Phase 5 | Pending |
+| DIF-10 | Phase 13 | Pending |
+| DIF-11 | Phase 1 | Pending |
+| DIF-12 | Phase 2 | Pending |
 
 **Coverage:**
 - v1 requirements: 98 total
-- Mapped to phases: 0
-- Unmapped: 98
+- Mapped to phases: 98
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-15*
