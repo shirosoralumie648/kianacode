@@ -1,0 +1,4104 @@
+{
+  "official_source_artifact": {
+    "schema": "kiana.official-source-artifact.v1",
+    "version": "1.0",
+    "revision_id": "source-artifact-genesis",
+    "revision_kind": "genesis",
+    "genesis_reason": "Controlled public fixture source.",
+    "artifact_id": "official-source-fixture",
+    "source_kind": "official_public",
+    "official_uri": "https://docs.example.invalid/kiana/governance-fixture",
+    "archive_uri": "https://archive.example.invalid/kiana/governance-fixture/v1",
+    "retrieved_at": "2026-07-15T00:00:00Z",
+    "applicable_product_version": "fixture-1.0",
+    "normalization": {
+      "method": "fixture-lines",
+      "version": "1",
+      "content_format": "plain_text",
+      "line_endings": "lf",
+      "unicode_normalization": "NFC"
+    },
+    "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "entries": [
+      {
+        "source_entry_id": "source.cli",
+        "locator": "line:1",
+        "title": "CLI contract",
+        "kind": "documentation",
+        "entry_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+        "source_entry_id": "source.metadata",
+        "locator": "line:2",
+        "title": "Navigation metadata",
+        "kind": "metadata",
+        "entry_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ]
+  },
+  "public_baseline_revisions": [
+    {
+      "schema": "kiana.public-parity-baseline.v1",
+      "version": "1.0",
+      "revision_id": "public-baseline-full-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial fixture baseline.",
+      "snapshot_id": "public-snapshot-full-fixture",
+      "frozen_at": "2026-07-15T01:00:00Z",
+      "applicable_product_version": "fixture-1.0",
+      "source_artifact": {
+        "artifact_id": "official-source-fixture",
+        "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#official_source_artifact",
+        "sha256": "6c81c5a1bba72509d21cc030816495e550422e6b8abc363e7e023ee275cf8e8f",
+        "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "official_source_index": [
+        {
+          "source_entry_id": "source.cli",
+          "capability_ids": [
+            "cap.public.cli"
+          ]
+        },
+        {
+          "source_entry_id": "source.metadata",
+          "exclusion": {
+            "classification": "non_capability_metadata",
+            "rationale": "Navigation metadata is not a product capability.",
+            "evidence_ids": [
+              "ev.source.review"
+            ],
+            "review_revision": "fixture-review-1"
+          }
+        }
+      ],
+      "journeys": [
+        {
+          "journey_id": "journey-01",
+          "title": "Fixture journey 1",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-02",
+          "title": "Fixture journey 2",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-03",
+          "title": "Fixture journey 3",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-04",
+          "title": "Fixture journey 4",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-05",
+          "title": "Fixture journey 5",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-06",
+          "title": "Fixture journey 6",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-07",
+          "title": "Fixture journey 7",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-08",
+          "title": "Fixture journey 8",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-09",
+          "title": "Fixture journey 9",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-10",
+          "title": "Fixture journey 10",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-11",
+          "title": "Fixture journey 11",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-12",
+          "title": "Fixture journey 12",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-13",
+          "title": "Fixture journey 13",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-14",
+          "title": "Fixture journey 14",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-15",
+          "title": "Fixture journey 15",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        }
+      ],
+      "capabilities": [
+        {
+          "capability_id": "cap.public.cli",
+          "title": "Fixture CLI contract",
+          "parity_outcome": "match",
+          "coverage_state": "verified",
+          "required_proof_level": "local_contract",
+          "proof_level": "local_contract",
+          "freshness": "current",
+          "owner": "fixture-owner",
+          "target_phase": "01",
+          "evidence_ids": [
+            "ev.cap.public"
+          ],
+          "gap": {
+            "status": "none",
+            "reason": "Fixture contract is covered."
+          },
+          "difference": {
+            "classification": "none",
+            "rationale": "No fixture difference."
+          }
+        },
+        {
+          "capability_id": "cap.public.optional",
+          "title": "Fixture optional contract",
+          "parity_outcome": "intentional_difference",
+          "coverage_state": "intentional_difference",
+          "required_proof_level": "source",
+          "proof_level": "source",
+          "freshness": "current",
+          "owner": "fixture-owner",
+          "target_phase": "01",
+          "evidence_ids": [
+            "ev.cap.optional"
+          ],
+          "gap": {
+            "status": "none",
+            "reason": "Optional fixture capability."
+          },
+          "difference": {
+            "classification": "intentional",
+            "rationale": "Exercises explicit difference state."
+          }
+        }
+      ]
+    }
+  ],
+  "repository_registry_revisions": [
+    {
+      "schema": "kiana.reference-repository-registry.v1",
+      "version": "1.0",
+      "revision_id": "repository-registry-full-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Full 38-reference valid fixture from the checked-in seed.",
+      "snapshot_id": "repository-snapshot-full-fixture",
+      "frozen_at": "2026-07-15T01:00:00Z",
+      "expected_count": 38,
+      "repositories": [
+        {
+          "repo_id": "12-factor-agents",
+          "path": "reference/12-factor-agents",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://12-factor-agents"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000001",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000065",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000c9",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.12-factor-agents"
+          ],
+          "domains": [
+            "D10",
+            "D17",
+            "D18"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "12-factor-agents",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.12-factor-agents"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/12-factor-agents",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.12-factor-agents"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.12-factor-agents"
+          ],
+          "git_head": "0000000000000000000000000000000000000001"
+        },
+        {
+          "repo_id": "archon",
+          "path": "reference/Archon",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://archon"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000002",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000066",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000ca",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.archon"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "Archon",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.archon"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/Archon",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.archon"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.archon"
+          ],
+          "git_head": "0000000000000000000000000000000000000002"
+        },
+        {
+          "repo_id": "ecc",
+          "path": "reference/ECC",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://ecc"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000003",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000067",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000cb",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.ecc"
+          ],
+          "domains": [
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "ECC",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.ecc"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/ECC",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.ecc"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.ecc"
+          ],
+          "git_head": "0000000000000000000000000000000000000003"
+        },
+        {
+          "repo_id": "gitnexus",
+          "path": "reference/GitNexus",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://gitnexus"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000004",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000068",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000cc",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.gitnexus"
+          ],
+          "domains": [
+            "D13"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "GitNexus",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.gitnexus"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/GitNexus",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.gitnexus"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.gitnexus"
+          ],
+          "git_head": "0000000000000000000000000000000000000004"
+        },
+        {
+          "repo_id": "mempalace",
+          "path": "reference/MemPalace",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://mempalace"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000005",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000069",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000cd",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.mempalace"
+          ],
+          "domains": [
+            "D14"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "MemPalace",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.mempalace"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/MemPalace",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.mempalace"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.mempalace"
+          ],
+          "git_head": "0000000000000000000000000000000000000005"
+        },
+        {
+          "repo_id": "metagpt",
+          "path": "reference/MetaGPT",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://metagpt"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000006",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000006a",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000ce",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.metagpt"
+          ],
+          "domains": [
+            "D06",
+            "D15"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "MetaGPT",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.metagpt"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/MetaGPT",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.metagpt"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.metagpt"
+          ],
+          "git_head": "0000000000000000000000000000000000000006"
+        },
+        {
+          "repo_id": "openhands",
+          "path": "reference/OpenHands",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://openhands"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000007",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000006b",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000cf",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.openhands"
+          ],
+          "domains": [
+            "D03",
+            "D10",
+            "D12",
+            "D15",
+            "D16",
+            "D17",
+            "D18"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "OpenHands",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.openhands"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/OpenHands",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.openhands"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.openhands"
+          ],
+          "git_head": "0000000000000000000000000000000000000007"
+        },
+        {
+          "repo_id": "openspec",
+          "path": "reference/OpenSpec",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://openspec"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000008",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000006c",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d0",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.openspec"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "OpenSpec",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.openspec"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/OpenSpec",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.openspec"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.openspec"
+          ],
+          "git_head": "0000000000000000000000000000000000000008"
+        },
+        {
+          "repo_id": "roo-code",
+          "path": "reference/Roo-Code",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://roo-code"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000009",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000006d",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d1",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.roo-code"
+          ],
+          "domains": [
+            "D04"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "Roo-Code",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.roo-code"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/Roo-Code",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.roo-code"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.roo-code"
+          ],
+          "git_head": "0000000000000000000000000000000000000009"
+        },
+        {
+          "repo_id": "ai-coding-guide",
+          "path": "reference/ai-coding-guide",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://ai-coding-guide"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000000a",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000006e",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d2",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.ai-coding-guide"
+          ],
+          "domains": [
+            "D13"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "ai-coding-guide",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.ai-coding-guide"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/ai-coding-guide",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.ai-coding-guide"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.ai-coding-guide"
+          ],
+          "git_head": "000000000000000000000000000000000000000a"
+        },
+        {
+          "repo_id": "aider",
+          "path": "reference/aider",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://aider"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000000b",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000006f",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d3",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.aider"
+          ],
+          "domains": [
+            "D04",
+            "D13"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "aider",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.aider"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/aider",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.aider"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.aider"
+          ],
+          "git_head": "000000000000000000000000000000000000000b"
+        },
+        {
+          "repo_id": "architect-loop",
+          "path": "reference/architect-loop",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://architect-loop"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000000c",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000070",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d4",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.architect-loop"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "architect-loop",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.architect-loop"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/architect-loop",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.architect-loop"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.architect-loop"
+          ],
+          "git_head": "000000000000000000000000000000000000000c"
+        },
+        {
+          "repo_id": "autogen",
+          "path": "reference/autogen",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://autogen"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000000d",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000071",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d5",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.autogen"
+          ],
+          "domains": [
+            "D06"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "autogen",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.autogen"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/autogen",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.autogen"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.autogen"
+          ],
+          "git_head": "000000000000000000000000000000000000000d"
+        },
+        {
+          "repo_id": "awesome-agent-skills",
+          "path": "reference/awesome-agent-skills",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://awesome-agent-skills"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000000e",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000072",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d6",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.awesome-agent-skills"
+          ],
+          "domains": [
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "awesome-agent-skills",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.awesome-agent-skills"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/awesome-agent-skills",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.awesome-agent-skills"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.awesome-agent-skills"
+          ],
+          "git_head": "000000000000000000000000000000000000000e"
+        },
+        {
+          "repo_id": "claude-code-main-2",
+          "path": "reference/claude-code-main (2)",
+          "upstream": {
+            "kind": "content_snapshot",
+            "locator": "fixture://claude-code-main-2"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "content_tree_sha256",
+          "revision_value": "000000000000000000000000000000000000000000000000000000000000000f",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000073",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d7",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-code-main-2"
+          ],
+          "domains": [
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "claude-code-main (2)",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-code-main-2"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/claude-code-main (2)",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-code-main-2"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.claude-code-main-2"
+          ]
+        },
+        {
+          "repo_id": "claude-code-rev-main",
+          "path": "reference/claude-code-rev-main",
+          "upstream": {
+            "kind": "content_snapshot",
+            "locator": "fixture://claude-code-rev-main"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "content_tree_sha256",
+          "revision_value": "0000000000000000000000000000000000000000000000000000000000000010",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000074",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d8",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-code-rev-main"
+          ],
+          "domains": [
+            "D01",
+            "D02",
+            "D03",
+            "D08",
+            "D10"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "claude-code-rev-main",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-code-rev-main"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/claude-code-rev-main",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-code-rev-main"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.claude-code-rev-main"
+          ]
+        },
+        {
+          "repo_id": "claude-code-rust",
+          "path": "reference/claude-code-rust",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://claude-code-rust"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000011",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000075",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000d9",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-code-rust"
+          ],
+          "domains": [
+            "D11",
+            "D18"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "claude-code-rust",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-code-rust"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/claude-code-rust",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-code-rust"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.claude-code-rust"
+          ],
+          "git_head": "0000000000000000000000000000000000000011"
+        },
+        {
+          "repo_id": "claude-mem-candidate",
+          "path": "reference/claude-mem-candidate",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://claude-mem-candidate"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000012",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000076",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000da",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-mem-candidate"
+          ],
+          "domains": [
+            "D14"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "claude-mem-candidate",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-mem-candidate"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/claude-mem-candidate",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-mem-candidate"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.claude-mem-candidate"
+          ],
+          "git_head": "0000000000000000000000000000000000000012"
+        },
+        {
+          "repo_id": "claude-memory",
+          "path": "reference/claude-memory",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://claude-memory"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000013",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000077",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000db",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-memory"
+          ],
+          "domains": [
+            "D14"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "claude-memory",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-memory"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/claude-memory",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.claude-memory"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.claude-memory"
+          ],
+          "git_head": "0000000000000000000000000000000000000013"
+        },
+        {
+          "repo_id": "cline",
+          "path": "reference/cline",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://cline"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000014",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000078",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000dc",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.cline"
+          ],
+          "domains": [
+            "D08",
+            "D09",
+            "D12"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "cline",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.cline"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/cline",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.cline"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.cline"
+          ],
+          "git_head": "0000000000000000000000000000000000000014"
+        },
+        {
+          "repo_id": "codex",
+          "path": "reference/codex",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://codex"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000015",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000079",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000dd",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.codex"
+          ],
+          "domains": [
+            "D01",
+            "D02",
+            "D03",
+            "D08",
+            "D09",
+            "D10",
+            "D11",
+            "D16",
+            "D17",
+            "D18"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "codex",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.codex"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/codex",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.codex"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.codex"
+          ],
+          "git_head": "0000000000000000000000000000000000000015"
+        },
+        {
+          "repo_id": "continue",
+          "path": "reference/continue",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://continue"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000016",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000007a",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000de",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.continue"
+          ],
+          "domains": [
+            "D04",
+            "D12"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "continue",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.continue"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/continue",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.continue"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.continue"
+          ],
+          "git_head": "0000000000000000000000000000000000000016"
+        },
+        {
+          "repo_id": "emdash",
+          "path": "reference/emdash",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://emdash"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000017",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000007b",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000df",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.emdash"
+          ],
+          "domains": [
+            "D11"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "emdash",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.emdash"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/emdash",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.emdash"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.emdash"
+          ],
+          "git_head": "0000000000000000000000000000000000000017"
+        },
+        {
+          "repo_id": "everything-claude-code",
+          "path": "reference/everything-claude-code",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://everything-claude-code"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000018",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000007c",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e0",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.everything-claude-code"
+          ],
+          "domains": [
+            "D06",
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "everything-claude-code",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.everything-claude-code"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/everything-claude-code",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.everything-claude-code"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.everything-claude-code"
+          ],
+          "git_head": "0000000000000000000000000000000000000018"
+        },
+        {
+          "repo_id": "get-shit-done",
+          "path": "reference/get-shit-done",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://get-shit-done"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000019",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000007d",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e1",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.get-shit-done"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "get-shit-done",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.get-shit-done"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/get-shit-done",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.get-shit-done"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.get-shit-done"
+          ],
+          "git_head": "0000000000000000000000000000000000000019"
+        },
+        {
+          "repo_id": "graphify",
+          "path": "reference/graphify",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://graphify"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000001a",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000007e",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e2",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.graphify"
+          ],
+          "domains": [
+            "D13"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "graphify",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.graphify"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/graphify",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.graphify"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.graphify"
+          ],
+          "git_head": "000000000000000000000000000000000000001a"
+        },
+        {
+          "repo_id": "gsd-core",
+          "path": "reference/gsd-core",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://gsd-core"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000001b",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000007f",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e3",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.gsd-core"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "gsd-core",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.gsd-core"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/gsd-core",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.gsd-core"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.gsd-core"
+          ],
+          "git_head": "000000000000000000000000000000000000001b"
+        },
+        {
+          "repo_id": "gstack",
+          "path": "reference/gstack",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://gstack"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000001c",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000080",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e4",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.gstack"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "gstack",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.gstack"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/gstack",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.gstack"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.gstack"
+          ],
+          "git_head": "000000000000000000000000000000000000001c"
+        },
+        {
+          "repo_id": "herdr",
+          "path": "reference/herdr",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://herdr"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000001d",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000081",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e5",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.herdr"
+          ],
+          "domains": [
+            "D12"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "herdr",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.herdr"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/herdr",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.herdr"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.herdr"
+          ],
+          "git_head": "000000000000000000000000000000000000001d"
+        },
+        {
+          "repo_id": "langchain",
+          "path": "reference/langchain",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://langchain"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000001e",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000082",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e6",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.langchain"
+          ],
+          "domains": [
+            "D08",
+            "D09"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "langchain",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.langchain"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/langchain",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.langchain"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.langchain"
+          ],
+          "git_head": "000000000000000000000000000000000000001e"
+        },
+        {
+          "repo_id": "memorix",
+          "path": "reference/memorix",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://memorix"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "000000000000000000000000000000000000001f",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000083",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e7",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.memorix"
+          ],
+          "domains": [
+            "D14"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "memorix",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.memorix"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/memorix",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.memorix"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.memorix"
+          ],
+          "git_head": "000000000000000000000000000000000000001f"
+        },
+        {
+          "repo_id": "pi",
+          "path": "reference/pi",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://pi"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000020",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000084",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e8",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.pi"
+          ],
+          "domains": [
+            "D01",
+            "D02",
+            "D09",
+            "D11",
+            "D12"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "pi",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.pi"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/pi",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.pi"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.pi"
+          ],
+          "git_head": "0000000000000000000000000000000000000020"
+        },
+        {
+          "repo_id": "planning-with-files",
+          "path": "reference/planning-with-files",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://planning-with-files"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000021",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000085",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000e9",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.planning-with-files"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "planning-with-files",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.planning-with-files"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/planning-with-files",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.planning-with-files"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.planning-with-files"
+          ],
+          "git_head": "0000000000000000000000000000000000000021"
+        },
+        {
+          "repo_id": "pm-skills",
+          "path": "reference/pm-skills",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://pm-skills"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000022",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000086",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000ea",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.pm-skills"
+          ],
+          "domains": [
+            "D15"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "pm-skills",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.pm-skills"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/pm-skills",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.pm-skills"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.pm-skills"
+          ],
+          "git_head": "0000000000000000000000000000000000000022"
+        },
+        {
+          "repo_id": "ruflo",
+          "path": "reference/ruflo",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://ruflo"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000023",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000087",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000eb",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.ruflo"
+          ],
+          "domains": [
+            "D06"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "ruflo",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.ruflo"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/ruflo",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.ruflo"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.ruflo"
+          ],
+          "git_head": "0000000000000000000000000000000000000023"
+        },
+        {
+          "repo_id": "skills",
+          "path": "reference/skills",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://skills"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000024",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000088",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000ec",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.skills"
+          ],
+          "domains": [
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "skills",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.skills"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/skills",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.skills"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.skills"
+          ],
+          "git_head": "0000000000000000000000000000000000000024"
+        },
+        {
+          "repo_id": "strix",
+          "path": "reference/strix",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://strix"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000025",
+          "tree_sha256": "0000000000000000000000000000000000000000000000000000000000000089",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000ed",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.strix"
+          ],
+          "domains": [
+            "D16"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "strix",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.strix"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/strix",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.strix"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.strix"
+          ],
+          "git_head": "0000000000000000000000000000000000000025"
+        },
+        {
+          "repo_id": "superpowers",
+          "path": "reference/superpowers",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://superpowers"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T01:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "0000000000000000000000000000000000000026",
+          "tree_sha256": "000000000000000000000000000000000000000000000000000000000000008a",
+          "license_sha256": "00000000000000000000000000000000000000000000000000000000000000ee",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.superpowers"
+          ],
+          "domains": [
+            "D05",
+            "D16"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "superpowers",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog identity retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.superpowers"
+              ],
+              "review_revision": "fixture-review-full-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/superpowers",
+              "change_kind": "replaced",
+              "reason": "Checked-in catalog path retained as fixture compatibility history.",
+              "effective_at": "2026-07-15T01:00:00Z",
+              "evidence_ids": [
+                "ev.alias.superpowers"
+              ],
+              "review_revision": "fixture-review-full-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.superpowers"
+          ],
+          "git_head": "0000000000000000000000000000000000000026"
+        }
+      ]
+    }
+  ],
+  "capability_decision_revisions": [
+    {
+      "schema": "kiana.capability-decisions.v1",
+      "version": "1.0",
+      "revision_id": "capability-decisions-full-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "One current fixture decision per inventory capability.",
+      "review_revision": "fixture-review-full-1",
+      "reviewed_at": "2026-07-15T01:00:00Z",
+      "decisions": [
+        {
+          "decision_id": "decision.12-factor-agents",
+          "repo_id": "12-factor-agents",
+          "capability_id": "cap.12-factor-agents",
+          "source_path": "reference/12-factor-agents/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000001",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.12-factor-agents"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.12-factor-agents"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/12-factor-agents",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.12-factor-agents",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.12-factor-agents"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.archon",
+          "repo_id": "archon",
+          "capability_id": "cap.archon",
+          "source_path": "reference/Archon/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000002",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.archon"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.archon"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/archon",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.archon",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.archon"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.ecc",
+          "repo_id": "ecc",
+          "capability_id": "cap.ecc",
+          "source_path": "reference/ECC/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000003",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.ecc"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.ecc"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/ecc",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.ecc",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.ecc"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.gitnexus",
+          "repo_id": "gitnexus",
+          "capability_id": "cap.gitnexus",
+          "source_path": "reference/GitNexus/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000004",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.gitnexus"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.gitnexus"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/gitnexus",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.gitnexus",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.gitnexus"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.mempalace",
+          "repo_id": "mempalace",
+          "capability_id": "cap.mempalace",
+          "source_path": "reference/MemPalace/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000005",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.mempalace"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.mempalace"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/mempalace",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.mempalace",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.mempalace"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.metagpt",
+          "repo_id": "metagpt",
+          "capability_id": "cap.metagpt",
+          "source_path": "reference/MetaGPT/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000006",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.metagpt"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.metagpt"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/metagpt",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.metagpt",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.metagpt"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.openhands",
+          "repo_id": "openhands",
+          "capability_id": "cap.openhands",
+          "source_path": "reference/OpenHands/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000007",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.openhands"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.openhands"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/openhands",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.openhands",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.openhands"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.openspec",
+          "repo_id": "openspec",
+          "capability_id": "cap.openspec",
+          "source_path": "reference/OpenSpec/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000008",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.openspec"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.openspec"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/openspec",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.openspec",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.openspec"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.roo-code",
+          "repo_id": "roo-code",
+          "capability_id": "cap.roo-code",
+          "source_path": "reference/Roo-Code/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000009",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.roo-code"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.roo-code"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/roo-code",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.roo-code",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.roo-code"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.ai-coding-guide",
+          "repo_id": "ai-coding-guide",
+          "capability_id": "cap.ai-coding-guide",
+          "source_path": "reference/ai-coding-guide/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000000a",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.ai-coding-guide"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.ai-coding-guide"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/ai-coding-guide",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.ai-coding-guide",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.ai-coding-guide"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.aider",
+          "repo_id": "aider",
+          "capability_id": "cap.aider",
+          "source_path": "reference/aider/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000000b",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.aider"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.aider"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/aider",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.aider",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.aider"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.architect-loop",
+          "repo_id": "architect-loop",
+          "capability_id": "cap.architect-loop",
+          "source_path": "reference/architect-loop/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000000c",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.architect-loop"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.architect-loop"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/architect-loop",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.architect-loop",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.architect-loop"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.autogen",
+          "repo_id": "autogen",
+          "capability_id": "cap.autogen",
+          "source_path": "reference/autogen/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000000d",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.autogen"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.autogen"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/autogen",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.autogen",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.autogen"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.awesome-agent-skills",
+          "repo_id": "awesome-agent-skills",
+          "capability_id": "cap.awesome-agent-skills",
+          "source_path": "reference/awesome-agent-skills/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000000e",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.awesome-agent-skills"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.awesome-agent-skills"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/awesome-agent-skills",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.awesome-agent-skills",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.awesome-agent-skills"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.claude-code-main-2",
+          "repo_id": "claude-code-main-2",
+          "capability_id": "cap.claude-code-main-2",
+          "source_path": "reference/claude-code-main (2)/fixture-source",
+          "source_revision_kind": "content_tree_sha256",
+          "source_revision_value": "000000000000000000000000000000000000000000000000000000000000000f",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.claude-code-main-2"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.claude-code-main-2"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/claude-code-main-2",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.claude-code-main-2",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.claude-code-main-2"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.claude-code-rev-main",
+          "repo_id": "claude-code-rev-main",
+          "capability_id": "cap.claude-code-rev-main",
+          "source_path": "reference/claude-code-rev-main/fixture-source",
+          "source_revision_kind": "content_tree_sha256",
+          "source_revision_value": "0000000000000000000000000000000000000000000000000000000000000010",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-code-rev-main"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.claude-code-rev-main"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/claude-code-rev-main",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.claude-code-rev-main",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.claude-code-rev-main"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.claude-code-rust",
+          "repo_id": "claude-code-rust",
+          "capability_id": "cap.claude-code-rust",
+          "source_path": "reference/claude-code-rust/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000011",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-code-rust"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.claude-code-rust"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/claude-code-rust",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.claude-code-rust",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.claude-code-rust"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.claude-mem-candidate",
+          "repo_id": "claude-mem-candidate",
+          "capability_id": "cap.claude-mem-candidate",
+          "source_path": "reference/claude-mem-candidate/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000012",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.claude-mem-candidate"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.claude-mem-candidate"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/claude-mem-candidate",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.claude-mem-candidate",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.claude-mem-candidate"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.claude-memory",
+          "repo_id": "claude-memory",
+          "capability_id": "cap.claude-memory",
+          "source_path": "reference/claude-memory/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000013",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.claude-memory"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.claude-memory"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/claude-memory",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.claude-memory",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.claude-memory"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.cline",
+          "repo_id": "cline",
+          "capability_id": "cap.cline",
+          "source_path": "reference/cline/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000014",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.cline"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.cline"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/cline",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.cline",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.cline"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.codex",
+          "repo_id": "codex",
+          "capability_id": "cap.codex",
+          "source_path": "reference/codex/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000015",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.codex"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.codex"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/codex",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.codex",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.codex"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.continue",
+          "repo_id": "continue",
+          "capability_id": "cap.continue",
+          "source_path": "reference/continue/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000016",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.continue"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.continue"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/continue",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.continue",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.continue"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.emdash",
+          "repo_id": "emdash",
+          "capability_id": "cap.emdash",
+          "source_path": "reference/emdash/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000017",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.emdash"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.emdash"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/emdash",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.emdash",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.emdash"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.everything-claude-code",
+          "repo_id": "everything-claude-code",
+          "capability_id": "cap.everything-claude-code",
+          "source_path": "reference/everything-claude-code/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000018",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.everything-claude-code"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.everything-claude-code"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/everything-claude-code",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.everything-claude-code",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.everything-claude-code"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.get-shit-done",
+          "repo_id": "get-shit-done",
+          "capability_id": "cap.get-shit-done",
+          "source_path": "reference/get-shit-done/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000019",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.get-shit-done"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.get-shit-done"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/get-shit-done",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.get-shit-done",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.get-shit-done"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.graphify",
+          "repo_id": "graphify",
+          "capability_id": "cap.graphify",
+          "source_path": "reference/graphify/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000001a",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.graphify"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.graphify"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/graphify",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.graphify",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.graphify"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.gsd-core",
+          "repo_id": "gsd-core",
+          "capability_id": "cap.gsd-core",
+          "source_path": "reference/gsd-core/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000001b",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.gsd-core"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.gsd-core"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/gsd-core",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.gsd-core",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.gsd-core"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.gstack",
+          "repo_id": "gstack",
+          "capability_id": "cap.gstack",
+          "source_path": "reference/gstack/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000001c",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.gstack"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.gstack"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/gstack",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.gstack",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.gstack"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.herdr",
+          "repo_id": "herdr",
+          "capability_id": "cap.herdr",
+          "source_path": "reference/herdr/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000001d",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.herdr"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.herdr"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/herdr",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.herdr",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.herdr"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.langchain",
+          "repo_id": "langchain",
+          "capability_id": "cap.langchain",
+          "source_path": "reference/langchain/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000001e",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.langchain"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.langchain"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/langchain",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.langchain",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.langchain"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.memorix",
+          "repo_id": "memorix",
+          "capability_id": "cap.memorix",
+          "source_path": "reference/memorix/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "000000000000000000000000000000000000001f",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.memorix"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.memorix"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/memorix",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.memorix",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.memorix"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.pi",
+          "repo_id": "pi",
+          "capability_id": "cap.pi",
+          "source_path": "reference/pi/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000020",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.pi"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.pi"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/pi",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.pi",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.pi"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.planning-with-files",
+          "repo_id": "planning-with-files",
+          "capability_id": "cap.planning-with-files",
+          "source_path": "reference/planning-with-files/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000021",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.planning-with-files"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.planning-with-files"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/planning-with-files",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.planning-with-files",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.planning-with-files"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.pm-skills",
+          "repo_id": "pm-skills",
+          "capability_id": "cap.pm-skills",
+          "source_path": "reference/pm-skills/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000022",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.pm-skills"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.pm-skills"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/pm-skills",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.pm-skills",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.pm-skills"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.ruflo",
+          "repo_id": "ruflo",
+          "capability_id": "cap.ruflo",
+          "source_path": "reference/ruflo/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000023",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.ruflo"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.ruflo"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/ruflo",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.ruflo",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.ruflo"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.skills",
+          "repo_id": "skills",
+          "capability_id": "cap.skills",
+          "source_path": "reference/skills/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000024",
+          "decision": "reject",
+          "reason": "reject is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.skills"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.skills"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/skills",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.skills",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.skills"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.strix",
+          "repo_id": "strix",
+          "capability_id": "cap.strix",
+          "source_path": "reference/strix/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000025",
+          "decision": "adopt",
+          "reason": "adopt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.strix"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.strix"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/strix",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.strix",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.strix"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.superpowers",
+          "repo_id": "superpowers",
+          "capability_id": "cap.superpowers",
+          "source_path": "reference/superpowers/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "0000000000000000000000000000000000000026",
+          "decision": "adapt",
+          "reason": "adapt is a synthetic governance fixture and does not assert implementation.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.superpowers"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic review exercises the closed capability-decision contract.",
+            "evidence_ids": [
+              "ev.security.superpowers"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Fixture-only governance risk.",
+            "mitigations": [
+              "Keep decision state separate from product proof."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/superpowers",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "00000000000000000000000000000000000003e7",
+          "tests": [
+            {
+              "test_id": "test.superpowers",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.superpowers"
+          ],
+          "review_revision": "fixture-review-full-1",
+          "freshness": "current"
+        }
+      ]
+    }
+  ],
+  "evidence_revisions": [
+    {
+      "schema": "kiana.capability-evidence-index.v1",
+      "version": "1.0",
+      "revision_id": "evidence-index-full-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial fixture evidence.",
+      "created_at": "2026-07-15T01:00:00Z",
+      "records": [
+        {
+          "sequence": 1,
+          "evidence_id": "ev.cap.public",
+          "subject_family": "capability",
+          "subject_id": "cap.public.cli",
+          "subject_revision_id": "public-baseline-full-fixture",
+          "evidence_type": "contract_check",
+          "result": "pass",
+          "coverage_state": "verified",
+          "proof_level": "local_contract",
+          "freshness": "current",
+          "source_binding": {
+            "binding_id": "source-binding-1",
+            "revision_kind": "revision_id",
+            "revision_value": "public-baseline-full-fixture",
+            "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#public_baseline_revisions/0",
+            "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+          },
+          "target_binding": {
+            "binding_id": "target-binding-1",
+            "revision_kind": "git_commit",
+            "revision_value": "5555555555555555555555555555555555555555",
+            "path": "Cargo.toml",
+            "sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+          },
+          "environment": {
+            "environment_id": "fixture-environment",
+            "environment_kind": "local_contract",
+            "platform": "fixture-linux",
+            "runtime": "python-standard-library",
+            "fingerprint_sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+          },
+          "method": {
+            "method_kind": "command",
+            "name": "capability governance fixture smoke",
+            "command": "bash scripts/capability-governance-smoke.sh fixture-shapes"
+          },
+          "observed_at": "2026-07-15T00:00:00Z",
+          "artifact": {
+            "artifact_kind": "repository_path",
+            "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json",
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "media_type": "application/json",
+            "byte_size": 1
+          },
+          "supersedes_evidence_ids": [],
+          "previous_record_sha256": "genesis",
+          "record_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+        }
+      ]
+    }
+  ],
+  "legacy_authority_revisions": [
+    {
+      "schema": "kiana.legacy-authority-classification.v1",
+      "version": "1.0",
+      "revision_id": "legacy-authority-full-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial fixture legacy inventory.",
+      "inventory_globs": [
+        "docs/reference*.md"
+      ],
+      "review_revision": "fixture-review-1",
+      "reviewed_at": "2026-07-15T01:00:00Z",
+      "entries": [
+        {
+          "path": "docs/reference-feature-matrix.md",
+          "content_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "classification": "frozen_migration_input",
+          "rationale": "Fixture classification does not modify the legacy source.",
+          "replacement_view": "docs/reference_audit/CAPABILITY-GOVERNANCE.generated.txt",
+          "evidence_ids": [
+            "ev.legacy.review"
+          ],
+          "review_revision": "fixture-review-1"
+        }
+      ]
+    }
+  ],
+  "bundle_manifest": {
+    "schema": "kiana.capability-governance-bundle.v1",
+    "version": "1.0",
+    "official_source_artifact": {
+      "artifact_id": "official-source-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#official_source_artifact",
+      "sha256": "6c81c5a1bba72509d21cc030816495e550422e6b8abc363e7e023ee275cf8e8f"
+    },
+    "public_baseline": {
+      "revision_id": "public-baseline-full-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#public_baseline_revisions/0",
+      "sha256": "4f31dbace12b0a1bf6e4c2f59e27def3161e9f9e76595349a2665b11d5f0e40a"
+    },
+    "repository_registry": {
+      "revision_id": "repository-registry-full-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#repository_registry_revisions/0",
+      "sha256": "5b0e5679af6aff5180fe30d08a2922bf09f0c6e68948f2e83ec6139b8d491d6d"
+    },
+    "capability_decisions": {
+      "revision_id": "capability-decisions-full-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#capability_decision_revisions/0",
+      "sha256": "bd012245068999965e133fd51a30f6ab1a05db9bd801d115f34af65f04ce0401"
+    },
+    "evidence_head": {
+      "revision_id": "evidence-index-full-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#evidence_revisions/0",
+      "sha256": "5f054bfe6872a0d700e74db8223083a1028e4fc0a789caaa4aa43e44221a35fc"
+    },
+    "legacy_authority": {
+      "revision_id": "legacy-authority-full-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/full-38-repositories.json#legacy_authority_revisions/0",
+      "sha256": "e857821f8b28decadc9c0eef98ee019a8d73c8c750a7f40c0c960af8d026f760"
+    },
+    "evaluation_time": "2026-07-15T01:01:00Z"
+  }
+}
