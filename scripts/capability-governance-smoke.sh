@@ -718,12 +718,222 @@ if {
 
 print("OK: hostile rendering and offline source identity fixtures are safe and reproducible")
 PY
+
+  "$python" - "$minimal_fixture" "$full_fixture" "$hostile_fixture" "$offline_fixture" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+
+class EvidenceContractError(Exception):
+    pass
+
+
+def fail(code: str, detail: str) -> None:
+    raise EvidenceContractError(f"{code}: {detail}")
+
+
+def canonical_sha256(value: object) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def record_sha256(record: dict) -> str:
+    return canonical_sha256({key: value for key, value in record.items() if key != "record_sha256"})
+
+
+def add_expected(
+    expected: dict[str, tuple[str, str, str, str, str, str]],
+    evidence_id: str,
+    binding: tuple[str, str, str, str, str, str],
+    owner: str,
+) -> None:
+    previous = expected.get(evidence_id)
+    if previous is not None and previous != binding:
+        fail("evidence_binding_ambiguity", f"{evidence_id} is shared by {owner}")
+    expected[evidence_id] = binding
+
+
+def collect_references(value: object) -> set[str]:
+    references: set[str] = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key.endswith("evidence_ids"):
+                if not isinstance(child, list):
+                    fail("evidence_reference_shape", key)
+                references.update(child)
+            references.update(collect_references(child))
+    elif isinstance(value, list):
+        for child in value:
+            references.update(collect_references(child))
+    return references
+
+
+def expected_bindings(bundle: dict) -> dict[str, tuple[str, str, str, str, str, str]]:
+    expected: dict[str, tuple[str, str, str, str, str, str]] = {}
+    artifact_revision = bundle["official_source_artifact"]["content_sha256"]
+
+    for revision in bundle["public_baseline_revisions"]:
+        revision_id = revision["revision_id"]
+        for capability in revision["capabilities"]:
+            binding = (
+                "capability",
+                capability["capability_id"],
+                revision_id,
+                artifact_revision,
+                revision_id,
+                "local_contract",
+            )
+            for evidence_id in capability["evidence_ids"]:
+                add_expected(expected, evidence_id, binding, capability["capability_id"])
+        for mapping in revision["official_source_index"]:
+            exclusion = mapping.get("exclusion")
+            if exclusion is None:
+                continue
+            binding = (
+                "public_baseline",
+                revision["snapshot_id"],
+                revision_id,
+                artifact_revision,
+                revision_id,
+                "source_review",
+            )
+            for evidence_id in exclusion["evidence_ids"]:
+                add_expected(expected, evidence_id, binding, mapping["source_entry_id"])
+
+    for revision in bundle["repository_registry_revisions"]:
+        revision_id = revision["revision_id"]
+        for repository in revision["repositories"]:
+            binding = (
+                "repository",
+                repository["repo_id"],
+                revision_id,
+                repository["revision_value"],
+                revision_id,
+                "source_review",
+            )
+            for evidence_id in repository["license_evidence_ids"]:
+                add_expected(expected, evidence_id, binding, repository["repo_id"])
+            for alias in repository["aliases"]:
+                for evidence_id in alias["evidence_ids"]:
+                    add_expected(expected, evidence_id, binding, repository["repo_id"])
+
+    for revision in bundle["capability_decision_revisions"]:
+        revision_id = revision["revision_id"]
+        for decision in revision["decisions"]:
+            binding = (
+                "capability_decision",
+                decision["decision_id"],
+                revision_id,
+                decision["source_revision_value"],
+                decision["target_revision_value"],
+                "source_review",
+            )
+            for evidence_id in decision["evidence_ids"]:
+                add_expected(expected, evidence_id, binding, decision["decision_id"])
+            for evidence_id in decision["security_review"]["evidence_ids"]:
+                add_expected(expected, evidence_id, binding, decision["decision_id"])
+
+    for revision in bundle["legacy_authority_revisions"]:
+        revision_id = revision["revision_id"]
+        for entry in revision["entries"]:
+            binding = (
+                "legacy_authority",
+                revision_id,
+                revision_id,
+                entry["content_sha256"],
+                revision_id,
+                "source_review",
+            )
+            for evidence_id in entry["evidence_ids"]:
+                add_expected(expected, evidence_id, binding, entry["path"])
+
+    return expected
+
+
+def validate_evidence(bundle: dict, label: str) -> None:
+    revisions = bundle["evidence_revisions"]
+    previous_records: list[dict] | None = None
+    for revision in revisions:
+        records = revision["records"]
+        if previous_records is not None:
+            if len(records) <= len(previous_records):
+                fail("history_removal", revision["revision_id"])
+            if records[: len(previous_records)] != previous_records:
+                fail("history_rewrite", revision["revision_id"])
+        previous_records = records
+
+    head_records = revisions[-1]["records"]
+    evidence_ids = [record["evidence_id"] for record in head_records]
+    if len(evidence_ids) != len(set(evidence_ids)):
+        fail("duplicate_evidence_id", label)
+
+    references = collect_references(
+        {key: value for key, value in bundle.items() if key != "bundle_manifest"}
+    )
+    missing = sorted(references - set(evidence_ids))
+    if missing:
+        fail("unknown_reference", f"{label}:{','.join(missing)}")
+
+    if [record["sequence"] for record in head_records] != list(range(1, len(head_records) + 1)):
+        fail("evidence_sequence", label)
+
+    previous_hash = "genesis"
+    for record in head_records:
+        if record["previous_record_sha256"] != previous_hash:
+            fail("record_chain", record["evidence_id"])
+        if record["record_sha256"] != record_sha256(record):
+            fail("record_sha256", record["evidence_id"])
+        previous_hash = record["record_sha256"]
+
+    records_by_id = {record["evidence_id"]: record for record in head_records}
+    for evidence_id, binding in sorted(expected_bindings(bundle).items()):
+        record = records_by_id[evidence_id]
+        actual = (
+            record["subject_family"],
+            record["subject_id"],
+            record["subject_revision_id"],
+            record["source_binding"]["revision_value"],
+            record["target_binding"]["revision_value"],
+            record["environment"]["environment_kind"],
+        )
+        if actual != binding:
+            fail("evidence_binding", evidence_id)
+
+
+errors: list[str] = []
+for fixture_name in sys.argv[1:]:
+    fixture_path = pathlib.Path(fixture_name)
+    try:
+        validate_evidence(
+            json.loads(fixture_path.read_text(encoding="utf-8")),
+            fixture_path.name,
+        )
+    except EvidenceContractError as exc:
+        errors.append(str(exc))
+
+if errors:
+    raise SystemExit("\n".join(errors))
+print("OK: evidence histories, references, hashes, and bindings are closed")
+PY
 }
 
 case "$slice" in
   schemas) run_schema_slice ;;
   fixture-shapes) run_fixture_shape_slice ;;
 esac
+
+if [[ "${KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE:-}" != "1" ||
+  -z "${KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE:-}" ]]; then
+  echo "runtime_guard_required: slice must run under the watchdog and syscall guard" >&2
+  exit 1
+fi
 
 end_ns="$("$python" -c 'import time; print(time.monotonic_ns())')"
 elapsed_seconds="$("$python" - "$start_ns" "$end_ns" <<'PY'
