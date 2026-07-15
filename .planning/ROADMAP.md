@@ -45,7 +45,46 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
   1. 用户可以查看带冻结日期的 Claude Code public-parity ledger，并为每个公开旅程找到验证结果或明确差异决策。
   2. 维护者可以检查 38/38 reference 的 live source、license、Adopt/Adapt/Reject、owner、test、risk 与 evidence，且任何拒绝都有理由。
   3. 进度与审计报告能区分 source、local、target 和 user-value proof，不会把模块、stub、mock 或测试数量报告成产品完成。
-**Plans**: TBD
+**Plans**: 0/12 plans executed
+
+**Wave 1**
+
+- [ ] 01-01-PLAN.md
+- [ ] 01-02-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 01-03-PLAN.md
+- [ ] 01-04-PLAN.md
+- [ ] 01-05-PLAN.md
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 01-06-PLAN.md
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 01-07-PLAN.md
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 01-08-PLAN.md
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 01-09-PLAN.md
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 01-10-PLAN.md
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 01-11-PLAN.md
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 01-12-PLAN.md
 
 ### Phase 2: 可复现工具链与依赖收敛
 **Goal**: 用户和发布维护者可以复现构建并透明判断产品离发布就绪还缺什么。
