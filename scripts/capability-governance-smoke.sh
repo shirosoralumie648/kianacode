@@ -164,8 +164,58 @@ if [[ -n "${KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST:-}" ]]; then
   exit $?
 fi
 
+runtime_guard_dir=""
+runtime_guard_pid=""
+runtime_guard_fd=""
+
+cleanup_runtime_guard() {
+  local cleanup_status=$?
+
+  trap - EXIT INT TERM
+  if [[ -n "${runtime_guard_pid:-}" ]] && kill -0 "$runtime_guard_pid" 2>/dev/null; then
+    kill -TERM "$runtime_guard_pid" 2>/dev/null || true
+    wait "$runtime_guard_pid" 2>/dev/null || true
+  fi
+  runtime_guard_pid=""
+  if [[ -n "${runtime_guard_fd:-}" ]]; then
+    exec {runtime_guard_fd}<&-
+  fi
+  runtime_guard_fd=""
+  if [[ -n "${runtime_guard_dir:-}" ]]; then
+    rm -rf "$runtime_guard_dir"
+  fi
+  runtime_guard_dir=""
+  return "$cleanup_status"
+}
+
+parse_network_trace() {
+  local trace_file="$1"
+
+  "$2" - "$trace_file" <<'PY'
+import pathlib
+import re
+import sys
+
+try:
+    lines = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+except OSError:
+    raise SystemExit(2)
+
+for line in lines:
+    match = re.match(
+        r"^\s*(?:(?:\[pid\s+\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(",
+        line,
+    )
+    if match:
+        print(match.group(1))
+        raise SystemExit(0)
+raise SystemExit(3)
+PY
+}
+
 run_guarded_worker() {
-  local timeout_bin strace_bin trace_file watchdog_seconds status
+  local timeout_bin strace_bin guard_python trace_file stderr_file
+  local watchdog_seconds nonce status syscall_name parse_status
 
   if ! timeout_bin="$(command -v timeout 2>/dev/null)"; then
     echo "runtime_guard_unavailable: timeout is required" >&2
@@ -176,7 +226,18 @@ run_guarded_worker() {
     return 1
   fi
 
-  trace_file="$(mktemp)"
+  guard_python="$(python_bin)"
+  runtime_guard_dir="$(mktemp -d)"
+  trace_file="$runtime_guard_dir/network.trace"
+  stderr_file="$runtime_guard_dir/worker.stderr"
+  : >"$trace_file"
+  : >"$stderr_file"
+  nonce="$("$guard_python" -c 'import secrets; print(secrets.token_hex(32))')"
+  exec {runtime_guard_fd}< <(printf '%s\n' "$nonce")
+  trap cleanup_runtime_guard EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
   watchdog_seconds=30
   if [[ "${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE:-}" == "hang" ]]; then
     watchdog_seconds=1
@@ -184,40 +245,97 @@ run_guarded_worker() {
 
   set +e
   LC_ALL=C \
-    KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE=1 \
-    KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE="$trace_file" \
+    KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE=1 \
+    KIANA_CAPABILITY_GOVERNANCE_WORKER_FD="$runtime_guard_fd" \
+    KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE="$nonce" \
     "$timeout_bin" --signal=TERM --kill-after=2s "${watchdog_seconds}s" \
     "$strace_bin" -f -qq \
     -e trace=%network \
     -e signal=none \
     -e inject=%network:error=EPERM \
     -o "$trace_file" \
-    -- bash "${BASH_SOURCE[0]}" "$slice"
+    -- bash "${BASH_SOURCE[0]}" "$slice" 2>"$stderr_file" &
+  runtime_guard_pid=$!
+  exec {runtime_guard_fd}<&-
+  runtime_guard_fd=""
+  wait "$runtime_guard_pid"
   status=$?
+  runtime_guard_pid=""
   set -e
 
   if ((status == 124 || status == 137)); then
     echo "slice_timeout: slice exceeded ${watchdog_seconds} seconds" >&2
-    rm -f "$trace_file"
+    return 1
+  fi
+  if [[ ! -f "$trace_file" || ! -r "$trace_file" || ! -f "$stderr_file" || ! -r "$stderr_file" ]]; then
+    echo "runtime_guard_failed: guard output unavailable" >&2
+    return 1
+  fi
+  if grep -q '^strace:' "$stderr_file"; then
+    echo "runtime_guard_failed: tracer execution failed" >&2
     return 1
   fi
   if [[ -s "$trace_file" ]]; then
-    echo "network_attempt: blocked network syscall" >&2
-    sed -n '1,40p' "$trace_file" >&2
-    rm -f "$trace_file"
+    set +e
+    syscall_name="$(parse_network_trace "$trace_file" "$guard_python")"
+    parse_status=$?
+    set -e
+    if ((parse_status == 2)); then
+      echo "runtime_guard_failed: network trace unreadable" >&2
+      return 1
+    fi
+    if ((parse_status == 0)); then
+      printf 'network_attempt: blocked syscall=%s\n' "$syscall_name" >&2
+    else
+      echo "network_attempt: blocked" >&2
+    fi
+    return 1
+  fi
+  if ((status == 125 || status == 126 || status == 127)); then
+    echo "runtime_guard_failed: watchdog or tracer execution failed" >&2
     return 1
   fi
 
-  rm -f "$trace_file"
+  if [[ -s "$stderr_file" ]]; then
+    cat "$stderr_file" >&2
+  fi
   return "$status"
 }
 
-if [[ "${KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE:-}" != "1" ]]; then
+worker_mode="${KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE:-}"
+worker_fd="${KIANA_CAPABILITY_GOVERNANCE_WORKER_FD:-}"
+worker_nonce="${KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE:-}"
+unset KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE
+unset KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE
+unset KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE
+unset KIANA_CAPABILITY_GOVERNANCE_WORKER_FD
+unset KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE
+worker_authenticated=0
+
+if [[ -z "$worker_mode" ]]; then
   set +e
   run_guarded_worker
   guarded_status=$?
   set -e
   exit "$guarded_status"
+elif [[ "$worker_mode" == "1" ]]; then
+  if [[ ! "$worker_fd" =~ ^[1-9][0-9]+$ || ! "$worker_nonce" =~ ^[a-f0-9]{64}$ ]]; then
+    echo "runtime_guard_required: invalid worker handshake" >&2
+    exit 1
+  fi
+  if ! IFS= read -r -u "$worker_fd" received_nonce 2>/dev/null; then
+    echo "runtime_guard_required: worker handshake unavailable" >&2
+    exit 1
+  fi
+  exec {worker_fd}<&-
+  if [[ "$received_nonce" != "$worker_nonce" ]]; then
+    echo "runtime_guard_required: worker handshake mismatch" >&2
+    exit 1
+  fi
+  worker_authenticated=1
+else
+  echo "runtime_guard_required: invalid worker mode" >&2
+  exit 1
 fi
 
 python="$(python_bin)"
@@ -1139,9 +1257,8 @@ case "$slice" in
   fixture-shapes) run_fixture_shape_slice ;;
 esac
 
-if [[ "${KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE:-}" != "1" ||
-  -z "${KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE:-}" ]]; then
-  echo "runtime_guard_required: slice must run under the watchdog and syscall guard" >&2
+if [[ "$worker_authenticated" != "1" ]]; then
+  echo "runtime_guard_required: authenticated worker required" >&2
   exit 1
 fi
 
