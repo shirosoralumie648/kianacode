@@ -1,0 +1,2531 @@
+{
+  "official_source_artifact": {
+    "schema": "kiana.official-source-artifact.v1",
+    "version": "1.0",
+    "revision_id": "source-artifact-offline-fixture",
+    "revision_kind": "genesis",
+    "genesis_reason": "Controlled normalized bytes for offline identity verification.",
+    "artifact_id": "official-source-offline-fixture",
+    "source_kind": "official_public",
+    "official_uri": "https://docs.example.invalid/kiana/offline-source-fixture",
+    "archive_uri": "https://archive.example.invalid/kiana/offline-source-fixture/v1",
+    "retrieved_at": "2026-07-15T02:00:00Z",
+    "applicable_product_version": "fixture-1.0",
+    "normalization": {
+      "method": "inline-base64-entry-lf-join",
+      "version": "1",
+      "content_format": "plain_text",
+      "line_endings": "lf",
+      "unicode_normalization": "NFC"
+    },
+    "content_sha256": "db2098440e7aeae82368286afe4eddd36de8f5c2fa5915620c12556e87f56b82",
+    "entries": [
+      {
+        "source_entry_id": "offline.cli",
+        "locator": "inline-base64:Q0xJIHB1YmxpYyBjb250cmFjdA==",
+        "title": "Controlled CLI source entry",
+        "kind": "public-capability",
+        "entry_sha256": "1ea113b2a4a800dcfdb228cb761704e848fae984a212cf7dc347a39c3ad6c61f"
+      },
+      {
+        "source_entry_id": "offline.metadata",
+        "locator": "inline-base64:TmF2aWdhdGlvbiBtZXRhZGF0YSBvbmx5",
+        "title": "Controlled navigation metadata",
+        "kind": "public-metadata",
+        "entry_sha256": "779db452623580b64bfbed4af68a2e95ccc42e9346f2fcbd2340e80ed0bc8f27"
+      }
+    ]
+  },
+  "public_baseline_revisions": [
+    {
+      "schema": "kiana.public-parity-baseline.v1",
+      "version": "1.0",
+      "revision_id": "public-baseline-offline-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Offline source identity and exclusive mapping fixture.",
+      "snapshot_id": "public-snapshot-offline-fixture",
+      "frozen_at": "2026-07-15T02:00:00Z",
+      "applicable_product_version": "fixture-1.0",
+      "source_artifact": {
+      "artifact_id": "official-source-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#official_source_artifact",
+      "sha256": "dc6da8276f01932a5256642f9133fc3614fb0684363a6b2ca48dad2010503e19",
+        "content_sha256": "db2098440e7aeae82368286afe4eddd36de8f5c2fa5915620c12556e87f56b82"
+      },
+      "official_source_index": [
+        {
+          "source_entry_id": "offline.cli",
+          "capability_ids": [
+            "cap.public.cli"
+          ]
+        },
+        {
+          "source_entry_id": "offline.metadata",
+          "exclusion": {
+            "classification": "non_capability_metadata",
+            "rationale": "Navigation metadata is retained but is not a public product capability.",
+            "evidence_ids": [
+              "ev.source.review"
+            ],
+            "review_revision": "fixture-review-offline-1"
+          }
+        }
+      ],
+      "journeys": [
+        {
+          "journey_id": "journey-01",
+          "title": "Fixture journey 1",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-02",
+          "title": "Fixture journey 2",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-03",
+          "title": "Fixture journey 3",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-04",
+          "title": "Fixture journey 4",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-05",
+          "title": "Fixture journey 5",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-06",
+          "title": "Fixture journey 6",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-07",
+          "title": "Fixture journey 7",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-08",
+          "title": "Fixture journey 8",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-09",
+          "title": "Fixture journey 9",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-10",
+          "title": "Fixture journey 10",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-11",
+          "title": "Fixture journey 11",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-12",
+          "title": "Fixture journey 12",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-13",
+          "title": "Fixture journey 13",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-14",
+          "title": "Fixture journey 14",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        },
+        {
+          "journey_id": "journey-15",
+          "title": "Fixture journey 15",
+          "required_capability_ids": [
+            "cap.public.cli"
+          ],
+          "optional_capability_ids": [
+            "cap.public.optional"
+          ]
+        }
+      ],
+      "capabilities": [
+        {
+          "capability_id": "cap.public.cli",
+          "title": "Fixture CLI contract",
+          "parity_outcome": "match",
+          "coverage_state": "verified",
+          "required_proof_level": "local_contract",
+          "proof_level": "local_contract",
+          "freshness": "current",
+          "owner": "fixture-owner",
+          "target_phase": "01",
+          "evidence_ids": [
+            "ev.cap.public"
+          ],
+          "gap": {
+            "status": "none",
+            "reason": "Fixture contract is covered."
+          },
+          "difference": {
+            "classification": "none",
+            "rationale": "No fixture difference."
+          }
+        },
+        {
+          "capability_id": "cap.public.optional",
+          "title": "Fixture optional contract",
+          "parity_outcome": "intentional_difference",
+          "coverage_state": "intentional_difference",
+          "required_proof_level": "source",
+          "proof_level": "source",
+          "freshness": "current",
+          "owner": "fixture-owner",
+          "target_phase": "01",
+          "evidence_ids": [
+            "ev.cap.optional"
+          ],
+          "gap": {
+            "status": "none",
+            "reason": "Optional fixture capability."
+          },
+          "difference": {
+            "classification": "intentional",
+            "rationale": "Exercises explicit difference state."
+          }
+        }
+      ]
+    }
+  ],
+  "repository_registry_revisions": [
+    {
+      "schema": "kiana.reference-repository-registry.v1",
+      "version": "1.0",
+      "revision_id": "repository-registry-offline-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial offline fixture registry.",
+      "snapshot_id": "repository-snapshot-offline-fixture",
+      "frozen_at": "2026-07-15T02:00:00Z",
+      "expected_count": 38,
+      "repositories": [
+        {
+          "repo_id": "repo-git",
+          "path": "reference/fixture-git",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-git"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-git"
+          ],
+          "domains": [
+            "D01"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-git",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-git",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-git"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-content",
+          "path": "reference/fixture-content",
+          "upstream": {
+            "kind": "content_snapshot",
+            "locator": "fixture://repo-content"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "content_tree_sha256",
+          "revision_value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-content"
+          ],
+          "domains": [
+            "D02"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-content",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-content",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-content"
+          ]
+        },
+        {
+          "repo_id": "repo-03",
+          "path": "reference/fixture-03",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-03"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-03"
+          ],
+          "domains": [
+            "D03"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-03",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-03",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-03"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-04",
+          "path": "reference/fixture-04",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-04"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-04"
+          ],
+          "domains": [
+            "D04"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-04",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-04",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-04"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-05",
+          "path": "reference/fixture-05",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-05"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-05"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-05",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-05",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-05"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-06",
+          "path": "reference/fixture-06",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-06"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-06"
+          ],
+          "domains": [
+            "D06"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-06",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-06",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-06"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-07",
+          "path": "reference/fixture-07",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-07"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-07"
+          ],
+          "domains": [
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-07",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-07",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-07"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-08",
+          "path": "reference/fixture-08",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-08"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-08"
+          ],
+          "domains": [
+            "D08"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-08",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-08",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-08"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-09",
+          "path": "reference/fixture-09",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-09"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-09"
+          ],
+          "domains": [
+            "D09"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-09",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-09",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-09"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-10",
+          "path": "reference/fixture-10",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-10"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-10"
+          ],
+          "domains": [
+            "D10"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-10",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-10",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-10"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-11",
+          "path": "reference/fixture-11",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-11"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-11"
+          ],
+          "domains": [
+            "D11"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-11",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-11",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-11"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-12",
+          "path": "reference/fixture-12",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-12"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-12"
+          ],
+          "domains": [
+            "D12"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-12",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-12",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-12"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-13",
+          "path": "reference/fixture-13",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-13"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-13"
+          ],
+          "domains": [
+            "D13"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-13",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-13",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-13"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-14",
+          "path": "reference/fixture-14",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-14"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-14"
+          ],
+          "domains": [
+            "D14"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-14",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-14",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-14"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-15",
+          "path": "reference/fixture-15",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-15"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-15"
+          ],
+          "domains": [
+            "D15"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-15",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-15",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-15"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-16",
+          "path": "reference/fixture-16",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-16"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-16"
+          ],
+          "domains": [
+            "D16"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-16",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-16",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-16"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-17",
+          "path": "reference/fixture-17",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-17"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-17"
+          ],
+          "domains": [
+            "D17"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-17",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-17",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-17"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-18",
+          "path": "reference/fixture-18",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-18"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-18"
+          ],
+          "domains": [
+            "D18"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-18",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-18",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-18"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-19",
+          "path": "reference/fixture-19",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-19"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-19"
+          ],
+          "domains": [
+            "D01"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-19",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-19",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-19"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-20",
+          "path": "reference/fixture-20",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-20"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-20"
+          ],
+          "domains": [
+            "D02"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-20",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-20",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-20"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-21",
+          "path": "reference/fixture-21",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-21"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-21"
+          ],
+          "domains": [
+            "D03"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-21",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-21",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-21"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-22",
+          "path": "reference/fixture-22",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-22"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-22"
+          ],
+          "domains": [
+            "D04"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-22",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-22",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-22"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-23",
+          "path": "reference/fixture-23",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-23"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-23"
+          ],
+          "domains": [
+            "D05"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-23",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-23",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-23"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-24",
+          "path": "reference/fixture-24",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-24"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-24"
+          ],
+          "domains": [
+            "D06"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-24",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-24",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-24"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-25",
+          "path": "reference/fixture-25",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-25"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-25"
+          ],
+          "domains": [
+            "D07"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-25",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-25",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-25"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-26",
+          "path": "reference/fixture-26",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-26"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-26"
+          ],
+          "domains": [
+            "D08"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-26",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-26",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-26"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-27",
+          "path": "reference/fixture-27",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-27"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-27"
+          ],
+          "domains": [
+            "D09"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-27",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-27",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-27"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-28",
+          "path": "reference/fixture-28",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-28"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-28"
+          ],
+          "domains": [
+            "D10"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-28",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-28",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-28"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-29",
+          "path": "reference/fixture-29",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-29"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-29"
+          ],
+          "domains": [
+            "D11"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-29",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-29",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-29"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-30",
+          "path": "reference/fixture-30",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-30"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-30"
+          ],
+          "domains": [
+            "D12"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-30",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-30",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-30"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-31",
+          "path": "reference/fixture-31",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-31"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-31"
+          ],
+          "domains": [
+            "D13"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-31",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-31",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-31"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-32",
+          "path": "reference/fixture-32",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-32"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-32"
+          ],
+          "domains": [
+            "D14"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-32",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-32",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-32"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-33",
+          "path": "reference/fixture-33",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-33"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-33"
+          ],
+          "domains": [
+            "D15"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-33",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-33",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-33"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-34",
+          "path": "reference/fixture-34",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-34"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-34"
+          ],
+          "domains": [
+            "D16"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-34",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-34",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-34"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-35",
+          "path": "reference/fixture-35",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-35"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-35"
+          ],
+          "domains": [
+            "D17"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-35",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-35",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-35"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-36",
+          "path": "reference/fixture-36",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-36"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-36"
+          ],
+          "domains": [
+            "D18"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-36",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-36",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-36"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-37",
+          "path": "reference/fixture-37",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-37"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-37"
+          ],
+          "domains": [
+            "D01"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-37",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-37",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-37"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        },
+        {
+          "repo_id": "repo-38",
+          "path": "reference/fixture-38",
+          "upstream": {
+            "kind": "git",
+            "locator": "fixture://repo-38"
+          },
+          "availability": "available",
+          "scanned_at": "2026-07-15T00:00:00Z",
+          "freshness": "current",
+          "revision_kind": "git_commit",
+          "revision_value": "1111111111111111111111111111111111111111",
+          "tree_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "license_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "license_status": "found",
+          "license_expression": "Fixture-License-1.0",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-38"
+          ],
+          "domains": [
+            "D02"
+          ],
+          "aliases": [
+            {
+              "kind": "repo_id",
+              "value": "repo-38",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture identity retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            },
+            {
+              "kind": "path",
+              "value": "reference/fixture-38",
+              "change_kind": "replaced",
+              "reason": "Synthetic fixture path retained for compatibility checks.",
+              "effective_at": "2026-07-15T00:00:00Z",
+              "evidence_ids": [
+                "ev.alias.fixture"
+              ],
+              "review_revision": "fixture-review-1"
+            }
+          ],
+          "inventory_capability_ids": [
+            "cap.repo-38"
+          ],
+          "git_head": "1111111111111111111111111111111111111111"
+        }
+      ]
+    }
+  ],
+  "capability_decision_revisions": [
+    {
+      "schema": "kiana.capability-decisions.v1",
+      "version": "1.0",
+      "revision_id": "capability-decisions-offline-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial offline fixture decisions.",
+      "review_revision": "fixture-review-offline-1",
+      "reviewed_at": "2026-07-15T02:00:00Z",
+      "decisions": [
+        {
+          "decision_id": "decision.repo-git",
+          "repo_id": "repo-git",
+          "capability_id": "cap.repo-git",
+          "source_path": "reference/fixture-git/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "1111111111111111111111111111111111111111",
+          "decision": "adopt",
+          "reason": "adopt is explicit fixture governance only.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-git"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic security review exercises the closed decision contract.",
+            "evidence_ids": [
+              "ev.security.repo-git"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Synthetic fixture risk.",
+            "mitigations": [
+              "Keep fixture decisions separate from product completion."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/repo-git",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "5555555555555555555555555555555555555555",
+          "tests": [
+            {
+              "test_id": "test.repo-git",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.repo-git"
+          ],
+          "review_revision": "fixture-review-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.repo-content",
+          "repo_id": "repo-content",
+          "capability_id": "cap.repo-content",
+          "source_path": "reference/fixture-content/fixture-source",
+          "source_revision_kind": "content_tree_sha256",
+          "source_revision_value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "decision": "adapt",
+          "reason": "adapt is explicit fixture governance only.",
+          "license_compatibility": "compatible",
+          "license_evidence_ids": [
+            "ev.license.repo-content"
+          ],
+          "security_review": {
+            "status": "approved",
+            "rationale": "Synthetic security review exercises the closed decision contract.",
+            "evidence_ids": [
+              "ev.security.repo-content"
+            ]
+          },
+          "risk": {
+            "level": "low",
+            "summary": "Synthetic fixture risk.",
+            "mitigations": [
+              "Keep fixture decisions separate from product completion."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/repo-content",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "5555555555555555555555555555555555555555",
+          "tests": [
+            {
+              "test_id": "test.repo-content",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "passing"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.repo-content"
+          ],
+          "review_revision": "fixture-review-1",
+          "freshness": "current"
+        },
+        {
+          "decision_id": "decision.repo-03",
+          "repo_id": "repo-03",
+          "capability_id": "cap.repo-03",
+          "source_path": "reference/fixture-03/fixture-source",
+          "source_revision_kind": "git_commit",
+          "source_revision_value": "1111111111111111111111111111111111111111",
+          "decision": "reject",
+          "reason": "reject is explicit fixture governance only.",
+          "license_compatibility": "incompatible",
+          "license_evidence_ids": [
+            "ev.license.repo-03"
+          ],
+          "security_review": {
+            "status": "rejected",
+            "rationale": "Synthetic security review exercises the closed decision contract.",
+            "evidence_ids": [
+              "ev.security.repo-03"
+            ]
+          },
+          "risk": {
+            "level": "medium",
+            "summary": "Synthetic fixture risk.",
+            "mitigations": [
+              "Keep fixture decisions separate from product completion."
+            ]
+          },
+          "target_owner": "fixture-owner",
+          "target_path": "docs/fixtures/repo-03",
+          "target_revision_kind": "git_head",
+          "target_revision_value": "5555555555555555555555555555555555555555",
+          "tests": [
+            {
+              "test_id": "test.repo-03",
+              "path": "scripts/capability-governance-smoke.sh",
+              "status": "not_applicable"
+            }
+          ],
+          "evidence_ids": [
+            "ev.decision.repo-03"
+          ],
+          "review_revision": "fixture-review-1",
+          "freshness": "current"
+        }
+      ]
+    }
+  ],
+  "evidence_revisions": [
+    {
+      "schema": "kiana.capability-evidence-index.v1",
+      "version": "1.0",
+      "revision_id": "evidence-index-offline-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial offline fixture evidence.",
+      "created_at": "2026-07-15T02:00:00Z",
+      "records": [
+        {
+          "sequence": 1,
+          "evidence_id": "ev.cap.public",
+          "subject_family": "capability",
+          "subject_id": "cap.public.cli",
+          "subject_revision_id": "public-baseline-offline-fixture",
+          "evidence_type": "contract_check",
+          "result": "pass",
+          "coverage_state": "verified",
+          "proof_level": "local_contract",
+          "freshness": "current",
+          "source_binding": {
+            "binding_id": "source-binding-1",
+            "revision_kind": "revision_id",
+            "revision_value": "public-baseline-offline-fixture",
+            "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#public_baseline_revisions/0",
+            "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+          },
+          "target_binding": {
+            "binding_id": "target-binding-1",
+            "revision_kind": "git_commit",
+            "revision_value": "5555555555555555555555555555555555555555",
+            "path": "Cargo.toml",
+            "sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+          },
+          "environment": {
+            "environment_id": "fixture-environment",
+            "environment_kind": "local_contract",
+            "platform": "fixture-linux",
+            "runtime": "python-standard-library",
+            "fingerprint_sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+          },
+          "method": {
+            "method_kind": "command",
+            "name": "capability governance fixture smoke",
+            "command": "bash scripts/capability-governance-smoke.sh fixture-shapes"
+          },
+          "observed_at": "2026-07-15T00:00:00Z",
+          "artifact": {
+            "artifact_kind": "repository_path",
+            "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json",
+            "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "media_type": "application/json",
+            "byte_size": 1
+          },
+          "supersedes_evidence_ids": [],
+          "previous_record_sha256": "genesis",
+          "record_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+        }
+      ]
+    }
+  ],
+  "legacy_authority_revisions": [
+    {
+      "schema": "kiana.legacy-authority-classification.v1",
+      "version": "1.0",
+      "revision_id": "legacy-authority-offline-fixture",
+      "revision_kind": "genesis",
+      "genesis_reason": "Initial offline fixture legacy inventory.",
+      "inventory_globs": [
+        "docs/reference*.md"
+      ],
+      "review_revision": "fixture-review-offline-1",
+      "reviewed_at": "2026-07-15T02:00:00Z",
+      "entries": [
+        {
+          "path": "docs/reference-feature-matrix.md",
+          "content_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "classification": "frozen_migration_input",
+          "rationale": "Fixture classification does not modify the legacy source.",
+          "replacement_view": "docs/reference_audit/CAPABILITY-GOVERNANCE.generated.txt",
+          "evidence_ids": [
+            "ev.legacy.review"
+          ],
+          "review_revision": "fixture-review-1"
+        }
+      ]
+    }
+  ],
+  "bundle_manifest": {
+    "schema": "kiana.capability-governance-bundle.v1",
+    "version": "1.0",
+    "official_source_artifact": {
+      "artifact_id": "official-source-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#official_source_artifact",
+      "sha256": "dc6da8276f01932a5256642f9133fc3614fb0684363a6b2ca48dad2010503e19"
+    },
+    "public_baseline": {
+      "revision_id": "public-baseline-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#public_baseline_revisions/0",
+      "sha256": "1edc6cec6e5c73d4d0503abee5b85d62289c33bbacc3b6e615f819894041b50c"
+    },
+    "repository_registry": {
+      "revision_id": "repository-registry-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#repository_registry_revisions/0",
+      "sha256": "cbafcf5fcadffc39fdefcf6880d61a2c4d3ef848edb6372a85b7f179a2f46259"
+    },
+    "capability_decisions": {
+      "revision_id": "capability-decisions-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#capability_decision_revisions/0",
+      "sha256": "89a146884dac446926db986dcfc2f2fcab1a85abf9f8fdec2c16b74e0306fe7c"
+    },
+    "evidence_head": {
+      "revision_id": "evidence-index-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#evidence_revisions/0",
+      "sha256": "328aac0ebd1822fb1c3682f0813b32721bd1a0ab98930bbd76c04c167376017e"
+    },
+    "legacy_authority": {
+      "revision_id": "legacy-authority-offline-fixture",
+      "path": "scripts/fixtures/capability-governance/valid/offline-source-identity.json#legacy_authority_revisions/0",
+      "sha256": "632152cf191dda3d94cafc46f239de9754516cbe9c56958f685e83a7d37143c4"
+    },
+    "evaluation_time": "2026-07-15T02:01:00Z"
+  }
+}
