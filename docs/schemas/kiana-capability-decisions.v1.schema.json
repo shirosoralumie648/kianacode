@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-capability-decisions.v1.schema.json",
+  "title": "Kiana Capability Decisions v1",
+  "description": "Capability-level Adopt, Adapt, and Reject review records. A governed decision never asserts Kiana product implementation or completion.",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "revision_id",
+    "revision_kind",
+    "review_revision",
+    "reviewed_at",
+    "decisions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kiana.capability-decisions.v1"
+    },
+    "version": {
+      "const": "1.0"
+    },
+    "revision_id": {
+      "$ref": "#/$defs/stableId"
+    },
+    "revision_kind": {
+      "type": "string",
+      "enum": ["genesis", "successor"]
+    },
+    "genesis_reason": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "previous_revision_id": {
+      "$ref": "#/$defs/stableId"
+    },
+    "previous_revision_path": {
+      "$ref": "#/$defs/repositoryRelativePath"
+    },
+    "previous_revision_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "review_revision": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "reviewed_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["revision_kind"],
+        "properties": {
+          "revision_kind": {
+            "const": "genesis"
+          }
+        }
+      },
+      "then": {
+        "required": ["genesis_reason"],
+        "allOf": [
+          {
+            "not": {
+              "required": ["previous_revision_id"]
+            }
+          },
+          {
+            "not": {
+              "required": ["previous_revision_path"]
+            }
+          },
+          {
+            "not": {
+              "required": ["previous_revision_sha256"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": ["revision_kind"],
+        "properties": {
+          "revision_kind": {
+            "const": "successor"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "previous_revision_id",
+          "previous_revision_path",
+          "previous_revision_sha256"
+        ],
+        "not": {
+          "required": ["genesis_reason"]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stableId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "revisionValue": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}([a-f0-9]{24})?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "repositoryRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/].*$"
+    },
+    "stringIdArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/stableId"
+      }
+    },
+    "securityReview": {
+      "type": "object",
+      "required": ["status", "rationale", "evidence_ids"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["approved", "changes_required", "rejected", "pending"]
+        },
+        "rationale": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidence_ids": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/stringIdArray"
+            },
+            {
+              "minItems": 1
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk": {
+      "type": "object",
+      "required": ["level", "summary", "mitigations"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "summary": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "mitigations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "testReference": {
+      "type": "object",
+      "required": ["test_id", "path", "status"],
+      "properties": {
+        "test_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "path": {
+          "$ref": "#/$defs/repositoryRelativePath"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["planned", "passing", "failing", "not_applicable"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "decision_id",
+        "repo_id",
+        "capability_id",
+        "source_path",
+        "source_revision_kind",
+        "source_revision_value",
+        "decision",
+        "reason",
+        "license_compatibility",
+        "license_evidence_ids",
+        "security_review",
+        "risk",
+        "target_owner",
+        "target_path",
+        "target_revision_kind",
+        "target_revision_value",
+        "tests",
+        "evidence_ids",
+        "review_revision",
+        "freshness"
+      ],
+      "properties": {
+        "decision_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "repo_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "capability_id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "source_path": {
+          "$ref": "#/$defs/repositoryRelativePath"
+        },
+        "source_revision_kind": {
+          "type": "string",
+          "enum": ["git_commit", "content_tree_sha256"]
+        },
+        "source_revision_value": {
+          "$ref": "#/$defs/revisionValue"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["adopt", "adapt", "reject"]
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "license_compatibility": {
+          "type": "string",
+          "enum": ["compatible", "incompatible", "review_required", "unknown"]
+        },
+        "license_evidence_ids": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/stringIdArray"
+            },
+            {
+              "minItems": 1
+            }
+          ]
+        },
+        "security_review": {
+          "$ref": "#/$defs/securityReview"
+        },
+        "risk": {
+          "$ref": "#/$defs/risk"
+        },
+        "target_owner": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "target_path": {
+          "$ref": "#/$defs/repositoryRelativePath"
+        },
+        "target_revision_kind": {
+          "type": "string",
+          "enum": ["git_head", "artifact_sha256"]
+        },
+        "target_revision_value": {
+          "$ref": "#/$defs/revisionValue"
+        },
+        "tests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/testReference"
+          }
+        },
+        "evidence_ids": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/stringIdArray"
+            },
+            {
+              "minItems": 1
+            }
+          ]
+        },
+        "review_revision": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "freshness": {
+          "type": "string",
+          "enum": ["current", "stale", "superseded"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["decision"],
+            "properties": {
+              "decision": {
+                "const": "reject"
+              }
+            }
+          },
+          "then": {
+            "required": ["reason"]
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "required": ["decision"],
+                "properties": {
+                  "decision": {
+                    "enum": ["adopt", "adapt"]
+                  }
+                }
+              },
+              {
+                "required": ["freshness"],
+                "properties": {
+                  "freshness": {
+                    "const": "current"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "target_owner",
+              "target_path",
+              "target_revision_kind",
+              "target_revision_value",
+              "tests"
+            ],
+            "properties": {
+              "license_compatibility": {
+                "const": "compatible"
+              },
+              "security_review": {
+                "required": ["status"],
+                "properties": {
+                  "status": {
+                    "const": "approved"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["source_revision_kind"],
+            "properties": {
+              "source_revision_kind": {
+                "const": "content_tree_sha256"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_revision_value": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_revision_kind"],
+            "properties": {
+              "target_revision_kind": {
+                "const": "artifact_sha256"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target_revision_value": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
