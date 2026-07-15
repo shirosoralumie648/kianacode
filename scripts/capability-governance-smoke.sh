@@ -34,6 +34,11 @@ case "$slice" in
     ;;
 esac
 
+if [[ -n "${KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST:-}" ]]; then
+  echo "runtime_guard_required: external review mode is disabled" >&2
+  exit 1
+fi
+
 run_review_regression() {
   local test_case="$1"
   local review_tmp snapshot output status trace_dir bin_dir mutation expected_keyword
@@ -249,9 +254,43 @@ raise SystemExit(3)
 PY
 }
 
+validate_startup_attestation() {
+  local trace_file="$1"
+
+  "$2" - "$trace_file" <<'PY'
+import pathlib
+import re
+import sys
+
+try:
+    lines = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+except OSError:
+    raise SystemExit(2)
+
+syscalls: list[tuple[str, str]] = []
+for line in lines:
+    match = re.match(
+        r"^\s*(?:(?:\[pid\s+\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(",
+        line,
+    )
+    if match:
+        syscalls.append((match.group(1), line))
+
+if not syscalls:
+    raise SystemExit(3)
+first_name, first_line = syscalls[0]
+if first_name != "socket" or "= -1 EPERM" not in first_line or "(INJECTED)" not in first_line:
+    raise SystemExit(4)
+if len(syscalls) > 1:
+    print(syscalls[1][0])
+    raise SystemExit(5)
+print("attested")
+PY
+}
+
 run_guarded_worker() {
   local timeout_bin strace_bin guard_python trace_file stderr_file
-  local watchdog_seconds nonce status syscall_name parse_status
+  local completion_record watchdog_seconds nonce status syscall_name parse_status
 
   if ! timeout_bin="$(command -v timeout 2>/dev/null)"; then
     echo "runtime_guard_unavailable: timeout is required" >&2
@@ -266,6 +305,7 @@ run_guarded_worker() {
   runtime_guard_dir="$(mktemp -d)"
   trace_file="$runtime_guard_dir/network.trace"
   stderr_file="$runtime_guard_dir/worker.stderr"
+  completion_record="$runtime_guard_dir/completion.receipt"
   : >"$trace_file"
   : >"$stderr_file"
   nonce="$("$guard_python" -c 'import secrets; print(secrets.token_hex(32))')"
@@ -311,16 +351,24 @@ run_guarded_worker() {
     echo "runtime_guard_failed: tracer execution failed" >&2
     return 1
   fi
-  if [[ -s "$trace_file" ]]; then
-    set +e
-    syscall_name="$(parse_network_trace "$trace_file" "$guard_python")"
-    parse_status=$?
-    set -e
-    if ((parse_status == 2)); then
-      echo "runtime_guard_failed: network trace unreadable" >&2
-      return 1
-    fi
-    if ((parse_status == 0)); then
+  set +e
+  syscall_name="$(validate_startup_attestation "$trace_file" "$guard_python")"
+  parse_status=$?
+  set -e
+  if ((parse_status == 2)); then
+    echo "runtime_guard_failed: network trace unreadable" >&2
+    return 1
+  fi
+  if ((parse_status == 3)); then
+    echo "runtime_guard_failed: startup attestation missing" >&2
+    return 1
+  fi
+  if ((parse_status == 4)); then
+    echo "runtime_guard_failed: startup attestation invalid" >&2
+    return 1
+  fi
+  if ((parse_status == 5)); then
+    if [[ -n "$syscall_name" ]]; then
       printf 'network_attempt: blocked syscall=%s\n' "$syscall_name" >&2
     else
       echo "network_attempt: blocked" >&2
@@ -329,6 +377,10 @@ run_guarded_worker() {
   fi
   if ((status == 125 || status == 126 || status == 127)); then
     echo "runtime_guard_failed: watchdog or tracer execution failed" >&2
+    return 1
+  fi
+  if ((status == 0)) && [[ ! -s "$completion_record" ]]; then
+    echo "runtime_guard_failed: completion receipt missing" >&2
     return 1
   fi
 
@@ -341,11 +393,13 @@ run_guarded_worker() {
 worker_mode="${KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE:-}"
 worker_fd="${KIANA_CAPABILITY_GOVERNANCE_WORKER_FD:-}"
 worker_nonce="${KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE:-}"
+worker_tmp_root="${KIANA_CAPABILITY_GOVERNANCE_WORKER_TMP_ROOT:-}"
 unset KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE
 unset KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE
 unset KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE
 unset KIANA_CAPABILITY_GOVERNANCE_WORKER_FD
 unset KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE
+unset KIANA_CAPABILITY_GOVERNANCE_WORKER_TMP_ROOT
 worker_authenticated=0
 
 if [[ -z "$worker_mode" ]]; then
@@ -380,7 +434,37 @@ minimal_fixture="$fixtures_dir/minimal-graph.json"
 full_fixture="$fixtures_dir/full-38-repositories.json"
 hostile_fixture="$fixtures_dir/hostile-rendering.json"
 offline_fixture="$fixtures_dir/offline-source-identity.json"
+
+if ! "$python" - <<'PY'
+import errno
+import socket
+
+try:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+except OSError as exc:
+    if exc.errno == errno.EPERM:
+        raise SystemExit(0)
+    raise SystemExit(2)
+probe.close()
+raise SystemExit(1)
+PY
+then
+  echo "runtime_guard_required: startup socket attestation failed" >&2
+  exit 1
+fi
+
+if [[ -z "$worker_tmp_root" || ! -d "$worker_tmp_root" ]]; then
+  echo "runtime_guard_required: worker tmp authority missing" >&2
+  exit 1
+fi
 tmp_dir="$(mktemp -d)"
+case "$tmp_dir" in
+  "$worker_tmp_root"/*) ;;
+  *)
+    echo "runtime_guard_required: worker tmp escaped parent authority" >&2
+    exit 1
+    ;;
+esac
 trap 'rm -rf "$tmp_dir"' EXIT
 
 # Every subprocess remains offline even if a later edit accidentally adds an
