@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: 现状基线与证据治理
+current_phase: 01
+current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Phase 1 planning complete - 12 plans ready
-last_updated: "2026-07-15T07:46:13.455Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-07-15T08:33:17.220Z"
 last_activity: 2026-07-15
-last_activity_desc: Phase 1 规划完成，12 个 plans 已通过最终复验并可执行。
+last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 24
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 12
+  completed_plans: 1
   percent: 0
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-14)
 
 **Core value:** Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地完成真实长任务，并用可验证证据和可恢复状态证明任务确实完成。
-**Current focus:** Phase 1 - 现状基线与证据治理
+**Current focus:** Phase 01 — baseline-evidence-governance
 
 ## Current Position
 
-Phase: 1 of 24 (现状基线与证据治理)
-Plan: 0 of 12 in current phase
+Phase: 01 (baseline-evidence-governance) — EXECUTING
+Plan: 2 of 12
 Status: Ready to execute
-Last activity: 2026-07-15 - Phase 1 规划完成，12 个 plans 已通过最终复验。
+Last activity: 2026-07-15 — Phase 01 execution started
 
 Progress: [----------] 0%
 
@@ -39,20 +39,26 @@ Progress: [----------] 0%
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: 尚无执行数据
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 22 min
+- Total execution time: 22 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 0 | 0 min | 尚无数据 |
+| 1. 现状基线与证据治理 | 1 | 22 min | 22 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 尚无已完成 plan
-- Trend: 尚未建立
+- Last 5 plans: 22 min
+- Trend: 尚无趋势数据（仅 1 个已完成 plan）
+
+**Plan History:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 22 min | 2 | 4 |
 
 *Updated after each plan completion*
 
@@ -65,6 +71,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 采用用户批准的 horizontal foundation 顺序：contract/state/policy/runtime 先于 pack 与 surface 扩张。
 - 采用 research 验证的 24 个 fine-grained sequential phases。
 - Coding、Research、Daily、全部入口、Official Cloud、Enterprise 和 12 项 DIF 要求均保留在 1.0。
+- [Phase 01]: Official-source coverage stays inside the public-baseline family through an exclusive capability mapping or reviewed exclusion. — Prevents a fifth completion authority and preserves exhaustive source-entry review.
+- [Phase 01]: Repository domains remain imported classification labels and aliases use one exact seven-key shape. — Prevents compatibility labels or legacy names from becoming proof or repository-wide decisions.
+- [Phase 01]: Current Adopt/Adapt records require compatible license, approved security review, target revision, tests, and evidence. — Keeps capability governance fail closed without implying product completion.
 
 ### Pending Todos
 
@@ -82,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-15T00:33:33.283Z
-Stopped at: Phase 1 planning complete - 12 plans ready
-Resume file: .planning/phases/01-baseline-evidence-governance/01-CONTEXT.md
+Last session: 2026-07-15T08:33:17.207Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

@@ -39,7 +39,7 @@
 
 ### Coding Pack
 
-- [ ] **COD-01**: 发布一份带冻结日期的 Claude Code public-parity ledger，覆盖安装/登录、CLI flags、交互命令、IDE、Desktop/Web、models、memory、MCP、subagent/team、plugins/skills/hooks、checkpoint、Chrome、Git/CI、SDK、voice 等公开旅程；每行必须有结果证据或明确差异决策
+- [x] **COD-01**: 发布一份带冻结日期的 Claude Code public-parity ledger，覆盖安装/登录、CLI flags、交互命令、IDE、Desktop/Web、models、memory、MCP、subagent/team、plugins/skills/hooks、checkpoint、Chrome、Git/CI、SDK、voice 等公开旅程；每行必须有结果证据或明确差异决策
 - [ ] **COD-02**: init 一个仓库后可生成/发现项目说明、agents、rules、prompts、checks 和 memory；展示作用域与优先级；未信任项目不加载自动化资源
 - [ ] **COD-03**: 浏览目录、Read/Grep/Glob、symbol/reference、repo map、dependency/impact/trace 和图片/截图输入可组合使用；结果显示遗漏、预算和来源
 - [ ] **COD-04**: 用户可固定 editable/read-only 文件、引用文件/目录/URL/图片、查看 context 使用量、compact、恢复 compact 后语义，并知道哪些内容被省略
@@ -137,7 +137,7 @@
 - [ ] **DIF-08**: Provenance-aware context and memory 让每段上下文、记忆、claim 和 graph edge 可回到 source/hash/time/confidence，并明显降权 stale 或 inferred 内容
 - [ ] **DIF-09**: Autonomy profiles with immutable hard boundaries 允许用户切换安全、平衡和自治档位，但删除、发布、付款、凭据和外部消息等硬策略始终生效
 - [ ] **DIF-10**: Verifiable Research integrity 让引用、数据、实验、统计和图表进入专用 verifier；无法验证的论文 claim 被阻塞而不是被润色掩盖
-- [ ] **DIF-11**: Audited capability superset 让 38 个 reference 和专有公开基线逐项记录 Adopt/Adapt/Reject、license、安全、owner、test 与 evidence，并能解释取舍
+- [x] **DIF-11**: Audited capability superset 让 38 个 reference 和专有公开基线逐项记录 Adopt/Adapt/Reject、license、安全、owner、test 与 evidence，并能解释取舍
 - [ ] **DIF-12**: Transparent release and enterprise readiness 让用户和管理员查看 local/external blockers、签名、SBOM、平台与 acceptance 证据，未完成能力不能被营销措辞掩盖
 
 ## v2 Requirements
@@ -231,7 +231,7 @@ Kiana 1.0 只有在以下条件同时成立时才完成：
 | CORE-14 | Phase 7 | Pending |
 | CORE-15 | Phase 19 | Pending |
 | CORE-16 | Phase 24 | Pending |
-| COD-01 | Phase 1 | Pending |
+| COD-01 | Phase 1 | Complete |
 | COD-02 | Phase 10 | Pending |
 | COD-03 | Phase 10 | Pending |
 | COD-04 | Phase 10 | Pending |
@@ -311,7 +311,7 @@ Kiana 1.0 只有在以下条件同时成立时才完成：
 | DIF-08 | Phase 12 | Pending |
 | DIF-09 | Phase 5 | Pending |
 | DIF-10 | Phase 13 | Pending |
-| DIF-11 | Phase 1 | Pending |
+| DIF-11 | Phase 1 | Complete |
 | DIF-12 | Phase 2 | Pending |
 
 **Coverage:**
