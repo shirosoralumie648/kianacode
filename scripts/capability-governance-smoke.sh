@@ -34,6 +34,136 @@ case "$slice" in
     ;;
 esac
 
+run_review_regression() {
+  local test_case="$1"
+  local review_tmp snapshot output status trace_dir bin_dir
+
+  review_tmp="$(mktemp -d)"
+  review_tmp_cleanup="$review_tmp"
+  trap 'rm -rf "${review_tmp_cleanup:-}"' EXIT INT TERM
+
+  make_snapshot() {
+    snapshot="$review_tmp/snapshot"
+    mkdir -p "$snapshot"
+    git archive HEAD | tar -x -C "$snapshot"
+    cp "${BASH_SOURCE[0]}" "$snapshot/scripts/capability-governance-smoke.sh"
+  }
+
+  case "$test_case" in
+    forged-env)
+      bin_dir="$review_tmp/bin"
+      mkdir -p "$bin_dir"
+      ln -s "$(command -v bash)" "$bin_dir/bash"
+      ln -s "$(command -v dirname)" "$bin_dir/dirname"
+      ln -s "$(command -v mktemp)" "$bin_dir/mktemp"
+      ln -s "$(command -v python3)" "$bin_dir/python3"
+      ln -s "$(command -v rm)" "$bin_dir/rm"
+      output="$review_tmp/forged-env.out"
+      set +e
+      (
+        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
+        PATH="$bin_dir" \
+          KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE=1 \
+          KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE=/dev/null \
+          "$bin_dir/bash" "${BASH_SOURCE[0]}" fixture-shapes
+      ) >"$output" 2>&1
+      status=$?
+      set -e
+      if ((status == 0)) || ! grep -Fq "runtime_guard_unavailable: timeout is required" "$output"; then
+        echo "review_red_env_bypass: forged worker environment bypassed parent guard" >&2
+        return 1
+      fi
+      ;;
+    archive-without-reference)
+      make_snapshot
+      output="$review_tmp/archive.out"
+      set +e
+      (
+        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
+        cd "$snapshot"
+        bash scripts/capability-governance-smoke.sh fixture-shapes
+      ) >"$output" 2>&1
+      status=$?
+      set -e
+      if ((status != 0)); then
+        echo "review_red_reference_required: tracked snapshot failed without reference directory" >&2
+        tail -20 "$output" >&2
+        return 1
+      fi
+      ;;
+    duplicate-evidence-ids)
+      make_snapshot
+      "$python" - "$snapshot/$minimal_fixture" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+bundle = json.loads(path.read_text(encoding="utf-8"))
+evidence_ids = bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"]
+bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"] = [
+    evidence_ids[0],
+    evidence_ids[0],
+]
+path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+      output="$review_tmp/schema-mutation.out"
+      set +e
+      (
+        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
+        cd "$snapshot"
+        bash scripts/capability-governance-smoke.sh schemas
+      ) >"$output" 2>&1
+      status=$?
+      set -e
+      if ((status == 0)) || ! grep -Fq "schema_validation_failed:" "$output"; then
+        echo "review_red_schema_false_green: duplicate evidence_ids were accepted" >&2
+        return 1
+      fi
+      ;;
+    trace-redaction)
+      trace_dir="$review_tmp/runtime"
+      mkdir -p "$trace_dir"
+      output="$review_tmp/socket.out"
+      set +e
+      (
+        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
+        TMPDIR="$trace_dir" \
+          KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE=socket \
+          bash "${BASH_SOURCE[0]}" fixture-shapes
+      ) >"$output" 2>&1
+      status=$?
+      set -e
+      if ((status == 0)) || ! grep -Fq "network_attempt: blocked syscall=socket" "$output"; then
+        echo "review_red_trace_leakage: stable redacted socket diagnostic missing" >&2
+        return 1
+      fi
+      if grep -Eq '(^|[[:space:]])[0-9]+ +(socket|connect)\(|AF_INET|INJECTED|/[^ ]*\.sock' "$output"; then
+        echo "review_red_trace_leakage: raw strace content reached diagnostics" >&2
+        return 1
+      fi
+      if find "$trace_dir" -mindepth 1 -print -quit | grep -q .; then
+        echo "review_red_trace_cleanup: runtime temporary files remain" >&2
+        return 1
+      fi
+      ;;
+    *)
+      echo "review_test_unknown: $test_case" >&2
+      return 2
+      ;;
+  esac
+
+  echo "OK: review regression=$test_case"
+}
+
+if [[ -n "${KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST:-}" ]]; then
+  python="$(python_bin)"
+  fixtures_dir="scripts/fixtures/capability-governance/valid"
+  minimal_fixture="$fixtures_dir/minimal-graph.json"
+  run_review_regression "$KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST"
+  exit $?
+fi
+
 run_guarded_worker() {
   local timeout_bin strace_bin trace_file watchdog_seconds status
 
