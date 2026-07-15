@@ -37,6 +37,7 @@ esac
 python="$(python_bin)"
 fixtures_dir="scripts/fixtures/capability-governance/valid"
 minimal_fixture="$fixtures_dir/minimal-graph.json"
+full_fixture="$fixtures_dir/full-38-repositories.json"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
@@ -371,6 +372,166 @@ for binding_key, head in heads.items():
     require_relative(binding["path"], binding_key)
 
 print("OK: minimal governance fixture shapes and hashes are valid")
+PY
+
+  if [[ ! -f "$full_fixture" ]]; then
+    echo "fixture_required: $full_fixture" >&2
+    return 1
+  fi
+
+  "$python" - "$full_fixture" docs/agent-program/kiana-completion/references.json reference <<'PY'
+import hashlib
+import json
+import pathlib
+import re
+import sys
+
+fixture_path = pathlib.Path(sys.argv[1])
+seed_path = pathlib.Path(sys.argv[2])
+reference_root = pathlib.Path(sys.argv[3])
+bundle = json.loads(fixture_path.read_text(encoding="utf-8"))
+seed = json.loads(seed_path.read_text(encoding="utf-8"))
+expected_bundle_keys = {
+    "official_source_artifact",
+    "public_baseline_revisions",
+    "repository_registry_revisions",
+    "capability_decision_revisions",
+    "evidence_revisions",
+    "legacy_authority_revisions",
+    "bundle_manifest",
+}
+alias_keys = {
+    "kind",
+    "value",
+    "change_kind",
+    "reason",
+    "effective_at",
+    "evidence_ids",
+    "review_revision",
+}
+prohibited_proof_keys = {
+    "complete",
+    "completion",
+    "completion_status",
+    "coverage_state",
+    "proof_level",
+    "required_proof_level",
+    "product_complete",
+}
+
+
+def fail(code: str, detail: str) -> None:
+    raise SystemExit(f"{code}: {detail}")
+
+
+def canonical_sha256(value: object) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def walk_keys(value: object):
+    if isinstance(value, dict):
+        yield from value
+        for child in value.values():
+            yield from walk_keys(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from walk_keys(child)
+
+
+if set(bundle) != expected_bundle_keys:
+    fail("bundle_keys", fixture_path.as_posix())
+
+registries = bundle["repository_registry_revisions"]
+decision_revisions = bundle["capability_decision_revisions"]
+if not registries or not decision_revisions:
+    fail("full_fixture_heads", "registry and decision revisions are required")
+registry = registries[-1]
+decisions = decision_revisions[-1]
+repositories = registry["repositories"]
+if registry["expected_count"] != 38 or len(repositories) != 38:
+    fail("repository_count", str(len(repositories)))
+
+repo_ids = [row["repo_id"] for row in repositories]
+repo_paths = [row["path"] for row in repositories]
+if len(set(repo_ids)) != 38 or len(set(repo_paths)) != 38:
+    fail("repository_identity", "IDs and paths must each be unique")
+if any(re.fullmatch(r"[a-z0-9][a-z0-9._-]*", repo_id) is None for repo_id in repo_ids):
+    fail("repository_id_normalization", "stable IDs must be normalized")
+
+live_paths = {
+    f"reference/{path.name}"
+    for path in reference_root.iterdir()
+    if path.is_dir()
+}
+if set(repo_paths) != live_paths:
+    fail(
+        "repository_path_reconciliation",
+        f"missing={sorted(live_paths - set(repo_paths))} extra={sorted(set(repo_paths) - live_paths)}",
+    )
+
+seed_rows = {row["path"]: row for row in seed["references"]}
+if seed.get("expected_count") != 38 or set(seed_rows) != live_paths:
+    fail("seed_reconciliation", "checked-in seed must describe the live 38 paths")
+
+content_paths = {
+    "reference/claude-code-main (2)",
+    "reference/claude-code-rev-main",
+}
+for row in repositories:
+    raw = seed_rows[row["path"]]
+    aliases = row["aliases"]
+    if any(set(alias) != alias_keys for alias in aliases):
+        fail("alias_shape", row["repo_id"])
+    alias_values = {(alias["kind"], alias["value"]) for alias in aliases}
+    if ("repo_id", raw["id"]) not in alias_values or ("path", raw["path"]) not in alias_values:
+        fail("legacy_alias_missing", row["repo_id"])
+    if row["domains"] != raw["domains"]:
+        fail("imported_domains", row["repo_id"])
+    expected_kind = "content_tree_sha256" if row["path"] in content_paths else "git_commit"
+    if row["revision_kind"] != expected_kind:
+        fail("repository_revision_kind", row["repo_id"])
+    if expected_kind == "git_commit" and "git_head" not in row:
+        fail("git_head_required", row["repo_id"])
+    if expected_kind == "content_tree_sha256" and "git_head" in row:
+        fail("content_git_head_forbidden", row["repo_id"])
+
+inventory_pairs = {
+    (row["repo_id"], capability_id)
+    for row in repositories
+    for capability_id in row["inventory_capability_ids"]
+}
+current_rows = [row for row in decisions["decisions"] if row["freshness"] == "current"]
+decision_pairs = [(row["repo_id"], row["capability_id"]) for row in current_rows]
+if len(decision_pairs) != len(set(decision_pairs)):
+    fail("duplicate_current_decision", "repository/capability pairs must be unique")
+if set(decision_pairs) != inventory_pairs:
+    fail("decision_coverage", "every inventory capability needs one current decision")
+if {row["decision"] for row in current_rows} != {"adopt", "adapt", "reject"}:
+    fail("decision_kinds", "adopt, adapt, and reject must all be sampled")
+
+if prohibited_proof_keys.intersection(walk_keys(registry)):
+    fail("registry_proof_state", "registry governance must not assert product proof")
+if prohibited_proof_keys.intersection(walk_keys(decisions)):
+    fail("decision_proof_state", "decisions must not assert product proof")
+
+manifest = bundle["bundle_manifest"]
+for binding_key, head in (
+    ("repository_registry", registry),
+    ("capability_decisions", decisions),
+):
+    binding = manifest[binding_key]
+    if binding["revision_id"] != head["revision_id"]:
+        fail("full_head_id", binding_key)
+    if binding["sha256"] != canonical_sha256(head):
+        fail("full_head_sha256", binding_key)
+
+print("OK: full 38-reference fixture matches seed, live paths, aliases, and decisions")
 PY
 }
 
