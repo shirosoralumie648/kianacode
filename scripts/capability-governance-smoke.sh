@@ -34,6 +34,62 @@ case "$slice" in
     ;;
 esac
 
+run_guarded_worker() {
+  local timeout_bin strace_bin trace_file watchdog_seconds status
+
+  if ! timeout_bin="$(command -v timeout 2>/dev/null)"; then
+    echo "runtime_guard_unavailable: timeout is required" >&2
+    return 1
+  fi
+  if ! strace_bin="$(command -v strace 2>/dev/null)"; then
+    echo "runtime_guard_unavailable: strace is required" >&2
+    return 1
+  fi
+
+  trace_file="$(mktemp)"
+  watchdog_seconds=30
+  if [[ "${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE:-}" == "hang" ]]; then
+    watchdog_seconds=1
+  fi
+
+  set +e
+  LC_ALL=C \
+    KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE=1 \
+    KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE="$trace_file" \
+    "$timeout_bin" --signal=TERM --kill-after=2s "${watchdog_seconds}s" \
+    "$strace_bin" -f -qq \
+    -e trace=%network \
+    -e signal=none \
+    -e inject=%network:error=EPERM \
+    -o "$trace_file" \
+    -- bash "${BASH_SOURCE[0]}" "$slice"
+  status=$?
+  set -e
+
+  if ((status == 124 || status == 137)); then
+    echo "slice_timeout: slice exceeded ${watchdog_seconds} seconds" >&2
+    rm -f "$trace_file"
+    return 1
+  fi
+  if [[ -s "$trace_file" ]]; then
+    echo "network_attempt: blocked network syscall" >&2
+    sed -n '1,40p' "$trace_file" >&2
+    rm -f "$trace_file"
+    return 1
+  fi
+
+  rm -f "$trace_file"
+  return "$status"
+}
+
+if [[ "${KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE:-}" != "1" ]]; then
+  set +e
+  run_guarded_worker
+  guarded_status=$?
+  set -e
+  exit "$guarded_status"
+fi
+
 python="$(python_bin)"
 fixtures_dir="scripts/fixtures/capability-governance/valid"
 minimal_fixture="$fixtures_dir/minimal-graph.json"
@@ -54,6 +110,30 @@ export all_proxy="$ALL_PROXY"
 export NO_PROXY=""
 export no_proxy=""
 export PYTHONNOUSERSITE=1
+
+case "${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE:-}" in
+  "") ;;
+  socket)
+    "$python" - <<'PY'
+import socket
+import sys
+
+try:
+    socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+except OSError as exc:
+    print(f"socket_probe_blocked: {exc}", file=sys.stderr)
+    raise SystemExit(91)
+raise SystemExit("socket_probe_unblocked")
+PY
+    ;;
+  hang)
+    "$python" -c 'import time; time.sleep(3600)'
+    ;;
+  *)
+    echo "runtime_probe_unknown: ${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE}" >&2
+    exit 2
+    ;;
+esac
 
 start_ns="$("$python" -c 'import time; print(time.monotonic_ns())')"
 
