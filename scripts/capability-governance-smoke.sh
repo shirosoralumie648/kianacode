@@ -439,6 +439,16 @@ run_schema_slice() {
     echo "schema_contract_count: expected 8 schemas" >&2
     return 1
   fi
+  if ! "$python" - <<'PY'
+try:
+    from jsonschema import Draft202012Validator, FormatChecker
+except Exception:
+    raise SystemExit(1)
+PY
+  then
+    echo "schema_validator_unavailable: Python jsonschema is required" >&2
+    return 1
+  fi
   for schema in "${schemas[@]}"; do
     "$python" -m json.tool "$schema" >/dev/null
   done
@@ -535,6 +545,65 @@ PY
     while IFS=$'\t' read -r schema_path instance_path; do
       "$python" scripts/validate-json-schema.py "$schema_path" "$instance_path" >/dev/null
     done <"$manifest"
+
+    "$python" - "$manifest" <<'PY'
+import json
+import pathlib
+import sys
+
+try:
+    from jsonschema import Draft202012Validator, FormatChecker
+    from jsonschema.exceptions import SchemaError
+except Exception:
+    raise SystemExit("schema_validator_unavailable: Python jsonschema is required")
+
+
+def json_path(parts: list[object]) -> str:
+    rendered = "$"
+    for part in parts:
+        if isinstance(part, int):
+            rendered += f"[{part}]"
+        else:
+            rendered += f".{part}"
+    return rendered
+
+
+manifest_path = pathlib.Path(sys.argv[1])
+validators: dict[pathlib.Path, Draft202012Validator] = {}
+for line in manifest_path.read_text(encoding="utf-8").splitlines():
+    schema_name, instance_name = line.split("\t", 1)
+    schema_path = pathlib.Path(schema_name)
+    instance_path = pathlib.Path(instance_name)
+    if schema_path not in validators:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        try:
+            Draft202012Validator.check_schema(schema)
+        except SchemaError as exc:
+            keyword = exc.validator or "schema"
+            raise SystemExit(
+                f"schema_contract_invalid: keyword={keyword} schema={schema_path.name}"
+            )
+        validators[schema_path] = Draft202012Validator(
+            schema,
+            format_checker=FormatChecker(),
+        )
+    instance = json.loads(instance_path.read_text(encoding="utf-8"))
+    errors = sorted(
+        validators[schema_path].iter_errors(instance),
+        key=lambda error: (
+            tuple(str(part) for part in error.absolute_path),
+            str(error.validator),
+        ),
+    )
+    if errors:
+        error = errors[0]
+        keyword = error.validator or "unknown"
+        raise SystemExit(
+            "schema_validation_failed: "
+            f"keyword={keyword} schema={schema_path.name} "
+            f"instance={instance_path.name} path={json_path(list(error.absolute_path))}"
+        )
+PY
   done
 }
 
@@ -756,7 +825,6 @@ fixture_path = pathlib.Path(sys.argv[1])
 seed_path = pathlib.Path(sys.argv[2])
 reference_root = pathlib.Path(sys.argv[3])
 bundle = json.loads(fixture_path.read_text(encoding="utf-8"))
-seed = json.loads(seed_path.read_text(encoding="utf-8"))
 expected_bundle_keys = {
     "official_source_artifact",
     "public_baseline_revisions",
@@ -788,6 +856,14 @@ prohibited_proof_keys = {
 
 def fail(code: str, detail: str) -> None:
     raise SystemExit(f"{code}: {detail}")
+
+
+try:
+    seed = json.loads(seed_path.read_text(encoding="utf-8"))
+except FileNotFoundError:
+    fail("seed_required", seed_path.as_posix())
+except (OSError, UnicodeError, json.JSONDecodeError):
+    fail("seed_invalid", seed_path.as_posix())
 
 
 def canonical_sha256(value: object) -> str:
@@ -830,20 +906,55 @@ if len(set(repo_ids)) != 38 or len(set(repo_paths)) != 38:
 if any(re.fullmatch(r"[a-z0-9][a-z0-9._-]*", repo_id) is None for repo_id in repo_ids):
     fail("repository_id_normalization", "stable IDs must be normalized")
 
-live_paths = {
-    f"reference/{path.name}"
-    for path in reference_root.iterdir()
-    if path.is_dir()
-}
-if set(repo_paths) != live_paths:
+if (
+    not isinstance(seed, dict)
+    or set(seed) != {"schema", "expected_count", "references"}
+    or seed.get("schema") != "kiana.agent-reference-catalog.v1"
+    or seed.get("expected_count") != 38
+    or not isinstance(seed.get("references"), list)
+    or len(seed["references"]) != 38
+):
+    fail("seed_invalid", "expected closed 38-reference catalog")
+seed_references = seed["references"]
+if any(
+    not isinstance(row, dict)
+    or set(row) != {"id", "path", "domains"}
+    or not isinstance(row["id"], str)
+    or not isinstance(row["path"], str)
+    or not isinstance(row["domains"], list)
+    or not row["domains"]
+    or any(not isinstance(domain, str) for domain in row["domains"])
+    for row in seed_references
+):
+    fail("seed_invalid", "reference rows require id, path, and domains")
+seed_ids = [row["id"] for row in seed_references]
+seed_paths = [row["path"] for row in seed_references]
+if len(set(seed_ids)) != 38 or len(set(seed_paths)) != 38:
+    fail("seed_invalid", "reference IDs and paths must be unique")
+
+seed_rows = {row["path"]: row for row in seed_references}
+if set(repo_paths) != set(seed_rows):
     fail(
-        "repository_path_reconciliation",
-        f"missing={sorted(live_paths - set(repo_paths))} extra={sorted(set(repo_paths) - live_paths)}",
+        "seed_reconciliation",
+        f"missing={sorted(set(seed_rows) - set(repo_paths))} extra={sorted(set(repo_paths) - set(seed_rows))}",
     )
 
-seed_rows = {row["path"]: row for row in seed["references"]}
-if seed.get("expected_count") != 38 or set(seed_rows) != live_paths:
-    fail("seed_reconciliation", "checked-in seed must describe the live 38 paths")
+if reference_root.exists():
+    if not reference_root.is_dir():
+        fail("reference_root_invalid", reference_root.as_posix())
+    try:
+        live_paths = {
+            f"reference/{path.name}"
+            for path in reference_root.iterdir()
+            if path.is_dir()
+        }
+    except OSError:
+        fail("reference_root_unavailable", reference_root.as_posix())
+    if set(repo_paths) != live_paths:
+        fail(
+            "repository_path_reconciliation",
+            f"missing={sorted(live_paths - set(repo_paths))} extra={sorted(set(repo_paths) - live_paths)}",
+        )
 
 content_paths = {
     "reference/claude-code-main (2)",
@@ -897,7 +1008,7 @@ for binding_key, head in (
     if binding["sha256"] != canonical_sha256(head):
         fail("full_head_sha256", binding_key)
 
-print("OK: full 38-reference fixture matches seed, live paths, aliases, and decisions")
+print("OK: full 38-reference fixture matches seed, optional live paths, aliases, and decisions")
 PY
 
   for required_fixture in "$hostile_fixture" "$offline_fixture"; do
