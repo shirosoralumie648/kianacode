@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-07-15T08:33:17.220Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-07-15T09:28:45.539Z"
 last_activity: 2026-07-15
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 17
 ---
 
 # Project State
@@ -29,36 +29,37 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 2 of 12
+Plan: 3 of 12
 Status: Ready to execute
 Last activity: 2026-07-15 — Phase 01 execution started
 
-Progress: [----------] 0%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
-- Average duration: 22 min
-- Total execution time: 22 min
+- Total plans completed: 2
+- Average duration: 31 min
+- Total execution time: 61 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 1 | 22 min | 22 min |
+| 1. 现状基线与证据治理 | 2 | 61 min | 31 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 22 min
-- Trend: 尚无趋势数据（仅 1 个已完成 plan）
+- Last 5 plans: 22 min, 39 min
+- Trend: 01-02 比 01-01 增加 17 min
 
 **Plan History:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 22 min | 2 | 4 |
+| Phase 01 P02 | 39 min | 2 | 4 |
 
 *Updated after each plan completion*
 
@@ -74,6 +75,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Official-source coverage stays inside the public-baseline family through an exclusive capability mapping or reviewed exclusion. — Prevents a fifth completion authority and preserves exhaustive source-entry review.
 - [Phase 01]: Repository domains remain imported classification labels and aliases use one exact seven-key shape. — Prevents compatibility labels or legacy names from becoming proof or repository-wide decisions.
 - [Phase 01]: Current Adopt/Adapt records require compatible license, approved security review, target revision, tests, and evidence. — Keeps capability governance fail closed without implying product completion.
+- [Phase 01]: Evidence and legacy histories require the exact complete predecessor identity triple for every successor. — Keeps ancestry mechanically traversable and prevents silent history replacement.
+- [Phase 01]: Diff families match the downstream producer interface: public-baseline and repository-registry. — Avoids claiming unsupported decision or evidence diff generation while preserving deterministic ID-only output.
+- [Phase 01]: The bundle uses evidence_head and a root-level checked-in evaluation_time. — Matches production ancestry traversal and keeps expiry evaluation deterministic without creating another status projection.
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-15T08:33:17.207Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-07-15T09:28:45.524Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
