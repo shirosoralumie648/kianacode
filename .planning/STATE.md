@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-07-15T09:28:45.539Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-07-15T10:27:09.124Z"
 last_activity: 2026-07-15
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 2
-  percent: 17
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -29,30 +29,30 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 3 of 12
+Plan: 4 of 12
 Status: Ready to execute
 Last activity: 2026-07-15 — Phase 01 execution started
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2
-- Average duration: 31 min
-- Total execution time: 61 min
+- Total plans completed: 3
+- Average duration: 30 min
+- Total execution time: 89 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 2 | 61 min | 31 min |
+| 1. 现状基线与证据治理 | 3 | 89 min | 30 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 22 min, 39 min
-- Trend: 01-02 比 01-01 增加 17 min
+- Last 5 plans: 22 min, 39 min, 28 min
+- Trend: 01-03 比 01-02 减少 11 min
 
 **Plan History:**
 
@@ -60,6 +60,7 @@ Progress: [██░░░░░░░░] 17%
 |------|----------|-------|-------|
 | Phase 01 P01 | 22 min | 2 | 4 |
 | Phase 01 P02 | 39 min | 2 | 4 |
+| Phase 01 P03 | 28 min | 3 | 5 |
 
 *Updated after each plan completion*
 
@@ -78,6 +79,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Evidence and legacy histories require the exact complete predecessor identity triple for every successor. — Keeps ancestry mechanically traversable and prevents silent history replacement.
 - [Phase 01]: Diff families match the downstream producer interface: public-baseline and repository-registry. — Avoids claiming unsupported decision or evidence diff generation while preserving deterministic ID-only output.
 - [Phase 01]: The bundle uses evidence_head and a root-level checked-in evaluation_time. — Matches production ancestry traversal and keeps expiry evaluation deterministic without creating another status projection.
+- [Phase 01]: Fixture manifests use canonical sorted compact JSON SHA-256 for offline ancestry and head verification. — Keeps embedded fixture bindings reproducible without introducing a production authority.
+- [Phase 01]: Minimal capability data still carries 38 synthetic registry rows because the frozen registry contract requires exactly 38 entries. — Preserves structural validity while keeping journeys, capabilities, and evidence compact.
+- [Phase 01]: Full-reference fingerprints are fixture-only; only seed/live identity, aliases, domains, and decision coverage are reconciled. — Prevents positive test data from being mistaken for production source, license, or completion evidence.
+- [Phase 01]: Offline source identity uses inline-base64 entries joined with LF for deterministic local rehashing. — Allows later freeze and drift checks to reproduce exact bytes without network retrieval.
 
 ### Pending Todos
 
@@ -95,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-15T09:28:45.524Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-07-15T10:27:09.114Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
