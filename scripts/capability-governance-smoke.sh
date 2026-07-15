@@ -36,7 +36,7 @@ esac
 
 run_review_regression() {
   local test_case="$1"
-  local review_tmp snapshot output status trace_dir bin_dir
+  local review_tmp snapshot output status trace_dir bin_dir mutation expected_keyword
 
   review_tmp="$(mktemp -d)"
   review_tmp_cleanup="$review_tmp"
@@ -91,20 +91,51 @@ run_review_regression() {
         return 1
       fi
       ;;
-    duplicate-evidence-ids)
+    duplicate-evidence-ids | schema-max-items | schema-one-of | schema-not)
+      case "$test_case" in
+        duplicate-evidence-ids)
+          mutation="uniqueItems"
+          expected_keyword="uniqueItems"
+          ;;
+        schema-max-items)
+          mutation="maxItems"
+          expected_keyword="maxItems"
+          ;;
+        schema-one-of)
+          mutation="oneOf"
+          expected_keyword="oneOf"
+          ;;
+        schema-not)
+          mutation="not"
+          expected_keyword="not"
+          ;;
+      esac
       make_snapshot
-      "$python" - "$snapshot/$minimal_fixture" <<'PY'
+      "$python" - "$snapshot/$minimal_fixture" "$mutation" <<'PY'
+import copy
 import json
 import pathlib
 import sys
 
 path = pathlib.Path(sys.argv[1])
+mutation = sys.argv[2]
 bundle = json.loads(path.read_text(encoding="utf-8"))
-evidence_ids = bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"]
-bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"] = [
-    evidence_ids[0],
-    evidence_ids[0],
-]
+if mutation == "uniqueItems":
+    evidence_ids = bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"]
+    bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"] = [
+        evidence_ids[0],
+        evidence_ids[0],
+    ]
+elif mutation == "maxItems":
+    repositories = bundle["repository_registry_revisions"][0]["repositories"]
+    repositories.append(copy.deepcopy(repositories[0]))
+elif mutation == "oneOf":
+    binding = bundle["evidence_revisions"][0]["records"][0]["source_binding"]
+    binding["uri"] = "https://fixtures.invalid/source"
+elif mutation == "not":
+    bundle["evidence_revisions"][0]["previous_revision_id"] = "forbidden-predecessor"
+else:
+    raise SystemExit(f"unknown mutation: {mutation}")
 path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
       output="$review_tmp/schema-mutation.out"
@@ -116,8 +147,13 @@ PY
       ) >"$output" 2>&1
       status=$?
       set -e
-      if ((status == 0)) || ! grep -Fq "schema_validation_failed:" "$output"; then
-        echo "review_red_schema_false_green: duplicate evidence_ids were accepted" >&2
+      if ((status == 0)); then
+        echo "review_red_schema_false_green: $expected_keyword mutation was accepted" >&2
+        return 1
+      fi
+      if [[ "$expected_keyword" != "not" ]] &&
+        ! grep -Fq "schema_validation_failed: keyword=$expected_keyword" "$output"; then
+        echo "review_red_schema_diagnostic: $expected_keyword failure was not attributed" >&2
         return 1
       fi
       ;;
