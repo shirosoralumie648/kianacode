@@ -2,7 +2,7 @@
 phase: 01-baseline-evidence-governance
 plan: "03"
 subsystem: governance-testing
-tags: [bash, python, json-schema, fixtures, evidence-ledger, strace, watchdog, offline-validation, tdd]
+tags: [bash, python, jsonschema, json-schema, fixtures, evidence-ledger, fd-handshake, strace, watchdog, offline-validation, tdd]
 
 requires:
   - phase: 01-baseline-evidence-governance
@@ -14,6 +14,8 @@ provides:
   - Hostile-rendering and deterministic offline-source identity fixtures
   - Closed evidence heads with immutable record prefixes, hash chains, and exact cross-family bindings
   - Fail-closed 30-second watchdog and syscall-level network denial for both public slices
+  - Seed-authoritative 38-reference validation that also runs from tracked snapshots without reference/
+  - Full Draft 2020-12 schema validation and redacted runtime diagnostics
 affects:
   - 01-04-negative-coverage-fixtures
   - 01-05-integrity-and-security-fixtures
@@ -29,6 +31,7 @@ tech-stack:
     - Canonical fixture hashes use sorted compact UTF-8 JSON and path/hash-only manifest bindings
     - Positive security fixtures separate hostile data from executable markup and embed normalized source bytes as Base64
     - timeout supervises a strace worker that injects EPERM into every network syscall and rejects any non-empty trace
+    - Draft202012Validator with FormatChecker runs after the existing lightweight validator for every extracted object
 
 key-files:
   created:
@@ -46,17 +49,20 @@ key-decisions:
   - "Offline source bytes use inline-base64 entry locators and deterministic LF joining, allowing entry and artifact identities to be rehashed with no retrieval."
   - "Every current evidence head defines every referenced ID; successor heads preserve the complete prior record prefix and append newly bound records."
   - "Proxy variables are defense in depth only; timeout plus strace syscall injection is the fail-closed offline and deadline authority."
+  - "A parent-generated nonce delivered through a one-use inherited anonymous FD authenticates workers; caller environment alone cannot select worker mode."
+  - "The checked-in references.json catalog is authoritative; a live reference/ tree adds reconciliation only when present."
 
 patterns-established:
   - "Progressive runner: later plans extend the same two named slices while missing owned fixtures fail with a stable fixture_required diagnostic."
   - "Exact fixture bundles: seven top-level keys, closed head bindings, mandatory ancestry, unique identities, and exclusive source mapping or reviewed exclusion."
   - "Evidence closure: references from capabilities, exclusions, aliases, licenses, security reviews, decisions, legacy entries, supersession, and transition events resolve against the selected head."
+  - "Schema closure: the existing validator remains wired, followed by complete Draft 2020-12 keyword and format validation with stable keyword diagnostics."
 
 requirements-completed: [COD-01, DIF-11]
 
 coverage:
   - id: D1
-    description: "Offline runner parses all eight Phase 1 schemas and structurally validates every applicable fixture object and derived diff."
+    description: "Offline runner parses all eight Phase 1 schemas and validates every applicable fixture object and derived diff with both the existing validator and Draft202012Validator."
     requirement: COD-01
     verification:
       - kind: integration
@@ -72,7 +78,7 @@ coverage:
         status: pass
     human_judgment: false
   - id: D3
-    description: "Full fixture reconciles 38 unique normalized IDs and live paths, exact legacy aliases/domains, and one current decision per inventory capability."
+    description: "Full fixture reconciles 38 unique normalized IDs and paths against the checked-in seed, optionally checks live paths, and preserves exact legacy aliases/domains plus one current decision per inventory capability."
     requirement: DIF-11
     verification:
       - kind: integration
@@ -104,7 +110,7 @@ status: complete
 - **Completed:** 2026-07-15T10:23:08Z
 - **Tasks:** 3
 - **Files modified:** 5
-- **Review remediation:** 3 atomic commits on 2026-07-15
+- **Review remediation:** 7 atomic test/fix commits across two reviews on 2026-07-15
 
 ## Accomplishments
 
@@ -114,6 +120,8 @@ status: complete
 - 建立 hostile-rendering 和 offline-source fixtures：前者包含 Markdown/括号/HTML-like/newline 数据但无 executable markup、secret 或本地绝对路径，后者可从 inline Base64 bytes 重算 entry/content/artifact hashes。
 - 闭合四份 evidence ledger：full/hostile/minimal/offline current head 分别保留 156/86/172/86 条唯一记录，所有引用均解析且 minimal successor 完整保留 86-record genesis prefix。
 - 用 `timeout` + `strace` 将 30 秒预算与 offline 声明变成运行时边界：缺失工具 fail closed，network syscall 被注入 `EPERM`，非空 trace 和 watchdog timeout 均返回非零。
+- 关闭 caller-env bypass 和 raw trace disclosure：worker 必须消费 parent nonce/anonymous FD，network diagnostics 仅保留脱敏 syscall name，EXIT/INT/TERM 统一清理。
+- 将 38-reference 对比改为 seed-first，并在 existing validator 后运行完整 Draft 2020-12 validation；fresh archive 无 `reference/` 时两 slice 仍通过。
 
 ## Task Commits
 
@@ -128,6 +136,10 @@ status: complete
 7. **Review RED: Evidence and runtime boundary assertions** - `760cfd1` (test)
 8. **Review GREEN: Closed fixture evidence ledgers** - `371e085` (fix)
 9. **Review GREEN: Fail-closed offline runtime guard** - `77dee00` (fix)
+10. **Review 2 RED: Env/archive/schema/trace regressions** - `ebe1cc3` (test)
+11. **Review 2 GREEN: Authenticated worker and redacted cleanup** - `17a6816` (fix)
+12. **Review 2 RED: Full schema keyword mutations** - `4fed8c6` (test)
+13. **Review 2 GREEN: Portable seed and Draft 2020-12 validation** - `25ac327` (fix)
 
 **Plan metadata:** 原计划 tracking 已在 `48d53b3` 提交；review remediation 只更新本 SUMMARY，不再次修改 STATE、ROADMAP 或 REQUIREMENTS。
 
@@ -147,6 +159,8 @@ status: complete
 - Hostile fixture 只使用不可执行的 HTML-like 标签；offline fixture 采用 `inline-base64-entry-lf-join` 使 Plan 01-07 能冻结并复算同一字节表示。
 - Evidence records 按 owning capability/repository/decision/revision 绑定真实 subject、source revision、target revision 和 environment；共享 license review 只在同一 repository identity 内复用。
 - Public CLI 继续只接受 `schemas|fixture-shapes`；socket/hang probes 仅通过隐藏测试环境触发，不形成第三个 slice。
+- 四份 bundle 是相互隔离的 positive oracles；允许 bundle-local evidence IDs 重复，但记录其未来合并/聚合时的 collision 维护风险，本计划不再重写 29k fixture lines。
+- Checked-in fixture generator 超出 01-03 白名单；后续维护应补 generator/rehash tool，而不是在本次 review 中新增未声明文件。
 
 ## TDD Evidence
 
@@ -156,6 +170,8 @@ status: complete
 - Review RED 在旧 fixture 上稳定产生 minimal `history_removal`、其余 bundle `unknown_reference`，并在结构校验后产生 `runtime_guard_required`。
 - Evidence GREEN 后四份 current heads 的 dangling reference 均为 0，minimal evidence records 从 86 条追加到 172 条；隔离 runtime 项时 `schemas` 与 `fixture-shapes` 均通过。
 - Runtime GREEN 后两个公开 slices 在串行与并行复核中均低于 30 秒；正常 trace 为 0 字节，socket probe 显示 `EPERM (INJECTED)`，hang probe 返回 `slice_timeout`，缺失 `timeout`/`strace` 均 fail closed。
+- Review 2 RED 分别复现 forged env bypass、tracked archive `FileNotFoundError`、`uniqueItems|maxItems|oneOf|not` false green，以及 raw strace leakage。
+- Review 2 GREEN 后 7 个隐藏 regressions 全部通过；fresh archive 两 slice 通过，seed missing/invalid、jsonschema missing、tracer failure/trace missing 均稳定 fail closed，INT/TERM 后无 trace 或 hang child 残留。
 
 ## Deviations from Plan
 
@@ -177,22 +193,30 @@ status: complete
 - **Verification:** RED/GREEN slices, zero-byte normal trace, injected socket probe, hang probe, missing-tool checks, usage status checks, and focused `git diff --check`.
 - **Committed in:** `760cfd1`, `371e085`, and `77dee00`.
 
+**3. [Rule 1 - Security/Portability] Closed second-review boundaries**
+- **Found during:** Independent quality review after first remediation
+- **Issue:** Caller env could select worker mode, tracked archives lacked `reference/`, the lightweight schema helper accepted critical keyword violations, and raw strace lines exposed PIDs/arguments.
+- **Fix:** Added anonymous-FD worker authentication, parent-only trace ownership/redaction/cleanup, seed-first optional-live reconciliation, and complete Draft 2020-12 validation after the existing helper.
+- **Files modified:** `scripts/capability-governance-smoke.sh` only; metadata is recorded in this SUMMARY.
+- **Verification:** Seven hidden regressions, fresh archive slices, four schema mutations, seed/jsonschema/tracer failures, signal cleanup, public CLI statuses, and focused `git diff --check`.
+- **Committed in:** `ebe1cc3`, `17a6816`, `4fed8c6`, and `25ac327`.
+
 ---
 
-**Total deviations:** 2 auto-fixed (2 Rule 1 bugs).
+**Total deviations:** 3 auto-fixed (2 Rule 1 bugs, 1 security/portability closure).
 **Impact on plan:** Tracking metadata remains unchanged by remediation; fixture scope and public slice names are unchanged, while the positive oracles and offline/deadline claims are now executable.
 
 ## Issues Encountered
 
-Post-plan review found incomplete evidence closure and advisory-only runtime isolation. Both were reproduced before repair and are covered by the remediation commits above.
+Two review passes found incomplete evidence closure, advisory-only isolation, env-auth bypass, archive coupling, incomplete schema semantics, and raw tracer disclosure. Every issue was reproduced before repair and is covered by committed regressions.
 
 ## User Setup Required
 
-No external service or account is required. The runner requires Bash 5, Python, GNU `timeout`, and Linux `strace`; missing runtime-guard tools fail closed with `runtime_guard_unavailable`.
+No external service or account is required. The runner requires Bash 5, Python with `jsonschema`, GNU `timeout`, and Linux `strace`; missing schema/runtime guard tools fail closed without install or network fallback.
 
 ## Known Stubs
 
-None. Fixture-only hashes and decisions remain deliberately synthetic and labeled as such; hidden socket/hang probes are test controls, not product surfaces. The Linux `strace` requirement is an explicit fail-closed runner prerequisite, not a silent fallback.
+None. Fixture-only hashes and decisions remain deliberately synthetic and labeled as such; hidden review/socket/hang probes are test controls, not product surfaces. Bundle-local ID reuse and the absent checked-in generator are documented maintenance risks, not completion claims.
 
 ## Next Phase Readiness
 
@@ -201,6 +225,7 @@ None. Fixture-only hashes and decisions remain deliberately synthetic and labele
 - Plan 01-06 可以复用 current-head reference closure、immutable prefix、record-chain 和 exact binding assertions，而不需要修补正例数据。
 - Plan 01-07 可以使用 `inline-base64-entry-lf-join` 重算 controlled source bytes，无需网络 retrieval。
 - `scripts/schema-contract-smoke.sh` 的既有 dirty hunk 保持 byte-identical，直到 Plan 01-12 执行既定 broad-gate integration。
+- 后续 fixture 扩展应在允许新增文件的计划中补 checked-in generator/rehash command，并在任何跨-bundle aggregation 前定义 evidence ID namespace policy。
 
 ---
 *Phase: 01-baseline-evidence-governance*
@@ -211,7 +236,9 @@ None. Fixture-only hashes and decisions remain deliberately synthetic and labele
 - All five planned files and this SUMMARY exist.
 - RED commits `35784af`, `82b6897`, and `8949fb0` precede GREEN commits `33f9782`, `c9fe5ce`, and `1ad04e1` for their respective tasks.
 - Review RED `760cfd1` precedes evidence/runtime GREEN commits `371e085` and `77dee00`.
+- Review 2 RED commits `ebe1cc3` and `4fed8c6` precede GREEN commits `17a6816` and `25ac327`.
 - Every original and remediation commit contains only Plan 01-03 declared paths; no tracked file deletion occurred, and remediation did not touch STATE, ROADMAP, or REQUIREMENTS.
 - Coverage classification reports 4/4 deliverables as auto-covered with passing verification.
 - All evidence references resolve in current heads; record chains, minimal immutable prefix, exact bindings, network denial, watchdog, usage statuses, and missing-tool failures are exercised.
+- Forged env/direct worker entry, raw trace disclosure, fresh archive portability, seed failures, full schema keywords, jsonschema absence, tracer/trace failure, and INT/TERM cleanup are exercised.
 - Protected `scripts/schema-contract-smoke.sh` and `.planning/config.json` retain their pre-execution working-tree hashes.
