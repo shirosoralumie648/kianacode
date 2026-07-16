@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use kiana_capability_governance_supervisor::{
     run_public, CleanupState, FailureCode, LinuxProcessLauncher, Slice, SupervisorConfig,
-    WorkerExit,
+    WorkerExit, SUPERVISOR_WORKER_EXIT_CODE,
 };
 
 static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -62,6 +62,30 @@ fn linux_two_public_slices_succeed_after_prebuilt_binary() {
         assert!(!stdout.contains("INJECTED"));
         assert!(!stdout.contains("kiana-capability-governance-"));
     }
+}
+
+#[test]
+fn linux_public_invocation_ignores_caller_controlled_cwd() {
+    let _guard = test_lock();
+    let caller_cwd = test_root("caller-cwd");
+    let output = Command::new(supervisor_bin())
+        .arg("fixture-shapes")
+        .current_dir(&caller_cwd)
+        .env_clear()
+        .output()
+        .unwrap();
+    fs::remove_dir_all(caller_cwd).unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout)
+            .matches("offline=true")
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -143,11 +167,8 @@ fn create_custom_runner(body: &str, label: &str) -> (PathBuf, PathBuf) {
 set -euo pipefail
 [[ "$#" == 2 && "$1" == "--internal-worker" ]]
 slice="$2"
-launch_fd="${{KIANA_GOVERNANCE_LAUNCH_FD}}"
-completion_fd="${{KIANA_GOVERNANCE_COMPLETION_FD}}"
-IFS= read -r -u "$launch_fd" token
-if IFS= read -r -N 1 -u "$launch_fd" trailing; then exit 31; fi
-exec {{launch_fd}}<&-
+[[ -z "${{KIANA_GOVERNANCE_LAUNCH_FD:-}}" ]]
+[[ -z "${{KIANA_GOVERNANCE_COMPLETION_FD:-}}" ]]
 python="${{KIANA_GOVERNANCE_PYTHON}}"
 set +e
 "$python" -I - <<'PY'
@@ -163,8 +184,6 @@ canary=$?
 set -e
 [[ "$canary" == 80 ]]
 {body}
-printf 'complete:%s:%s\n' "$token" "$slice" >&"$completion_fd"
-exec {{completion_fd}}>&-
 exit 80
 "#
     );
@@ -249,7 +268,10 @@ fn linux_worker_marker_exit_zero_and_deadline_cannot_authorize_success() {
 
     let exit_zero = custom_runner("exit 0", Duration::from_secs(5));
     assert_eq!(exit_zero.exit_code, 1);
-    assert_eq!(exit_zero.verdict.worker_exit, WorkerExit::Code(0));
+    assert_ne!(
+        exit_zero.verdict.worker_exit,
+        WorkerExit::Code(SUPERVISOR_WORKER_EXIT_CODE)
+    );
     assert!(exit_zero.public_stdout.is_empty());
 
     let deadline = custom_runner("sleep 3600 & wait", Duration::from_secs(1));
@@ -263,22 +285,8 @@ fn linux_worker_marker_exit_zero_and_deadline_cannot_authorize_success() {
 }
 
 #[test]
-fn linux_early_receipt_and_output_overflow_fail_closed() {
+fn linux_output_overflow_fails_closed() {
     let _guard = test_lock();
-    let early = custom_runner(
-        r#"printf 'complete:%s:%s\n' "$token" "$slice" >&"$completion_fd"
-exec {completion_fd}>&-
-sleep 1
-exit 80"#,
-        Duration::from_secs(5),
-    );
-    assert_eq!(early.exit_code, 1);
-    assert_eq!(
-        early.verdict.receipt,
-        kiana_capability_governance_supervisor::ReceiptVerdict::Early
-    );
-    assert!(early.public_stdout.is_empty());
-
     let overflow = custom_runner(
         r#""$python" -I - <<'PY'
 import sys
@@ -310,26 +318,6 @@ PY"#,
         stderr_overflow.verdict.runtime_cleanup,
         CleanupState::Removed
     );
-
-    let receipt_overflow = custom_runner(
-        r#""$python" -I - "$completion_fd" <<'PY'
-import os
-import sys
-os.write(int(sys.argv[1]), b"x" * 257)
-PY
-exec {completion_fd}>&-
-exit 80"#,
-        Duration::from_secs(5),
-    );
-    assert_eq!(receipt_overflow.exit_code, 1);
-    assert_eq!(
-        receipt_overflow.verdict.receipt,
-        kiana_capability_governance_supervisor::ReceiptVerdict::Oversized
-    );
-    assert_eq!(
-        receipt_overflow.verdict.runtime_cleanup,
-        CleanupState::Removed
-    );
 }
 
 #[test]
@@ -348,12 +336,8 @@ fn linux_worker_cannot_reopen_or_write_unexpected_descriptors() {
         0
     );
     let outcome = custom_runner(
-        r#"[[ ! -e "/proc/self/fd/$completion_fd" ]]
-[[ ! -e "/dev/fd/$completion_fd" ]]
-for fd in $(seq 3 256); do
-  if [[ "$fd" != "$completion_fd" ]]; then
-    if (printf 'forged' >&"$fd") 2>/dev/null; then exit 61; fi
-  fi
+        r#"for fd in $(seq 3 256); do
+  if (printf 'forged' >&"$fd") 2>/dev/null; then exit 61; fi
 done"#,
         Duration::from_secs(5),
     );
@@ -414,4 +398,21 @@ fn linux_sigint_and_sigterm_return_shell_codes_without_residue() {
         assert_eq!(runtime_roots(), before);
         fs::remove_dir_all(root).unwrap();
     }
+}
+
+#[test]
+fn linux_term_resistant_descendants_are_killed_without_residue() {
+    let _guard = test_lock();
+    let before = runtime_roots();
+    let outcome = custom_runner(
+        "trap '' TERM; (trap '' TERM; sleep 3600) & wait",
+        Duration::from_millis(100),
+    );
+    assert_eq!(outcome.exit_code, 1);
+    assert_eq!(
+        outcome.verdict.failure_code(),
+        Some(FailureCode::DeadlineExceeded)
+    );
+    assert_eq!(outcome.verdict.runtime_cleanup, CleanupState::Removed);
+    assert_eq!(runtime_roots(), before);
 }

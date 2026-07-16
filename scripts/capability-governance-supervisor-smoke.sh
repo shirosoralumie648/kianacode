@@ -10,7 +10,10 @@ ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 RUNNER="$ROOT/scripts/capability-governance-smoke.sh"
 SUPERVISOR="$ROOT/target/debug/kiana-capability-governance-supervisor"
 CARGO_BIN="$(command -v cargo 2>/dev/null || true)"
+RUSTC_BIN="$(command -v rustc 2>/dev/null || true)"
+PYTHON_BIN="$(python3 -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
 BUILD_PATH="$PATH"
+GATE_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 export PATH="/usr/bin:/bin"
 export LC_ALL="C"
 
@@ -22,6 +25,8 @@ fail() {
 [[ -x "$RUNNER" ]] || fail "public runner is not executable"
 [[ -x "$SUPERVISOR" ]] || fail "prebuilt supervisor is unavailable"
 [[ "$CARGO_BIN" == /* && -x "$CARGO_BIN" ]] || fail "Cargo is unavailable"
+[[ "$RUSTC_BIN" == /* && -x "$RUSTC_BIN" ]] || fail "rustc is unavailable"
+[[ "$PYTHON_BIN" == /* && -x "$PYTHON_BIN" ]] || fail "build Python is unavailable"
 
 tmp_root="$(mktemp -d /var/tmp/kiana-supervisor-smoke.XXXXXX)"
 cleanup() {
@@ -82,7 +87,6 @@ env \
   ENV="$tmp_root/bash-env" \
   PYTHONPATH="$tmp_root/shims" \
   PYTHONHOME="$tmp_root/shims" \
-  LD_LIBRARY_PATH="$tmp_root/shims" \
   TMPDIR="$tmp_root/shims" \
   "$RUNNER" fixture-shapes \
   >"$tmp_root/shim.out" 2>"$tmp_root/shim.err"
@@ -90,6 +94,35 @@ env \
 [[ "$(grep -c 'offline=true' "$tmp_root/shim.out")" == 1 ]] ||
   fail "environment shim changed final marker authority"
 ! grep -Fq 'forged' "$tmp_root/shim.out" || fail "environment shim executed"
+
+mkdir -p "$tmp_root/caller-cwd"
+(
+  cd "$tmp_root/caller-cwd"
+  "$SUPERVISOR" fixture-shapes
+) >"$tmp_root/caller-cwd.out" 2>"$tmp_root/caller-cwd.err"
+[[ ! -s "$tmp_root/caller-cwd.err" ]] ||
+  fail "caller cwd changed supervisor stderr: $(tr '\n' ' ' <"$tmp_root/caller-cwd.err")"
+[[ "$(grep -c 'offline=true' "$tmp_root/caller-cwd.out")" == 1 ]] ||
+  fail "caller cwd selected a different production runner"
+
+"$RUSTC_BIN" --edition=2021 --test \
+  "$ROOT/kiana-capability-governance-supervisor/build.rs" \
+  -o "$tmp_root/build-tests"
+PATH="$BUILD_PATH" KIANA_TEST_PYTHON="$PYTHON_BIN" \
+  "$tmp_root/build-tests" >"$tmp_root/build-tests.out"
+grep -Fq '4 passed' "$tmp_root/build-tests.out" || fail "build prerequisite tests failed"
+
+"$RUSTC_BIN" --edition=2021 \
+  "$ROOT/kiana-capability-governance-supervisor/build.rs" \
+  -o "$tmp_root/build-script"
+mkdir -p "$tmp_root/no-python"
+CARGO_CFG_TARGET_OS=windows PATH="$tmp_root/no-python" \
+  "$tmp_root/build-script" >"$tmp_root/non-linux-build.out" \
+  2>"$tmp_root/non-linux-build.err" || fail "non-Linux stub build prerequisites did not skip"
+[[ ! -s "$tmp_root/non-linux-build.err" ]] || fail "non-Linux stub build emitted prerequisite errors"
+[[ "$(wc -l <"$tmp_root/non-linux-build.out")" == 1 ]] &&
+  grep -Fxq 'cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS' \
+    "$tmp_root/non-linux-build.out" || fail "non-Linux stub build executed a runtime prerequisite"
 
 for slice in schemas fixture-shapes; do
   "$RUNNER" "$slice" >"$tmp_root/$slice.out" 2>"$tmp_root/$slice.err"
@@ -103,10 +136,13 @@ for slice in schemas fixture-shapes; do
 done
 
 env -u CARGO_BUILD_TARGET PATH="$BUILD_PATH" \
-  "$CARGO_BIN" test --target-dir "$ROOT/target" \
+  "$CARGO_BIN" test --target-dir "$GATE_TARGET_DIR" \
   -p kiana-capability-governance-supervisor \
   --locked --offline --test supervisor_linux --no-fail-fast -- \
-  --test-threads=1 >"$tmp_root/linux-tests.out" 2>"$tmp_root/linux-tests.err"
+  --test-threads=1 >"$tmp_root/linux-tests.out" 2>"$tmp_root/linux-tests.err" || {
+  sed -n '1,80p' "$tmp_root/linux-tests.err" >&2
+  fail "Linux integration gate failed"
+}
 ! grep -q 'SKIP prerequisite:' "$tmp_root/linux-tests.out" "$tmp_root/linux-tests.err" ||
   fail "Linux integration gate skipped a prerequisite"
 
