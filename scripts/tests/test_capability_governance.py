@@ -426,7 +426,12 @@ class GovernanceDriftAndUsageContractTests(unittest.TestCase):
             (case_root / "base.json").symlink_to(outside_fixture)
             wrapper = case_root / "wrapper.json"
             wrapper.write_text(
-                json.dumps({"base_fixture": "base.json", "mutations": []}),
+                json.dumps(
+                    {
+                        "base_fixture": (case_root / "base.json").relative_to(ROOT).as_posix(),
+                        "mutations": [],
+                    }
+                ),
                 encoding="utf-8",
             )
             result = subprocess.run(

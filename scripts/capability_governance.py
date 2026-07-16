@@ -421,11 +421,7 @@ def load_fixture_bundle(path: Path) -> dict[str, Any]:
         base_raw = value["base_fixture"]
         if not isinstance(base_raw, str) or not validate_relative_path(base_raw):
             raise GovernanceUsageError("mutation_base_invalid: base_fixture must be relative")
-        base_path = (path.parent / base_raw).resolve()
-        try:
-            base_path.relative_to(_repo_root(path.parent))
-        except ValueError as exc:
-            raise GovernanceUsageError("symlink_escape: mutation base escapes repository") from exc
+        base_path = resolve_repository_path(_repo_root(path.parent), base_raw)
         base = load_json(base_path)
         mutations = value["mutations"]
         if not isinstance(mutations, list):
