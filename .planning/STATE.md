@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-05-PLAN.md
-last_updated: "2026-07-16T10:34:04.202Z"
-last_activity: 2026-07-15
-last_activity_desc: Phase 01 execution started
+stopped_at: Completed 01-06-PLAN.md
+last_updated: "2026-07-16T14:36:18.081Z"
+last_activity: 2026-07-16
+last_activity_desc: Completed Plan 01-06 semantic governance adversarial corpus
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 5
-  percent: 0
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -29,30 +29,30 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 6 of 12
+Plan: 7 of 12
 Status: Ready to execute
-Last activity: 2026-07-15 — Phase 01 execution started
+Last activity: 2026-07-16 — Completed Plan 01-06 semantic governance adversarial corpus
 
-Progress: [███░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
-- Average duration: 30 min
-- Total execution time: 89 min
+- Total plans completed: 6
+- Average duration: 50 min
+- Total execution time: 298 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 3 | 89 min | 30 min |
+| 1. 现状基线与证据治理 | 6 | 298 min | 50 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 22 min, 39 min, 28 min
-- Trend: 01-03 比 01-02 减少 11 min
+- Last 5 plans: 39 min, 28 min, 35 min, 10 min, 164 min
+- Trend: 01-06 包含 implementation correction，较 01-05 增加 154 min
 
 **Plan History:**
 
@@ -65,6 +65,7 @@ Progress: [███░░░░░░░] 25%
 *Updated after each plan completion*
 | Phase 01 P04 | 35 min | 2 tasks | 6 files |
 | Phase 01 P05 | 10 min | 2 tasks | 5 files |
+| Phase 01 P06 | 2h 44m | 4 tasks | 37 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: The governance CLI imports only from its own trusted script directory under Python isolated mode. — Keeps supervisor execution independent of PYTHONPATH and caller cwd.
 - [Phase 01]: Public-baseline and reference-governance are explicit Rust supervisor slices. — Preserves exact receipt identity and the offline authority boundary.
 - [Phase 01]: Coverage oracles require the exact production semantic code and subject; structural failures cannot substitute for the target diagnostic. — Keeps post-implementation fixtures from becoming an alternate rule source.
+- [Phase 01]: Plan 01-06 exact diagnostics are production API, while symlink and oversized reads remain typed exit-2 usage failures. — Prevents fixtures from weakening fail-closed CLI semantics.
+- [Phase 01]: Semantic-negative is an explicit Rust supervisor slice over the real CLI and production drift comparator. — Preserves receipt, deadline, offline, redaction, and protected-input authority for the aggregate corpus.
 
 ### Pending Todos
 
@@ -106,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-16T10:34:04.195Z
-Stopped at: Completed 01-05-PLAN.md
+Last session: 2026-07-16T14:36:18.070Z
+Stopped at: Completed 01-06-PLAN.md
 Resume file: None
