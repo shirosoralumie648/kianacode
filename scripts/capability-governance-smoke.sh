@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash -p
 set -euo pipefail
 
 if ((BASH_VERSINFO[0] < 5)); then
@@ -6,436 +6,76 @@ if ((BASH_VERSINFO[0] < 5)); then
   exit 1
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 cd "$ROOT"
-
-python_bin() {
-  command -v python3 2>/dev/null || command -v python 2>/dev/null || {
-    echo "capability governance smoke requires python3 or python" >&2
-    exit 1
-  }
-}
 
 usage() {
   echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes}" >&2
 }
 
-if (($# != 1)); then
+if (($# == 2)) && [[ "${1:-}" == "--internal-worker" ]]; then
+  slice="$2"
+  case "$slice" in
+    schemas | fixture-shapes) ;;
+    *) echo "supervisor_worker_invalid: unknown slice" >&2; exit 1 ;;
+  esac
+  worker_mode=1
+elif (($# == 1)); then
+  slice="$1"
+  case "$slice" in
+    schemas | fixture-shapes) ;;
+    *) usage; exit 2 ;;
+  esac
+  supervisor_bin="$ROOT/target/debug/kiana-capability-governance-supervisor"
+  if [[ ! -x "$supervisor_bin" ]]; then
+    echo "supervisor_unavailable: build kiana-capability-governance-supervisor with --locked --offline" >&2
+    exit 1
+  fi
+  unset BASH_ENV ENV PYTHONPATH PYTHONHOME PYTHONSTARTUP LD_PRELOAD LD_LIBRARY_PATH
+  export PATH="/usr/bin:/bin"
+  export LC_ALL="C"
+  exec "$supervisor_bin" "$slice"
+else
   usage
   exit 2
 fi
 
-slice="$1"
-case "$slice" in
-  schemas | fixture-shapes) ;;
-  *)
-    usage
-    exit 2
-    ;;
-esac
+if [[ -z "${KIANA_GOVERNANCE_PYTHON:-}" ||
+  "${KIANA_GOVERNANCE_PYTHON}" != /* ||
+  ! -x "${KIANA_GOVERNANCE_PYTHON}" ]]; then
+  echo "supervisor_worker_unavailable: trusted Python is missing" >&2
+  exit 1
+fi
+python="$KIANA_GOVERNANCE_PYTHON"
 
-if [[ -n "${KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST:-}" ]]; then
-  echo "runtime_guard_required: external review mode is disabled" >&2
+run_python() {
+  "$python" -I "$@"
+}
+
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
+export PYTHONNOUSERSITE=1
+launch_fd="${KIANA_GOVERNANCE_LAUNCH_FD:-}"
+completion_fd="${KIANA_GOVERNANCE_COMPLETION_FD:-}"
+if [[ ! "$launch_fd" =~ ^[3-9][0-9]*$ || ! "$completion_fd" =~ ^[3-9][0-9]*$ ||
+  "$launch_fd" == "$completion_fd" ]]; then
+  echo "supervisor_worker_invalid: inherited descriptors are invalid" >&2
+  exit 1
+fi
+if ! IFS= read -r -u "$launch_fd" launch_token 2>/dev/null; then
+  echo "supervisor_worker_invalid: launch token unavailable" >&2
+  exit 1
+fi
+if IFS= read -r -N 1 -u "$launch_fd" trailing 2>/dev/null; then
+  echo "supervisor_worker_invalid: launch token has trailing data" >&2
+  exit 1
+fi
+exec {launch_fd}<&-
+if [[ ! "$launch_token" =~ ^[a-f0-9]{64}$ ]]; then
+  echo "supervisor_worker_invalid: launch token invalid" >&2
   exit 1
 fi
 
-run_review_regression() {
-  local test_case="$1"
-  local review_tmp snapshot output status trace_dir bin_dir mutation expected_keyword
-
-  review_tmp="$(mktemp -d)"
-  review_tmp_cleanup="$review_tmp"
-  trap 'rm -rf "${review_tmp_cleanup:-}"' EXIT INT TERM
-
-  make_snapshot() {
-    snapshot="$review_tmp/snapshot"
-    mkdir -p "$snapshot"
-    git archive HEAD | tar -x -C "$snapshot"
-    cp "${BASH_SOURCE[0]}" "$snapshot/scripts/capability-governance-smoke.sh"
-  }
-
-  case "$test_case" in
-    forged-env)
-      bin_dir="$review_tmp/bin"
-      mkdir -p "$bin_dir"
-      ln -s "$(command -v bash)" "$bin_dir/bash"
-      ln -s "$(command -v dirname)" "$bin_dir/dirname"
-      ln -s "$(command -v mktemp)" "$bin_dir/mktemp"
-      ln -s "$(command -v python3)" "$bin_dir/python3"
-      ln -s "$(command -v rm)" "$bin_dir/rm"
-      output="$review_tmp/forged-env.out"
-      set +e
-      (
-        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
-        PATH="$bin_dir" \
-          KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE=1 \
-          KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE=/dev/null \
-          "$bin_dir/bash" "${BASH_SOURCE[0]}" fixture-shapes
-      ) >"$output" 2>&1
-      status=$?
-      set -e
-      if ((status == 0)) || ! grep -Fq "runtime_guard_unavailable: timeout is required" "$output"; then
-        echo "review_red_env_bypass: forged worker environment bypassed parent guard" >&2
-        return 1
-      fi
-      ;;
-    archive-without-reference)
-      make_snapshot
-      output="$review_tmp/archive.out"
-      set +e
-      (
-        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
-        cd "$snapshot"
-        bash scripts/capability-governance-smoke.sh fixture-shapes
-      ) >"$output" 2>&1
-      status=$?
-      set -e
-      if ((status != 0)); then
-        echo "review_red_reference_required: tracked snapshot failed without reference directory" >&2
-        tail -20 "$output" >&2
-        return 1
-      fi
-      ;;
-    duplicate-evidence-ids | schema-max-items | schema-one-of | schema-not)
-      case "$test_case" in
-        duplicate-evidence-ids)
-          mutation="uniqueItems"
-          expected_keyword="uniqueItems"
-          ;;
-        schema-max-items)
-          mutation="maxItems"
-          expected_keyword="maxItems"
-          ;;
-        schema-one-of)
-          mutation="oneOf"
-          expected_keyword="oneOf"
-          ;;
-        schema-not)
-          mutation="not"
-          expected_keyword="not"
-          ;;
-      esac
-      make_snapshot
-      "$python" - "$snapshot/$minimal_fixture" "$mutation" <<'PY'
-import copy
-import json
-import pathlib
-import sys
-
-path = pathlib.Path(sys.argv[1])
-mutation = sys.argv[2]
-bundle = json.loads(path.read_text(encoding="utf-8"))
-if mutation == "uniqueItems":
-    evidence_ids = bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"]
-    bundle["public_baseline_revisions"][0]["capabilities"][0]["evidence_ids"] = [
-        evidence_ids[0],
-        evidence_ids[0],
-    ]
-elif mutation == "maxItems":
-    repositories = bundle["repository_registry_revisions"][0]["repositories"]
-    repositories.append(copy.deepcopy(repositories[0]))
-elif mutation == "oneOf":
-    binding = bundle["evidence_revisions"][0]["records"][0]["source_binding"]
-    binding["uri"] = "https://fixtures.invalid/source"
-elif mutation == "not":
-    bundle["evidence_revisions"][0]["previous_revision_id"] = "forbidden-predecessor"
-else:
-    raise SystemExit(f"unknown mutation: {mutation}")
-path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-PY
-      output="$review_tmp/schema-mutation.out"
-      set +e
-      (
-        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
-        cd "$snapshot"
-        bash scripts/capability-governance-smoke.sh schemas
-      ) >"$output" 2>&1
-      status=$?
-      set -e
-      if ((status == 0)); then
-        echo "review_red_schema_false_green: $expected_keyword mutation was accepted" >&2
-        return 1
-      fi
-      if [[ "$expected_keyword" != "not" ]] &&
-        ! grep -Fq "schema_validation_failed: keyword=$expected_keyword" "$output"; then
-        echo "review_red_schema_diagnostic: $expected_keyword failure was not attributed" >&2
-        return 1
-      fi
-      ;;
-    trace-redaction)
-      trace_dir="$review_tmp/runtime"
-      mkdir -p "$trace_dir"
-      output="$review_tmp/socket.out"
-      set +e
-      (
-        unset KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST
-        TMPDIR="$trace_dir" \
-          KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE=socket \
-          bash "${BASH_SOURCE[0]}" fixture-shapes
-      ) >"$output" 2>&1
-      status=$?
-      set -e
-      if ((status == 0)) || ! grep -Fq "network_attempt: blocked syscall=socket" "$output"; then
-        echo "review_red_trace_leakage: stable redacted socket diagnostic missing" >&2
-        return 1
-      fi
-      if grep -Eq '(^|[[:space:]])[0-9]+ +(socket|connect)\(|AF_INET|INJECTED|/[^ ]*\.sock' "$output"; then
-        echo "review_red_trace_leakage: raw strace content reached diagnostics" >&2
-        return 1
-      fi
-      if find "$trace_dir" -mindepth 1 -print -quit | grep -q .; then
-        echo "review_red_trace_cleanup: runtime temporary files remain" >&2
-        return 1
-      fi
-      ;;
-    *)
-      echo "review_test_unknown: $test_case" >&2
-      return 2
-      ;;
-  esac
-
-  echo "OK: review regression=$test_case"
-}
-
-if [[ -n "${KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST:-}" ]]; then
-  python="$(python_bin)"
-  fixtures_dir="scripts/fixtures/capability-governance/valid"
-  minimal_fixture="$fixtures_dir/minimal-graph.json"
-  run_review_regression "$KIANA_CAPABILITY_GOVERNANCE_REVIEW_TEST"
-  exit $?
-fi
-
-runtime_guard_dir=""
-runtime_guard_pid=""
-runtime_guard_fd=""
-
-cleanup_runtime_guard() {
-  local cleanup_status=$?
-
-  trap - EXIT INT TERM
-  if [[ -n "${runtime_guard_pid:-}" ]] && kill -0 "$runtime_guard_pid" 2>/dev/null; then
-    kill -TERM "$runtime_guard_pid" 2>/dev/null || true
-    wait "$runtime_guard_pid" 2>/dev/null || true
-  fi
-  runtime_guard_pid=""
-  if [[ -n "${runtime_guard_fd:-}" ]]; then
-    exec {runtime_guard_fd}<&-
-  fi
-  runtime_guard_fd=""
-  if [[ -n "${runtime_guard_dir:-}" ]]; then
-    rm -rf "$runtime_guard_dir"
-  fi
-  runtime_guard_dir=""
-  return "$cleanup_status"
-}
-
-parse_network_trace() {
-  local trace_file="$1"
-
-  "$2" - "$trace_file" <<'PY'
-import pathlib
-import re
-import sys
-
-try:
-    lines = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
-except OSError:
-    raise SystemExit(2)
-
-for line in lines:
-    match = re.match(
-        r"^\s*(?:(?:\[pid\s+\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(",
-        line,
-    )
-    if match:
-        print(match.group(1))
-        raise SystemExit(0)
-raise SystemExit(3)
-PY
-}
-
-validate_startup_attestation() {
-  local trace_file="$1"
-
-  "$2" - "$trace_file" <<'PY'
-import pathlib
-import re
-import sys
-
-try:
-    lines = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
-except OSError:
-    raise SystemExit(2)
-
-syscalls: list[tuple[str, str]] = []
-for line in lines:
-    match = re.match(
-        r"^\s*(?:(?:\[pid\s+\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(",
-        line,
-    )
-    if match:
-        syscalls.append((match.group(1), line))
-
-if not syscalls:
-    raise SystemExit(3)
-first_name, first_line = syscalls[0]
-if first_name != "socket" or "= -1 EPERM" not in first_line or "(INJECTED)" not in first_line:
-    raise SystemExit(4)
-if len(syscalls) > 1:
-    print(syscalls[1][0])
-    raise SystemExit(5)
-print("attested")
-PY
-}
-
-run_guarded_worker() {
-  local timeout_bin strace_bin guard_python trace_file stderr_file
-  local completion_record watchdog_seconds nonce status syscall_name parse_status
-
-  if ! timeout_bin="$(command -v timeout 2>/dev/null)"; then
-    echo "runtime_guard_unavailable: timeout is required" >&2
-    return 1
-  fi
-  if ! strace_bin="$(command -v strace 2>/dev/null)"; then
-    echo "runtime_guard_unavailable: strace is required" >&2
-    return 1
-  fi
-
-  guard_python="$(python_bin)"
-  runtime_guard_dir="$(mktemp -d)"
-  trace_file="$runtime_guard_dir/network.trace"
-  stderr_file="$runtime_guard_dir/worker.stderr"
-  completion_record="$runtime_guard_dir/completion.receipt"
-  : >"$trace_file"
-  : >"$stderr_file"
-  nonce="$("$guard_python" -c 'import secrets; print(secrets.token_hex(32))')"
-  exec {runtime_guard_fd}< <(printf '%s\n' "$nonce")
-  trap cleanup_runtime_guard EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-
-  watchdog_seconds=30
-  if [[ "${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE:-}" == "hang" ]]; then
-    watchdog_seconds=1
-  fi
-
-  set +e
-  LC_ALL=C \
-    KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE=1 \
-    KIANA_CAPABILITY_GOVERNANCE_WORKER_FD="$runtime_guard_fd" \
-    KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE="$nonce" \
-    "$timeout_bin" --signal=TERM --kill-after=2s "${watchdog_seconds}s" \
-    "$strace_bin" -f -qq \
-    -e trace=%network \
-    -e signal=none \
-    -e inject=%network:error=EPERM \
-    -o "$trace_file" \
-    -- bash "${BASH_SOURCE[0]}" "$slice" 2>"$stderr_file" &
-  runtime_guard_pid=$!
-  exec {runtime_guard_fd}<&-
-  runtime_guard_fd=""
-  wait "$runtime_guard_pid"
-  status=$?
-  runtime_guard_pid=""
-  set -e
-
-  if ((status == 124 || status == 137)); then
-    echo "slice_timeout: slice exceeded ${watchdog_seconds} seconds" >&2
-    return 1
-  fi
-  if [[ ! -f "$trace_file" || ! -r "$trace_file" || ! -f "$stderr_file" || ! -r "$stderr_file" ]]; then
-    echo "runtime_guard_failed: guard output unavailable" >&2
-    return 1
-  fi
-  if grep -q '^strace:' "$stderr_file"; then
-    echo "runtime_guard_failed: tracer execution failed" >&2
-    return 1
-  fi
-  set +e
-  syscall_name="$(validate_startup_attestation "$trace_file" "$guard_python")"
-  parse_status=$?
-  set -e
-  if ((parse_status == 2)); then
-    echo "runtime_guard_failed: network trace unreadable" >&2
-    return 1
-  fi
-  if ((parse_status == 3)); then
-    echo "runtime_guard_failed: startup attestation missing" >&2
-    return 1
-  fi
-  if ((parse_status == 4)); then
-    echo "runtime_guard_failed: startup attestation invalid" >&2
-    return 1
-  fi
-  if ((parse_status == 5)); then
-    if [[ -n "$syscall_name" ]]; then
-      printf 'network_attempt: blocked syscall=%s\n' "$syscall_name" >&2
-    else
-      echo "network_attempt: blocked" >&2
-    fi
-    return 1
-  fi
-  if ((status == 125 || status == 126 || status == 127)); then
-    echo "runtime_guard_failed: watchdog or tracer execution failed" >&2
-    return 1
-  fi
-  if ((status == 0)) && [[ ! -s "$completion_record" ]]; then
-    echo "runtime_guard_failed: completion receipt missing" >&2
-    return 1
-  fi
-
-  if [[ -s "$stderr_file" ]]; then
-    cat "$stderr_file" >&2
-  fi
-  return "$status"
-}
-
-worker_mode="${KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE:-}"
-worker_fd="${KIANA_CAPABILITY_GOVERNANCE_WORKER_FD:-}"
-worker_nonce="${KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE:-}"
-worker_tmp_root="${KIANA_CAPABILITY_GOVERNANCE_WORKER_TMP_ROOT:-}"
-unset KIANA_CAPABILITY_GOVERNANCE_GUARD_ACTIVE
-unset KIANA_CAPABILITY_GOVERNANCE_NETWORK_TRACE
-unset KIANA_CAPABILITY_GOVERNANCE_WORKER_MODE
-unset KIANA_CAPABILITY_GOVERNANCE_WORKER_FD
-unset KIANA_CAPABILITY_GOVERNANCE_WORKER_NONCE
-unset KIANA_CAPABILITY_GOVERNANCE_WORKER_TMP_ROOT
-worker_authenticated=0
-
-if [[ -z "$worker_mode" ]]; then
-  set +e
-  run_guarded_worker
-  guarded_status=$?
-  set -e
-  exit "$guarded_status"
-elif [[ "$worker_mode" == "1" ]]; then
-  if [[ ! "$worker_fd" =~ ^[1-9][0-9]+$ || ! "$worker_nonce" =~ ^[a-f0-9]{64}$ ]]; then
-    echo "runtime_guard_required: invalid worker handshake" >&2
-    exit 1
-  fi
-  if ! IFS= read -r -u "$worker_fd" received_nonce 2>/dev/null; then
-    echo "runtime_guard_required: worker handshake unavailable" >&2
-    exit 1
-  fi
-  exec {worker_fd}<&-
-  if [[ "$received_nonce" != "$worker_nonce" ]]; then
-    echo "runtime_guard_required: worker handshake mismatch" >&2
-    exit 1
-  fi
-  worker_authenticated=1
-else
-  echo "runtime_guard_required: invalid worker mode" >&2
-  exit 1
-fi
-
-python="$(python_bin)"
-fixtures_dir="scripts/fixtures/capability-governance/valid"
-minimal_fixture="$fixtures_dir/minimal-graph.json"
-full_fixture="$fixtures_dir/full-38-repositories.json"
-hostile_fixture="$fixtures_dir/hostile-rendering.json"
-offline_fixture="$fixtures_dir/offline-source-identity.json"
-
-if ! "$python" - <<'PY'
+if ! run_python - <<'PY'
 import errno
 import socket
 
@@ -449,61 +89,33 @@ probe.close()
 raise SystemExit(1)
 PY
 then
-  echo "runtime_guard_required: startup socket attestation failed" >&2
+  echo "supervisor_worker_invalid: startup socket canary failed" >&2
   exit 1
 fi
 
-if [[ -z "$worker_tmp_root" || ! -d "$worker_tmp_root" ]]; then
-  echo "runtime_guard_required: worker tmp authority missing" >&2
-  exit 1
-fi
+fixtures_dir="scripts/fixtures/capability-governance/valid"
+minimal_fixture="$fixtures_dir/minimal-graph.json"
+full_fixture="$fixtures_dir/full-38-repositories.json"
+hostile_fixture="$fixtures_dir/hostile-rendering.json"
+offline_fixture="$fixtures_dir/offline-source-identity.json"
+
 tmp_dir="$(mktemp -d)"
-case "$tmp_dir" in
-  "$worker_tmp_root"/*) ;;
-  *)
-    echo "runtime_guard_required: worker tmp escaped parent authority" >&2
-    exit 1
-    ;;
-esac
-trap 'rm -rf "$tmp_dir"' EXIT
 
-# Every subprocess remains offline even if a later edit accidentally adds an
-# HTTP-aware command. Current slices use only local Bash and Python operations.
-export HTTP_PROXY="http://127.0.0.1:9"
-export HTTPS_PROXY="http://127.0.0.1:9"
-export ALL_PROXY="http://127.0.0.1:9"
-export http_proxy="$HTTP_PROXY"
-export https_proxy="$HTTPS_PROXY"
-export all_proxy="$ALL_PROXY"
-export NO_PROXY=""
-export no_proxy=""
-export PYTHONNOUSERSITE=1
+cleanup_worker() {
+  local cleanup_status=$?
 
-case "${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE:-}" in
-  "") ;;
-  socket)
-    "$python" - <<'PY'
-import socket
-import sys
+  trap - EXIT INT TERM
+  if [[ -n "${completion_fd:-}" ]]; then
+    exec {completion_fd}>&-
+  fi
+  completion_fd=""
+  rm -rf "$tmp_dir"
+  return "$cleanup_status"
+}
 
-try:
-    socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-except OSError as exc:
-    print(f"socket_probe_blocked: {exc}", file=sys.stderr)
-    raise SystemExit(91)
-raise SystemExit("socket_probe_unblocked")
-PY
-    ;;
-  hang)
-    "$python" -c 'import time; time.sleep(3600)'
-    ;;
-  *)
-    echo "runtime_probe_unknown: ${KIANA_CAPABILITY_GOVERNANCE_RUNTIME_PROBE}" >&2
-    exit 2
-    ;;
-esac
-
-start_ns="$("$python" -c 'import time; print(time.monotonic_ns())')"
+trap cleanup_worker EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 run_schema_slice() {
   local schemas=(
@@ -523,7 +135,7 @@ run_schema_slice() {
     echo "schema_contract_count: expected 8 schemas" >&2
     return 1
   fi
-  if ! "$python" - <<'PY'
+  if ! run_python - <<'PY'
 try:
     from jsonschema import Draft202012Validator, FormatChecker
 except Exception:
@@ -534,7 +146,7 @@ PY
     return 1
   fi
   for schema in "${schemas[@]}"; do
-    "$python" -m json.tool "$schema" >/dev/null
+    run_python -m json.tool "$schema" >/dev/null
   done
 
   shopt -s nullglob
@@ -547,7 +159,7 @@ PY
 
   for fixture in "${fixtures[@]}"; do
     manifest="$tmp_dir/$(basename "${fixture%.json}").instances.tsv"
-    "$python" - "$fixture" "$tmp_dir" >"$manifest" <<'PY'
+    run_python - "$fixture" "$tmp_dir" >"$manifest" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -627,10 +239,10 @@ for family, key in (
 PY
 
     while IFS=$'\t' read -r schema_path instance_path; do
-      "$python" scripts/validate-json-schema.py "$schema_path" "$instance_path" >/dev/null
+      run_python scripts/validate-json-schema.py "$schema_path" "$instance_path" >/dev/null
     done <"$manifest"
 
-    "$python" - "$manifest" <<'PY'
+    run_python - "$manifest" <<'PY'
 import json
 import pathlib
 import sys
@@ -697,7 +309,7 @@ run_fixture_shape_slice() {
     return 1
   fi
 
-  "$python" - "$minimal_fixture" <<'PY'
+  run_python - "$minimal_fixture" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -898,7 +510,7 @@ PY
     return 1
   fi
 
-  "$python" - "$full_fixture" docs/agent-program/kiana-completion/references.json reference <<'PY'
+  run_python - "$full_fixture" docs/agent-program/kiana-completion/references.json reference <<'PY'
 import hashlib
 import json
 import pathlib
@@ -1102,7 +714,7 @@ PY
     fi
   done
 
-  "$python" - "$hostile_fixture" "$offline_fixture" <<'PY'
+  run_python - "$hostile_fixture" "$offline_fixture" <<'PY'
 import base64
 import binascii
 import hashlib
@@ -1278,7 +890,7 @@ if {
 print("OK: hostile rendering and offline source identity fixtures are safe and reproducible")
 PY
 
-  "$python" - "$minimal_fixture" "$full_fixture" "$hostile_fixture" "$offline_fixture" <<'PY'
+  run_python - "$minimal_fixture" "$full_fixture" "$hostile_fixture" "$offline_fixture" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -1488,19 +1100,13 @@ case "$slice" in
   fixture-shapes) run_fixture_shape_slice ;;
 esac
 
-if [[ "$worker_authenticated" != "1" ]]; then
-  echo "runtime_guard_required: authenticated worker required" >&2
-  exit 1
-fi
-
-end_ns="$("$python" -c 'import time; print(time.monotonic_ns())')"
-elapsed_seconds="$("$python" - "$start_ns" "$end_ns" <<'PY'
-import sys
-
-elapsed = (int(sys.argv[2]) - int(sys.argv[1])) / 1_000_000_000
-if elapsed >= 30:
-    raise SystemExit(f"slice exceeded 30 seconds: {elapsed:.3f}")
-print(f"{elapsed:.3f}")
-PY
-)"
-printf 'OK: slice=%s elapsed_seconds=%s offline=true\n' "$slice" "$elapsed_seconds"
+# The receipt is the worker's final action. Complete semantic temporary-file
+# cleanup before publishing it so the supervisor can detect genuinely early
+# receipts without racing this EXIT trap.
+trap - EXIT INT TERM
+rm -rf "$tmp_dir"
+tmp_dir=""
+printf 'complete:%s:%s\n' "$launch_token" "$slice" >&"$completion_fd"
+exec {completion_fd}>&-
+completion_fd=""
+exit 80

@@ -2413,6 +2413,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kiana-capability-governance-supervisor"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "kiana-chrome-mcp"
 version = "0.1.0"
 dependencies = [

@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "kiana-bootstrap",
+    "kiana-capability-governance-supervisor",
     "kiana-bridge",
     "kiana-chrome-mcp",
     "kiana-color-diff",
