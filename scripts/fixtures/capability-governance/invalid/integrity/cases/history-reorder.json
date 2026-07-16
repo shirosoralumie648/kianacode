@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.history-reorder",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "reverse", "path": "/evidence_revisions/1/records"}
+  ]
+}

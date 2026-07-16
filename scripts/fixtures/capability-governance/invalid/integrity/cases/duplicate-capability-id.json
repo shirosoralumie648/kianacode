@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.duplicate-capability-id",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/public_baseline_revisions/1/capabilities/1/capability_id", "value": "cap.public.cli"}
+  ]
+}

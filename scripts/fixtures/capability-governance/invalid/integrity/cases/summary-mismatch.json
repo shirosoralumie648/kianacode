@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.summary-mismatch",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/repository_registry_revisions/1/expected_count", "value": 37}
+  ]
+}

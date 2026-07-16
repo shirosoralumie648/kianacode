@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.reject-rationale-required",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/capability_decision_revisions/1/decisions/2/reason", "value": ""}
+  ]
+}

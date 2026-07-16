@@ -1,0 +1,15 @@
+{
+  "schema": "kiana.capability-governance-mutation-set.v1",
+  "version": "1.0",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "cases": [
+    {"case_id": "integrity.duplicate-capability-id", "fixture": "cases/duplicate-capability-id.json", "family_head": "public-baseline-current", "operation": "replace", "path": "/public_baseline_revisions/1/capabilities/1/capability_id"},
+    {"case_id": "integrity.unknown-reference", "fixture": "cases/unknown-reference.json", "family_head": "public-baseline-current", "operation": "replace", "path": "/public_baseline_revisions/1/capabilities/0/evidence_ids/0"},
+    {"case_id": "integrity.reject-rationale-required", "fixture": "cases/reject-rationale-required.json", "family_head": "capability-decisions-current", "operation": "replace", "path": "/capability_decision_revisions/1/decisions/2/reason"},
+    {"case_id": "integrity.verified-evidence-required", "fixture": "cases/verified-evidence-required.json", "family_head": "public-baseline-current", "operation": "replace", "path": "/public_baseline_revisions/1/capabilities/0/evidence_ids"},
+    {"case_id": "integrity.proof-regression", "fixture": "cases/proof-regression.json", "family_head": "evidence-index-current", "operation": "replace", "path": "/evidence_revisions/1/records/168/proof_level"},
+    {"case_id": "integrity.evidence-expired", "fixture": "cases/evidence-expired.json", "family_head": "evidence-index-current", "operation": "add", "path": "/evidence_revisions/1/records/125/expires_at"},
+    {"case_id": "integrity.newer-failed-retest", "fixture": "cases/newer-failed-retest.json", "family_head": "evidence-index-current", "operation": "append", "path": "/evidence_revisions/1/records", "preserves_evidence_id": "ev.cap.public.current"},
+    {"case_id": "integrity.summary-mismatch", "fixture": "cases/summary-mismatch.json", "family_head": "repository-registry-current", "operation": "replace", "path": "/repository_registry_revisions/1/expected_count"}
+  ]
+}

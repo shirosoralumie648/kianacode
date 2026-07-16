@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.history-removal",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "remove", "path": "/evidence_revisions/1/records/0"}
+  ]
+}

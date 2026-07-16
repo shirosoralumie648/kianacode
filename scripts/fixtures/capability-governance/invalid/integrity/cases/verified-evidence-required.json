@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.verified-evidence-required",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/public_baseline_revisions/1/capabilities/0/evidence_ids", "value": []}
+  ]
+}

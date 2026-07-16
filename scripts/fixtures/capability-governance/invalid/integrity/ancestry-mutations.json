@@ -1,0 +1,13 @@
+{
+  "schema": "kiana.capability-governance-mutation-set.v1",
+  "version": "1.0",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "cases": [
+    {"case_id": "integrity.genesis-reason-required", "fixture": "cases/genesis-reason-required.json", "family_head": "evidence-index-genesis", "operation": "remove", "path": "/evidence_revisions/0/genesis_reason"},
+    {"case_id": "integrity.previous-revision-required", "fixture": "cases/previous-revision-required.json", "family_head": "evidence-index-current", "operation": "remove", "path": "/evidence_revisions/1/previous_revision_path"},
+    {"case_id": "integrity.previous-revision-hash-mismatch", "fixture": "cases/previous-revision-hash-mismatch.json", "family_head": "evidence-index-current", "operation": "replace", "path": "/evidence_revisions/1/previous_revision_sha256"},
+    {"case_id": "integrity.history-removal", "fixture": "cases/history-removal.json", "family_head": "evidence-index-current", "operation": "remove", "path": "/evidence_revisions/1/records/0"},
+    {"case_id": "integrity.history-reorder", "fixture": "cases/history-reorder.json", "family_head": "evidence-index-current", "operation": "reverse", "path": "/evidence_revisions/1/records"},
+    {"case_id": "integrity.history-rewrite", "fixture": "cases/history-rewrite.json", "family_head": "evidence-index-current", "operation": "replace", "path": "/evidence_revisions/1/records/0/result"}
+  ]
+}

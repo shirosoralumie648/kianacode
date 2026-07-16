@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.proof-regression",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/evidence_revisions/1/records/168/proof_level", "value": "none"}
+  ]
+}

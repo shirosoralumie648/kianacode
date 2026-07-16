@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.previous-revision-required",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "remove", "path": "/evidence_revisions/1/previous_revision_path"}
+  ]
+}

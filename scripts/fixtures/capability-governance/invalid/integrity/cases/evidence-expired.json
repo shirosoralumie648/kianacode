@@ -1,0 +1,7 @@
+{
+  "case_id": "integrity.evidence-expired",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "add", "path": "/evidence_revisions/1/records/125/expires_at", "value": "2026-07-15T00:01:30Z"}
+  ]
+}
