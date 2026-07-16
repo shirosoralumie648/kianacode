@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-07-16T10:20:06.334Z"
+stopped_at: Completed 01-05-PLAN.md
+last_updated: "2026-07-16T10:34:04.202Z"
 last_activity: 2026-07-15
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 5 of 12
+Plan: 6 of 12
 Status: Ready to execute
 Last activity: 2026-07-15 — Phase 01 execution started
 
@@ -64,6 +64,7 @@ Progress: [███░░░░░░░] 25%
 
 *Updated after each plan completion*
 | Phase 01 P04 | 35 min | 2 tasks | 6 files |
+| Phase 01 P05 | 10 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Semantic validity and governance completion remain separate; incomplete decision inventory is valid data, while duplicate or out-of-inventory current decisions fail closed. — Preserves valid minimal graphs without weakening 38/38 completion accounting.
 - [Phase 01]: The governance CLI imports only from its own trusted script directory under Python isolated mode. — Keeps supervisor execution independent of PYTHONPATH and caller cwd.
 - [Phase 01]: Public-baseline and reference-governance are explicit Rust supervisor slices. — Preserves exact receipt identity and the offline authority boundary.
+- [Phase 01]: Coverage oracles require the exact production semantic code and subject; structural failures cannot substitute for the target diagnostic. — Keeps post-implementation fixtures from becoming an alternate rule source.
 
 ### Pending Todos
 
@@ -104,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-16T10:20:06.327Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-07-16T10:34:04.195Z
+Stopped at: Completed 01-05-PLAN.md
 Resume file: None
