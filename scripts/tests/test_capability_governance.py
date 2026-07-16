@@ -401,6 +401,37 @@ class GovernanceDriftAndUsageContractTests(unittest.TestCase):
             ):
                 governance.resolve_repository_path(root, "escape.json")
 
+    def test_symlinked_mutation_base_has_exact_cli_usage_code(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory, tempfile.TemporaryDirectory() as outside:
+            case_root = Path(directory)
+            outside_fixture = Path(outside) / "outside.json"
+            outside_fixture.write_text("{}", encoding="utf-8")
+            (case_root / "base.json").symlink_to(outside_fixture)
+            wrapper = case_root / "wrapper.json"
+            wrapper.write_text(
+                json.dumps({"base_fixture": "base.json", "mutations": []}),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(VALIDATOR),
+                    "validate",
+                    "--fixture-bundle",
+                    str(wrapper),
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        report = json.loads(result.stdout)
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("error", report["status"])
+        self.assertIn("symlink_escape", {error["code"] for error in report["errors"]})
+
     def test_oversized_input_has_exact_code_and_usage_exit(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory) / "oversized.json"
