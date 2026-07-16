@@ -2556,6 +2556,7 @@ mod tests {
     fn invocation_parser_accepts_public_and_internal_shapes() {
         assert!(Slice::parse_public("public-baseline").is_ok());
         assert!(Slice::parse_public("reference-governance").is_ok());
+        assert!(Slice::parse_public("semantic-negative").is_ok());
         let args = vec![OsString::from("supervisor"), OsString::from("schemas")];
         assert!(matches!(
             parse_invocation(&args),

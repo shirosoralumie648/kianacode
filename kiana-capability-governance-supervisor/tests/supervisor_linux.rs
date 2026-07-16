@@ -52,6 +52,7 @@ fn linux_public_slices_succeed_after_prebuilt_binary() {
         "fixture-shapes",
         "public-baseline",
         "reference-governance",
+        "semantic-negative",
     ] {
         let output = run_binary(slice);
         assert!(
