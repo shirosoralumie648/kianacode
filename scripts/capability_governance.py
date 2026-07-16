@@ -425,7 +425,7 @@ def load_fixture_bundle(path: Path) -> dict[str, Any]:
         try:
             base_path.relative_to(_repo_root(path.parent))
         except ValueError as exc:
-            raise GovernanceUsageError("unsafe_path: mutation base escapes repository") from exc
+            raise GovernanceUsageError("symlink_escape: mutation base escapes repository") from exc
         base = load_json(base_path)
         mutations = value["mutations"]
         if not isinstance(mutations, list):
