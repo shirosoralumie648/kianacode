@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -14,6 +16,7 @@ use std::time::{Duration, Instant};
 pub const EMBEDDED_PYTHON: &str = env!("KIANA_GOVERNANCE_PYTHON");
 pub const EMBEDDED_PYTHON_UID: &str = env!("KIANA_GOVERNANCE_PYTHON_UID");
 pub const EMBEDDED_PYTHON_GID: &str = env!("KIANA_GOVERNANCE_PYTHON_GID");
+pub const EMBEDDED_REPO_ROOT: &str = env!("KIANA_GOVERNANCE_REPO_ROOT");
 pub const SUPERVISOR_WORKER_EXIT_CODE: i32 = 80;
 pub const MAX_STDOUT_BYTES: usize = 1 << 20;
 pub const MAX_STDERR_BYTES: usize = 1 << 20;
@@ -21,7 +24,6 @@ pub const MAX_TRACE_BYTES: usize = 64 << 10;
 pub const MAX_RECEIPT_BYTES: usize = 256;
 pub const SLICE_DEADLINE: Duration = Duration::from_secs(30);
 pub const TERM_GRACE: Duration = Duration::from_secs(2);
-const RECEIPT_EARLY_CONFIRMATION: Duration = Duration::from_millis(10);
 const PYTHON_PREFLIGHT_DEADLINE: Duration = Duration::from_secs(5);
 pub const DEFAULT_RUNNER: &str = "scripts/capability-governance-smoke.sh";
 const FINAL_MARKER: &str = "offline=true";
@@ -464,7 +466,16 @@ pub fn parse_trace(bytes: &[u8]) -> TraceVerdict {
         return TraceVerdict::Invalid;
     }
     let (name, line) = records[0];
-    if name == "socket" && line.contains("= -1 EPERM") && line.contains("(INJECTED)") {
+    if name == "socket"
+        && line
+            .trim_start_matches(|character: char| {
+                character.is_ascii_digit()
+                    || character.is_ascii_whitespace()
+                    || matches!(character, '[' | ']' | 'p' | 'i' | 'd')
+            })
+            .starts_with("socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = -1 EPERM")
+        && line.ends_with("(INJECTED)")
+    {
         TraceVerdict::ExactStartupCanaryOnly
     } else if is_network_syscall(name) {
         TraceVerdict::NetworkAttempt {
@@ -779,6 +790,19 @@ pub fn embedded_python_path() -> Result<TrustedExecutable, SupervisorError> {
     Ok(executable)
 }
 
+pub fn embedded_repo_root() -> Result<PathBuf, SupervisorError> {
+    let expected = PathBuf::from(EMBEDDED_REPO_ROOT);
+    let canonical = fs::canonicalize(&expected)
+        .map_err(|_| SupervisorError::new(FailureCode::LauncherUntrusted, "repo root"))?;
+    if canonical != expected || !canonical.is_dir() {
+        return Err(SupervisorError::new(
+            FailureCode::LauncherUntrusted,
+            "repo root identity",
+        ));
+    }
+    Ok(canonical)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CaptureLimits {
     pub stdout: usize,
@@ -1046,42 +1070,6 @@ pub struct ReceiptCapture {
     pub observed_before_worker_exit: bool,
 }
 
-#[derive(Debug, Default)]
-struct ReceiptTiming {
-    child_exited: AtomicBool,
-    first_byte_seen_at: Mutex<Option<Instant>>,
-    observed_before_worker_exit: AtomicBool,
-}
-
-impl ReceiptTiming {
-    fn record_first_byte(&self) {
-        if self.child_exited.load(Ordering::SeqCst) {
-            return;
-        }
-        match self.first_byte_seen_at.lock() {
-            Ok(mut observed_at) => {
-                observed_at.get_or_insert_with(Instant::now);
-            }
-            Err(_) => self
-                .observed_before_worker_exit
-                .store(true, Ordering::SeqCst),
-        }
-    }
-
-    fn confirm_early_while_child_is_running(&self) {
-        let confirmed = match self.first_byte_seen_at.lock() {
-            Ok(observed_at) => observed_at
-                .as_ref()
-                .is_some_and(|instant| instant.elapsed() >= RECEIPT_EARLY_CONFIRMATION),
-            Err(_) => true,
-        };
-        if confirmed {
-            self.observed_before_worker_exit
-                .store(true, Ordering::SeqCst);
-        }
-    }
-}
-
 pub fn read_bounded<R: Read + Send + 'static>(
     reader: R,
     limit: usize,
@@ -1094,6 +1082,20 @@ fn read_bounded_monitored<R: Read + Send + 'static>(
     limit: usize,
     capture_failed: Arc<AtomicBool>,
 ) -> JoinHandle<BoundedCapture> {
+    read_bounded_until_stopped(
+        reader,
+        limit,
+        capture_failed,
+        Arc::new(AtomicBool::new(false)),
+    )
+}
+
+fn read_bounded_until_stopped<R: Read + Send + 'static>(
+    reader: R,
+    limit: usize,
+    capture_failed: Arc<AtomicBool>,
+    reader_stop: Arc<AtomicBool>,
+) -> JoinHandle<BoundedCapture> {
     thread::spawn(move || {
         let mut reader = reader;
         let mut bytes = Vec::with_capacity(limit.min(4096));
@@ -1102,26 +1104,39 @@ fn read_bounded_monitored<R: Read + Send + 'static>(
             let remaining = limit.saturating_sub(bytes.len());
             if remaining == 0 {
                 let mut sentinel = [0_u8; 1];
-                return match reader.read(&mut sentinel) {
-                    Ok(0) => BoundedCapture {
-                        bytes,
-                        verdict: CaptureVerdict::CompleteBounded,
-                    },
+                match reader.read(&mut sentinel) {
+                    Ok(0) => {
+                        return BoundedCapture {
+                            bytes,
+                            verdict: CaptureVerdict::CompleteBounded,
+                        }
+                    }
                     Ok(_) => {
                         capture_failed.store(true, Ordering::SeqCst);
-                        BoundedCapture {
+                        return BoundedCapture {
                             bytes,
                             verdict: CaptureVerdict::LimitExceeded,
+                        };
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        if reader_stop.load(Ordering::SeqCst) {
+                            return BoundedCapture {
+                                bytes,
+                                verdict: CaptureVerdict::Truncated,
+                            };
                         }
+                        thread::sleep(Duration::from_millis(2));
                     }
                     Err(_) => {
                         capture_failed.store(true, Ordering::SeqCst);
-                        BoundedCapture {
+                        return BoundedCapture {
                             bytes,
                             verdict: CaptureVerdict::ReadFailed,
-                        }
+                        };
                     }
-                };
+                }
+                continue;
             }
             let size = remaining.min(buffer.len());
             match reader.read(&mut buffer[..size]) {
@@ -1133,6 +1148,15 @@ fn read_bounded_monitored<R: Read + Send + 'static>(
                 }
                 Ok(count) => bytes.extend_from_slice(&buffer[..count]),
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    if reader_stop.load(Ordering::SeqCst) {
+                        return BoundedCapture {
+                            bytes,
+                            verdict: CaptureVerdict::Truncated,
+                        };
+                    }
+                    thread::sleep(Duration::from_millis(2));
+                }
                 Err(_) => {
                     capture_failed.store(true, Ordering::SeqCst);
                     return BoundedCapture {
@@ -1145,16 +1169,26 @@ fn read_bounded_monitored<R: Read + Send + 'static>(
     })
 }
 
+fn set_nonblocking(fd: RawFd) -> io::Result<()> {
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
 fn read_receipt_bounded<R: Read + Send + 'static>(
     reader: R,
     limit: usize,
-    timing: Arc<ReceiptTiming>,
     capture_failed: Arc<AtomicBool>,
+    reader_stop: Arc<AtomicBool>,
 ) -> JoinHandle<ReceiptCapture> {
     thread::spawn(move || {
         let mut reader = reader;
         let mut bytes = Vec::with_capacity(limit.min(256));
-        let mut first_byte_seen = false;
         let mut buffer = [0_u8; 256];
         loop {
             let remaining = limit.saturating_sub(bytes.len());
@@ -1173,9 +1207,7 @@ fn read_receipt_bounded<R: Read + Send + 'static>(
                 };
                 return ReceiptCapture {
                     capture: BoundedCapture { bytes, verdict },
-                    observed_before_worker_exit: timing
-                        .observed_before_worker_exit
-                        .load(Ordering::SeqCst),
+                    observed_before_worker_exit: false,
                 };
             }
             let size = remaining.min(buffer.len());
@@ -1186,19 +1218,23 @@ fn read_receipt_bounded<R: Read + Send + 'static>(
                             bytes,
                             verdict: CaptureVerdict::CompleteBounded,
                         },
-                        observed_before_worker_exit: timing
-                            .observed_before_worker_exit
-                            .load(Ordering::SeqCst),
+                        observed_before_worker_exit: false,
                     };
                 }
-                Ok(count) => {
-                    if !first_byte_seen {
-                        first_byte_seen = true;
-                        timing.record_first_byte();
-                    }
-                    bytes.extend_from_slice(&buffer[..count]);
-                }
+                Ok(count) => bytes.extend_from_slice(&buffer[..count]),
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    if reader_stop.load(Ordering::SeqCst) {
+                        return ReceiptCapture {
+                            capture: BoundedCapture {
+                                bytes,
+                                verdict: CaptureVerdict::Truncated,
+                            },
+                            observed_before_worker_exit: false,
+                        };
+                    }
+                    thread::sleep(Duration::from_millis(2));
+                }
                 Err(_) => {
                     capture_failed.store(true, Ordering::SeqCst);
                     return ReceiptCapture {
@@ -1206,9 +1242,7 @@ fn read_receipt_bounded<R: Read + Send + 'static>(
                             bytes,
                             verdict: CaptureVerdict::ReadFailed,
                         },
-                        observed_before_worker_exit: timing
-                            .observed_before_worker_exit
-                            .load(Ordering::SeqCst),
+                        observed_before_worker_exit: false,
                     };
                 }
             }
@@ -1525,6 +1559,17 @@ fn clear_cloexec(fd: RawFd) -> io::Result<()> {
     Ok(())
 }
 
+fn set_cloexec(fd: RawFd) -> io::Result<()> {
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
 fn close_unexpected_fds_after_fork(mut keep: [RawFd; 4]) -> io::Result<()> {
     for index in 1..keep.len() {
         let mut cursor = index;
@@ -1682,12 +1727,12 @@ pub fn worker_launcher_main(runner: &Path, slice: Slice) -> Result<(), Superviso
             ));
         }
     }
-    clear_cloexec(launch_fd)
-        .map_err(|_| SupervisorError::new(FailureCode::SandboxAttestationFailed, "launch fd"))?;
-    clear_cloexec(completion_fd).map_err(|_| {
+    drop(dev_null);
+    let launch_token = read_worker_launch_token(launch_fd)?;
+    set_cloexec(completion_fd).map_err(|_| {
         SupervisorError::new(FailureCode::SandboxAttestationFailed, "completion fd")
     })?;
-    close_unexpected_fds(&[launch_fd, completion_fd]).map_err(|_| {
+    close_unexpected_fds(&[completion_fd]).map_err(|_| {
         SupervisorError::new(FailureCode::SandboxAttestationFailed, "worker fd close")
     })?;
 
@@ -1704,18 +1749,43 @@ pub fn worker_launcher_main(runner: &Path, slice: Slice) -> Result<(), Superviso
         .env("USER", "kiana")
         .env("LOGNAME", "kiana")
         .env("SHELL", "/usr/bin/bash")
-        .env("KIANA_GOVERNANCE_PYTHON", EMBEDDED_PYTHON)
-        .env("KIANA_GOVERNANCE_LAUNCH_FD", launch_fd.to_string())
-        .env("KIANA_GOVERNANCE_COMPLETION_FD", completion_fd.to_string());
-    let error = command.exec();
-    Err(SupervisorError::new(
-        FailureCode::SandboxStartFailed,
-        if error.kind() == io::ErrorKind::NotFound {
-            "worker bash missing"
-        } else {
-            "worker exec"
-        },
-    ))
+        .env("KIANA_GOVERNANCE_PYTHON", EMBEDDED_PYTHON);
+    let status = command
+        .status()
+        .map_err(|_| SupervisorError::new(FailureCode::SandboxStartFailed, "worker bash"))?;
+    if status.code() != Some(SUPERVISOR_WORKER_EXIT_CODE) {
+        return Err(SupervisorError::new(
+            FailureCode::WorkerFailed,
+            "semantic worker",
+        ));
+    }
+    let mut completion = unsafe { File::from_raw_fd(completion_fd) };
+    writeln!(completion, "complete:{launch_token}:{}", slice.as_str())
+        .and_then(|()| completion.flush())
+        .map_err(|_| SupervisorError::new(FailureCode::ReceiptInvalid, "completion receipt"))?;
+    Ok(())
+}
+
+fn read_worker_launch_token(fd: RawFd) -> Result<String, SupervisorError> {
+    let mut reader = unsafe { File::from_raw_fd(fd) };
+    let mut bytes = Vec::with_capacity(65);
+    Read::by_ref(&mut reader)
+        .take(66)
+        .read_to_end(&mut bytes)
+        .map_err(|_| SupervisorError::new(FailureCode::ReceiptInvalid, "launch token"))?;
+    if bytes.len() != 65
+        || bytes.last() != Some(&b'\n')
+        || !bytes[..64]
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    {
+        return Err(SupervisorError::new(
+            FailureCode::ReceiptInvalid,
+            "launch token",
+        ));
+    }
+    String::from_utf8(bytes[..64].to_vec())
+        .map_err(|_| SupervisorError::new(FailureCode::ReceiptInvalid, "launch token"))
 }
 
 pub struct SupervisorOutcome {
@@ -1763,10 +1833,10 @@ pub fn run_public(
         }
     };
     let mut outcome = run_public_with_signal_handlers(config, slice, launcher);
-    let late_interrupt = current_interrupt();
     if signal_handlers.restore().is_err() {
         return failure_outcome(outcome.verdict, FailureCode::SupervisorUnavailable, 1);
     }
+    let late_interrupt = current_interrupt();
     if let Some((signal, exit_code)) = late_interrupt {
         outcome.verdict.deadline = DeadlineState::Interrupted(signal);
         return failure_outcome(outcome.verdict, FailureCode::WorkerFailed, exit_code);
@@ -1838,33 +1908,50 @@ fn run_public_with_signal_handlers(
         guard_stderr_read,
         trace_read,
     } = parent;
+    for fd in [
+        completion_read.as_raw_fd(),
+        worker_stdout_read.as_raw_fd(),
+        worker_stderr_read.as_raw_fd(),
+        guard_stderr_read.as_raw_fd(),
+        trace_read.as_raw_fd(),
+    ] {
+        if set_nonblocking(fd).is_err() {
+            let _ = stop_process(process.as_mut(), config.term_grace);
+            verdict.runtime_cleanup = runtime.cleanup();
+            return failure_outcome(verdict, FailureCode::WorkerFailed, 1);
+        }
+    }
     let capture_failed = Arc::new(AtomicBool::new(false));
-    let stdout_reader = read_bounded_monitored(
+    let reader_stop = Arc::new(AtomicBool::new(false));
+    let stdout_reader = read_bounded_until_stopped(
         File::from(worker_stdout_read),
         config.limits.stdout,
         Arc::clone(&capture_failed),
+        Arc::clone(&reader_stop),
     );
-    let stderr_reader = read_bounded_monitored(
+    let stderr_reader = read_bounded_until_stopped(
         File::from(worker_stderr_read),
         config.limits.stderr,
         Arc::clone(&capture_failed),
+        Arc::clone(&reader_stop),
     );
-    let guard_reader = read_bounded_monitored(
+    let guard_reader = read_bounded_until_stopped(
         File::from(guard_stderr_read),
         config.limits.stderr,
         Arc::clone(&capture_failed),
+        Arc::clone(&reader_stop),
     );
-    let trace_reader = read_bounded_monitored(
+    let trace_reader = read_bounded_until_stopped(
         File::from(trace_read),
         config.limits.trace,
         Arc::clone(&capture_failed),
+        Arc::clone(&reader_stop),
     );
-    let receipt_timing = Arc::new(ReceiptTiming::default());
     let receipt_reader = read_receipt_bounded(
         File::from(completion_read),
         config.limits.receipt,
-        Arc::clone(&receipt_timing),
         Arc::clone(&capture_failed),
+        Arc::clone(&reader_stop),
     );
 
     let started = Instant::now();
@@ -1874,29 +1961,21 @@ fn run_public_with_signal_handlers(
             process.as_mut(),
             config.deadline,
             config.term_grace,
-            &receipt_timing,
             &capture_failed,
         )
     } else {
         let (status, stopped) = stop_process(process.as_mut(), config.term_grace);
         (status, DeadlineState::Unknown, stopped)
     };
-    receipt_timing.child_exited.store(true, Ordering::SeqCst);
     verdict.deadline = deadline;
     verdict.worker_exit = status
         .as_ref()
         .map(status_to_worker_exit)
         .unwrap_or(WorkerExit::Unknown);
 
-    let process_group = process.process_group();
-    let process_tree_clean = wait_for_group_exit(process_group, Duration::from_millis(50));
-    verdict.process_tree = if process_tree_clean && process_wait_ok {
-        ProcessTreeState::FullyReaped
-    } else {
-        let _ = process.terminate_group(libc::SIGKILL);
-        let _ = wait_for_group_exit(process_group, config.term_grace);
-        ProcessTreeState::DescendantsRemain
-    };
+    verdict.process_tree =
+        finalize_process_tree(process.as_ref(), process_wait_ok, config.term_grace);
+    reader_stop.store(true, Ordering::SeqCst);
 
     let stdout = join_capture(stdout_reader);
     let stderr = join_capture(stderr_reader);
@@ -1926,9 +2005,7 @@ fn run_public_with_signal_handlers(
             &receipt.capture.bytes,
             &token,
             slice,
-            receipt_timing
-                .observed_before_worker_exit
-                .load(Ordering::SeqCst),
+            receipt.observed_before_worker_exit,
         ),
         CaptureVerdict::LimitExceeded => ReceiptVerdict::Oversized,
         _ => ReceiptVerdict::Unknown,
@@ -2042,7 +2119,6 @@ impl SignalHandlerGuard {
             unsafe { libc::sigaction(libc::SIGINT, &self.previous_int, std::ptr::null_mut()) };
         let int_error = (int_result != 0).then(io::Error::last_os_error);
         self.active = false;
-        INTERRUPTED_SIGNAL.store(0, Ordering::SeqCst);
         match (term_error, int_error) {
             (None, None) => Ok(()),
             (Some(error), _) | (None, Some(error)) => Err(error),
@@ -2060,14 +2136,25 @@ fn wait_for_process(
     process: &mut dyn RunningProcess,
     deadline: Duration,
     term_grace: Duration,
-    receipt_timing: &ReceiptTiming,
     capture_failed: &AtomicBool,
 ) -> (Option<ExitStatus>, DeadlineState, bool) {
     let started = Instant::now();
     loop {
+        let signal = INTERRUPTED_SIGNAL.load(Ordering::SeqCst);
+        if signal == libc::SIGINT || signal == libc::SIGTERM {
+            let (status, clean) = stop_process(process, term_grace);
+            return (status, DeadlineState::Interrupted(signal), clean);
+        }
+        if capture_failed.load(Ordering::SeqCst) {
+            let (status, clean) = stop_process(process, term_grace);
+            return (status, DeadlineState::Unknown, clean);
+        }
+        if started.elapsed() >= deadline {
+            let (status, clean) = stop_process(process, term_grace);
+            return (status, DeadlineState::Exceeded, clean);
+        }
         match process.try_wait() {
             Ok(Some(status)) => {
-                receipt_timing.child_exited.store(true, Ordering::SeqCst);
                 let signal = INTERRUPTED_SIGNAL.load(Ordering::SeqCst);
                 let state = if signal == libc::SIGINT || signal == libc::SIGTERM {
                     DeadlineState::Interrupted(signal)
@@ -2076,30 +2163,11 @@ fn wait_for_process(
                 };
                 return (Some(status), state, true);
             }
-            Ok(None) => {
-                receipt_timing.confirm_early_while_child_is_running();
-            }
+            Ok(None) => {}
             Err(_) => {
                 let (status, clean) = stop_process(process, term_grace);
-                receipt_timing.child_exited.store(true, Ordering::SeqCst);
                 return (status, DeadlineState::Unknown, clean);
             }
-        }
-        let signal = INTERRUPTED_SIGNAL.load(Ordering::SeqCst);
-        if signal == libc::SIGINT || signal == libc::SIGTERM {
-            let (status, clean) = stop_process(process, term_grace);
-            receipt_timing.child_exited.store(true, Ordering::SeqCst);
-            return (status, DeadlineState::Interrupted(signal), clean);
-        }
-        if capture_failed.load(Ordering::SeqCst) {
-            let (status, clean) = stop_process(process, term_grace);
-            receipt_timing.child_exited.store(true, Ordering::SeqCst);
-            return (status, DeadlineState::Unknown, clean);
-        }
-        if started.elapsed() >= deadline {
-            let (status, clean) = stop_process(process, term_grace);
-            receipt_timing.child_exited.store(true, Ordering::SeqCst);
-            return (status, DeadlineState::Exceeded, clean);
         }
         thread::sleep(Duration::from_millis(5));
     }
@@ -2122,10 +2190,15 @@ fn stop_process(
         }
     }
     clean &= process.terminate_group(libc::SIGKILL).is_ok();
-    match process.wait() {
-        Ok(status) => (Some(status), clean),
-        Err(_) => (None, false),
+    let kill_started = Instant::now();
+    while kill_started.elapsed() < term_grace {
+        match process.try_wait() {
+            Ok(Some(status)) => return (Some(status), clean),
+            Ok(None) => thread::sleep(Duration::from_millis(5)),
+            Err(_) => return (None, false),
+        }
     }
+    (None, false)
 }
 
 fn group_exists(process_group: libc::pid_t) -> bool {
@@ -2145,6 +2218,41 @@ fn wait_for_group_exit(process_group: libc::pid_t, timeout: Duration) -> bool {
         thread::sleep(Duration::from_millis(5));
     }
     !group_exists(process_group)
+}
+
+fn classify_process_tree(
+    process_wait_ok: bool,
+    naturally_reaped: bool,
+    group_kill_ok: bool,
+    reaped_after_kill: bool,
+) -> ProcessTreeState {
+    if process_wait_ok && (naturally_reaped || group_kill_ok && reaped_after_kill) {
+        ProcessTreeState::FullyReaped
+    } else if !group_kill_ok {
+        ProcessTreeState::GroupKillFailed
+    } else {
+        ProcessTreeState::DescendantsRemain
+    }
+}
+
+fn finalize_process_tree(
+    process: &dyn RunningProcess,
+    process_wait_ok: bool,
+    convergence_grace: Duration,
+) -> ProcessTreeState {
+    let process_group = process.process_group();
+    let naturally_reaped = wait_for_group_exit(process_group, convergence_grace);
+    if process_wait_ok && naturally_reaped {
+        return ProcessTreeState::FullyReaped;
+    }
+    let group_kill_ok = process.terminate_group(libc::SIGKILL).is_ok();
+    let reaped_after_kill = group_kill_ok && wait_for_group_exit(process_group, convergence_grace);
+    classify_process_tree(
+        process_wait_ok,
+        naturally_reaped,
+        group_kill_ok,
+        reaped_after_kill,
+    )
 }
 
 fn status_to_worker_exit(status: &ExitStatus) -> WorkerExit {
@@ -2370,8 +2478,15 @@ mod tests {
 
     #[test]
     fn parse_trace_accepts_exact_startup_canary_only() {
-        let trace = b"[pid 1] socket(AF_UNIX, SOCK_STREAM, 0) = -1 EPERM (Operation not permitted) (INJECTED)\n";
+        let trace = b"[pid 1] socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = -1 EPERM (Operation not permitted) (INJECTED)\n";
         assert_eq!(parse_trace(trace), TraceVerdict::ExactStartupCanaryOnly);
+        let wrong_family = b"[pid 1] socket(AF_UNIX, SOCK_STREAM, 0) = -1 EPERM (Operation not permitted) (INJECTED)\n";
+        assert_eq!(
+            parse_trace(wrong_family),
+            TraceVerdict::NetworkAttempt {
+                syscall: "socket".to_owned()
+            }
+        );
     }
 
     #[test]
@@ -2413,6 +2528,25 @@ mod tests {
     }
 
     #[test]
+    fn bounded_capture_accepts_exact_limit_before_delayed_pipe_eof() {
+        let (read, write) = pipe_pair().unwrap();
+        set_nonblocking(read.as_raw_fd()).unwrap();
+        let handle = read_bounded_until_stopped(
+            File::from(read),
+            3,
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(false)),
+        );
+        let mut writer = File::from(write);
+        writer.write_all(b"abc").unwrap();
+        thread::sleep(Duration::from_millis(20));
+        drop(writer);
+        let capture = handle.join().unwrap();
+        assert_eq!(capture.bytes, b"abc");
+        assert_eq!(capture.verdict, CaptureVerdict::CompleteBounded);
+    }
+
+    #[test]
     fn invocation_parser_accepts_public_and_internal_shapes() {
         let args = vec![OsString::from("supervisor"), OsString::from("schemas")];
         assert!(matches!(
@@ -2429,13 +2563,452 @@ mod tests {
         ));
     }
 
+    struct ImmediateExitProcess;
+
+    impl RunningProcess for ImmediateExitProcess {
+        fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+            Ok(Some(ExitStatus::from_raw(0)))
+        }
+
+        fn terminate_group(&self, _signal: i32) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn wait(&mut self) -> io::Result<ExitStatus> {
+            Ok(ExitStatus::from_raw(0))
+        }
+
+        fn process_group(&self) -> libc::pid_t {
+            999_999
+        }
+    }
+
+    struct NoopLauncher;
+
+    impl ProcessLauncher for NoopLauncher {
+        fn spawn(
+            &self,
+            _spec: &SandboxLaunchSpec,
+            _channels: ChildChannels,
+        ) -> Result<Box<dyn RunningProcess>, SupervisorError> {
+            Ok(Box::new(ImmediateExitProcess))
+        }
+    }
+
+    struct RejectingLauncher;
+
+    impl ProcessLauncher for RejectingLauncher {
+        fn spawn(
+            &self,
+            _spec: &SandboxLaunchSpec,
+            _channels: ChildChannels,
+        ) -> Result<Box<dyn RunningProcess>, SupervisorError> {
+            Err(SupervisorError::new(
+                FailureCode::SupervisorUnavailable,
+                "fake launcher",
+            ))
+        }
+    }
+
+    const TEST_TRACE: &[u8] = b"socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = -1 EPERM (Operation not permitted) (INJECTED)\n";
+
+    #[derive(Clone, Copy)]
+    enum ScriptedReceipt {
+        Exact,
+        Missing,
+        Duplicate,
+        WrongToken,
+        WrongSlice,
+        Trailing,
+        Oversized,
+    }
+
+    #[derive(Clone)]
+    struct ScriptedScenario {
+        receipt: ScriptedReceipt,
+        trace: Vec<u8>,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+        guard: Vec<u8>,
+        exit_raw: i32,
+        wait_error: bool,
+        leak_trace: bool,
+        leak_guard: bool,
+        sabotage_runtime: bool,
+    }
+
+    impl Default for ScriptedScenario {
+        fn default() -> Self {
+            Self {
+                receipt: ScriptedReceipt::Exact,
+                trace: TEST_TRACE.to_vec(),
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+                guard: Vec::new(),
+                exit_raw: SUPERVISOR_WORKER_EXIT_CODE << 8,
+                wait_error: false,
+                leak_trace: false,
+                leak_guard: false,
+                sabotage_runtime: false,
+            }
+        }
+    }
+
+    struct ScriptedProcess {
+        finished: Arc<AtomicBool>,
+        exit_raw: i32,
+        wait_error: bool,
+    }
+
+    impl RunningProcess for ScriptedProcess {
+        fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+            if self.wait_error {
+                return Err(io::Error::other("scripted wait failure"));
+            }
+            Ok(self
+                .finished
+                .load(Ordering::SeqCst)
+                .then(|| ExitStatus::from_raw(self.exit_raw)))
+        }
+
+        fn terminate_group(&self, _signal: i32) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn wait(&mut self) -> io::Result<ExitStatus> {
+            panic!("scripted process must use bounded try_wait")
+        }
+
+        fn process_group(&self) -> libc::pid_t {
+            999_997
+        }
+    }
+
+    struct ScriptedLauncher {
+        scenario: ScriptedScenario,
+        runtime_root: Arc<Mutex<Option<PathBuf>>>,
+    }
+
+    impl ScriptedLauncher {
+        fn new(scenario: ScriptedScenario) -> Self {
+            Self {
+                scenario,
+                runtime_root: Arc::new(Mutex::new(None)),
+            }
+        }
+
+        fn cleanup_residue(&self) {
+            if let Some(path) = self.runtime_root.lock().unwrap().take() {
+                let _ = fs::remove_dir_all(path);
+            }
+        }
+    }
+
+    impl ProcessLauncher for ScriptedLauncher {
+        fn spawn(
+            &self,
+            spec: &SandboxLaunchSpec,
+            channels: ChildChannels,
+        ) -> Result<Box<dyn RunningProcess>, SupervisorError> {
+            *self.runtime_root.lock().unwrap() = Some(spec.runtime_root.clone());
+            let scenario = self.scenario.clone();
+            let runtime_root = spec.runtime_root.clone();
+            let worker_tmp = spec.worker_tmp.clone();
+            let finished = Arc::new(AtomicBool::new(false));
+            let thread_finished = Arc::clone(&finished);
+            thread::spawn(move || {
+                let ChildChannels {
+                    launch_read,
+                    completion_write,
+                    worker_stdout_write,
+                    worker_stderr_write,
+                    guard_stderr_write,
+                    trace_write,
+                } = channels;
+                let mut launch = String::new();
+                File::from(launch_read).read_to_string(&mut launch).unwrap();
+                let token = launch.trim_end();
+
+                let receipt = match scenario.receipt {
+                    ScriptedReceipt::Exact => format!("complete:{token}:schemas\n").into_bytes(),
+                    ScriptedReceipt::Missing => Vec::new(),
+                    ScriptedReceipt::Duplicate => {
+                        format!("complete:{token}:schemas\ncomplete:{token}:schemas\n").into_bytes()
+                    }
+                    ScriptedReceipt::WrongToken => {
+                        format!("complete:{}:schemas\n", "0".repeat(64)).into_bytes()
+                    }
+                    ScriptedReceipt::WrongSlice => {
+                        format!("complete:{token}:fixture-shapes\n").into_bytes()
+                    }
+                    ScriptedReceipt::Trailing => {
+                        format!("complete:{token}:schemas\ntrailing").into_bytes()
+                    }
+                    ScriptedReceipt::Oversized => vec![b'x'; MAX_RECEIPT_BYTES + 1],
+                };
+
+                let mut completion = File::from(completion_write);
+                completion.write_all(&receipt).unwrap();
+                drop(completion);
+                File::from(worker_stdout_write)
+                    .write_all(&scenario.stdout)
+                    .unwrap();
+                File::from(worker_stderr_write)
+                    .write_all(&scenario.stderr)
+                    .unwrap();
+                let mut guard = File::from(guard_stderr_write);
+                guard.write_all(&scenario.guard).unwrap();
+                let mut trace = File::from(trace_write);
+                trace.write_all(&scenario.trace).unwrap();
+
+                if scenario.sabotage_runtime {
+                    fs::rename(&worker_tmp, runtime_root.join("worker-original")).unwrap();
+                    let mut builder = fs::DirBuilder::new();
+                    builder.mode(0o700).create(&worker_tmp).unwrap();
+                    assert!(runtime_root.exists());
+                }
+                if scenario.leak_guard {
+                    drop(trace);
+                    thread_finished.store(true, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(100));
+                    drop(guard);
+                } else if scenario.leak_trace {
+                    drop(guard);
+                    thread_finished.store(true, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(100));
+                    drop(trace);
+                } else {
+                    drop(guard);
+                    drop(trace);
+                    thread_finished.store(true, Ordering::SeqCst);
+                }
+            });
+            Ok(Box::new(ScriptedProcess {
+                finished,
+                exit_raw: self.scenario.exit_raw,
+                wait_error: self.scenario.wait_error,
+            }))
+        }
+    }
+
+    fn test_supervisor_config() -> SupervisorConfig {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        SupervisorConfig::new(
+            repo_root.clone(),
+            repo_root.join(DEFAULT_RUNNER),
+            std::env::current_exe().unwrap(),
+        )
+    }
+
     #[test]
-    fn receipt_timing_confirms_first_byte_while_child_remains_running() {
-        let timing = ReceiptTiming::default();
-        timing.record_first_byte();
-        thread::sleep(RECEIPT_EARLY_CONFIRMATION + Duration::from_millis(2));
-        timing.confirm_early_while_child_is_running();
-        assert!(timing.observed_before_worker_exit.load(Ordering::SeqCst));
+    fn fake_noop_launcher_cannot_authorize_success() {
+        let outcome = run_public(&test_supervisor_config(), Slice::Schemas, &NoopLauncher);
+        assert_ne!(outcome.exit_code, 0);
+        assert!(outcome.public_stdout.is_empty());
+        assert!(!outcome.verdict.is_authorized_success());
+    }
+
+    #[test]
+    fn fake_rejected_launcher_fails_closed() {
+        let outcome = run_public(
+            &test_supervisor_config(),
+            Slice::Schemas,
+            &RejectingLauncher,
+        );
+        assert_ne!(outcome.exit_code, 0);
+        assert!(outcome.public_stdout.is_empty());
+        assert!(!outcome.verdict.is_authorized_success());
+    }
+
+    fn run_scripted(scenario: ScriptedScenario) -> SupervisorOutcome {
+        let launcher = ScriptedLauncher::new(scenario);
+        let mut config = test_supervisor_config();
+        config.deadline = Duration::from_secs(2);
+        config.term_grace = Duration::from_millis(50);
+        let outcome = run_public(&config, Slice::Schemas, &launcher);
+        launcher.cleanup_residue();
+        outcome
+    }
+
+    #[test]
+    fn scripted_launcher_baseline_exercises_the_full_success_conjunction() {
+        let outcome = run_scripted(ScriptedScenario::default());
+        assert_eq!(outcome.exit_code, 0, "{:?}", outcome.verdict);
+        assert!(outcome.verdict.is_authorized_success());
+        assert_eq!(
+            String::from_utf8_lossy(&outcome.public_stdout)
+                .matches("offline=true")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn orchestration_receipt_variants_fail_closed() {
+        for receipt in [
+            ScriptedReceipt::Missing,
+            ScriptedReceipt::Duplicate,
+            ScriptedReceipt::WrongToken,
+            ScriptedReceipt::WrongSlice,
+            ScriptedReceipt::Trailing,
+            ScriptedReceipt::Oversized,
+        ] {
+            let outcome = run_scripted(ScriptedScenario {
+                receipt,
+                ..ScriptedScenario::default()
+            });
+            assert_ne!(outcome.exit_code, 0);
+            assert!(outcome.public_stdout.is_empty());
+            assert!(!outcome.verdict.is_authorized_success());
+        }
+    }
+
+    #[test]
+    fn trace_overflow_forgery_and_leaked_channels_fail_closed() {
+        let oversized = run_scripted(ScriptedScenario {
+            trace: vec![b'x'; MAX_TRACE_BYTES + 1],
+            ..ScriptedScenario::default()
+        });
+        assert_ne!(oversized.exit_code, 0);
+        assert_eq!(oversized.verdict.trace, TraceVerdict::Oversized);
+
+        let forged = run_scripted(ScriptedScenario {
+            trace: [
+                TEST_TRACE,
+                b"connect(3, 0x1234, 16) = -1 EPERM (Operation not permitted) (INJECTED)\n",
+            ]
+            .concat(),
+            ..ScriptedScenario::default()
+        });
+        assert_ne!(forged.exit_code, 0);
+        assert!(matches!(
+            forged.verdict.trace,
+            TraceVerdict::NetworkAttempt { .. }
+        ));
+
+        for scenario in [
+            ScriptedScenario {
+                leak_trace: true,
+                ..ScriptedScenario::default()
+            },
+            ScriptedScenario {
+                leak_guard: true,
+                ..ScriptedScenario::default()
+            },
+        ] {
+            let outcome = run_scripted(scenario);
+            assert_ne!(outcome.exit_code, 0);
+            assert_ne!(
+                outcome.verdict.trace_channel,
+                TraceChannelState::ParentOwnedAndWorkerInaccessible
+            );
+        }
+    }
+
+    #[test]
+    fn unexpected_exit_wait_error_and_runtime_cleanup_failure_fail_closed() {
+        for exit_code in [0, 79, 81] {
+            let outcome = run_scripted(ScriptedScenario {
+                exit_raw: exit_code << 8,
+                ..ScriptedScenario::default()
+            });
+            assert_ne!(outcome.exit_code, 0);
+            assert_eq!(outcome.verdict.worker_exit, WorkerExit::Code(exit_code));
+        }
+
+        let wait_error = run_scripted(ScriptedScenario {
+            wait_error: true,
+            ..ScriptedScenario::default()
+        });
+        assert_ne!(wait_error.exit_code, 0);
+        assert_eq!(wait_error.verdict.worker_exit, WorkerExit::Unknown);
+
+        let cleanup = run_scripted(ScriptedScenario {
+            sabotage_runtime: true,
+            ..ScriptedScenario::default()
+        });
+        assert_ne!(cleanup.exit_code, 0);
+        assert_eq!(cleanup.verdict.runtime_cleanup, CleanupState::Failed);
+    }
+
+    #[test]
+    fn zero_deadline_cannot_authorize_an_already_observed_exit() {
+        let failed = AtomicBool::new(false);
+        let (_, deadline, _) = wait_for_process(
+            &mut ImmediateExitProcess,
+            Duration::ZERO,
+            Duration::ZERO,
+            &failed,
+        );
+        assert_eq!(deadline, DeadlineState::Exceeded);
+    }
+
+    struct NeverReapedProcess;
+
+    impl RunningProcess for NeverReapedProcess {
+        fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+            Ok(None)
+        }
+
+        fn terminate_group(&self, _signal: i32) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn wait(&mut self) -> io::Result<ExitStatus> {
+            panic!("stop_process must not use an unbounded blocking wait")
+        }
+
+        fn process_group(&self) -> libc::pid_t {
+            999_998
+        }
+    }
+
+    #[test]
+    fn stop_process_is_bounded_when_the_child_never_reaps() {
+        let started = Instant::now();
+        let (status, clean) = stop_process(&mut NeverReapedProcess, Duration::from_millis(10));
+        assert!(status.is_none());
+        assert!(!clean);
+        assert!(started.elapsed() < Duration::from_millis(100));
+    }
+
+    #[test]
+    fn forced_group_cleanup_is_success_only_when_the_final_state_is_clean() {
+        assert_eq!(
+            classify_process_tree(true, false, true, true),
+            ProcessTreeState::FullyReaped
+        );
+        assert_eq!(
+            classify_process_tree(true, false, true, false),
+            ProcessTreeState::DescendantsRemain
+        );
+        assert_eq!(
+            classify_process_tree(true, false, false, false),
+            ProcessTreeState::GroupKillFailed
+        );
+        assert_eq!(
+            classify_process_tree(false, true, true, true),
+            ProcessTreeState::DescendantsRemain
+        );
+    }
+
+    #[test]
+    fn reader_stop_unblocks_a_pipe_with_a_leaked_writer() {
+        let (read, _write) = pipe_pair().unwrap();
+        set_nonblocking(read.as_raw_fd()).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let handle = read_bounded_until_stopped(
+            File::from(read),
+            32,
+            Arc::new(AtomicBool::new(false)),
+            Arc::clone(&stop),
+        );
+        stop.store(true, Ordering::SeqCst);
+        let capture = handle.join().unwrap();
+        assert_eq!(capture.verdict, CaptureVerdict::Truncated);
     }
 
     #[test]
@@ -2489,7 +3062,10 @@ mod tests {
             action(libc::SIGTERM).sa_sigaction,
             record_signal as *const () as usize
         );
+        record_signal(libc::SIGTERM);
         guard.restore().unwrap();
+        assert_eq!(current_interrupt(), Some((libc::SIGTERM, 143)));
+        INTERRUPTED_SIGNAL.store(0, Ordering::SeqCst);
         let after_int = action(libc::SIGINT);
         let after_term = action(libc::SIGTERM);
         assert_eq!(after_int.sa_sigaction, before_int.sa_sigaction);

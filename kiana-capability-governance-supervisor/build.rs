@@ -1,14 +1,20 @@
 use std::env;
+#[cfg(unix)]
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Command;
 
+#[cfg(unix)]
 unsafe extern "C" {
     fn getuid() -> u32;
     fn getgid() -> u32;
 }
 
+#[cfg(unix)]
 const CANARY: &str = r#"
 import jsonschema
 
@@ -29,6 +35,7 @@ else:
     raise SystemExit("negative instance was accepted")
 "#;
 
+#[cfg(unix)]
 fn discover_python() -> Result<PathBuf, String> {
     let path = env::var_os("PATH").ok_or_else(|| "PATH is unavailable".to_owned())?;
     for name in ["python3", "python"] {
@@ -44,6 +51,7 @@ fn discover_python() -> Result<PathBuf, String> {
     Err("no trusted python3/python executable found".to_owned())
 }
 
+#[cfg(unix)]
 fn validate_python(path: &Path) -> Result<PathBuf, String> {
     let canonical = fs::canonicalize(path)
         .map_err(|error| format!("cannot canonicalize {}: {error}", path.display()))?;
@@ -66,6 +74,7 @@ fn validate_python(path: &Path) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
+#[cfg(unix)]
 fn run_jsonschema_canary(path: &Path) -> Result<(), String> {
     let output = Command::new(path)
         .arg("-I")
@@ -84,7 +93,12 @@ fn run_jsonschema_canary(path: &Path) -> Result<(), String> {
     }
 }
 
-fn main() {
+fn target_requires_runtime(target_os: &str) -> bool {
+    target_os == "linux"
+}
+
+#[cfg(unix)]
+fn validate_linux_target() {
     let result = discover_python().and_then(|path| {
         run_jsonschema_canary(&path)?;
         let revalidated = validate_python(&path)?;
@@ -93,20 +107,45 @@ fn main() {
         }
         let metadata = fs::metadata(&revalidated)
             .map_err(|error| format!("cannot stat {}: {error}", path.display()))?;
-        Ok((revalidated, metadata.uid(), metadata.gid()))
+        let manifest_dir = fs::canonicalize(
+            env::var_os("CARGO_MANIFEST_DIR")
+                .ok_or_else(|| "CARGO_MANIFEST_DIR is unavailable".to_owned())?,
+        )
+        .map_err(|error| format!("cannot canonicalize manifest directory: {error}"))?;
+        let repo_root = manifest_dir
+            .parent()
+            .ok_or_else(|| "crate has no repository parent".to_owned())?
+            .to_path_buf();
+        Ok((revalidated, metadata.uid(), metadata.gid(), repo_root))
     });
     match result {
-        Ok((path, uid, gid)) => {
+        Ok((path, uid, gid, repo_root)) => {
             println!("cargo:rerun-if-env-changed=PATH");
             println!("cargo:rustc-env=KIANA_GOVERNANCE_PYTHON={}", path.display());
             println!("cargo:rustc-env=KIANA_GOVERNANCE_PYTHON_UID={uid}");
             println!("cargo:rustc-env=KIANA_GOVERNANCE_PYTHON_GID={gid}");
+            println!(
+                "cargo:rustc-env=KIANA_GOVERNANCE_REPO_ROOT={}",
+                repo_root.display()
+            );
         }
         Err(error) => panic!("governance supervisor Python prerequisite failed: {error}"),
     }
 }
 
-#[cfg(test)]
+fn main() {
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if !target_requires_runtime(&target_os) {
+        return;
+    }
+    #[cfg(unix)]
+    validate_linux_target();
+    #[cfg(not(unix))]
+    panic!("Linux governance supervisor builds require a Unix build host");
+}
+
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
@@ -170,5 +209,12 @@ mod tests {
             .unwrap_or_else(|| discover_python().expect("test interpreter must be available"));
         run_jsonschema_canary(&path).unwrap();
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn only_linux_targets_require_runtime_prerequisites() {
+        assert!(target_requires_runtime("linux"));
+        assert!(!target_requires_runtime("macos"));
+        assert!(!target_requires_runtime("windows"));
     }
 }

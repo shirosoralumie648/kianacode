@@ -54,24 +54,9 @@ run_python() {
 
 unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
 export PYTHONNOUSERSITE=1
-launch_fd="${KIANA_GOVERNANCE_LAUNCH_FD:-}"
-completion_fd="${KIANA_GOVERNANCE_COMPLETION_FD:-}"
-if [[ ! "$launch_fd" =~ ^[3-9][0-9]*$ || ! "$completion_fd" =~ ^[3-9][0-9]*$ ||
-  "$launch_fd" == "$completion_fd" ]]; then
-  echo "supervisor_worker_invalid: inherited descriptors are invalid" >&2
-  exit 1
-fi
-if ! IFS= read -r -u "$launch_fd" launch_token 2>/dev/null; then
-  echo "supervisor_worker_invalid: launch token unavailable" >&2
-  exit 1
-fi
-if IFS= read -r -N 1 -u "$launch_fd" trailing 2>/dev/null; then
-  echo "supervisor_worker_invalid: launch token has trailing data" >&2
-  exit 1
-fi
-exec {launch_fd}<&-
-if [[ ! "$launch_token" =~ ^[a-f0-9]{64}$ ]]; then
-  echo "supervisor_worker_invalid: launch token invalid" >&2
+if [[ -n "${KIANA_GOVERNANCE_LAUNCH_FD:-}" ||
+  -n "${KIANA_GOVERNANCE_COMPLETION_FD:-}" ]]; then
+  echo "supervisor_worker_invalid: authority descriptors reached semantic worker" >&2
   exit 1
 fi
 
@@ -105,10 +90,6 @@ cleanup_worker() {
   local cleanup_status=$?
 
   trap - EXIT INT TERM
-  if [[ -n "${completion_fd:-}" ]]; then
-    exec {completion_fd}>&-
-  fi
-  completion_fd=""
   rm -rf "$tmp_dir"
   return "$cleanup_status"
 }
@@ -1100,13 +1081,9 @@ case "$slice" in
   fixture-shapes) run_fixture_shape_slice ;;
 esac
 
-# The receipt is the worker's final action. Complete semantic temporary-file
-# cleanup before publishing it so the supervisor can detect genuinely early
-# receipts without racing this EXIT trap.
+# The Rust worker launcher owns the completion receipt. The semantic worker can
+# only report its result through this reserved exit code.
 trap - EXIT INT TERM
 rm -rf "$tmp_dir"
 tmp_dir=""
-printf 'complete:%s:%s\n' "$launch_token" "$slice" >&"$completion_fd"
-exec {completion_fd}>&-
-completion_fd=""
 exit 80
