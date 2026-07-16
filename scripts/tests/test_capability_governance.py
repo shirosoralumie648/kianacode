@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,7 @@ VALID_FIXTURE = (
     / "valid"
     / "minimal-graph.json"
 )
+VALIDATOR = ROOT / "scripts" / "validate-capability-governance.py"
 
 
 def load_minimal_bundle() -> dict[str, Any]:
@@ -187,6 +190,240 @@ class GovernanceCorrectionContractTests(unittest.TestCase):
         refresh_head_binding(self.bundle, "repository_registry_revisions")
 
         self.assertIn("summary_mismatch", self.validate_codes(self.bundle))
+
+
+class GovernanceDriftAndUsageContractTests(unittest.TestCase):
+    def initialize_git_repository(self, path: Path) -> dict[str, str]:
+        path.mkdir(parents=True)
+        (path / "payload.txt").write_text("fixture payload\n", encoding="utf-8")
+        (path / "LICENSE").write_text("Fixture License\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+        subprocess.run(["git", "add", "."], cwd=path, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Kiana Fixture",
+                "-c",
+                "user.email=kiana-fixture@example.invalid",
+                "commit",
+                "-qm",
+                "fixture",
+            ],
+            cwd=path,
+            check=True,
+        )
+        return governance.repository_fingerprint(path)
+
+    def repository_drift_codes(
+        self,
+        frozen_overrides: dict[str, str],
+        *,
+        revision_kind: str = "git_commit",
+    ) -> set[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            live_reference_root = root / "reference"
+            target_root = root / "target"
+            target_root.mkdir()
+            repository_path = live_reference_root / "fixture-repository"
+            fingerprint = self.initialize_git_repository(repository_path)
+            artifact = {
+                "artifact_id": "official-source-fixture",
+                "content_sha256": "a" * 64,
+            }
+            frozen = {
+                "repo_id": "fixture-repository",
+                "path": "reference/fixture-repository",
+                "revision_kind": revision_kind,
+                "revision_value": (
+                    fingerprint["git_head"]
+                    if revision_kind == "git_commit"
+                    else fingerprint["tree_sha256"]
+                ),
+                "tree_sha256": fingerprint["tree_sha256"],
+                "license_sha256": fingerprint["license_sha256"],
+            }
+            frozen.update(frozen_overrides)
+            bundle = {
+                "official_source_artifact": artifact,
+                "repository_registry_revisions": [{"repositories": [frozen]}],
+                "capability_decision_revisions": [{"decisions": []}],
+            }
+            return error_codes(
+                governance.detect_drift(
+                    bundle,
+                    live_reference_root=live_reference_root,
+                    target_root=target_root,
+                    official_source_artifact=artifact,
+                )
+            )
+
+    def test_repository_head_drift_keeps_exact_code(self) -> None:
+        self.assertIn(
+            "repository_head_drift",
+            self.repository_drift_codes({"revision_value": "0" * 40}),
+        )
+
+    def test_repository_tree_drift_keeps_exact_code(self) -> None:
+        self.assertIn(
+            "repository_tree_drift",
+            self.repository_drift_codes({"tree_sha256": "0" * 64}),
+        )
+
+    def test_license_hash_drift_has_exact_code(self) -> None:
+        self.assertIn(
+            "license_hash_drift",
+            self.repository_drift_codes({"license_sha256": "0" * 64}),
+        )
+
+    def test_content_tree_drift_has_exact_code(self) -> None:
+        self.assertIn(
+            "content_tree_drift",
+            self.repository_drift_codes(
+                {"tree_sha256": "0" * 64},
+                revision_kind="content_tree_sha256",
+            ),
+        )
+
+    def test_official_source_hash_drift_has_exact_code(self) -> None:
+        artifact = {
+            "artifact_id": "official-source-fixture",
+            "content_sha256": "a" * 64,
+        }
+        observed = copy.deepcopy(artifact)
+        observed["content_sha256"] = "b" * 64
+        bundle = {
+            "official_source_artifact": artifact,
+            "repository_registry_revisions": [],
+            "capability_decision_revisions": [],
+        }
+
+        codes = error_codes(
+            governance.detect_drift(
+                bundle,
+                live_reference_root=ROOT / "reference",
+                target_root=ROOT,
+                official_source_artifact=observed,
+            )
+        )
+
+        self.assertIn("official_source_hash_drift", codes)
+
+    def test_unavailable_source_has_exact_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            live_reference_root = root / "reference"
+            live_reference_root.mkdir()
+            target_root = root / "target"
+            target_root.mkdir()
+            artifact = {
+                "artifact_id": "official-source-fixture",
+                "content_sha256": "a" * 64,
+            }
+            bundle = {
+                "official_source_artifact": artifact,
+                "repository_registry_revisions": [
+                    {
+                        "repositories": [
+                            {
+                                "repo_id": "missing-repository",
+                                "path": "reference/missing-repository",
+                                "revision_kind": "git_commit",
+                                "revision_value": "0" * 40,
+                            }
+                        ]
+                    }
+                ],
+                "capability_decision_revisions": [{"decisions": []}],
+            }
+
+            codes = error_codes(
+                governance.detect_drift(
+                    bundle,
+                    live_reference_root=live_reference_root,
+                    target_root=target_root,
+                    official_source_artifact=artifact,
+                )
+            )
+
+        self.assertIn("source_unavailable", codes)
+
+    def test_target_revision_drift_keeps_exact_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target_root = root / "target"
+            target_root.mkdir()
+            (target_root / "artifact.bin").write_bytes(b"current artifact")
+            artifact = {
+                "artifact_id": "official-source-fixture",
+                "content_sha256": "a" * 64,
+            }
+            bundle = {
+                "official_source_artifact": artifact,
+                "repository_registry_revisions": [],
+                "capability_decision_revisions": [
+                    {
+                        "decisions": [
+                            {
+                                "decision_id": "decision.target",
+                                "freshness": "current",
+                                "target_path": "artifact.bin",
+                                "target_revision_kind": "artifact_sha256",
+                                "target_revision_value": "0" * 64,
+                            }
+                        ]
+                    }
+                ],
+            }
+
+            codes = error_codes(
+                governance.detect_drift(
+                    bundle,
+                    live_reference_root=root,
+                    target_root=target_root,
+                    official_source_artifact=artifact,
+                )
+            )
+
+        self.assertIn("target_revision_drift", codes)
+
+    def test_symlink_escape_has_typed_usage_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+            root = Path(directory)
+            outside_file = Path(outside) / "outside.json"
+            outside_file.write_text("{}", encoding="utf-8")
+            (root / "escape.json").symlink_to(outside_file)
+
+            with self.assertRaisesRegex(
+                governance.GovernanceUsageError,
+                "^symlink_escape:",
+            ):
+                governance.resolve_repository_path(root, "escape.json")
+
+    def test_oversized_input_has_exact_code_and_usage_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "oversized.json"
+            fixture.write_bytes(b" " * (governance.MAX_JSON_BYTES + 1))
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(VALIDATOR),
+                    "validate",
+                    "--fixture-bundle",
+                    str(fixture),
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        report = json.loads(result.stdout)
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("error", report["status"])
+        self.assertIn("oversized_input", {error["code"] for error in report["errors"]})
 
 
 if __name__ == "__main__":
