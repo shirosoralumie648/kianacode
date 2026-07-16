@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-07-15T10:27:09.124Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-07-16T10:20:06.334Z"
 last_activity: 2026-07-15
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 3
-  percent: 25
+  completed_plans: 4
+  percent: 0
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 4 of 12
+Plan: 5 of 12
 Status: Ready to execute
 Last activity: 2026-07-15 — Phase 01 execution started
 
@@ -63,6 +63,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 01 P03 | 28 min | 3 | 5 |
 
 *Updated after each plan completion*
+| Phase 01 P04 | 35 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Minimal capability data still carries 38 synthetic registry rows because the frozen registry contract requires exactly 38 entries. — Preserves structural validity while keeping journeys, capabilities, and evidence compact.
 - [Phase 01]: Full-reference fingerprints are fixture-only; only seed/live identity, aliases, domains, and decision coverage are reconciled. — Prevents positive test data from being mistaken for production source, license, or completion evidence.
 - [Phase 01]: Offline source identity uses inline-base64 entries joined with LF for deterministic local rehashing. — Allows later freeze and drift checks to reproduce exact bytes without network retrieval.
+- [Phase 01]: Semantic validity and governance completion remain separate; incomplete decision inventory is valid data, while duplicate or out-of-inventory current decisions fail closed. — Preserves valid minimal graphs without weakening 38/38 completion accounting.
+- [Phase 01]: The governance CLI imports only from its own trusted script directory under Python isolated mode. — Keeps supervisor execution independent of PYTHONPATH and caller cwd.
+- [Phase 01]: Public-baseline and reference-governance are explicit Rust supervisor slices. — Preserves exact receipt identity and the offline authority boundary.
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-15T10:27:09.114Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-07-16T10:20:06.327Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
