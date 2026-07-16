@@ -1,0 +1,143 @@
+#!/usr/bin/bash -p
+set -euo pipefail
+
+if ((BASH_VERSINFO[0] < 5)); then
+  echo "capability governance supervisor smoke requires Bash 5 or newer" >&2
+  exit 1
+fi
+
+ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
+RUNNER="$ROOT/scripts/capability-governance-smoke.sh"
+SUPERVISOR="$ROOT/target/debug/kiana-capability-governance-supervisor"
+CARGO_BIN="$(command -v cargo 2>/dev/null || true)"
+BUILD_PATH="$PATH"
+export PATH="/usr/bin:/bin"
+export LC_ALL="C"
+
+fail() {
+  echo "supervisor_smoke_failed: $*" >&2
+  exit 1
+}
+
+[[ -x "$RUNNER" ]] || fail "public runner is not executable"
+[[ -x "$SUPERVISOR" ]] || fail "prebuilt supervisor is unavailable"
+[[ "$CARGO_BIN" == /* && -x "$CARGO_BIN" ]] || fail "Cargo is unavailable"
+
+tmp_root="$(mktemp -d /var/tmp/kiana-supervisor-smoke.XXXXXX)"
+cleanup() {
+  local status=$?
+  trap - EXIT INT TERM
+  rm -rf "$tmp_root"
+  return "$status"
+}
+trap cleanup EXIT INT TERM
+
+assert_status() {
+  local expected="$1"
+  shift
+  set +e
+  "$@" >"$tmp_root/status.out" 2>"$tmp_root/status.err"
+  local actual=$?
+  set -e
+  [[ "$actual" == "$expected" ]] || {
+    sed -n '1,40p' "$tmp_root/status.out" >&2
+    sed -n '1,40p' "$tmp_root/status.err" >&2
+    fail "expected status $expected, got $actual: $*"
+  }
+  if grep -q 'offline=true' "$tmp_root/status.out" "$tmp_root/status.err"; then
+    fail "non-success path published a final marker: $*"
+  fi
+}
+
+assert_status 2 "$RUNNER"
+assert_status 2 "$RUNNER" unknown
+assert_status 2 "$SUPERVISOR"
+assert_status 2 "$SUPERVISOR" unknown
+
+mkdir -p "$tmp_root/missing/scripts"
+cp "$RUNNER" "$tmp_root/missing/scripts/capability-governance-smoke.sh"
+chmod 0755 "$tmp_root/missing/scripts/capability-governance-smoke.sh"
+assert_status 1 "$tmp_root/missing/scripts/capability-governance-smoke.sh" schemas
+grep -Fq 'supervisor_unavailable: build kiana-capability-governance-supervisor with --locked --offline' \
+  "$tmp_root/status.err" || fail "missing-helper diagnostic changed"
+
+assert_status 1 env -i \
+  PATH=/usr/bin:/bin \
+  KIANA_GOVERNANCE_PYTHON=/usr/bin/python3 \
+  "$RUNNER" --internal-worker schemas
+assert_status 1 "$SUPERVISOR" __worker-launcher \
+  --runner /tmp/forged --slice schemas
+
+mkdir -p "$tmp_root/shims"
+for command in bash bwrap strace python python3 sh; do
+  printf '%s\n' '#!/usr/bin/bash' 'echo forged offline=true' 'exit 0' \
+    >"$tmp_root/shims/$command"
+  chmod 0755 "$tmp_root/shims/$command"
+done
+printf '%s\n' 'echo forged offline=true' 'exit 0' >"$tmp_root/bash-env"
+
+env \
+  PATH="$tmp_root/shims" \
+  BASH_ENV="$tmp_root/bash-env" \
+  ENV="$tmp_root/bash-env" \
+  PYTHONPATH="$tmp_root/shims" \
+  PYTHONHOME="$tmp_root/shims" \
+  LD_LIBRARY_PATH="$tmp_root/shims" \
+  TMPDIR="$tmp_root/shims" \
+  "$RUNNER" fixture-shapes \
+  >"$tmp_root/shim.out" 2>"$tmp_root/shim.err"
+[[ ! -s "$tmp_root/shim.err" ]] || fail "environment shim produced public stderr"
+[[ "$(grep -c 'offline=true' "$tmp_root/shim.out")" == 1 ]] ||
+  fail "environment shim changed final marker authority"
+! grep -Fq 'forged' "$tmp_root/shim.out" || fail "environment shim executed"
+
+for slice in schemas fixture-shapes; do
+  "$RUNNER" "$slice" >"$tmp_root/$slice.out" 2>"$tmp_root/$slice.err"
+  [[ ! -s "$tmp_root/$slice.err" ]] || fail "$slice produced public stderr"
+  [[ "$(grep -c 'offline=true' "$tmp_root/$slice.out")" == 1 ]] ||
+    fail "$slice did not publish exactly one final marker"
+  if grep -Eq 'socket\(|INJECTED|complete:[a-f0-9]{64}|\[pid [0-9]+\]|/tmp/kiana-capability-governance-' \
+    "$tmp_root/$slice.out"; then
+    fail "$slice disclosed trace, token, pid, or runtime path"
+  fi
+done
+
+env -u CARGO_BUILD_TARGET PATH="$BUILD_PATH" \
+  "$CARGO_BIN" test --target-dir "$ROOT/target" \
+  -p kiana-capability-governance-supervisor \
+  --locked --offline --test supervisor_linux --no-fail-fast -- \
+  --test-threads=1 >"$tmp_root/linux-tests.out" 2>"$tmp_root/linux-tests.err"
+! grep -q 'SKIP prerequisite:' "$tmp_root/linux-tests.out" "$tmp_root/linux-tests.err" ||
+  fail "Linux integration gate skipped a prerequisite"
+
+protected_hashes="$tmp_root/protected-hashes"
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  cat >"$protected_hashes" <<'HASHES'
+7fd3dd952a8e57af8fb82ad6cc2ff1306fe08d9e73b5c76730eee9d2769695cc  .planning/config.json
+9559905b0e8fdbd96a72642329b71c6520ad03f2d39f5879329b2efdbc3492bf  scripts/schema-contract-smoke.sh
+4c51d722c2049e249b174fe9a09e611629084b611703a9cbbce68153c0c90002  scripts/validate-json-schema.py
+df019195eb3affca89eb4053c68ce130f1e780cc61c7d9f40c42bec4b0e19a3b  scripts/fixtures/capability-governance/valid/full-38-repositories.json
+65b678f5ee4412729e39cbfd09a036df750299df5f804b31ad14da7333cd6f3c  scripts/fixtures/capability-governance/valid/hostile-rendering.json
+6a83baaa24edbd199deca17d610665006aeb585edda8f74b328cb5fdd437e79d  scripts/fixtures/capability-governance/valid/minimal-graph.json
+5ca4f2c6313e6d583e6cd31f68958a547ade091d768fbbaa19993d4ef7827201  scripts/fixtures/capability-governance/valid/offline-source-identity.json
+HASHES
+else
+  cat >"$protected_hashes" <<'HASHES'
+9e2ff1d7d93a62c7e8c67137830ebf58c72216463490f1bebba35ac72b51a02b  .planning/config.json
+9a0706e38a4d23582b5d84f53990b2614680dbd1c99cee43cb3dd05e50bae3f4  scripts/schema-contract-smoke.sh
+c5ef0b131508c6d7beb99e123039f4c0d29f4e7f82f8f8625dcff62c27bf4470  scripts/validate-json-schema.py
+df019195eb3affca89eb4053c68ce130f1e780cc61c7d9f40c42bec4b0e19a3b  scripts/fixtures/capability-governance/valid/full-38-repositories.json
+65b678f5ee4412729e39cbfd09a036df750299df5f804b31ad14da7333cd6f3c  scripts/fixtures/capability-governance/valid/hostile-rendering.json
+6a83baaa24edbd199deca17d610665006aeb585edda8f74b328cb5fdd437e79d  scripts/fixtures/capability-governance/valid/minimal-graph.json
+5ca4f2c6313e6d583e6cd31f68958a547ade091d768fbbaa19993d4ef7827201  scripts/fixtures/capability-governance/valid/offline-source-identity.json
+HASHES
+fi
+(cd "$ROOT" && sha256sum -c "$protected_hashes" >/dev/null) ||
+  fail "protected input bytes changed"
+
+if find /tmp -maxdepth 1 -type d -name 'kiana-capability-governance-[0-9a-f]*' \
+  -print -quit | grep -q .; then
+  fail "runtime root residue remains"
+fi
+
+echo "OK: capability governance Rust supervisor gate passed"
