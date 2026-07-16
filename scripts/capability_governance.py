@@ -76,6 +76,8 @@ _ALIAS_KEYS = {
     "evidence_ids",
     "review_revision",
 }
+_ALIAS_KINDS = {"repo_id", "path"}
+_ALIAS_CHANGE_KINDS = {"renamed", "removed", "replaced"}
 _PREDECESSOR_KEYS = {
     "previous_revision_id",
     "previous_revision_path",
@@ -509,7 +511,7 @@ def _validate_safe_inputs(bundle: Mapping[str, Any], errors: list[GovernanceErro
                 break
         for pattern in _SECRET_PATTERNS:
             if pattern.search(text):
-                _error(errors, "secret_value", path=path, detail="secret-shaped input")
+                _error(errors, "sensitive_value", path=path, detail="secret-shaped input")
                 break
 
 
@@ -568,11 +570,27 @@ def current_matching_evidence(
     target_revision: str | None = None,
     environment_id: str | None = None,
 ) -> Mapping[str, Any] | None:
-    if isinstance(evaluation_time, str):
-        evaluation_time = _parse_time(evaluation_time)
+    candidates = _matching_evidence_records(
+        subject,
+        records,
+        source_revision=source_revision,
+        target_revision=target_revision,
+        environment_id=environment_id,
+    )
+    return candidates[-1] if candidates else None
+
+
+def _matching_evidence_records(
+    subject: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    *,
+    source_revision: str | None = None,
+    target_revision: str | None = None,
+    environment_id: str | None = None,
+) -> list[Mapping[str, Any]]:
     evidence_ids = set(subject.get("evidence_ids", []))
     subject_id = subject.get("capability_id") or subject.get("subject_id") or subject.get("decision_id")
-    candidates = []
+    candidates: list[Mapping[str, Any]] = []
     for record in records:
         if evidence_ids and record.get("evidence_id") not in evidence_ids:
             continue
@@ -588,9 +606,52 @@ def current_matching_evidence(
         if environment_id is not None and environment.get("environment_id") != environment_id:
             continue
         candidates.append(record)
+    return sorted(candidates, key=lambda row: int(row.get("sequence", 0)))
+
+
+def _evidence_binding_tuple(record: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
+    source_binding = record.get("source_binding") or {}
+    target_binding = record.get("target_binding") or {}
+    environment = record.get("environment") or {}
+    return (
+        str(record.get("subject_family", "")),
+        str(record.get("subject_id", "")),
+        str(source_binding.get("revision_value", "")),
+        str(target_binding.get("revision_value", "")),
+        str(environment.get("environment_id", "")),
+    )
+
+
+def _evidence_failure_code(
+    subject: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    evaluation_time: datetime | str | None,
+) -> str | None:
+    if isinstance(evaluation_time, str):
+        evaluation_time = _parse_time(evaluation_time)
+    candidates = _matching_evidence_records(subject, records)
     if not candidates:
         return None
-    return max(candidates, key=lambda row: int(row.get("sequence", 0)))
+    latest = candidates[-1]
+    latest_binding = _evidence_binding_tuple(latest)
+    earlier_matching = [
+        record
+        for record in candidates[:-1]
+        if _evidence_binding_tuple(record) == latest_binding
+    ]
+    if latest.get("result") != "pass" and any(
+        record.get("result") == "pass" for record in earlier_matching
+    ):
+        return "newer_failed_retest"
+    expires_at = _parse_time(latest.get("expires_at"))
+    if (
+        latest.get("result") == "pass"
+        and expires_at is not None
+        and evaluation_time is not None
+        and expires_at <= evaluation_time
+    ):
+        return "evidence_expired"
+    return None
 
 
 def counts_as_complete(
@@ -655,28 +716,38 @@ def validate_revision_ancestry(
         kind = revision.get("revision_kind")
         present = _PREDECESSOR_KEYS.intersection(revision)
         if kind == "genesis":
-            if "genesis_reason" not in revision or present:
-                _error(errors, "genesis_ancestry", revision_id, f"$.{family}")
+            if not str(revision.get("genesis_reason", "")).strip() or present:
+                _error(errors, "genesis_reason_required", revision_id, f"$.{family}")
         elif kind == "successor":
             if "genesis_reason" in revision or present != _PREDECESSOR_KEYS:
-                _error(errors, "successor_ancestry", revision_id, f"$.{family}")
+                _error(errors, "previous_revision_required", revision_id, f"$.{family}")
                 continue
             previous_id = revision.get("previous_revision_id")
             previous = by_id.get(previous_id)
             if previous is None:
-                _error(errors, "previous_revision_id", revision_id, f"$.{family}", previous_id)
+                _error(errors, "previous_revision_required", revision_id, f"$.{family}", previous_id)
             else:
                 if revision.get("previous_revision_sha256") != canonical_sha256(previous):
-                    _error(errors, "previous_revision_sha256", revision_id, f"$.{family}")
+                    _error(errors, "previous_revision_hash_mismatch", revision_id, f"$.{family}")
                 if family == "evidence_revisions":
                     old_records = previous.get("records")
                     new_records = revision.get("records")
                     if not isinstance(old_records, list) or not isinstance(new_records, list):
                         _error(errors, "history_shape", revision_id, f"$.{family}")
-                    elif len(new_records) <= len(old_records):
-                        _error(errors, "history_removal", revision_id, f"$.{family}.records")
-                    elif new_records[: len(old_records)] != old_records:
-                        _error(errors, "history_rewrite", revision_id, f"$.{family}.records")
+                    else:
+                        records_path = f"$.{family}.records"
+                        old_ids = [record.get("evidence_id") for record in old_records]
+                        new_ids = [record.get("evidence_id") for record in new_records]
+                        new_prefix = new_records[: len(old_records)]
+                        prefix_ids = [record.get("evidence_id") for record in new_prefix]
+                        if not set(old_ids).issubset(new_ids):
+                            _error(errors, "history_removal", revision_id, records_path)
+                        elif prefix_ids != old_ids:
+                            _error(errors, "history_reorder", revision_id, records_path)
+                        elif new_prefix != old_records:
+                            _error(errors, "history_rewrite", revision_id, records_path)
+                        elif len(new_records) <= len(old_records):
+                            _error(errors, "history_removal", revision_id, records_path)
             predecessor_path = revision.get("previous_revision_path")
             if not validate_relative_path(predecessor_path):
                 _error(errors, "unsafe_path", revision_id, predecessor_path)
@@ -1037,7 +1108,19 @@ def _validate_public_baselines(
                 _error(errors, "proof_level_invalid", capability_id, f"{path}.capabilities")
             if capability.get("coverage_state") == "verified":
                 if not capability.get("evidence_ids"):
-                    _error(errors, "verified_without_evidence", capability_id, f"{path}.capabilities")
+                    _error(errors, "verified_evidence_required", capability_id, f"{path}.capabilities")
+                elif failure_code := _evidence_failure_code(
+                    capability,
+                    evidence_records,
+                    evaluation_time,
+                ):
+                    _error(
+                        errors,
+                        failure_code,
+                        capability_id,
+                        f"{path}.capabilities",
+                        freshness="stale",
+                    )
                 elif not counts_as_complete(capability, evidence_records, evaluation_time):
                     _error(errors, "capability_not_complete", capability_id, f"{path}.capabilities", freshness="stale")
 
@@ -1062,8 +1145,8 @@ def _validate_registry_and_decisions(bundle: Mapping[str, Any], errors: list[Gov
         )
         paths: dict[str, str] = {}
         expected_count = revision.get("expected_count")
-        if expected_count != 38 or len(repositories) != expected_count:
-            _error(errors, "repository_count", revision_id, detail=len(repositories))
+        if expected_count != len(repositories):
+            _error(errors, "summary_mismatch", revision_id, detail=len(repositories))
         for repo_id, repository in repositories.items():
             repo_path = repository.get("path")
             if repo_path in paths:
@@ -1073,8 +1156,26 @@ def _validate_registry_and_decisions(bundle: Mapping[str, Any], errors: list[Gov
             if not validate_relative_path(repo_path):
                 _error(errors, "unsafe_path", repo_id, repo_path)
             for alias in repository.get("aliases", []):
-                if not isinstance(alias, Mapping) or set(alias) != _ALIAS_KEYS:
-                    _error(errors, "alias_shape", repo_id, detail=sorted(alias) if isinstance(alias, Mapping) else "not object")
+                if (
+                    not isinstance(alias, Mapping)
+                    or set(alias) != _ALIAS_KEYS
+                    or alias.get("kind") not in _ALIAS_KINDS
+                    or alias.get("change_kind") not in _ALIAS_CHANGE_KINDS
+                ):
+                    _error(
+                        errors,
+                        "alias_contract_invalid",
+                        repo_id,
+                        detail=sorted(alias) if isinstance(alias, Mapping) else "not object",
+                    )
+            domains = repository.get("domains")
+            if (
+                not isinstance(domains, list)
+                or not domains
+                or any(not isinstance(domain, str) or not re.fullmatch(r"D[0-9]{2}", domain) for domain in domains)
+                or len(domains) != len(set(domains))
+            ):
+                _error(errors, "alias_contract_invalid", repo_id, detail="domains")
             if repository.get("revision_kind") == "git_commit" and repository.get("git_head") != repository.get("revision_value"):
                 _error(errors, "git_head_mismatch", repo_id)
             if repository.get("revision_kind") == "content_tree_sha256" and "git_head" in repository:
@@ -1127,7 +1228,7 @@ def _validate_registry_and_decisions(bundle: Mapping[str, Any], errors: list[Gov
             if not tests or any(test.get("status") != "passing" for test in tests if isinstance(test, Mapping)):
                 _error(errors, "tests_not_passing", decision_id)
         if decision.get("decision") == "reject" and not str(decision.get("reason", "")).strip():
-            _error(errors, "reject_reason_required", decision_id)
+            _error(errors, "reject_rationale_required", decision_id)
         if _PROHIBITED_COMPLETION_KEYS.intersection(_iter_keys(decision)):
             _error(errors, "decision_completion_authority", decision_id)
     # Missing decisions are an incomplete-governance state, not malformed data.
