@@ -1,0 +1,7 @@
+{
+  "case_id": "alias.missing-field",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "remove", "path": "/repository_registry_revisions/1/repositories/0/aliases/0/reason"}
+  ]
+}

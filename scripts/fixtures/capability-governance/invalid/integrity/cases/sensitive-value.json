@@ -1,0 +1,7 @@
+{
+  "case_id": "security.sensitive-value",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/capability_decision_revisions/1/decisions/0/reason", "value": "synthetic sk-abcdefghijklmnop value"}
+  ]
+}

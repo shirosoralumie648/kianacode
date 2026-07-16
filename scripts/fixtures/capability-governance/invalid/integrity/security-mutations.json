@@ -1,0 +1,12 @@
+{
+  "schema": "kiana.capability-governance-security-cases.v1",
+  "version": "1.0",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "cases": [
+    {"case_id": "security.unsafe-path", "execution": "cli", "fixture": "cases/unsafe-path.json", "operation": "replace", "path": "/repository_registry_revisions/1/repositories/0/path", "synthetic": true},
+    {"case_id": "security.unsafe-markup", "execution": "cli", "fixture": "cases/unsafe-markup.json", "operation": "replace", "path": "/capability_decision_revisions/1/decisions/0/reason", "synthetic": true},
+    {"case_id": "security.sensitive-value", "execution": "cli", "fixture": "cases/sensitive-value.json", "operation": "replace", "path": "/capability_decision_revisions/1/decisions/0/reason", "synthetic": true},
+    {"case_id": "security.symlink-escape", "execution": "temporary_symlink", "operation": "load_fixture_bundle", "path": "temporary/base.json", "synthetic": true},
+    {"case_id": "security.oversized-input", "execution": "temporary_oversized", "operation": "validate", "path": "temporary/oversized.json", "byte_size": 16777217, "synthetic": true}
+  ]
+}

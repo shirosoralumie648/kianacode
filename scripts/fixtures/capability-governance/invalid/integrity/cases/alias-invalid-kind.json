@@ -1,0 +1,7 @@
+{
+  "case_id": "alias.invalid-kind",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "mutations": [
+    {"op": "replace", "path": "/repository_registry_revisions/1/repositories/0/aliases/0/kind", "value": "repository"}
+  ]
+}

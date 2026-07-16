@@ -1,0 +1,11 @@
+{
+  "schema": "kiana.capability-governance-alias-cases.v1",
+  "version": "1.0",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+  "cases": [
+    {"case_id": "alias.missing-field", "fixture": "cases/alias-missing-field.json", "operation": "remove", "path": "/repository_registry_revisions/1/repositories/0/aliases/0/reason"},
+    {"case_id": "alias.invalid-kind", "fixture": "cases/alias-invalid-kind.json", "operation": "replace", "path": "/repository_registry_revisions/1/repositories/0/aliases/0/kind"},
+    {"case_id": "alias.invalid-change-kind", "fixture": "cases/alias-invalid-change-kind.json", "operation": "replace", "path": "/repository_registry_revisions/1/repositories/0/aliases/0/change_kind"},
+    {"case_id": "alias.domains-as-proof", "fixture": "cases/alias-domains-as-proof.json", "operation": "add", "path": "/repository_registry_revisions/1/repositories/0/aliases/0/domains"}
+  ]
+}
