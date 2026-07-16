@@ -1,0 +1,15 @@
+{
+  "schema": "kiana.capability-governance-drift-cases.v1",
+  "version": "1.0",
+  "cases": [
+    {
+      "case_id": "drift.target-revision",
+      "scenario": "target_artifact",
+      "subject_id": "decision.target",
+      "target_path": "artifact.bin",
+      "target_bytes": "current artifact",
+      "frozen_revision": "0000000000000000000000000000000000000000000000000000000000000000",
+      "expected_code": "target_revision_drift"
+    }
+  ]
+}

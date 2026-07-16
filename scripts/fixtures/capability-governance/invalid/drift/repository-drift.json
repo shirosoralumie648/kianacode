@@ -1,0 +1,11 @@
+{
+  "schema": "kiana.capability-governance-drift-cases.v1",
+  "version": "1.0",
+  "cases": [
+    {"case_id": "drift.repository-head", "scenario": "repository", "subject_id": "fixture-repository", "revision_kind": "git_commit", "frozen_override": {"revision_value": "0000000000000000000000000000000000000000"}, "expected_code": "repository_head_drift"},
+    {"case_id": "drift.repository-tree", "scenario": "repository", "subject_id": "fixture-repository", "revision_kind": "git_commit", "frozen_override": {"tree_sha256": "0000000000000000000000000000000000000000000000000000000000000000"}, "expected_code": "repository_tree_drift"},
+    {"case_id": "drift.license-hash", "scenario": "repository", "subject_id": "fixture-repository", "revision_kind": "git_commit", "frozen_override": {"license_sha256": "0000000000000000000000000000000000000000000000000000000000000000"}, "expected_code": "license_hash_drift"},
+    {"case_id": "drift.content-tree", "scenario": "repository", "subject_id": "fixture-repository", "revision_kind": "content_tree_sha256", "frozen_override": {"tree_sha256": "0000000000000000000000000000000000000000000000000000000000000000"}, "expected_code": "content_tree_drift"},
+    {"case_id": "drift.source-unavailable", "scenario": "source_unavailable", "subject_id": "missing-repository", "revision_kind": "git_commit", "expected_code": "source_unavailable"}
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "kiana.capability-governance-drift-cases.v1",
+  "version": "1.0",
+  "cases": [
+    {
+      "case_id": "drift.official-source-hash",
+      "scenario": "official_source",
+      "subject_id": "official-source-fixture",
+      "canonical": {"artifact_id": "official-source-fixture", "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "observed": {"artifact_id": "official-source-fixture", "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+      "expected_code": "official_source_hash_drift"
+    }
+  ]
+}
