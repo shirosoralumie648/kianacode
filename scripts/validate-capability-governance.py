@@ -8,6 +8,13 @@ import json
 import sys
 from pathlib import Path
 
+# The Rust supervisor invokes this script with Python isolated mode. Resolve the
+# sibling production module from this trusted script directory, never from an
+# ambient PYTHONPATH or the caller's working directory.
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
 from capability_governance import (
     GovernanceError,
     GovernanceUsageError,

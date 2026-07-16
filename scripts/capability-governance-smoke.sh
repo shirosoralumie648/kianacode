@@ -10,20 +10,20 @@ ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 cd "$ROOT"
 
 usage() {
-  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes}" >&2
+  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance}" >&2
 }
 
 if (($# == 2)) && [[ "${1:-}" == "--internal-worker" ]]; then
   slice="$2"
   case "$slice" in
-    schemas | fixture-shapes) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance) ;;
     *) echo "supervisor_worker_invalid: unknown slice" >&2; exit 1 ;;
   esac
   worker_mode=1
 elif (($# == 1)); then
   slice="$1"
   case "$slice" in
-    schemas | fixture-shapes) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance) ;;
     *) usage; exit 2 ;;
   esac
   supervisor_bin="$ROOT/target/debug/kiana-capability-governance-supervisor"
@@ -83,6 +83,21 @@ minimal_fixture="$fixtures_dir/minimal-graph.json"
 full_fixture="$fixtures_dir/full-38-repositories.json"
 hostile_fixture="$fixtures_dir/hostile-rendering.json"
 offline_fixture="$fixtures_dir/offline-source-identity.json"
+protected_inputs=(
+  "$minimal_fixture"
+  "$full_fixture"
+  "$hostile_fixture"
+  "$offline_fixture"
+  scripts/validate-json-schema.py
+  docs/schemas/kiana-official-source-artifact.v1.schema.json
+  docs/schemas/kiana-public-parity-baseline.v1.schema.json
+  docs/schemas/kiana-reference-repository-registry.v1.schema.json
+  docs/schemas/kiana-capability-decisions.v1.schema.json
+  docs/schemas/kiana-capability-evidence-index.v1.schema.json
+  docs/schemas/kiana-capability-governance-diff.v1.schema.json
+  docs/schemas/kiana-legacy-authority-classification.v1.schema.json
+  docs/schemas/kiana-capability-governance-bundle.v1.schema.json
+)
 
 tmp_dir="$(mktemp -d)"
 
@@ -1076,9 +1091,78 @@ print("OK: evidence histories, references, hashes, and bindings are closed")
 PY
 }
 
+protected_hashes() {
+  run_python - "${protected_inputs[@]}" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+for name in sys.argv[1:]:
+    path = pathlib.Path(name)
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        raise SystemExit(f"protected_input_unavailable: {path.as_posix()}:{exc}")
+    print(f"{path.as_posix()}\t{hashlib.sha256(payload).hexdigest()}")
+PY
+}
+
+validate_positive_fixture() {
+  local fixture="$1"
+  local output="$tmp_dir/$(basename "${fixture%.json}").validation.json"
+
+  run_python scripts/validate-capability-governance.py \
+    validate --fixture-bundle "$fixture" --json >"$output"
+  run_python - "$output" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+report = json.loads(path.read_text(encoding="utf-8"))
+if (
+    report.get("schema") != "kiana.capability-governance-validation.v1"
+    or report.get("status") != "valid"
+    or report.get("errors") != []
+):
+    raise SystemExit("positive_validation_failed: production validator did not return valid")
+PY
+}
+
+run_public_baseline_slice() {
+  local before after
+  before="$(protected_hashes)"
+
+  validate_positive_fixture "$offline_fixture"
+  validate_positive_fixture "$hostile_fixture"
+
+  after="$(protected_hashes)"
+  if [[ "$before" != "$after" ]]; then
+    echo "protected_input_modified: public-baseline validation changed a protected input" >&2
+    return 1
+  fi
+  echo "OK: production public-baseline semantics accept offline-source and hostile-rendering fixtures"
+}
+
+run_reference_governance_slice() {
+  local before after
+  before="$(protected_hashes)"
+
+  validate_positive_fixture "$full_fixture"
+
+  after="$(protected_hashes)"
+  if [[ "$before" != "$after" ]]; then
+    echo "protected_input_modified: reference-governance validation changed a protected input" >&2
+    return 1
+  fi
+  echo "OK: production reference-governance semantics accept the 38-repository fixture"
+}
+
 case "$slice" in
   schemas) run_schema_slice ;;
   fixture-shapes) run_fixture_shape_slice ;;
+  public-baseline) run_public_baseline_slice ;;
+  reference-governance) run_reference_governance_slice ;;
 esac
 
 # The Rust worker launcher owns the completion receipt. The semantic worker can

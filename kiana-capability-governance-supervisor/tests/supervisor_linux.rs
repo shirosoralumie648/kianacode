@@ -45,9 +45,14 @@ fn test_lock() -> std::sync::MutexGuard<'static, ()> {
 }
 
 #[test]
-fn linux_two_public_slices_succeed_after_prebuilt_binary() {
+fn linux_public_slices_succeed_after_prebuilt_binary() {
     let _guard = test_lock();
-    for slice in ["schemas", "fixture-shapes"] {
+    for slice in [
+        "schemas",
+        "fixture-shapes",
+        "public-baseline",
+        "reference-governance",
+    ] {
         let output = run_binary(slice);
         assert!(
             output.status.success(),

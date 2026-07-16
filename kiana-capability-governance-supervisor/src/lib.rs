@@ -51,6 +51,8 @@ static SIGNAL_HANDLER_LOCK: Mutex<()> = Mutex::new(());
 pub enum Slice {
     Schemas,
     FixtureShapes,
+    PublicBaseline,
+    ReferenceGovernance,
 }
 
 impl Slice {
@@ -58,6 +60,8 @@ impl Slice {
         match value {
             "schemas" => Ok(Self::Schemas),
             "fixture-shapes" => Ok(Self::FixtureShapes),
+            "public-baseline" => Ok(Self::PublicBaseline),
+            "reference-governance" => Ok(Self::ReferenceGovernance),
             _ => Err(UsageError),
         }
     }
@@ -66,6 +70,8 @@ impl Slice {
         match self {
             Self::Schemas => "schemas",
             Self::FixtureShapes => "fixture-shapes",
+            Self::PublicBaseline => "public-baseline",
+            Self::ReferenceGovernance => "reference-governance",
         }
     }
 
@@ -2548,6 +2554,8 @@ mod tests {
 
     #[test]
     fn invocation_parser_accepts_public_and_internal_shapes() {
+        assert!(Slice::parse_public("public-baseline").is_ok());
+        assert!(Slice::parse_public("reference-governance").is_ok());
         let args = vec![OsString::from("supervisor"), OsString::from("schemas")];
         assert!(matches!(
             parse_invocation(&args),
