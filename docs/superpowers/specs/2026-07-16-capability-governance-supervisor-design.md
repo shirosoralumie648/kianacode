@@ -2,6 +2,8 @@
 
 日期：2026-07-16
 
+执行规则：本 remediation 不采用 TDD。先实现批准的 Rust supervisor 合同，再添加并运行 focused、adversarial、integration 和 review 验证；不要求 pre-implementation failure run。
+
 ## 1. 背景
 
 Phase 1 Plan 01-03 的 `scripts/capability-governance-smoke.sh` 同时承担公开 CLI、worker、deadline、network guard、trace parser、output publisher 和 cleanup。连续审查已证明这种 Shell 内多权威结构会 fail open：trace parser 返回未枚举状态时，parent 只拒绝已知错误码，随后仍可发布 worker 的 `OK` 并返回 `0`。
@@ -326,7 +328,7 @@ test-only dependency injection 使用临时 executable 模拟：
 
 fresh gate 使用一个明确的 committed/alternate-index tree，绝不归档整个 dirty working tree：
 
-1. 实现 RED/GREEN tests 可以在 live tree 运行。
+1. 批准的实现与实现后验证可以在 live tree 运行。
 2. final pre-commit fresh gate 创建临时 `GIT_INDEX_FILE`，从 `HEAD` 执行 `read-tree`，只加入 supervisor scoped paths；overlapping `Cargo.lock` 仅应用 supervisor-owned patch，然后用 `write-tree` 得到 tree object。
 3. 从该 tree object 执行 `git archive`；archive 不包含用户其他 dirty 文件或 ignored `reference/`。
 4. code/test commits 完成后，用 `git archive HEAD` 再跑同一确认；通过后才提交最终 SUMMARY。
@@ -403,7 +405,7 @@ GSD `has_summary` 当前只看文件存在，不能理解 blocked frontmatter。
 
 不含 overlapping dirty 的普通 commit 可以使用真实 index 逐路径 stage，但提交前必须确认 cached 列表恰好等于声明路径，提交后真实 index 必须恢复为空。包含 `Cargo.lock` 的 commit 和所有 fresh-tree 组装只走上述 alternate index，期间真实 index 始终不变。禁止 `git add .`、`git add -A` 或整文件 stage `Cargo.lock`。
 
-## 16. Partial GREEN 迁移
+## 16. Partial Implementation 迁移
 
 保留概念：
 
@@ -425,7 +427,7 @@ GSD `has_summary` 当前只看文件存在，不能理解 blocked frontmatter。
 - 环境变量选择 regression runner；
 - worker exit `0` 被 parent 直接视为成功。
 
-RED commit `a9e4a11` 保留为架构失败证据。当前未提交 partial GREEN 不作为一个可发布 commit。
+Failure-evidence commit `a9e4a11` 保留为架构失败证据。当前未提交 partial implementation 不作为一个可发布 commit。
 
 实现的第一个原子 docs task 必须：
 
@@ -433,7 +435,7 @@ RED commit `a9e4a11` 保留为架构失败证据。当前未提交 partial GREEN
 2. 将受 runtime authority 影响的 pass claims 标记为 blocked/superseded，并记录本设计路径与 `a9e4a11`；
 3. 修改 `01-03-PLAN.md`，用已批准的 Rust build/runtime 合同替换 no-Cargo 文件、must-have 和验证声明。
 
-这个 demotion commit 在任何新 production code 前完成。之后按本设计替换 supervisor 部分；只有新 Rust tests、fresh gate 和独立质量复审全部转绿，才原位恢复 summary `status: complete` 并写入新的 runtime evidence。
+这个 demotion commit 在任何新 production code 前完成。之后按本设计替换 supervisor 部分；只有新 Rust 实现及其实现后验证、fresh gate 和独立质量复审全部通过，才原位恢复 summary `status: complete` 并写入新的 runtime evidence。
 
 ## 17. 验收标准
 
