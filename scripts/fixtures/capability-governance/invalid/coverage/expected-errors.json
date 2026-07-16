@@ -1,0 +1,63 @@
+{
+  "schema": "kiana.capability-governance-negative-cases.v1",
+  "version": "1.0",
+  "base_fixture": "scripts/fixtures/capability-governance/valid/offline-source-identity.json",
+  "cases": [
+    {
+      "case_id": "coverage.missing-required-capability",
+      "fixture": "missing-required-capability.json",
+      "command": "validate",
+      "args": [
+        "--fixture-bundle",
+        "scripts/fixtures/capability-governance/invalid/coverage/missing-required-capability.json"
+      ],
+      "expected_code": "missing_required_capability",
+      "subject_id": "cap.public.cli",
+      "mutated_path": "$.public_baseline_revisions[-1].official_source_index[0].capability_ids",
+      "expected_status": "invalid",
+      "expected_freshness": null
+    },
+    {
+      "case_id": "coverage.unmapped-source-entry",
+      "fixture": "unmapped-source-entry.json",
+      "command": "validate",
+      "args": [
+        "--fixture-bundle",
+        "scripts/fixtures/capability-governance/invalid/coverage/unmapped-source-entry.json"
+      ],
+      "expected_code": "unmapped_source_entry",
+      "subject_id": "offline.metadata",
+      "mutated_path": "$.public_baseline_revisions[-1].official_source_index[1]",
+      "expected_status": "invalid",
+      "expected_freshness": null
+    },
+    {
+      "case_id": "coverage.duplicate-source-mapping",
+      "fixture": "duplicate-source-mapping.json",
+      "command": "validate",
+      "args": [
+        "--fixture-bundle",
+        "scripts/fixtures/capability-governance/invalid/coverage/duplicate-source-mapping.json"
+      ],
+      "expected_code": "duplicate_source_mapping",
+      "subject_id": "offline.cli",
+      "mutated_path": "$.public_baseline_revisions[-1].official_source_index[2]",
+      "expected_status": "invalid",
+      "expected_freshness": null
+    },
+    {
+      "case_id": "coverage.unjustified-exclusion",
+      "fixture": "unjustified-exclusion.json",
+      "command": "validate",
+      "args": [
+        "--fixture-bundle",
+        "scripts/fixtures/capability-governance/invalid/coverage/unjustified-exclusion.json"
+      ],
+      "expected_code": "unjustified_exclusion",
+      "subject_id": "offline.metadata",
+      "mutated_path": "$.public_baseline_revisions[-1].official_source_index[1].exclusion.rationale",
+      "expected_status": "invalid",
+      "expected_freshness": null
+    }
+  ]
+}
