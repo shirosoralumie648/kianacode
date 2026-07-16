@@ -66,8 +66,12 @@ def _render(report: dict[str, object], json_output: bool) -> None:
         )
 
 
-def _usage_report(exc: Exception) -> dict[str, object]:
-    error = GovernanceError("read_or_usage_failure", detail=str(exc))
+def _usage_report(exc: GovernanceUsageError) -> dict[str, object]:
+    raw_code, separator, detail = str(exc).partition(":")
+    code = {
+        "input_too_large": "oversized_input",
+    }.get(raw_code, raw_code if separator else "read_or_usage_failure")
+    error = GovernanceError(code, detail=detail.strip() if separator else str(exc))
     return validation_report("error", [error])
 
 

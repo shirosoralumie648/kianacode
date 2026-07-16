@@ -306,7 +306,9 @@ def resolve_repository_path(root: Path, raw: str, *, must_exist: bool = True) ->
     try:
         resolved.relative_to(root)
     except ValueError as exc:
-        raise GovernanceUsageError(f"unsafe_path: {_sanitize_path_for_output(raw)}") from exc
+        raise GovernanceUsageError(
+            f"symlink_escape: {_sanitize_path_for_output(raw)}"
+        ) from exc
     return resolved
 
 
@@ -1377,7 +1379,9 @@ def content_tree_sha256(root: Path) -> str:
             try:
                 resolved.relative_to(root)
             except ValueError as exc:
-                raise GovernanceUsageError(f"unsafe_path: {_sanitize_path_for_output(path)}") from exc
+                raise GovernanceUsageError(
+                    f"symlink_escape: {_sanitize_path_for_output(path.relative_to(root))}"
+                ) from exc
         relative = path.relative_to(root).as_posix().encode("utf-8")
         payload = _bounded_read(path)
         digest.update(len(relative).to_bytes(8, "big"))
@@ -1430,7 +1434,7 @@ def detect_drift(
     ):
         _error(
             errors,
-            "official_source_drift",
+            "official_source_hash_drift",
             canonical_artifact.get("artifact_id", ""),
             freshness="stale",
         )
@@ -1445,14 +1449,19 @@ def detect_drift(
                 live_path.relative_to(live_reference_root.resolve())
                 fingerprint = repository_fingerprint(live_path)
             except (ValueError, OSError, GovernanceUsageError) as exc:
-                _error(errors, "repository_unavailable", repo_id, raw_path, exc, "stale")
+                _error(errors, "source_unavailable", repo_id, raw_path, exc, "stale")
                 continue
             if repository.get("revision_kind") == "git_commit" and fingerprint.get("git_head") != repository.get("revision_value"):
                 _error(errors, "repository_head_drift", repo_id, raw_path, freshness="stale")
             if fingerprint.get("tree_sha256") != repository.get("tree_sha256"):
-                _error(errors, "repository_tree_drift", repo_id, raw_path, freshness="stale")
+                tree_code = (
+                    "content_tree_drift"
+                    if repository.get("revision_kind") == "content_tree_sha256"
+                    else "repository_tree_drift"
+                )
+                _error(errors, tree_code, repo_id, raw_path, freshness="stale")
             if fingerprint.get("license_sha256") != repository.get("license_sha256"):
-                _error(errors, "repository_license_drift", repo_id, raw_path, freshness="stale")
+                _error(errors, "license_hash_drift", repo_id, raw_path, freshness="stale")
     decision_revisions = bundle.get("capability_decision_revisions") or []
     if decision_revisions:
         for decision in decision_revisions[-1].get("decisions", []):
