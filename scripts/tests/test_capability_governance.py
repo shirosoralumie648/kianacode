@@ -193,6 +193,23 @@ class GovernanceCorrectionContractTests(unittest.TestCase):
 
 
 class GovernanceDriftAndUsageContractTests(unittest.TestCase):
+    def test_mutation_base_is_resolved_from_repository_root(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            wrapper = Path(directory) / "wrapper.json"
+            wrapper.write_text(
+                json.dumps(
+                    {
+                        "base_fixture": "scripts/fixtures/capability-governance/valid/minimal-graph.json",
+                        "mutations": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            bundle = governance.load_fixture_bundle(wrapper)
+
+        self.assertEqual(governance.BUNDLE_KEYS, set(bundle))
+
     def initialize_git_repository(self, path: Path) -> dict[str, str]:
         path.mkdir(parents=True)
         (path / "payload.txt").write_text("fixture payload\n", encoding="utf-8")
