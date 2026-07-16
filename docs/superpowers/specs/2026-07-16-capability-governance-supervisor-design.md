@@ -60,7 +60,7 @@ Phase 1 Plan 01-03 的 `scripts/capability-governance-smoke.sh` 同时承担公�
 
 当前 `/usr/bin/python3` 不含本 runner 已依赖的 `jsonschema`，因此 runtime 不能简单固定到 system Python。新 crate 使用一个零依赖 `build.rs`：构建时从构建环境解析 `python3`/`python`，canonicalize，要求 regular executable、owner 为 build uid 或 root、other 不可写；group-write 仅在 interpreter gid 等于 build gid 时允许，因为 build 用户环境已属于 TCB。build script 用 isolated mode (`-I`) 对一个已知 positive 和一个已知 negative Draft 2020-12 contract 执行 `jsonschema` canary；随后通过 compile-time env 将 exact path 嵌入 supervisor。`build.rs` 声明 `rerun-if-env-changed=PATH`。runtime PATH 或 caller env 不能重新选择 Python；嵌入路径失效或 preflight 不再通过时 fail closed，要求重新构建。
 
-caller 可以控制公开 argv、普通环境变量和 cwd，但不能通过 runtime `PATH`、`BASH_ENV`、`ENV`、`PYTHONPATH`、`PYTHONHOME`、`LD_PRELOAD` 或 `LD_LIBRARY_PATH` 覆盖可信对象。supervisor 启动 child 时使用清空后的环境，只恢复固定必要值和嵌入的 Python path。能够控制 Cargo build 环境或替换嵌入解释器的主体等同于能够替换构建产物，位于本门禁的防御范围之外。
+caller 可以控制公开 argv、普通环境变量和 cwd，但 production binary 使用 build-time canonical repository root，不能由 cwd 选择 runner；runtime `PATH`、`BASH_ENV`、`ENV`、`PYTHONPATH` 或 `PYTHONHOME` 也不能替换可信对象。supervisor 启动 child 时使用清空后的环境，只恢复固定必要值和嵌入的 Python path。动态链接器在 Bash/Rust 代码运行前处理 `LD_PRELOAD`/`LD_LIBRARY_PATH`，因此同 UID 的 pre-exec loader injection 明确属于 trusted-launcher/host boundary，必须由调用方使用 sanitized `execve` 环境保证，不能声称由已被装载的程序自身消毒。能够控制 Cargo build 环境、构建产物或嵌入解释器的主体同样位于本门禁的防御范围之外。
 
 ## 6. 组件边界
 
@@ -95,16 +95,17 @@ kiana-capability-governance-supervisor/
 
 crate 为 `publish = false`，仅依赖 `std + libc`。`build.rs` 也只使用标准库。不依赖 `kiana-tools`、Tokio、Clap、Serde、nix、rustix 或 tempfile，避免把产品 tool graph 拉入 focused gate。
 
-`src/lib.rs` 拥有 typed state、launcher validation、bounded capture、deadline、signal/process cleanup、trace parser、receipt parser、trusted worker-launcher 和唯一成功谓词。`src/main.rs` 只解析固定内部参数并映射公开退出码。
+`src/lib.rs` 拥有 typed state、launcher validation、bounded capture、deadline、signal/process cleanup、trace parser、receipt parser、trusted worker-launcher 和唯一成功谓词。`src/main.rs` 只解析固定内部参数并映射公开退出码。crate 在非 Linux target 编译为只返回 `supervisor_unavailable` 的 fail-closed stub，不把 Linux-only syscall surface 扩散到 macOS/Windows workspace build。
 
 ### 6.3 Hidden Bash worker
 
 supervisor 在 sandbox 内调用 runner 的 hidden worker mode。该模式不是第二个公开成功入口：
 
-- 必须消费 inherited launch FD；
+- Rust worker-launcher 必须消费 inherited launch FD；
 - 必须先完成 startup socket canary；
 - 只能运行已知 slice；
-- 成功时写 exact receipt、关闭 FD，并以保留码 `80` 退出；
+- launch/completion FD 不传给 semantic Bash；semantic 成功使用保留码 `80`，普通 `0` 不算成功；
+- Rust worker-launcher 只在 semantic child 已退出 `80` 后写 exact receipt，并以 `80` 退出；
 - 永不打印最终 `offline=true`；
 - direct worker invocation 必须非零且不能形成公开成功输出。
 
@@ -134,8 +135,8 @@ Rust supervisor
        --setenv HOME /tmp/kiana-home
        --setenv TMPDIR /tmp/kiana-worker
        --setenv KIANA_GOVERNANCE_PYTHON <embedded-python-path>
-       --setenv KIANA_GOVERNANCE_LAUNCH_FD <launch-fd>
-       --setenv KIANA_GOVERNANCE_COMPLETION_FD <completion-fd>
+       --setenv KIANA_GOVERNANCE_LAUNCH_FD <launch-fd-for-Rust-launcher>
+       --setenv KIANA_GOVERNANCE_COMPLETION_FD <completion-fd-for-Rust-launcher>
        --setenv KIANA_GOVERNANCE_WORKER_STDOUT_FD <worker-stdout-fd>
        --setenv KIANA_GOVERNANCE_WORKER_STDERR_FD <worker-stderr-fd>
     -> /usr/bin/strace -f -qq
@@ -149,15 +150,16 @@ Rust supervisor
          -- /tmp/kiana-supervisor __worker-launcher
               --runner <canonical-runner>
               --slice <schemas-or-fixture-shapes>
-        -> redirect worker stdout/stderr + close trace channel/unexpected FD
-        -> /usr/bin/bash <runner> --internal-worker <slice>
+        -> consume launch token + retain completion FD as CLOEXEC
+        -> spawn /usr/bin/bash <runner> --internal-worker <slice>
+        -> after Bash exit 80, write receipt and exit 80
 ```
 
 所有 angle-bracket 值都由 supervisor 从 canonical paths、固定 slice enum 和新建 FD 中生成，并作为 argv/env 的独立参数传给 `Command`/bwrap；不得通过 shell 拼接。唯一由 strace pipe syntax 交给 `/bin/sh` 的字符串是完全固定的 trace-logger command。
 
 `bwrap` 提供独立 user/PID/network/mount namespace、private `/dev` 和 tmpfs `/tmp`。host procfs 被空的 read-only tmpfs 覆盖；worker 不需要 procfs，不能经 `/proc/<pid>/fd` 或 `/dev/fd` 重开 strace/logger channel。项目树只读。supervisor binary 被 read-only bind 到固定、无 shell metacharacter 的 `/tmp/kiana-supervisor`；worker tmp directory 单独 bind，整个 runtime root 不暴露给 child。
 
-strace output-pipe 只执行固定命令 `/tmp/kiana-supervisor __trace-logger`。trusted logger 从 strace-owned stdin 读取 trace，并将原始 bytes 写入 bwrap stdout；该 stdout 在 parent 侧连接独立 bounded trace pipe。trusted `__worker-launcher` 在 exec Bash 前设置 `PR_SET_NO_NEW_PRIVS`、清空 capabilities，把 stdout/stderr 切换到另外两组 worker pipes，并用 `close_range` 或等价 bounded fallback 关闭原 trace stdout、guard stderr 和所有 unexpected FD。Bash worker 因此没有 trace path、logger stdin 或 parent trace pipe。
+strace output-pipe 只执行固定命令 `/tmp/kiana-supervisor __trace-logger`。trusted logger 从 strace-owned stdin 读取 trace，并将原始 bytes 写入 bwrap stdout；该 stdout 在 parent 侧连接独立 bounded trace pipe。trusted `__worker-launcher` 在 spawn Bash 前设置 `PR_SET_NO_NEW_PRIVS`、清空 capabilities，把 stdout/stderr 切换到另外两组 worker pipes，并用 `close_range` 或等价 bounded fallback 关闭原 trace stdout、guard stderr 和所有 unexpected FD。它先消费 launch token，并将 completion FD 设为 `CLOEXEC`，因此 Bash worker 没有 launch/completion authority FD、trace path、logger stdin 或 parent trace pipe。Rust launcher 只在 Bash 退出 `80` 后写 receipt。
 
 strace pipe command 是固定常量，不包含 repo path、slice 或 caller data，避免 shell interpolation。logger 不读取环境选择目的地，不写 filesystem，也不生成 network syscall。任何 logger byte、EOF、exit 或 channel 异常都使 trace verdict 失败。
 
@@ -170,7 +172,7 @@ strace pipe command 是固定常量，不包含 repo path、slice 或 caller dat
 
 worker 的第一条 network syscall 是固定 startup `socket` canary，且必须观察到 `EPERM`。trace 必须恰好包含这一条 injected canary；任何额外 `%network` 或 io_uring syscall 都产生 `network_attempt` 并失败。
 
-worker-launcher 以 script-file 形式 exec `/usr/bin/bash`，stdin 固定为 `/dev/null`，不得改用会产生额外 shell startup network probe 的 `bash -c` 路径。真实 integration canary 必须证明最终 trace 只有一条 startup socket；设计不通过宽泛 allowlist 忽略 `getpeername` 等额外调用。
+worker-launcher 以 script-file 形式 spawn `/usr/bin/bash`，stdin 固定为 `/dev/null`，不得改用会产生额外 shell startup network probe 的 `bash -c` 路径。真实 integration canary 必须证明最终 trace 只有一条 startup socket；设计不通过宽泛 allowlist 忽略 `getpeername` 等额外调用。
 
 本合同不错误声称 `ioctl` 属于 strace `%network`。worker 启动前关闭全部 inherited socket/io_uring FD，private `/dev` 不暴露 tun 等 host network device，且 io_uring setup/enter/register 被显式注入 `EPERM`。因此 worker 可用的 network-capable path 要么先经过被审计的 `%network` syscall，要么经过已禁用的 io_uring。network namespace 是最终不可触达 host network 的 enforcement；trace 是“出现被支持接口的尝试则整个 slice 失败”的 audit authority。
 
@@ -185,9 +187,9 @@ worker-launcher 以 script-file 形式 exec `/usr/bin/bash`，stdin 固定为 `/
 5. 创建相互独立的 worker stdout、worker stderr、guard stderr 和 parent trace pipes，以及独立 worker tmp directory；child 输出在验证前不可见。
 6. 清空 child environment，写入固定 `PATH=/usr/bin:/bin`、`LC_ALL=C`、private `HOME`、`TMPDIR`、嵌入的 canonical Python path 及 FD 编号。
 7. 以独立 process group 启动 bwrap/strace chain，并并发有界读取 stdout/stderr。
-8. trusted trace-logger 将 strace stream 送入 parent trace pipe；trusted worker-launcher 重定向 worker output、关闭 trace/guard/unexpected FD，再 exec Bash。
+8. trusted trace-logger 将 strace stream 送入 parent trace pipe；trusted worker-launcher 消费 launch token、保留 `CLOEXEC` completion FD、重定向 worker output、关闭 trace/guard/unexpected FD，再 spawn Bash。
 9. supervisor 用 monotonic clock 等待完成；deadline 为 30 秒。
-10. worker 消费 launch token，运行 canary 和 semantic slice，写 receipt 后以 `80` 退出。
+10. Bash worker 运行 canary 和 semantic slice 并以 `80` 退出；trusted Rust worker-launcher 随后写 exact receipt 并同样以 `80` 退出。
 11. supervisor wait/reap、解析 trace 和 receipt、检查输出、检查后代和 worker tmp。
 12. supervisor 将所有结果归并为一个 typed verdict。
 13. 成功时先将已捕获输出读入内存，再删除并确认 runtime root 不存在，最后发布内部校验输出和唯一 final marker。
@@ -288,10 +290,10 @@ process group 不是单独的完整安全边界；它与 bwrap PID namespace、`
 
 test-only dependency injection 使用临时 executable 模拟：
 
-- no-op bwrap/strace；
+- no-op/rejected launcher；
 - launcher 返回 `0` 但未启动 worker；
 - 未知 launcher/worker exit；
-- missing、early、duplicate、wrong-token、wrong-slice、trailing receipt；
+- missing、duplicate、wrong-token、wrong-slice、trailing receipt，以及 semantic child 无 receipt-FD capability；
 - stdout 伪造 final marker；
 - stdout/stderr/trace 超限；
 - worker 尝试发现 trace path/FD 或向 inherited FD 伪造 trace；
@@ -317,7 +319,7 @@ test-only dependency injection 使用临时 executable 模拟：
 - direct hidden worker；
 - SIGINT=130、SIGTERM=143；
 - child、runtime root 和 caller TMPDIR 零残留；
-- PATH、BASH_ENV、PYTHONPATH、LD_PRELOAD shim 不改变可信 launcher；
+- caller cwd、PATH、BASH_ENV 与 PYTHONPATH 不改变 build-bound repo、runner 或可信 launcher；
 - raw trace 不进入公开诊断。
 
 ### 13.4 Independent shell gate
@@ -443,7 +445,7 @@ Failure-evidence commit `a9e4a11` 保留为架构失败证据。当前未提交 
 2. parser、launcher、worker、receipt、deadline、output、process 和 cleanup 任一未知状态均 fail closed。
 3. direct worker、no-op launcher、worker exit `0` 和伪造 final marker 均不能产生 public `0`。
 4. bwrap/strace 路径和 ownership 不满足合同即失败，无 PATH 或弱隔离 fallback。
-5. build-time canonical Python 绑定有效；runtime PATH 不能替换 interpreter，缺失 `jsonschema` 时构建或 preflight fail closed。
+5. build-time canonical Python/repository 绑定有效；runtime cwd/PATH 不能替换 runner/interpreter，缺失 `jsonschema` 时构建或 preflight fail closed；pre-exec dynamic-loader injection 属于调用方 sanitized-exec 前置条件，不计入进程内防御声明。
 6. trace channel 由 strace logger 和 parent 独占；worker 无 path/FD 能力修改它，篡改探针稳定失败。
 7. worker 不继承 network/io_uring FD；任一额外 `%network` 或 io_uring syscall 被阻断并使整个 slice 失败，network namespace 保证无法触达 host network。
 8. timeout、SIGINT、SIGTERM 后无 child、worker tmp、runtime root 或 caller TMPDIR residue。

@@ -6,7 +6,7 @@
 
 **Goal:** Replace the fail-open Shell runtime authority in Phase 1 Plan 01-03 with one fail-closed Rust supervisor that alone may publish `offline=true` and public exit `0`.
 
-**Architecture:** Keep the existing Bash/Python schema and fixture semantics behind a hidden worker protocol. A new `std + libc` Rust binary owns trusted launcher selection, sandbox construction, deadline, bounded pipes, trace and receipt parsing, process-tree cleanup, and the final positive-conjunction verdict. The Linux/WSL MVP uses fixed root-owned `bwrap`, `strace`, Bash, and `/bin/sh`; test-only launcher injection stays inside Rust tests and is never selected through production argv or environment.
+**Architecture:** Keep the existing Bash/Python schema and fixture semantics behind a hidden worker protocol. A new `std + libc` Rust binary owns the build-bound repository/runner, trusted launcher selection, sandbox construction, deadline, bounded pipes, trace and receipt parsing, process-tree cleanup, and the final positive-conjunction verdict. The Linux/WSL MVP uses fixed root-owned `bwrap`, `strace`, Bash, and `/bin/sh`; non-Linux builds expose only a fail-closed stub. Test-only launcher injection stays inside Rust tests and is never selected through production argv or environment.
 
 **Tech Stack:** Rust 1.96, Cargo locked/offline workspace, `std`, `libc`, Bash 5, Bubblewrap, strace, Python isolated mode with `jsonschema` Draft 2020-12, Linux process groups and namespaces.
 
@@ -501,7 +501,7 @@ impl Verdict {
 }
 ```
 
-`LaunchToken::generate()` uses `libc::SYS_getrandom`, retries `EINTR`, and requires 32 bytes. `parse_receipt()` returns `Early` when `observed_before_worker_exit` is true; otherwise it requires exactly one `complete:<64 lowercase hex>:<slice>\n` followed by EOF. The receipt reader records the timing bit when it observes its first byte, using the same child-exited atomic updated by the wait loop. `parse_trace()` accepts ASCII only, allows no unparsed non-empty line, and requires the first and only syscall to be injected `socket` returning `EPERM`; any additional `%network` or `io_uring_*` record returns `NetworkAttempt`.
+`LaunchToken::generate()` uses `libc::SYS_getrandom`, retries `EINTR`, and requires 32 bytes. `parse_receipt()` requires exactly one `complete:<64 lowercase hex>:<slice>\n` followed by EOF. The completion FD remains inside the trusted Rust worker-launcher and is `CLOEXEC` across the semantic Bash child, eliminating timing-window inference from untrusted code. `parse_trace()` accepts ASCII only, allows no unparsed non-empty line, and requires the first and only syscall to be the exact injected `AF_INET`/`SOCK_STREAM|SOCK_CLOEXEC` startup canary returning `EPERM`; any other `%network` or `io_uring_*` record returns `NetworkAttempt`.
 
 `is_authorized_success()` is one positive conjunction. `worker_exit` must equal `Code(80)`, `stderr` must equal `CompleteBounded`, and `stderr_empty` must be true. Unknown and future non-success variants return false.
 
@@ -515,13 +515,13 @@ verdict_each_required_component_failure_blocks_success
 verdict_worker_exit_zero_fails_closed
 verdict_unknown_states_fail_closed
 parse_receipt_accepts_exact_token_slice_eof
-parse_receipt_rejects_missing_early_duplicate_wrong_token_wrong_slice_trailing_and_oversized
+parse_receipt_rejects_missing_duplicate_wrong_token_wrong_slice_trailing_and_oversized
 parse_trace_accepts_exact_startup_canary_only
 parse_trace_rejects_extra_network_and_io_uring_attempts
 parse_trace_redacts_pid_args_and_invalid_utf8
 ```
 
-The verdict test starts from one all-success fixture and mutates launcher, sandbox, deadline, worker, trace channel, trace, receipt, stdout, stderr status, stderr emptiness, final-marker, process-tree, worker-tmp, and cleanup fields one at a time. Every mutation returns false. The receipt table calls the parser once with `observed_before_worker_exit=true` and requires `Early` even when the bytes are otherwise exact.
+The verdict test starts from one all-success fixture and mutates launcher, sandbox, deadline, worker, trace channel, trace, receipt, stdout, stderr status, stderr emptiness, final-marker, process-tree, worker-tmp, and cleanup fields one at a time. Every mutation returns false. The receipt table covers malformed and incomplete byte shapes; integration tests prove the semantic child cannot inherit or discover the completion descriptor.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -731,7 +731,7 @@ Add unit tests:
 ```text
 fake_noop_launcher_exit_zero_does_not_authorize
 fake_unknown_launcher_exit_fails_closed
-fake_receipt_variants_fail_closed
+fake_receipt_variants_and_semantic_fd_denial_fail_closed
 fake_output_and_trace_limits_trigger_cleanup
 fake_worker_fd_trace_forgery_cannot_mutate_parent_capture
 fake_leaked_guard_or_trace_fd_fails_attestation
@@ -739,7 +739,7 @@ fake_deadline_hang_and_term_resistant_descendant_are_reaped
 fake_runtime_cleanup_failure_overrides_success
 ```
 
-Each fake scenario creates actual child processes and pipes. It may not directly inject an all-success `Verdict`.
+Fake launcher scenarios drive the full orchestration through real pipes and scripted `RunningProcess` states; they may not directly inject an all-success `Verdict`. Separate real Linux integration tests own actual child-process, process-group, signal-escalation, and descendant-reaping coverage.
 
 - [ ] **Step 4: Verify fake failures and commit**
 
@@ -757,7 +757,7 @@ test -z "$(git diff --cached --name-only)"
 
 Expected: every adversarial scenario returns nonzero and no final marker.
 
-### Task 6: Move Bash Semantics Behind the Hidden Worker Protocol
+### Task 6: Move Bash Semantics Behind the Rust-Owned Hidden Worker Protocol
 
 **Files:**
 - Modify: `scripts/capability-governance-smoke.sh`
@@ -799,23 +799,21 @@ scripts/capability-governance-smoke.sh --internal-worker {schemas|fixture-shapes
 
 No public branch performs an implicit build, PATH lookup, timeout, strace, trace parsing, receipt parsing, or success printing.
 
-- [ ] **Step 3: Implement the inherited-FD worker handshake**
+- [ ] **Step 3: Implement the Rust-owned inherited-FD handshake**
 
-The hidden worker validates distinct numeric `KIANA_GOVERNANCE_LAUNCH_FD` and `KIANA_GOVERNANCE_COMPLETION_FD`, then reads one exact 64-lowercase-hex token line followed by EOF. It must use the exact `KIANA_GOVERNANCE_PYTHON` path with `-I`, not `python_bin()` or PATH.
+The Rust worker-launcher validates distinct numeric inherited descriptors, reads one exact 64-lowercase-hex token line followed by EOF, and retains the completion FD with `CLOEXEC`. It starts Bash with only fixed environment and stdio; launch/completion descriptors and their environment names must be absent in the semantic child. Bash must use the exact `KIANA_GOVERNANCE_PYTHON` path with `-I`, not `python_bin()` or PATH.
 
-Run the startup socket canary before any semantic function. Keep existing `run_schema_slice()` and `run_fixture_shape_slice()` bodies. On success:
+Run the startup socket canary before any semantic function. Keep existing `run_schema_slice()` and `run_fixture_shape_slice()` bodies. Bash reports semantic success only with exit `80`; it never writes a receipt. After Bash exits `80`, the Rust worker-launcher writes and closes:
 
-```bash
-printf 'complete:%s:%s\n' "$launch_token" "$slice" >&"$completion_fd"
-exec {completion_fd}>&-
-exit 80
+```text
+complete:<launch-token>:<slice>\n
 ```
 
 Remove Shell parent supervision, external `timeout`, trace files/parsers, completion FIFO, review/probe short-circuits, caller-authentication language, and every worker `offline=true` print.
 
 - [ ] **Step 4: Verify hidden-worker protocol**
 
-Use a short Python subprocess harness with `pass_fds` to prove: exact token gives one receipt plus exit `80`; missing/wrong/duplicate token fails; unknown slice fails; direct worker fails; no case prints the final marker. Then run:
+Use Rust and Linux integration tests to prove: exact token gives one receipt plus launcher exit `80`; missing/wrong/duplicate token fails; semantic Bash has no authority descriptors; unknown slice and direct worker fail; no case prints the final marker. Then run:
 
 ```bash
 ! rg -n \
@@ -895,13 +893,13 @@ The pipe command is a constant with no repo, slice, token, or caller interpolati
 
 - [ ] **Step 3: Implement `LinuxProcessLauncher` and internal helpers**
 
-Spawn fixed `/usr/bin/bwrap`. `pre_exec` performs only async-signal-safe process-group and FD operations. `trace_logger_main()` copies strace-owned stdin to stdout and never opens a file/network path. `worker_launcher_main()` applies `PR_SET_NO_NEW_PRIVS`, clears capabilities, redirects worker stdout/stderr, opens `/dev/null` for stdin, closes trace/guard/unexpected FDs, and `execve()`s:
+Spawn fixed `/usr/bin/bwrap`. `pre_exec` performs only async-signal-safe process-group and FD operations. `trace_logger_main()` copies strace-owned stdin to stdout and never opens a file/network path. `worker_launcher_main()` applies `PR_SET_NO_NEW_PRIVS`, clears capabilities, consumes the launch token, retains the completion FD as `CLOEXEC`, redirects worker stdout/stderr, opens `/dev/null` for stdin, closes trace/guard/unexpected FDs, and spawns/waits for:
 
 ```text
 /usr/bin/bash <canonical-runner> --internal-worker <slice>
 ```
 
-Never use `bash -c`.
+Never use `bash -c`. Only after Bash returns `80` may the Rust launcher write the exact completion receipt and return `80` itself.
 
 - [ ] **Step 4: Add prerequisite-aware Linux test setup**
 
@@ -915,9 +913,9 @@ Add:
 sandbox_plan_has_exact_fixed_argv_and_no_caller_interpolation
 sandbox_plan_injects_all_network_and_io_uring_calls
 trace_logger_copies_stdin_only_to_stdout
-worker_launcher_sets_no_new_privs_redirects_and_closes_fds
+worker_launcher_sets_no_new_privs_redirects_withholds_authority_fds
 worker_cannot_open_proc_or_dev_fd_trace_channel
-fixed_launchers_reject_path_and_loader_shims
+fixed_launchers_reject_path_and_runtime_environment_shims
 ```
 
 The argv test compares the complete vector: `--die-with-parent`, `--unshare-all`, `--clearenv`, read-only `/`, private `/dev`, empty read-only `/proc`, private `/tmp`, fixed home, read-only supervisor bind, worker tmp bind, canonical repo cwd, fixed environment, and the fixed trace-logger pipe command.
@@ -1034,7 +1032,7 @@ The Bash 5 fail-fast gate must verify:
 
 1. public missing/unknown usage returns `2`;
 2. missing fixed helper returns `1` and stable `supervisor_unavailable`;
-3. forged PATH, `BASH_ENV`, `ENV`, Python variables, loader variables, old review/worker variables, and caller `TMPDIR` cannot replace trusted objects or create false success;
+3. forged caller cwd, PATH, `BASH_ENV`, `ENV`, Python variables, old review/worker variables, and caller `TMPDIR` cannot replace trusted objects or create false success; pre-exec `LD_PRELOAD`/`LD_LIBRARY_PATH` injection is outside this already-loaded process boundary and requires caller-owned sanitized `execve`;
 4. direct hidden worker, bad handshake, no-op launcher, worker exit `0`, receipt variants, forged marker, output overflow, and trace forgery never yield public `0`;
 5. extra network/io_uring, hang, INT, TERM, trace-channel visibility, inherited FD, and residue Rust test filters pass with no skip;
 6. both public slices produce one Rust-owned final marker and no raw trace/token/PID/runtime path;
