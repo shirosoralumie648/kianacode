@@ -19,6 +19,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
@@ -413,7 +414,11 @@ def apply_semantic_mutations(document: Any, mutations: Sequence[Mapping[str, Any
     return result
 
 
-def load_fixture_bundle(path: Path) -> dict[str, Any]:
+def load_fixture_bundle(
+    path: Path,
+    *,
+    root: Path | None = None,
+) -> dict[str, Any]:
     value = load_json(path)
     if not isinstance(value, dict):
         raise GovernanceUsageError("fixture_invalid: root must be an object")
@@ -421,7 +426,8 @@ def load_fixture_bundle(path: Path) -> dict[str, Any]:
         base_raw = value["base_fixture"]
         if not isinstance(base_raw, str) or not validate_relative_path(base_raw):
             raise GovernanceUsageError("mutation_base_invalid: base_fixture must be relative")
-        base_path = resolve_repository_path(_repo_root(path.parent), base_raw)
+        repository_root = root.resolve() if root is not None else _repo_root(path.parent)
+        base_path = resolve_repository_path(repository_root, base_raw)
         base = load_json(base_path)
         mutations = value["mutations"]
         if not isinstance(mutations, list):
@@ -432,8 +438,14 @@ def load_fixture_bundle(path: Path) -> dict[str, Any]:
     return value
 
 
-def _load_structural_helper(root: Path) -> Any:
-    helper_path = root / "scripts/validate-json-schema.py"
+@lru_cache(maxsize=8)
+def _load_structural_helper_cached(
+    helper_path_text: str,
+    mtime_ns: int,
+    size: int,
+) -> Any:
+    del mtime_ns, size
+    helper_path = Path(helper_path_text)
     if not helper_path.is_file():
         raise GovernanceUsageError("structural_validator_missing: scripts/validate-json-schema.py")
     spec = importlib.util.spec_from_file_location("kiana_validate_json_schema", helper_path)
@@ -444,6 +456,44 @@ def _load_structural_helper(root: Path) -> Any:
     return module
 
 
+def _load_structural_helper(root: Path) -> Any:
+    helper_path = root / "scripts/validate-json-schema.py"
+    try:
+        stat = helper_path.stat()
+    except OSError as exc:
+        raise GovernanceUsageError("structural_validator_missing: scripts/validate-json-schema.py") from exc
+    return _load_structural_helper_cached(
+        str(helper_path),
+        stat.st_mtime_ns,
+        stat.st_size,
+    )
+
+
+@lru_cache(maxsize=32)
+def _load_structural_schema_cached(
+    schema_path_text: str,
+    mtime_ns: int,
+    size: int,
+) -> Any:
+    del mtime_ns, size
+    return load_json(Path(schema_path_text))
+
+
+def _load_structural_schema(root: Path, schema_rel: str) -> Any:
+    schema_path = root / schema_rel
+    try:
+        stat = schema_path.stat()
+    except OSError as exc:
+        raise GovernanceUsageError(
+            f"structural_schema_missing: {_sanitize_path_for_output(schema_rel)}"
+        ) from exc
+    return _load_structural_schema_cached(
+        str(schema_path),
+        stat.st_mtime_ns,
+        stat.st_size,
+    )
+
+
 def structural_errors(instance: Any, root: Path) -> list[GovernanceError]:
     if not isinstance(instance, dict):
         return [GovernanceError("schema_validation_failed", path="$", detail="root must be an object")]
@@ -452,7 +502,7 @@ def structural_errors(instance: Any, root: Path) -> list[GovernanceError]:
     if schema_rel is None:
         return [GovernanceError("schema_unknown", subject_id=schema_id or "", path="$.schema")]
     try:
-        schema = load_json(root / schema_rel)
+        schema = _load_structural_schema(root, schema_rel)
         helper = _load_structural_helper(root)
         messages = helper.validate(schema, instance, schema, "$")
     except GovernanceUsageError:
@@ -1241,7 +1291,7 @@ def validate_governance(
     *,
     root: Path | None = None,
 ) -> list[GovernanceError]:
-    root = _repo_root(root)
+    root = root.resolve() if root is not None else _repo_root()
     errors: list[GovernanceError] = []
     if not isinstance(bundle, Mapping):
         return [GovernanceError("bundle_invalid", path="$", detail="root must be an object")]
@@ -1302,7 +1352,7 @@ def _revision_chain_from_head(head_path: Path, root: Path) -> list[Mapping[str, 
 
 
 def validate_history_file(head_path: Path, *, root: Path | None = None) -> list[GovernanceError]:
-    root = _repo_root(root or head_path.parent)
+    root = root.resolve() if root is not None else _repo_root(head_path.parent)
     chain = _revision_chain_from_head(head_path.resolve(), root)
     schema_id = chain[-1].get("schema", "revision") if chain else "revision"
     family = {
@@ -1321,7 +1371,7 @@ def validate_history_file(head_path: Path, *, root: Path | None = None) -> list[
 
 
 def load_manifest_bundle(manifest_path: Path, *, root: Path | None = None) -> dict[str, Any]:
-    root = _repo_root(root or manifest_path.parent)
+    root = root.resolve() if root is not None else _repo_root(manifest_path.parent)
     manifest = load_json(manifest_path)
     if not isinstance(manifest, Mapping):
         raise GovernanceUsageError("manifest_invalid: root must be an object")
@@ -1414,6 +1464,42 @@ def repository_fingerprint(path: Path) -> dict[str, str]:
     return fingerprint
 
 
+def compare_repository_fingerprint(
+    repository: Mapping[str, Any],
+    fingerprint: Mapping[str, str] | None,
+    *,
+    observation_error: Exception | None = None,
+) -> list[GovernanceError]:
+    errors: list[GovernanceError] = []
+    repo_id = repository.get("repo_id", "")
+    raw_path = repository.get("path", "")
+    if fingerprint is None:
+        _error(
+            errors,
+            "source_unavailable",
+            repo_id,
+            raw_path,
+            observation_error or "source unavailable",
+            "stale",
+        )
+        return sorted_errors(errors)
+    if (
+        repository.get("revision_kind") == "git_commit"
+        and fingerprint.get("git_head") != repository.get("revision_value")
+    ):
+        _error(errors, "repository_head_drift", repo_id, raw_path, freshness="stale")
+    if fingerprint.get("tree_sha256") != repository.get("tree_sha256"):
+        tree_code = (
+            "content_tree_drift"
+            if repository.get("revision_kind") == "content_tree_sha256"
+            else "repository_tree_drift"
+        )
+        _error(errors, tree_code, repo_id, raw_path, freshness="stale")
+    if fingerprint.get("license_sha256") != repository.get("license_sha256"):
+        _error(errors, "license_hash_drift", repo_id, raw_path, freshness="stale")
+    return sorted_errors(errors)
+
+
 def detect_drift(
     bundle: Mapping[str, Any],
     *,
@@ -1437,7 +1523,6 @@ def detect_drift(
     registry_revisions = bundle.get("repository_registry_revisions") or []
     if registry_revisions:
         for repository in registry_revisions[-1].get("repositories", []):
-            repo_id = repository.get("repo_id", "")
             raw_path = repository.get("path", "")
             try:
                 relative = PurePosixPath(str(raw_path)).relative_to("reference")
@@ -1445,19 +1530,15 @@ def detect_drift(
                 live_path.relative_to(live_reference_root.resolve())
                 fingerprint = repository_fingerprint(live_path)
             except (ValueError, OSError, GovernanceUsageError) as exc:
-                _error(errors, "source_unavailable", repo_id, raw_path, exc, "stale")
-                continue
-            if repository.get("revision_kind") == "git_commit" and fingerprint.get("git_head") != repository.get("revision_value"):
-                _error(errors, "repository_head_drift", repo_id, raw_path, freshness="stale")
-            if fingerprint.get("tree_sha256") != repository.get("tree_sha256"):
-                tree_code = (
-                    "content_tree_drift"
-                    if repository.get("revision_kind") == "content_tree_sha256"
-                    else "repository_tree_drift"
+                errors.extend(
+                    compare_repository_fingerprint(
+                        repository,
+                        None,
+                        observation_error=exc,
+                    )
                 )
-                _error(errors, tree_code, repo_id, raw_path, freshness="stale")
-            if fingerprint.get("license_sha256") != repository.get("license_sha256"):
-                _error(errors, "license_hash_drift", repo_id, raw_path, freshness="stale")
+            else:
+                errors.extend(compare_repository_fingerprint(repository, fingerprint))
     decision_revisions = bundle.get("capability_decision_revisions") or []
     if decision_revisions:
         for decision in decision_revisions[-1].get("decisions", []):

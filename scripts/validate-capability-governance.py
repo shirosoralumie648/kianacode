@@ -12,6 +12,7 @@ from pathlib import Path
 # sibling production module from this trusted script directory, never from an
 # ambient PYTHONPATH or the caller's working directory.
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPOSITORY_ROOT = SCRIPT_DIR.parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -80,17 +81,26 @@ def main() -> int:
     try:
         if args.command == "validate":
             if args.fixture_bundle is not None:
-                bundle = load_fixture_bundle(args.fixture_bundle.resolve())
+                bundle = load_fixture_bundle(
+                    args.fixture_bundle.resolve(),
+                    root=REPOSITORY_ROOT,
+                )
             else:
-                bundle = load_manifest_bundle(args.manifest.resolve())
-            errors = validate_governance(bundle)
+                bundle = load_manifest_bundle(
+                    args.manifest.resolve(),
+                    root=REPOSITORY_ROOT,
+                )
+            errors = validate_governance(bundle, root=REPOSITORY_ROOT)
             report = validation_report("invalid" if errors else "valid", errors)
         elif args.command == "validate-history":
-            errors = validate_history_file(args.head.resolve())
+            errors = validate_history_file(args.head.resolve(), root=REPOSITORY_ROOT)
             report = validation_report("invalid" if errors else "valid", errors)
         else:
-            bundle = load_manifest_bundle(args.manifest.resolve())
-            semantic_errors = validate_governance(bundle)
+            bundle = load_manifest_bundle(
+                args.manifest.resolve(),
+                root=REPOSITORY_ROOT,
+            )
+            semantic_errors = validate_governance(bundle, root=REPOSITORY_ROOT)
             if semantic_errors:
                 report = validation_report("invalid", semantic_errors)
             else:

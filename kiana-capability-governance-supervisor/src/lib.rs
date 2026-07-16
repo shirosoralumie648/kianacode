@@ -53,6 +53,7 @@ pub enum Slice {
     FixtureShapes,
     PublicBaseline,
     ReferenceGovernance,
+    SemanticNegative,
 }
 
 impl Slice {
@@ -62,6 +63,7 @@ impl Slice {
             "fixture-shapes" => Ok(Self::FixtureShapes),
             "public-baseline" => Ok(Self::PublicBaseline),
             "reference-governance" => Ok(Self::ReferenceGovernance),
+            "semantic-negative" => Ok(Self::SemanticNegative),
             _ => Err(UsageError),
         }
     }
@@ -72,6 +74,7 @@ impl Slice {
             Self::FixtureShapes => "fixture-shapes",
             Self::PublicBaseline => "public-baseline",
             Self::ReferenceGovernance => "reference-governance",
+            Self::SemanticNegative => "semantic-negative",
         }
     }
 

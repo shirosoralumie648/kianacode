@@ -10,20 +10,20 @@ ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 cd "$ROOT"
 
 usage() {
-  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance}" >&2
+  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative}" >&2
 }
 
 if (($# == 2)) && [[ "${1:-}" == "--internal-worker" ]]; then
   slice="$2"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative) ;;
     *) echo "supervisor_worker_invalid: unknown slice" >&2; exit 1 ;;
   esac
   worker_mode=1
 elif (($# == 1)); then
   slice="$1"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative) ;;
     *) usage; exit 2 ;;
   esac
   supervisor_bin="$ROOT/target/debug/kiana-capability-governance-supervisor"
@@ -1158,11 +1158,25 @@ run_reference_governance_slice() {
   echo "OK: production reference-governance semantics accept the 38-repository fixture"
 }
 
+run_semantic_negative_slice() {
+  local before after
+  before="$(protected_hashes)"
+
+  run_python scripts/run-capability-governance-corpus.py --temp-root "$tmp_dir"
+
+  after="$(protected_hashes)"
+  if [[ "$before" != "$after" ]]; then
+    echo "protected_input_modified: semantic-negative execution changed a protected input" >&2
+    return 1
+  fi
+}
+
 case "$slice" in
   schemas) run_schema_slice ;;
   fixture-shapes) run_fixture_shape_slice ;;
   public-baseline) run_public_baseline_slice ;;
   reference-governance) run_reference_governance_slice ;;
+  semantic-negative) run_semantic_negative_slice ;;
 esac
 
 # The Rust worker launcher owns the completion receipt. The semantic worker can
