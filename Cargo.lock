@@ -2415,6 +2415,13 @@ dependencies = [
 [[package]]
 name = "kiana-capability-broker"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "kiana-domain",
+ "kiana-ports",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "kiana-capability-governance-supervisor"
@@ -2590,6 +2597,13 @@ dependencies = [
 [[package]]
 name = "kiana-eventlog"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "kiana-domain",
+ "kiana-ports",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "kiana-gates"
@@ -2630,6 +2644,12 @@ dependencies = [
 [[package]]
 name = "kiana-ports"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "kiana-domain",
+ "kiana-runner-protocol",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "kiana-protocol"
