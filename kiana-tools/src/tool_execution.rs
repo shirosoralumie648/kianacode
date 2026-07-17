@@ -1581,6 +1581,9 @@ mod tests {
         let mut registry = ToolRegistry::new();
         registry.register(Arc::new(TestWriteTool));
         let mut context = test_context(&root);
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
 
         let result = execute_tool_call_with_permission_handler(
             &registry,
@@ -1664,6 +1667,9 @@ mod tests {
         let mut registry = ToolRegistry::new();
         registry.register(Arc::new(TestWriteTool));
         let mut context = test_context(&root);
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
 
         let result = execute_tool_call_with_permission_handler(
             &registry,
@@ -1707,6 +1713,9 @@ mod tests {
         let mut registry = ToolRegistry::new();
         registry.register(Arc::new(TestWriteTool));
         let mut context = test_context(&root);
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
         context.app_state.insert(
             PERMISSION_PROMPT_TOOL_APP_STATE_KEY.to_string(),
             json!("stdio"),
@@ -1801,6 +1810,9 @@ mod tests {
         let mut registry = ToolRegistry::new();
         registry.register(Arc::new(TestWriteTool));
         let mut context = test_context(&root);
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
 
         let result = execute_tool_call_with_permission_handler(
             &registry,

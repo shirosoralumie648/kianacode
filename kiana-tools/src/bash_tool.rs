@@ -1,6 +1,6 @@
 use crate::bash_sandbox::{
     bash_sandbox_allow_unsandboxed_commands, bash_sandbox_bwrap_path, bash_sandbox_enabled,
-    bash_sandbox_fail_if_unavailable,
+    bash_sandbox_fail_if_unavailable, strict_bwrap_plan,
 };
 use crate::shell::preferred_bash_program;
 use crate::tool::*;
@@ -501,44 +501,23 @@ fn bash_command_plan(
         &cwd,
     )?;
     let read_roots = bash_sandbox_read_roots(additional_grants.read_roots, &writable_roots)?;
-    let mut args = vec![
-        OsString::from("--die-with-parent"),
-        OsString::from("--unshare-all"),
-        OsString::from("--ro-bind"),
-        OsString::from("/"),
-        OsString::from("/"),
-    ];
+    let mut inner_args = inner_args.into_iter();
+    let program = inner_args.next().unwrap_or_else(preferred_bash_program);
+    let mut plan = strict_bwrap_plan(
+        &bwrap,
+        &cwd,
+        &read_roots,
+        &writable_roots,
+        program,
+        inner_args.collect(),
+    )?;
     if additional_grants.network_enabled {
-        args.push(OsString::from("--share-net"));
+        plan.share_network();
     }
-    for root in writable_roots {
-        args.push(OsString::from("--bind"));
-        args.push(root.as_os_str().to_os_string());
-        args.push(root.as_os_str().to_os_string());
-    }
-    for root in read_roots {
-        args.push(OsString::from("--ro-bind"));
-        args.push(root.as_os_str().to_os_string());
-        args.push(root.as_os_str().to_os_string());
-    }
-    args.extend([
-        OsString::from("--dev"),
-        OsString::from("/dev"),
-        OsString::from("--proc"),
-        OsString::from("/proc"),
-        OsString::from("--tmpfs"),
-        OsString::from("/tmp"),
-        OsString::from("--chdir"),
-        cwd.as_os_str().to_os_string(),
-        OsString::from("--setenv"),
-        OsString::from("KIANA_SANDBOX"),
-        OsString::from("bwrap"),
-    ]);
-    args.extend(inner_args);
 
     Ok(BashCommandPlan {
-        program: bwrap.into_os_string(),
-        args,
+        program: plan.program.into_os_string(),
+        args: plan.args,
         sandboxed: true,
         sandbox_name: "bwrap",
     })
@@ -1150,8 +1129,40 @@ mod tests {
     use crate::{Tool, ToolContext};
     use serde_json::{json, Value};
     use std::collections::HashMap;
+    use std::ffi::OsString;
     use std::fs;
     use uuid::Uuid;
+
+    struct EnvSnapshot {
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvSnapshot {
+        fn set(values: &[(&'static str, Option<OsString>)]) -> Self {
+            let previous = values
+                .iter()
+                .map(|(key, _)| (*key, std::env::var_os(key)))
+                .collect::<Vec<_>>();
+            for (key, value) in values {
+                match value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
+            Self { values: previous }
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (key, value) in &self.values {
+                match value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
 
     fn test_context(root: &std::path::Path) -> ToolContext {
         test_context_with_cwd(root, &std::env::current_dir().unwrap())
@@ -1371,13 +1382,11 @@ mod tests {
 
     #[tokio::test]
     async fn sandboxed_foreground_bash_writes_only_bound_workspace() {
+        let _guard = crate::test_support::lock_env();
         if find_on_path("bwrap").is_none() {
             return;
         }
-        let root = std::env::current_dir()
-            .unwrap()
-            .join("target")
-            .join(format!("kiana-bash-sandbox-test-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("kiana-bash-sandbox-test-{}", Uuid::new_v4()));
         let workspace = root.join("workspace");
         let blocked = root.join("blocked");
         fs::create_dir_all(&workspace).unwrap();
@@ -1413,13 +1422,12 @@ mod tests {
 
     #[tokio::test]
     async fn sandboxed_bash_honors_additional_write_permissions() {
+        let _guard = crate::test_support::lock_env();
         if find_on_path("bwrap").is_none() {
             return;
         }
-        let root = std::env::current_dir()
-            .unwrap()
-            .join("target")
-            .join(format!("kiana-bash-additional-test-{}", Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("kiana-bash-additional-test-{}", Uuid::new_v4()));
         let workspace = root.join("workspace");
         let extra = root.join("extra");
         let blocked = root.join("blocked");
@@ -1451,10 +1459,123 @@ mod tests {
             .unwrap();
 
         assert_eq!(output.data["sandboxed"], true);
-        assert_eq!(fs::read_to_string(extra_file).unwrap(), "extra");
+        let extra_contents = fs::read_to_string(&extra_file).unwrap_or_else(|error| {
+            panic!(
+                "failed to read additional sandbox output {}: {error}; tool_output={}",
+                extra_file.display(),
+                output.data
+            )
+        });
+        assert_eq!(extra_contents, "extra");
         assert!(!blocked_file.exists());
         assert_ne!(output.data["exit_code"], 0);
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn sandboxed_bash_keeps_writable_child_under_readonly_parent() {
+        let _guard = crate::test_support::lock_env();
+        if find_on_path("bwrap").is_none() {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!(
+            "kiana-bash-overlapping-permissions-test-{}",
+            Uuid::new_v4()
+        ));
+        let workspace = root.join("workspace");
+        let read_parent = root.join("shared");
+        let write_child = read_parent.join("writable");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&write_child).unwrap();
+        let mut context = sandbox_context(&root.join("bg"), &workspace);
+        let output_file = write_child.join("allowed.txt");
+
+        let output = BashTool::new()
+            .call(
+                &json!({
+                    "command": format!("printf nested > {}", shell_quote_path(&output_file)),
+                    "sandbox_permissions": "with_additional_permissions",
+                    "additional_permissions": {
+                        "file_system": {
+                            "read": [read_parent],
+                            "write": [write_child]
+                        }
+                    }
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(output.data["sandboxed"], true);
+        assert_eq!(output.data["exit_code"], 0, "tool_output={}", output.data);
+        assert_eq!(fs::read_to_string(&output_file).unwrap(), "nested");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn enabled_sandbox_without_runtime_fails_closed_by_default() {
+        let _guard = crate::test_support::lock_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-bash-missing-runtime-test-{}",
+            Uuid::new_v4()
+        ));
+        let empty_path = root.join("empty-path");
+        fs::create_dir_all(&empty_path).unwrap();
+        let _env = EnvSnapshot::set(&[
+            ("PATH", Some(empty_path.into_os_string())),
+            ("KIANA_BWRAP_PATH", None),
+            ("KIANA_BASH_PATH", Some(OsString::from("/bin/bash"))),
+        ]);
+        let mut context = test_context_with_cwd(&root.join("bg"), &root);
+        context
+            .app_state
+            .insert("sandbox".to_string(), json!({"enabled": true}));
+
+        let error = BashTool::new()
+            .call(&json!({"command": "printf denied"}), &mut context)
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("allow_unsandboxed_commands is false"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn enabled_sandbox_without_runtime_allows_explicit_unsandboxed_fallback() {
+        let _guard = crate::test_support::lock_env();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-bash-explicit-fallback-test-{}",
+            Uuid::new_v4()
+        ));
+        let empty_path = root.join("empty-path");
+        fs::create_dir_all(&empty_path).unwrap();
+        let _env = EnvSnapshot::set(&[
+            ("PATH", Some(empty_path.into_os_string())),
+            ("KIANA_BWRAP_PATH", None),
+            ("KIANA_BASH_PATH", Some(OsString::from("/bin/bash"))),
+        ]);
+        let mut context = test_context_with_cwd(&root.join("bg"), &root);
+        context.app_state.insert(
+            "sandbox".to_string(),
+            json!({
+                "enabled": true,
+                "allowUnsandboxedCommands": true
+            }),
+        );
+
+        let output = BashTool::new()
+            .call(&json!({"command": "printf fallback"}), &mut context)
+            .await
+            .unwrap();
+
+        assert_eq!(output.data["sandboxed"], false);
+        assert_eq!(output.data["sandbox"], "none");
+        assert_eq!(output.data["exit_code"], 0);
+        assert_eq!(output.data["stdout"], "fallback");
         let _ = fs::remove_dir_all(root);
     }
 
@@ -1575,6 +1696,35 @@ mod tests {
             .to_string();
 
         assert!(error.contains("allow_unsandboxed_commands is false"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn sandbox_allows_require_escalated_when_unsandboxed_commands_are_enabled() {
+        let root = std::env::temp_dir().join(format!("kiana-bash-test-{}", Uuid::new_v4()));
+        let mut context = sandbox_context(&root, &std::env::current_dir().unwrap());
+        context.app_state.insert(
+            "sandbox".to_string(),
+            json!({
+                "enabled": true,
+                "allowUnsandboxedCommands": true
+            }),
+        );
+
+        let output = BashTool::new()
+            .call(
+                &json!({
+                    "command": "printf escalated",
+                    "sandbox_permissions": "require_escalated"
+                }),
+                &mut context,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(output.data["sandboxed"], false);
+        assert_eq!(output.data["sandbox"], "none");
+        assert_eq!(output.data["stdout"], "escalated");
         let _ = fs::remove_dir_all(root);
     }
 }

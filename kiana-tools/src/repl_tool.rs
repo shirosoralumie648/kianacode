@@ -336,6 +336,9 @@ mod tests {
         let file = root.join("note.txt");
         fs::write(&file, "hello world\n").unwrap();
         let mut context = test_context(root.to_string_lossy().to_string());
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
 
         let output = ReplTool::new()
             .call(
@@ -402,6 +405,9 @@ mod tests {
         context
             .app_state
             .insert("permission_mode".to_string(), json!("ask"));
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
         context.app_state.insert(
             PERMISSION_PROMPT_TOOL_APP_STATE_KEY.to_string(),
             json!("perm.approve"),

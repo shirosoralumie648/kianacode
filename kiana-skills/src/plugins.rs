@@ -188,7 +188,9 @@ fn enabled_plugin_roots_for_cwd(
 }
 
 fn scoped_plugin_root_dirs(cwd: &Path, project_trust: kiana_types::ProjectTrust) -> Vec<PathBuf> {
-    let mut roots = vec![kiana_types::plugin::plugins_dir()];
+    let mut roots = kiana_types::plugin::user_plugins_dir()
+        .into_iter()
+        .collect::<Vec<_>>();
     if project_trust.allows_project_resources() {
         roots.push(cwd.join(".kiana").join("plugins"));
         roots.push(cwd.join(".kiana").join("plugins.local"));

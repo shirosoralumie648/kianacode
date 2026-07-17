@@ -4197,6 +4197,9 @@ mod tests {
         .unwrap();
 
         let mut context = test_context_with_cwd(root.to_string_lossy().to_string());
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
         let tool = SkillTool::new();
         let validation = tool
             .validate_input(&json!({ "skill": "/refactor" }), &context)
@@ -4320,7 +4323,10 @@ mod tests {
         )
         .unwrap();
 
-        let context = test_context_with_cwd(root.to_string_lossy().to_string());
+        let mut context = test_context_with_cwd(root.to_string_lossy().to_string());
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
         let validation = SkillTool::new()
             .validate_input(&json!({ "skill": "deploy" }), &context)
             .await;

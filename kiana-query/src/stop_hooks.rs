@@ -2070,12 +2070,20 @@ mod tests {
         );
 
         let untrusted = run_session_start_hooks(make_session_start_ctx(
-            project,
+            project.clone(),
             kiana_types::ProjectTrust::Untrusted,
         ))
         .await
         .unwrap();
         assert_eq!(untrusted, vec!["home session context".to_string()]);
+
+        let unknown = run_session_start_hooks(make_session_start_ctx(
+            project,
+            kiana_types::ProjectTrust::Unknown,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(unknown, vec!["home session context".to_string()]);
 
         match previous_home {
             Some(value) => std::env::set_var("HOME", value),
@@ -2133,7 +2141,7 @@ mod tests {
         assert_eq!(trusted.updated_prompt.as_deref(), Some("project prompt"));
 
         let untrusted = run_user_prompt_submit_hooks(make_user_prompt_submit_ctx(
-            project,
+            project.clone(),
             kiana_types::ProjectTrust::Untrusted,
         ))
         .await
@@ -2143,6 +2151,18 @@ mod tests {
             vec!["home prompt context".to_string()]
         );
         assert_eq!(untrusted.updated_prompt.as_deref(), Some("home prompt"));
+
+        let unknown = run_user_prompt_submit_hooks(make_user_prompt_submit_ctx(
+            project,
+            kiana_types::ProjectTrust::Unknown,
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            unknown.add_contexts,
+            vec!["home prompt context".to_string()]
+        );
+        assert_eq!(unknown.updated_prompt.as_deref(), Some("home prompt"));
 
         match previous_home {
             Some(value) => std::env::set_var("HOME", value),
@@ -2196,7 +2216,7 @@ mod tests {
         assert!(trusted_reason.contains("project post hook blocked"));
 
         let untrusted = run_post_tool_use_hooks(make_post_tool_ctx(
-            project,
+            project.clone(),
             kiana_types::ProjectTrust::Untrusted,
         ))
         .await;
@@ -2205,6 +2225,17 @@ mod tests {
         };
         assert!(untrusted_reason.contains("home post hook blocked"));
         assert!(!untrusted_reason.contains("project post hook blocked"));
+
+        let unknown = run_post_tool_use_hooks(make_post_tool_ctx(
+            project,
+            kiana_types::ProjectTrust::Unknown,
+        ))
+        .await;
+        let ToolHookDecision::Block(unknown_reason) = unknown else {
+            panic!("expected unknown-trust hooks to block on home only, got {unknown:?}");
+        };
+        assert!(unknown_reason.contains("home post hook blocked"));
+        assert!(!unknown_reason.contains("project post hook blocked"));
 
         match previous_home {
             Some(value) => std::env::set_var("HOME", value),

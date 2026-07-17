@@ -38,7 +38,12 @@ struct SkillRegistry {
 /// Load all skills from the standard directories (user + project).
 /// Results are cached per working directory for the process lifetime.
 pub async fn load_all_skills(cwd: impl AsRef<Path>) -> Vec<Command> {
-    load_all_skills_with_trust(cwd, kiana_types::ProjectTrust::Trusted).await
+    let cwd = cwd.as_ref();
+    let project_trust = kiana_types::read_project_trust(cwd)
+        .ok()
+        .flatten()
+        .unwrap_or(kiana_types::ProjectTrust::Unknown);
+    load_all_skills_with_trust(cwd, project_trust).await
 }
 
 /// Load all skills while honoring the caller's project trust decision.
@@ -125,7 +130,8 @@ pub fn clear_caches() {
 #[cfg(test)]
 mod tests {
     use super::{
-        clear_caches, get_skill_dirs_with_trust, load_all_skills, load_all_skills_with_trust,
+        clear_caches, get_skill_dirs, get_skill_dirs_with_trust, load_all_skills,
+        load_all_skills_with_trust, register_bundled_skill, BundledSkill,
     };
     use kiana_types::trust::ProjectTrust;
     use std::fs;
@@ -188,14 +194,59 @@ mod tests {
         )
         .unwrap();
 
-        let first_skills = load_all_skills(&first).await;
-        let second_skills = load_all_skills(&second).await;
+        let first_skills = load_all_skills_with_trust(&first, ProjectTrust::Trusted).await;
+        let second_skills = load_all_skills_with_trust(&second, ProjectTrust::Trusted).await;
 
         assert!(first_skills.iter().any(|skill| skill.name == first_name));
         assert!(!first_skills.iter().any(|skill| skill.name == second_name));
         assert!(second_skills.iter().any(|skill| skill.name == second_name));
         assert!(!second_skills.iter().any(|skill| skill.name == first_name));
 
+        clear_caches();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn load_all_skills_default_uses_external_project_trust() {
+        let _guard = env_guard().await;
+        clear_caches();
+        let root =
+            std::env::temp_dir().join(format!("kiana-skills-default-trust-{}", Uuid::new_v4()));
+        let cwd = root.join("project");
+        let kiana_home = root.join("kiana-home");
+        let project_skill = cwd.join(".claude").join("skills").join("project-audit");
+        let user_skill = kiana_home.join("skills").join("home-review");
+        fs::create_dir_all(cwd.join(".git")).unwrap();
+        fs::create_dir_all(&project_skill).unwrap();
+        fs::create_dir_all(&user_skill).unwrap();
+        fs::write(project_skill.join("SKILL.md"), "# Project audit\n").unwrap();
+        fs::write(user_skill.join("SKILL.md"), "# Home review\n").unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+
+        let unknown_dirs = get_skill_dirs(&cwd).await;
+        assert!(!unknown_dirs
+            .iter()
+            .any(|dir| dir.starts_with(cwd.join(".claude"))));
+        let unknown_skills = load_all_skills(&cwd).await;
+        assert!(unknown_skills
+            .iter()
+            .any(|skill| skill.name == "home-review"));
+        assert!(!unknown_skills
+            .iter()
+            .any(|skill| skill.name == "project-audit"));
+
+        kiana_types::write_project_trust(&cwd, ProjectTrust::Trusted).unwrap();
+        clear_caches();
+        let trusted_dirs = get_skill_dirs(&cwd).await;
+        assert!(trusted_dirs
+            .iter()
+            .any(|dir| dir.starts_with(cwd.join(".claude"))));
+        let trusted_skills = load_all_skills(&cwd).await;
+        assert!(trusted_skills
+            .iter()
+            .any(|skill| skill.name == "project-audit"));
+
+        std::env::remove_var("KIANA_HOME");
         clear_caches();
         let _ = fs::remove_dir_all(root);
     }
@@ -307,7 +358,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn untrusted_project_filters_project_skills_but_keeps_user_skills() {
+    async fn unknown_and_untrusted_projects_filter_project_skills_but_keep_safe_skills() {
         let _guard = env_guard().await;
         clear_caches();
         let root = std::env::temp_dir().join(format!("kiana-skills-trust-{}", Uuid::new_v4()));
@@ -315,27 +366,86 @@ mod tests {
         let kiana_home = root.join("kiana-home");
         let project_skill = cwd.join(".claude").join("skills").join("project-audit");
         let user_skill = kiana_home.join("skills").join("home-review");
+        let bundled_name = format!("bundled-review-{}", Uuid::new_v4());
         fs::create_dir_all(&project_skill).unwrap();
         fs::create_dir_all(&user_skill).unwrap();
         fs::write(project_skill.join("SKILL.md"), "# Project audit\n").unwrap();
         fs::write(user_skill.join("SKILL.md"), "# Home review\n").unwrap();
+        register_bundled_skill(BundledSkill {
+            name: bundled_name.clone(),
+            description: "Bundled review".to_string(),
+            when_to_use: None,
+            argument_hint: None,
+            allowed_tools: Vec::new(),
+            model: None,
+            disable_model_invocation: false,
+            user_invocable: true,
+            context: None,
+            content: "Bundled review body".to_string(),
+        });
 
         std::env::set_var("KIANA_HOME", &kiana_home);
 
+        let project_skills_dir = cwd.join(".claude").join("skills");
         let trusted_dirs = get_skill_dirs_with_trust(&cwd, ProjectTrust::Trusted).await;
-        let untrusted_dirs = get_skill_dirs_with_trust(&cwd, ProjectTrust::Untrusted).await;
-        assert!(trusted_dirs
-            .iter()
-            .any(|dir| dir.ends_with(".claude/skills")));
-        assert!(!untrusted_dirs
-            .iter()
-            .any(|dir| dir.ends_with(".claude/skills")));
+        assert!(trusted_dirs.contains(&project_skills_dir));
+        for project_trust in [ProjectTrust::Unknown, ProjectTrust::Untrusted] {
+            let dirs = get_skill_dirs_with_trust(&cwd, project_trust).await;
+            assert!(!dirs.contains(&project_skills_dir));
 
-        let skills = load_all_skills_with_trust(&cwd, ProjectTrust::Untrusted).await;
-        assert!(skills.iter().any(|skill| skill.name == "home-review"));
-        assert!(!skills.iter().any(|skill| skill.name == "project-audit"));
+            let skills = load_all_skills_with_trust(&cwd, project_trust).await;
+            assert!(skills.iter().any(|skill| skill.name == "home-review"));
+            assert!(skills.iter().any(|skill| skill.name == bundled_name));
+            assert!(!skills.iter().any(|skill| skill.name == "project-audit"));
+        }
 
         std::env::remove_var("KIANA_HOME");
+        clear_caches();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn trusted_nested_git_project_skills_stop_at_project_trust_root() {
+        let _guard = env_guard().await;
+        clear_caches();
+        let root = std::env::temp_dir().join(format!("kiana-skills-trust-root-{}", Uuid::new_v4()));
+        let parent = root.join("parent");
+        let child = parent.join("child");
+        let work = child.join("work");
+        let parent_skills = parent.join(".claude").join("skills");
+        let child_root_skills = child.join(".claude").join("skills");
+        let child_cwd_skills = work.join(".claude").join("skills");
+
+        fs::create_dir_all(parent_skills.join("parent-skill")).unwrap();
+        fs::create_dir_all(child.join(".git")).unwrap();
+        fs::create_dir_all(child_root_skills.join("child-root-skill")).unwrap();
+        fs::create_dir_all(child_cwd_skills.join("child-cwd-skill")).unwrap();
+        fs::write(
+            parent_skills.join("parent-skill").join("SKILL.md"),
+            "# Parent skill\n",
+        )
+        .unwrap();
+        fs::write(
+            child_root_skills.join("child-root-skill").join("SKILL.md"),
+            "# Child root skill\n",
+        )
+        .unwrap();
+        fs::write(
+            child_cwd_skills.join("child-cwd-skill").join("SKILL.md"),
+            "# Child cwd skill\n",
+        )
+        .unwrap();
+
+        let dirs = get_skill_dirs_with_trust(&work, ProjectTrust::Trusted).await;
+        assert!(!dirs.contains(&parent_skills));
+        assert!(dirs.contains(&child_root_skills));
+        assert!(dirs.contains(&child_cwd_skills));
+
+        let skills = load_all_skills_with_trust(&work, ProjectTrust::Trusted).await;
+        assert!(!skills.iter().any(|skill| skill.name == "parent-skill"));
+        assert!(skills.iter().any(|skill| skill.name == "child-root-skill"));
+        assert!(skills.iter().any(|skill| skill.name == "child-cwd-skill"));
+
         clear_caches();
         let _ = fs::remove_dir_all(root);
     }

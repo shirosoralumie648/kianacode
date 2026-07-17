@@ -2219,6 +2219,8 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn task_tools_manage_background_bash_tasks() {
+        // Other tests temporarily replace process-wide PATH while holding this lock.
+        let _env_lock = crate::test_support::lock_env();
         let root = std::env::temp_dir().join(format!("kiana-task-bg-{}", Uuid::new_v4()));
         let mut context = test_context_with_background_root(&root);
 

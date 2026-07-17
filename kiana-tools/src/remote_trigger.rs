@@ -412,6 +412,9 @@ mod tests {
         context
             .app_state
             .insert("permission_mode".to_string(), json!("plan"));
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
         let tool = RemoteTriggerTool::new();
 
         let read = tool

@@ -4,7 +4,9 @@ use crate::{
     tool::*,
 };
 use async_trait::async_trait;
-use kiana_types::{project_trust_from_app_state, ProjectTrust};
+use kiana_types::{
+    project_trust_from_app_state, project_trust_root, read_project_trust, ProjectTrust,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -379,11 +381,10 @@ impl Tool for AgentTool {
                 .filter(|cwd| !cwd.is_empty())
                 .map(|cwd| context.resolve_path(cwd))
                 .unwrap_or_else(|| PathBuf::from(&context.cwd));
-            if let Err(error) = resolve_agent_definition_with_trust(
-                &agent_type,
-                &cwd,
-                project_trust_from_app_state(&context.app_state),
-            ) {
+            let project_trust = project_trust_for_agent_cwd(context, &cwd);
+            if let Err(error) =
+                resolve_agent_definition_with_trust(&agent_type, &cwd, project_trust)
+            {
                 return ValidationResult::err(error, 5);
             }
         }
@@ -396,7 +397,7 @@ impl Tool for AgentTool {
         let prompt = normalized_prompt(&input)
             .ok_or_else(|| ToolError::ValidationError("prompt cannot be empty".to_string()))?;
         let base_cwd = agent_cwd(&input, context)?;
-        let project_trust = project_trust_from_app_state(&context.app_state);
+        let project_trust = project_trust_for_agent_cwd(context, &base_cwd);
         let mut agent_definition =
             if let Some(agent_type) = normalized_optional(input.subagent_type.as_deref()) {
                 Some(
@@ -414,7 +415,7 @@ impl Tool for AgentTool {
             .unwrap_or_else(|| base_cwd.clone());
         let description = normalized_description(&input, agent_definition.as_ref(), &prompt);
         let preloaded_skills =
-            preload_agent_skills(agent_definition.as_ref(), &base_cwd, &context.app_state).await;
+            preload_agent_skills(agent_definition.as_ref(), &base_cwd, project_trust).await;
         let agent_mcp_servers = resolve_agent_mcp_servers(agent_definition.as_ref(), context);
         let runs_in_background = input.run_in_background
             || agent_definition
@@ -1642,7 +1643,7 @@ fn json_string<T: Serialize + ?Sized>(value: &T) -> ToolResult<String> {
 async fn preload_agent_skills(
     agent: Option<&AgentDefinition>,
     cwd: &Path,
-    app_state: &HashMap<String, Value>,
+    project_trust: ProjectTrust,
 ) -> Vec<PreloadedSkill> {
     let Some(agent) = agent else {
         return Vec::new();
@@ -1651,9 +1652,7 @@ async fn preload_agent_skills(
         return Vec::new();
     }
 
-    let commands =
-        kiana_skills::load_all_skills_with_trust(cwd, project_trust_from_app_state(app_state))
-            .await;
+    let commands = kiana_skills::load_all_skills_with_trust(cwd, project_trust).await;
     let mut preloaded = Vec::new();
     for requested in &agent.skills {
         let Some(command) = resolve_agent_skill(requested, &commands) else {
@@ -1669,6 +1668,18 @@ async fn preload_agent_skills(
         });
     }
     preloaded
+}
+
+fn project_trust_for_agent_cwd(context: &ToolContext, agent_cwd: &Path) -> ProjectTrust {
+    let context_root = project_trust_root(PathBuf::from(&context.cwd));
+    let agent_root = project_trust_root(agent_cwd);
+    if context_root == agent_root {
+        return project_trust_from_app_state(&context.app_state);
+    }
+    read_project_trust(agent_cwd)
+        .ok()
+        .flatten()
+        .unwrap_or(ProjectTrust::Unknown)
 }
 
 fn resolve_agent_skill<'a>(
@@ -3668,20 +3679,32 @@ fn agent_dirs_with_trust(cwd: &Path, project_trust: ProjectTrust) -> Vec<PathBuf
     );
 
     if project_trust.allows_project_resources() {
-        let mut ancestors = Vec::new();
-        let mut current = Some(cwd);
-        while let Some(dir) = current {
-            ancestors.push(dir.to_path_buf());
-            current = dir.parent();
-        }
-        ancestors.reverse();
-        for dir in &ancestors {
-            push_existing_agent_dir(&mut dirs, Some(dir.join(".kiana").join("agents")));
-            push_existing_agent_dir(&mut dirs, Some(dir.join(".claude").join("agents")));
-        }
-        for dir in &ancestors {
-            push_existing_agent_dir(&mut dirs, Some(dir.join(".kiana").join("agents-local")));
-            push_existing_agent_dir(&mut dirs, Some(dir.join(".claude").join("agents-local")));
+        if let Ok(cwd) = fs::canonicalize(cwd) {
+            let trust_root = project_trust_root(&cwd);
+            let mut ancestors = Vec::new();
+            for dir in cwd.ancestors() {
+                ancestors.push(dir.to_path_buf());
+                if dir == trust_root {
+                    break;
+                }
+            }
+            if ancestors.last().is_some_and(|dir| dir == &trust_root) {
+                ancestors.reverse();
+                for dir in &ancestors {
+                    push_existing_agent_dir(&mut dirs, Some(dir.join(".kiana").join("agents")));
+                    push_existing_agent_dir(&mut dirs, Some(dir.join(".claude").join("agents")));
+                }
+                for dir in &ancestors {
+                    push_existing_agent_dir(
+                        &mut dirs,
+                        Some(dir.join(".kiana").join("agents-local")),
+                    );
+                    push_existing_agent_dir(
+                        &mut dirs,
+                        Some(dir.join(".claude").join("agents-local")),
+                    );
+                }
+            }
         }
     }
     dedupe_paths(dirs)
@@ -3794,11 +3817,13 @@ fn now_unix_seconds() -> u64 {
 mod tests {
     use super::{
         agent_cli_args, agent_runner_script, claude_code_guide_context_prompt,
-        resolve_agent_definition, AgentDefinition, AgentInput, AgentTool, TeamAgentRuntime,
+        resolve_agent_definition, resolve_agent_definition_with_trust, AgentDefinition, AgentInput,
+        AgentTool, TeamAgentRuntime,
     };
     use crate::task_output::TaskOutputTool;
     use crate::team_create::TeamCreateTool;
     use crate::{Tool, ToolContext};
+    use kiana_types::ProjectTrust;
     use serde_json::{json, Value};
     use std::collections::HashMap;
     use std::fs;
@@ -3855,6 +3880,12 @@ mod tests {
             ]),
             abort_signal: abort_rx,
         }
+    }
+
+    fn trust_project(context: &mut ToolContext) {
+        context
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
     }
 
     fn read_json(path: impl AsRef<std::path::Path>) -> Value {
@@ -4025,6 +4056,7 @@ mod tests {
         );
 
         let mut context = test_context_with_cwd(&bg, &repo);
+        trust_project(&mut context);
         context.app_state.insert(
             "mcp_servers".to_string(),
             json!({
@@ -4135,16 +4167,80 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    #[test]
+    fn trusted_nested_git_project_agents_stop_at_project_trust_root() {
+        let _guard = crate::test_support::lock_env();
+        let _env = EnvSnapshot::take(&["HOME", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
+        let root =
+            std::env::temp_dir().join(format!("kiana-agent-nested-trust-{}", Uuid::new_v4()));
+        let home = root.join("home");
+        let parent = root.join("parent");
+        let child = parent.join("child");
+        let child_cwd = child.join("src").join("module");
+        let parent_agents = parent.join(".kiana").join("agents");
+        let child_agents = child.join(".kiana").join("agents");
+        let child_local_agents = child_cwd.join(".claude").join("agents-local");
+        fs::create_dir_all(&home).unwrap();
+        fs::create_dir_all(&parent_agents).unwrap();
+        fs::create_dir_all(&child_cwd).unwrap();
+        fs::create_dir_all(child.join(".git")).unwrap();
+        std::env::set_var("HOME", &home);
+        std::env::set_var("KIANA_HOME", home.join(".kiana"));
+        std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
+        fs::write(
+            parent_agents.join("reviewer.md"),
+            "---\nname: reviewer\ndescription: Parent reviewer\n---\nParent prompt.\n",
+        )
+        .unwrap();
+
+        let parent_result =
+            resolve_agent_definition_with_trust("reviewer", &child_cwd, ProjectTrust::Trusted);
+        assert!(parent_result.is_err(), "{parent_result:?}");
+        assert!(parent_result
+            .unwrap_err()
+            .contains("Unknown agent type: reviewer"));
+
+        fs::create_dir_all(&child_agents).unwrap();
+        fs::write(
+            child_agents.join("reviewer.md"),
+            "---\nname: reviewer\ndescription: Child reviewer\n---\nChild prompt.\n",
+        )
+        .unwrap();
+
+        let child_agent =
+            resolve_agent_definition_with_trust("reviewer", &child_cwd, ProjectTrust::Trusted)
+                .unwrap();
+        assert_eq!(child_agent.description, "Child reviewer");
+        assert_eq!(child_agent.system_prompt, "Child prompt.");
+
+        fs::create_dir_all(&child_local_agents).unwrap();
+        fs::write(
+            child_local_agents.join("reviewer.md"),
+            "---\nname: reviewer\ndescription: Child local reviewer\n---\nChild local prompt.\n",
+        )
+        .unwrap();
+
+        let local_agent =
+            resolve_agent_definition_with_trust("reviewer", &child_cwd, ProjectTrust::Trusted)
+                .unwrap();
+        assert_eq!(local_agent.description, "Child local reviewer");
+        assert_eq!(local_agent.system_prompt, "Child local prompt.");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
     #[tokio::test]
-    async fn untrusted_project_does_not_resolve_project_agent_definition() {
+    async fn unknown_and_untrusted_projects_hide_project_agents_but_keep_safe_agents() {
         let _guard = crate::test_support::lock_env();
         let _env = EnvSnapshot::take(&["HOME", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
         let root = std::env::temp_dir().join(format!("kiana-agent-trust-{}", Uuid::new_v4()));
         let home = root.join("home");
         let repo = root.join("repo");
         let project_agents = repo.join(".kiana").join("agents");
+        let user_agents = home.join(".kiana").join("agents");
         fs::create_dir_all(&home).unwrap();
         fs::create_dir_all(&project_agents).unwrap();
+        fs::create_dir_all(&user_agents).unwrap();
         std::env::set_var("HOME", &home);
         std::env::set_var("KIANA_HOME", home.join(".kiana"));
         std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
@@ -4153,38 +4249,58 @@ mod tests {
             "---\nname: reviewer\ndescription: Project reviewer\n---\nProject prompt.\n",
         )
         .unwrap();
+        fs::write(
+            user_agents.join("home-reviewer.md"),
+            "---\nname: home-reviewer\ndescription: Home reviewer\n---\nHome prompt.\n",
+        )
+        .unwrap();
 
-        let mut context = test_context_with_cwd(&root.join("bg"), &repo);
-        context
-            .app_state
-            .insert("project_trusted".to_string(), json!(false));
+        for project_trusted in [None, Some(false)] {
+            let mut context = test_context_with_cwd(&root.join("bg"), &repo);
+            if let Some(project_trusted) = project_trusted {
+                context
+                    .app_state
+                    .insert("project_trusted".to_string(), json!(project_trusted));
+            }
 
-        let project_validation = AgentTool::new()
-            .validate_input(
-                &json!({
-                    "subagent_type": "reviewer",
-                    "prompt": "Review this project"
-                }),
-                &context,
-            )
-            .await;
-        assert!(!project_validation.result, "{project_validation:?}");
-        assert!(project_validation
-            .message
-            .as_deref()
-            .unwrap()
-            .contains("Unknown agent type: reviewer"));
+            let project_validation = AgentTool::new()
+                .validate_input(
+                    &json!({
+                        "subagent_type": "reviewer",
+                        "prompt": "Review this project"
+                    }),
+                    &context,
+                )
+                .await;
+            assert!(!project_validation.result, "{project_validation:?}");
+            assert!(project_validation
+                .message
+                .as_deref()
+                .unwrap()
+                .contains("Unknown agent type: reviewer"));
 
-        let builtin_validation = AgentTool::new()
-            .validate_input(
-                &json!({
-                    "subagent_type": "claude-code-guide",
-                    "prompt": "What can I use?"
-                }),
-                &context,
-            )
-            .await;
-        assert!(builtin_validation.result, "{builtin_validation:?}");
+            let user_validation = AgentTool::new()
+                .validate_input(
+                    &json!({
+                        "subagent_type": "home-reviewer",
+                        "prompt": "Review my settings"
+                    }),
+                    &context,
+                )
+                .await;
+            assert!(user_validation.result, "{user_validation:?}");
+
+            let builtin_validation = AgentTool::new()
+                .validate_input(
+                    &json!({
+                        "subagent_type": "claude-code-guide",
+                        "prompt": "What can I use?"
+                    }),
+                    &context,
+                )
+                .await;
+            assert!(builtin_validation.result, "{builtin_validation:?}");
+        }
 
         let _ = fs::remove_dir_all(root);
     }
@@ -4289,6 +4405,7 @@ mod tests {
         .unwrap();
 
         let mut context = test_context_with_cwd(&bg, &repo);
+        trust_project(&mut context);
         context.app_state.insert(
             "mcp_servers".to_string(),
             json!({
@@ -4371,6 +4488,7 @@ mod tests {
         .unwrap();
 
         let mut context = test_context_with_cwd(&root.join("bg"), &repo);
+        trust_project(&mut context);
         let input = json!({
             "subagent_type": "reviewer",
             "prompt": "Review changes"
@@ -4437,6 +4555,7 @@ mod tests {
         .unwrap();
 
         let mut context = test_context_with_cwd(&root.join("bg"), &repo);
+        trust_project(&mut context);
         let input = json!({
             "subagent_type": "reviewer",
             "prompt": "Inspect hooked runtime"
@@ -4509,6 +4628,7 @@ mod tests {
         .unwrap();
         let input = json!({ "prompt": "Inspect project hooks" });
         let mut trusted_context = test_context_with_cwd(&root.join("trusted-bg"), &repo);
+        trust_project(&mut trusted_context);
 
         let trusted_error = AgentTool::new()
             .call(&input, &mut trusted_context)
@@ -4587,6 +4707,7 @@ mod tests {
         )
         .unwrap();
         let mut context = test_context_with_cwd(&root.join("bg"), &repo);
+        trust_project(&mut context);
 
         let error = AgentTool::new()
             .call(
@@ -4943,6 +5064,7 @@ mod tests {
         .unwrap();
 
         let mut context = test_context_with_cwd(&bg, &repo);
+        trust_project(&mut context);
         let started = AgentTool::new()
             .call(
                 &json!({
@@ -5009,6 +5131,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn explicit_cwd_uses_target_project_trust_for_project_agent() {
+        let _guard = crate::test_support::lock_env();
+        let _env = EnvSnapshot::take(&["HOME", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
+        let root = std::env::temp_dir().join(format!("kiana-agent-cross-cwd-{}", Uuid::new_v4()));
+        let trusted_repo = root.join("trusted");
+        let target_repo = root.join("target");
+        let kiana_home = root.join("kiana-home");
+        fs::create_dir_all(trusted_repo.join(".git")).unwrap();
+        fs::create_dir_all(target_repo.join(".git")).unwrap();
+        fs::create_dir_all(target_repo.join(".kiana").join("agents")).unwrap();
+        fs::write(
+            target_repo
+                .join(".kiana")
+                .join("agents")
+                .join("reviewer.md"),
+            "---\nname: reviewer\ndescription: Target reviewer\n---\nTarget system prompt\n",
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+
+        let mut context = test_context_with_cwd(&root.join("bg"), &trusted_repo);
+        trust_project(&mut context);
+        let input = json!({
+            "subagent_type": "reviewer",
+            "cwd": target_repo.display().to_string(),
+            "prompt": "Review the target repo"
+        });
+
+        let validation = AgentTool::new().validate_input(&input, &context).await;
+        assert!(!validation.result, "{validation:?}");
+        assert!(validation
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Unknown agent type: reviewer"));
+
+        kiana_types::write_project_trust(&target_repo, ProjectTrust::Trusted).unwrap();
+        let validation = AgentTool::new().validate_input(&input, &context).await;
+        assert!(validation.result, "{validation:?}");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
     async fn isolation_cannot_be_combined_with_explicit_cwd() {
         let root = std::env::temp_dir().join(format!("kiana-agent-test-{}", Uuid::new_v4()));
         let repo = root.join("repo");
@@ -5057,6 +5223,7 @@ mod tests {
         .unwrap();
 
         let mut context = test_context_with_cwd(&bg, &repo);
+        trust_project(&mut context);
         let input = json!({
             "subagent_type": "isolated",
             "prompt": "Inspect isolated workspace"
@@ -5287,7 +5454,9 @@ mod tests {
     }
 
     fn shell_path_candidates(path: &str) -> Vec<String> {
-        let mut candidates = vec![path.to_string()];
+        let candidates = vec![path.to_string()];
+        #[cfg(windows)]
+        let mut candidates = candidates;
         #[cfg(windows)]
         {
             let normalized = path.replace('\\', "/");

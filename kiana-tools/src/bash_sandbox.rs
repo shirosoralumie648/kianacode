@@ -1,8 +1,88 @@
 use serde_json::Value;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::io;
+use std::path::{Path, PathBuf};
 
 pub const SANDBOX_APP_STATE_KEY: &str = "sandbox";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StrictBwrapPlan {
+    pub program: PathBuf,
+    pub args: Vec<OsString>,
+}
+
+impl StrictBwrapPlan {
+    pub fn share_network(&mut self) {
+        self.args.insert(2, OsString::from("--share-net"));
+    }
+}
+
+pub fn strict_bwrap_plan(
+    bwrap_path: &Path,
+    cwd: &Path,
+    read_roots: &[PathBuf],
+    writable_roots: &[PathBuf],
+    program: OsString,
+    program_args: Vec<OsString>,
+) -> io::Result<StrictBwrapPlan> {
+    let bwrap_path = std::fs::canonicalize(bwrap_path)?;
+    let cwd = std::fs::canonicalize(cwd)?;
+    let mut read_roots = canonical_roots(read_roots)?;
+    let mut writable_roots = canonical_roots(writable_roots)?;
+    read_roots.retain(|root| !writable_roots.iter().any(|write| write == root));
+    read_roots.sort();
+    read_roots.dedup();
+    writable_roots.sort();
+    writable_roots.dedup();
+
+    let mut args = vec![
+        OsString::from("--die-with-parent"),
+        OsString::from("--unshare-all"),
+        OsString::from("--ro-bind"),
+        OsString::from("/"),
+        OsString::from("/"),
+        OsString::from("--dev"),
+        OsString::from("/dev"),
+        OsString::from("--proc"),
+        OsString::from("/proc"),
+        OsString::from("--tmpfs"),
+        OsString::from("/tmp"),
+    ];
+    for root in read_roots {
+        args.push(OsString::from("--ro-bind"));
+        args.push(root.as_os_str().to_os_string());
+        args.push(root.as_os_str().to_os_string());
+    }
+    for root in writable_roots {
+        args.push(OsString::from("--bind"));
+        args.push(root.as_os_str().to_os_string());
+        args.push(root.as_os_str().to_os_string());
+    }
+    args.extend([
+        OsString::from("--chdir"),
+        cwd.as_os_str().to_os_string(),
+        OsString::from("--setenv"),
+        OsString::from("KIANA_SANDBOX"),
+        OsString::from("bwrap"),
+        OsString::from("--setenv"),
+        OsString::from("TMPDIR"),
+        OsString::from("/tmp"),
+        program,
+    ]);
+    args.extend(program_args);
+    Ok(StrictBwrapPlan {
+        program: bwrap_path,
+        args,
+    })
+}
+
+fn canonical_roots(roots: &[PathBuf]) -> io::Result<Vec<PathBuf>> {
+    roots
+        .iter()
+        .map(std::fs::canonicalize)
+        .collect::<io::Result<Vec<_>>>()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BashSandboxStatus {
@@ -93,7 +173,7 @@ pub fn bash_sandbox_allow_unsandboxed_commands(app_state: &HashMap<String, Value
             )
         })
         .or_else(|| env_bool("KIANA_BASH_SANDBOX_ALLOW_UNSANDBOXED"))
-        .unwrap_or(true)
+        .unwrap_or(false)
 }
 
 pub fn bash_sandbox_bwrap_path(app_state: &HashMap<String, Value>) -> Option<PathBuf> {
@@ -252,7 +332,7 @@ mod tests {
     }
 
     #[test]
-    fn diagnostic_accepts_boolean_sandbox_as_enabled_shorthand() {
+    fn diagnostic_defaults_enabled_sandbox_to_fail_closed() {
         let _lock = lock_env();
         let path_dir = temp_path("empty-path");
         fs::create_dir_all(&path_dir).unwrap();
@@ -269,7 +349,7 @@ mod tests {
 
         assert!(diagnostic.enabled);
         assert!(!diagnostic.fail_if_unavailable);
-        assert!(diagnostic.allow_unsandboxed_commands);
+        assert!(!diagnostic.allow_unsandboxed_commands);
         assert_eq!(diagnostic.status, BashSandboxStatus::Unavailable);
 
         let _ = fs::remove_dir_all(path_dir);

@@ -1,7 +1,7 @@
 use crate::tool::*;
 use async_trait::async_trait;
 use kiana_services::mcp::{McpClient, McpServerConfig, TransportType};
-use kiana_types::{project_trust_from_app_state, ProjectTrust};
+use kiana_types::{project_trust_from_app_state, project_trust_root, ProjectTrust};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -148,16 +148,27 @@ pub fn configured_mcp_servers() -> Option<Value> {
 }
 
 pub fn configured_mcp_servers_with_trust(project_trust: ProjectTrust) -> Option<Value> {
+    let cwd = env::current_dir().ok();
+    configured_mcp_servers_with_trust_for_cwd(project_trust, cwd.as_deref(), None)
+}
+
+fn configured_mcp_servers_with_trust_for_cwd(
+    project_trust: ProjectTrust,
+    cwd: Option<&Path>,
+    project_config_root: Option<&Path>,
+) -> Option<Value> {
     let mut merged = serde_json::Map::new();
     merge_mcp_servers_value(&mut merged, &Value::Object(load_plugin_mcp_servers()));
     if let Some(value) = read_user_mcp_config() {
         merge_mcp_servers_value(&mut merged, &value);
     }
-    for value in read_project_mcp_configs_with_trust(project_trust) {
-        merge_mcp_servers_value(&mut merged, &value);
-    }
-    if let Some(value) = read_local_mcp_config_with_trust(project_trust) {
-        merge_mcp_servers_value(&mut merged, &value);
+    if let Some(cwd) = cwd {
+        for value in read_project_mcp_configs_with_trust(project_trust, cwd, project_config_root) {
+            merge_mcp_servers_value(&mut merged, &value);
+        }
+        if let Some(value) = read_local_mcp_config_with_trust(project_trust, cwd) {
+            merge_mcp_servers_value(&mut merged, &value);
+        }
     }
     if let Ok(raw) = env::var(MCP_SERVERS_ENV) {
         if let Ok(value) = serde_json::from_str::<Value>(&raw) {
@@ -175,18 +186,25 @@ fn read_user_mcp_config() -> Option<Value> {
     read_json_file(&kiana_home_dir().join("mcp.json")).map(|value| expand_env_vars_in_value(&value))
 }
 
-fn read_project_mcp_configs_with_trust(project_trust: ProjectTrust) -> Vec<Value> {
+fn read_project_mcp_configs_with_trust(
+    project_trust: ProjectTrust,
+    cwd: &Path,
+    project_config_root: Option<&Path>,
+) -> Vec<Value> {
     if !project_trust.allows_project_resources() {
         return Vec::new();
     }
-
-    let Some(cwd) = env::current_dir().ok() else {
+    if project_config_root.is_some_and(|root| !cwd.starts_with(root)) {
         return Vec::new();
-    };
+    }
+
     let mut dirs = Vec::new();
-    let mut current = Some(cwd.as_path());
+    let mut current = Some(cwd);
     while let Some(dir) = current {
         dirs.push(dir.to_path_buf());
+        if project_config_root == Some(dir) {
+            break;
+        }
         current = dir.parent();
     }
     dirs.reverse();
@@ -196,11 +214,10 @@ fn read_project_mcp_configs_with_trust(project_trust: ProjectTrust) -> Vec<Value
         .collect()
 }
 
-fn read_local_mcp_config_with_trust(project_trust: ProjectTrust) -> Option<Value> {
+fn read_local_mcp_config_with_trust(project_trust: ProjectTrust, cwd: &Path) -> Option<Value> {
     if !project_trust.allows_project_resources() {
         return None;
     }
-    let cwd = env::current_dir().ok()?;
     read_json_file(&cwd.join(".kiana").join("mcp.local.json"))
         .map(|value| expand_env_vars_in_value(&value))
 }
@@ -1136,7 +1153,15 @@ fn find_app_state_server_config(
 fn merged_mcp_servers(app_state: &HashMap<String, Value>) -> Option<Value> {
     let mut merged = serde_json::Map::new();
     let project_trust = project_trust_from_app_state(app_state);
-    if let Some(configured) = configured_mcp_servers_with_trust(project_trust) {
+    let cwd = app_state_project_cwd(app_state)
+        .or_else(|| env::current_dir().ok())
+        .and_then(|cwd| fs::canonicalize(cwd).ok());
+    let project_config_root = cwd.as_deref().map(project_trust_root);
+    if let Some(configured) = configured_mcp_servers_with_trust_for_cwd(
+        project_trust,
+        cwd.as_deref(),
+        project_config_root.as_deref(),
+    ) {
         merge_mcp_servers_value(&mut merged, &configured);
     }
     if let Some(servers) = app_state.get(MCP_SERVERS_APP_STATE_KEY) {
@@ -1147,6 +1172,19 @@ fn merged_mcp_servers(app_state: &HashMap<String, Value>) -> Option<Value> {
     } else {
         Some(Value::Object(merged))
     }
+}
+
+fn app_state_project_cwd(app_state: &HashMap<String, Value>) -> Option<PathBuf> {
+    ["cwd", "project_root", "projectRoot"]
+        .into_iter()
+        .find_map(|key| {
+            app_state
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        })
 }
 
 fn load_plugin_mcp_servers() -> serde_json::Map<String, Value> {
@@ -1451,9 +1489,10 @@ fn now_unix_seconds() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        configured_mcp_servers, configured_mcp_servers_with_trust, resolve_server_config_fields,
-        GetMcpPromptTool, ListMcpPromptsTool, ListMcpResourceTemplatesTool, ListMcpResourcesTool,
-        McpTool, ReadMcpResourceTool, MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV,
+        configured_mcp_servers, configured_mcp_servers_with_trust, merged_mcp_servers,
+        resolve_server_config_fields, GetMcpPromptTool, ListMcpPromptsTool,
+        ListMcpResourceTemplatesTool, ListMcpResourcesTool, McpTool, ReadMcpResourceTool,
+        MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV,
     };
     use crate::{Tool, ToolContext};
     use kiana_services::mcp::TransportType;
@@ -1538,7 +1577,7 @@ mod tests {
     }
 
     #[test]
-    fn configured_mcp_servers_reads_user_mcp_config_when_project_is_untrusted() {
+    fn configured_mcp_servers_keep_user_config_when_project_resources_are_disallowed() {
         let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let previous_home = std::env::var_os("KIANA_HOME");
@@ -1577,10 +1616,15 @@ mod tests {
         std::env::remove_var(MCP_SERVERS_ENV);
         std::env::remove_var("KIANA_PLUGINS_DIR");
 
-        let servers = configured_mcp_servers_with_trust(kiana_types::ProjectTrust::Untrusted)
-            .expect("user MCP config should be loaded");
-        assert_eq!(servers["user-docs"]["command"], "node");
-        assert!(servers.get("project-docs").is_none(), "{servers:?}");
+        for project_trust in [
+            kiana_types::ProjectTrust::Unknown,
+            kiana_types::ProjectTrust::Untrusted,
+        ] {
+            let servers = configured_mcp_servers_with_trust(project_trust)
+                .expect("user MCP config should be loaded");
+            assert_eq!(servers["user-docs"]["command"], "node");
+            assert!(servers.get("project-docs").is_none(), "{servers:?}");
+        }
 
         match previous_home {
             Some(value) => std::env::set_var("KIANA_HOME", value),
@@ -1640,7 +1684,158 @@ mod tests {
     }
 
     #[test]
-    fn resolve_server_config_uses_project_mcp_json_without_app_state() {
+    fn merged_mcp_servers_uses_app_state_cwd_for_trusted_project_configs() {
+        let _guard = crate::test_support::lock_env();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("app-state-cwd");
+        let project_a = root.join("project-a");
+        let project_b = root.join("project-b");
+        let kiana_home = root.join("home").join(".kiana");
+        fs::create_dir_all(project_a.join(".kiana")).unwrap();
+        fs::create_dir_all(project_b.join(".kiana")).unwrap();
+        fs::create_dir_all(&kiana_home).unwrap();
+        fs::write(
+            project_a.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "malicious-project": { "command": "project-a" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project_a.join(".kiana").join("mcp.local.json"),
+            json!({
+                "mcpServers": {
+                    "malicious-local": { "command": "project-a-local" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project_b.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "project-b": { "command": "project-b" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project_b.join(".kiana").join("mcp.local.json"),
+            json!({
+                "mcpServers": {
+                    "project-b-local": { "command": "project-b-local" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::env::set_current_dir(&project_a).unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::remove_var(MCP_SERVERS_ENV);
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+
+        let app_state = HashMap::from([
+            ("cwd".to_string(), json!(project_b)),
+            ("project_trusted".to_string(), json!(true)),
+        ]);
+        let servers = merged_mcp_servers(&app_state).unwrap();
+        assert!(servers.get("malicious-project").is_none(), "{servers:?}");
+        assert!(servers.get("malicious-local").is_none(), "{servers:?}");
+        assert_eq!(servers["project-b"]["command"], "project-b");
+        assert_eq!(servers["project-b-local"]["command"], "project-b-local");
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn merged_mcp_servers_stops_project_config_ancestry_at_trust_root() {
+        let _guard = crate::test_support::lock_env();
+        let previous_cwd = std::env::current_dir().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let root = temp_root("trust-root-boundary");
+        let project_a = root.join("project-a");
+        let project_b = project_a.join("project-b");
+        let project_b_cwd = project_b.join("workspace");
+        let kiana_home = root.join("home").join(".kiana");
+        fs::create_dir_all(project_b.join(".git")).unwrap();
+        fs::create_dir_all(project_b_cwd.join(".kiana")).unwrap();
+        fs::create_dir_all(&kiana_home).unwrap();
+        fs::write(
+            project_a.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "outside-trust-root": { "command": "project-a" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project_b.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "project-b-root": { "command": "project-b-root" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project_b_cwd.join(".mcp.json"),
+            json!({
+                "mcpServers": {
+                    "project-b-cwd": { "command": "project-b-cwd" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            project_b_cwd.join(".kiana").join("mcp.local.json"),
+            json!({
+                "mcpServers": {
+                    "project-b-local": { "command": "project-b-local" }
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::env::set_current_dir(&project_a).unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::remove_var(MCP_SERVERS_ENV);
+        std::env::remove_var("KIANA_PLUGINS_DIR");
+
+        let app_state = HashMap::from([
+            ("cwd".to_string(), json!(project_b_cwd)),
+            ("project_trusted".to_string(), json!(true)),
+        ]);
+        let servers = merged_mcp_servers(&app_state).unwrap();
+        assert!(servers.get("outside-trust-root").is_none(), "{servers:?}");
+        assert_eq!(servers["project-b-root"]["command"], "project-b-root");
+        assert_eq!(servers["project-b-cwd"]["command"], "project-b-cwd");
+        assert_eq!(servers["project-b-local"]["command"], "project-b-local");
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolve_server_config_uses_project_mcp_json_when_project_is_trusted() {
         let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let root = temp_root("project-resolve");
@@ -1668,17 +1863,11 @@ mod tests {
         std::env::remove_var(MCP_SERVERS_ENV);
         std::env::remove_var("KIANA_PLUGINS_DIR");
 
-        let config = resolve_server_config_fields(
-            Some("docs"),
-            &None,
-            None,
-            None,
-            None,
-            None,
-            &HashMap::new(),
-        )
-        .unwrap()
-        .unwrap();
+        let app_state = HashMap::from([("project_trusted".to_string(), json!(true))]);
+        let config =
+            resolve_server_config_fields(Some("docs"), &None, None, None, None, None, &app_state)
+                .unwrap()
+                .unwrap();
         assert_eq!(config.command.as_deref(), Some("node"));
         assert_eq!(config.args, Some(vec!["server.js".to_string()]));
         assert_eq!(
@@ -1703,7 +1892,7 @@ mod tests {
     }
 
     #[test]
-    fn untrusted_project_mcp_json_is_ignored_for_server_resolution() {
+    fn unknown_and_untrusted_project_mcp_json_is_ignored_for_server_resolution() {
         let _guard = crate::test_support::lock_env();
         let previous_cwd = std::env::current_dir().unwrap();
         let root = temp_root("project-trust");
@@ -1734,32 +1923,35 @@ mod tests {
             .to_string(),
         );
         std::env::remove_var("KIANA_PLUGINS_DIR");
-        let app_state = HashMap::from([("project_trusted".to_string(), json!(false))]);
+        for app_state in [
+            HashMap::new(),
+            HashMap::from([("project_trusted".to_string(), json!(false))]),
+        ] {
+            let project_config = resolve_server_config_fields(
+                Some("project-docs"),
+                &None,
+                None,
+                None,
+                None,
+                None,
+                &app_state,
+            )
+            .unwrap();
+            assert!(project_config.is_none());
 
-        let project_config = resolve_server_config_fields(
-            Some("project-docs"),
-            &None,
-            None,
-            None,
-            None,
-            None,
-            &app_state,
-        )
-        .unwrap();
-        assert!(project_config.is_none());
-
-        let env_config = resolve_server_config_fields(
-            Some("env-docs"),
-            &None,
-            None,
-            None,
-            None,
-            None,
-            &app_state,
-        )
-        .unwrap()
-        .unwrap();
-        assert_eq!(env_config.command.as_deref(), Some("env-server"));
+            let env_config = resolve_server_config_fields(
+                Some("env-docs"),
+                &None,
+                None,
+                None,
+                None,
+                None,
+                &app_state,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(env_config.command.as_deref(), Some("env-server"));
+        }
 
         std::env::remove_var(MCP_SERVERS_ENV);
         std::env::set_current_dir(previous_cwd).unwrap();
@@ -1791,17 +1983,11 @@ mod tests {
         std::env::set_var("KIANA_TEST_MCP_COMMAND", "node");
         std::env::remove_var("KIANA_TEST_MCP_ARG");
 
-        let config = resolve_server_config_fields(
-            Some("docs"),
-            &None,
-            None,
-            None,
-            None,
-            None,
-            &HashMap::new(),
-        )
-        .unwrap()
-        .unwrap();
+        let app_state = HashMap::from([("project_trusted".to_string(), json!(true))]);
+        let config =
+            resolve_server_config_fields(Some("docs"), &None, None, None, None, None, &app_state)
+                .unwrap()
+                .unwrap();
         assert_eq!(config.command.as_deref(), Some("node"));
         assert_eq!(config.args, Some(vec!["fallback.js".to_string()]));
 
@@ -2073,7 +2259,7 @@ mod tests {
         let mut context = ToolContext {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
-            app_state: HashMap::new(),
+            app_state: HashMap::from([("project_trusted".to_string(), json!(true))]),
             abort_signal: abort_rx,
         };
 

@@ -1,6 +1,6 @@
 use crate::tool::*;
 use async_trait::async_trait;
-use kiana_types::{project_trust_from_app_state, ProjectTrust};
+use kiana_types::{project_trust_from_app_state, project_trust_root, ProjectTrust};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -272,8 +272,23 @@ fn discover_skill_dirs_with_trust(cwd: &str, project_trust: ProjectTrust) -> Vec
     }
 
     if project_trust.allows_project_resources() {
-        let cwd = PathBuf::from(cwd);
-        let mut ancestors = cwd.ancestors().map(Path::to_path_buf).collect::<Vec<_>>();
+        let Ok(cwd) = std::fs::canonicalize(cwd) else {
+            return dedupe_dirs(dirs);
+        };
+        let trust_root = project_trust_root(&cwd);
+        let mut ancestors = Vec::new();
+        for ancestor in cwd.ancestors() {
+            ancestors.push(ancestor.to_path_buf());
+            if ancestor == trust_root {
+                break;
+            }
+        }
+        if !ancestors
+            .last()
+            .is_some_and(|ancestor| ancestor == &trust_root)
+        {
+            return dedupe_dirs(dirs);
+        }
         ancestors.reverse();
         for ancestor in ancestors {
             push_existing_dir(&mut dirs, ancestor.join(".claude").join("skills"));
@@ -450,10 +465,6 @@ mod tests {
     use std::fs;
     use uuid::Uuid;
 
-    fn test_context(cwd: String) -> ToolContext {
-        test_context_with_app_state(cwd, HashMap::new())
-    }
-
     fn test_context_with_app_state(
         cwd: String,
         app_state: HashMap<String, serde_json::Value>,
@@ -469,6 +480,7 @@ mod tests {
 
     #[tokio::test]
     async fn discovers_project_skills_from_parent_directories() {
+        let _guard = crate::test_support::lock_env();
         let root = std::env::temp_dir().join(format!("kiana-skills-{}", Uuid::new_v4()));
         let nested = root.join("repo").join("src");
         let skill = root
@@ -477,6 +489,7 @@ mod tests {
             .join("skills")
             .join("refactor");
         fs::create_dir_all(&nested).unwrap();
+        fs::create_dir_all(root.join("repo").join(".git")).unwrap();
         fs::create_dir_all(&skill).unwrap();
         fs::write(
             skill.join("SKILL.md"),
@@ -484,7 +497,10 @@ mod tests {
         )
         .unwrap();
 
-        let mut context = test_context(nested.to_string_lossy().to_string());
+        let mut context = test_context_with_app_state(
+            nested.to_string_lossy().to_string(),
+            HashMap::from([("project_trusted".to_string(), json!(true))]),
+        );
         let output = DiscoverSkillsTool::new()
             .call(&json!({"query": "rust"}), &mut context)
             .await
@@ -508,17 +524,28 @@ mod tests {
 
     #[tokio::test]
     async fn can_include_skill_content() {
+        let _guard = crate::test_support::lock_env();
+        let unique = Uuid::new_v4().to_string();
         let root = std::env::temp_dir().join(format!("kiana-skills-{}", Uuid::new_v4()));
-        let skill = root.join(".claude").join("skills").join("audit");
+        let skill_name = format!("audit-{unique}");
+        let skill = root.join(".claude").join("skills").join(&skill_name);
         fs::create_dir_all(&skill).unwrap();
         fs::write(skill.join("SKILL.md"), "# Audit\nReview critical paths.\n").unwrap();
 
-        let mut context = test_context(root.to_string_lossy().to_string());
+        let mut context = test_context_with_app_state(
+            root.to_string_lossy().to_string(),
+            HashMap::from([("project_trusted".to_string(), json!(true))]),
+        );
         let output = DiscoverSkillsTool::new()
-            .call(&json!({"include_content": true}), &mut context)
+            .call(
+                &json!({"query": unique, "include_content": true}),
+                &mut context,
+            )
             .await
             .unwrap();
 
+        assert_eq!(output.data["count"], 1);
+        assert_eq!(output.data["skills"][0]["name"], skill_name);
         assert_eq!(output.data["skills"][0]["description"], "Audit");
         assert!(output.data["skills"][0]["content"]
             .as_str()
@@ -528,7 +555,58 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn untrusted_project_does_not_discover_project_skills() {
+    async fn trusted_nested_git_repo_does_not_discover_project_skills_above_trust_root() {
+        let _guard = crate::test_support::lock_env();
+        let unique = Uuid::new_v4().to_string();
+        let root = std::env::temp_dir().join(format!("kiana-skills-trust-root-{unique}"));
+        let parent = root.join("parent");
+        let child = parent.join("child");
+        let work = child.join("work");
+        let outside = parent
+            .join(".claude")
+            .join("skills")
+            .join(format!("outside-{unique}"));
+        let inside = work
+            .join(".claude")
+            .join("skills")
+            .join(format!("inside-{unique}"));
+        fs::create_dir_all(child.join(".git")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::create_dir_all(&inside).unwrap();
+        fs::write(
+            outside.join("SKILL.md"),
+            format!("---\ndescription: outside {unique}\n---\nOutside body\n"),
+        )
+        .unwrap();
+        fs::write(
+            inside.join("SKILL.md"),
+            format!("---\ndescription: inside {unique}\n---\nInside body\n"),
+        )
+        .unwrap();
+
+        let mut context = test_context_with_app_state(
+            work.to_string_lossy().to_string(),
+            HashMap::from([("project_trusted".to_string(), json!(true))]),
+        );
+        let output = DiscoverSkillsTool::new()
+            .call(&json!({"query": unique}), &mut context)
+            .await
+            .unwrap();
+
+        assert_eq!(output.data["count"], 1);
+        assert_eq!(output.data["skills"][0]["name"], format!("inside-{unique}"));
+        let dirs = output.data["skill_dirs"].as_array().unwrap();
+        assert!(!dirs
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .any(|dir| dir == outside.parent().unwrap().to_string_lossy()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn unknown_and_untrusted_projects_hide_project_skills_but_keep_user_skills() {
+        let _guard = crate::test_support::lock_env();
         let unique = Uuid::new_v4().to_string();
         let root = std::env::temp_dir().join(format!("kiana-skills-trust-{unique}"));
         let cwd = root.join("repo");
@@ -550,26 +628,34 @@ mod tests {
             format!("---\ndescription: home {unique}\n---\nHome body\n"),
         )
         .unwrap();
+        let previous_kiana_home = std::env::var_os("KIANA_HOME");
         std::env::set_var("KIANA_HOME", &kiana_home);
+        let project_skills_dir = project_skill.parent().unwrap().to_string_lossy();
 
-        let mut context = test_context_with_app_state(
-            cwd.to_string_lossy().to_string(),
+        for app_state in [
+            HashMap::new(),
             HashMap::from([("project_trusted".to_string(), json!(false))]),
-        );
-        let output = DiscoverSkillsTool::new()
-            .call(&json!({"query": unique}), &mut context)
-            .await
-            .unwrap();
+        ] {
+            let mut context =
+                test_context_with_app_state(cwd.to_string_lossy().to_string(), app_state);
+            let output = DiscoverSkillsTool::new()
+                .call(&json!({"query": unique}), &mut context)
+                .await
+                .unwrap();
 
-        assert_eq!(output.data["count"], 1);
-        assert_eq!(output.data["skills"][0]["name"], format!("home-{unique}"));
-        let dirs = output.data["skill_dirs"].as_array().unwrap();
-        assert!(!dirs
-            .iter()
-            .filter_map(serde_json::Value::as_str)
-            .any(|dir| dir.ends_with(".claude/skills")));
+            assert_eq!(output.data["count"], 1);
+            assert_eq!(output.data["skills"][0]["name"], format!("home-{unique}"));
+            let dirs = output.data["skill_dirs"].as_array().unwrap();
+            assert!(!dirs
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .any(|dir| dir == project_skills_dir));
+        }
 
-        std::env::remove_var("KIANA_HOME");
+        match previous_kiana_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
         let _ = fs::remove_dir_all(root);
     }
 }

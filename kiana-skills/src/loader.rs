@@ -1,6 +1,6 @@
 use crate::types::{Command, Frontmatter, LoadedFrom, SettingSource};
 use gray_matter::{engine::YAML, Matter};
-use kiana_types::ProjectTrust;
+use kiana_types::{project_trust_root, ProjectTrust};
 use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -138,7 +138,12 @@ fn extract_description_from_markdown(content: &str) -> Option<String> {
 }
 
 pub async fn get_skill_dirs(cwd: impl AsRef<Path>) -> Vec<PathBuf> {
-    get_skill_dirs_with_trust(cwd, ProjectTrust::Trusted).await
+    let cwd = cwd.as_ref();
+    let project_trust = kiana_types::read_project_trust(cwd)
+        .ok()
+        .flatten()
+        .unwrap_or(ProjectTrust::Unknown);
+    get_skill_dirs_with_trust(cwd, project_trust).await
 }
 
 pub async fn get_skill_dirs_with_trust(
@@ -158,14 +163,23 @@ pub async fn get_skill_dirs_with_trust(
 
     let mut project_dirs = Vec::new();
     if project_trust.allows_project_resources() {
-        let mut current = cwd;
+        if let Ok(canonical_cwd) = cwd.canonicalize() {
+            let project_root = project_trust_root(&canonical_cwd);
+            let mut current = canonical_cwd.as_path();
 
-        while let Some(parent) = current.parent() {
-            let skill_dir = current.join(".claude").join("skills");
-            if skill_dir.exists() {
-                project_dirs.push(skill_dir);
+            loop {
+                let skill_dir = current.join(".claude").join("skills");
+                if skill_dir.exists() {
+                    project_dirs.push(skill_dir);
+                }
+                if current == project_root {
+                    break;
+                }
+                let Some(parent) = current.parent() else {
+                    break;
+                };
+                current = parent;
             }
-            current = parent;
         }
     }
 

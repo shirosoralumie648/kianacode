@@ -373,15 +373,22 @@ pub fn permission_check_for_tool(
     input: &Value,
     app_state: &HashMap<String, Value>,
 ) -> ToolPermissionCheck {
-    let settings = effective_tool_permissions(app_state);
-    let is_read_only = is_read_only || known_read_only_tool(tool_name);
+    let is_read_only = (is_read_only || known_read_only_tool(tool_name))
+        && !mcp_query_uses_inline_command(tool_name, input);
 
     let project_trust = project_trust_from_app_state(app_state);
-    if !is_read_only && project_trust == ProjectTrust::Untrusted {
+    if !is_read_only && !project_trust.allows_project_resources() {
+        let trust_reason = match project_trust {
+            ProjectTrust::Unknown => "because project trust is unknown",
+            ProjectTrust::Untrusted => "in an untrusted project",
+            ProjectTrust::Trusted => unreachable!("trusted projects allow project resources"),
+        };
         return ToolPermissionCheck::Deny(format!(
-            "Tool {tool_name} is denied in an untrusted project. Run `kiana trust trust` from this project to allow mutating tools."
+            "Tool {tool_name} is denied {trust_reason}. Run `kiana trust trust` from this project to allow mutating tools."
         ));
     }
+
+    let settings = effective_tool_permissions(app_state);
     if !is_read_only && settings.profile == "commercial" && !has_explicit_project_trust(app_state) {
         return ToolPermissionCheck::Deny(format!(
             "Tool {tool_name} is denied in commercial profile because project trust is not explicitly set. Run `kiana trust trust` from this project before allowing mutating tools."
@@ -563,6 +570,25 @@ fn known_read_only_tool(tool_name: &str) -> bool {
             | "CronList"
             | "Monitor"
     )
+}
+
+fn mcp_query_uses_inline_command(tool_name: &str, input: &Value) -> bool {
+    let is_mcp_query = matches!(
+        tool_name,
+        "ListMcpResourcesTool"
+            | "ListMcpResourceTemplatesTool"
+            | "ListMcpPromptsTool"
+            | "ReadMcpResourceTool"
+            | "GetMcpPromptTool"
+    );
+    is_mcp_query
+        && [
+            input.get("command").and_then(Value::as_str),
+            input.pointer("/config/command").and_then(Value::as_str),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|command| !command.trim().is_empty())
 }
 
 fn normalized_mode(value: Option<&str>) -> Option<String> {
@@ -858,7 +884,10 @@ mod tests {
     #[test]
     fn denies_explicit_session_disallow_rule() {
         with_isolated_permission_env("session-disallow", |_| {
-            let app_state = HashMap::from([("disallowed_tools".to_string(), json!(["Bash"]))]);
+            let app_state = HashMap::from([
+                ("disallowed_tools".to_string(), json!(["Bash"])),
+                ("project_trusted".to_string(), json!(true)),
+            ]);
             let denial =
                 permission_denial_for_tool("Bash", false, &json!({"command": "pwd"}), &app_state);
             assert!(denial.unwrap().contains("denied by permission rule"));
@@ -868,7 +897,10 @@ mod tests {
     #[test]
     fn ask_mode_denies_mutating_tools_without_allow_rule() {
         with_isolated_permission_env("ask-mode", |_| {
-            let app_state = HashMap::from([("permission_mode".to_string(), json!("ask"))]);
+            let app_state = HashMap::from([
+                ("permission_mode".to_string(), json!("ask")),
+                ("project_trusted".to_string(), json!(true)),
+            ]);
             let denial =
                 permission_denial_for_tool("Bash", false, &json!({"command": "pwd"}), &app_state);
             assert!(denial.unwrap().contains("requires permission in ask mode"));
@@ -892,7 +924,10 @@ mod tests {
     #[test]
     fn read_only_profile_denies_mutating_tools_but_allows_reads() {
         with_isolated_permission_env("read-only-profile", |_| {
-            let app_state = HashMap::from([("permission_profile".to_string(), json!("read-only"))]);
+            let app_state = HashMap::from([
+                ("permission_profile".to_string(), json!("read-only")),
+                ("project_trusted".to_string(), json!(true)),
+            ]);
 
             let settings = effective_tool_permissions(&app_state);
             assert_eq!(settings.profile, "read-only");
@@ -926,6 +961,145 @@ mod tests {
     }
 
     #[test]
+    fn unknown_project_denies_mutating_tools_but_allows_reads() {
+        with_isolated_permission_env("unknown-project", |_| {
+            let app_state = HashMap::new();
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(
+                matches!(&bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is unknown")),
+                "{bash:?}"
+            );
+            assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
+        });
+    }
+
+    #[test]
+    fn unknown_project_user_allow_rule_cannot_bypass_trust_gate() {
+        with_isolated_permission_env("unknown-user-allow", |_| {
+            let app_state = HashMap::from([("allowed_tools".to_string(), json!(["Bash"]))]);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(
+                matches!(&bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is unknown")),
+                "{bash:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn unknown_project_bypass_permissions_cannot_bypass_trust_gate() {
+        with_isolated_permission_env("unknown-bypass", |_| {
+            let app_state =
+                HashMap::from([("permission_mode".to_string(), json!("bypassPermissions"))]);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &app_state,
+            );
+            assert!(
+                matches!(&bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is unknown")),
+                "{bash:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn unknown_project_managed_allow_rule_cannot_bypass_trust_gate() {
+        with_isolated_permission_env("unknown-managed-allow", |_| {
+            let managed_path = std::env::temp_dir().join(format!(
+                "kiana-unknown-managed-permissions-{}.json",
+                uuid::Uuid::new_v4()
+            ));
+            std::fs::write(
+                &managed_path,
+                r#"{
+                  "permissions": {
+                    "allowedTools": ["Bash"]
+                  }
+                }"#,
+            )
+            .unwrap();
+            std::env::set_var("KIANA_MANAGED_POLICY_FILE", &managed_path);
+
+            let bash = permission_check_for_tool(
+                "Bash",
+                false,
+                &json!({"command": "git status"}),
+                &HashMap::new(),
+            );
+            assert!(
+                matches!(&bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is unknown")),
+                "{bash:?}"
+            );
+
+            let _ = std::fs::remove_file(managed_path);
+        });
+    }
+
+    #[test]
+    fn inline_mcp_query_commands_require_trusted_project() {
+        with_isolated_permission_env("inline-mcp-query", |_| {
+            let tools = [
+                "ListMcpResourcesTool",
+                "ListMcpResourceTemplatesTool",
+                "ListMcpPromptsTool",
+                "ReadMcpResourceTool",
+                "GetMcpPromptTool",
+            ];
+            let inline_inputs = [
+                json!({"server": "inline", "command": "untrusted-mcp"}),
+                json!({
+                    "server": "inline",
+                    "config": {"transport": "stdio", "command": "untrusted-mcp"}
+                }),
+            ];
+            let trust_states = [
+                ("unknown", HashMap::new()),
+                (
+                    "untrusted",
+                    HashMap::from([("project_trusted".to_string(), json!(false))]),
+                ),
+            ];
+
+            for (trust_state, app_state) in trust_states {
+                for tool_name in tools {
+                    assert!(matches!(
+                        permission_check_for_tool(
+                            tool_name,
+                            true,
+                            &json!({"server": "user-configured"}),
+                            &app_state,
+                        ),
+                        ToolPermissionCheck::Allow
+                    ));
+
+                    for input in &inline_inputs {
+                        let decision =
+                            permission_check_for_tool(tool_name, true, input, &app_state);
+                        assert!(
+                            matches!(&decision, ToolPermissionCheck::Deny(reason) if reason.contains(trust_state)),
+                            "{tool_name} with {input} was not denied for {trust_state}: {decision:?}"
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    #[test]
     fn commercial_profile_requires_permission_for_mutating_tools() {
         with_isolated_permission_env("commercial-profile", |_| {
             let app_state = HashMap::from([
@@ -946,7 +1120,7 @@ mod tests {
     }
 
     #[test]
-    fn commercial_profile_requires_explicit_project_trust_for_mutating_tools() {
+    fn commercial_profile_cannot_bypass_unknown_project_trust() {
         with_isolated_permission_env("commercial-explicit-trust", |_| {
             let app_state =
                 HashMap::from([("permission_profile".to_string(), json!("commercial"))]);
@@ -958,7 +1132,7 @@ mod tests {
                 &app_state,
             );
             assert!(
-                matches!(bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is not explicitly set"))
+                matches!(bash, ToolPermissionCheck::Deny(reason) if reason.contains("project trust is unknown"))
             );
             assert!(permission_denial_for_tool("Read", true, &json!({}), &app_state).is_none());
         });
@@ -1032,6 +1206,7 @@ mod tests {
                 ("allowed_tools".to_string(), json!(["Bash"])),
                 ("ask_tools".to_string(), json!(["Bash"])),
                 ("disallowed_tools".to_string(), json!(["Bash"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             let decision = permission_check_for_tool(
@@ -1052,6 +1227,7 @@ mod tests {
                 ("permission_mode".to_string(), json!("bypassPermissions")),
                 ("allowed_tools".to_string(), json!(["Bash(git:*)"])),
                 ("ask_tools".to_string(), json!(["Bash(rm:*)"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             assert!(matches!(
@@ -1101,6 +1277,7 @@ mod tests {
             let app_state = HashMap::from([
                 ("permission_profile".to_string(), json!("read-only")),
                 ("permission_mode".to_string(), json!("ask")),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             let settings = effective_tool_permissions(&app_state);
@@ -1153,6 +1330,7 @@ mod tests {
                 ("permission_profile".to_string(), json!("full")),
                 ("permission_mode".to_string(), json!("bypassPermissions")),
                 ("allowed_tools".to_string(), json!(["Bash", "Write"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             let settings = effective_tool_permissions(&app_state);
@@ -1183,6 +1361,7 @@ mod tests {
             let app_state = HashMap::from([
                 ("permission_mode".to_string(), json!("ask")),
                 ("allowed_tools".to_string(), json!(["Bash(git:*)"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             assert!(permission_denial_for_tool(
@@ -1208,6 +1387,7 @@ mod tests {
             let app_state = HashMap::from([
                 ("permission_mode".to_string(), json!("ask")),
                 ("allowed_tools".to_string(), json!(["PowerShell(Get-*)"])),
+                ("project_trusted".to_string(), json!(true)),
             ]);
 
             assert!(permission_denial_for_tool(
@@ -1230,7 +1410,10 @@ mod tests {
     #[test]
     fn ask_rule_requires_permission_in_default_mode() {
         with_isolated_permission_env("ask-rule-default", |_| {
-            let app_state = HashMap::from([("ask_tools".to_string(), json!(["Bash(cargo:*)"]))]);
+            let app_state = HashMap::from([
+                ("ask_tools".to_string(), json!(["Bash(cargo:*)"])),
+                ("project_trusted".to_string(), json!(true)),
+            ]);
 
             assert!(matches!(
                 permission_check_for_tool(
