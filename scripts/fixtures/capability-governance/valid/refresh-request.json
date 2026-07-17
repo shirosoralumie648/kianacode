@@ -1,0 +1,145 @@
+{
+  "affected_subjects": [
+    "decision.target",
+    "official-source-fixture",
+    "repo-content",
+    "repo-git",
+    "repo-missing"
+  ],
+  "cases": [
+    "no_drift",
+    "repository_head_drift",
+    "repository_tree_drift",
+    "license_hash_drift",
+    "content_tree_drift",
+    "official_source_hash_drift",
+    "target_revision_drift",
+    "source_unavailable"
+  ],
+  "current": false,
+  "errors": [
+    {
+      "code": "repository_head_drift",
+      "detail": "",
+      "freshness": "stale",
+      "path": "reference/fixture-git",
+      "subject_id": "repo-git"
+    },
+    {
+      "code": "repository_tree_drift",
+      "detail": "",
+      "freshness": "stale",
+      "path": "reference/fixture-git",
+      "subject_id": "repo-git"
+    },
+    {
+      "code": "license_hash_drift",
+      "detail": "",
+      "freshness": "stale",
+      "path": "reference/fixture-git",
+      "subject_id": "repo-git"
+    },
+    {
+      "code": "content_tree_drift",
+      "detail": "",
+      "freshness": "stale",
+      "path": "reference/fixture-content",
+      "subject_id": "repo-content"
+    },
+    {
+      "code": "official_source_hash_drift",
+      "detail": "",
+      "freshness": "stale",
+      "path": "",
+      "subject_id": "official-source-fixture"
+    },
+    {
+      "code": "target_revision_drift",
+      "detail": "",
+      "freshness": "stale",
+      "path": "artifact.bin",
+      "subject_id": "decision.target"
+    },
+    {
+      "code": "source_unavailable",
+      "detail": "controlled fixture source is unavailable",
+      "freshness": "stale",
+      "path": "reference/missing",
+      "subject_id": "repo-missing"
+    }
+  ],
+  "events": [
+    {
+      "code": "repository_head_drift",
+      "event_type": "stale",
+      "freshness": "stale",
+      "subject_id": "repo-git"
+    },
+    {
+      "code": "repository_tree_drift",
+      "event_type": "stale",
+      "freshness": "stale",
+      "subject_id": "repo-git"
+    },
+    {
+      "code": "license_hash_drift",
+      "event_type": "stale",
+      "freshness": "stale",
+      "subject_id": "repo-git"
+    },
+    {
+      "code": "content_tree_drift",
+      "event_type": "stale",
+      "freshness": "stale",
+      "subject_id": "repo-content"
+    },
+    {
+      "code": "official_source_hash_drift",
+      "event_type": "stale",
+      "freshness": "stale",
+      "subject_id": "official-source-fixture"
+    },
+    {
+      "code": "target_revision_drift",
+      "event_type": "stale",
+      "freshness": "stale",
+      "subject_id": "decision.target"
+    },
+    {
+      "code": "source_unavailable",
+      "event_type": "blocked_observation",
+      "freshness": "unavailable",
+      "subject_id": "repo-missing"
+    }
+  ],
+  "fixture": {
+    "content_repository": {
+      "license": "Fixture Content License\n",
+      "path": "reference/fixture-content",
+      "payload": "controlled content repository\n",
+      "repo_id": "repo-content"
+    },
+    "git_repository": {
+      "license": "Fixture Git License\n",
+      "path": "reference/fixture-git",
+      "payload": "controlled git repository\n",
+      "repo_id": "repo-git"
+    },
+    "official_source_artifact": {
+      "archive_uri": "https://archive.example.invalid/kiana/fixture-source",
+      "artifact_id": "official-source-fixture",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "official_uri": "https://docs.example.invalid/kiana/fixture-source",
+      "retrieved_at": "2026-07-15T00:00:00Z"
+    },
+    "target": {
+      "content_base64": "Y29udHJvbGxlZCB0YXJnZXQgYXJ0aWZhY3QK",
+      "decision_id": "decision.target",
+      "path": "artifact.bin"
+    }
+  },
+  "freshness": "stale",
+  "schema": "kiana.capability-governance-refresh-request.v1",
+  "status": "stale",
+  "version": "1.0"
+}
