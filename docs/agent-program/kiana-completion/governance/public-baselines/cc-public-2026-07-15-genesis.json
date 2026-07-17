@@ -1,0 +1,1323 @@
+{
+  "schema": "kiana.public-parity-baseline.v1",
+  "version": "1.0",
+  "revision_id": "cc-public-baseline-2026-07-15-genesis",
+  "revision_kind": "genesis",
+  "genesis_reason": "Initial source-complete import before public capability interpretation review.",
+  "snapshot_id": "cc-public-snapshot-2026-07-15-import",
+  "frozen_at": "2026-07-17T10:51:49Z",
+  "applicable_product_version": "public docs and release notes 2.1.212; local public CLI help 2.1.209",
+  "source_artifact": {
+    "artifact_id": "cc-public-official-2026-07-15",
+    "path": "docs/agent-program/kiana-completion/governance/source-artifacts/claude-code-public-2026-07-15.json",
+    "sha256": "ef875bdcf1d808083680d7a7c0be320d3bdc3938ec95c78594cb7471af69f850",
+    "content_sha256": "dc7f114235da319125dc3c6bf4d37d53154093857b0344b3acce050147a2eff0"
+  },
+  "official_source_index": [
+    {
+      "source_entry_id": "source-entry.docs-index",
+      "capability_ids": [
+        "cc.extensions.hook-lifecycle",
+        "cc.extensions.skills-commands",
+        "cc.extensions.trust-policy",
+        "cc.git.status-diff-commit",
+        "cc.git.worktree-pr-review",
+        "cc.ide.diff-context-diagnostics",
+        "cc.ide.session-resume",
+        "cc.ide.vscode-jetbrains",
+        "cc.mcp.auth-trust",
+        "cc.mcp.tools-resources-prompts",
+        "cc.memory.auto-memory",
+        "cc.memory.import-scope",
+        "cc.memory.project-user-rules",
+        "cc.sdk.mcp-headless-approval",
+        "cc.sdk.session-events",
+        "cc.sdk.structured-output-tools"
+      ]
+    },
+    {
+      "source_entry_id": "source-entry.release-notes",
+      "capability_ids": [
+        "cc.agents.subagent-lifecycle",
+        "cc.agents.teams-messaging",
+        "cc.checkpoint.diff-undo",
+        "cc.checkpoint.turn-snapshot",
+        "cc.checkpoint.user-change-protection",
+        "cc.chrome.browser-integration",
+        "cc.chrome.permission-degradation",
+        "cc.chrome.remote-session-files",
+        "cc.cli.forward-subagent-text",
+        "cc.models.effort-context",
+        "cc.models.selection-fallback",
+        "cc.voice.dictation-lifecycle",
+        "cc.voice.permission-retention",
+        "cc.voice.text-fallback-approval"
+      ]
+    },
+    {
+      "source_entry_id": "source-entry.cli-help-schema",
+      "capability_ids": [
+        "cc.agents.background-worktrees",
+        "cc.cli.model-context-flags",
+        "cc.cli.permission-sandbox-flags",
+        "cc.cli.print-stream-json",
+        "cc.cli.structured-output-schema",
+        "cc.commands.background-remote",
+        "cc.commands.mode-permission",
+        "cc.commands.session-lifecycle",
+        "cc.commands.status-diagnostics",
+        "cc.extensions.plugin-lifecycle",
+        "cc.mcp.transport-config"
+      ]
+    },
+    {
+      "source_entry_id": "source-entry.support-deployment",
+      "capability_ids": [
+        "cc.auth.oauth-api-cloud",
+        "cc.ci.github-gitlab-headless",
+        "cc.desktop.workspace-conversations",
+        "cc.install.native-platforms",
+        "cc.install.update-doctor",
+        "cc.models.provider-routing",
+        "cc.surfaces.shared-session-state",
+        "cc.web.remote-sessions"
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "journey_id": "journey.install-auth",
+      "title": "安装、升级与身份认证",
+      "required_capability_ids": [
+        "cc.install.native-platforms",
+        "cc.auth.oauth-api-cloud",
+        "cc.install.update-doctor"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.cli-flags",
+      "title": "CLI flags 与非交互输出",
+      "required_capability_ids": [
+        "cc.cli.print-stream-json",
+        "cc.cli.permission-sandbox-flags",
+        "cc.cli.model-context-flags",
+        "cc.cli.structured-output-schema",
+        "cc.cli.forward-subagent-text"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.interactive-commands",
+      "title": "交互命令、模式与诊断",
+      "required_capability_ids": [
+        "cc.commands.session-lifecycle",
+        "cc.commands.mode-permission",
+        "cc.commands.status-diagnostics",
+        "cc.commands.background-remote"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.ide",
+      "title": "IDE 项目上下文与任务连续性",
+      "required_capability_ids": [
+        "cc.ide.vscode-jetbrains",
+        "cc.ide.diff-context-diagnostics",
+        "cc.ide.session-resume"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.desktop-web",
+      "title": "Desktop 与 Web 工作区",
+      "required_capability_ids": [
+        "cc.desktop.workspace-conversations",
+        "cc.web.remote-sessions",
+        "cc.surfaces.shared-session-state"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.models",
+      "title": "Models、providers 与能力降级",
+      "required_capability_ids": [
+        "cc.models.selection-fallback",
+        "cc.models.provider-routing",
+        "cc.models.effort-context"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.memory",
+      "title": "Memory、rules 与作用域",
+      "required_capability_ids": [
+        "cc.memory.project-user-rules",
+        "cc.memory.auto-memory",
+        "cc.memory.import-scope"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.mcp",
+      "title": "MCP 配置、传输与资源",
+      "required_capability_ids": [
+        "cc.mcp.transport-config",
+        "cc.mcp.tools-resources-prompts",
+        "cc.mcp.auth-trust"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.subagents-teams",
+      "title": "Subagents、agent teams 与后台任务",
+      "required_capability_ids": [
+        "cc.agents.subagent-lifecycle",
+        "cc.agents.teams-messaging",
+        "cc.agents.background-worktrees"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.plugins-skills-hooks",
+      "title": "Plugins、skills、commands 与 hooks",
+      "required_capability_ids": [
+        "cc.extensions.plugin-lifecycle",
+        "cc.extensions.skills-commands",
+        "cc.extensions.hook-lifecycle",
+        "cc.extensions.trust-policy"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.checkpoints",
+      "title": "Checkpoints、diff 与 undo",
+      "required_capability_ids": [
+        "cc.checkpoint.turn-snapshot",
+        "cc.checkpoint.diff-undo",
+        "cc.checkpoint.user-change-protection"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.chrome",
+      "title": "Chrome、browser 与 computer-use",
+      "required_capability_ids": [
+        "cc.chrome.browser-integration",
+        "cc.chrome.remote-session-files",
+        "cc.chrome.permission-degradation"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.git-ci",
+      "title": "Git、PR 与 CI 自动化",
+      "required_capability_ids": [
+        "cc.git.status-diff-commit",
+        "cc.git.worktree-pr-review",
+        "cc.ci.github-gitlab-headless"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.sdk",
+      "title": "Agent SDK、headless 与 typed events",
+      "required_capability_ids": [
+        "cc.sdk.session-events",
+        "cc.sdk.structured-output-tools",
+        "cc.sdk.mcp-headless-approval"
+      ],
+      "optional_capability_ids": []
+    },
+    {
+      "journey_id": "journey.voice",
+      "title": "Voice dictation 与文本回退",
+      "required_capability_ids": [
+        "cc.voice.dictation-lifecycle",
+        "cc.voice.permission-retention",
+        "cc.voice.text-fallback-approval"
+      ],
+      "optional_capability_ids": []
+    }
+  ],
+  "capabilities": [
+    {
+      "capability_id": "cc.install.native-platforms",
+      "title": "Linux、macOS、Windows/WSL 原生安装与平台要求",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "platform-delivery",
+      "target_phase": "19",
+      "evidence_ids": [
+        "ev.public.install.native-platforms.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.auth.oauth-api-cloud",
+      "title": "OAuth、API key 与受支持云供应商认证",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "trust-and-credentials",
+      "target_phase": "05",
+      "evidence_ids": [
+        "ev.public.auth.oauth-api-cloud.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.install.update-doctor",
+      "title": "更新、版本固定、卸载与诊断",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "platform-delivery",
+      "target_phase": "19",
+      "evidence_ids": [
+        "ev.public.install.update-doctor.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.cli.print-stream-json",
+      "title": "Print、JSON 与 stream-json 输入输出",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.cli.print-stream-json.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.cli.permission-sandbox-flags",
+      "title": "权限、工具范围与 sandbox flags",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.cli.permission-sandbox-flags.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.cli.model-context-flags",
+      "title": "Model、effort、context 与 session flags",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.cli.model-context-flags.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.cli.structured-output-schema",
+      "title": "JSON Schema structured output flag",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.cli.structured-output-schema.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.cli.forward-subagent-text",
+      "title": "Stream-json subagent text/thinking forwarding flag",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.cli.forward-subagent-text.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.commands.session-lifecycle",
+      "title": "Session create、resume、fork、compact 与 history 命令",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.commands.session-lifecycle.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.commands.mode-permission",
+      "title": "Ask、Plan、Edit/Execute 与 permission 交互",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.commands.mode-permission.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.commands.status-diagnostics",
+      "title": "Status、doctor、usage 与配置诊断命令",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.commands.status-diagnostics.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.commands.background-remote",
+      "title": "Background、remote control 与任务监控命令",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.commands.background-remote.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.ide.vscode-jetbrains",
+      "title": "VS Code 与 JetBrains 客户端",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "ide-surface",
+      "target_phase": "17",
+      "evidence_ids": [
+        "ev.public.ide.vscode-jetbrains.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.ide.diff-context-diagnostics",
+      "title": "IDE diff、context、diagnostics 与 review",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "ide-surface",
+      "target_phase": "17",
+      "evidence_ids": [
+        "ev.public.ide.diff-context-diagnostics.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.ide.session-resume",
+      "title": "IDE session、approval 与 workflow resume",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "ide-surface",
+      "target_phase": "17",
+      "evidence_ids": [
+        "ev.public.ide.session-resume.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.desktop.workspace-conversations",
+      "title": "Desktop conversation、workspace、files 与 settings",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "desktop-web-surface",
+      "target_phase": "18",
+      "evidence_ids": [
+        "ev.public.desktop.workspace-conversations.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.web.remote-sessions",
+      "title": "Web remote session、diff、logs 与 approvals",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "desktop-web-surface",
+      "target_phase": "18",
+      "evidence_ids": [
+        "ev.public.web.remote-sessions.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.surfaces.shared-session-state",
+      "title": "CLI、IDE、Desktop 与 Web 共享 session 状态",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "cross-surface-continuity",
+      "target_phase": "19",
+      "evidence_ids": [
+        "ev.public.surfaces.shared-session-state.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.models.selection-fallback",
+      "title": "模型选择、alias 与 fallback",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "provider-runtime",
+      "target_phase": "07",
+      "evidence_ids": [
+        "ev.public.models.selection-fallback.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.models.provider-routing",
+      "title": "Anthropic 与云/兼容 provider 路由",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "provider-runtime",
+      "target_phase": "07",
+      "evidence_ids": [
+        "ev.public.models.provider-routing.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.models.effort-context",
+      "title": "Effort、context window 与 capability 协商",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "provider-runtime",
+      "target_phase": "07",
+      "evidence_ids": [
+        "ev.public.models.effort-context.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.memory.project-user-rules",
+      "title": "User、project 与 local instructions/rules",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-baseline",
+      "target_phase": "10",
+      "evidence_ids": [
+        "ev.public.memory.project-user-rules.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.memory.auto-memory",
+      "title": "自动 memory 形成、查询与 stale 边界",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-baseline",
+      "target_phase": "10",
+      "evidence_ids": [
+        "ev.public.memory.auto-memory.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.memory.import-scope",
+      "title": "Memory import/export、scope 与 precedence",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-baseline",
+      "target_phase": "10",
+      "evidence_ids": [
+        "ev.public.memory.import-scope.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.mcp.transport-config",
+      "title": "stdio、HTTP、SSE、WebSocket 与 scoped config",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.mcp.transport-config.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.mcp.tools-resources-prompts",
+      "title": "Tools、resources、templates 与 prompts",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.mcp.tools-resources-prompts.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.mcp.auth-trust",
+      "title": "MCP auth、approval、trust 与 structured errors",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.mcp.auth-trust.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.agents.subagent-lifecycle",
+      "title": "Subagent create、message、cancel 与 handoff",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "bounded-agents",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.agents.subagent-lifecycle.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.agents.teams-messaging",
+      "title": "Agent team、task board、mailbox 与 integration gate",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "bounded-agents",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.agents.teams-messaging.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.agents.background-worktrees",
+      "title": "Background agents、worktree isolation 与 resume",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "bounded-agents",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.agents.background-worktrees.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.extensions.plugin-lifecycle",
+      "title": "Plugin install、validate、enable、disable 与 receipts",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "extension-runtime",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.extensions.plugin-lifecycle.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.extensions.skills-commands",
+      "title": "Skills 与 slash command discovery/execution",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "extension-runtime",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.extensions.skills-commands.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.extensions.hook-lifecycle",
+      "title": "Session、prompt、tool 与 stop hook lifecycle",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "extension-runtime",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.extensions.hook-lifecycle.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.extensions.trust-policy",
+      "title": "Project trust、managed policy 与 extension visibility",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "extension-runtime",
+      "target_phase": "09",
+      "evidence_ids": [
+        "ev.public.extensions.trust-policy.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.checkpoint.turn-snapshot",
+      "title": "Assistant turn checkpoint 与 immutable snapshot",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-baseline",
+      "target_phase": "10",
+      "evidence_ids": [
+        "ev.public.checkpoint.turn-snapshot.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.checkpoint.diff-undo",
+      "title": "Checkpoint diff、restore 与 undo",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-baseline",
+      "target_phase": "10",
+      "evidence_ids": [
+        "ev.public.checkpoint.diff-undo.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.checkpoint.user-change-protection",
+      "title": "Late user edit 与 dirty-worktree protection",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-baseline",
+      "target_phase": "10",
+      "evidence_ids": [
+        "ev.public.checkpoint.user-change-protection.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.chrome.browser-integration",
+      "title": "Chrome extension/native host 与 browser tools",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-ecosystem",
+      "target_phase": "11",
+      "evidence_ids": [
+        "ev.public.chrome.browser-integration.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.chrome.remote-session-files",
+      "title": "Remote/browser session file transfer 与 continuity",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-ecosystem",
+      "target_phase": "11",
+      "evidence_ids": [
+        "ev.public.chrome.remote-session-files.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.chrome.permission-degradation",
+      "title": "Browser permissions、availability 与 explicit degradation",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-ecosystem",
+      "target_phase": "11",
+      "evidence_ids": [
+        "ev.public.chrome.permission-degradation.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.git.status-diff-commit",
+      "title": "Git status、diff、branch 与 commit 辅助",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-ecosystem",
+      "target_phase": "11",
+      "evidence_ids": [
+        "ev.public.git.status-diff-commit.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.git.worktree-pr-review",
+      "title": "Worktree、PR、review 与 remote receipts",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-ecosystem",
+      "target_phase": "11",
+      "evidence_ids": [
+        "ev.public.git.worktree-pr-review.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.ci.github-gitlab-headless",
+      "title": "GitHub Actions、GitLab CI 与 headless execution",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "target_environment",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "coding-ecosystem",
+      "target_phase": "11",
+      "evidence_ids": [
+        "ev.public.ci.github-gitlab-headless.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.sdk.session-events",
+      "title": "SDK session lifecycle 与 typed RuntimeEvent stream",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.sdk.session-events.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.sdk.structured-output-tools",
+      "title": "SDK structured output、tool calls 与 cancellation",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.sdk.structured-output-tools.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.sdk.mcp-headless-approval",
+      "title": "SDK/MCP headless approval、reconnect 与 result",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "local_behavior",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "terminal-headless",
+      "target_phase": "16",
+      "evidence_ids": [
+        "ev.public.sdk.mcp-headless-approval.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.voice.dictation-lifecycle",
+      "title": "Voice start、pause、edit、confirm 与 submit",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "cross-surface-continuity",
+      "target_phase": "19",
+      "evidence_ids": [
+        "ev.public.voice.dictation-lifecycle.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.voice.permission-retention",
+      "title": "Audio permission、transcription source 与 retention",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "cross-surface-continuity",
+      "target_phase": "19",
+      "evidence_ids": [
+        "ev.public.voice.permission-retention.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    },
+    {
+      "capability_id": "cc.voice.text-fallback-approval",
+      "title": "Text fallback 与 approval-preserving submission",
+      "parity_outcome": "unassessed",
+      "coverage_state": "unassessed",
+      "required_proof_level": "user_value",
+      "proof_level": "source",
+      "freshness": "current",
+      "owner": "cross-surface-continuity",
+      "target_phase": "19",
+      "evidence_ids": [
+        "ev.public.voice.text-fallback-approval.import"
+      ],
+      "gap": {
+        "status": "open",
+        "reason": "官方公开合同已导入；逐项 Kiana 解释和 proof 复审尚未完成。"
+      },
+      "difference": {
+        "classification": "none",
+        "rationale": "Genesis 只记录导入，不在解释前制造 parity 结论。"
+      }
+    }
+  ]
+}
