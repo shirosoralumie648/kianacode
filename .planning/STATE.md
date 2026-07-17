@@ -8,13 +8,13 @@ status: executing
 stopped_at: Completed 01-08-PLAN.md
 last_updated: "2026-07-17T11:10:34.737Z"
 last_activity: 2026-07-17
-last_activity_desc: Completed Plan 01-07 offline freeze, drift, and immutable refresh lifecycle
+last_activity_desc: Completed Plan 01-08 official public source and reviewed parity baseline
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
   completed_plans: 8
-  percent: 0
+  percent: 67
 ---
 
 # Project State
@@ -31,28 +31,28 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 Phase: 01 (baseline-evidence-governance) — EXECUTING
 Plan: 9 of 12
 Status: Ready to execute
-Last activity: 2026-07-17 — Completed Plan 01-07 offline freeze, drift, and immutable refresh lifecycle
+Last activity: 2026-07-17 — Completed Plan 01-08 official public source and reviewed parity baseline
 
-Progress: [██████░░░░] 58%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7
-- Average duration: 52 min
-- Total execution time: 362 min
+- Total plans completed: 8
+- Average duration: 47 min
+- Total execution time: 378 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 7 | 362 min | 52 min |
+| 1. 现状基线与证据治理 | 8 | 378 min | 47 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 28 min, 35 min, 10 min, 164 min, 64 min
-- Trend: 01-07 比包含 implementation correction 的 01-06 减少 100 min
+- Last 5 plans: 35 min, 10 min, 164 min, 64 min, 16 min
+- Trend: 01-08 比 01-07 减少 48 min
 
 **Plan History:**
 
@@ -98,6 +98,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Refresh appends revision-scoped evidence bindings and advances only affected families. — Preserves historical bytes while keeping unchanged proof current.
 - [Phase 01]: Refresh publishes a self-contained current bundle plus a path/hash-only result selector. — Allows deterministic validation from temporary output roots without weakening selector contracts.
 - [Phase 01]: Git HEAD fingerprints use bounded repository metadata instead of a Git subprocess. — Preserves identity while keeping the traced offline supervisor below its fixed deadline.
+- [Phase 01]: The approved 2026-07-15 public-baseline label retains a real 2026-07-17 retrieved_at and never backdates rolling pages. — Separates planning identity from observable source truth and prevents a fabricated historical snapshot claim.
+- [Phase 01]: The public ledger uses exactly 15 COD-01 journeys and 49 stable cc.* required children with Phase 1 proof capped at source. — Prevents journey labels or implementation presence from manufacturing local, target-environment, or user-value completion.
+- [Phase 01]: Release-notes 2.1.211 versus local CLI help 2.1.209 remains a blocked cc.cli.forward-subagent-text row. — Preserves source-version conflict until matching-version public help is captured and reviewed.
 
 ### Pending Todos
 
