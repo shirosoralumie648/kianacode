@@ -2560,6 +2560,7 @@ mod tests {
         assert!(Slice::parse_public("public-baseline").is_ok());
         assert!(Slice::parse_public("reference-governance").is_ok());
         assert!(Slice::parse_public("semantic-negative").is_ok());
+        assert!(Slice::parse_public("drift-refresh").is_ok());
         let args = vec![OsString::from("supervisor"), OsString::from("schemas")];
         assert!(matches!(
             parse_invocation(&args),

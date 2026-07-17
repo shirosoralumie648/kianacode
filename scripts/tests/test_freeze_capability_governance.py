@@ -34,6 +34,9 @@ REFRESH_REQUEST = (
     / "valid"
     / "refresh-request.json"
 )
+REFRESH_RESULT = REFRESH_REQUEST.with_name("refresh-result.json")
+MINIMAL_GRAPH = REFRESH_REQUEST.with_name("minimal-graph.json")
+VALIDATOR = ROOT / "scripts" / "validate-capability-governance.py"
 
 CASES = [
     "no_drift",
@@ -256,6 +259,188 @@ class CapabilityGovernanceDriftCliTests(unittest.TestCase):
             self.assertEqual(2, result.returncode)
             self.assertFalse(output.exists())
             self.assertIn("cannot be combined", result.stderr)
+
+
+class CapabilityGovernanceRefreshTests(unittest.TestCase):
+    def run_refresh(self, output_root: Path) -> subprocess.CompletedProcess[str]:
+        return run_cli(
+            "refresh",
+            "--fixture-bundle",
+            MINIMAL_GRAPH,
+            "--drift-report",
+            REFRESH_REQUEST,
+            "--output-root",
+            output_root,
+            "--revision-id",
+            "fixture-refresh",
+            "--review-revision",
+            "fixture-review",
+        )
+
+    def test_refresh_creates_valid_immutable_successors_and_exact_result(self) -> None:
+        predecessor_bytes = MINIMAL_GRAPH.read_bytes()
+        predecessor = read_json(MINIMAL_GRAPH)
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory) / "refresh"
+            result = self.run_refresh(output_root)
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(predecessor_bytes, MINIMAL_GRAPH.read_bytes())
+            current = read_json(output_root / "current.json")
+            actual_result = (output_root / "refresh-result.json").read_bytes()
+            self.assertEqual(REFRESH_RESULT.read_bytes(), actual_result)
+            validation = subprocess.run(
+                [
+                    sys.executable,
+                    str(VALIDATOR),
+                    "validate",
+                    "--manifest",
+                    str(output_root / "current.json"),
+                    "--json",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, validation.returncode, validation.stdout + validation.stderr)
+            self.assertEqual("valid", json.loads(validation.stdout)["status"])
+
+        source = current["official_source_artifact"]
+        old_source = predecessor["official_source_artifact"]
+        self.assertEqual("successor", source["revision_kind"])
+        self.assertEqual(old_source["revision_id"], source["previous_revision_id"])
+        self.assertEqual(
+            governance.canonical_sha256(old_source),
+            source["previous_revision_sha256"],
+        )
+
+        for family in (
+            "public_baseline_revisions",
+            "repository_registry_revisions",
+            "capability_decision_revisions",
+            "evidence_revisions",
+        ):
+            with self.subTest(family=family):
+                old_head = predecessor[family][-1]
+                new_head = current[family][-1]
+                self.assertEqual("successor", new_head["revision_kind"])
+                self.assertEqual(old_head["revision_id"], new_head["previous_revision_id"])
+                self.assertEqual(
+                    governance.canonical_sha256(old_head),
+                    new_head["previous_revision_sha256"],
+                )
+
+        old_records = predecessor["evidence_revisions"][-1]["records"]
+        new_records = current["evidence_revisions"][-1]["records"]
+        self.assertEqual(old_records, new_records[: len(old_records)])
+        appended = new_records[len(old_records) :]
+        expected_codes = [error["code"] for error in read_json(REFRESH_REQUEST)["errors"]]
+        self.assertEqual(
+            expected_codes,
+            [record["transition_event"]["reason"].removeprefix("drift:") for record in appended],
+        )
+        self.assertTrue(all(record["freshness"] == "stale" for record in appended))
+        self.assertTrue(
+            all(record["transition_event"]["event_type"] == "stale" for record in appended)
+        )
+
+    def test_refresh_request_subjects_exist_in_predecessor(self) -> None:
+        request = read_json(REFRESH_REQUEST)
+        predecessor = read_json(MINIMAL_GRAPH)
+        known = {predecessor["official_source_artifact"]["artifact_id"]}
+        known.update(
+            repository["repo_id"]
+            for repository in predecessor["repository_registry_revisions"][-1]["repositories"]
+        )
+        known.update(
+            decision["decision_id"]
+            for decision in predecessor["capability_decision_revisions"][-1]["decisions"]
+        )
+
+        self.assertEqual(set(request["affected_subjects"]), set(request["affected_subjects"]) & known)
+        self.assertEqual(
+            set(request["affected_subjects"]),
+            {error["subject_id"] for error in request["errors"]},
+        )
+
+    def test_refresh_rejects_clean_report_and_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            clean = read_json(REFRESH_REQUEST)
+            clean.update(
+                {
+                    "affected_subjects": [],
+                    "current": True,
+                    "errors": [],
+                    "events": [],
+                    "freshness": "current",
+                    "status": "current",
+                }
+            )
+            clean_path = root / "clean.json"
+            clean_path.write_text(json.dumps(clean), encoding="utf-8")
+            clean_output = root / "clean-output"
+            clean_result = run_cli(
+                "refresh",
+                "--fixture-bundle",
+                MINIMAL_GRAPH,
+                "--drift-report",
+                clean_path,
+                "--output-root",
+                clean_output,
+                "--revision-id",
+                "fixture-refresh",
+                "--review-revision",
+                "fixture-review",
+            )
+            self.assertEqual(2, clean_result.returncode)
+            self.assertFalse(clean_output.exists())
+            self.assertIn("drift_required", clean_result.stderr)
+
+            existing = root / "existing"
+            existing.mkdir()
+            sentinel = existing / "protected.txt"
+            sentinel.write_bytes(b"protected predecessor\n")
+            existing_result = self.run_refresh(existing)
+            self.assertEqual(2, existing_result.returncode)
+            self.assertEqual(b"protected predecessor\n", sentinel.read_bytes())
+            self.assertIn("output_exists", existing_result.stderr)
+
+    def test_refresh_rejects_unknown_affected_subject(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            request = read_json(REFRESH_REQUEST)
+            request["affected_subjects"].append("unknown-subject")
+            request["errors"].append(
+                {
+                    "code": "repository_tree_drift",
+                    "detail": "",
+                    "freshness": "stale",
+                    "path": "reference/unknown",
+                    "subject_id": "unknown-subject",
+                }
+            )
+            request_path = root / "unknown.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            output_root = root / "output"
+            result = run_cli(
+                "refresh",
+                "--fixture-bundle",
+                MINIMAL_GRAPH,
+                "--drift-report",
+                request_path,
+                "--output-root",
+                output_root,
+                "--revision-id",
+                "fixture-refresh",
+                "--review-revision",
+                "fixture-review",
+            )
+
+            self.assertEqual(2, result.returncode)
+            self.assertFalse(output_root.exists())
+            self.assertIn("affected_subject_unknown", result.stderr)
 
 
 if __name__ == "__main__":
