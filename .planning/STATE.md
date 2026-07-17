@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-06-PLAN.md
-last_updated: "2026-07-16T14:36:18.081Z"
-last_activity: 2026-07-16
-last_activity_desc: Completed Plan 01-06 semantic governance adversarial corpus
+stopped_at: Completed 01-07-PLAN.md
+last_updated: "2026-07-17T10:43:33.367Z"
+last_activity: 2026-07-17
+last_activity_desc: Completed Plan 01-07 offline freeze, drift, and immutable refresh lifecycle
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 6
-  percent: 50
+  completed_plans: 7
+  percent: 58
 ---
 
 # Project State
@@ -29,30 +29,30 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 7 of 12
+Plan: 8 of 12
 Status: Ready to execute
-Last activity: 2026-07-16 — Completed Plan 01-06 semantic governance adversarial corpus
+Last activity: 2026-07-17 — Completed Plan 01-07 offline freeze, drift, and immutable refresh lifecycle
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 58%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
-- Average duration: 50 min
-- Total execution time: 298 min
+- Total plans completed: 7
+- Average duration: 52 min
+- Total execution time: 362 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 6 | 298 min | 50 min |
+| 1. 现状基线与证据治理 | 7 | 362 min | 52 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 39 min, 28 min, 35 min, 10 min, 164 min
-- Trend: 01-06 包含 implementation correction，较 01-05 增加 154 min
+- Last 5 plans: 28 min, 35 min, 10 min, 164 min, 64 min
+- Trend: 01-07 比包含 implementation correction 的 01-06 减少 100 min
 
 **Plan History:**
 
@@ -66,6 +66,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01 P04 | 35 min | 2 tasks | 6 files |
 | Phase 01 P05 | 10 min | 2 tasks | 5 files |
 | Phase 01 P06 | 2h 44m | 4 tasks | 37 files |
+| Phase 01 P07 | 1h 4m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Coverage oracles require the exact production semantic code and subject; structural failures cannot substitute for the target diagnostic. — Keeps post-implementation fixtures from becoming an alternate rule source.
 - [Phase 01]: Plan 01-06 exact diagnostics are production API, while symlink and oversized reads remain typed exit-2 usage failures. — Prevents fixtures from weakening fail-closed CLI semantics.
 - [Phase 01]: Semantic-negative is an explicit Rust supervisor slice over the real CLI and production drift comparator. — Preserves receipt, deadline, offline, redaction, and protected-input authority for the aggregate corpus.
+- [Phase 01]: Fixture mode is test-only and cannot replace production manifest and live inputs. — Keeps controlled cases from becoming a second production drift interface.
+- [Phase 01]: Refresh appends revision-scoped evidence bindings and advances only affected families. — Preserves historical bytes while keeping unchanged proof current.
+- [Phase 01]: Refresh publishes a self-contained current bundle plus a path/hash-only result selector. — Allows deterministic validation from temporary output roots without weakening selector contracts.
+- [Phase 01]: Git HEAD fingerprints use bounded repository metadata instead of a Git subprocess. — Preserves identity while keeping the traced offline supervisor below its fixed deadline.
 
 ### Pending Todos
 
@@ -109,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-16T14:36:18.070Z
-Stopped at: Completed 01-06-PLAN.md
+Last session: 2026-07-17T10:43:33.359Z
+Stopped at: Completed 01-07-PLAN.md
 Resume file: None
