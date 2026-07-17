@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: baseline-evidence-governance
 status: executing
-stopped_at: Completed 01-09-PLAN.md
-last_updated: "2026-07-17T11:25:16Z"
+stopped_at: Completed 01-10-PLAN.md
+last_updated: "2026-07-17T11:43:19Z"
 last_activity: 2026-07-17
-last_activity_desc: Completed Plan 01-09 reference registry and capability decision review
+last_activity_desc: Completed Plan 01-10 evidence, legacy authority, and canonical selector
 progress:
   total_phases: 24
   completed_phases: 0
   total_plans: 12
-  completed_plans: 9
-  percent: 75
+  completed_plans: 10
+  percent: 83
 ---
 
 # Project State
@@ -29,30 +29,30 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (baseline-evidence-governance) — EXECUTING
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
-Last activity: 2026-07-17 — Completed Plan 01-09 reference registry and capability decision review
+Last activity: 2026-07-17 — Completed Plan 01-10 evidence, legacy authority, and canonical selector
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
-- Average duration: 44 min
-- Total execution time: 392 min
+- Total plans completed: 10
+- Average duration: 41 min
+- Total execution time: 410 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 9 | 392 min | 44 min |
+| 1. 现状基线与证据治理 | 10 | 410 min | 41 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 10 min, 164 min, 64 min, 16 min, 14 min
-- Trend: 01-09 比 01-08 减少 2 min
+- Last 5 plans: 164 min, 64 min, 16 min, 14 min, 18 min
+- Trend: 01-10 比 01-09 增加 4 min
 
 **Plan History:**
 
@@ -69,6 +69,7 @@ Progress: [████████░░] 75%
 | Phase 01 P07 | 1h 4m | 2 tasks | 8 files |
 | Phase 01 P08 | 16 min | 2 tasks | 4 files |
 | Phase 01 P09 | 14 min | 1 task | 4 files |
+| Phase 01 P10 | 18 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Release-notes 2.1.211 versus local CLI help 2.1.209 remains a blocked cc.cli.forward-subagent-text row. — Preserves source-version conflict until matching-version public help is captured and reviewed.
 - [Phase 01]: Every reference owns separate mechanisms and boundary capability IDs. — Prevents one repository-level verdict from hiding mixed Adapt and Reject decisions.
 - [Phase 01]: Only compatible MIT, Apache-2.0, or ISC sources receive current Adapt; restricted, mixed, AGPL/commercial, and missing licenses reject code reuse. — Keeps open-core reuse fail closed while retaining discovery provenance.
+- [Phase 01]: Production evidence remains source-only and does not fabricate expiry, failure, target-environment, or user-value observations. — Keeps the evidence ledger honest while preserving every referenced governance record.
+- [Phase 01]: current.json selects six exact canonical heads and a checked-in evaluation_time. — Eliminates newest-file guessing and process-clock expiry drift.
 
 ### Pending Todos
 
@@ -122,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-17T11:25:16Z
-Stopped at: Completed 01-09-PLAN.md
+Last session: 2026-07-17T11:43:19Z
+Stopped at: Completed 01-10-PLAN.md
 Resume file: None
