@@ -1,0 +1,3431 @@
+{
+  "schema": "kiana.capability-decisions.v1",
+  "version": "1.0",
+  "revision_id": "reference-decisions-2026-07-15-genesis",
+  "revision_kind": "genesis",
+  "genesis_reason": "Initial import of 38 repository mechanisms and explicit boundaries before completed review.",
+  "review_revision": "reference-import-2026-07-17",
+  "reviewed_at": "2026-07-17T11:19:16Z",
+  "decisions": [
+    {
+      "decision_id": "decision.12-factor-agents.mechanisms.import",
+      "repo_id": "12-factor-agents",
+      "capability_id": "cap.ref.12-factor-agents.mechanisms",
+      "source_path": "reference/12-factor-agents/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d20c728368bf9c189d6d7aab704744decb6ec0cc",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (natural language -> tool calls、own prompts/context、unified execution state、launch/pause/resume、small focused agents) into Kiana shared contracts at Intent Router、WorkflowRun、GateResult; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.12-factor-agents.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.12-factor-agents.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "policy-runtime",
+      "target_path": "kiana-tools/src/permissions.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "4de2845151951dc6cf3a63631407c66c379aedacf5ab02bcdca2bea64b81be03",
+      "tests": [
+        {
+          "test_id": "test.governance.12-factor-agents.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.12-factor-agents.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.12-factor-agents.boundary.import",
+      "repo_id": "12-factor-agents",
+      "capability_id": "cap.ref.12-factor-agents.boundary",
+      "source_path": "reference/12-factor-agents/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d20c728368bf9c189d6d7aab704744decb6ec0cc",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把 12 条原则当框架依赖.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.12-factor-agents.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.12-factor-agents.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.12-factor-agents.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.12-factor-agents.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.archon.mechanisms.import",
+      "repo_id": "archon",
+      "capability_id": "cap.ref.archon.mechanisms",
+      "source_path": "reference/Archon/README-zh.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "55ef3bc7bff21d631176dc05e29545582f221505",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (command workflow、PR/issue automation、validate/review/artifact、repo config) into Kiana shared contracts at Project Orchestrator、artifact DAG; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.archon.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.archon.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.archon.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.archon.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.archon.boundary.import",
+      "repo_id": "archon",
+      "capability_id": "cap.ref.archon.boundary",
+      "source_path": "reference/Archon/README-zh.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "55ef3bc7bff21d631176dc05e29545582f221505",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不复制其完整 GitHub 自动化作为 P0.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.archon.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.archon.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.archon.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.archon.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.ecc.mechanisms.import",
+      "repo_id": "ecc",
+      "capability_id": "cap.ref.ecc.mechanisms",
+      "source_path": "reference/ECC/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "38a7ebbe3294be9bfda5612c6d696742ade6fbb2",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (cross-harness skills/agents/hooks/MCP、operator status、AgentShield/security、adapter matrix) into Kiana shared contracts at Trust Model、plugin policy、status payload; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ecc.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.ecc.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "extensions",
+      "target_path": "kiana-skills/src/lib.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "bd123f9b5f364a565ec031af1e0e39eaf964cfa98810bfd1c303340dcba0937a",
+      "tests": [
+        {
+          "test_id": "test.governance.ecc.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.ecc.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.ecc.boundary.import",
+      "repo_id": "ecc",
+      "capability_id": "cap.ref.ecc.boundary",
+      "source_path": "reference/ECC/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "38a7ebbe3294be9bfda5612c6d696742ade6fbb2",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不照搬庞大 catalog；P0 只吸收 policy/status/manifest.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ecc.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.ecc.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.ecc.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.ecc.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.gitnexus.mechanisms.import",
+      "repo_id": "gitnexus",
+      "capability_id": "cap.ref.gitnexus.mechanisms",
+      "source_path": "reference/GitNexus/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "f236be05e0cb77c6d77370bf8bc64885ebaf09d1",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (analyze/setup、knowledge graph、MCP tools、context/impact/trace/detect_changes、staleness) because repository license compatibility is incompatible (PolyForm-Noncommercial-1.0.0).",
+      "license_compatibility": "incompatible",
+      "license_evidence_ids": [
+        "ev.license.gitnexus.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.gitnexus.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.gitnexus.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.gitnexus.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.gitnexus.boundary.import",
+      "repo_id": "gitnexus",
+      "capability_id": "cap.ref.gitnexus.boundary",
+      "source_path": "reference/GitNexus/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "f236be05e0cb77c6d77370bf8bc64885ebaf09d1",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: graph 不能替代 live source/test evidence.",
+      "license_compatibility": "incompatible",
+      "license_evidence_ids": [
+        "ev.license.gitnexus.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.gitnexus.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.gitnexus.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.gitnexus.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.mempalace.mechanisms.import",
+      "repo_id": "mempalace",
+      "capability_id": "cap.ref.mempalace.mechanisms",
+      "source_path": "reference/MemPalace/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "000524b111e78ae56fd858b8c3a74e2a89080091",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (local memory layering、semantic search、init/mine/search/status) into Kiana shared contracts at ContextPack、project memory; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.mempalace.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.mempalace.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "memory-runtime",
+      "target_path": "kiana-commands/src/memory.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "9b1253dadd57b512a037d81098e223e7931f870a8e7225b682b98f9542ced9f0",
+      "tests": [
+        {
+          "test_id": "test.governance.mempalace.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.mempalace.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.mempalace.boundary.import",
+      "repo_id": "mempalace",
+      "capability_id": "cap.ref.mempalace.boundary",
+      "source_path": "reference/MemPalace/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "000524b111e78ae56fd858b8c3a74e2a89080091",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不采用不可审计命名隐喻作为核心模型.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.mempalace.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.mempalace.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.mempalace.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.mempalace.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.metagpt.mechanisms.import",
+      "repo_id": "metagpt",
+      "capability_id": "cap.ref.metagpt.mechanisms",
+      "source_path": "reference/MetaGPT/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (role/action/team 抽象、软件公司式分工) into Kiana shared contracts at worker role taxonomy; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.metagpt.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.metagpt.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "bounded-agents",
+      "target_path": "kiana-tasks/src/swarm.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "8d5750fc728aa8df8a9c3e9fbf47e1b36b4c2069d1f3c9d25864e37ff70ae734",
+      "tests": [
+        {
+          "test_id": "test.governance.metagpt.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.metagpt.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.metagpt.boundary.import",
+      "repo_id": "metagpt",
+      "capability_id": "cap.ref.metagpt.boundary",
+      "source_path": "reference/MetaGPT/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不堆角色名，不允许无边界协作.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.metagpt.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.metagpt.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.metagpt.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.metagpt.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.openhands.mechanisms.import",
+      "repo_id": "openhands",
+      "capability_id": "cap.ref.openhands.mechanisms",
+      "source_path": "reference/OpenHands/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "1869baf49914309f2115cd8f75d5c7a57a92b371",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (app-server、workspace、event projection、PR/HUMAN boundary) because repository license compatibility is review_required (MIT AND LicenseRef-OpenHands-Enterprise).",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.openhands.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.openhands.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.openhands.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.openhands.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.openhands.boundary.import",
+      "repo_id": "openhands",
+      "capability_id": "cap.ref.openhands.boundary",
+      "source_path": "reference/OpenHands/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "1869baf49914309f2115cd8f75d5c7a57a92b371",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不先做完整 SaaS UI.",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.openhands.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.openhands.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.openhands.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.openhands.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.openspec.mechanisms.import",
+      "repo_id": "openspec",
+      "capability_id": "cap.ref.openspec.mechanisms",
+      "source_path": "reference/OpenSpec/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "93e27a755ce5386c66be7f3274a35f70018002bc",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (proposal/design/spec/tasks/code/test/evidence DAG) into Kiana shared contracts at artifact lifecycle; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.openspec.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.openspec.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.openspec.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.openspec.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.openspec.boundary.import",
+      "repo_id": "openspec",
+      "capability_id": "cap.ref.openspec.boundary",
+      "source_path": "reference/OpenSpec/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "93e27a755ce5386c66be7f3274a35f70018002bc",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 当前部分内容偏占位，不能作为核心技术源.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.openspec.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.openspec.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.openspec.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.openspec.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.roo-code.mechanisms.import",
+      "repo_id": "roo-code",
+      "capability_id": "cap.ref.roo-code.mechanisms",
+      "source_path": "reference/Roo-Code/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "b867ec9145750d0ae1ff7f02d35406e9bf2a0b16",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (safe edit、checkpoint、rules、mode、diff preview) into Kiana shared contracts at Safe Edit、checkpoint; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.roo-code.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.roo-code.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "safe-edit",
+      "target_path": "kiana-tools/src/file_edit.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "091d2744f721b253ef4984d4f41b94ab1543e058344a8c4a2a2bd63e62540534",
+      "tests": [
+        {
+          "test_id": "test.governance.roo-code.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.roo-code.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.roo-code.boundary.import",
+      "repo_id": "roo-code",
+      "capability_id": "cap.ref.roo-code.boundary",
+      "source_path": "reference/Roo-Code/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "b867ec9145750d0ae1ff7f02d35406e9bf2a0b16",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不绑定 VS Code-only 事件模型.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.roo-code.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.roo-code.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.roo-code.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.roo-code.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.ai-coding-guide.mechanisms.import",
+      "repo_id": "ai-coding-guide",
+      "capability_id": "cap.ref.ai-coding-guide.mechanisms",
+      "source_path": "reference/ai-coding-guide/README.en.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "99a93232ca13633f55a5367b3913fb67a2dc8bbd",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (中文教程结构、权限/安全/MCP/subagent/worktree 最佳实践) into Kiana shared contracts at 中文 docs、onboarding; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ai-coding-guide.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.ai-coding-guide.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "repo-intelligence",
+      "target_path": "kiana-query/src/lib.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "f047edfe5095d5cabdce06b483f8a26e95d7035b4212225cf8c3e795c3647726",
+      "tests": [
+        {
+          "test_id": "test.governance.ai-coding-guide.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.ai-coding-guide.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.ai-coding-guide.boundary.import",
+      "repo_id": "ai-coding-guide",
+      "capability_id": "cap.ref.ai-coding-guide.boundary",
+      "source_path": "reference/ai-coding-guide/README.en.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "99a93232ca13633f55a5367b3913fb67a2dc8bbd",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 只作 DX/文档参考，不当实现证据.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ai-coding-guide.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.ai-coding-guide.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.ai-coding-guide.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.ai-coding-guide.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.aider.mechanisms.import",
+      "repo_id": "aider",
+      "capability_id": "cap.ref.aider.mechanisms",
+      "source_path": "reference/aider/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (repo map、git safety、patch/diff workflow、undo) into Kiana shared contracts at repo map、file edit; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.aider.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.aider.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "safe-edit",
+      "target_path": "kiana-tools/src/file_edit.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "091d2744f721b253ef4984d4f41b94ab1543e058344a8c4a2a2bd63e62540534",
+      "tests": [
+        {
+          "test_id": "test.governance.aider.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.aider.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.aider.boundary.import",
+      "repo_id": "aider",
+      "capability_id": "cap.ref.aider.boundary",
+      "source_path": "reference/aider/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不自动 commit 用户未确认文件.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.aider.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.aider.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.aider.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.aider.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.architect-loop.mechanisms.import",
+      "repo_id": "architect-loop",
+      "capability_id": "cap.ref.architect-loop.mechanisms",
+      "source_path": "reference/architect-loop/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "164d32c36eeb70696bdb2d526c40487240018d13",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (orchestrator/strategist/builder、fresh context、frozen checks、run manifest、typed evidence) into Kiana shared contracts at bounded swarm、frozen checks、job wrapper; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.architect-loop.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.architect-loop.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.architect-loop.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.architect-loop.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.architect-loop.boundary.import",
+      "repo_id": "architect-loop",
+      "capability_id": "cap.ref.architect-loop.boundary",
+      "source_path": "reference/architect-loop/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "164d32c36eeb70696bdb2d526c40487240018d13",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不采用“无 approval gate”作为 Kiana 默认；Kiana 高风险必须 approval.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.architect-loop.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.architect-loop.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.architect-loop.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.architect-loop.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.autogen.mechanisms.import",
+      "repo_id": "autogen",
+      "capability_id": "cap.ref.autogen.mechanisms",
+      "source_path": "reference/autogen/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "027ecf0a379bcc1d09956d46d12d44a3ad9cee14",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (agent worker protocol、handoff、termination) because repository license compatibility is review_required (MIT AND CC-BY-4.0).",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.autogen.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.autogen.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.autogen.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.autogen.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.autogen.boundary.import",
+      "repo_id": "autogen",
+      "capability_id": "cap.ref.autogen.boundary",
+      "source_path": "reference/autogen/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "027ecf0a379bcc1d09956d46d12d44a3ad9cee14",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不使用自由 speaker 或无界群聊.",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.autogen.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.autogen.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.autogen.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.autogen.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.awesome-agent-skills.mechanisms.import",
+      "repo_id": "awesome-agent-skills",
+      "capability_id": "cap.ref.awesome-agent-skills.mechanisms",
+      "source_path": "reference/awesome-agent-skills/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "2fcbf138f63697e999d26c6266eea597e6564a23",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (skill 分类、技能市场参考) into Kiana shared contracts at skill registry; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.awesome-agent-skills.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.awesome-agent-skills.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "extensions",
+      "target_path": "kiana-skills/src/lib.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "bd123f9b5f364a565ec031af1e0e39eaf964cfa98810bfd1c303340dcba0937a",
+      "tests": [
+        {
+          "test_id": "test.governance.awesome-agent-skills.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.awesome-agent-skills.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.awesome-agent-skills.boundary.import",
+      "repo_id": "awesome-agent-skills",
+      "capability_id": "cap.ref.awesome-agent-skills.boundary",
+      "source_path": "reference/awesome-agent-skills/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "2fcbf138f63697e999d26c6266eea597e6564a23",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: catalog 不等于实现.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.awesome-agent-skills.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.awesome-agent-skills.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.awesome-agent-skills.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.awesome-agent-skills.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-code-main-2.mechanisms.import",
+      "repo_id": "claude-code-main-2",
+      "capability_id": "cap.ref.claude-code-main-2.mechanisms",
+      "source_path": "reference/claude-code-main (2)/claude-code-main/README.md",
+      "source_revision_kind": "content_tree_sha256",
+      "source_revision_value": "e1b1bcb742d06700085631955dab78f80f9b7f92ab393a88e1e753b032fdbf8f",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (plugin、settings、hooks、bash sandbox) because repository license compatibility is unknown (NOASSERTION).",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.claude-code-main-2.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-code-main-2.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-code-main-2.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-code-main-2.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-code-main-2.boundary.import",
+      "repo_id": "claude-code-main-2",
+      "capability_id": "cap.ref.claude-code-main-2.boundary",
+      "source_path": "reference/claude-code-main (2)/claude-code-main/README.md",
+      "source_revision_kind": "content_tree_sha256",
+      "source_revision_value": "e1b1bcb742d06700085631955dab78f80f9b7f92ab393a88e1e753b032fdbf8f",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把 bash sandbox 宣传成覆盖所有工具.",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.claude-code-main-2.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-code-main-2.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-code-main-2.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-code-main-2.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-code-rev-main.mechanisms.import",
+      "repo_id": "claude-code-rev-main",
+      "capability_id": "cap.ref.claude-code-rev-main.mechanisms",
+      "source_path": "reference/claude-code-rev-main/README.md",
+      "source_revision_kind": "content_tree_sha256",
+      "source_revision_value": "c485ff9910e533053575816418f8a4b2b7cd61fee76ec7aca01f97411693f963",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (query loop、tool_use/tool_result pairing、structured IO、context organization) because repository license compatibility is unknown (NOASSERTION).",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.claude-code-rev-main.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-code-rev-main.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-code-rev-main.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-code-rev-main.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-code-rev-main.boundary.import",
+      "repo_id": "claude-code-rev-main",
+      "capability_id": "cap.ref.claude-code-rev-main.boundary",
+      "source_path": "reference/claude-code-rev-main/README.md",
+      "source_revision_kind": "content_tree_sha256",
+      "source_revision_value": "c485ff9910e533053575816418f8a4b2b7cd61fee76ec7aca01f97411693f963",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不复制巨型 runner.",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.claude-code-rev-main.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-code-rev-main.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-code-rev-main.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-code-rev-main.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-code-rust.mechanisms.import",
+      "repo_id": "claude-code-rust",
+      "capability_id": "cap.ref.claude-code-rust.mechanisms",
+      "source_path": "reference/claude-code-rust/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "4b87a363fd206c1154969e3914dcf1c1ca272f2e",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (Rust CLI/runtime、WASM/i18n、可移植实现参考) into Kiana shared contracts at Rust core patterns; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-code-rust.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-code-rust.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "product-shell",
+      "target_path": "kiana-entrypoints/src/tui.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "2798f06227bc80cd75cc684fedcf539e1f442250ef00379832241ea2cd48afaf",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-code-rust.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-code-rust.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-code-rust.boundary.import",
+      "repo_id": "claude-code-rust",
+      "capability_id": "cap.ref.claude-code-rust.boundary",
+      "source_path": "reference/claude-code-rust/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "4b87a363fd206c1154969e3914dcf1c1ca272f2e",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不为 P0 引入 WASM/UI 复杂度.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-code-rust.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-code-rust.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-code-rust.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-code-rust.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-mem-candidate.mechanisms.import",
+      "repo_id": "claude-mem-candidate",
+      "capability_id": "cap.ref.claude-mem-candidate.mechanisms",
+      "source_path": "reference/claude-mem-candidate/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (session memory candidate extraction) into Kiana shared contracts at memory proposal; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-mem-candidate.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-mem-candidate.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "memory-runtime",
+      "target_path": "kiana-commands/src/memory.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "9b1253dadd57b512a037d81098e223e7931f870a8e7225b682b98f9542ced9f0",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-mem-candidate.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-mem-candidate.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-mem-candidate.boundary.import",
+      "repo_id": "claude-mem-candidate",
+      "capability_id": "cap.ref.claude-mem-candidate.boundary",
+      "source_path": "reference/claude-mem-candidate/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把候选记忆直接注入.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-mem-candidate.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-mem-candidate.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-mem-candidate.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-mem-candidate.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-memory.mechanisms.import",
+      "repo_id": "claude-memory",
+      "capability_id": "cap.ref.claude-memory.mechanisms",
+      "source_path": "reference/claude-memory/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (cross-session memory、worker、consolidation) into Kiana shared contracts at memory ingest/consolidation; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-memory.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-memory.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "memory-runtime",
+      "target_path": "kiana-commands/src/memory.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "9b1253dadd57b512a037d81098e223e7931f870a8e7225b682b98f9542ced9f0",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-memory.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-memory.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.claude-memory.boundary.import",
+      "repo_id": "claude-memory",
+      "capability_id": "cap.ref.claude-memory.boundary",
+      "source_path": "reference/claude-memory/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不无来源写入长期记忆.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-memory.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.claude-memory.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.claude-memory.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.claude-memory.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.cline.mechanisms.import",
+      "repo_id": "cline",
+      "capability_id": "cap.ref.cline.mechanisms",
+      "source_path": "reference/cline/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "2ee18e7f0cdf238546e549b64e787f6fab0e94b8",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (ToolExecutor、ApplyPatch、checkpoint、Kanban/worktree) into Kiana shared contracts at tool execution、worktree; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.cline.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.cline.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "assistant-runtime",
+      "target_path": "kiana-entrypoints/src/runner.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "66996cf65c3b1bfdebb38d43c35a8685e8441d8c90af5e997eec093b5c65a773",
+      "tests": [
+        {
+          "test_id": "test.governance.cline.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.cline.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.cline.boundary.import",
+      "repo_id": "cline",
+      "capability_id": "cap.ref.cline.boundary",
+      "source_path": "reference/cline/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "2ee18e7f0cdf238546e549b64e787f6fab0e94b8",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不绑定 IDE-only UI.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.cline.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.cline.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.cline.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.cline.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.codex.mechanisms.import",
+      "repo_id": "codex",
+      "capability_id": "cap.ref.codex.mechanisms",
+      "source_path": "reference/codex/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "3380969a29134630d56feb6218e8e8dcc5e8196d",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (protocol、exec policy、MCP、sandbox/trust、安全边界) into Kiana shared contracts at policy engine、protocol; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.codex.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.codex.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "runtime-contracts",
+      "target_path": "kiana-types/src/runtime.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "d2ba8fee7303b85188855eb878ae5b813b3696fcbe0e4b77ecd0f73d73dbdff2",
+      "tests": [
+        {
+          "test_id": "test.governance.codex.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.codex.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.codex.boundary.import",
+      "repo_id": "codex",
+      "capability_id": "cap.ref.codex.boundary",
+      "source_path": "reference/codex/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "3380969a29134630d56feb6218e8e8dcc5e8196d",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把某一 CLI 的交互当唯一入口.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.codex.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.codex.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.codex.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.codex.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.continue.mechanisms.import",
+      "repo_id": "continue",
+      "capability_id": "cap.ref.continue.mechanisms",
+      "source_path": "reference/continue/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d0a3c0b626b5bebc3bef4742eec05a0242be0bab",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (rules injection、terminal security、IDE edit loop) into Kiana shared contracts at rules selector、terminal policy; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.continue.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.continue.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "safe-edit",
+      "target_path": "kiana-tools/src/file_edit.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "091d2744f721b253ef4984d4f41b94ab1543e058344a8c4a2a2bd63e62540534",
+      "tests": [
+        {
+          "test_id": "test.governance.continue.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.continue.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.continue.boundary.import",
+      "repo_id": "continue",
+      "capability_id": "cap.ref.continue.boundary",
+      "source_path": "reference/continue/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d0a3c0b626b5bebc3bef4742eec05a0242be0bab",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不做 IDE 绑定.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.continue.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.continue.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.continue.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.continue.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.emdash.mechanisms.import",
+      "repo_id": "emdash",
+      "capability_id": "cap.ref.emdash.mechanisms",
+      "source_path": "reference/emdash/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "42045728cd76559646935c03ecb63fc977438374",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (lightweight agent/product shell) into Kiana shared contracts at product shell reference; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.emdash.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.emdash.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "product-shell",
+      "target_path": "kiana-entrypoints/src/tui.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "2798f06227bc80cd75cc684fedcf539e1f442250ef00379832241ea2cd48afaf",
+      "tests": [
+        {
+          "test_id": "test.governance.emdash.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.emdash.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.emdash.boundary.import",
+      "repo_id": "emdash",
+      "capability_id": "cap.ref.emdash.boundary",
+      "source_path": "reference/emdash/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "42045728cd76559646935c03ecb63fc977438374",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不让 UI 先于 core 协议.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.emdash.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.emdash.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.emdash.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.emdash.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.everything-claude-code.mechanisms.import",
+      "repo_id": "everything-claude-code",
+      "capability_id": "cap.ref.everything-claude-code.mechanisms",
+      "source_path": "reference/everything-claude-code/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "432485ba6b92c14fb357276a98957f348bcff9ee",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (commands、skills、agents、rules、review、tests、verification loop) because repository license compatibility is unknown (NOASSERTION).",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.everything-claude-code.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.everything-claude-code.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.everything-claude-code.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.everything-claude-code.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.everything-claude-code.boundary.import",
+      "repo_id": "everything-claude-code",
+      "capability_id": "cap.ref.everything-claude-code.boundary",
+      "source_path": "reference/everything-claude-code/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "432485ba6b92c14fb357276a98957f348bcff9ee",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 生态大全只能作检索来源，不等于 Kiana 功能完成.",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.everything-claude-code.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.everything-claude-code.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.everything-claude-code.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.everything-claude-code.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.get-shit-done.mechanisms.import",
+      "repo_id": "get-shit-done",
+      "capability_id": "cap.ref.get-shit-done.mechanisms",
+      "source_path": "reference/get-shit-done/README.ja-JP.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "bdcaab2c752d9a33a1a1ca9acf3a3c81fb991815",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (capture/spec/plan/execute/validate/ship/review、workstreams) into Kiana shared contracts at Project OS commands; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.get-shit-done.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.get-shit-done.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.get-shit-done.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.get-shit-done.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.get-shit-done.boundary.import",
+      "repo_id": "get-shit-done",
+      "capability_id": "cap.ref.get-shit-done.boundary",
+      "source_path": "reference/get-shit-done/README.ja-JP.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "bdcaab2c752d9a33a1a1ca9acf3a3c81fb991815",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把阶段命令当唯一状态机.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.get-shit-done.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.get-shit-done.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.get-shit-done.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.get-shit-done.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.graphify.mechanisms.import",
+      "repo_id": "graphify",
+      "capability_id": "cap.ref.graphify.mechanisms",
+      "source_path": "reference/graphify/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d2d1f68ff9dc405bf31f65fa2ded17afc71b5a10",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (local graph、graph.json/html/report、EXTRACTED/INFERRED/AMBIGUOUS confidence) into Kiana shared contracts at graph confidence、repo graph; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.graphify.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.graphify.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "repo-intelligence",
+      "target_path": "kiana-query/src/lib.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "f047edfe5095d5cabdce06b483f8a26e95d7035b4212225cf8c3e795c3647726",
+      "tests": [
+        {
+          "test_id": "test.governance.graphify.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.graphify.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.graphify.boundary.import",
+      "repo_id": "graphify",
+      "capability_id": "cap.ref.graphify.boundary",
+      "source_path": "reference/graphify/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d2d1f68ff9dc405bf31f65fa2ded17afc71b5a10",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不用图谱替代源码；推断边必须降权.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.graphify.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.graphify.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.graphify.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.graphify.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.gsd-core.mechanisms.import",
+      "repo_id": "gsd-core",
+      "capability_id": "cap.ref.gsd-core.mechanisms",
+      "source_path": "reference/gsd-core/README.ja-JP.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "96a6cf7160bdf575a82e0aa485bdf0189dd4ec24",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (capability packs、execution primitives) into Kiana shared contracts at capability registry; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.gsd-core.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.gsd-core.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.gsd-core.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.gsd-core.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.gsd-core.boundary.import",
+      "repo_id": "gsd-core",
+      "capability_id": "cap.ref.gsd-core.boundary",
+      "source_path": "reference/gsd-core/README.ja-JP.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "96a6cf7160bdf575a82e0aa485bdf0189dd4ec24",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把 capability 声明当完成.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.gsd-core.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.gsd-core.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.gsd-core.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.gsd-core.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.gstack.mechanisms.import",
+      "repo_id": "gstack",
+      "capability_id": "cap.ref.gstack.mechanisms",
+      "source_path": "reference/gstack/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "11de390be1be6849eb9a15f91ff4922dd16c589a",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (plan review、eng review、design review、QA、canary、ship、deploy、retro) into Kiana shared contracts at acceptance gates; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.gstack.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.gstack.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.gstack.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.gstack.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.gstack.boundary.import",
+      "repo_id": "gstack",
+      "capability_id": "cap.ref.gstack.boundary",
+      "source_path": "reference/gstack/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "11de390be1be6849eb9a15f91ff4922dd16c589a",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不让关卡拖慢小任务.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.gstack.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.gstack.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.gstack.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.gstack.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.herdr.mechanisms.import",
+      "repo_id": "herdr",
+      "capability_id": "cap.ref.herdr.mechanisms",
+      "source_path": "reference/herdr/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "36b2e2f5463139a284483732131ce44977881239",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject code reuse for reviewed mechanisms (workflow/product experience) because repository license compatibility is review_required (AGPL-3.0-or-later OR LicenseRef-Commercial).",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.herdr.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.herdr.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "high",
+        "summary": "Unknown, restricted, or mixed licensing can contaminate the open-core implementation.",
+        "mitigations": [
+          "Keep the source as discovery provenance only.",
+          "Require independent behavior specification and legal review before any future reconsideration."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.herdr.mechanisms.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.herdr.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.herdr.boundary.import",
+      "repo_id": "herdr",
+      "capability_id": "cap.ref.herdr.boundary",
+      "source_path": "reference/herdr/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "36b2e2f5463139a284483732131ce44977881239",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不作为核心协议源.",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.herdr.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.herdr.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.herdr.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.herdr.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.langchain.mechanisms.import",
+      "repo_id": "langchain",
+      "capability_id": "cap.ref.langchain.mechanisms",
+      "source_path": "reference/langchain/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "bc1540084b19eda40a44885d8eaa0a5804b061c8",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (tool/runtime abstraction、integration ecosystem) into Kiana shared contracts at adapter/integration boundary; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.langchain.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.langchain.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "assistant-runtime",
+      "target_path": "kiana-entrypoints/src/runner.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "66996cf65c3b1bfdebb38d43c35a8685e8441d8c90af5e997eec093b5c65a773",
+      "tests": [
+        {
+          "test_id": "test.governance.langchain.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.langchain.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.langchain.boundary.import",
+      "repo_id": "langchain",
+      "capability_id": "cap.ref.langchain.boundary",
+      "source_path": "reference/langchain/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "bc1540084b19eda40a44885d8eaa0a5804b061c8",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 避免框架黑盒化控制流.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.langchain.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.langchain.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.langchain.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.langchain.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.memorix.mechanisms.import",
+      "repo_id": "memorix",
+      "capability_id": "cap.ref.memorix.mechanisms",
+      "source_path": "reference/memorix/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "816415b5fbc79d451b3f86796832388a0956606f",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (Observation/Reasoning/Git memory、MCP、dashboard、locks、verification、team) into Kiana shared contracts at memory layers、locks; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.memorix.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.memorix.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "memory-runtime",
+      "target_path": "kiana-commands/src/memory.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "9b1253dadd57b512a037d81098e223e7931f870a8e7225b682b98f9542ced9f0",
+      "tests": [
+        {
+          "test_id": "test.governance.memorix.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.memorix.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.memorix.boundary.import",
+      "repo_id": "memorix",
+      "capability_id": "cap.ref.memorix.boundary",
+      "source_path": "reference/memorix/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "816415b5fbc79d451b3f86796832388a0956606f",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不自动把所有会话写成高置信 memory.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.memorix.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.memorix.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.memorix.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.memorix.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.pi.mechanisms.import",
+      "repo_id": "pi",
+      "capability_id": "cap.ref.pi.mechanisms",
+      "source_path": "reference/pi/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "86afffe01f6f9c28207a3c712f5cddad10332987",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (agent shell、状态体验) into Kiana shared contracts at CLI/TUI feel; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.pi.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.pi.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "runtime-contracts",
+      "target_path": "kiana-types/src/runtime.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "d2ba8fee7303b85188855eb878ae5b813b3696fcbe0e4b77ecd0f73d73dbdff2",
+      "tests": [
+        {
+          "test_id": "test.governance.pi.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.pi.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.pi.boundary.import",
+      "repo_id": "pi",
+      "capability_id": "cap.ref.pi.boundary",
+      "source_path": "reference/pi/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "86afffe01f6f9c28207a3c712f5cddad10332987",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不复制产品形态.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.pi.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.pi.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.pi.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.pi.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.planning-with-files.mechanisms.import",
+      "repo_id": "planning-with-files",
+      "capability_id": "cap.ref.planning-with-files.mechanisms",
+      "source_path": "reference/planning-with-files/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "7efb050593a24a5f7ed9bed75e73009f264fbb08",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (`task_plan.md`、`findings.md`、`progress.md` 三文件模式) into Kiana shared contracts at `.kiana/plans`; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.planning-with-files.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.planning-with-files.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.planning-with-files.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.planning-with-files.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.planning-with-files.boundary.import",
+      "repo_id": "planning-with-files",
+      "capability_id": "cap.ref.planning-with-files.boundary",
+      "source_path": "reference/planning-with-files/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "7efb050593a24a5f7ed9bed75e73009f264fbb08",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不只靠 markdown checkbox.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.planning-with-files.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.planning-with-files.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.planning-with-files.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.planning-with-files.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.pm-skills.mechanisms.import",
+      "repo_id": "pm-skills",
+      "capability_id": "cap.ref.pm-skills.mechanisms",
+      "source_path": "reference/pm-skills/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "eee2ef7fea55f29b491e03c198134e496edd7a03",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (PRD、项目管理、scope/roadmap 技能) into Kiana shared contracts at planning templates; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.pm-skills.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.pm-skills.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-board",
+      "target_path": "kiana-tasks/src/project_board.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "41e2b3186e8c0433f9b33c1de0600d020d80e72f5f6c87fae905d741d3d6de24",
+      "tests": [
+        {
+          "test_id": "test.governance.pm-skills.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.pm-skills.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.pm-skills.boundary.import",
+      "repo_id": "pm-skills",
+      "capability_id": "cap.ref.pm-skills.boundary",
+      "source_path": "reference/pm-skills/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "eee2ef7fea55f29b491e03c198134e496edd7a03",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把 PM 文档当实现.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.pm-skills.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.pm-skills.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.pm-skills.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.pm-skills.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.ruflo.mechanisms.import",
+      "repo_id": "ruflo",
+      "capability_id": "cap.ref.ruflo.mechanisms",
+      "source_path": "reference/ruflo/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "a444930d88d753e04793f55bd38861e82d9cb062",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (plugin system、workflow、swarm、autopilot、cost、安全、browser、memory、witness) into Kiana shared contracts at plugin/swarm/witness; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ruflo.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.ruflo.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "bounded-agents",
+      "target_path": "kiana-tasks/src/swarm.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "8d5750fc728aa8df8a9c3e9fbf47e1b36b4c2069d1f3c9d25864e37ff70ae734",
+      "tests": [
+        {
+          "test_id": "test.governance.ruflo.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.ruflo.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.ruflo.boundary.import",
+      "repo_id": "ruflo",
+      "capability_id": "cap.ref.ruflo.boundary",
+      "source_path": "reference/ruflo/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "a444930d88d753e04793f55bd38861e82d9cb062",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不一次性照搬全部模块.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ruflo.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.ruflo.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.ruflo.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.ruflo.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.skills.mechanisms.import",
+      "repo_id": "skills",
+      "capability_id": "cap.ref.skills.mechanisms",
+      "source_path": "reference/skills/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d574778f94cf620fcc8ce741584093bc650a61d3",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (skill packaging and reusable workflows) into Kiana shared contracts at skill loader; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.skills.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.skills.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "extensions",
+      "target_path": "kiana-skills/src/lib.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "bd123f9b5f364a565ec031af1e0e39eaf964cfa98810bfd1c303340dcba0937a",
+      "tests": [
+        {
+          "test_id": "test.governance.skills.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.skills.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.skills.boundary.import",
+      "repo_id": "skills",
+      "capability_id": "cap.ref.skills.boundary",
+      "source_path": "reference/skills/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d574778f94cf620fcc8ce741584093bc650a61d3",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: catalog 需 eval 才能启用.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.skills.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.skills.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.skills.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.skills.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.strix.mechanisms.import",
+      "repo_id": "strix",
+      "capability_id": "cap.ref.strix.mechanisms",
+      "source_path": "reference/strix/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "e1940769deebbf3219db5ca39c47c51462f2e81c",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (agentic pentest、validated findings、PoC、security report、CI security gate) into Kiana shared contracts at security review/audit; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.strix.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.strix.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "security-review",
+      "target_path": "kiana-commands/src/audit.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "a9eae2dfe868f2418f72013ad9774e3cf2f9a0885ecb38330b8baabfe3b86d05",
+      "tests": [
+        {
+          "test_id": "test.governance.strix.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.strix.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.strix.boundary.import",
+      "repo_id": "strix",
+      "capability_id": "cap.ref.strix.boundary",
+      "source_path": "reference/strix/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "e1940769deebbf3219db5ca39c47c51462f2e81c",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: P0 不做攻击性自动化；只吸收 validated evidence 思想.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.strix.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.strix.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.strix.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.strix.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.superpowers.mechanisms.import",
+      "repo_id": "superpowers",
+      "capability_id": "cap.ref.superpowers.mechanisms",
+      "source_path": "reference/superpowers/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+      "decision": "adapt",
+      "reason": "Imported candidate for review: Adapt reviewed mechanisms (brainstorming、writing plans、TDD、debugging、parallel agents、verification-before-completion) into Kiana shared contracts at workflow skills; governance approval does not assert product implementation.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.superpowers.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.superpowers.mechanisms.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Behavioral adaptation can import hidden assumptions or widen tool authority.",
+        "mitigations": [
+          "Use clean-room behavior alignment and Kiana-native contracts.",
+          "Require target-owner tests and evidence before product completion."
+        ]
+      },
+      "target_owner": "project-os",
+      "target_path": "kiana-tasks/src/workflow.rs",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "3fbebed7222af8e5a14306374d0889f6fb9c6835af9fdaa768622efe9aa9c56a",
+      "tests": [
+        {
+          "test_id": "test.governance.superpowers.mechanisms.import",
+          "path": "scripts/capability-governance-smoke.sh",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.superpowers.mechanisms.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    },
+    {
+      "decision_id": "decision.superpowers.boundary.import",
+      "repo_id": "superpowers",
+      "capability_id": "cap.ref.superpowers.boundary",
+      "source_path": "reference/superpowers/README.md",
+      "source_revision_kind": "git_commit",
+      "source_revision_value": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+      "decision": "reject",
+      "reason": "Imported candidate for review: Reject the audited boundary: 不把所有任务都重流程化.",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.superpowers.import"
+      ],
+      "security_review": {
+        "status": "pending",
+        "rationale": "Security interpretation pending in the reviewed successor.",
+        "evidence_ids": [
+          "ev.security.superpowers.boundary.import"
+        ]
+      },
+      "risk": {
+        "level": "medium",
+        "summary": "Ignoring the explicit boundary could duplicate product-specific architecture or weaken Kiana safety.",
+        "mitigations": [
+          "Retain the boundary as a reviewed negative decision.",
+          "Re-open only through a new immutable decision revision."
+        ]
+      },
+      "target_owner": "reference-governance",
+      "target_path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+      "target_revision_kind": "artifact_sha256",
+      "target_revision_value": "6f3e8c438ac906ae80fd4562033567361dd2cc6a18c9dcc08b9eab163e622cea",
+      "tests": [
+        {
+          "test_id": "test.governance.superpowers.boundary.import",
+          "path": "docs/reference_audit/kiana_personal_project_os_reference_audit_2026-07-09.md",
+          "status": "planned"
+        }
+      ],
+      "evidence_ids": [
+        "ev.decision.superpowers.boundary.import"
+      ],
+      "review_revision": "reference-import-2026-07-17",
+      "freshness": "superseded"
+    }
+  ]
+}

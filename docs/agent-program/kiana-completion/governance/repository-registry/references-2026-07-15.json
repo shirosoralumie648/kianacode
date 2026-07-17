@@ -1,0 +1,1294 @@
+{
+  "schema": "kiana.reference-repository-registry.v1",
+  "version": "1.0",
+  "revision_id": "reference-registry-2026-07-15-reviewed",
+  "revision_kind": "successor",
+  "snapshot_id": "reference-snapshot-2026-07-15-reviewed",
+  "frozen_at": "2026-07-17T11:19:16Z",
+  "expected_count": 38,
+  "repositories": [
+    {
+      "repo_id": "12-factor-agents",
+      "path": "reference/12-factor-agents",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/humanlayer/12-factor-agents.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "d20c728368bf9c189d6d7aab704744decb6ec0cc",
+      "tree_sha256": "3e440901add919997fa7df3f3f0f171931c1782dfdbd9c92ea3e85023d7740f2",
+      "license_sha256": "8dad249648045c09d5405d5e730584ebd3b43fe5018ac4a1970a9598b9d89380",
+      "domains": [
+        "D10",
+        "D17",
+        "D18"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.12-factor-agents.mechanisms",
+        "cap.ref.12-factor-agents.boundary"
+      ],
+      "git_head": "d20c728368bf9c189d6d7aab704744decb6ec0cc",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.12-factor-agents.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "archon",
+      "path": "reference/Archon",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/Schr0d/Archon.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "55ef3bc7bff21d631176dc05e29545582f221505",
+      "tree_sha256": "22055002c86f760b75fc66af2d5090f5b74c2e9ae2751fe3f4177e307d0a0676",
+      "license_sha256": "fc8f7fa418c6230c04710d75b1817f3c0feb269f7336b1e80b26c485afca2878",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.archon.mechanisms",
+        "cap.ref.archon.boundary"
+      ],
+      "git_head": "55ef3bc7bff21d631176dc05e29545582f221505",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.archon.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "Archon",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.archon.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "ecc",
+      "path": "reference/ECC",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/affaan-m/ECC.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "38a7ebbe3294be9bfda5612c6d696742ade6fbb2",
+      "tree_sha256": "1edf8af79b2a64b46dd1b4037402c4d9379293ae61f346724f405f58f23493d4",
+      "license_sha256": "937ca60c8951d39f87631306353bdc301f4e63605dbfc2015d1542fc20757244",
+      "domains": [
+        "D07"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.ecc.mechanisms",
+        "cap.ref.ecc.boundary"
+      ],
+      "git_head": "38a7ebbe3294be9bfda5612c6d696742ade6fbb2",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ecc.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "ECC",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.ecc.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "gitnexus",
+      "path": "reference/GitNexus",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/abhigyanpatwari/GitNexus.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "f236be05e0cb77c6d77370bf8bc64885ebaf09d1",
+      "tree_sha256": "2067e23505bc8357bf017319a7828144ac7d22b5829ad302f62bf5b9889632b3",
+      "license_sha256": "8c352f55fe351be486a9064e57d109301d3738b6c5136c04d37beb33ad41cf0b",
+      "domains": [
+        "D13"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.gitnexus.mechanisms",
+        "cap.ref.gitnexus.boundary"
+      ],
+      "git_head": "f236be05e0cb77c6d77370bf8bc64885ebaf09d1",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "PolyForm-Noncommercial-1.0.0",
+      "license_compatibility": "incompatible",
+      "license_evidence_ids": [
+        "ev.license.gitnexus.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "GitNexus",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.gitnexus.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "mempalace",
+      "path": "reference/MemPalace",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/adshaa/mempalacejs.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "000524b111e78ae56fd858b8c3a74e2a89080091",
+      "tree_sha256": "033a8d03db0223c357e9996457887da711b7ddaf5dedf6d07a5df5a5c3528188",
+      "license_sha256": "6627ea7e5c5096960233f2424a33f953949bb4f47b9222dcda5e245523aa35eb",
+      "domains": [
+        "D14"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.mempalace.mechanisms",
+        "cap.ref.mempalace.boundary"
+      ],
+      "git_head": "000524b111e78ae56fd858b8c3a74e2a89080091",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "ISC",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.mempalace.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "MemPalace",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.mempalace.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "metagpt",
+      "path": "reference/MetaGPT",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/FoundationAgents/MetaGPT.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+      "tree_sha256": "458f25533252edfba29096a33b9f808c992ef12675d94d73f7931d5cfdbf0e14",
+      "license_sha256": "4e6fd8136c0eb122ecb047e325caad3919f8531b5c733022eb62f7393e65a222",
+      "domains": [
+        "D06",
+        "D15"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.metagpt.mechanisms",
+        "cap.ref.metagpt.boundary"
+      ],
+      "git_head": "11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.metagpt.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "MetaGPT",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.metagpt.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "openhands",
+      "path": "reference/OpenHands",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/OpenHands/OpenHands.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "1869baf49914309f2115cd8f75d5c7a57a92b371",
+      "tree_sha256": "7c43fbe3d3901ce59aed1c66e475437a3921c1a7b0ed310c5643d937891dc678",
+      "license_sha256": "c5e2d9c2df2292dbc46780f48ed288b3066adc0d657255be1f64007b579a2920",
+      "domains": [
+        "D03",
+        "D10",
+        "D12",
+        "D15",
+        "D16",
+        "D17",
+        "D18"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.openhands.mechanisms",
+        "cap.ref.openhands.boundary"
+      ],
+      "git_head": "1869baf49914309f2115cd8f75d5c7a57a92b371",
+      "freshness": "current",
+      "license_status": "conflicting",
+      "license_expression": "MIT AND LicenseRef-OpenHands-Enterprise",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.openhands.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "OpenHands",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.openhands.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "openspec",
+      "path": "reference/OpenSpec",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/Fission-AI/OpenSpec.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "93e27a755ce5386c66be7f3274a35f70018002bc",
+      "tree_sha256": "c5a02b214134c6b4c84aabe191f4ff4a34729e77b2abb9dff1f618aa71ea8913",
+      "license_sha256": "01d452e01aa74366935a6173fe5c92a9a307e0bfcb7c3c7764835dc9490f3f8c",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.openspec.mechanisms",
+        "cap.ref.openspec.boundary"
+      ],
+      "git_head": "93e27a755ce5386c66be7f3274a35f70018002bc",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.openspec.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "OpenSpec",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.openspec.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "roo-code",
+      "path": "reference/Roo-Code",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/RooCodeInc/Roo-Code.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "b867ec9145750d0ae1ff7f02d35406e9bf2a0b16",
+      "tree_sha256": "ccd0110f8e714ba641e3b4e632b4f1df38bb4437bfd2feac840945cf27cbab69",
+      "license_sha256": "b65aa8db673486df4f0bd0733fa6810f9e49d8c471ffe72e2afac058c8adf79b",
+      "domains": [
+        "D04"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.roo-code.mechanisms",
+        "cap.ref.roo-code.boundary"
+      ],
+      "git_head": "b867ec9145750d0ae1ff7f02d35406e9bf2a0b16",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.roo-code.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "Roo-Code",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.roo-code.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "ai-coding-guide",
+      "path": "reference/ai-coding-guide",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/stormzhang/ai-coding-guide.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "99a93232ca13633f55a5367b3913fb67a2dc8bbd",
+      "tree_sha256": "3df1f7f9f7fff0a5e09ed8557c2f3e6c600f17068939dfaefbceae77484aa3f3",
+      "license_sha256": "e67058fcd9e1a2cc0ceda0c7d15ca11d38ef163f8286cc7ed90736666c72a4a3",
+      "domains": [
+        "D13"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.ai-coding-guide.mechanisms",
+        "cap.ref.ai-coding-guide.boundary"
+      ],
+      "git_head": "99a93232ca13633f55a5367b3913fb67a2dc8bbd",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ai-coding-guide.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "aider",
+      "path": "reference/aider",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/Aider-AI/aider.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "tree_sha256": "38f8ab2cec9f2ce300b8941bedbbaa02c042d9a3b863433785917f21caa248e3",
+      "license_sha256": "6143447846c93c700ba7b5fa01f9f72ee668c5656dd18f92d270ef3e09395f79",
+      "domains": [
+        "D04",
+        "D13"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.aider.mechanisms",
+        "cap.ref.aider.boundary"
+      ],
+      "git_head": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.aider.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "architect-loop",
+      "path": "reference/architect-loop",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/DanMcInerney/architect-loop.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "164d32c36eeb70696bdb2d526c40487240018d13",
+      "tree_sha256": "983fcde935fcbf9e237f37c5b27dfb7824f1c3e57f1966cf585f36c11f7fa615",
+      "license_sha256": "5ed45eaa3e57be45423f850a985a0aa97190a0fab6f96f693f6911a59ad024d4",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.architect-loop.mechanisms",
+        "cap.ref.architect-loop.boundary"
+      ],
+      "git_head": "164d32c36eeb70696bdb2d526c40487240018d13",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.architect-loop.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "autogen",
+      "path": "reference/autogen",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/microsoft/autogen.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "027ecf0a379bcc1d09956d46d12d44a3ad9cee14",
+      "tree_sha256": "4bc3276b5078593221979a346c2074157f62c179241f27d428a36057bec7eaf2",
+      "license_sha256": "042afca93ee77b931d2adb6035d83f12756de10b93237b8da086081795f1ba52",
+      "domains": [
+        "D06"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.autogen.mechanisms",
+        "cap.ref.autogen.boundary"
+      ],
+      "git_head": "027ecf0a379bcc1d09956d46d12d44a3ad9cee14",
+      "freshness": "current",
+      "license_status": "conflicting",
+      "license_expression": "MIT AND CC-BY-4.0",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.autogen.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "awesome-agent-skills",
+      "path": "reference/awesome-agent-skills",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/VoltAgent/awesome-agent-skills.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "2fcbf138f63697e999d26c6266eea597e6564a23",
+      "tree_sha256": "88060163320e8ff20162a05136121e8a50dae5b73b1cdd974f982bf40a430a15",
+      "license_sha256": "8c0d551119a3f24f658c23e4a9cff78259be50dcb9c662b3de0c8da3a5507a44",
+      "domains": [
+        "D07"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.awesome-agent-skills.mechanisms",
+        "cap.ref.awesome-agent-skills.boundary"
+      ],
+      "git_head": "2fcbf138f63697e999d26c6266eea597e6564a23",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.awesome-agent-skills.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "claude-code-main-2",
+      "path": "reference/claude-code-main (2)",
+      "upstream": {
+        "kind": "content_snapshot",
+        "locator": "reference/claude-code-main (2)"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "content_tree_sha256",
+      "revision_value": "e1b1bcb742d06700085631955dab78f80f9b7f92ab393a88e1e753b032fdbf8f",
+      "tree_sha256": "e1b1bcb742d06700085631955dab78f80f9b7f92ab393a88e1e753b032fdbf8f",
+      "license_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "domains": [
+        "D07"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.claude-code-main-2.mechanisms",
+        "cap.ref.claude-code-main-2.boundary"
+      ],
+      "freshness": "current",
+      "license_status": "missing",
+      "license_expression": "NOASSERTION",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.claude-code-main-2.review"
+      ],
+      "aliases": [
+        {
+          "kind": "repo_id",
+          "value": "claude-code-main (2)",
+          "change_kind": "replaced",
+          "reason": "Imported catalog identifier normalized to a stable lowercase repository ID.",
+          "effective_at": "2026-07-17T11:19:16Z",
+          "evidence_ids": [
+            "ev.alias.claude-code-main-2.review"
+          ],
+          "review_revision": "reference-review-2026-07-17"
+        }
+      ]
+    },
+    {
+      "repo_id": "claude-code-rev-main",
+      "path": "reference/claude-code-rev-main",
+      "upstream": {
+        "kind": "content_snapshot",
+        "locator": "reference/claude-code-rev-main"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "content_tree_sha256",
+      "revision_value": "c485ff9910e533053575816418f8a4b2b7cd61fee76ec7aca01f97411693f963",
+      "tree_sha256": "c485ff9910e533053575816418f8a4b2b7cd61fee76ec7aca01f97411693f963",
+      "license_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "domains": [
+        "D01",
+        "D02",
+        "D03",
+        "D08",
+        "D10"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.claude-code-rev-main.mechanisms",
+        "cap.ref.claude-code-rev-main.boundary"
+      ],
+      "freshness": "current",
+      "license_status": "missing",
+      "license_expression": "NOASSERTION",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.claude-code-rev-main.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "claude-code-rust",
+      "path": "reference/claude-code-rust",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/lorryjovens-hub/claude-code-rust.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "4b87a363fd206c1154969e3914dcf1c1ca272f2e",
+      "tree_sha256": "146d5f75190e27d7b087a231039518c89f4ad310e3cd60d6f0c7b2fb1e9e073b",
+      "license_sha256": "05e590ef5a601569fb02582f260f0eeaf1157b2ad064b53db83037ca41bc53e5",
+      "domains": [
+        "D11",
+        "D18"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.claude-code-rust.mechanisms",
+        "cap.ref.claude-code-rust.boundary"
+      ],
+      "git_head": "4b87a363fd206c1154969e3914dcf1c1ca272f2e",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-code-rust.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "claude-mem-candidate",
+      "path": "reference/claude-mem-candidate",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/aaronlab/claude-memory.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "tree_sha256": "ad6363c2023dae07d8323b3840003a5a293bce75e0e9c55bf5b38b241dcd2d6a",
+      "license_sha256": "ffa4baf5687028d507609214b4bac29acbc61906559a3ce16fef726967ace3b1",
+      "domains": [
+        "D14"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.claude-mem-candidate.mechanisms",
+        "cap.ref.claude-mem-candidate.boundary"
+      ],
+      "git_head": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-mem-candidate.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "claude-memory",
+      "path": "reference/claude-memory",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/Zey413/claude-memory.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "tree_sha256": "ad6363c2023dae07d8323b3840003a5a293bce75e0e9c55bf5b38b241dcd2d6a",
+      "license_sha256": "ffa4baf5687028d507609214b4bac29acbc61906559a3ce16fef726967ace3b1",
+      "domains": [
+        "D14"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.claude-memory.mechanisms",
+        "cap.ref.claude-memory.boundary"
+      ],
+      "git_head": "1f1c13c981a798ea7cff4de99118ce771b5df09c",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.claude-memory.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "cline",
+      "path": "reference/cline",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/cline/cline.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "2ee18e7f0cdf238546e549b64e787f6fab0e94b8",
+      "tree_sha256": "2b4b1b26d4364611c3bbe412b89ebdefcfc6960cfb2f747b4bcdf31bc9408ca8",
+      "license_sha256": "718f16c3902f1b627515c7c060a97e64b71fc82d076cba554a9562b2eed758d8",
+      "domains": [
+        "D08",
+        "D09",
+        "D12"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.cline.mechanisms",
+        "cap.ref.cline.boundary"
+      ],
+      "git_head": "2ee18e7f0cdf238546e549b64e787f6fab0e94b8",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.cline.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "codex",
+      "path": "reference/codex",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/openai/codex.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "3380969a29134630d56feb6218e8e8dcc5e8196d",
+      "tree_sha256": "7478df7a1e4472458f2268c4430b7e2849960e7f66b77bc4db8cb03bedab5d5e",
+      "license_sha256": "05c9d9e05911ff3b64318d637717fae3bafc8f31c9cdb482696d7de66a2e9316",
+      "domains": [
+        "D01",
+        "D02",
+        "D03",
+        "D08",
+        "D09",
+        "D10",
+        "D11",
+        "D16",
+        "D17",
+        "D18"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.codex.mechanisms",
+        "cap.ref.codex.boundary"
+      ],
+      "git_head": "3380969a29134630d56feb6218e8e8dcc5e8196d",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.codex.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "continue",
+      "path": "reference/continue",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/continuedev/continue.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "d0a3c0b626b5bebc3bef4742eec05a0242be0bab",
+      "tree_sha256": "63ed743feb83c1e4df7ba4a25bd8552f3e0866cbcab52821b862651fad598848",
+      "license_sha256": "cf0e890be99f47785c4b8a5814a9cbd9a5545b60110d75e771d6ad70fce2a11a",
+      "domains": [
+        "D04",
+        "D12"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.continue.mechanisms",
+        "cap.ref.continue.boundary"
+      ],
+      "git_head": "d0a3c0b626b5bebc3bef4742eec05a0242be0bab",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.continue.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "emdash",
+      "path": "reference/emdash",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/generalaction/emdash.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "42045728cd76559646935c03ecb63fc977438374",
+      "tree_sha256": "4d3dcecedf23e9f7d9c21d5b14f632b68919fcbeb2798d7a6a056862189485b5",
+      "license_sha256": "1429d58be1527ed2cea2ac0e516a8c398f21f7eb75c5d4ab3881a6c42645a044",
+      "domains": [
+        "D11"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.emdash.mechanisms",
+        "cap.ref.emdash.boundary"
+      ],
+      "git_head": "42045728cd76559646935c03ecb63fc977438374",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.emdash.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "everything-claude-code",
+      "path": "reference/everything-claude-code",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/WorldFlowAI/everything-claude-code.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "432485ba6b92c14fb357276a98957f348bcff9ee",
+      "tree_sha256": "adada31f7e9bf17b5fb6ff644dacc3ff2c6fca807e9a2a3d7d8839596dfb59f6",
+      "license_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "domains": [
+        "D06",
+        "D07"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.everything-claude-code.mechanisms",
+        "cap.ref.everything-claude-code.boundary"
+      ],
+      "git_head": "432485ba6b92c14fb357276a98957f348bcff9ee",
+      "freshness": "current",
+      "license_status": "missing",
+      "license_expression": "NOASSERTION",
+      "license_compatibility": "unknown",
+      "license_evidence_ids": [
+        "ev.license.everything-claude-code.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "get-shit-done",
+      "path": "reference/get-shit-done",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/gsd-build/get-shit-done.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "bdcaab2c752d9a33a1a1ca9acf3a3c81fb991815",
+      "tree_sha256": "87ab0d845a97e4c92f2c02a2198edee05f050891596fc2e7424af035a22494c2",
+      "license_sha256": "ee5d8ca7e9c0c8472982ce209a399507c75fa30fc3cd995f1a81ce98bc447cae",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.get-shit-done.mechanisms",
+        "cap.ref.get-shit-done.boundary"
+      ],
+      "git_head": "bdcaab2c752d9a33a1a1ca9acf3a3c81fb991815",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.get-shit-done.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "graphify",
+      "path": "reference/graphify",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/Graphify-Labs/graphify.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "d2d1f68ff9dc405bf31f65fa2ded17afc71b5a10",
+      "tree_sha256": "0538c61121f53269a24eb2be189cbd3cb8ed308a7527d2df27874f6f6cb4e5c2",
+      "license_sha256": "24dfe7380e7dceceadff390e0da4de0a2132feb5867bb69edb806c947c93ed4e",
+      "domains": [
+        "D13"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.graphify.mechanisms",
+        "cap.ref.graphify.boundary"
+      ],
+      "git_head": "d2d1f68ff9dc405bf31f65fa2ded17afc71b5a10",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.graphify.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "gsd-core",
+      "path": "reference/gsd-core",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/open-gsd/gsd-core.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "96a6cf7160bdf575a82e0aa485bdf0189dd4ec24",
+      "tree_sha256": "f301e25a1fbc6312a57cfc5b0ccb2e41585a03bea599a0d3724db97c2f6dbfd3",
+      "license_sha256": "b53b387d262a600961b8c560f52f166a29384df680cd1758e08b428f18881b97",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.gsd-core.mechanisms",
+        "cap.ref.gsd-core.boundary"
+      ],
+      "git_head": "96a6cf7160bdf575a82e0aa485bdf0189dd4ec24",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.gsd-core.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "gstack",
+      "path": "reference/gstack",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/garrytan/gstack.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "11de390be1be6849eb9a15f91ff4922dd16c589a",
+      "tree_sha256": "6eb79e9f99b8fdc886e178dbea68a7ac7f650a6b4d6982697ac92475023f082f",
+      "license_sha256": "eb1fd62ddf84c8f4361fe0d1147bd461d1f3fc0558491229d6570a4a4b6c8d25",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.gstack.mechanisms",
+        "cap.ref.gstack.boundary"
+      ],
+      "git_head": "11de390be1be6849eb9a15f91ff4922dd16c589a",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.gstack.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "herdr",
+      "path": "reference/herdr",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/ogulcancelik/herdr.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "36b2e2f5463139a284483732131ce44977881239",
+      "tree_sha256": "72e68ee39680c4c6c17aa2991dbbbed3a4c42466dfb0af44fc0efd2c43652588",
+      "license_sha256": "aae65d6cea83731182190cc15aaed566193db261e0992e594ef1fcd3c3e86307",
+      "domains": [
+        "D12"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.herdr.mechanisms",
+        "cap.ref.herdr.boundary"
+      ],
+      "git_head": "36b2e2f5463139a284483732131ce44977881239",
+      "freshness": "current",
+      "license_status": "conflicting",
+      "license_expression": "AGPL-3.0-or-later OR LicenseRef-Commercial",
+      "license_compatibility": "review_required",
+      "license_evidence_ids": [
+        "ev.license.herdr.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "langchain",
+      "path": "reference/langchain",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/langchain-ai/langchain.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "bc1540084b19eda40a44885d8eaa0a5804b061c8",
+      "tree_sha256": "294e21d6fd79677a2f581b8773a64794690ad18d13c8aaa3c464b237f5a7a837",
+      "license_sha256": "f8ccb132f45a9dc9c2d9994e31b2d37a0caf491de845cb97d0dcb850e2f2f2cd",
+      "domains": [
+        "D08",
+        "D09"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.langchain.mechanisms",
+        "cap.ref.langchain.boundary"
+      ],
+      "git_head": "bc1540084b19eda40a44885d8eaa0a5804b061c8",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.langchain.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "memorix",
+      "path": "reference/memorix",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/AVIDS2/memorix.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "816415b5fbc79d451b3f86796832388a0956606f",
+      "tree_sha256": "57d27a874ba08cf8b85969ff06a6fc17673fde0be140be1b53a1efc12b4a6bad",
+      "license_sha256": "28e327d5fe1ea09487d6b765abd69d28b25d701313ff08f3f4bac921562efc47",
+      "domains": [
+        "D14"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.memorix.mechanisms",
+        "cap.ref.memorix.boundary"
+      ],
+      "git_head": "816415b5fbc79d451b3f86796832388a0956606f",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.memorix.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "pi",
+      "path": "reference/pi",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/earendil-works/pi.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "86afffe01f6f9c28207a3c712f5cddad10332987",
+      "tree_sha256": "dda5c1d4eb76200fe29cc6781c9e1bd1f47c467053e73d8053acf060e6a18e10",
+      "license_sha256": "bf845a5e322574a826e2daaaad604263b6657f9d0b36ce7e4409e626a36b13a6",
+      "domains": [
+        "D01",
+        "D02",
+        "D09",
+        "D11",
+        "D12"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.pi.mechanisms",
+        "cap.ref.pi.boundary"
+      ],
+      "git_head": "86afffe01f6f9c28207a3c712f5cddad10332987",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.pi.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "planning-with-files",
+      "path": "reference/planning-with-files",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/OthmanAdi/planning-with-files.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "7efb050593a24a5f7ed9bed75e73009f264fbb08",
+      "tree_sha256": "19939797b330251c7d66b795e2d7be837abb6295a48f84af3569ef6edd1acb4b",
+      "license_sha256": "7218ace12e9e3d43194c322f1bf055d99d8136888fd265f5c8c8aa5b885c0216",
+      "domains": [
+        "D05"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.planning-with-files.mechanisms",
+        "cap.ref.planning-with-files.boundary"
+      ],
+      "git_head": "7efb050593a24a5f7ed9bed75e73009f264fbb08",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.planning-with-files.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "pm-skills",
+      "path": "reference/pm-skills",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/product-on-purpose/pm-skills.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "eee2ef7fea55f29b491e03c198134e496edd7a03",
+      "tree_sha256": "df0bd5ccc72bb935e6fbe533765e0ffe540f5ea22b2876fa52e1654b1832e6a0",
+      "license_sha256": "3c206ac735ff998fd120a737e9648069657fd3a699961cfdc14d4ffc73107764",
+      "domains": [
+        "D15"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.pm-skills.mechanisms",
+        "cap.ref.pm-skills.boundary"
+      ],
+      "git_head": "eee2ef7fea55f29b491e03c198134e496edd7a03",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.pm-skills.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "ruflo",
+      "path": "reference/ruflo",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/ruvnet/ruflo.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "a444930d88d753e04793f55bd38861e82d9cb062",
+      "tree_sha256": "a15d56062e214e2cf0b7ebbf8e445b74c3fd36881050f88052fa9267e296fb3b",
+      "license_sha256": "02363c7e31999df6f61e7c049bc540c4c6ab97db169b575a31ba60180baf8ebc",
+      "domains": [
+        "D06"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.ruflo.mechanisms",
+        "cap.ref.ruflo.boundary"
+      ],
+      "git_head": "a444930d88d753e04793f55bd38861e82d9cb062",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.ruflo.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "skills",
+      "path": "reference/skills",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/mattpocock/skills.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "d574778f94cf620fcc8ce741584093bc650a61d3",
+      "tree_sha256": "4d61c0479c417080a78333a14e62772bde652069b603f6481dd4b4a6e0cfc21a",
+      "license_sha256": "3decfd086bdad33f73054d36aa284b03a0fe102e353e4f30f79bbac18ee160a1",
+      "domains": [
+        "D07"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.skills.mechanisms",
+        "cap.ref.skills.boundary"
+      ],
+      "git_head": "d574778f94cf620fcc8ce741584093bc650a61d3",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.skills.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "strix",
+      "path": "reference/strix",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/usestrix/strix.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "e1940769deebbf3219db5ca39c47c51462f2e81c",
+      "tree_sha256": "ddd52b565af35952d6a05eebb86006ccc66fab7da392c3ec6355f5147400d32d",
+      "license_sha256": "f54726fb4dafed17d5aaba80e2d709f18490b6336095b6ea30c9038be63dbfd8",
+      "domains": [
+        "D16"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.strix.mechanisms",
+        "cap.ref.strix.boundary"
+      ],
+      "git_head": "e1940769deebbf3219db5ca39c47c51462f2e81c",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "Apache-2.0",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.strix.review"
+      ],
+      "aliases": []
+    },
+    {
+      "repo_id": "superpowers",
+      "path": "reference/superpowers",
+      "upstream": {
+        "kind": "git",
+        "locator": "https://github.com/obra/superpowers.git"
+      },
+      "availability": "available",
+      "scanned_at": "2026-07-17T11:19:16Z",
+      "revision_kind": "git_commit",
+      "revision_value": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+      "tree_sha256": "232eee2f495bdec3494f3dfb1728d746de9a6f23e63f8fd1ce6547b9a4e880d0",
+      "license_sha256": "f3f585e35f3df5834b7ace3a984d8f8389048f64dba151b836c07d3ef5dfef8b",
+      "domains": [
+        "D05",
+        "D16"
+      ],
+      "inventory_capability_ids": [
+        "cap.ref.superpowers.mechanisms",
+        "cap.ref.superpowers.boundary"
+      ],
+      "git_head": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+      "freshness": "current",
+      "license_status": "found",
+      "license_expression": "MIT",
+      "license_compatibility": "compatible",
+      "license_evidence_ids": [
+        "ev.license.superpowers.review"
+      ],
+      "aliases": []
+    }
+  ],
+  "previous_revision_id": "reference-registry-2026-07-15-genesis",
+  "previous_revision_path": "docs/agent-program/kiana-completion/governance/repository-registry/references-2026-07-15-genesis.json",
+  "previous_revision_sha256": "b83fc186ff4ee212f0c60e8f593ea708ef8060ceb2999e27c3906e0cc6bd70c0"
+}
