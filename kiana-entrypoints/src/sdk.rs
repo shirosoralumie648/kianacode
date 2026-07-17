@@ -908,6 +908,14 @@ fn prompt_options_with_session_file_sets(
     session: &PersistedSession,
     mut options: HashMap<String, Value>,
 ) -> HashMap<String, Value> {
+    if let Some(cwd) = session
+        .cwd
+        .as_deref()
+        .map(str::trim)
+        .filter(|cwd| !cwd.is_empty())
+    {
+        options.insert("cwd".to_string(), Value::String(cwd.to_string()));
+    }
     if !session.editable_files.is_empty()
         && !options.contains_key("editable_files")
         && !options.contains_key("editableFiles")
@@ -1800,6 +1808,29 @@ mod tests {
     }
 
     #[test]
+    fn prompt_options_inherit_session_cwd_over_calling_cwd() {
+        let session = PersistedSession {
+            session_id: "session-1".to_string(),
+            title: None,
+            tag: None,
+            parent_session_id: None,
+            cwd: Some("/repo/session-owner".to_string()),
+            created_at: 1,
+            updated_at: 1,
+            editable_files: Vec::new(),
+            read_only_files: Vec::new(),
+            messages: Vec::new(),
+        };
+
+        let merged = prompt_options_with_session_file_sets(
+            &session,
+            HashMap::from([("cwd".to_string(), Value::String("/repo/caller".to_string()))]),
+        );
+
+        assert_eq!(merged["cwd"], "/repo/session-owner");
+    }
+
+    #[test]
     fn sdk_session_store_writes_runtime_event_jsonl_tree() {
         let root = test_root("runtime-event-tree");
         let session = create_session_at(
@@ -2348,6 +2379,11 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_failure_does_not_persist_missing_session_prompt() {
+        let _env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+        ]);
         let root = test_root("execute-failure-new");
 
         let error = prompt_with_persistence_at(
@@ -2369,6 +2405,11 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_failure_preserves_existing_session_history() {
+        let _env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+        ]);
         let root = test_root("execute-failure-existing");
         let session = create_session_at(
             root.clone(),
@@ -2411,6 +2452,11 @@ mod tests {
 
     #[tokio::test]
     async fn streaming_model_execution_failure_does_not_persist_missing_session_prompt() {
+        let _env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+        ]);
         let root = test_root("streaming-execute-failure-new");
 
         let error = prompt_streaming_with_persistence_at(
@@ -2436,6 +2482,11 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_success_persists_completed_messages() {
+        let _env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+        ]);
         let root = test_root("execute-success");
         let (base_url, server) = start_sdk_mock_messages_server("model ok").await;
 
@@ -2470,6 +2521,11 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_preserves_stream_json_history_messages() {
+        let _env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+        ]);
         let root = test_root("execute-stream-json-history");
         let (base_url, server) = start_sdk_mock_messages_server("model ok").await;
 

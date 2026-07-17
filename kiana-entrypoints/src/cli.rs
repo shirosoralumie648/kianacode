@@ -1289,6 +1289,14 @@ fn apply_environment_variable_update(event: &Value) -> Result<()> {
         .get("variables")
         .and_then(Value::as_object)
         .ok_or_else(|| anyhow!("update_environment_variables requires variables object"))?;
+    if let Some(key) = variables.keys().find(|key| {
+        let key = key.to_ascii_uppercase();
+        key == "HOME" || key == "USERPROFILE" || key.starts_with("KIANA_")
+    }) {
+        return Err(anyhow!(
+            "update_environment_variables rejected trust-authority key '{key}'"
+        ));
+    }
     for (key, value) in variables {
         if let Some(value) = value.as_str() {
             std::env::set_var(key, value);
@@ -1738,8 +1746,12 @@ async fn stream_json_init_event(session_id: &str) -> Result<Value> {
         .collect();
     slash_commands.sort();
     let cwd = std::env::current_dir()?;
-    let output_style = kiana_commands::output_style::selected_output_style_name(&cwd);
-    let available_output_styles = kiana_commands::output_style::available_output_style_names(&cwd);
+    let app_state = HashMap::from([("cwd".to_string(), Value::String(cwd.display().to_string()))]);
+    let project_trust = kiana_types::project_trust_from_app_state(&app_state);
+    let output_style =
+        kiana_commands::output_style::selected_output_style_name_with_trust(&cwd, project_trust);
+    let available_output_styles =
+        kiana_commands::output_style::available_output_style_names_with_trust(&cwd, project_trust);
     let skills = stream_json_skill_summaries(&cwd).await;
     let plugins = stream_json_plugin_summaries(&cwd)?;
 
@@ -1766,8 +1778,9 @@ async fn stream_json_init_event(session_id: &str) -> Result<Value> {
 
 async fn stream_json_skill_summaries(cwd: &Path) -> Value {
     kiana_skills::clear_caches();
-    let mut skills =
-        kiana_skills::load_all_skills_with_trust(cwd, kiana_types::ProjectTrust::Trusted).await;
+    let app_state = HashMap::from([("cwd".to_string(), Value::String(cwd.display().to_string()))]);
+    let project_trust = kiana_types::project_trust_from_app_state(&app_state);
+    let mut skills = kiana_skills::load_all_skills_with_trust(cwd, project_trust).await;
     skills.retain(|skill| skill.user_invocable);
     skills.sort_by(|a, b| a.name.cmp(&b.name));
     Value::Array(
@@ -3111,6 +3124,8 @@ fn agent_source_matches_filter(source: AgentSource, filters: &[String]) -> bool 
 
 fn discover_agents(runtime_flags: &RuntimeFlags) -> Result<Vec<DiscoveredAgent>> {
     let cwd = std::env::current_dir()?;
+    let app_state = HashMap::from([("cwd".to_string(), Value::String(cwd.display().to_string()))]);
+    let project_trust = kiana_types::project_trust_from_app_state(&app_state);
     let mut agents = Vec::new();
     agents.extend(discover_builtin_agents());
     agents.extend(discover_agents_from_settings_env()?);
@@ -3119,22 +3134,24 @@ fn discover_agents(runtime_flags: &RuntimeFlags) -> Result<Vec<DiscoveredAgent>>
         user_agent_dirs(),
         None,
     )?);
-    agents.extend(discover_agents_from_dirs(
-        AgentSource::Project,
-        vec![
-            cwd.join(".kiana").join("agents"),
-            cwd.join(".claude").join("agents"),
-        ],
-        None,
-    )?);
-    agents.extend(discover_agents_from_dirs(
-        AgentSource::Local,
-        vec![
-            cwd.join(".kiana").join("agents-local"),
-            cwd.join(".claude").join("agents-local"),
-        ],
-        None,
-    )?);
+    if project_trust.allows_project_resources() {
+        agents.extend(discover_agents_from_dirs(
+            AgentSource::Project,
+            vec![
+                cwd.join(".kiana").join("agents"),
+                cwd.join(".claude").join("agents"),
+            ],
+            None,
+        )?);
+        agents.extend(discover_agents_from_dirs(
+            AgentSource::Local,
+            vec![
+                cwd.join(".kiana").join("agents-local"),
+                cwd.join(".claude").join("agents-local"),
+            ],
+            None,
+        )?);
+    }
     agents.extend(discover_plugin_agents()?);
     if let Some(raw) = &runtime_flags.agents_json {
         agents.extend(discover_flag_agents(raw)?);
@@ -3747,6 +3764,10 @@ fn agents_json(agents: &[DiscoveredAgent]) -> Value {
                 "description": agent.description,
                 "model": agent.model,
                 "memory": agent.memory,
+                "tools": agent.tools,
+                "disallowed_tools": agent.disallowed_tools,
+                "permission_mode": agent.permission_mode,
+                "max_turns": agent.max_turns,
                 "path": agent.path.as_ref().map(|path| path.display().to_string()),
                 "plugin": agent.plugin,
             })
@@ -6743,8 +6764,8 @@ fn direct_connect_commercial_release_blockers_report() -> Result<Value> {
     let mut failures = Vec::new();
     for bash in direct_connect_bash_candidates() {
         match std::process::Command::new(&bash)
-            .arg("-lc")
-            .arg("./scripts/commercial-release-blockers-report.sh --json")
+            .arg("./scripts/commercial-release-blockers-report.sh")
+            .arg("--json")
             .current_dir(root)
             .output()
         {
@@ -8135,33 +8156,9 @@ async fn direct_connect_app_trust_status_handler(
 }
 
 fn direct_connect_app_trust_status_payload(state: &DirectConnectServerState) -> Value {
-    let app_state = direct_connect_app_state_with_workspace(state);
-    let trust = kiana_types::project_trust_from_app_state(&app_state);
-    let file_path = kiana_types::find_project_trust_file(&state.workspace)
-        .unwrap_or_else(|| kiana_types::project_trust_file_path(&state.workspace));
-    let file_exists = file_path.is_file();
-    let file_trust = kiana_types::read_project_trust(&state.workspace)
-        .ok()
-        .flatten();
-    let source = if direct_connect_app_state_has_explicit_project_trust(&app_state) {
-        "session"
-    } else if file_trust.is_some() {
-        "file"
-    } else {
-        "default"
-    };
-
-    serde_json::json!({
-        "schema": "kiana.app-server.trust-status.v1",
-        "workspace": state.workspace.display().to_string(),
-        "project_trust": trust.as_str(),
-        "project_trusted": trust.as_bool(),
-        "source": source,
-        "file": {
-            "path": file_path.display().to_string(),
-            "status": if file_exists { "found" } else { "missing" },
-            "exists": file_exists,
-        },
+    kiana_commands::trust::trust_status_payload(&CommandContext {
+        args: "json".to_string(),
+        app_state: direct_connect_app_state_with_workspace(state),
     })
 }
 
@@ -8174,19 +8171,6 @@ fn direct_connect_app_state_with_workspace(
         Value::String(state.workspace.display().to_string()),
     );
     app_state
-}
-
-fn direct_connect_app_state_has_explicit_project_trust(app_state: &HashMap<String, Value>) -> bool {
-    app_state.contains_key("project_trusted")
-        || app_state.contains_key("projectTrusted")
-        || app_state
-            .get("trust")
-            .and_then(Value::as_object)
-            .is_some_and(|trust| trust.contains_key("project"))
-        || app_state
-            .get("project")
-            .and_then(Value::as_object)
-            .is_some_and(|project| project.contains_key("trusted"))
 }
 
 async fn direct_connect_app_plugins_handler(
@@ -9342,7 +9326,15 @@ async fn direct_connect_create_session_handler(
         );
     }
 
-    let work_dir = direct_connect_session_work_dir(&state.workspace, body.cwd.as_deref());
+    let work_dir = match direct_connect_session_work_dir(&state.workspace, body.cwd.as_deref()) {
+        Ok(work_dir) => work_dir,
+        Err(error) => {
+            return direct_connect_json_error(
+                axum::http::StatusCode::BAD_REQUEST,
+                error.to_string(),
+            )
+        }
+    };
     let mut sessions = state.sessions.lock().await;
     if state.max_sessions > 0 && sessions.len() >= state.max_sessions {
         return direct_connect_json_error(
@@ -9782,17 +9774,33 @@ fn direct_connect_json_error(
         .into_response()
 }
 
-fn direct_connect_session_work_dir(workspace: &Path, requested_cwd: Option<&str>) -> PathBuf {
+fn direct_connect_session_work_dir(
+    workspace: &Path,
+    requested_cwd: Option<&str>,
+) -> Result<PathBuf> {
+    let workspace = workspace
+        .canonicalize()
+        .map_err(|error| anyhow!("failed to resolve direct-connect workspace: {error}"))?;
     let path = requested_cwd
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| workspace.to_path_buf());
-    if path.is_absolute() {
+        .unwrap_or_else(|| workspace.clone());
+    let path = if path.is_absolute() {
         path
     } else {
         workspace.join(path)
+    };
+    let path = path
+        .canonicalize()
+        .map_err(|error| anyhow!("failed to resolve direct-connect session cwd: {error}"))?;
+    if !path.starts_with(&workspace) {
+        return Err(anyhow!(
+            "direct-connect session cwd is outside workspace: {}",
+            path.display()
+        ));
     }
+    Ok(path)
 }
 
 const DIRECT_CONNECT_APP_EVENTS_LIMIT: usize = 200;
@@ -13512,6 +13520,10 @@ async fn run_local_command(args: &[String]) -> Result<Option<kiana_commands::Com
 
     let mut app_state = HashMap::new();
     app_state.insert(
+        "cwd".to_string(),
+        Value::String(std::env::current_dir()?.display().to_string()),
+    );
+    app_state.insert(
         COMMAND_ARGV_APP_STATE_KEY.to_string(),
         Value::Array(args[1..].iter().cloned().map(Value::String).collect()),
     );
@@ -13772,6 +13784,8 @@ mod tests {
         values: Vec<(&'static str, Option<std::ffi::OsString>)>,
     }
 
+    struct CurrentDirGuard(PathBuf);
+
     impl EnvSnapshot {
         fn take(keys: &[&'static str]) -> Self {
             let values = keys
@@ -13787,6 +13801,20 @@ mod tests {
             for (key, value) in self.values.drain(..) {
                 restore_env(key, value);
             }
+        }
+    }
+
+    impl CurrentDirGuard {
+        fn set(path: &Path) -> Self {
+            let previous = std::env::current_dir().unwrap();
+            std::env::set_current_dir(path).unwrap();
+            Self(previous)
+        }
+    }
+
+    impl Drop for CurrentDirGuard {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.0);
         }
     }
 
@@ -13903,6 +13931,82 @@ mod tests {
 
         assert!(stdin_error.contains("interactive stdin"));
         assert!(stdout_error.contains("interactive stdout"));
+    }
+
+    fn assert_environment_variable_update_rejects_atomically(blocked_key: &'static str) {
+        const SAFE_KEY: &str = "APP_ENV_UPDATE_SAFE_TEST";
+
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&[blocked_key, SAFE_KEY]);
+        let original_blocked_value = format!("original-{blocked_key}");
+        std::env::set_var(blocked_key, &original_blocked_value);
+        std::env::set_var(SAFE_KEY, "safe-before");
+        let mut variables = serde_json::Map::new();
+        variables.insert(
+            blocked_key.to_string(),
+            Value::String("attacker".to_string()),
+        );
+        variables.insert(
+            SAFE_KEY.to_string(),
+            Value::String("safe-after".to_string()),
+        );
+
+        let result = apply_environment_variable_update(&serde_json::json!({
+            "type": "update_environment_variables",
+            "variables": variables,
+        }));
+
+        assert_eq!(std::env::var(SAFE_KEY).unwrap(), "safe-before");
+        assert_eq!(std::env::var(blocked_key).unwrap(), original_blocked_value);
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains(blocked_key), "{error}");
+    }
+
+    #[test]
+    fn environment_variable_update_rejects_kiana_home_atomically() {
+        assert_environment_variable_update_rejects_atomically("KIANA_HOME");
+    }
+
+    #[test]
+    fn environment_variable_update_rejects_home_atomically() {
+        assert_environment_variable_update_rejects_atomically("HOME");
+    }
+
+    #[test]
+    fn environment_variable_update_rejects_userprofile_atomically() {
+        assert_environment_variable_update_rejects_atomically("USERPROFILE");
+    }
+
+    #[test]
+    fn environment_variable_update_rejects_mixed_case_trust_authority_keys_atomically() {
+        for blocked_key in ["kiana_home", "Home", "userProfile"] {
+            assert_environment_variable_update_rejects_atomically(blocked_key);
+        }
+    }
+
+    #[test]
+    fn environment_variable_update_rejects_runtime_authority_keys_atomically() {
+        for blocked_key in [
+            "KIANA_HOOKS",
+            "KIANA_HOOKS_FILE",
+            "KIANA_SESSION_START_HOOKS",
+            "KIANA_PLUGINS_DIR",
+            "KIANA_MCP_SERVERS_JSON",
+            "KIANA_CONFIG_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_MANAGED_SETTINGS_FILE",
+            "KIANA_AGENT_COMMAND",
+            "KIANA_AGENT_HOOKS",
+            "KIANA_BASH",
+            "KIANA_BASH_PATH",
+            "KIANA_POWERSHELL",
+            "KIANA_BASH_SANDBOX_ALLOW_UNSANDBOXED",
+            "KIANA_FUTURE_RUNTIME_CONTROL",
+        ] {
+            assert_environment_variable_update_rejects_atomically(blocked_key);
+        }
     }
 
     async fn start_bridge_loop_mock_model_server() -> (String, tokio::task::JoinHandle<()>) {
@@ -17495,6 +17599,104 @@ mod tests {
     }
 
     #[test]
+    fn unknown_project_trust_hides_project_and_local_agents_but_keeps_other_sources() {
+        let _guard = env_lock().lock().unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-agents-unknown-trust-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
+        let project = root.join("project");
+        let plugins = root.join("plugins");
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_CONFIG_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_PLUGINS_DIR",
+        ]);
+
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(kiana_home.join("agents")).unwrap();
+        std::fs::create_dir_all(project.join(".git")).unwrap();
+        std::fs::create_dir_all(project.join(".kiana").join("agents")).unwrap();
+        std::fs::create_dir_all(project.join(".claude").join("agents-local")).unwrap();
+        std::fs::create_dir_all(plugins.join("alpha").join("agents")).unwrap();
+        std::fs::write(
+            kiana_home.join("agents").join("user-agent.md"),
+            "---\ndescription: user agent\n---\nUser prompt.",
+        )
+        .unwrap();
+        std::fs::write(
+            project
+                .join(".kiana")
+                .join("agents")
+                .join("project-agent.md"),
+            "---\ndescription: project agent\n---\nProject prompt.",
+        )
+        .unwrap();
+        std::fs::write(
+            project
+                .join(".claude")
+                .join("agents-local")
+                .join("local-agent.md"),
+            "---\ndescription: local agent\n---\nLocal prompt.",
+        )
+        .unwrap();
+        std::fs::write(
+            plugins.join("alpha").join("agents").join("plugin-agent.md"),
+            "---\ndescription: plugin agent\n---\nPlugin prompt.",
+        )
+        .unwrap();
+
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins);
+        let cwd = CurrentDirGuard::set(&project);
+        let flags = RuntimeFlags {
+            agents_json: Some(
+                r#"{"flag-agent":{"description":"flag agent","prompt":"Flag prompt."}}"#
+                    .to_string(),
+            ),
+            ..RuntimeFlags::default()
+        };
+
+        let agents = discover_agents(&flags).unwrap();
+
+        assert!(!agents
+            .iter()
+            .any(|agent| matches!(agent.source, AgentSource::Project | AgentSource::Local)));
+        assert!(agents
+            .iter()
+            .any(|agent| agent.name == "user-agent" && agent.source == AgentSource::User));
+        assert!(agents
+            .iter()
+            .any(|agent| { agent.name == "plugin-agent" && agent.source == AgentSource::Plugin }));
+        assert!(agents
+            .iter()
+            .any(|agent| agent.name == "flag-agent" && agent.source == AgentSource::Flag));
+        assert!(agents.iter().any(|agent| {
+            agent.name == "general-purpose" && agent.source == AgentSource::BuiltIn
+        }));
+
+        drop(cwd);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn agents_discovery_lists_sources_and_marks_shadowed_agents() {
         let _guard = env_lock().lock().unwrap();
         let root = std::env::temp_dir().join(format!(
@@ -17512,6 +17714,7 @@ mod tests {
         let previous_cwd = std::env::current_dir().unwrap();
         let _env = EnvSnapshot::take(&[
             "HOME",
+            "USERPROFILE",
             "KIANA_HOME",
             "KIANA_CONFIG_FILE",
             "KIANA_SETTINGS_FILE",
@@ -17521,6 +17724,7 @@ mod tests {
         ]);
 
         std::fs::create_dir_all(kiana_home.join("agents")).unwrap();
+        std::fs::create_dir_all(project.join(".git")).unwrap();
         std::fs::create_dir_all(project.join(".kiana").join("agents")).unwrap();
         std::fs::create_dir_all(project.join(".claude").join("agents-local")).unwrap();
         std::fs::create_dir_all(plugins.join("alpha").join("agents")).unwrap();
@@ -17532,7 +17736,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             project.join(".kiana").join("agents").join("reviewer.md"),
-            "---\nname: reviewer\ndescription: project reviewer\nmemory: project\n---\nReview project code.",
+            "---\nname: reviewer\ndescription: project reviewer\nmemory: project\ntools: [Read, Grep]\ndisallowedTools: [Write]\npermissionMode: plan\nmaxTurns: 7\n---\nReview project code.",
         )
         .unwrap();
         std::fs::write(
@@ -17559,10 +17763,12 @@ mod tests {
         kiana_types::plugin::set_plugin_enabled(&plugins, "beta", false).unwrap();
 
         std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
         std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins);
         std::env::set_current_dir(&project).unwrap();
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
         let flags = RuntimeFlags {
             agents_json: Some(
                 r#"{"reviewer":{"description":"flag reviewer","prompt":"Flag review."}}"#
@@ -17599,6 +17805,22 @@ mod tests {
             .unwrap()
             .iter()
             .any(|agent| agent["name"] == "reviewer" && agent["source"] == "flag"));
+        let project_reviewer = json["agents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|agent| agent["name"] == "reviewer" && agent["source"] == "project")
+            .unwrap();
+        assert_eq!(
+            project_reviewer["tools"],
+            serde_json::json!(["Read", "Grep"])
+        );
+        assert_eq!(
+            project_reviewer["disallowed_tools"],
+            serde_json::json!(["Write"])
+        );
+        assert_eq!(project_reviewer["permission_mode"], "plan");
+        assert_eq!(project_reviewer["max_turns"], 7);
         assert!(agent_source_matches_filter(
             AgentSource::Project,
             &parse_setting_sources("user,project")
@@ -17953,40 +18175,64 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
         let cwd = root.join("project");
         let styles_dir = cwd.join(".claude").join("output-styles");
         let plugins_dir = root.join("plugins");
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_PLUGINS_DIR",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+        ]);
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::fs::create_dir_all(cwd.join(".git")).unwrap();
+        std::fs::create_dir_all(cwd.join(".kiana")).unwrap();
         std::fs::create_dir_all(&styles_dir).unwrap();
         std::fs::create_dir_all(&plugins_dir).unwrap();
+        std::fs::write(cwd.join(".kiana").join("trust.json"), r#"{"trusted":true}"#).unwrap();
         std::fs::write(
             styles_dir.join("Local.md"),
             "---\ndescription: Local style\n---\nUse the local style.\n",
         )
         .unwrap();
-        let previous_cwd = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&cwd).unwrap();
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var(
             "KIANA_SETTINGS_JSON",
             r#"{"settings":{"output_style":"Local"}}"#,
         );
+        let current_dir = CurrentDirGuard::set(&cwd);
 
-        let init = stream_json_init_event("session-1").await.unwrap();
-
-        assert_eq!(init["output_style"], "Local");
-        assert!(init["available_output_styles"]
+        let unknown = stream_json_init_event("session-unknown").await.unwrap();
+        assert_eq!(unknown["output_style"], "default");
+        assert!(!unknown["available_output_styles"]
             .as_array()
             .unwrap()
             .iter()
             .any(|style| style.as_str() == Some("Local")));
-        assert!(init["available_output_styles"]
+
+        kiana_types::write_project_trust(&cwd, kiana_types::ProjectTrust::Trusted).unwrap();
+        let trusted = stream_json_init_event("session-trusted").await.unwrap();
+        assert_eq!(trusted["output_style"], "Local");
+        assert!(trusted["available_output_styles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|style| style.as_str() == Some("Local")));
+        assert!(trusted["available_output_styles"]
             .as_array()
             .unwrap()
             .iter()
             .any(|style| style.as_str() == Some("default")));
 
-        std::env::set_current_dir(previous_cwd).unwrap();
-        std::env::remove_var("KIANA_PLUGINS_DIR");
+        drop(current_dir);
         clear_settings_env();
         let _ = std::fs::remove_dir_all(root);
     }
@@ -18055,6 +18301,7 @@ mod tests {
         std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_current_dir(&project).unwrap();
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
 
         let init = stream_json_init_event("session-1").await.unwrap();
         let skill_names = init["skills"]
@@ -18104,6 +18351,135 @@ mod tests {
             .any(|command| command.as_str() == Some("review-tools:review")));
 
         std::env::set_current_dir(previous_cwd).unwrap();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn stream_json_skill_summaries_hide_project_skills_until_user_store_trusts_project() {
+        let _guard = env_lock().lock().unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-stream-json-project-trust-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
+        let project = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-tools");
+        let _env = EnvSnapshot::take(&["HOME", "USERPROFILE", "KIANA_HOME", "KIANA_PLUGINS_DIR"]);
+
+        std::fs::create_dir_all(project.join(".git")).unwrap();
+        std::fs::create_dir_all(project.join(".claude").join("skills").join("project-audit"))
+            .unwrap();
+        std::fs::write(
+            project
+                .join(".claude")
+                .join("skills")
+                .join("project-audit")
+                .join("SKILL.md"),
+            "---\ndescription: Audit this project\n---\nUse this project skill.\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            plugin_root.join(".codex-plugin").join("plugin.json"),
+            r#"{"name":"review-tools","version":"1.0.0","description":"Review helpers"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_root.join("skills").join("code-audit")).unwrap();
+        std::fs::write(
+            plugin_root
+                .join("skills")
+                .join("code-audit")
+                .join("SKILL.md"),
+            "---\ndescription: Audit code from plugin\n---\nUse this plugin skill.\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(project.join(".kiana")).unwrap();
+        std::fs::write(
+            project.join(".kiana").join("trust.json"),
+            r#"{"trusted":true}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        let unknown = stream_json_skill_summaries(&project).await;
+        assert!(!unknown
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|skill| { skill.get("name").and_then(Value::as_str) == Some("project-audit") }));
+        assert!(unknown.as_array().unwrap().iter().any(|skill| {
+            skill.get("name").and_then(Value::as_str) == Some("review-tools:code-audit")
+        }));
+
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
+        let trusted = stream_json_skill_summaries(&project).await;
+        assert!(trusted
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|skill| { skill.get("name").and_then(Value::as_str) == Some("project-audit") }));
+        assert!(trusted.as_array().unwrap().iter().any(|skill| {
+            skill.get("name").and_then(Value::as_str) == Some("review-tools:code-audit")
+        }));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn local_command_propagates_cwd_for_external_project_trust() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&["HOME", "USERPROFILE", "KIANA_HOME"]);
+        let root = std::env::temp_dir().join(format!(
+            "kiana-local-command-project-trust-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let project = root.join("project");
+        let kiana_home = root.join("kiana-home");
+        let plugin_root = project.join(".kiana").join("plugins").join("review-tools");
+        std::fs::create_dir_all(project.join(".git")).unwrap();
+        std::fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+        std::fs::write(
+            plugin_root.join(".codex-plugin").join("plugin.json"),
+            r#"{"name":"review-tools","version":"1.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        let _cwd = CurrentDirGuard::set(&project);
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
+
+        let result = run_local_command(&[
+            "skills".to_string(),
+            "audit".to_string(),
+            "--json".to_string(),
+        ])
+        .await
+        .unwrap()
+        .unwrap();
+        let report: Value = serde_json::from_str(&result.value).unwrap();
+
+        assert!(report["plugin_load_audit"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| { entry["plugin"] == "review-tools" && entry["status"] == "no-skills" }));
+
+        drop(_cwd);
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -18401,6 +18777,67 @@ mod tests {
     }
 
     #[test]
+    fn unknown_project_trust_rejects_selected_project_agent() {
+        let _guard = env_lock().lock().unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-selected-agent-unknown-trust-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
+        let project = root.join("project");
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_CONFIG_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_PLUGINS_DIR",
+        ]);
+
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::fs::create_dir_all(project.join(".git")).unwrap();
+        std::fs::create_dir_all(project.join(".claude").join("agents")).unwrap();
+        std::fs::write(
+            project
+                .join(".claude")
+                .join("agents")
+                .join("project-only.md"),
+            "---\ndescription: project-only agent\n---\nProject-controlled prompt.",
+        )
+        .unwrap();
+
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
+        let cwd = CurrentDirGuard::set(&project);
+
+        let error = selected_cli_agent(&RuntimeFlags {
+            agent: Some("project-only".to_string()),
+            ..RuntimeFlags::default()
+        })
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("--agent 'project-only' was not found"));
+
+        drop(cwd);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn prompt_runtime_options_apply_discovered_project_agent() {
         let _guard = env_lock().lock().unwrap();
         let root = std::env::temp_dir().join(format!(
@@ -18417,6 +18854,7 @@ mod tests {
         let previous_cwd = std::env::current_dir().unwrap();
         let _env = EnvSnapshot::take(&[
             "HOME",
+            "USERPROFILE",
             "KIANA_HOME",
             "KIANA_CONFIG_FILE",
             "KIANA_SETTINGS_FILE",
@@ -18425,6 +18863,8 @@ mod tests {
             "KIANA_PLUGINS_DIR",
         ]);
 
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::fs::create_dir_all(project.join(".git")).unwrap();
         std::fs::create_dir_all(project.join(".claude").join("agents")).unwrap();
         std::fs::write(
             project.join(".claude").join("agents").join("reviewer.md"),
@@ -18433,10 +18873,12 @@ mod tests {
         .unwrap();
 
         std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
         std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
         std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
         std::env::set_current_dir(&project).unwrap();
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
 
         let mut options = HashMap::new();
         let initial_prompt = apply_prompt_runtime_options(
@@ -18536,11 +18978,11 @@ mod tests {
                 .as_nanos()
         ));
         let home = root.join("home");
-        let kiana_home = home.join(".kiana");
+        let kiana_home = root.join("kiana-home");
         let project = root.join("project");
-        let previous_cwd = std::env::current_dir().unwrap();
         let _env = EnvSnapshot::take(&[
             "HOME",
+            "USERPROFILE",
             "KIANA_HOME",
             "KIANA_CONFIG_FILE",
             "KIANA_SETTINGS_FILE",
@@ -18549,6 +18991,9 @@ mod tests {
             "KIANA_PLUGINS_DIR",
         ]);
 
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::fs::create_dir_all(project.join(".git")).unwrap();
         std::fs::create_dir_all(project.join(".kiana").join("agents")).unwrap();
         std::fs::create_dir_all(project.join(".claude").join("agents-local")).unwrap();
         std::fs::write(
@@ -18566,10 +19011,15 @@ mod tests {
         .unwrap();
 
         std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
         std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
         std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
-        std::env::set_current_dir(&project).unwrap();
+        let cwd = CurrentDirGuard::set(&project);
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
 
         let mut options = HashMap::new();
         apply_prompt_runtime_options(
@@ -18583,7 +19033,7 @@ mod tests {
 
         assert_eq!(options["system_prompt"], "Local prompt.");
 
-        std::env::set_current_dir(previous_cwd).unwrap();
+        drop(cwd);
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -19222,13 +19672,20 @@ mod tests {
         let old_tasks_root = take_env("KIANA_TASKS_ROOT");
         let old_agent_id = take_env("KIANA_AGENT_ID");
         let old_permission_mode = take_env("KIANA_PERMISSION_MODE");
+        let old_kiana_home = take_env("KIANA_HOME");
 
         let tasks_root =
             std::env::temp_dir().join(format!("kiana-bridge-loop-smoke-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&tasks_root).unwrap();
         std::env::set_var("KIANA_TASKS_ROOT", &tasks_root);
+        std::env::set_var("KIANA_HOME", tasks_root.join("kiana-home"));
         std::env::set_var("KIANA_AGENT_ID", "agent-1");
         std::env::remove_var("KIANA_PERMISSION_MODE");
+        kiana_types::write_project_trust(
+            std::env::current_dir().unwrap(),
+            kiana_types::ProjectTrust::Trusted,
+        )
+        .unwrap();
 
         let (base_url, server) = start_bridge_loop_mock_model_server().await;
         let options = HashMap::from([
@@ -19325,6 +19782,7 @@ mod tests {
         restore_env("KIANA_TASKS_ROOT", old_tasks_root);
         restore_env("KIANA_AGENT_ID", old_agent_id);
         restore_env("KIANA_PERMISSION_MODE", old_permission_mode);
+        restore_env("KIANA_HOME", old_kiana_home);
     }
 
     #[test]
@@ -19467,6 +19925,134 @@ mod tests {
 
         server.abort();
         let _ = std::fs::remove_dir_all(workspace);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn direct_connect_server_rejects_session_cwd_outside_workspace() {
+        let root = std::env::temp_dir().join(format!(
+            "kiana-direct-cwd-boundary-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let workspace = root.join("workspace");
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let state = direct_connect_server_state(
+            DirectConnectServerArgs {
+                host: "127.0.0.1".to_string(),
+                port: 0,
+                auth_token: Some("secret".to_string()),
+                unix_socket: None,
+                workspace: Some(workspace.clone()),
+                idle_timeout_ms: 1000,
+                max_sessions: 32,
+            },
+            addr,
+            Some("secret".to_string()),
+            HashMap::new(),
+        )
+        .unwrap();
+        let app = direct_connect_server_router(state);
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        for cwd in [outside.display().to_string(), "../outside".to_string()] {
+            let response = reqwest::Client::new()
+                .post(format!("http://{addr}/sessions"))
+                .bearer_auth("secret")
+                .json(&serde_json::json!({ "cwd": cwd }))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+            let value: Value = response.json().await.unwrap();
+            assert!(value["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("outside workspace"));
+        }
+
+        server.abort();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn direct_connect_trust_status_uses_external_store_and_ignores_legacy_file() {
+        let _guard = env_lock().lock().unwrap();
+        let _env = EnvSnapshot::take(&["HOME", "USERPROFILE", "KIANA_HOME"]);
+        let root = std::env::temp_dir().join(format!(
+            "kiana-direct-connect-trust-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let project = root.join("project");
+        let kiana_home = root.join("kiana-home");
+        std::fs::create_dir_all(project.join(".git")).unwrap();
+        std::fs::create_dir_all(project.join(".kiana")).unwrap();
+        std::fs::create_dir_all(&kiana_home).unwrap();
+        std::fs::write(
+            project.join(".kiana").join("trust.json"),
+            r#"{"trusted":true}"#,
+        )
+        .unwrap();
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        let project = std::fs::canonicalize(project).unwrap();
+        let server_args = DirectConnectServerArgs {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            auth_token: Some("secret".to_string()),
+            unix_socket: None,
+            workspace: Some(project.clone()),
+            idle_timeout_ms: 1_000,
+            max_sessions: 32,
+        };
+        let state = direct_connect_server_state(
+            server_args,
+            SocketAddr::from(([127, 0, 0, 1], 0)),
+            Some("secret".to_string()),
+            HashMap::new(),
+        )
+        .unwrap();
+
+        let unknown = direct_connect_app_trust_status_payload(&state);
+        assert_eq!(unknown["project_trust"], "unknown");
+        assert_eq!(unknown["project_trusted"], false);
+        assert_eq!(unknown["allows_project_resources"], false);
+        assert_eq!(unknown["source"], "default");
+        assert_eq!(
+            unknown["project_id"],
+            kiana_types::project_trust_id(&project)
+        );
+        assert_eq!(unknown["project_root"], project.display().to_string());
+        assert_eq!(unknown["file"]["status"], "missing");
+        assert_eq!(unknown["file"]["exists"], false);
+        assert_eq!(unknown["file"]["error"], Value::Null);
+        assert_eq!(unknown["legacy_project_file"]["exists"], true);
+        assert_eq!(unknown["legacy_project_file"]["ignored"], true);
+
+        kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
+        let trusted = direct_connect_app_trust_status_payload(&state);
+        assert_eq!(trusted["project_trust"], "trusted");
+        assert_eq!(trusted["project_trusted"], true);
+        assert_eq!(trusted["allows_project_resources"], true);
+        assert_eq!(trusted["source"], "user_store");
+        assert_eq!(trusted["file"]["status"], "found");
+        assert_eq!(trusted["file"]["exists"], true);
+        assert_eq!(
+            trusted["file"]["path"],
+            kiana_types::project_trust_file_path(&project)
+                .unwrap()
+                .display()
+                .to_string()
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -19671,7 +20257,7 @@ mod tests {
         .unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions_dir);
-        let kiana_home = workspace.join(".kiana-home");
+        let kiana_home = workspace.with_extension("kiana-home");
         std::env::set_var("KIANA_HOME", &kiana_home);
         std::fs::create_dir_all(&kiana_home).unwrap();
         std::env::set_var("KIANA_CONFIG_FILE", workspace.join("config.toml"));
@@ -21197,19 +21783,30 @@ mod tests {
             .unwrap();
         assert_eq!(trust_status["schema"], "kiana.app-server.trust-status.v1");
         assert_eq!(trust_status["workspace"], workspace.display().to_string());
-        assert_eq!(trust_status["project_trust"], "trusted");
-        assert_eq!(trust_status["project_trusted"], true);
+        assert_eq!(trust_status["project_trust"], "unknown");
+        assert_eq!(trust_status["project_trusted"], false);
+        assert_eq!(trust_status["allows_project_resources"], false);
         assert_eq!(trust_status["source"], "default");
+        assert_eq!(
+            trust_status["project_id"],
+            kiana_types::project_trust_id(&workspace)
+        );
+        assert_eq!(
+            trust_status["project_root"],
+            workspace.display().to_string()
+        );
         assert_eq!(trust_status["file"]["status"], "missing");
         assert_eq!(trust_status["file"]["exists"], false);
+        assert_eq!(trust_status["file"]["error"], Value::Null);
         assert_eq!(
             trust_status["file"]["path"],
-            workspace
-                .join(".kiana")
-                .join("trust.json")
+            kiana_types::project_trust_file_path(&workspace)
+                .unwrap()
                 .display()
                 .to_string()
         );
+        assert_eq!(trust_status["legacy_project_file"]["exists"], false);
+        assert_eq!(trust_status["legacy_project_file"]["ignored"], true);
 
         let plugins: Value = client
             .get(format!("http://{addr}/app/plugins"))
@@ -21221,7 +21818,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(plugins["schema"], "kiana.app-server.plugins.v1");
-        assert_eq!(plugins["count"], 4);
+        assert_eq!(plugins["count"], 2);
         let plugin_items = plugins["plugins"].as_array().unwrap();
         let app_tools = plugin_items
             .iter()
@@ -21251,7 +21848,27 @@ mod tests {
         assert_eq!(disabled_tools["enabled"], false);
         assert_eq!(disabled_tools["valid"], true);
         assert_eq!(disabled_tools["components"]["commands"], 1);
-        let project_tools = plugin_items
+        assert!(!plugin_items
+            .iter()
+            .any(|plugin| plugin["id"] == "project-tools"));
+        assert!(!plugin_items
+            .iter()
+            .any(|plugin| plugin["id"] == "local-tools"));
+
+        kiana_types::write_project_trust(&workspace, kiana_types::ProjectTrust::Trusted).unwrap();
+        let trusted_plugins: Value = client
+            .get(format!("http://{addr}/app/plugins"))
+            .bearer_auth("secret")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(trusted_plugins["schema"], "kiana.app-server.plugins.v1");
+        assert_eq!(trusted_plugins["count"], 4);
+        let trusted_plugin_items = trusted_plugins["plugins"].as_array().unwrap();
+        let project_tools = trusted_plugin_items
             .iter()
             .find(|plugin| plugin["id"] == "project-tools")
             .expect("project-tools plugin summary");
@@ -21263,7 +21880,7 @@ mod tests {
         assert_eq!(project_tools["enabled"], true);
         assert_eq!(project_tools["valid"], true);
         assert_eq!(project_tools["components"]["commands"], 1);
-        let local_tools = plugin_items
+        let local_tools = trusted_plugin_items
             .iter()
             .find(|plugin| plugin["id"] == "local-tools")
             .expect("local-tools plugin summary");
@@ -21440,8 +22057,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            release_blockers["schema"],
-            "kiana.commercial-release-blockers.v1"
+            release_blockers["schema"], "kiana.commercial-release-blockers.v1",
+            "unexpected release blockers response: {}",
+            release_blockers
         );
         assert!(release_blockers["summary"]["total_checks"]
             .as_u64()
@@ -22921,6 +23539,7 @@ mod tests {
 
         server.abort();
         let _ = std::fs::remove_dir_all(workspace);
+        let _ = std::fs::remove_dir_all(kiana_home);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -23083,6 +23702,7 @@ mod tests {
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-server-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&workspace).unwrap();
+        let cwd = CurrentDirGuard::set(&workspace);
 
         let (base_url, model_requests, model_server) =
             start_direct_connect_text_mock_model_server().await;
@@ -23138,6 +23758,7 @@ mod tests {
 
         server.abort();
         model_server.abort();
+        drop(cwd);
         let _ = std::fs::remove_dir_all(workspace);
     }
 
@@ -23186,6 +23807,7 @@ mod tests {
                     "permission_mode".to_string(),
                     Value::String("ask".to_string()),
                 ),
+                ("project_trusted".to_string(), Value::Bool(true)),
             ]),
         )
         .unwrap();
@@ -23644,6 +24266,12 @@ mod tests {
 
         std::env::set_var("ANTHROPIC_API_KEY", "test-key");
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions);
+        std::env::set_var("KIANA_HOME", root.join("kiana-home"));
+        kiana_types::write_project_trust(
+            std::env::current_dir().unwrap(),
+            kiana_types::ProjectTrust::Trusted,
+        )
+        .unwrap();
 
         main_with_args(vec![
             "--base-url".to_string(),
@@ -23737,6 +24365,8 @@ mod tests {
 
         std::env::set_var("ANTHROPIC_API_KEY", "test-key");
         std::env::set_var("KIANA_SDK_SESSIONS_DIR", &sessions);
+        std::env::set_var("KIANA_HOME", root.join("kiana-home"));
+        kiana_types::write_project_trust(&workspace, kiana_types::ProjectTrust::Trusted).unwrap();
 
         let result = main_with_args(vec![
             "--base-url".to_string(),

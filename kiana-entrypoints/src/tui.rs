@@ -2199,10 +2199,7 @@ fn content_block_text(value: &Value) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::sync::{
-        atomic::{AtomicU64, Ordering},
-        Mutex,
-    };
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     fn runtime_for_test(session_id: &str) -> TuiRuntime {
         static HISTORY_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -2232,7 +2229,7 @@ mod tests {
         }
     }
 
-    fn tui_env_lock() -> &'static Mutex<()> {
+    fn tui_env_lock() -> &'static crate::test_support::EnvLock {
         crate::test_support::env_lock()
     }
 

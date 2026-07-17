@@ -469,6 +469,7 @@ pub async fn run_assistant_turn_with_permission_handler(
         apply_permission_mode(&mut app_state, &permission_mode);
     }
     apply_permission_rule_options(&mut app_state, options);
+    seed_project_trust_options(&mut app_state, options);
     if let Some(permission_prompt_tool) = permission_prompt_tool_option(options) {
         app_state.insert(
             PERMISSION_PROMPT_TOOL_APP_STATE_KEY.to_string(),
@@ -477,6 +478,7 @@ pub async fn run_assistant_turn_with_permission_handler(
     }
     seed_team_app_state_from_env(&mut app_state);
     seed_mailbox_options_from_run_options(&mut app_state, options);
+    seed_tool_context_cwd(&mut app_state, &cwd);
 
     let mut tool_context = ToolContext {
         cwd,
@@ -908,6 +910,7 @@ where
         apply_permission_mode(&mut app_state, &permission_mode);
     }
     apply_permission_rule_options(&mut app_state, options);
+    seed_project_trust_options(&mut app_state, options);
     if let Some(permission_prompt_tool) = permission_prompt_tool_option(options) {
         app_state.insert(
             PERMISSION_PROMPT_TOOL_APP_STATE_KEY.to_string(),
@@ -916,6 +919,7 @@ where
     }
     seed_team_app_state_from_env(&mut app_state);
     seed_mailbox_options_from_run_options(&mut app_state, options);
+    seed_tool_context_cwd(&mut app_state, &cwd);
 
     let mut tool_context = ToolContext {
         cwd,
@@ -1756,12 +1760,28 @@ fn resident_task_tool_context(task_list_id: &str, agent_name: &str) -> Result<To
         app_state.insert("tasks_root".to_string(), json!(tasks_root.clone()));
         app_state.insert("tasksRoot".to_string(), json!(tasks_root));
     }
+    seed_tool_context_cwd(&mut app_state, &cwd);
     Ok(ToolContext {
         cwd,
         read_file_state: HashMap::new(),
         app_state,
         abort_signal,
     })
+}
+
+fn seed_tool_context_cwd(app_state: &mut HashMap<String, Value>, cwd: &str) {
+    app_state.insert("cwd".to_string(), json!(cwd));
+}
+
+fn seed_project_trust_options(
+    app_state: &mut HashMap<String, Value>,
+    options: &HashMap<String, Value>,
+) {
+    for key in ["project_trusted", "projectTrusted"] {
+        if let Some(value) = options.get(key) {
+            app_state.insert(key.to_string(), value.clone());
+        }
+    }
 }
 
 fn find_available_task(tasks: &[Value]) -> Option<Value> {
@@ -5220,7 +5240,10 @@ mod tests {
         let mut context = ToolContext {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
-            app_state: HashMap::from([("disallowed_tools".to_string(), json!(["TaskCreate"]))]),
+            app_state: HashMap::from([
+                ("project_trusted".to_string(), json!(true)),
+                ("disallowed_tools".to_string(), json!(["TaskCreate"])),
+            ]),
             abort_signal: abort_rx,
         };
 
@@ -5255,6 +5278,7 @@ mod tests {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
             app_state: HashMap::from([
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_mode".to_string(), json!("ask")),
                 ("agent_name".to_string(), json!("researcher")),
                 ("agent_id".to_string(), json!("researcher@review")),
@@ -5320,6 +5344,7 @@ mod tests {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
             app_state: HashMap::from([
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_mode".to_string(), json!("ask")),
                 (
                     "tasks_root".to_string(),
@@ -5376,6 +5401,7 @@ mod tests {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
             app_state: HashMap::from([
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_mode".to_string(), json!("ask")),
                 (
                     PERMISSION_PROMPT_TOOL_APP_STATE_KEY.to_string(),
@@ -5453,6 +5479,7 @@ mod tests {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
             app_state: HashMap::from([
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_mode".to_string(), json!("ask")),
                 ("agent_id".to_string(), json!("researcher@review")),
                 (
@@ -5529,6 +5556,7 @@ mod tests {
             cwd: ".".to_string(),
             read_file_state: HashMap::new(),
             app_state: HashMap::from([
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_mode".to_string(), json!("ask")),
                 (
                     PERMISSION_PROMPT_TOOL_APP_STATE_KEY.to_string(),
@@ -6366,6 +6394,16 @@ mod tests {
 
         std::env::remove_var("KIANA_TEAM_MAILBOX");
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resident_task_tool_context_exposes_effective_cwd_in_app_state() {
+        let context = resident_task_tool_context("review", "runner").unwrap();
+
+        assert_eq!(
+            context.app_state.get("cwd"),
+            Some(&Value::String(context.cwd.clone()))
+        );
     }
 
     #[tokio::test]
@@ -7724,6 +7762,7 @@ mod tests {
                 ("model".to_string(), json!("tool-loop-model")),
                 ("tools".to_string(), json!("Write")),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
+                ("project_trusted".to_string(), json!(true)),
                 ("max_iterations".to_string(), json!(2)),
             ]),
         )
@@ -7848,6 +7887,7 @@ mod tests {
                 ("api_key".to_string(), json!("openai-test-key")),
                 ("base_url".to_string(), json!(base_url)),
                 ("tools".to_string(), json!("TodoWrite")),
+                ("project_trusted".to_string(), json!(true)),
                 ("max_iterations".to_string(), json!(2)),
             ]),
         )
@@ -7935,6 +7975,7 @@ mod tests {
                 ("model".to_string(), json!("llama-test")),
                 ("base_url".to_string(), json!(base_url)),
                 ("tools".to_string(), json!("TodoWrite")),
+                ("project_trusted".to_string(), json!(true)),
                 ("max_iterations".to_string(), json!(2)),
             ]),
         )
@@ -8179,6 +8220,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("read-sleep-edit-model")),
                 ("tools".to_string(), json!("Read Sleep Edit")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("max_iterations".to_string(), json!(3)),
             ]),
@@ -8238,6 +8280,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("read-sleep-edit-model")),
                 ("tools".to_string(), json!("Read Sleep Edit")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("editableFiles".to_string(), json!(["allowed.txt"])),
                 ("max_iterations".to_string(), json!(3)),
@@ -8288,6 +8331,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("tool-loop-model")),
                 ("tools".to_string(), json!("Write")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("readOnlyFiles".to_string(), json!(["created.txt"])),
                 ("max_iterations".to_string(), json!(2)),
@@ -8349,6 +8393,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("repair-check-model")),
                 ("tools".to_string(), json!("Read Edit")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("repairChecks".to_string(), json!(true)),
                 ("max_iterations".to_string(), json!(6)),
@@ -8416,6 +8461,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-repair-check-model")),
                 ("tools".to_string(), json!("Read Edit")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("repairChecks".to_string(), json!(true)),
                 ("max_iterations".to_string(), json!(6)),
@@ -8486,6 +8532,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("tool-loop-model")),
                 ("tools".to_string(), json!("Write")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("session_id".to_string(), json!("session-runner")),
                 ("turn_id".to_string(), json!("turn-runner-1")),
@@ -8563,6 +8610,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("read-sleep-edit-model")),
                 ("tools".to_string(), json!("Read Sleep Edit")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("session_id".to_string(), json!("session-late-edit")),
                 ("turn_id".to_string(), json!("turn-late-edit-1")),
@@ -8647,6 +8695,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-write-loop-model")),
                 ("tools".to_string(), json!("Write")),
+                ("project_trusted".to_string(), json!(true)),
                 ("cwd".to_string(), json!(root.to_string_lossy())),
                 ("session_id".to_string(), json!("session-stream-runner")),
                 ("turn_id".to_string(), json!("turn-stream-runner-1")),
@@ -8714,6 +8763,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-tool-loop-model")),
                 ("tools".to_string(), json!("TodoWrite")),
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_prompt_tool".to_string(), json!("stdio")),
                 ("max_iterations".to_string(), json!(2)),
             ]),
@@ -8782,6 +8832,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-tool-loop-model")),
                 ("tools".to_string(), json!("TodoWrite")),
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_prompt_tool".to_string(), json!("stdio")),
                 ("max_iterations".to_string(), json!(2)),
             ]),
@@ -8849,6 +8900,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-mcp-error-model")),
                 ("tools".to_string(), json!("MCP")),
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_prompt_tool".to_string(), json!("stdio")),
                 ("max_iterations".to_string(), json!(2)),
             ]),
@@ -9114,6 +9166,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-mcp-error-model")),
                 ("tools".to_string(), json!("MCP")),
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_prompt_tool".to_string(), json!("stdio")),
                 ("max_iterations".to_string(), json!(2)),
             ]),
@@ -9249,6 +9302,7 @@ mod tests {
                 ("base_url".to_string(), json!(base_url)),
                 ("model".to_string(), json!("stream-mcp-error-model")),
                 ("tools".to_string(), json!("MCP")),
+                ("project_trusted".to_string(), json!(true)),
                 ("permission_prompt_tool".to_string(), json!("stdio")),
                 ("max_iterations".to_string(), json!(2)),
             ]),

@@ -84,7 +84,7 @@ impl McpHttpState {
 impl McpServer {
     pub fn new(name: String, version: String, cwd: String) -> Self {
         let (_abort_tx, abort_rx) = tokio::sync::watch::channel(false);
-        let mut app_state = HashMap::new();
+        let mut app_state = HashMap::from([("cwd".to_string(), json!(cwd.clone()))]);
         if let Some(mcp_servers) = mcp_servers_from_env() {
             app_state.insert(MCP_SERVERS_APP_STATE_KEY.to_string(), mcp_servers);
         }
@@ -105,6 +105,7 @@ impl McpServer {
         {
             let mut context = self.tool_context.lock().await;
             context.cwd = cwd.to_string();
+            context.app_state.insert("cwd".to_string(), json!(cwd));
         }
         let stdin = BufReader::new(tokio::io::stdin());
         let stdout = tokio::io::stdout();
@@ -660,6 +661,15 @@ mod tests {
         )
     }
 
+    async fn trust_test_server(server: &McpServer) {
+        server
+            .tool_context
+            .lock()
+            .await
+            .app_state
+            .insert("project_trusted".to_string(), json!(true));
+    }
+
     fn isolate_permission_env(label: &str) {
         std::env::remove_var("KIANA_PERMISSION_MODE");
         std::env::remove_var("KIANA_ALLOWED_TOOLS");
@@ -704,6 +714,21 @@ mod tests {
             .find(|tool| tool["name"] == "Read")
             .expect("Read tool should be exposed");
         assert!(read.get("workbench").is_none());
+    }
+
+    #[tokio::test]
+    async fn new_server_exposes_effective_cwd_for_project_trust_resolution() {
+        let server = McpServer::new(
+            "kiana/test".to_string(),
+            "0.0.0".to_string(),
+            "/tmp/kiana-mcp-project".to_string(),
+        );
+        let context = server.tool_context.lock().await;
+
+        assert_eq!(
+            context.app_state.get("cwd"),
+            Some(&json!("/tmp/kiana-mcp-project"))
+        );
     }
 
     #[tokio::test]
@@ -793,6 +818,7 @@ mod tests {
         let _guard = env_lock().lock().unwrap();
         isolate_permission_env("call-tool-runs");
         let server = test_server();
+        trust_test_server(&server).await;
         let result = server
             .handle_call_tool("TaskCreate", json!({ "title": "Inspect MCP server" }))
             .await
@@ -810,6 +836,7 @@ mod tests {
         let _guard = env_lock().lock().unwrap();
         isolate_permission_env("call-tool-permissions");
         let server = test_server();
+        trust_test_server(&server).await;
         {
             let mut context = server.tool_context.lock().await;
             context
@@ -834,6 +861,7 @@ mod tests {
         let _guard = env_lock().lock().unwrap();
         isolate_permission_env("call-tool-ask");
         let server = test_server();
+        trust_test_server(&server).await;
         {
             let mut context = server.tool_context.lock().await;
             context
@@ -876,6 +904,7 @@ mod tests {
         let (url, state, mock_server) =
             start_mock_permission_mcp_server(json!({"decision":"allow"})).await;
         let server = test_server();
+        trust_test_server(&server).await;
         {
             let mut context = server.tool_context.lock().await;
             context
@@ -919,6 +948,7 @@ mod tests {
         let _guard = env_lock().lock().unwrap();
         isolate_permission_env("json-rpc-tool-call");
         let server = test_server();
+        trust_test_server(&server).await;
         let init = server
             .handle_json_rpc(json!({
                 "jsonrpc": "2.0",
