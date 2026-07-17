@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-swarm-process-identity-backend.v1.schema.json",
+  "title": "Kiana Bounded Swarm Process Identity Backend Capability v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "platform",
+    "backend",
+    "supported",
+    "safe_to_start_workers",
+    "safe_to_monitor_workers",
+    "safe_to_cancel_workers",
+    "identity_fields",
+    "continuity_fields",
+    "provenance_fields",
+    "unsupported_reason",
+    "notes"
+  ],
+  "properties": {
+    "schema": { "const": "kiana.swarm-process-identity-backend.v1" },
+    "platform": { "type": "string", "minLength": 1 },
+    "backend": {
+      "type": "string",
+      "enum": ["linux_procfs", "unsupported_platform"]
+    },
+    "supported": { "type": "boolean" },
+    "safe_to_start_workers": { "type": "boolean" },
+    "safe_to_monitor_workers": { "type": "boolean" },
+    "safe_to_cancel_workers": { "type": "boolean" },
+    "identity_fields": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "continuity_fields": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "provenance_fields": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "unsupported_reason": { "type": ["string", "null"] },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "backend": { "const": "linux_procfs" } },
+        "required": ["backend"]
+      },
+      "then": {
+        "properties": {
+          "supported": { "const": true },
+          "safe_to_start_workers": { "const": true },
+          "safe_to_monitor_workers": { "const": true },
+          "safe_to_cancel_workers": { "const": true },
+          "continuity_fields": {
+            "const": ["pid", "process_group_id", "start_time_ticks"]
+          },
+          "provenance_fields": { "const": ["command_sha256"] },
+          "unsupported_reason": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "backend": { "const": "unsupported_platform" } },
+        "required": ["backend"]
+      },
+      "then": {
+        "properties": {
+          "supported": { "const": false },
+          "safe_to_start_workers": { "const": false },
+          "safe_to_monitor_workers": { "const": false },
+          "safe_to_cancel_workers": { "const": false },
+          "identity_fields": { "const": [] },
+          "continuity_fields": { "const": [] },
+          "provenance_fields": { "const": [] },
+          "unsupported_reason": { "const": "process_identity_backend_not_implemented" }
+        }
+      }
+    }
+  ]
+}
