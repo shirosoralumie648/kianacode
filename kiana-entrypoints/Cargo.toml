@@ -36,6 +36,9 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 tokio-tungstenite = { version = "0.28", features = ["rustls-tls-native-roots"] }
 toml = "0.8"
 kiana-services = { path = "../kiana-services", version = "0.1.0" }
+kiana-client = { path = "../kiana-client", version = "0.1.0" }
+kiana-daemon = { path = "../kiana-daemon", version = "0.1.0" }
+kiana-protocol = { path = "../kiana-protocol", version = "0.1.0" }
 kiana-bootstrap = { path = "../kiana-bootstrap", version = "0.1.0" }
 kiana-tools = { path = "../kiana-tools", version = "0.1.0" }
 kiana-skills = { path = "../kiana-skills", version = "0.1.0" }

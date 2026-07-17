@@ -4,8 +4,14 @@ use kiana_bridge::{
     BridgeApiClient, BridgeAuthProvider, BridgeConfig, CommandBridgeSessionRunner, SessionManager,
     SpawnMode, WorkPollLoop,
 };
+use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_commands::{
     create_default_command_registry, CommandContext, CommandType, COMMAND_ARGV_APP_STATE_KEY,
+};
+use kiana_daemon::DaemonHost;
+use kiana_protocol::{
+    ExecutionStatus as ControlPlaneStatus, RequestEnvelope as ControlPlaneRequest,
+    RequestMetadata as ControlPlaneMetadata, ResponseEnvelope as ControlPlaneResponse,
 };
 use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
@@ -60,6 +66,10 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
     if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h" | "help") {
         print_help();
         return Ok(());
+    }
+
+    if args.first().map(String::as_str) == Some("architecture") {
+        return architecture_main(&args).await;
     }
 
     if is_print_mode_help(&args) {
@@ -214,6 +224,85 @@ fn is_computer_mcp_stdio_command(args: &[String]) -> bool {
         args.first().map(|s| s.as_str()),
         Some("computer-mcp" | "computer-use-mcp" | "--computer-mcp" | "--computer-use-mcp")
     )
+}
+
+struct LocalDaemonTransport {
+    host: Arc<DaemonHost>,
+}
+
+#[async_trait]
+impl ClientTransport for LocalDaemonTransport {
+    async fn send(
+        &self,
+        request: ControlPlaneRequest,
+    ) -> Result<ControlPlaneResponse, ClientError> {
+        Ok(self.host.handle(request).await)
+    }
+}
+
+async fn architecture_main(args: &[String]) -> Result<()> {
+    if args.len() == 2 && matches!(args[1].as_str(), "help" | "--help" | "-h") {
+        println!("Usage: kiana architecture status [--json]");
+        return Ok(());
+    }
+    if args.len() < 2 || args[1] != "status" {
+        return Err(anyhow!("usage: kiana architecture status [--json]"));
+    }
+    let mut json_output = false;
+    for argument in &args[2..] {
+        match argument.as_str() {
+            "--json" => json_output = true,
+            "--help" | "-h" => {
+                println!("Usage: kiana architecture status [--json]");
+                return Ok(());
+            }
+            _ => return Err(anyhow!("unknown architecture status option: {argument}")),
+        }
+    }
+
+    let project_root = std::env::current_dir()
+        .context("failed to resolve current directory")?
+        .to_string_lossy()
+        .into_owned();
+    let mut metadata = ControlPlaneMetadata::local("architecture-status", project_root);
+    metadata.project_trusted = true;
+    metadata.actor_id = Some("local-cli".to_owned());
+    let client = KianaClient::new(LocalDaemonTransport {
+        host: Arc::new(DaemonHost::local()),
+    });
+    let response = client
+        .command(metadata, "system.architecture", Value::Null)
+        .await
+        .map_err(anyhow::Error::msg)?;
+    if response.status != ControlPlaneStatus::Completed {
+        return Err(anyhow!(
+            "architecture status blocked: {}",
+            response.error.as_deref().unwrap_or("unknown")
+        ));
+    }
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&response.output)?);
+    } else {
+        println!(
+            "Control plane: {}",
+            response.output["control_plane"]
+                .as_str()
+                .unwrap_or("unknown")
+        );
+        println!(
+            "Composition root: {}",
+            response.output["composition_root"]
+                .as_str()
+                .unwrap_or("unknown")
+        );
+        println!(
+            "Legacy edges remaining: {}",
+            response.output["legacy_edges_remaining"]
+                .as_u64()
+                .unwrap_or_default()
+        );
+    }
+    Ok(())
 }
 
 fn is_direct_connect_open_command(args: &[String]) -> bool {
@@ -13577,6 +13666,7 @@ fn print_help() {
     println!("  kiana --version       Show version");
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
+    println!("  kiana architecture status  Inspect control-plane migration status");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");
