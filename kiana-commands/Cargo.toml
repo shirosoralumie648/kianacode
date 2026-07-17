@@ -18,6 +18,9 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 toml = "0.8"
 anyhow = "1.0"
+libc = "0.2"
+sha2 = "0.10"
+quick-xml = "0.41"
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1.0", features = ["full"] }
@@ -26,5 +29,6 @@ kiana-modifiers = { path = "../kiana-modifiers", version = "0.1.0" }
 kiana-query = { path = "../kiana-query", version = "0.1.0" }
 kiana-services = { path = "../kiana-services", version = "0.1.0" }
 kiana-skills = { path = "../kiana-skills", version = "0.1.0" }
+kiana-tasks = { path = "../kiana-tasks", version = "0.1.0" }
 kiana-tools = { path = "../kiana-tools", version = "0.1.0" }
 kiana-types = { path = "../kiana-types", version = "0.1.0" }
