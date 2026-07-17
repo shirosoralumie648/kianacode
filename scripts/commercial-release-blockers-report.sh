@@ -459,6 +459,299 @@ def accepted_release_signature_proofs(dist_dir):
     return accepted, errors
 
 
+SENSITIVE_PROOF_KEYS = {
+    "secret",
+    "secret_hex",
+    "hmac_key",
+    "key_material",
+    "private_key",
+    "password",
+    "token",
+}
+
+
+def contains_sensitive_proof_key(value):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if str(key).lower() in SENSITIVE_PROOF_KEYS:
+                return True
+            if contains_sensitive_proof_key(child):
+                return True
+    elif isinstance(value, list):
+        return any(contains_sensitive_proof_key(item) for item in value)
+    return False
+
+
+def workflow_release_git_binding():
+    exclusions = [
+        ".",
+        ":(exclude).kiana/**",
+        ":(exclude)target/**",
+        ":(exclude)node_modules/**",
+        ":(exclude).venv/**",
+        ":(exclude)dist/**",
+        ":(exclude)build/**",
+    ]
+
+    def output_bytes(args):
+        result = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        if result.returncode != 0:
+            return None, result.stderr.decode("utf-8", errors="replace").strip()
+        return result.stdout, None
+
+    def output_sha256(args):
+        import hashlib
+
+        output, error = output_bytes(args)
+        if error:
+            return None, error
+        return hashlib.sha256(output).hexdigest(), None
+
+    def release_status_sha256():
+        import hashlib
+        import stat
+
+        status, error = output_bytes(
+            [
+                "status",
+                "--porcelain=v2",
+                "-z",
+                "--untracked-files=all",
+                "--",
+                *exclusions,
+            ]
+        )
+        if error:
+            return None, f"release workflow status failed: {error}"
+        untracked, error = output_bytes(
+            ["ls-files", "--others", "--exclude-standard", "-z", "--", *exclusions]
+        )
+        if error:
+            return None, f"release workflow untracked file scan failed: {error}"
+        paths = sorted(path for path in untracked.split(b"\0") if path)
+        if not paths:
+            return hashlib.sha256(status).hexdigest(), None
+
+        digest = hashlib.sha256()
+
+        def update_field(value):
+            digest.update(len(value).to_bytes(8, "big"))
+            digest.update(value)
+
+        update_field(b"kiana.release-git-status.v2")
+        update_field(status)
+        digest.update(len(paths).to_bytes(8, "big"))
+        for raw_path in paths:
+            path = ROOT / os.fsdecode(raw_path)
+            try:
+                metadata = path.lstat()
+                if stat.S_ISLNK(metadata.st_mode):
+                    mode = b"120000"
+                    content = os.fsencode(os.readlink(path))
+                elif stat.S_ISREG(metadata.st_mode):
+                    mode = b"100755" if metadata.st_mode & 0o111 else b"100644"
+                    content = path.read_bytes()
+                else:
+                    return None, f"release workflow untracked path is not a regular file or symlink: {os.fsdecode(raw_path)}"
+            except OSError as exc:
+                return None, f"release workflow untracked file could not be read: {os.fsdecode(raw_path)}: {exc}"
+            update_field(raw_path)
+            update_field(mode)
+            update_field(str(metadata.st_size).encode("ascii"))
+            update_field(hashlib.sha256(content).hexdigest().encode("ascii"))
+        return digest.hexdigest(), None
+
+    repository = run(["git", "rev-parse", "--is-inside-work-tree"]).returncode == 0
+    if not repository:
+        return None, "release workflow proof root is not a git repository"
+    head_result = run(["git", "rev-parse", "--verify", "HEAD"])
+    if head_result.returncode != 0:
+        return None, "release workflow proof could not resolve Git HEAD"
+    index_sha, error = output_sha256(
+        ["diff", "--cached", "--binary", "--no-ext-diff", "--", *exclusions]
+    )
+    if error:
+        return None, f"release workflow cached diff failed: {error}"
+    worktree_sha, error = output_sha256(
+        ["diff", "--binary", "--no-ext-diff", "--", *exclusions]
+    )
+    if error:
+        return None, f"release workflow worktree diff failed: {error}"
+    status_sha, error = release_status_sha256()
+    if error:
+        return None, error
+    return (
+        {
+            "repository": True,
+            "head": head_result.stdout.strip(),
+            "index_diff_sha256": index_sha,
+            "worktree_diff_sha256": worktree_sha,
+            "status_sha256": status_sha,
+        },
+        None,
+    )
+
+
+def workflow_release_state_binding(selected_run_id):
+    import hashlib
+
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", selected_run_id):
+        return None, f"invalid release WorkflowRun id: {selected_run_id}"
+    runs_dir = Path(
+        os.environ.get(
+            "KIANA_RELEASE_WORKFLOW_RUNS_DIR",
+            str(ROOT / ".kiana" / "workflows"),
+        )
+    )
+    artifact_dir = runs_dir / selected_run_id
+    state_path = artifact_dir / "state.json"
+    eventlog_path = artifact_dir / "eventlog.jsonl"
+    try:
+        state_bytes = state_path.read_bytes()
+        state = json.loads(state_bytes)
+    except OSError as error:
+        return None, f"release WorkflowRun state unreadable: {state_path}: {error}"
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        return None, f"release WorkflowRun state invalid JSON: {state_path}: {error}"
+    if not isinstance(state, dict):
+        return None, f"release WorkflowRun state is not an object: {state_path}"
+    try:
+        eventlog_bytes = eventlog_path.read_bytes()
+    except OSError as error:
+        return None, f"release WorkflowRun eventlog unreadable: {eventlog_path}: {error}"
+    lines = [line for line in eventlog_bytes.splitlines() if line.strip()]
+    if not lines:
+        return None, f"release WorkflowRun eventlog is empty: {eventlog_path}"
+    try:
+        record = json.loads(lines[-1])
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        return None, f"release WorkflowRun last event is invalid: {eventlog_path}: {error}"
+    event = record.get("event", record) if isinstance(record, dict) else None
+    if not isinstance(event, dict):
+        return None, f"release WorkflowRun last event is not an object: {eventlog_path}"
+    status = state.get("status")
+    current_node = state.get("current_node")
+    last_event_seq = state.get("last_event_seq")
+    event_seq = event.get("seq")
+    last_event_kind = event.get("kind")
+    if not (
+        state.get("run_id") == selected_run_id
+        and filled(state, "workflow_id")
+        and isinstance(status, str)
+        and isinstance(current_node, str)
+        and bool(current_node.strip())
+        and isinstance(last_event_seq, int)
+        and not isinstance(last_event_seq, bool)
+        and last_event_seq > 0
+        and event_seq == last_event_seq
+        and isinstance(last_event_kind, str)
+        and bool(last_event_kind.strip())
+    ):
+        return None, f"release WorkflowRun state/eventlog contract failed: {artifact_dir}"
+    return (
+        {
+            "status": status,
+            "current_node": current_node,
+            "last_event_seq": last_event_seq,
+            "last_event_kind": last_event_kind,
+            "state_sha256": hashlib.sha256(state_bytes).hexdigest(),
+            "eventlog_sha256": hashlib.sha256(eventlog_bytes).hexdigest(),
+        },
+        state.get("workflow_id"),
+    ), None
+
+
+def workflow_recovery_integrity_contract(path):
+    proof, error = load_json(path)
+    if error is not None:
+        return False, f"workflow recovery integrity proof {error}: {path}"
+    if not isinstance(proof, dict):
+        return False, f"workflow recovery integrity proof is not an object: {path}"
+    if contains_sensitive_proof_key(proof):
+        return False, f"workflow recovery integrity proof leaks a sensitive field: {path}"
+    selected_run_id = os.environ.get("KIANA_RELEASE_WORKFLOW_RUN_ID", "").strip()
+    if not selected_run_id:
+        return False, "KIANA_RELEASE_WORKFLOW_RUN_ID must select the release WorkflowRun"
+    release_binding = proof.get("release_binding")
+    if not isinstance(release_binding, dict):
+        return False, f"workflow release binding missing: {path}"
+    binding_git = release_binding.get("git")
+    if not isinstance(binding_git, dict):
+        return False, f"workflow release Git binding missing: {path}"
+    binding_workflow = release_binding.get("workflow")
+    if not isinstance(binding_workflow, dict):
+        return False, f"workflow release lifecycle binding missing: {path}"
+    current_git, git_error = workflow_release_git_binding()
+    if git_error is not None:
+        return False, git_error
+    current_workflow_result, workflow_error = workflow_release_state_binding(selected_run_id)
+    if workflow_error is not None:
+        return False, workflow_error
+    current_workflow, current_workflow_id = current_workflow_result
+    identity_ok = (
+        filled(proof, "run_id")
+        and filled(proof, "workflow_id")
+        and proof.get("run_id") == selected_run_id
+        and release_binding.get("schema") == "kiana.workflow-release-binding.v1"
+        and release_binding.get("run_id") == selected_run_id
+        and release_binding.get("workflow_id") == proof.get("workflow_id")
+        and current_workflow_id == proof.get("workflow_id")
+    )
+    if not identity_ok:
+        return False, f"workflow release run binding mismatch: expected {selected_run_id}"
+    if binding_git != current_git:
+        return False, "workflow release Git binding does not match the current repository state"
+    if binding_workflow != current_workflow:
+        return False, "workflow release lifecycle binding does not match current WorkflowRun artifacts"
+    if not (
+        current_workflow.get("status") == "completed"
+        and current_workflow.get("last_event_kind") == "workflow_completed"
+    ):
+        return False, "release WorkflowRun must be completed with workflow_completed as its last event"
+    recovery = proof.get("recovery_integrity")
+    if not isinstance(recovery, dict):
+        return False, f"workflow recovery integrity report missing: {path}"
+    active = recovery.get("active_journal_count")
+    active_verified = recovery.get("verified_active_journal_count")
+    archived = recovery.get("archived_journal_count")
+    archived_verified = recovery.get("verified_archived_journal_count")
+    counters = [active, active_verified, archived, archived_verified]
+    accepted = (
+        proof.get("schema") == "kiana.workflow-integrity-report.v1"
+        and proof.get("status") == "verified"
+        and isinstance(proof.get("event_count"), int)
+        and proof.get("event_count") > 0
+        and isinstance(proof.get("verified_event_count"), int)
+        and proof.get("verified_event_count") == proof.get("event_count")
+        and recovery.get("schema") == "kiana.swarm-recovery-integrity-report.v1"
+        and recovery.get("status") == "verified"
+        and all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in counters)
+        and active == active_verified
+        and archived == archived_verified
+        and recovery.get("recoverable_unanchored_tail_count") == 0
+        and recovery.get("legacy_unsigned_count") == 0
+        and recovery.get("mismatch_count") == 0
+        and valid_fingerprint(recovery, "key_id")
+        and proof.get("key_id") == recovery.get("key_id")
+    )
+    if not accepted:
+        return False, f"workflow recovery integrity proof failed accepted contract: {path}"
+    return (
+        True,
+        "workflow recovery integrity verified: "
+        f"run_id={selected_run_id} workflow_status={current_workflow.get('status')} "
+        f"last_event_seq={current_workflow.get('last_event_seq')} head={current_git.get('head')} "
+        f"active={active}/{active_verified} archived={archived}/{archived_verified} "
+        f"key_id={recovery.get('key_id')}",
+    )
+
+
 def check_status(ok):
     return "satisfied" if ok else "blocking"
 
@@ -553,6 +846,23 @@ def default_acceptance_artifacts(check_id, paths):
 checks = []
 
 
+def action_plan_item(check):
+    return {
+        "id": check["id"],
+        "title": check["title"],
+        "owner": check["owner"],
+        "owner_status": check["owner_status"],
+        "resolution_scope": check["resolution_scope"],
+        "external": check["external"],
+        "required_action": check["required_action"],
+        "acceptance_artifacts": check["acceptance_artifacts"],
+        "verification_commands": check["verification_commands"],
+        "env": check["env"],
+        "paths": check["paths"],
+        "handoff_notes": check["handoff_notes"],
+    }
+
+
 def add_check(
     *,
     id,
@@ -613,6 +923,44 @@ def add_check(
             "handoff_notes": effective_handoff_notes,
         }
     )
+
+
+workflow_recovery_proof_path = Path(
+    os.environ.get(
+        "KIANA_WORKFLOW_RECOVERY_INTEGRITY_PROOF_FILE",
+        str(
+            Path(os.environ.get("DIST_DIR", "dist"))
+            / "proofs/workflow/recovery-integrity.json"
+        ),
+    )
+)
+workflow_recovery_ok, workflow_recovery_evidence = workflow_recovery_integrity_contract(
+    workflow_recovery_proof_path
+)
+add_check(
+    id="workflow.recovery-integrity",
+    category="build-test",
+    title="Workflow recovery journal integrity proof is verified",
+    ok=workflow_recovery_ok,
+    external=False,
+    gate="kiana tasks workflow integrity verify --json <run_id>",
+    evidence=workflow_recovery_evidence,
+    required_action="Select an actually completed release WorkflowRun through KIANA_RELEASE_WORKFLOW_RUN_ID, generate a verified report from the same Workflow state/EventLog and current Git state, and stage it without secrets, legacy journals, unanchored tails, mismatches, or count gaps.",
+    paths=[workflow_recovery_proof_path],
+    commands=[
+        "export KIANA_RELEASE_WORKFLOW_RUN_ID=<run_id>",
+        "mkdir -p dist/proofs/workflow",
+        "kiana tasks workflow integrity verify --json \"$KIANA_RELEASE_WORKFLOW_RUN_ID\" > dist/proofs/workflow/recovery-integrity.json",
+        "bash scripts/commercial-release-blockers-report.sh --json",
+    ],
+    env=[
+        "KIANA_WORKFLOW_RECOVERY_INTEGRITY_PROOF_FILE",
+        "KIANA_RELEASE_WORKFLOW_RUN_ID",
+        "KIANA_RELEASE_WORKFLOW_RUNS_DIR",
+        "DIST_DIR",
+    ],
+    acceptance_artifacts=["dist/proofs/workflow/recovery-integrity.json"],
+)
 
 
 remote_names = [line for line in git_stdout("remote").splitlines() if line.strip()]
@@ -1429,6 +1777,21 @@ blocking_by_resolution_scope = {
     scope: sum(1 for check in blocking_checks if check["resolution_scope"] == scope)
     for scope in RESOLUTION_SCOPES
 }
+action_plan = {
+    "schema": "kiana.commercial-release-action-plan.v1",
+    "status": "blocked" if blocking_checks else "ready",
+    "total_actions": len(blocking_checks),
+    "local_actions": [action_plan_item(check) for check in local_blocking],
+    "external_actions": [action_plan_item(check) for check in external_blocking],
+    "actions_by_resolution_scope": {
+        scope: [action_plan_item(check) for check in blocking_checks if check["resolution_scope"] == scope]
+        for scope in RESOLUTION_SCOPES
+    },
+    "next_verification": [
+        "bash scripts/commercial-release-blockers-report.sh --json",
+        "bash scripts/commercial-release-blockers-report.sh --handoff-md dist/proofs/COMMERCIAL-BLOCKERS-HANDOFF.md",
+    ],
+}
 report = {
     "schema": "kiana.commercial-release-blockers.v1",
     "version": VERSION,
@@ -1444,6 +1807,7 @@ report = {
         "blocking_by_resolution_scope": blocking_by_resolution_scope,
     },
     "checks": checks,
+    "action_plan": action_plan,
 }
 
 
@@ -1471,6 +1835,7 @@ def render_handoff_markdown(report):
             for scope, count in summary["blocking_by_resolution_scope"].items()
             if count
         ),
+        f"Action plan: {report['action_plan']['total_actions']} open actions",
         "",
         "## Blocking Assignments",
         "",

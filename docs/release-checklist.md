@@ -27,7 +27,7 @@ commercial release.
 - `bash scripts/commercial-release-blockers-report.sh --json` shows
   `build.locked-offline-cache` satisfied on the release runner before relying on
   locked/offline Cargo gates.
-- `cargo test --workspace --locked --offline --no-fail-fast` passes.
+- `cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1` passes.
 - `kiana doctor --json` conforms to `docs/schemas/kiana-doctor.v1.schema.json`
   through the release smoke gate.
 - `scripts/release-smoke.sh` passes on Linux, macOS, and Windows runners.

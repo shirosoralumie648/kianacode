@@ -87,6 +87,9 @@ for file in \
   docs/schemas/kiana-doctor.v1.schema.json docs/schemas/kiana-model-smoke.v1.schema.json \
   docs/schemas/kiana-model-catalog.v1.schema.json \
   docs/schemas/kiana-model-list.v1.schema.json \
+  docs/schemas/kiana-memory-record.v1.schema.json \
+  docs/schemas/kiana-memory-status.v1.schema.json \
+  docs/schemas/kiana-memory-search.v1.schema.json \
   docs/schemas/kiana-tasks.v1.schema.json \
   docs/schemas/kiana-context-index.v1.schema.json \
   docs/schemas/kiana-context-artifacts.v1.schema.json \
@@ -97,6 +100,17 @@ for file in \
   docs/schemas/kiana-context-pack.v1.schema.json \
   docs/schemas/kiana-commercial-proof-manifest.v1.schema.json \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  docs/schemas/kiana-eda-review.v1.schema.json \
+  docs/schemas/kiana-eval-baseline.v1.schema.json \
+  docs/schemas/kiana-eval-report.v1.schema.json \
+  docs/schemas/kiana-eval-suite.v1.schema.json \
+  docs/schemas/kiana-swarm-process-identity-backend.v1.schema.json \
+  docs/schemas/kiana-swarm-worker-telemetry.v1.schema.json \
+  docs/schemas/kiana-swarm-worker-health.v1.schema.json \
+  docs/schemas/kiana-swarm-worker-state.v2.schema.json \
+  docs/schemas/kiana-workflow-transition.v1.schema.json \
+  docs/schemas/kiana-workflow-completion.v1.schema.json \
+  docs/schemas/kiana-workflow-release-binding.v1.schema.json \
   docs/schemas/kiana-local-rc-evidence.v1.schema.json \
   docs/schemas/kiana-runtime-event.v1.schema.json \
   docs/schemas/kiana-license-status.v1.schema.json \
@@ -109,8 +123,29 @@ for file in \
   docs/schemas/kiana-platform-security-proof.v1.schema.json \
   docs/schemas/kiana-remote-code-session-smoke.v1.schema.json \
   docs/schemas/kiana-release-signature.v1.schema.json \
+  docs/schemas/kiana-release-workflow-proof.v1.schema.json \
   docs/schemas/kiana-macos-notarization.v1.schema.json \
   docs/schemas/kiana-release-ops.v1.schema.json \
+  docs/eval/fixtures/basic-runtime-suite.json \
+  docs/eval/fixtures/basic-runtime-baseline.json \
+  docs/eval/fixtures/basic-tool-success.jsonl \
+  docs/eval/fixtures/basic-tool-failure.jsonl \
+  docs/superpowers/specs/2026-07-11-offline-eval-harness-design.md \
+  docs/superpowers/plans/2026-07-11-offline-eval-harness.md \
+  docs/superpowers/plans/2026-07-11-eda-review-workbench.md \
+  docs/superpowers/specs/2026-07-11-workflow-transition-completion-design.md \
+  docs/superpowers/plans/2026-07-11-workflow-transition-completion.md \
+  docs/superpowers/specs/2026-07-11-bounded-swarm-process-identity-design.md \
+  docs/superpowers/plans/2026-07-11-bounded-swarm-process-identity.md \
+  kiana-commands/src/eval.rs \
+  kiana-commands/src/eda.rs \
+  kiana-commands/src/memory.rs \
+  kiana-commands/tests/eval_command.rs \
+  kiana-commands/tests/eda_command.rs \
+  kiana-entrypoints/tests/cli_eval.rs \
+  kiana-tasks/src/workflow.rs \
+  kiana-commands/src/tasks.rs \
+  kiana-commands/tests/workflow_transition_command.rs \
   scripts/release-smoke.sh scripts/package-release.sh scripts/install-release-binary.sh \
   scripts/package-lifecycle-smoke.sh scripts/product-shell-smoke.sh \
   scripts/validate-json-schema.py scripts/schema-contract-smoke.sh \
@@ -134,6 +169,69 @@ for file in \
 do
   require_file "$file"
 done
+
+if grep -Fq 'pub mod eval;' kiana-commands/src/lib.rs &&
+  grep -Fq 'EvalCommand' kiana-commands/src/registry.rs &&
+  grep -Fq 'docs/eval/fixtures/*' scripts/package-release.sh &&
+  grep -Fq 'kiana.eval-baseline.v1' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq -- '--baseline "$package_root/docs/eval/fixtures/basic-runtime-baseline.json"' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq -- '--baseline "$baseline"' scripts/release-smoke.sh &&
+  grep -Fq 'kiana.eval-report.v1' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'smoke_eval_json "$release_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'smoke_eval_json "$installed_bin"' scripts/release-smoke.sh; then
+  pass "offline eval command, packaged fixtures, and release smoke are wired"
+else
+  fail "offline eval command, packaged fixtures, or release smoke is not wired"
+fi
+
+if grep -Fq 'pub mod eda;' kiana-commands/src/lib.rs &&
+  grep -Fq 'EdaCommand' kiana-commands/src/registry.rs &&
+  grep -Fq '"const": "kiana.eda-review.v1"' docs/schemas/kiana-eda-review.v1.schema.json &&
+  grep -Fq 'smoke_eda_json "$release_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'smoke_eda_json "$installed_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'packaged EDA review did not pass' scripts/package-lifecycle-smoke.sh; then
+  pass "EDA review command, schema, packaged smoke, and installed smoke are wired"
+else
+  fail "EDA review release wiring is incomplete"
+fi
+
+if grep -Fq 'mod swarm_process_identity;' kiana-commands/src/lib.rs &&
+  grep -Fq 'kiana.swarm-process-identity-backend.v1' docs/schemas/kiana-swarm-process-identity-backend.v1.schema.json &&
+  grep -Fq 'kiana.swarm-process-identity-backend.v1' kiana-commands/src/swarm_process_identity.rs &&
+  grep -Fq 'unsupported_platform' kiana-commands/src/swarm_process_identity.rs &&
+  grep -Fq 'process_identity_backend' kiana-commands/src/tasks.rs &&
+  grep -Fq 'process_identity_backend' kiana-commands/tests/swarm_command.rs &&
+  grep -Fq 'kiana.swarm-worker-telemetry.v1' kiana-commands/src/tasks.rs &&
+  grep -Fq 'kiana.swarm-worker-telemetry.v1' kiana-commands/tests/swarm_command.rs &&
+  grep -Fq 'kiana.swarm-worker-telemetry.v1' docs/schemas/kiana-swarm-worker-telemetry.v1.schema.json &&
+  grep -Fq 'kiana.swarm-worker-state.v2' docs/schemas/kiana-swarm-worker-state.v2.schema.json &&
+  grep -Fq 'kiana.swarm-process-identity.v1' docs/schemas/kiana-swarm-worker-state.v2.schema.json &&
+  grep -Fq 'process_identity_status' docs/schemas/kiana-swarm-worker-state.v2.schema.json &&
+  grep -Fq 'budget_exhausted' docs/schemas/kiana-swarm-worker-state.v2.schema.json &&
+  grep -Fq 'kiana.swarm-worker-health.v1' kiana-commands/src/tasks.rs &&
+  grep -Fq 'attention_required' kiana-commands/tests/swarm_command.rs &&
+  grep -Fq 'swarm_monitor_retries_worker_failed_until_success' kiana-commands/tests/swarm_command.rs &&
+  grep -Fq 'process_identity_mismatch' kiana-commands/tests/swarm_command.rs &&
+  grep -Fq 'command_digest_is_provenance_not_process_continuity' kiana-commands/src/swarm_process_identity.rs; then
+  pass "bounded swarm process identity backend, telemetry, automatic retry, and health reporting tests are wired"
+else
+  fail "bounded swarm process identity backend, telemetry, automatic retry, or health reporting wiring is incomplete"
+fi
+
+if grep -Fq 'kiana.memory-record.v1' kiana-commands/src/memory.rs &&
+  grep -Fq 'kiana.memory-status.v1' kiana-commands/src/memory.rs &&
+  grep -Fq 'kiana.memory-search.v1' kiana-commands/src/memory.rs &&
+  grep -Fq 'redaction_count' kiana-commands/src/memory.rs &&
+  grep -Fq 'memory_append_redacts_obvious_secrets_before_persistence' kiana-commands/src/memory.rs &&
+  grep -Fq 'memory_append_status_and_search_json_use_structured_store' kiana-commands/src/memory.rs &&
+  grep -Fq '"const": "kiana.memory-record.v1"' docs/schemas/kiana-memory-record.v1.schema.json &&
+  grep -Fq '"redaction_count"' docs/schemas/kiana-memory-record.v1.schema.json &&
+  grep -Fq '"const": "kiana.memory-status.v1"' docs/schemas/kiana-memory-status.v1.schema.json &&
+  grep -Fq '"const": "kiana.memory-search.v1"' docs/schemas/kiana-memory-search.v1.schema.json; then
+  pass "local structured memory schemas, redaction, and CLI tests are wired"
+else
+  fail "local structured memory schema, redaction, or CLI test wiring is incomplete"
+fi
 
 if [[ "${KIANA_PREFLIGHT_SKIP_COMPLIANCE:-}" == "1" ]]; then
   pass "compliance audit skipped by KIANA_PREFLIGHT_SKIP_COMPLIANCE=1"
@@ -235,19 +333,40 @@ fi
 
 if grep -Fq 'release blockers --json' scripts/release-smoke.sh &&
   grep -Fq 'kiana.commercial-release-blockers.v1' scripts/release-smoke.sh &&
+  grep -Fq 'action_plan' scripts/commercial-release-blockers-report.sh &&
+  grep -Fq 'kiana.commercial-release-action-plan.v1' scripts/commercial-release-blockers-report.sh &&
+  grep -Fq 'import-release-actions' kiana-commands/src/project.rs &&
+  grep -Fq 'kiana.project-release-action-import.v1' kiana-commands/src/project.rs &&
+  grep -Fq 'release evidence --json' scripts/release-smoke.sh &&
+  grep -Fq 'kiana.local-rc-evidence.v1' scripts/release-smoke.sh &&
   grep -Fq 'KIANA_PYTHON_BIN' scripts/release-smoke.sh &&
   grep -Fq 'local_blocking' scripts/release-smoke.sh; then
-  pass "release blockers CLI smoke gate is wired"
+  pass "release blockers action plan and evidence CLI smoke gates are wired"
 else
-  fail "release smoke does not exercise release blockers CLI JSON"
+  fail "release smoke does not exercise release blockers action plan and evidence CLI JSON"
 fi
 
 if grep -Fq 'run_installed release blockers --json' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'run_installed release evidence --json' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'run_installed release workflow-proof --json' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq -- '--latest-completed' scripts/package-lifecycle-smoke.sh &&
   grep -Fq 'KIANA_PYTHON_BIN' scripts/package-lifecycle-smoke.sh &&
-  grep -Fq 'kiana.commercial-release-blockers.v1' scripts/package-lifecycle-smoke.sh; then
-  pass "package lifecycle smoke covers release blockers CLI"
+  grep -Fq 'kiana.commercial-release-blockers.v1' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'kiana.release-workflow-proof.v1' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'kiana.local-rc-evidence.v1' scripts/package-lifecycle-smoke.sh; then
+  pass "package lifecycle smoke covers release blockers, workflow proof, and evidence CLI"
 else
-  fail "package lifecycle smoke does not cover release blockers CLI"
+  fail "package lifecycle smoke does not cover release blockers, workflow proof, and evidence CLI"
+fi
+
+if grep -Fq 'tasks workflow advance --json' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'validate --json --workflow' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'tasks workflow complete --json' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'kiana.workflow-transition.v1' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'kiana.workflow-completion.v1' scripts/package-lifecycle-smoke.sh; then
+  pass "package lifecycle smoke covers workflow transition and completion"
+else
+  fail "package lifecycle smoke does not cover workflow transition and completion"
 fi
 
 if grep -Fq 'docs/reference-feature-matrix.md' scripts/package-release.sh &&
@@ -387,14 +506,39 @@ else
 fi
 
 if grep -Fq 'commercial_profile_does_not_let_normal_allow_rules_bypass_mutating_tools' kiana-tools/src/permissions.rs &&
-  grep -Fq 'commercial_profile_requires_explicit_project_trust_for_mutating_tools' kiana-tools/src/permissions.rs &&
+  grep -Fq 'commercial_profile_cannot_bypass_unknown_project_trust' kiana-tools/src/permissions.rs &&
   grep -Fq 'commercial_profile_allows_mutating_tools_from_managed_allow_rules' kiana-tools/src/permissions.rs &&
-  grep -Fq 'has_explicit_project_trust' kiana-tools/src/permissions.rs &&
+  grep -Fq '!project_trust.allows_project_resources()' kiana-tools/src/permissions.rs &&
+  grep -Fq 'ProjectTrust::Unknown' kiana-tools/src/permissions.rs &&
   grep -Fq 'normal allow rule' kiana-tools/src/permissions.rs &&
   grep -Fq 'managed_allowed_tools' kiana-tools/src/permissions.rs; then
   pass "commercial permission profile requires explicit project trust and managed allow for mutating normal-allow bypasses"
 else
   fail "commercial permission profile does not lock mutating normal allow rules behind explicit project trust and managed approval"
+fi
+
+if grep -Fq 'smoke_project_trust "$release_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'smoke_project_trust "$installed_bin"' scripts/release-smoke.sh &&
+  grep -Fq 'smoke_installed_project_trust' scripts/package-lifecycle-smoke.sh &&
+  grep -Fq 'project_local_trust_is_not_authoritative' scripts/release-smoke.sh &&
+  grep -Fq '$KIANA_HOME/trust/projects/<project_id>.json' USAGE.md &&
+  grep -Fq 'kiana.project-trust.v2' docs/reference-migration-roadmap.md &&
+  grep -Fq 'legacy ignored' docs/reference-feature-matrix.md; then
+  pass "external fail-closed project trust documentation and installed-binary lifecycle smoke are wired"
+else
+  fail "project trust release gates do not prove external unknown/trusted/reset lifecycle and legacy self-claim rejection"
+fi
+
+if grep -Fq 'ensure_project_scope_allowed' kiana-commands/src/plugin.rs &&
+  grep -Fq 'requires trusted project' kiana-commands/src/plugin.rs &&
+  grep -Fq 'unknown_and_untrusted_hide_project_and_local_plugin_summaries' kiana-commands/src/plugin.rs &&
+  grep -Fq 'unknown_and_untrusted_reject_project_and_local_plugin_commands' kiana-commands/src/plugin.rs &&
+  grep -Fq 'load_all_skills_default_uses_external_project_trust' kiana-skills/src/lib.rs &&
+  grep -Fq 'installed_plugin_roots_do_not_fall_back_to_project_relative_plugins' kiana-types/src/plugin.rs &&
+  grep -Fq 'project trust is unknown' scripts/release-smoke.sh; then
+  pass "project/local plugin resources and default skill/plugin loaders are trust-gated"
+else
+  fail "project/local plugin or default skill/plugin loader trust gates are missing"
 fi
 
 if grep -Fq 'smoke_commercial_security_doctor_json "$release_bin"' scripts/release-smoke.sh &&
@@ -415,12 +559,20 @@ else
 fi
 
 if grep -Fq 'release blockers --json' kiana-commands/src/release.rs &&
+  grep -Fq 'release evidence --json' kiana-commands/src/release.rs &&
+  grep -Fq 'release workflow-proof' kiana-commands/src/release.rs &&
+  grep -Fq -- '--latest-completed' kiana-commands/src/release.rs &&
+  grep -Fq '"selection": selection' kiana-commands/src/release.rs &&
+  grep -Fq 'kiana.release-workflow-proof.v1' kiana-commands/src/release.rs &&
   grep -Fq 'commercial-release-blockers-report.sh' kiana-commands/src/release.rs &&
   grep -Fq 'KIANA_RELEASE_BLOCKERS_SCRIPT' kiana-commands/src/release.rs &&
+  grep -Fq 'KIANA_LOCAL_RC_EVIDENCE_OUT' kiana-commands/src/release.rs &&
+  grep -Fq 'latest-local-rc-dir.txt' kiana-commands/src/release.rs &&
+  grep -Fq 'kiana.local-rc-evidence.v1' kiana-commands/src/release.rs &&
   grep -Fq 'KIANA_PYTHON_BIN' scripts/commercial-release-blockers-report.sh; then
-  pass "release blockers CLI wraps commercial blocker report"
+  pass "release CLI wraps commercial blocker report, workflow proof, and local RC evidence"
 else
-  fail "release blockers CLI is not wired to commercial blocker report"
+  fail "release CLI is not wired to commercial blocker report, workflow proof, and local RC evidence"
 fi
 
 if grep -Fq 'plugin_install_from_local_marketplace_file_remote_git_source' kiana-commands/src/plugin.rs &&

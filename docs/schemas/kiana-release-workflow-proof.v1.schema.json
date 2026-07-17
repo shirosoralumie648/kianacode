@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-release-workflow-proof.v1.schema.json",
+  "title": "Kiana Release Workflow Proof v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "workflow_id",
+    "proof_path",
+    "proof_schema",
+    "proof_status",
+    "selection",
+    "release_binding_schema",
+    "env"
+  ],
+  "properties": {
+    "schema": { "const": "kiana.release-workflow-proof.v1" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "workflow_id": { "type": "string", "minLength": 1 },
+    "proof_path": { "type": "string", "minLength": 1 },
+    "proof_schema": { "const": "kiana.workflow-integrity-report.v1" },
+    "proof_status": { "enum": ["verified", "blocked"] },
+    "selection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": { "const": "explicit" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "updated_at_ms",
+            "created_at_ms",
+            "workflow_id",
+            "status",
+            "current_node",
+            "artifact_dir"
+          ],
+          "properties": {
+            "mode": { "const": "latest_completed" },
+            "updated_at_ms": { "type": "integer", "minimum": 0 },
+            "created_at_ms": { "type": "integer", "minimum": 0 },
+            "workflow_id": { "type": "string", "minLength": 1 },
+            "status": { "const": "completed" },
+            "current_node": { "type": "string", "minLength": 1 },
+            "artifact_dir": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "release_binding_schema": { "const": "kiana.workflow-release-binding.v1" },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "KIANA_RELEASE_WORKFLOW_RUN_ID",
+        "KIANA_WORKFLOW_RECOVERY_INTEGRITY_PROOF_FILE"
+      ],
+      "properties": {
+        "KIANA_RELEASE_WORKFLOW_RUN_ID": { "type": "string", "minLength": 1 },
+        "KIANA_WORKFLOW_RECOVERY_INTEGRITY_PROOF_FILE": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

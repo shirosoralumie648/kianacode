@@ -38,6 +38,7 @@ tmp_app_events="$(mktemp)"
 tmp_app_command_run="$(mktemp)"
 tmp_app_permissions_status="$(mktemp)"
 tmp_app_trust_status="$(mktemp)"
+tmp_app_trust_invalid_dir="$(mktemp -d)"
 tmp_app_team_status="$(mktemp)"
 tmp_team_plan="$(mktemp)"
 tmp_tasks="$(mktemp)"
@@ -58,6 +59,7 @@ tmp_review_dry_run="$(mktemp)"
 tmp_review_run="$(mktemp)"
 tmp_proof_manifest="$(mktemp)"
 tmp_source_control="$(mktemp)"
+tmp_release_workflow_proof="$(mktemp)"
 tmp_release_signature="$(mktemp)"
 tmp_enterprise_offline_manifest="$(mktemp)"
 tmp_distribution_review="$(mktemp)"
@@ -66,7 +68,586 @@ tmp_doctor="$(mktemp)"
 tmp_local_rc_evidence="$(mktemp)"
 tmp_managed_plugin_policy="$(mktemp)"
 tmp_plugin_app_manifest="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_team_plan" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest"' EXIT
+tmp_memory_record="$(mktemp)"
+tmp_memory_status="$(mktemp)"
+tmp_memory_search="$(mktemp)"
+tmp_eda_review="$(mktemp)"
+tmp_eda_netlist_review="$(mktemp)"
+tmp_eval_baseline="$(mktemp)"
+tmp_eval_report="$(mktemp)"
+tmp_swarm_process_identity_backend="$(mktemp)"
+tmp_swarm_worker_telemetry="$(mktemp)"
+tmp_swarm_worker_health="$(mktemp)"
+tmp_swarm_worker_state="$(mktemp)"
+tmp_eda_invalid_dir="$(mktemp -d)"
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_team_plan" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_ingest" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_workflow_proof" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest" "$tmp_memory_record" "$tmp_memory_status" "$tmp_memory_search" "$tmp_eda_review" "$tmp_eda_netlist_review" "$tmp_eval_baseline" "$tmp_eval_report" "$tmp_swarm_process_identity_backend" "$tmp_swarm_worker_telemetry" "$tmp_swarm_worker_health" "$tmp_swarm_worker_state"; rm -rf "$tmp_app_trust_invalid_dir" "$tmp_eda_invalid_dir"' EXIT
+cat > "$tmp_memory_record" <<'JSON'
+{
+  "schema": "kiana.memory-record.v1",
+  "id": "mem-1783720000000-0123456789abcdef",
+  "kind": "decision",
+  "source": "workflow",
+  "text": "Use bounded swarm retry policy for isolated workers.",
+  "redaction_count": 0,
+  "created_at_ms": 1783720000000
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-memory-record.v1.schema.json \
+  "$tmp_memory_record" >/dev/null
+cat > "$tmp_memory_status" <<'JSON'
+{
+  "schema": "kiana.memory-status.v1",
+  "legacy_file": "/tmp/kiana/memory.md",
+  "legacy_bytes": 42,
+  "store_file": "/tmp/kiana/memory/events.jsonl",
+  "record_count": 1,
+  "kind_counts": {
+    "decision": 1
+  },
+  "redaction_count": 0,
+  "latest_created_at_ms": 1783720000000
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-memory-status.v1.schema.json \
+  "$tmp_memory_status" >/dev/null
+cat > "$tmp_memory_search" <<'JSON'
+{
+  "schema": "kiana.memory-search.v1",
+  "store_file": "/tmp/kiana/memory/events.jsonl",
+  "query": "swarm retry",
+  "terms": ["swarm", "retry"],
+  "limit": 10,
+  "record_count": 1,
+  "hits": [
+    {
+      "id": "mem-1783720000000-0123456789abcdef",
+      "kind": "decision",
+      "source": "workflow",
+      "score": 2,
+      "matched_terms": ["swarm", "retry"],
+      "text": "Use bounded swarm retry policy for isolated workers.",
+      "redaction_count": 0,
+      "created_at_ms": 1783720000000
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-memory-search.v1.schema.json \
+  "$tmp_memory_search" >/dev/null
+
+cat > "$tmp_release_workflow_proof" <<'JSON'
+{
+  "schema": "kiana.release-workflow-proof.v1",
+  "run_id": "run_release_001",
+  "workflow_id": "wf_release_001",
+  "proof_path": "dist/proofs/workflow/recovery-integrity.json",
+  "proof_schema": "kiana.workflow-integrity-report.v1",
+  "proof_status": "verified",
+  "selection": {
+    "mode": "explicit"
+  },
+  "release_binding_schema": "kiana.workflow-release-binding.v1",
+  "env": {
+    "KIANA_RELEASE_WORKFLOW_RUN_ID": "run_release_001",
+    "KIANA_WORKFLOW_RECOVERY_INTEGRITY_PROOF_FILE": "dist/proofs/workflow/recovery-integrity.json"
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-release-workflow-proof.v1.schema.json \
+  "$tmp_release_workflow_proof" >/dev/null
+
+tmp_commercial_blockers="$(mktemp)"
+bash scripts/commercial-release-blockers-report.sh --json > "$tmp_commercial_blockers"
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
+  "$tmp_commercial_blockers" >/dev/null
+"$python" - "$tmp_commercial_blockers" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+action_plan = report.get("action_plan", {})
+if action_plan.get("schema") != "kiana.commercial-release-action-plan.v1":
+    raise SystemExit("commercial blocker action_plan schema mismatch")
+if action_plan.get("total_actions") != report.get("summary", {}).get("blocking"):
+    raise SystemExit("commercial blocker action_plan total does not match blocking summary")
+PY
+
+cat > "$tmp_eval_baseline" <<'JSON'
+{
+  "schema": "kiana.eval-baseline.v1",
+  "suite_id": "basic-runtime",
+  "description": "Schema smoke baseline",
+  "cases": {
+    "tool-success": {
+      "max_event_count": 5,
+      "max_tool_call_count": 1,
+      "max_tool_result_count": 1,
+      "max_tool_error_count": 0,
+      "max_input_tokens": 32,
+      "max_output_tokens": 16,
+      "required_status": "completed",
+      "required_stop_reason": "end_turn"
+    }
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-eval-baseline.v1.schema.json \
+  "$tmp_eval_baseline" >/dev/null
+
+cat > "$tmp_eval_report" <<'JSON'
+{
+  "schema": "kiana.eval-report.v1",
+  "suite_id": "basic-runtime",
+  "suite_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "status": "passed",
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "events": 5,
+    "tool_calls": 1,
+    "tool_errors": 0
+  },
+  "baseline": {
+    "schema": "kiana.eval-baseline.v1",
+    "provided": true,
+    "path": "basic-runtime-baseline.json",
+    "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    "suite_id": "basic-runtime",
+    "status": "passed",
+    "findings": []
+  },
+  "cases": [
+    {
+      "id": "tool-success",
+      "kind": "runtime_event_replay",
+      "fixture": "basic-tool-success.jsonl",
+      "fixture_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "status": "passed",
+      "metrics": {
+        "event_count": 5,
+        "event_type_counts": {
+          "assistant": 1,
+          "tool_call": 1,
+          "tool_result": 1,
+          "usage": 1,
+          "result": 1
+        },
+        "assistant_text_count": 2,
+        "tool_call_count": 1,
+        "tool_result_count": 1,
+        "tool_error_count": 0,
+        "tool_names": ["Read"],
+        "input_tokens": 12,
+        "output_tokens": 4,
+        "final_status": "completed",
+        "stop_reason": "end_turn",
+        "final_text": "done"
+      },
+      "findings": []
+    }
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-eval-report.v1.schema.json \
+  "$tmp_eval_report" >/dev/null
+cat > "$tmp_swarm_worker_state" <<'JSON'
+{
+  "schema": "kiana.swarm-worker-state.v2",
+  "worker_id": "worker-api-1",
+  "dispatch_id": "swarm-dispatch-0123456789abcdef",
+  "task_id": "api",
+  "status": "running",
+  "pid": 4242,
+  "process_identity": {
+    "schema": "kiana.swarm-process-identity.v1",
+    "platform": "linux_procfs",
+    "pid": 4242,
+    "process_group_id": 4242,
+    "start_time_ticks": 987654321,
+    "command_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "process_identity_status": "verified",
+  "process_identity_reason": null,
+  "attempt": 1,
+  "started_at_ms": 1783720000000,
+  "finished_at_ms": null,
+  "exit_code": null,
+  "termination_reason": null,
+  "output_bytes": 0,
+  "result_path": null,
+  "updated_at_ms": 1783720001000
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-swarm-worker-state.v2.schema.json \
+  "$tmp_swarm_worker_state" >/dev/null
+cat > "$tmp_swarm_process_identity_backend" <<'JSON'
+{
+  "schema": "kiana.swarm-process-identity-backend.v1",
+  "platform": "linux",
+  "backend": "linux_procfs",
+  "supported": true,
+  "safe_to_start_workers": true,
+  "safe_to_monitor_workers": true,
+  "safe_to_cancel_workers": true,
+  "identity_fields": ["pid", "process_group_id", "start_time_ticks", "command_sha256"],
+  "continuity_fields": ["pid", "process_group_id", "start_time_ticks"],
+  "provenance_fields": ["command_sha256"],
+  "unsupported_reason": null,
+  "notes": [
+    "command_sha256 is provenance only and is not used as process continuity evidence",
+    "workers must be their own process group leaders before cancellation is allowed"
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-swarm-process-identity-backend.v1.schema.json \
+  "$tmp_swarm_process_identity_backend" >/dev/null
+cat > "$tmp_swarm_worker_telemetry" <<'JSON'
+{
+  "schema": "kiana.swarm-worker-telemetry.v1",
+  "provided": true,
+  "command_count": 2,
+  "commands_run": ["cargo test", "cargo fmt"],
+  "invalid_command_entries": 0,
+  "raw_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "notes": []
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-swarm-worker-telemetry.v1.schema.json \
+  "$tmp_swarm_worker_telemetry" >/dev/null
+cat > "$tmp_swarm_worker_health" <<'JSON'
+{
+  "schema": "kiana.swarm-worker-health.v1",
+  "state": "retrying",
+  "reason": "retrying_after_worker_failed",
+  "next_action": "run_swarm_monitor",
+  "process": {
+    "pid": 4243,
+    "identity_status": "verified",
+    "identity_reason": null
+  },
+  "attempt": {
+    "current": 2,
+    "max": 3,
+    "remaining": 1,
+    "retrying": true
+  },
+  "budget": {
+    "output_bytes": 0,
+    "max_output_bytes": 10485760,
+    "output_bytes_remaining": 10485760,
+    "commands_run": 0,
+    "max_commands": 20,
+    "commands_remaining": 20,
+    "elapsed_ms": 0,
+    "timeout_ms": 1800000,
+    "timeout_ms_remaining": 1800000
+  },
+  "scope": {
+    "changed_files": 0,
+    "scope_deviations": 0,
+    "project_violation_reason": null
+  }
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-swarm-worker-health.v1.schema.json \
+  "$tmp_swarm_worker_health" >/dev/null
+cat > "$tmp_eda_review" <<'JSON'
+{
+  "schema": "kiana.eda-review.v1",
+  "rule_version": "eda-review-rules.v1",
+  "workflow_id": "wf-abc123",
+  "run_id": "run-1783700000000-abc123",
+  "review_id": "eda-0123456789abcdefabcd",
+  "created_at_ms": 1783700000000,
+  "status": "pass",
+  "sources": [
+    {
+      "kind": "schematic",
+      "path": "hardware/main.kicad_sch",
+      "size": 64,
+      "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "media_type": "application/x-kicad-schematic"
+    },
+    {
+      "kind": "bom",
+      "path": "hardware/bom.csv",
+      "size": 128,
+      "sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "media_type": "text/csv"
+    },
+    {
+      "kind": "gerber",
+      "path": "hardware/gerber",
+      "size": 256,
+      "sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "media_type": "application/vnd.gerber"
+    }
+  ],
+  "checks": [
+    {
+      "check_id": "schematic_presence",
+      "status": "pass",
+      "summary": "Schematic artifact presence and digest",
+      "evidence": ["hardware/main.kicad_sch"]
+    }
+  ],
+  "findings": [],
+  "summary": {
+    "blocked": 0,
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "bom_rows": 2,
+    "cpl_rows": 2,
+    "gerber_files": 3
+  },
+  "limitations": ["No electrical sign-off is performed."],
+  "approval_requirements": ["hardware_order"],
+  "next_action": "engineer_review_then_bringup",
+  "artifacts": [
+    "eda/reviews/eda-0123456789abcdefabcd/eda_review.json",
+    "eda/reviews/eda-0123456789abcdefabcd/bom_risk.md",
+    "eda/reviews/eda-0123456789abcdefabcd/bringup-plan.md"
+  ]
+}
+JSON
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-eda-review.v1.schema.json \
+  "$tmp_eda_review" >/dev/null
+"$python" - "$tmp_eda_review" "$tmp_eda_netlist_review" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+output = Path(sys.argv[2])
+document = json.loads(source.read_text(encoding="utf-8"))
+document["rule_version"] = "eda-review-rules.v2"
+document["sources"].append({
+    "kind": "netlist",
+    "path": "hardware/main.xml",
+    "size": 512,
+    "sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "media_type": "application/xml",
+})
+document["checks"].append({
+    "check_id": "netlist_structure",
+    "status": "pass",
+    "summary": "KiCad XML netlist structure",
+    "evidence": ["hardware/main.xml"],
+})
+document["summary"].update({
+    "netlist_components": 2,
+    "net_count": 2,
+    "power_net_count": 1,
+    "interface_net_count": 1,
+    "dangling_net_count": 0,
+})
+output.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+PY
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-eda-review.v1.schema.json \
+  "$tmp_eda_netlist_review" >/dev/null
+"$python" - "$tmp_eda_review" "$tmp_eda_netlist_review" "$tmp_eda_invalid_dir" <<'PY'
+import copy
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+netlist_source = Path(sys.argv[2])
+output_dir = Path(sys.argv[3])
+base = json.loads(source.read_text(encoding="utf-8"))
+netlist_base = json.loads(netlist_source.read_text(encoding="utf-8"))
+
+variants = {}
+
+missing_gerber = copy.deepcopy(base)
+missing_gerber["sources"] = [item for item in missing_gerber["sources"] if item["kind"] != "gerber"]
+variants["pass-missing-gerber.json"] = missing_gerber
+
+pass_blocked = copy.deepcopy(base)
+pass_blocked["summary"]["blocked"] = 1
+variants["pass-with-blocked.json"] = pass_blocked
+
+pass_errors = copy.deepcopy(base)
+pass_errors["summary"]["errors"] = 1
+variants["pass-with-errors.json"] = pass_errors
+
+blocked_without_blocker = copy.deepcopy(base)
+blocked_without_blocker["status"] = "blocked"
+blocked_without_blocker["next_action"] = "supply_required_artifacts"
+variants["blocked-with-zero-blocked.json"] = blocked_without_blocker
+
+review_without_error = copy.deepcopy(base)
+review_without_error["status"] = "review_required"
+review_without_error["next_action"] = "resolve_findings_and_rerun"
+variants["review-required-with-zero-errors.json"] = review_without_error
+
+netlist_without_check = copy.deepcopy(netlist_base)
+netlist_without_check["checks"] = [
+    item for item in netlist_without_check["checks"]
+    if item["check_id"] != "netlist_structure"
+]
+variants["netlist-without-check.json"] = netlist_without_check
+
+netlist_bad_media = copy.deepcopy(netlist_base)
+next(item for item in netlist_bad_media["sources"] if item["kind"] == "netlist")["media_type"] = "text/plain"
+variants["netlist-with-bad-media-type.json"] = netlist_bad_media
+
+pass_with_netlist_error = copy.deepcopy(netlist_base)
+pass_with_netlist_error["findings"].append({
+    "code": "netlist_component_missing_from_bom",
+    "severity": "error",
+    "message": "Netlist component J1 is missing from the BOM.",
+    "evidence": ["J1"],
+    "recommendation": "Regenerate BOM and netlist from one revision.",
+    "designator": "J1",
+})
+variants["pass-with-netlist-error.json"] = pass_with_netlist_error
+
+v2_missing_summary = copy.deepcopy(netlist_base)
+del v2_missing_summary["summary"]["net_count"]
+variants["v2-missing-netlist-summary.json"] = v2_missing_summary
+
+for name, document in variants.items():
+    (output_dir / name).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+PY
+"$python" - \
+  docs/schemas/kiana-eda-review.v1.schema.json \
+  "$tmp_eda_review" \
+  "$tmp_eda_netlist_review" \
+  "$tmp_eda_invalid_dir" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+schema = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+valid = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+valid_netlist = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+invalid_dir = Path(sys.argv[4])
+
+
+def status_rule(status):
+    for rule in schema.get("allOf", []):
+        if rule.get("if", {}).get("properties", {}).get("status", {}).get("const") == status:
+            return rule.get("then", {})
+    raise SystemExit(f"EDA schema is missing the {status!r} conditional rule")
+
+
+pass_rule = status_rule("pass")
+pass_summary = pass_rule.get("properties", {}).get("summary", {}).get("properties", {})
+if pass_summary.get("blocked", {}).get("const") != 0:
+    raise SystemExit("EDA pass schema must require summary.blocked=0")
+if pass_summary.get("errors", {}).get("const") != 0:
+    raise SystemExit("EDA pass schema must require summary.errors=0")
+
+source_rules = pass_rule.get("properties", {}).get("sources", {}).get("allOf", [])
+required_source_kinds = {
+    rule.get("contains", {}).get("properties", {}).get("kind", {}).get("const")
+    for rule in source_rules
+    if rule.get("minContains") == 1
+}
+if required_source_kinds != {"schematic", "bom", "gerber"}:
+    raise SystemExit(f"EDA pass schema has wrong required sources: {sorted(required_source_kinds)}")
+
+blocked_rule = status_rule("blocked")
+blocked_minimum = blocked_rule.get("properties", {}).get("summary", {}).get("properties", {}).get("blocked", {}).get("minimum")
+if blocked_minimum != 1:
+    raise SystemExit("EDA blocked schema must require summary.blocked>=1")
+
+review_rule = status_rule("review_required")
+error_minimum = review_rule.get("properties", {}).get("summary", {}).get("properties", {}).get("errors", {}).get("minimum")
+if error_minimum != 1:
+    raise SystemExit("EDA review_required schema must require summary.errors>=1")
+
+
+def semantic_errors(document):
+    status = document.get("status")
+    summary = document.get("summary", {})
+    errors = []
+    sources = document.get("sources", [])
+    source_kinds = {item.get("kind") for item in sources}
+    if "netlist" in source_kinds:
+        netlist_sources = [item for item in sources if item.get("kind") == "netlist"]
+        if any(item.get("media_type") != "application/xml" for item in netlist_sources):
+            errors.append("netlist requires application/xml")
+        check_ids = {item.get("check_id") for item in document.get("checks", [])}
+        if "netlist_structure" not in check_ids:
+            errors.append("netlist requires netlist_structure check")
+    if document.get("rule_version") == "eda-review-rules.v2":
+        for key in (
+            "netlist_components",
+            "net_count",
+            "power_net_count",
+            "interface_net_count",
+            "dangling_net_count",
+        ):
+            if not isinstance(summary.get(key), int) or summary[key] < 0:
+                errors.append(f"rules.v2 requires non-negative summary.{key}")
+    if status == "pass":
+        if summary.get("blocked") != 0:
+            errors.append("pass requires blocked=0")
+        if summary.get("errors") != 0:
+            errors.append("pass requires errors=0")
+        missing = {"schematic", "bom", "gerber"} - source_kinds
+        if missing:
+            errors.append(f"pass is missing sources: {sorted(missing)}")
+        if any(item.get("severity") in {"blocked", "error"} for item in document.get("findings", [])):
+            errors.append("pass cannot contain blocking or error findings")
+    elif status == "blocked" and not isinstance(summary.get("blocked"), int):
+        errors.append("blocked requires integer summary.blocked")
+    elif status == "blocked" and summary["blocked"] < 1:
+        errors.append("blocked requires blocked>=1")
+    elif status == "review_required" and not isinstance(summary.get("errors"), int):
+        errors.append("review_required requires integer summary.errors")
+    elif status == "review_required" and summary["errors"] < 1:
+        errors.append("review_required requires errors>=1")
+    return errors
+
+
+if semantic_errors(valid):
+    raise SystemExit(f"valid EDA fixture failed semantic contract: {semantic_errors(valid)}")
+if semantic_errors(valid_netlist):
+    raise SystemExit(
+        f"valid EDA netlist fixture failed semantic contract: {semantic_errors(valid_netlist)}"
+    )
+for path in sorted(invalid_dir.glob("*.json")):
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not semantic_errors(document):
+        raise SystemExit(f"EDA negative fixture is not invalid: {path.name}")
+PY
+for invalid_eda_review in \
+  "$tmp_eda_invalid_dir/pass-missing-gerber.json" \
+  "$tmp_eda_invalid_dir/pass-with-blocked.json" \
+  "$tmp_eda_invalid_dir/pass-with-errors.json" \
+  "$tmp_eda_invalid_dir/blocked-with-zero-blocked.json" \
+  "$tmp_eda_invalid_dir/review-required-with-zero-errors.json" \
+  "$tmp_eda_invalid_dir/netlist-without-check.json" \
+  "$tmp_eda_invalid_dir/netlist-with-bad-media-type.json" \
+  "$tmp_eda_invalid_dir/pass-with-netlist-error.json" \
+  "$tmp_eda_invalid_dir/v2-missing-netlist-summary.json"
+do
+  if "$python" scripts/validate-json-schema.py \
+    docs/schemas/kiana-eda-review.v1.schema.json \
+    "$invalid_eda_review" >/dev/null 2>&1; then
+    echo "EDA schema unexpectedly accepted invalid fixture: $(basename "$invalid_eda_review")" >&2
+    exit 1
+  fi
+done
 cat > "$tmp_plugin_app_manifest" <<'JSON'
 {
   "schema": "kiana.plugin-app-manifest.v1",
@@ -295,19 +876,83 @@ cat > "$tmp_app_trust_status" <<'JSON'
 {
   "schema": "kiana.app-server.trust-status.v1",
   "workspace": "/workspace",
-  "project_trust": "trusted",
-  "project_trusted": true,
+  "project_trust": "unknown",
+  "project_trusted": false,
+  "allows_project_resources": false,
   "source": "default",
+  "project_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "project_root": "/workspace",
   "file": {
-    "path": "/workspace/.kiana/trust.json",
+    "path": "/home/test/.kiana/trust/projects/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.json",
     "status": "missing",
-    "exists": false
+    "exists": false,
+    "error": null
+  },
+  "legacy_project_file": {
+    "path": "/workspace/.kiana/trust.json",
+    "exists": true,
+    "ignored": true,
+    "reason": "project_local_trust_is_not_authoritative"
   }
 }
 JSON
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-app-server-trust-status.v1.schema.json \
   "$tmp_app_trust_status" >/dev/null
+"$python" - "$tmp_app_trust_status" "$tmp_app_trust_invalid_dir" <<'PY'
+import copy
+import json
+import sys
+from pathlib import Path
+
+source = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+output_dir = Path(sys.argv[2])
+
+variants = {}
+
+default_found = copy.deepcopy(source)
+default_found["file"].update({"status": "found", "exists": True})
+variants["default-with-found-record.json"] = default_found
+
+user_store_without_path = copy.deepcopy(source)
+user_store_without_path.update({
+    "project_trust": "trusted",
+    "project_trusted": True,
+    "allows_project_resources": True,
+    "source": "user_store",
+})
+user_store_without_path["file"].update({
+    "path": None,
+    "status": "found",
+    "exists": True,
+})
+variants["user-store-without-path.json"] = user_store_without_path
+
+missing_without_path = copy.deepcopy(source)
+missing_without_path["file"]["path"] = None
+variants["missing-without-path.json"] = missing_without_path
+
+path_error_with_existing_file = copy.deepcopy(source)
+path_error_with_existing_file["file"].update({
+    "path": None,
+    "status": "error",
+    "exists": True,
+    "error": "trust store path unavailable",
+})
+variants["path-error-with-existing-file.json"] = path_error_with_existing_file
+
+for name, document in variants.items():
+    (output_dir / name).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+PY
+for invalid_trust_status in "$tmp_app_trust_invalid_dir"/*.json
+do
+  if "$python" scripts/validate-json-schema.py \
+    docs/schemas/kiana-app-server-trust-status.v1.schema.json \
+    "$invalid_trust_status" >/dev/null 2>&1; then
+    echo "trust status schema unexpectedly accepted invalid fixture: $(basename "$invalid_trust_status")" >&2
+    exit 1
+  fi
+done
 
 cat > "$tmp_tasks" <<'JSON'
 {
@@ -1527,7 +2172,7 @@ JSON
 
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
-trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_team_plan" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest" "$tmp_report" "$tmp_handoff"' EXIT
+trap 'rm -f "$tmp_runtime_event" "$tmp_runtime_result" "$tmp_app_events" "$tmp_app_command_run" "$tmp_app_permissions_status" "$tmp_app_trust_status" "$tmp_app_team_status" "$tmp_team_plan" "$tmp_tasks" "$tmp_auth_status" "$tmp_context_index" "$tmp_context_vector_search" "$tmp_context_artifacts" "$tmp_context_artifact_graph" "$tmp_context_artifact_store" "$tmp_context_artifact_readiness" "$tmp_repo_map" "$tmp_diff" "$tmp_checkpoint" "$tmp_checks_dry_run" "$tmp_checks_run" "$tmp_review_dry_run" "$tmp_review_run" "$tmp_proof_manifest" "$tmp_source_control" "$tmp_release_signature" "$tmp_enterprise_offline_manifest" "$tmp_distribution_review" "$tmp_platform_security" "$tmp_doctor" "$tmp_local_rc_evidence" "$tmp_managed_plugin_policy" "$tmp_plugin_app_manifest" "$tmp_report" "$tmp_handoff"; rm -rf "$tmp_app_trust_invalid_dir" "$tmp_eda_invalid_dir"' EXIT
 bash scripts/commercial-release-blockers-report.sh --json --handoff-md "$tmp_handoff" > "$tmp_report"
 "$python" scripts/validate-json-schema.py \
   docs/schemas/kiana-commercial-release-blockers.v1.schema.json \

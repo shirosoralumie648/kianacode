@@ -66,6 +66,11 @@ def validate(schema: dict[str, Any], instance: Any, root: dict[str, Any], path: 
         for index, subschema in enumerate(schema["allOf"]):
             errors.extend(validate(subschema, instance, root, f"{path}.allOf[{index}]"))
 
+    if "not" in schema:
+        forbidden = schema["not"]
+        if isinstance(forbidden, dict) and not validate(forbidden, instance, root, path):
+            errors.append(f"{path}: matched schema forbidden by not")
+
     if "if" in schema and "then" in schema:
         if not validate(schema["if"], instance, root, path):
             errors.extend(validate(schema["then"], instance, root, f"{path}.then"))
@@ -116,6 +121,25 @@ def validate(schema: dict[str, Any], instance: Any, root: dict[str, Any], path: 
         min_items = schema.get("minItems")
         if isinstance(min_items, int) and len(instance) < min_items:
             errors.append(f"{path}: expected at least {min_items} items, got {len(instance)}")
+        contains_schema = schema.get("contains")
+        if isinstance(contains_schema, dict):
+            matching_items = sum(
+                1
+                for index, item in enumerate(instance)
+                if not validate(contains_schema, item, root, f"{path}[{index}]")
+            )
+            min_contains = schema.get("minContains", 1)
+            if isinstance(min_contains, int) and matching_items < min_contains:
+                errors.append(
+                    f"{path}: expected at least {min_contains} items matching contains, "
+                    f"got {matching_items}"
+                )
+            max_contains = schema.get("maxContains")
+            if isinstance(max_contains, int) and matching_items > max_contains:
+                errors.append(
+                    f"{path}: expected at most {max_contains} items matching contains, "
+                    f"got {matching_items}"
+                )
         item_schema = schema.get("items")
         if isinstance(item_schema, dict):
             for index, item in enumerate(instance):

@@ -48,6 +48,34 @@ if "## Blocking Assignments" not in handoff:
 checks = report.get("checks", [])
 if not checks:
     raise SystemExit("commercial blockers report has no checks")
+action_plan = report.get("action_plan")
+if not isinstance(action_plan, dict):
+    raise SystemExit("commercial blockers report is missing action_plan")
+if action_plan.get("schema") != "kiana.commercial-release-action-plan.v1":
+    raise SystemExit("commercial action plan schema mismatch")
+blocking = [check for check in checks if check.get("status") == "blocking"]
+if action_plan.get("total_actions") != len(blocking):
+    raise SystemExit("commercial action plan total_actions does not match blocking checks")
+if len(action_plan.get("local_actions", [])) != sum(1 for check in blocking if not check.get("external")):
+    raise SystemExit("commercial action plan local_actions count mismatch")
+if len(action_plan.get("external_actions", [])) != sum(1 for check in blocking if check.get("external")):
+    raise SystemExit("commercial action plan external_actions count mismatch")
+scoped_actions = action_plan.get("actions_by_resolution_scope", {})
+if set(scoped_actions) != set(report["summary"]["blocking_by_resolution_scope"]):
+    raise SystemExit("commercial action plan resolution scopes do not match summary")
+if not action_plan.get("next_verification"):
+    raise SystemExit("commercial action plan is missing next verification commands")
+action_ids = {
+    action.get("id")
+    for bucket in [action_plan.get("local_actions", []), action_plan.get("external_actions", [])]
+    for action in bucket
+}
+blocking_ids = {check["id"] for check in blocking}
+if action_ids != blocking_ids:
+    raise SystemExit("commercial action plan actions do not match blocking check ids")
+for scope, expected_count in report["summary"]["blocking_by_resolution_scope"].items():
+    if len(scoped_actions.get(scope, [])) != expected_count:
+        raise SystemExit(f"commercial action plan scope count mismatch for {scope}")
 
 required_keys = {
     "owner",
@@ -108,7 +136,6 @@ if native.get("resolution_scope") != "release-security":
 if "not enabled" not in native.get("evidence", ""):
     raise SystemExit("native computer-use advisory evidence should state the optional release feature is disabled")
 
-blocking = [check for check in checks if check.get("status") == "blocking"]
 if blocking:
     for check in blocking:
         if check["id"] not in handoff:

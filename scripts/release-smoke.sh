@@ -7,7 +7,7 @@ trap 'status=$?; echo "release smoke failed at line $LINENO: $BASH_COMMAND" >&2;
 
 if [[ "${KIANA_RELEASE_SMOKE_SKIP_BUILD_GATES:-0}" != "1" ]]; then
   cargo fmt --all --check
-  cargo test --workspace --locked --offline --no-fail-fast
+  cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1
   cargo test -p kiana-entrypoints --locked --offline team_runtime_parity_smoke_links_team_tools_resident_loop_and_shutdown
   cargo test -p kiana-tools --locked --offline notebook_execute
   bash scripts/product-shell-smoke.sh
@@ -75,13 +75,23 @@ install_dir="$tmp_root/install"
 smoke_home="$tmp_root/home"
 trap 'rm -rf "$tmp_root"' EXIT
 
+native_env_path() {
+  local path="$1"
+
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$path" 2>/dev/null || printf '%s\n' "$path"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
 path_variants() {
   local path="$1"
 
   printf '%s\n' "$path"
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -m "$path" 2>/dev/null || true
-    cygpath -w "$path" 2>/dev/null || true
+    native_env_path "$path"
   fi
 }
 
@@ -176,6 +186,101 @@ run_clean_kiana() {
     "$@" || status=$?
 
   return "$status"
+}
+
+validate_project_trust_status_json() {
+  local output="$1"
+  local expected_trust="$2"
+  local expected_source="$3"
+  local expected_file_status="$4"
+  local project="$5"
+  local store_dir="$6"
+  local python_bin
+
+  python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  if [[ -z "$python_bin" ]]; then
+    echo "project trust smoke requires python3 or python" >&2
+    exit 1
+  fi
+
+  PROJECT_TRUST_JSON="$output" \
+  EXPECTED_TRUST="$expected_trust" \
+  EXPECTED_SOURCE="$expected_source" \
+  EXPECTED_FILE_STATUS="$expected_file_status" \
+  EXPECTED_PROJECT="$project" \
+  EXPECTED_STORE_DIR="$store_dir" \
+  "$python_bin" - <<'PY'
+import json
+import os
+import re
+
+payload = json.loads(os.environ["PROJECT_TRUST_JSON"])
+expected_trust = os.environ["EXPECTED_TRUST"]
+expected_source = os.environ["EXPECTED_SOURCE"]
+expected_file_status = os.environ["EXPECTED_FILE_STATUS"]
+
+def normalized(path):
+    return str(path).replace("\\", "/").rstrip("/").casefold()
+
+project = normalized(os.environ["EXPECTED_PROJECT"])
+store_dir = normalized(os.environ["EXPECTED_STORE_DIR"])
+file_info = payload["file"]
+legacy = payload["legacy_project_file"]
+trusted = expected_trust == "trusted"
+
+checks = [
+    payload.get("schema") == "kiana.app-server.trust-status.v1",
+    payload.get("project_trust") == expected_trust,
+    payload.get("project_trusted") is trusted,
+    payload.get("allows_project_resources") is trusted,
+    payload.get("source") == expected_source,
+    isinstance(payload.get("project_id"), str)
+    and re.fullmatch(r"[0-9a-f]{64}", payload["project_id"]) is not None,
+    normalized(payload.get("project_root", "")) == project,
+    file_info.get("status") == expected_file_status,
+    file_info.get("exists") is (expected_file_status == "found"),
+    file_info.get("error") is None,
+    isinstance(file_info.get("path"), str),
+    normalized(file_info.get("path", "")).startswith(store_dir + "/"),
+    normalized(file_info.get("path", ""))
+    == normalized(store_dir + "/" + payload["project_id"] + ".json"),
+    normalized(legacy.get("path", "")) == project + "/.kiana/trust.json",
+    legacy.get("exists") is True,
+    legacy.get("ignored") is True,
+    legacy.get("reason") == "project_local_trust_is_not_authoritative",
+]
+if not all(checks):
+    raise SystemExit(
+        "project trust lifecycle assertion failed\n"
+        + json.dumps(payload, indent=2, sort_keys=True)
+    )
+PY
+}
+
+smoke_project_trust() {
+  local binary="$1"
+  local binary_path
+  local project="$tmp_root/project-trust-smoke"
+  local store_dir="$smoke_home/.kiana/trust/projects"
+  local output
+
+  binary_path="$(cd "$(dirname "$binary")" && pwd)/$(basename "$binary")"
+  rm -rf "$project"
+  mkdir -p "$project/.git" "$project/.kiana"
+  printf '%s\n' '{"trusted":true}' > "$project/.kiana/trust.json"
+
+  output="$(cd "$project" && run_clean_kiana "$binary_path" trust json)"
+  validate_project_trust_status_json "$output" unknown default missing "$project" "$store_dir"
+
+  output="$(cd "$project" && run_clean_kiana "$binary_path" trust trust)"
+  grep -Fq -- "project_trust: trusted" <<<"$output"
+  output="$(cd "$project" && run_clean_kiana "$binary_path" trust json)"
+  validate_project_trust_status_json "$output" trusted user_store found "$project" "$store_dir"
+
+  output="$(cd "$project" && run_clean_kiana "$binary_path" trust reset)"
+  grep -Fq -- "project_trust: unknown" <<<"$output"
+  output="$(cd "$project" && run_clean_kiana "$binary_path" trust json)"
+  validate_project_trust_status_json "$output" unknown default missing "$project" "$store_dir"
 }
 
 install_release_binary() {
@@ -577,6 +682,291 @@ if not isinstance(report.get("checks"), list):
     print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 PY
+}
+
+smoke_release_evidence_json() {
+  local binary="$1"
+  local fixture_dist="$tmp_root/release-evidence-fixture"
+  local output
+  local python_bin
+
+  rm -rf "$fixture_dist"
+  mkdir -p "$fixture_dist/proofs"
+  cat > "$fixture_dist/proofs/local-rc-evidence.json" <<'JSON'
+{
+  "schema": "kiana.local-rc-evidence.v1",
+  "status": "local_rc_ready",
+  "dist_dir": "release-smoke-fixture",
+  "summary": {
+    "release_artifacts": 1,
+    "manifests": 2,
+    "proofs": 3,
+    "blockers_total": 4,
+    "local_blockers": 0,
+    "external_blockers": 4
+  },
+  "readiness": {
+    "ready": true
+  },
+  "blockers": {
+    "handoff_status": "external_action_required",
+    "blocking_by_resolution_scope": {
+      "release-owner": 2,
+      "live-service": 2
+    }
+  }
+}
+JSON
+
+  if ! output="$(run_clean_kiana "$binary" release evidence --json --dist-dir "$fixture_dist" 2>&1)"; then
+    echo "release evidence CLI failed for: $binary" >&2
+    echo "$output" >&2
+    return 1
+  fi
+  python_bin="$(doctor_json_python)"
+  RELEASE_EVIDENCE_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["RELEASE_EVIDENCE_JSON"])
+except Exception as exc:
+    print(f"release evidence JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("RELEASE_EVIDENCE_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("schema") != "kiana.local-rc-evidence.v1":
+    print("release evidence schema mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if report.get("readiness", {}).get("ready") is not True:
+    print("release evidence readiness missing", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+summary = report.get("summary", {})
+if summary.get("local_blockers") != 0:
+    print("release evidence local blocker count mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+scopes = report.get("blockers", {}).get("blocking_by_resolution_scope")
+if not isinstance(scopes, dict) or not scopes:
+    print("release evidence resolution-scope counts missing", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+smoke_eval_json() {
+  local binary="$1"
+  local suite
+  local baseline
+  local output
+  local python_bin
+
+  suite="$(cd "$(dirname "$0")/.." && pwd)/docs/eval/fixtures/basic-runtime-suite.json"
+  baseline="$(cd "$(dirname "$0")/.." && pwd)/docs/eval/fixtures/basic-runtime-baseline.json"
+  if ! output="$(run_clean_kiana "$binary" eval run --suite "$suite" --baseline "$baseline" --json --fail-on-failure 2>&1)"; then
+    echo "offline eval CLI failed for: $binary" >&2
+    echo "$output" >&2
+    return 1
+  fi
+  python_bin="$(doctor_json_python)"
+  KIANA_EVAL_JSON="$output" "$python_bin" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    report = json.loads(os.environ["KIANA_EVAL_JSON"])
+except Exception as exc:
+    print(f"offline eval JSON is not valid JSON: {exc}", file=sys.stderr)
+    print(os.environ.get("KIANA_EVAL_JSON", ""), file=sys.stderr)
+    sys.exit(1)
+
+if report.get("schema") != "kiana.eval-report.v1":
+    print("offline eval schema mismatch", file=sys.stderr)
+    sys.exit(1)
+if report.get("status") != "passed":
+    print("offline eval status mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+baseline = report.get("baseline")
+if not baseline or baseline.get("schema") != "kiana.eval-baseline.v1":
+    print("offline eval baseline missing", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if baseline.get("status") != "passed":
+    print("offline eval baseline status mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+smoke_eda_json() {
+  local binary="$1"
+  local binary_path
+  local project_dir
+  local output
+  local python_bin
+  local eda_identity
+  local run_id
+  local review_id
+  local review_path
+
+  binary_path="$(cd "$(dirname "$binary")" && pwd)/$(basename "$binary")"
+  project_dir="$(mktemp -d)"
+  mkdir -p "$project_dir/hardware/gerber"
+  printf '%s\n' '5 V input; 3.3 V rail; SWD bring-up' > "$project_dir/hardware/requirements.md"
+  printf '%s\n' '(kicad_sch (version 20231120) (generator release-smoke))' > "$project_dir/hardware/main.kicad_sch"
+  printf '%s\n' 'Designator,MPN,Package,Quantity' 'R1,RC0402FR-0710KL,0402,1' 'U1,STM32F103C8T6,LQFP48,1' > "$project_dir/hardware/bom.csv"
+  printf '%s\n' 'Designator,Package,Mid X,Mid Y,Rotation,Layer' 'R1,0402,10,8,0,Top' 'U1,LQFP48,20,15,90,Top' > "$project_dir/hardware/cpl.csv"
+  printf '%s\n' 'G04 copper*' 'M02*' > "$project_dir/hardware/gerber/demo-F_Cu.gbr"
+  printf '%s\n' 'G04 edge*' 'M02*' > "$project_dir/hardware/gerber/demo-Edge_Cuts.gbr"
+  printf '%s\n' 'M48' 'M30' > "$project_dir/hardware/gerber/demo-PTH.drl"
+  printf '%s\n' '2 layers; minimum trace 0.15 mm' > "$project_dir/hardware/constraints.md"
+  printf '%s\n' \
+    '<?xml version="1.0" encoding="UTF-8"?>' \
+    '<export>' \
+    '  <components>' \
+    '    <comp ref="R1"><value>10k</value></comp>' \
+    '    <comp ref="U1"><value>STM32F103C8T6</value></comp>' \
+    '  </components>' \
+    '  <nets>' \
+    '    <net code="1" name="+3V3">' \
+    '      <node ref="U1" pin="1" pintype="power_in" />' \
+    '      <node ref="U1" pin="2" pintype="power_out" />' \
+    '    </net>' \
+    '    <net code="2" name="SWDIO">' \
+    '      <node ref="U1" pin="3" pintype="bidirectional" />' \
+    '      <node ref="R1" pin="1" pintype="passive" />' \
+    '    </net>' \
+    '  </nets>' \
+    '</export>' > "$project_dir/hardware/main.xml"
+  if ! output="$(
+    cd "$project_dir"
+    run_clean_kiana "$binary_path" eda review --json \
+      --requirements hardware/requirements.md \
+      --schematic hardware/main.kicad_sch \
+      --bom hardware/bom.csv \
+      --gerber hardware/gerber \
+      --cpl hardware/cpl.csv \
+      --constraints hardware/constraints.md \
+      --netlist hardware/main.xml 2>&1
+  )"; then
+    echo "EDA CLI failed for: $binary" >&2
+    echo "$output" >&2
+    rm -rf "$project_dir"
+    return 1
+  fi
+  python_bin="$(doctor_json_python)"
+  eda_identity="$(
+    KIANA_EDA_JSON="$output" \
+      KIANA_EDA_PROJECT="$(native_env_path "$project_dir")" \
+      "$python_bin" - <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+try:
+    report = json.loads(os.environ["KIANA_EDA_JSON"])
+except Exception as exc:
+    print(f"EDA JSON is not valid JSON: {exc}", file=sys.stderr)
+    sys.exit(1)
+if report.get("schema") != "kiana.eda-review.v1" or report.get("status") != "pass":
+    print("EDA review status mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+summary = report.get("summary", {})
+expected_summary = {
+    "netlist_components": 2,
+    "net_count": 2,
+    "power_net_count": 1,
+    "interface_net_count": 1,
+    "dangling_net_count": 0,
+}
+if report.get("rule_version") != "eda-review-rules.v2" or any(
+    summary.get(key) != value for key, value in expected_summary.items()
+):
+    print("EDA netlist summary mismatch", file=sys.stderr)
+    print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
+    sys.exit(1)
+if not any(source.get("kind") == "netlist" for source in report.get("sources", [])):
+    print("EDA netlist source missing", file=sys.stderr)
+    sys.exit(1)
+if not any(
+    check.get("check_id") == "netlist_structure" and check.get("status") == "pass"
+    for check in report.get("checks", [])
+):
+    print("EDA netlist_structure pass check missing", file=sys.stderr)
+    sys.exit(1)
+root = Path(os.environ["KIANA_EDA_PROJECT"])
+run_dir = root / ".kiana" / "workflows" / report["run_id"]
+review_dir = run_dir / "eda" / "reviews" / report["review_id"]
+missing = [name for name in ("eda_review.json", "bom_risk.md", "bringup-plan.md") if not (review_dir / name).is_file()]
+if missing:
+    print(f"EDA review artifacts missing: {missing}", file=sys.stderr)
+    sys.exit(1)
+artifact_report = json.loads((review_dir / "eda_review.json").read_text(encoding="utf-8"))
+if artifact_report != report:
+    print("EDA CLI output differs from persisted eda_review.json", file=sys.stderr)
+    sys.exit(1)
+
+eventlog_path = run_dir / "eventlog.jsonl"
+if not eventlog_path.is_file():
+    print(f"EDA eventlog missing: {eventlog_path}", file=sys.stderr)
+    sys.exit(1)
+event_kinds = set()
+for line_number, line in enumerate(eventlog_path.read_text(encoding="utf-8").splitlines(), start=1):
+    if not line.strip():
+        continue
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError as exc:
+        print(f"EDA eventlog line {line_number} is invalid JSON: {exc}", file=sys.stderr)
+        sys.exit(1)
+    event = record.get("event", record) if isinstance(record, dict) else None
+    if isinstance(event, dict) and isinstance(event.get("kind"), str):
+        event_kinds.add(event["kind"])
+required_events = {"artifact_written", "evidence_recorded", "verification_completed"}
+missing_events = sorted(required_events - event_kinds)
+if missing_events:
+    print(f"EDA eventlog missing events: {missing_events}", file=sys.stderr)
+    sys.exit(1)
+
+verification_dir = run_dir / "verification"
+packet_paths = sorted(verification_dir.glob("*.json")) if verification_dir.is_dir() else []
+if not packet_paths:
+    print(f"EDA verification packet missing: {verification_dir}", file=sys.stderr)
+    sys.exit(1)
+matching_packets = []
+for packet_path in packet_paths:
+    try:
+        packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"EDA verification packet is invalid JSON: {packet_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if (
+        packet.get("profile") == "eda_review"
+        and packet.get("run_id") == report.get("run_id")
+        and packet.get("workflow_id") == report.get("workflow_id")
+    ):
+        matching_packets.append(packet)
+if not any(packet.get("final_status") == "pass" for packet in matching_packets):
+    print("EDA pass VerificationPacket missing", file=sys.stderr)
+    sys.exit(1)
+
+print(report["run_id"], report["review_id"], sep="\t")
+PY
+  )"
+  IFS=$'\t' read -r run_id review_id <<<"$eda_identity"
+  review_path="$project_dir/.kiana/workflows/$run_id/eda/reviews/$review_id/eda_review.json"
+  "$python_bin" \
+    "$(native_env_path "$(pwd)/scripts/validate-json-schema.py")" \
+    "$(native_env_path "$(pwd)/docs/schemas/kiana-eda-review.v1.schema.json")" \
+    "$(native_env_path "$review_path")" >/dev/null
+  rm -rf "$project_dir"
 }
 
 smoke_context_index_search_json() {
@@ -1067,9 +1457,11 @@ smoke_plugin_marketplace() {
   local binary
   binary="$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")"
   local marketplace_dir="$tmp_root/tools-marketplace"
+  local plugin_project="$tmp_root/plugin-project"
   local output
 
   mkdir -p "$marketplace_dir/.codex-plugin" "$marketplace_dir/review-tools/.codex-plugin" "$marketplace_dir/review-tools/commands"
+  mkdir -p "$plugin_project/.git"
   cat > "$marketplace_dir/review-tools/.codex-plugin/plugin.json" <<'JSON'
 {
   "name": "review-tools",
@@ -1213,76 +1605,109 @@ JSON
   grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
   test ! -e "$smoke_home/.kiana/plugins/review-tools"
 
-  output="$(cd "$tmp_root" && KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file" run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope project)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" trust trust)"
+  grep -Fq -- "project_trust: trusted" <<<"$output"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" trust json)"
+  grep -Fq -- '"project_trust": "trusted"' <<<"$output"
+  grep -Fq -- '"source": "user_store"' <<<"$output"
+  output="$(cd "$plugin_project" && KIANA_MANAGED_PLUGIN_POLICY_FILE="$managed_policy_file" run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope project)"
   grep -Fq -- "Installed plugin: review-tools" <<<"$output"
-  assert_output_path "$output" "path: " "$tmp_root/.kiana/plugins/review-tools"
+  assert_output_path "$output" "path: " "$plugin_project/.kiana/plugins/review-tools"
   grep -Fq -- "managed_policy: allowed (managed plugin policy matched)" <<<"$output"
-  test -f "$tmp_root/.kiana/plugins/review-tools/commands/audit.md"
-  test -f "$tmp_root/.kiana/plugins/review-tools/.kiana-install-receipt.json"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
-  assert_output_path "$output" "path: " "$tmp_root/.kiana/plugins"
+  test -f "$plugin_project/.kiana/plugins/review-tools/commands/audit.md"
+  test -f "$plugin_project/.kiana/plugins/review-tools/.kiana-install-receipt.json"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
+  assert_output_path "$output" "path: " "$plugin_project/.kiana/plugins"
   grep -Fq -- "review-tools@1.0.0 [valid enabled]" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin path review-tools --scope project)"
-  assert_exact_output_path "$output" "$tmp_root/.kiana/plugins/review-tools"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin show review-tools --scope project)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin path review-tools --scope project)"
+  assert_exact_output_path "$output" "$plugin_project/.kiana/plugins/review-tools"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin show review-tools --scope project)"
   grep -Fq -- '"manifest_name": "review-tools"' <<<"$output"
   grep -Fq -- '"status": "verified"' <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin validate review-tools --scope project)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin validate review-tools --scope project)"
   grep -Fq -- "Validating plugin: review-tools" <<<"$output"
   grep -Fq -- "Validation passed" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" skills audit --json)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" skills audit --json)"
   grep -Fq -- '"schema": "kiana.skills-audit.v1"' <<<"$output"
-  grep -Fq -- '"plugin": "review-tools"' <<<"$output"
+  if ! grep -Fq -- '"plugin": "review-tools"' <<<"$output"; then
+    echo "trusted project did not expose installed project plugin resources" >&2
+    echo "$output" >&2
+    exit 1
+  fi
   grep -Fq -- '"status": "no-skills"' <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" reload-plugins)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" trust reset)"
+  grep -Fq -- "project_trust: unknown" <<<"$output"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" skills audit --json)"
+  if grep -Fq -- '"plugin": "review-tools"' <<<"$output"; then
+    echo "reset project unexpectedly exposed project plugin resources" >&2
+    exit 1
+  fi
+  if output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin list --scope project review-tools 2>&1)"; then
+    echo "unknown project unexpectedly read project-scoped plugins" >&2
+    exit 1
+  fi
+  grep -Fq -- "project trust is unknown" <<<"$output"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" trust trust)"
+  grep -Fq -- "project_trust: trusted" <<<"$output"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" skills audit --json)"
+  grep -Fq -- '"schema": "kiana.skills-audit.v1"' <<<"$output"
+  if ! grep -Fq -- '"plugin": "review-tools"' <<<"$output"; then
+    echo "trusted project did not expose installed project plugin resources" >&2
+    echo "$output" >&2
+    exit 1
+  fi
+  grep -Fq -- '"status": "no-skills"' <<<"$output"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" reload-plugins)"
   grep -Fq -- "Reloaded: 1 plugins" <<<"$output"
   grep -Fq -- "1 commands" <<<"$output"
-  assert_output_path "$output" "project: " "$tmp_root/.kiana/plugins"
-  assert_output_path "$output" "local: " "$tmp_root/.kiana/plugins.local"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin disable review-tools --scope project)"
+  assert_output_path "$output" "project: " "$plugin_project/.kiana/plugins"
+  assert_output_path "$output" "local: " "$plugin_project/.kiana/plugins.local"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin disable review-tools --scope project)"
   grep -Fq -- "Plugin disabled: review-tools" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
   grep -Fq -- "review-tools@1.0.0 [valid disabled]" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin enable review-tools --scope project)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin enable review-tools --scope project)"
   grep -Fq -- "Plugin enabled: review-tools" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin list --scope project review-tools)"
   grep -Fq -- "review-tools@1.0.0 [valid enabled]" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin uninstall review-tools --scope project)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin uninstall review-tools --scope project)"
   grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
-  test ! -e "$tmp_root/.kiana/plugins/review-tools"
+  test ! -e "$plugin_project/.kiana/plugins/review-tools"
 
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope local)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin install review-tools@tools-marketplace --scope local)"
   grep -Fq -- "Installed plugin: review-tools" <<<"$output"
-  assert_output_path "$output" "path: " "$tmp_root/.kiana/plugins.local/review-tools"
-  test -f "$tmp_root/.kiana/plugins.local/review-tools/commands/audit.md"
-  test -f "$tmp_root/.kiana/plugins.local/review-tools/.kiana-install-receipt.json"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
+  assert_output_path "$output" "path: " "$plugin_project/.kiana/plugins.local/review-tools"
+  test -f "$plugin_project/.kiana/plugins.local/review-tools/commands/audit.md"
+  test -f "$plugin_project/.kiana/plugins.local/review-tools/.kiana-install-receipt.json"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
   grep -Fq -- '"manifest_name": "review-tools"' <<<"$output"
-  assert_json_path "$output" "root" "$tmp_root/.kiana/plugins.local/review-tools"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin path review-tools --scope local)"
-  assert_exact_output_path "$output" "$tmp_root/.kiana/plugins.local/review-tools"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin validate --scope local)"
+  assert_json_path "$output" "root" "$plugin_project/.kiana/plugins.local/review-tools"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin path review-tools --scope local)"
+  assert_exact_output_path "$output" "$plugin_project/.kiana/plugins.local/review-tools"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin validate --scope local)"
   grep -Fq -- "Validating plugin: review-tools" <<<"$output"
   grep -Fq -- "Validation passed" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" skills audit --json)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" skills audit --json)"
   grep -Fq -- '"schema": "kiana.skills-audit.v1"' <<<"$output"
   grep -Fq -- '"plugin": "review-tools"' <<<"$output"
   grep -Fq -- '"status": "no-skills"' <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" reload-plugins)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" reload-plugins)"
   grep -Fq -- "Reloaded: 1 plugins" <<<"$output"
   grep -Fq -- "1 commands" <<<"$output"
-  assert_output_path "$output" "local: " "$tmp_root/.kiana/plugins.local"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin disable review-tools --scope local)"
+  assert_output_path "$output" "local: " "$plugin_project/.kiana/plugins.local"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin disable review-tools --scope local)"
   grep -Fq -- "Plugin disabled: review-tools" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
   grep -Fq -- '"enabled": false' <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin enable review-tools --scope local)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin enable review-tools --scope local)"
   grep -Fq -- "Plugin enabled: review-tools" <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin json --scope local review-tools)"
   grep -Fq -- '"enabled": true' <<<"$output"
-  output="$(cd "$tmp_root" && run_clean_kiana "$binary" plugin uninstall review-tools --scope local)"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" plugin uninstall review-tools --scope local)"
   grep -Fq -- "Uninstalled plugin: review-tools" <<<"$output"
-  test ! -e "$tmp_root/.kiana/plugins.local/review-tools"
+  test ! -e "$plugin_project/.kiana/plugins.local/review-tools"
+  output="$(cd "$plugin_project" && run_clean_kiana "$binary" trust reset)"
+  grep -Fq -- "project_trust: unknown" <<<"$output"
 
   output="$(run_clean_kiana "$binary" plugin marketplace remove tools-marketplace)"
   grep -Fq -- "Successfully removed marketplace: tools-marketplace" <<<"$output"
@@ -1355,6 +1780,7 @@ release_bin="./target/release/kiana$(exe_ext)"
 installed_bin="$install_dir/kiana$(exe_ext)"
 
 smoke_version "$release_bin"
+smoke_project_trust "$release_bin"
 smoke_doctor "$release_bin"
 smoke_doctor_json "$release_bin"
 smoke_commercial_security_doctor_json "$release_bin"
@@ -1362,6 +1788,9 @@ smoke_model_smoke_json "$release_bin"
 smoke_model_catalog_json "$release_bin"
 smoke_auto_mode_fake_critique "$release_bin"
 smoke_release_blockers_json "$release_bin"
+smoke_release_evidence_json "$release_bin"
+smoke_eval_json "$release_bin"
+smoke_eda_json "$release_bin"
 smoke_context_index_search_json "$release_bin"
 smoke_license_status_json "$release_bin"
 for entry in "${help_smoke_cases[@]}"; do
@@ -1375,6 +1804,7 @@ smoke_mcp_project_config "$release_bin"
 
 install_release_binary
 smoke_version "$installed_bin"
+smoke_project_trust "$installed_bin"
 smoke_doctor "$installed_bin"
 smoke_doctor_json "$installed_bin"
 smoke_commercial_security_doctor_json "$installed_bin"
@@ -1382,6 +1812,9 @@ smoke_model_smoke_json "$installed_bin"
 smoke_model_catalog_json "$installed_bin"
 smoke_auto_mode_fake_critique "$installed_bin"
 smoke_release_blockers_json "$installed_bin"
+smoke_release_evidence_json "$installed_bin"
+smoke_eval_json "$installed_bin"
+smoke_eda_json "$installed_bin"
 smoke_context_index_search_json "$installed_bin"
 smoke_license_status_json "$installed_bin"
 for entry in "${help_smoke_cases[@]}"; do
