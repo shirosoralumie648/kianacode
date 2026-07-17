@@ -61,6 +61,7 @@ impl Command for PluginCommand {
 
 fn list_plugins(context: &CommandContext, query: &str) -> Result<CommandResult> {
     let args = parse_plugin_read_args(query, "list")?;
+    ensure_project_scope_allowed(context, args.scope)?;
     let root = scoped_plugin_root_dir(context, args.scope);
     let query = args.target.as_deref().unwrap_or("");
     let plugins = filtered_plugins(load_installed_plugins(&root)?, query);
@@ -123,6 +124,7 @@ fn list_plugins(context: &CommandContext, query: &str) -> Result<CommandResult> 
 
 fn plugins_json(context: &CommandContext, query: &str) -> Result<CommandResult> {
     let args = parse_plugin_read_args(query, "json")?;
+    ensure_project_scope_allowed(context, args.scope)?;
     let root = scoped_plugin_root_dir(context, args.scope);
     let query = args.target.as_deref().unwrap_or("");
     let plugins = filtered_plugins(load_installed_plugins(&root)?, query);
@@ -136,11 +138,16 @@ pub fn installed_plugin_summaries(context: &CommandContext) -> Result<Value> {
 
 fn installed_plugin_summaries_by_scope(context: &CommandContext) -> Result<Vec<Value>> {
     let mut plugins = Vec::new();
+    let project_resources_allowed =
+        project_trust_from_app_state(&context.app_state).allows_project_resources();
     for scope in [
         MarketplaceScope::User,
         MarketplaceScope::Project,
         MarketplaceScope::Local,
     ] {
+        if !project_resources_allowed && scope.requires_project_trust() {
+            continue;
+        }
         let root = scoped_plugin_root_dir(context, scope);
         plugins.extend(
             load_installed_plugins(&root)?
@@ -153,6 +160,7 @@ fn installed_plugin_summaries_by_scope(context: &CommandContext) -> Result<Vec<V
 
 fn show_plugin(context: &CommandContext, rest: &str) -> Result<CommandResult> {
     let args = parse_plugin_read_args(rest, "show")?;
+    ensure_project_scope_allowed(context, args.scope)?;
     let Some(target) = args.target.as_deref() else {
         return Err(anyhow!("usage: kiana plugin show <name>"));
     };
@@ -163,6 +171,7 @@ fn show_plugin(context: &CommandContext, rest: &str) -> Result<CommandResult> {
 
 fn plugin_path(context: &CommandContext, rest: &str) -> Result<CommandResult> {
     let args = parse_plugin_read_args(rest, "path")?;
+    ensure_project_scope_allowed(context, args.scope)?;
     let root = scoped_plugin_root_dir(context, args.scope);
     let Some(target) = args.target.as_deref() else {
         return Ok(CommandResult::text(root.display().to_string()));
@@ -177,6 +186,7 @@ async fn install_plugin(context: &CommandContext, rest: &str) -> Result<CommandR
     }
     let args = parse_plugin_action_args(rest, "install")?;
     let install_scope = args.scope.unwrap_or(MarketplaceScope::User);
+    ensure_project_scope_allowed(context, install_scope)?;
     let source = resolve_install_source(context, &args.target).await?;
     let source_info = read_plugin(source.root.clone())?;
     if !source_info.valid {
@@ -251,6 +261,7 @@ async fn uninstall_plugin(context: &CommandContext, rest: &str) -> Result<Comman
     }
     let args = parse_plugin_action_args(rest, "uninstall")?;
     let install_scope = args.scope.unwrap_or(MarketplaceScope::User);
+    ensure_project_scope_allowed(context, install_scope)?;
     let install_root = scoped_plugin_root_dir(context, install_scope);
     let plugin = resolve_installed_plugin_in_root(context, &args.target, &install_root)?;
     let plugin_name = plugin.display_name().to_string();
@@ -272,6 +283,7 @@ async fn set_plugin_state(
     enabled: bool,
 ) -> Result<CommandResult> {
     let args = parse_plugin_read_args(rest, if enabled { "enable" } else { "disable" })?;
+    ensure_project_scope_allowed(context, args.scope)?;
     let Some(target) = args.target.as_deref() else {
         return Err(anyhow!(
             "usage: kiana plugin {} <name|path> [--scope user|project|local]",
@@ -293,6 +305,7 @@ async fn set_plugin_state(
 
 fn validate_plugins(context: &CommandContext, rest: &str) -> Result<CommandResult> {
     let args = parse_plugin_read_args(rest, "validate")?;
+    ensure_project_scope_allowed(context, args.scope)?;
     let root = scoped_plugin_root_dir(context, args.scope);
     if let Some(target) = args.target.as_deref() {
         return Ok(CommandResult::text(format_validation(
@@ -379,6 +392,7 @@ async fn marketplace_add(context: &CommandContext, rest: &str) -> Result<Command
         index += 1;
     }
     let source = source.ok_or_else(|| anyhow!("usage: kiana plugin marketplace add <source>"))?;
+    ensure_project_scope_allowed(context, scope)?;
     let (mut name, source) = parse_marketplace_source(context, &source)?;
     let mut install_location = None;
     if let Some(materialized) = materialize_marketplace_source(&source).await? {
@@ -491,6 +505,11 @@ fn marketplace_remove(context: &CommandContext, rest: &str) -> Result<CommandRes
         index += 1;
     }
     let name = name.ok_or_else(|| anyhow!("usage: kiana plugin marketplace remove <name>"))?;
+    if let Some(scope) = scope {
+        ensure_project_scope_allowed(context, scope)?;
+    }
+    let project_resources_allowed =
+        project_trust_from_app_state(&context.app_state).allows_project_resources();
     let scopes = scope.map(|scope| vec![scope]).unwrap_or_else(|| {
         vec![
             MarketplaceScope::Local,
@@ -499,6 +518,9 @@ fn marketplace_remove(context: &CommandContext, rest: &str) -> Result<CommandRes
         ]
     });
     for scope in scopes {
+        if !project_resources_allowed && scope.requires_project_trust() {
+            continue;
+        }
         let file = marketplace_config_file(context, scope);
         let mut config = read_marketplace_config(&file)?;
         if config.marketplaces.remove(&name).is_some() {
@@ -2368,6 +2390,21 @@ fn scoped_plugin_root_dir(context: &CommandContext, scope: MarketplaceScope) -> 
     }
 }
 
+fn ensure_project_scope_allowed(context: &CommandContext, scope: MarketplaceScope) -> Result<()> {
+    if !scope.requires_project_trust() {
+        return Ok(());
+    }
+    let project_trust = project_trust_from_app_state(&context.app_state);
+    if project_trust.allows_project_resources() {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "plugin {} scope requires trusted project; project trust is {}",
+        scope.as_str(),
+        project_trust.as_str()
+    ))
+}
+
 fn user_plugin_root_dir(context: &CommandContext) -> PathBuf {
     if let Ok(path) = std::env::var("KIANA_PLUGINS_DIR") {
         return resolve_path(context, &path);
@@ -3042,6 +3079,10 @@ impl MarketplaceScope {
             Self::Local => "local",
         }
     }
+
+    fn requires_project_trust(self) -> bool {
+        matches!(self, Self::Project | Self::Local)
+    }
 }
 
 impl std::fmt::Display for MarketplaceScope {
@@ -3336,7 +3377,7 @@ impl PluginComponents {
 
 #[cfg(test)]
 mod tests {
-    use super::PluginCommand;
+    use super::{installed_plugin_summaries, PluginCommand};
     use crate::local_state::env_lock;
     use crate::{Command, CommandContext};
     use serde_json::{json, Value};
@@ -3361,7 +3402,10 @@ mod tests {
     fn context(args: &str, cwd: &std::path::Path) -> CommandContext {
         CommandContext {
             args: args.to_string(),
-            app_state: HashMap::from([("cwd".to_string(), json!(cwd))]),
+            app_state: HashMap::from([
+                ("cwd".to_string(), json!(cwd)),
+                ("project_trusted".to_string(), json!(true)),
+            ]),
         }
     }
 
@@ -3376,6 +3420,14 @@ mod tests {
             args: args.to_string(),
             app_state,
         }
+    }
+
+    fn trusted_context(args: &str, cwd: &std::path::Path) -> CommandContext {
+        context_with_state(
+            args,
+            cwd,
+            HashMap::from([("project_trusted".to_string(), json!(true))]),
+        )
     }
 
     fn write_manifest(plugin_root: &std::path::Path, name: &str) {
@@ -3454,6 +3506,138 @@ mod tests {
         assert_eq!(value[0]["valid"], true);
 
         std::env::remove_var("KIANA_PLUGINS_DIR");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn unknown_and_untrusted_hide_project_and_local_plugin_summaries() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("summary-trust");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let user_plugins = kiana_home.join("plugins");
+        let project_plugins = cwd.join(".kiana").join("plugins");
+        let local_plugins = cwd.join(".kiana").join("plugins.local");
+        fs::create_dir_all(cwd.join(".git")).unwrap();
+        write_manifest(&user_plugins.join("user-tools"), "user-tools");
+        write_manifest(&project_plugins.join("project-tools"), "project-tools");
+        write_manifest(&local_plugins.join("local-tools"), "local-tools");
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins);
+
+        for app_state in [
+            HashMap::new(),
+            HashMap::from([("project_trusted".to_string(), json!(false))]),
+        ] {
+            let summaries =
+                installed_plugin_summaries(&context_with_state("", &cwd, app_state)).unwrap();
+            let summaries = summaries.as_array().unwrap();
+            assert!(summaries.iter().any(|plugin| plugin["id"] == "user-tools"));
+            assert!(!summaries
+                .iter()
+                .any(|plugin| plugin["id"] == "project-tools"));
+            assert!(!summaries.iter().any(|plugin| plugin["id"] == "local-tools"));
+        }
+
+        let trusted = installed_plugin_summaries(&trusted_context("", &cwd)).unwrap();
+        let trusted = trusted.as_array().unwrap();
+        assert!(trusted.iter().any(|plugin| plugin["id"] == "user-tools"));
+        assert!(trusted.iter().any(|plugin| plugin["id"] == "project-tools"));
+        assert!(trusted.iter().any(|plugin| plugin["id"] == "local-tools"));
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn unknown_and_untrusted_reject_project_and_local_plugin_commands() {
+        let _guard = env_lock().lock().unwrap();
+        let previous_home = std::env::var_os("KIANA_HOME");
+        let previous_plugins_dir = std::env::var_os("KIANA_PLUGINS_DIR");
+        let root = temp_root("scope-trust");
+        let cwd = root.join("project");
+        let kiana_home = root.join("home").join(".kiana");
+        let user_plugins = kiana_home.join("plugins");
+        let source_plugin = root.join("source-tools");
+        fs::create_dir_all(cwd.join(".git")).unwrap();
+        write_manifest(&source_plugin, "source-tools");
+        write_manifest(
+            &cwd.join(".kiana").join("plugins").join("project-tools"),
+            "project-tools",
+        );
+        write_manifest(
+            &cwd.join(".kiana").join("plugins.local").join("local-tools"),
+            "local-tools",
+        );
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_PLUGINS_DIR", &user_plugins);
+
+        for (scope, plugin_name, app_state, expected_trust) in [
+            ("project", "project-tools", HashMap::new(), "unknown"),
+            (
+                "local",
+                "local-tools",
+                HashMap::from([("project_trusted".to_string(), json!(false))]),
+                "untrusted",
+            ),
+        ] {
+            for command in [
+                format!("list --scope {scope} {plugin_name}"),
+                format!("json --scope {scope} {plugin_name}"),
+                format!("show {plugin_name} --scope {scope}"),
+                format!("path {plugin_name} --scope {scope}"),
+                format!("validate {plugin_name} --scope {scope}"),
+                format!("disable {plugin_name} --scope {scope}"),
+                format!("enable {plugin_name} --scope {scope}"),
+                format!("uninstall {plugin_name} --scope {scope}"),
+            ] {
+                let error = PluginCommand
+                    .execute(context_with_state(&command, &cwd, app_state.clone()))
+                    .await
+                    .unwrap_err()
+                    .to_string();
+                assert!(error.contains(expected_trust), "{command}: {error}");
+                assert!(error.contains("project trust"), "{command}: {error}");
+            }
+
+            let install = format!("install {} --scope {scope}", source_plugin.display());
+            let error = PluginCommand
+                .execute(context_with_state(&install, &cwd, app_state))
+                .await
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(expected_trust), "{install}: {error}");
+            assert!(error.contains("project trust"), "{install}: {error}");
+        }
+
+        assert!(cwd
+            .join(".kiana")
+            .join("plugins")
+            .join("project-tools")
+            .is_dir());
+        assert!(cwd
+            .join(".kiana")
+            .join("plugins.local")
+            .join("local-tools")
+            .is_dir());
+
+        match previous_home {
+            Some(value) => std::env::set_var("KIANA_HOME", value),
+            None => std::env::remove_var("KIANA_HOME"),
+        }
+        match previous_plugins_dir {
+            Some(value) => std::env::set_var("KIANA_PLUGINS_DIR", value),
+            None => std::env::remove_var("KIANA_PLUGINS_DIR"),
+        }
         let _ = fs::remove_dir_all(root);
     }
 

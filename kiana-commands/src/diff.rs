@@ -536,7 +536,7 @@ fn copy_checkpoint_untracked(
     Ok(())
 }
 
-fn no_index_diff_for_path(
+pub(crate) fn no_index_diff_for_path(
     relative_path: &str,
     baseline_path: &Path,
     baseline_exists: bool,

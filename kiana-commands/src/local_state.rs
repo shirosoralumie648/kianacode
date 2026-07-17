@@ -114,6 +114,13 @@ pub fn sdk_session_stats() -> SdkSessionStats {
 
 #[cfg(test)]
 pub fn env_lock() -> &'static std::sync::Mutex<()> {
-    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
-    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+    crate::test_env_lock()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn command_tests_share_one_process_environment_lock() {
+        assert!(std::ptr::eq(super::env_lock(), crate::test_env_lock()));
+    }
 }

@@ -2,6 +2,7 @@ use crate::local_state::{load_user_config, save_user_config};
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use kiana_types::{project_trust_from_app_state, project_trust_root, ProjectTrust};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -75,7 +76,14 @@ fn reject_unexpected_rest(command: &str, rest: &str) -> Result<()> {
 }
 
 pub fn available_output_style_names(cwd: &Path) -> Vec<String> {
-    let mut names = load_all_output_styles(cwd)
+    available_output_style_names_with_trust(cwd, project_trust_for_cwd(cwd))
+}
+
+pub fn available_output_style_names_with_trust(
+    cwd: &Path,
+    project_trust: ProjectTrust,
+) -> Vec<String> {
+    let mut names = load_all_output_styles_with_trust(cwd, project_trust)
         .into_iter()
         .map(|style| style.name)
         .collect::<Vec<_>>();
@@ -84,7 +92,11 @@ pub fn available_output_style_names(cwd: &Path) -> Vec<String> {
 }
 
 pub fn selected_output_style_name(cwd: &Path) -> String {
-    let styles = load_all_output_styles(cwd);
+    selected_output_style_name_with_trust(cwd, project_trust_for_cwd(cwd))
+}
+
+pub fn selected_output_style_name_with_trust(cwd: &Path, project_trust: ProjectTrust) -> String {
+    let styles = load_all_output_styles_with_trust(cwd, project_trust);
     if let Some(style) = styles.iter().find(|style| style.force_for_plugin) {
         return style.name.clone();
     }
@@ -108,6 +120,13 @@ pub fn selected_output_style_name(cwd: &Path) -> String {
 }
 
 pub fn load_all_output_styles(cwd: &Path) -> Vec<OutputStyleConfig> {
+    load_all_output_styles_with_trust(cwd, project_trust_for_cwd(cwd))
+}
+
+pub fn load_all_output_styles_with_trust(
+    cwd: &Path,
+    project_trust: ProjectTrust,
+) -> Vec<OutputStyleConfig> {
     let mut by_name = HashMap::new();
     for style in built_in_output_styles() {
         by_name.insert(style.name.to_ascii_lowercase(), style);
@@ -115,7 +134,7 @@ pub fn load_all_output_styles(cwd: &Path) -> Vec<OutputStyleConfig> {
     for style in load_plugin_output_styles() {
         by_name.insert(style.name.to_ascii_lowercase(), style);
     }
-    for style in load_local_output_styles(cwd) {
+    for style in load_local_output_styles(cwd, project_trust) {
         by_name.insert(style.name.to_ascii_lowercase(), style);
     }
     let mut styles = by_name.into_values().collect::<Vec<_>>();
@@ -125,8 +144,9 @@ pub fn load_all_output_styles(cwd: &Path) -> Vec<OutputStyleConfig> {
 
 fn list_styles(context: &CommandContext) -> Result<CommandResult> {
     let cwd = cwd(context);
-    let selected = selected_output_style_name(&cwd);
-    let styles = load_all_output_styles(&cwd);
+    let project_trust = project_trust_from_app_state(&context.app_state);
+    let selected = selected_output_style_name_with_trust(&cwd, project_trust);
+    let styles = load_all_output_styles_with_trust(&cwd, project_trust);
     let mut lines = vec![
         format!("{} output style(s)", styles.len()),
         format!("current: {}", selected),
@@ -153,7 +173,8 @@ fn list_styles(context: &CommandContext) -> Result<CommandResult> {
 
 fn styles_json(context: &CommandContext) -> Result<CommandResult> {
     let cwd = cwd(context);
-    let styles = load_all_output_styles(&cwd);
+    let styles =
+        load_all_output_styles_with_trust(&cwd, project_trust_from_app_state(&context.app_state));
     Ok(CommandResult::text(serde_json::to_string_pretty(&styles)?))
 }
 
@@ -163,7 +184,11 @@ fn show_style(context: &CommandContext, rest: &str) -> Result<CommandResult> {
         return Err(anyhow!("usage: kiana output-style show <name>"));
     }
     let cwd = cwd(context);
-    let style = resolve_style(&cwd, target)?;
+    let style = resolve_style(
+        &cwd,
+        target,
+        project_trust_from_app_state(&context.app_state),
+    )?;
     Ok(CommandResult::text(serde_json::to_string_pretty(&style)?))
 }
 
@@ -173,7 +198,11 @@ fn set_style(context: &CommandContext, rest: &str) -> Result<CommandResult> {
         return Err(anyhow!("usage: kiana output-style set <name>"));
     }
     let cwd = cwd(context);
-    let style = resolve_style(&cwd, target)?;
+    let style = resolve_style(
+        &cwd,
+        target,
+        project_trust_from_app_state(&context.app_state),
+    )?;
     let mut config = load_user_config();
     config.settings.output_style = if style.name == DEFAULT_OUTPUT_STYLE_NAME {
         None
@@ -202,9 +231,13 @@ fn reset_style(_context: &CommandContext, rest: &str) -> Result<CommandResult> {
     )))
 }
 
-fn resolve_style(cwd: &Path, target: &str) -> Result<OutputStyleConfig> {
+fn resolve_style(
+    cwd: &Path,
+    target: &str,
+    project_trust: ProjectTrust,
+) -> Result<OutputStyleConfig> {
     let normalized = target.trim().trim_start_matches('/').to_ascii_lowercase();
-    load_all_output_styles(cwd)
+    load_all_output_styles_with_trust(cwd, project_trust)
         .into_iter()
         .find(|style| style.name.to_ascii_lowercase() == normalized)
         .ok_or_else(|| anyhow!("unknown output style '{}'", target.trim()))
@@ -248,9 +281,9 @@ fn built_in_output_styles() -> Vec<OutputStyleConfig> {
     ]
 }
 
-fn load_local_output_styles(cwd: &Path) -> Vec<OutputStyleConfig> {
+fn load_local_output_styles(cwd: &Path, project_trust: ProjectTrust) -> Vec<OutputStyleConfig> {
     let mut styles = Vec::new();
-    for dir in output_style_dirs(cwd) {
+    for dir in output_style_dirs(cwd, project_trust) {
         for path in read_markdown_files_sorted(&dir) {
             if let Some(style) = load_output_style_file(&path, None, "local", false) {
                 styles.push(style);
@@ -362,7 +395,7 @@ fn load_output_style_file(
     })
 }
 
-fn output_style_dirs(cwd: &Path) -> Vec<PathBuf> {
+fn output_style_dirs(cwd: &Path, project_trust: ProjectTrust) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(home) = home_dir() {
         push_existing_dir(&mut dirs, home.join(".claude").join("output-styles"));
@@ -370,18 +403,33 @@ fn output_style_dirs(cwd: &Path) -> Vec<PathBuf> {
     if let Some(home) = std::env::var_os("KIANA_HOME") {
         push_existing_dir(&mut dirs, PathBuf::from(home).join("output-styles"));
     }
-    let mut project_dirs = Vec::new();
-    let mut current = Some(cwd);
-    while let Some(dir) = current {
-        let styles_dir = dir.join(".claude").join("output-styles");
-        if styles_dir.is_dir() {
-            project_dirs.push(styles_dir);
+    if project_trust.allows_project_resources() {
+        let mut project_dirs = Vec::new();
+        if let Ok(cwd) = cwd.canonicalize() {
+            let project_root = project_trust_root(&cwd);
+            let mut current = Some(cwd.as_path());
+            while let Some(dir) = current {
+                let styles_dir = dir.join(".claude").join("output-styles");
+                if styles_dir.is_dir() {
+                    project_dirs.push(styles_dir);
+                }
+                if dir == project_root {
+                    break;
+                }
+                current = dir.parent();
+            }
         }
-        current = dir.parent();
+        project_dirs.reverse();
+        dirs.extend(project_dirs);
     }
-    project_dirs.reverse();
-    dirs.extend(project_dirs);
     dedupe_vec(dirs)
+}
+
+fn project_trust_for_cwd(cwd: &Path) -> ProjectTrust {
+    project_trust_from_app_state(&HashMap::from([(
+        "cwd".to_string(),
+        Value::String(cwd.display().to_string()),
+    )]))
 }
 
 fn push_manifest_output_style_sources(
@@ -597,9 +645,13 @@ fn usage() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{available_output_style_names, selected_output_style_name, OutputStyleCommand};
+    use super::{
+        available_output_style_names_with_trust, selected_output_style_name_with_trust,
+        OutputStyleCommand,
+    };
     use crate::local_state::env_lock;
     use crate::{Command, CommandContext};
+    use kiana_types::ProjectTrust;
     use serde_json::{json, Value};
     use std::collections::HashMap;
     use std::fs;
@@ -618,9 +670,48 @@ mod tests {
     }
 
     fn context(args: &str, cwd: &Path) -> CommandContext {
+        context_with_project_trust(args, cwd, Some(true))
+    }
+
+    fn context_with_project_trust(
+        args: &str,
+        cwd: &Path,
+        project_trusted: Option<bool>,
+    ) -> CommandContext {
+        let mut app_state = HashMap::from([("cwd".to_string(), json!(cwd))]);
+        if let Some(project_trusted) = project_trusted {
+            app_state.insert("project_trusted".to_string(), json!(project_trusted));
+        }
         CommandContext {
             args: args.to_string(),
-            app_state: HashMap::from([("cwd".to_string(), json!(cwd))]),
+            app_state,
+        }
+    }
+
+    struct EnvSnapshot {
+        values: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    }
+
+    impl EnvSnapshot {
+        fn take(keys: &[&'static str]) -> Self {
+            Self {
+                values: keys
+                    .iter()
+                    .map(|key| (*key, std::env::var_os(key)))
+                    .collect(),
+            }
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (key, value) in self.values.drain(..) {
+                if let Some(value) = value {
+                    std::env::set_var(key, value);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
         }
     }
 
@@ -638,6 +729,196 @@ mod tests {
             Value::Object(manifest).to_string(),
         )
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn unknown_and_untrusted_hide_project_styles_but_keep_safe_sources() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("trust-gate");
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
+        let project = root.join("project");
+        let plugins_dir = root.join("plugins");
+        let plugin_root = plugins_dir.join("review-tools");
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_CONFIG_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_PLUGINS_DIR",
+        ]);
+
+        let user_styles = home.join(".claude").join("output-styles");
+        let kiana_styles = kiana_home.join("output-styles");
+        let project_styles = project.join(".claude").join("output-styles");
+        fs::create_dir_all(&user_styles).unwrap();
+        fs::create_dir_all(&kiana_styles).unwrap();
+        fs::create_dir_all(&project_styles).unwrap();
+        fs::create_dir_all(project.join(".git")).unwrap();
+        fs::write(user_styles.join("UserSafe.md"), "Use the user style.\n").unwrap();
+        fs::write(
+            kiana_styles.join("KianaSafe.md"),
+            "Use the Kiana home style.\n",
+        )
+        .unwrap();
+        fs::write(
+            project_styles.join("ProjectControlled.md"),
+            "Use the project-controlled style.\n",
+        )
+        .unwrap();
+        fs::create_dir_all(plugin_root.join("output-styles")).unwrap();
+        write_plugin_manifest(&plugin_root, "review-tools", json!({}));
+        fs::write(
+            plugin_root.join("output-styles").join("PluginSafe.md"),
+            "Use the plugin style.\n",
+        )
+        .unwrap();
+
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
+
+        for project_trusted in [None, Some(false)] {
+            let result = OutputStyleCommand
+                .execute(context_with_project_trust(
+                    "list",
+                    &project,
+                    project_trusted,
+                ))
+                .await
+                .unwrap();
+            assert!(result.value.contains("default [built-in]"));
+            assert!(result.value.contains("UserSafe [local]"));
+            assert!(result.value.contains("KianaSafe [local]"));
+            assert!(result.value.contains("review-tools:PluginSafe [plugin]"));
+            assert!(!result.value.contains("ProjectControlled"));
+        }
+
+        let names = available_output_style_names_with_trust(&project, ProjectTrust::Unknown);
+        assert!(names.iter().any(|name| name == "default"));
+        assert!(names.iter().any(|name| name == "UserSafe"));
+        assert!(names.iter().any(|name| name == "KianaSafe"));
+        assert!(names.iter().any(|name| name == "review-tools:PluginSafe"));
+        assert!(!names.iter().any(|name| name == "ProjectControlled"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn trusted_nested_git_repo_stops_project_styles_at_child_root() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("nested-git");
+        let home = root.join("home");
+        let kiana_home = root.join("kiana-home");
+        let parent = root.join("parent");
+        let child = parent.join("vendor").join("child");
+        let cwd = child.join("src");
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_CONFIG_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_PLUGINS_DIR",
+        ]);
+
+        fs::create_dir_all(parent.join(".git")).unwrap();
+        fs::create_dir_all(parent.join(".claude").join("output-styles")).unwrap();
+        fs::write(
+            parent
+                .join(".claude")
+                .join("output-styles")
+                .join("Parent.md"),
+            "Use the parent style.\n",
+        )
+        .unwrap();
+        fs::create_dir_all(child.join(".git")).unwrap();
+        fs::create_dir_all(child.join(".claude").join("output-styles")).unwrap();
+        fs::write(
+            child.join(".claude").join("output-styles").join("Child.md"),
+            "Use the child style.\n",
+        )
+        .unwrap();
+        fs::create_dir_all(cwd.join(".claude").join("output-styles")).unwrap();
+        fs::write(
+            cwd.join(".claude").join("output-styles").join("Nested.md"),
+            "Use the nested style.\n",
+        )
+        .unwrap();
+
+        std::env::set_var("HOME", &home);
+        std::env::set_var("USERPROFILE", &home);
+        std::env::set_var("KIANA_HOME", &kiana_home);
+        std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
+
+        let result = OutputStyleCommand
+            .execute(context_with_project_trust("list", &cwd, Some(true)))
+            .await
+            .unwrap();
+
+        assert!(result.value.contains("Child [local]"));
+        assert!(result.value.contains("Nested [local]"));
+        assert!(!result.value.contains("Parent [local]"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn trusted_project_styles_fail_closed_when_cwd_cannot_be_canonicalized() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_root("canonicalize-failure");
+        let project = root.join("project");
+        let missing_cwd = project.join("missing");
+        let project_styles = project.join(".claude").join("output-styles");
+        let _env = EnvSnapshot::take(&[
+            "HOME",
+            "USERPROFILE",
+            "KIANA_HOME",
+            "KIANA_CONFIG_FILE",
+            "KIANA_SETTINGS_FILE",
+            "KIANA_SETTINGS_JSON",
+            "KIANA_REMOTE_SETTINGS_FILE",
+            "KIANA_PLUGINS_DIR",
+        ]);
+
+        fs::create_dir_all(project.join(".git")).unwrap();
+        fs::create_dir_all(&project_styles).unwrap();
+        fs::write(
+            project_styles.join("ProjectControlled.md"),
+            "Use the project-controlled style.\n",
+        )
+        .unwrap();
+        std::env::set_var("HOME", root.join("home"));
+        std::env::set_var("USERPROFILE", root.join("home"));
+        std::env::set_var("KIANA_HOME", root.join("kiana-home"));
+        std::env::set_var("KIANA_CONFIG_FILE", root.join("missing-config.toml"));
+        std::env::remove_var("KIANA_SETTINGS_FILE");
+        std::env::remove_var("KIANA_SETTINGS_JSON");
+        std::env::remove_var("KIANA_REMOTE_SETTINGS_FILE");
+        std::env::set_var("KIANA_PLUGINS_DIR", root.join("missing-plugins"));
+
+        let result = OutputStyleCommand
+            .execute(context_with_project_trust("list", &missing_cwd, Some(true)))
+            .await
+            .unwrap();
+
+        assert!(!result.value.contains("ProjectControlled"));
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[tokio::test]
@@ -672,10 +953,13 @@ mod tests {
         assert!(result
             .value
             .contains("review-tools:Strict [plugin forced] Strict review mode"));
-        let names = available_output_style_names(&cwd);
+        let names = available_output_style_names_with_trust(&cwd, ProjectTrust::Trusted);
         assert!(names.iter().any(|name| name == "Concise"));
         assert!(names.iter().any(|name| name == "review-tools:Strict"));
-        assert_eq!(selected_output_style_name(&cwd), "review-tools:Strict");
+        assert_eq!(
+            selected_output_style_name_with_trust(&cwd, ProjectTrust::Trusted),
+            "review-tools:Strict"
+        );
 
         std::env::remove_var("KIANA_PLUGINS_DIR");
         let _ = fs::remove_dir_all(root);
@@ -719,8 +1003,11 @@ mod tests {
             .await
             .unwrap();
         assert!(output.value.contains("output_style: Project"));
-        assert_eq!(selected_output_style_name(&cwd), "Project");
-        let names = available_output_style_names(&cwd);
+        assert_eq!(
+            selected_output_style_name_with_trust(&cwd, ProjectTrust::Trusted),
+            "Project"
+        );
+        let names = available_output_style_names_with_trust(&cwd, ProjectTrust::Trusted);
         assert!(names.iter().any(|name| name == "ops:Runbook"));
         assert!(!names.iter().any(|name| name == "ops:outside"));
 
@@ -728,7 +1015,10 @@ mod tests {
             .execute(context("reset", &cwd))
             .await
             .unwrap();
-        assert_eq!(selected_output_style_name(&cwd), "default");
+        assert_eq!(
+            selected_output_style_name_with_trust(&cwd, ProjectTrust::Trusted),
+            "default"
+        );
 
         std::env::remove_var("KIANA_CONFIG_FILE");
         std::env::remove_var("KIANA_PLUGINS_DIR");
@@ -759,7 +1049,10 @@ mod tests {
             .await;
 
         assert!(reset.is_err());
-        assert_eq!(selected_output_style_name(&cwd), "Project");
+        assert_eq!(
+            selected_output_style_name_with_trust(&cwd, ProjectTrust::Trusted),
+            "Project"
+        );
 
         std::env::remove_var("KIANA_CONFIG_FILE");
         let _ = fs::remove_dir_all(root);

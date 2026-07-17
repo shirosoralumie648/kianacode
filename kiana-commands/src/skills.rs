@@ -388,8 +388,47 @@ mod tests {
     use crate::{Command, CommandContext};
     use serde_json::{json, Value};
     use std::collections::HashMap;
+    use std::ffi::OsString;
     use std::fs;
+    use std::sync::{MutexGuard, PoisonError};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct IsolatedSkillEnv {
+        _lock: MutexGuard<'static, ()>,
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl IsolatedSkillEnv {
+        fn new(root: &std::path::Path) -> Self {
+            let lock = env_lock().lock().unwrap_or_else(PoisonError::into_inner);
+            let names = ["KIANA_HOME", "KIANA_PLUGINS_DIR", "HOME", "USERPROFILE"];
+            let values = names
+                .iter()
+                .map(|name| (*name, std::env::var_os(name)))
+                .collect();
+            let user_home = root.join("user-home");
+            fs::create_dir_all(&user_home).unwrap();
+            std::env::remove_var("KIANA_HOME");
+            std::env::remove_var("KIANA_PLUGINS_DIR");
+            std::env::set_var("HOME", &user_home);
+            std::env::set_var("USERPROFILE", &user_home);
+            Self {
+                _lock: lock,
+                values,
+            }
+        }
+    }
+
+    impl Drop for IsolatedSkillEnv {
+        fn drop(&mut self) {
+            for (name, value) in self.values.iter().rev() {
+                match value {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
 
     fn temp_root(label: &str) -> std::path::PathBuf {
         let unique = SystemTime::now()
@@ -435,8 +474,8 @@ mod tests {
 
     #[tokio::test]
     async fn skills_lists_project_and_kiana_home_skills() {
-        let _guard = env_lock().lock().unwrap();
         let root = temp_root("list");
+        let _env = IsolatedSkillEnv::new(&root);
         let project = root.join("project");
         let kiana_home = root.join("kiana-home");
         let project_skills = project.join(".claude").join("skills");
@@ -453,7 +492,10 @@ mod tests {
         );
 
         std::env::set_var("KIANA_HOME", &kiana_home);
-        let app_state = HashMap::from([("cwd".to_string(), json!(project))]);
+        let app_state = HashMap::from([
+            ("cwd".to_string(), json!(project)),
+            ("project_trusted".to_string(), json!(true)),
+        ]);
 
         let result = SkillsCommand
             .execute(context("", app_state.clone()))
@@ -479,13 +521,13 @@ mod tests {
 
     #[tokio::test]
     async fn skills_command_hides_project_skills_when_project_is_untrusted() {
-        let _guard = env_lock().lock().unwrap();
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos()
             .to_string();
         let root = temp_root("untrusted");
+        let _env = IsolatedSkillEnv::new(&root);
         let project = root.join("project");
         let kiana_home = root.join("kiana-home");
         let project_skills = project.join(".claude").join("skills");
@@ -523,8 +565,8 @@ mod tests {
 
     #[tokio::test]
     async fn skills_show_and_path_use_loaded_skill_roots() {
-        let _guard = env_lock().lock().unwrap();
         let root = temp_root("show");
+        let _env = IsolatedSkillEnv::new(&root);
         let project = root.join("project");
         let project_skills = project.join(".claude").join("skills");
         write_skill(
@@ -533,7 +575,10 @@ mod tests {
             "---\ndescription: Explain code paths\nallowed-tools:\n  - Read\n  - Grep\n---\nUse this for code explanation.\n",
         );
         std::env::set_var("KIANA_HOME", root.join("empty-home"));
-        let app_state = HashMap::from([("cwd".to_string(), json!(project))]);
+        let app_state = HashMap::from([
+            ("cwd".to_string(), json!(project)),
+            ("project_trusted".to_string(), json!(true)),
+        ]);
 
         let shown = SkillsCommand
             .execute(context("show explain", app_state.clone()))
@@ -563,8 +608,8 @@ mod tests {
 
     #[tokio::test]
     async fn skills_lists_plugin_skills_as_plugin_group() {
-        let _guard = env_lock().lock().unwrap();
         let root = temp_root("plugin");
+        let _env = IsolatedSkillEnv::new(&root);
         let project = root.join("project");
         let plugins_dir = root.join("plugins");
         write_plugin_skill(
@@ -598,8 +643,8 @@ mod tests {
 
     #[tokio::test]
     async fn skills_audit_json_reports_plugin_load_status_and_manifest_errors() {
-        let _guard = env_lock().lock().unwrap();
         let root = temp_root("plugin-audit");
+        let _env = IsolatedSkillEnv::new(&root);
         let project = root.join("project");
         let plugins_dir = root.join("plugins");
         write_plugin_skill(
@@ -669,8 +714,8 @@ mod tests {
 
     #[tokio::test]
     async fn skills_command_hides_disabled_plugin_skills_from_active_surfaces() {
-        let _guard = env_lock().lock().unwrap();
         let root = temp_root("disabled-plugin");
+        let _env = IsolatedSkillEnv::new(&root);
         let project = root.join("project");
         let plugins_dir = root.join("plugins");
         let plugin_root = plugins_dir.join("review-tools");

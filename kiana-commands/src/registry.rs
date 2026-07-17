@@ -44,6 +44,7 @@ pub fn create_default_command_registry() -> CommandRegistry {
     registry.register(Arc::new(crate::completion::CompletionCommand));
     registry.register(Arc::new(crate::init::InitCommand));
     registry.register(Arc::new(crate::advisor::AdvisorCommand));
+    registry.register(Arc::new(crate::audit::AuditCommand));
     registry.register(Arc::new(crate::brief::BriefCommand));
     registry.register(Arc::new(crate::checkpoint::CheckpointCommand));
     registry.register(Arc::new(crate::checks::ChecksCommand));
@@ -63,12 +64,15 @@ pub fn create_default_command_registry() -> CommandRegistry {
     registry.register(Arc::new(crate::hooks::HooksCommand));
     registry.register(Arc::new(crate::mcp::McpCommand));
     registry.register(Arc::new(crate::plugin::PluginCommand));
+    registry.register(Arc::new(crate::project::ProjectCommand));
     registry.register(Arc::new(crate::reload_plugins::ReloadPluginsCommand));
     registry.register(Arc::new(crate::release::ReleaseCommand));
+    registry.register(Arc::new(crate::report::ReportCommand));
     registry.register(Arc::new(crate::review::ReviewCommand));
     registry.register(Arc::new(crate::session::SessionCommand));
     registry.register(Arc::new(crate::trust::TrustCommand));
     registry.register(Arc::new(crate::usage::UsageCommand));
+    registry.register(Arc::new(crate::validate::ValidateCommand));
     registry.register(Arc::new(crate::cost::CostCommand));
     registry.register(Arc::new(crate::stats::StatsCommand));
     registry.register(Arc::new(crate::diff::DiffCommand));
@@ -77,6 +81,9 @@ pub fn create_default_command_registry() -> CommandRegistry {
     registry.register(Arc::new(crate::theme::ThemeCommand));
     registry.register(Arc::new(crate::vim::VimCommand));
     registry.register(Arc::new(crate::doctor::DoctorCommand));
+    registry.register(Arc::new(crate::eda::EdaCommand));
+    registry.register(Arc::new(crate::evidence::EvidenceCommand));
+    registry.register(Arc::new(crate::eval::EvalCommand));
     registry.register(Arc::new(crate::feedback::FeedbackCommand));
     for command in crate::plugin_commands::load_plugin_prompt_commands() {
         registry.register(Arc::new(command));
@@ -92,10 +99,37 @@ mod tests {
     use crate::{CommandContext, CommandType};
     use serde_json::Value;
     use std::collections::HashMap;
+    use std::ffi::{OsStr, OsString};
     use std::fs;
     use std::path::Path;
     use std::process::Command as ProcessCommand;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct EnvSnapshot(Vec<(&'static str, Option<OsString>)>);
+
+    impl EnvSnapshot {
+        fn set(values: &[(&'static str, &OsStr)]) -> Self {
+            let previous = values
+                .iter()
+                .map(|(name, _)| (*name, std::env::var_os(name)))
+                .collect();
+            for (name, value) in values {
+                std::env::set_var(name, value);
+            }
+            Self(previous)
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (name, value) in self.0.iter().rev() {
+                match value {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
 
     #[test]
     fn default_registry_includes_core_commands() {
@@ -109,16 +143,22 @@ mod tests {
             "completion",
             "config",
             "compact",
+            "audit",
             "init",
             "license",
+            "project",
             "commit",
             "checkpoint",
             "checks",
             "doctor",
+            "evidence",
+            "eval",
             "release",
+            "report",
             "review",
             "reload-plugins",
             "trust",
+            "validate",
         ] {
             assert!(registry.get(command).is_some(), "missing /{command}");
         }
@@ -1128,8 +1168,14 @@ mod tests {
         let root =
             std::env::temp_dir().join(format!("kiana-home-{}-{}", std::process::id(), unique));
         let config_path = root.join("config.toml");
-        std::env::set_var("KIANA_HOME", &root);
-        std::env::set_var("KIANA_CONFIG_FILE", &config_path);
+        let user_home = root.join("user-home");
+        fs::create_dir_all(&user_home).unwrap();
+        let _env = EnvSnapshot::set(&[
+            ("KIANA_HOME", root.as_os_str()),
+            ("KIANA_CONFIG_FILE", config_path.as_os_str()),
+            ("HOME", user_home.as_os_str()),
+            ("USERPROFILE", user_home.as_os_str()),
+        ]);
 
         let registry = create_default_command_registry();
         for name in ["login", "logout", "feedback", "memory", "skills", "plugin"] {
@@ -1150,8 +1196,6 @@ mod tests {
         }
 
         let _ = fs::remove_dir_all(root);
-        std::env::remove_var("KIANA_HOME");
-        std::env::remove_var("KIANA_CONFIG_FILE");
     }
 
     #[tokio::test]

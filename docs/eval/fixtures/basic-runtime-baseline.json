@@ -1,0 +1,17 @@
+{
+  "schema": "kiana.eval-baseline.v1",
+  "suite_id": "basic-runtime",
+  "description": "Local protocol-regression baseline for the packaged RuntimeEvent replay fixture.",
+  "cases": {
+    "tool-success": {
+      "max_event_count": 5,
+      "max_tool_call_count": 1,
+      "max_tool_result_count": 1,
+      "max_tool_error_count": 0,
+      "max_input_tokens": 32,
+      "max_output_tokens": 16,
+      "required_status": "completed",
+      "required_stop_reason": "end_turn"
+    }
+  }
+}

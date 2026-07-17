@@ -1,0 +1,23 @@
+{
+  "schema": "kiana.eval-suite.v1",
+  "id": "basic-runtime",
+  "description": "Offline RuntimeEvent replay contract",
+  "cases": [
+    {
+      "id": "tool-success",
+      "kind": "runtime_event_replay",
+      "fixture": "basic-tool-success.jsonl",
+      "expect": {
+        "final_status": "completed",
+        "stop_reason": "end_turn",
+        "min_event_count": 5,
+        "tool_call_count": 1,
+        "tool_error_count": 0,
+        "required_tool_names": ["Read"],
+        "final_text_contains": ["done"],
+        "max_input_tokens": 32,
+        "max_output_tokens": 16
+      }
+    }
+  ]
+}

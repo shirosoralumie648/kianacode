@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-memory-status.v1.schema.json",
+  "title": "Kiana Memory Status v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "legacy_file",
+    "legacy_bytes",
+    "store_file",
+    "record_count",
+    "kind_counts",
+    "redaction_count",
+    "latest_created_at_ms"
+  ],
+  "properties": {
+    "schema": { "const": "kiana.memory-status.v1" },
+    "legacy_file": { "type": "string", "minLength": 1 },
+    "legacy_bytes": { "type": "integer", "minimum": 0 },
+    "store_file": { "type": "string", "minLength": 1 },
+    "record_count": { "type": "integer", "minimum": 0 },
+    "kind_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "redaction_count": { "type": "integer", "minimum": 0 },
+    "latest_created_at_ms": { "type": ["integer", "null"], "minimum": 0 }
+  }
+}
