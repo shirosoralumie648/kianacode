@@ -4,7 +4,7 @@
 
 **Goal:** 以 170 张 Task Card、120 Agent 标准注册池和最多 32 个活跃槽位，把当前 Kiana 工作树收敛为经过独立审查、fresh verification、跨平台与商用验收的 canonical 产品基线。
 
-**Architecture:** 版本化目录 `docs/agent-program/kiana-completion/` 保存稳定计划，外部控制面 `tools/agent-program/` 保存 SQLite WAL 运行状态并生成不可变 WorkPacket。W0 由唯一 Baseline Curator 串行完成；E19-E24 建立公共契约和控制面后，后续任务按 Dependency DAG、path/semantic conflict graph 和资源 semaphore 分 micro-wave 执行，最后以 shadow mode 将调度能力迁回 Kiana。
+**Architecture:** 版本化目录 `docs/agent-program/kiana-completion/` 保存稳定计划，外部控制面 `tools/agent-program/` 保存 SQLite WAL 运行状态并生成不可变 WorkPacket。W0 由唯一 Baseline Curator 串行完成；E19-E24 建立公共契约和控制面后，后续任务按 Dependency DAG、path/semantic conflict graph 和资源 semaphore 分 micro-wave 执行，最后以 shadow mode 将调度能力迁回 Kiana。全项目不采用 TDD：先按批准的合同实现，再运行 focused、adversarial、integration 和 review 验证。
 
 **Tech Stack:** Git、Codex CLI、JSON Schema 2020-12、Python 3 标准库与 `jsonschema`、SQLite WAL、Rust/Cargo、Bash release gates。
 
@@ -242,9 +242,9 @@ jq -r '.tasks[] | select(.task_id == "E19" or .task_id == "E20" or .task_id == "
 
 Expected: exactly four rows, E19 through E22. Each remains blocked until the accepted W0 commit contains E02 and E04 evidence.
 
-- [ ] **Step 2: Produce one task-level TDD plan and immutable WorkPacket per contract**
+- [ ] **Step 2: Produce one task-level implementation plan and immutable WorkPacket per contract**
 
-For each of `E19`, `E20`, `E21`, `E22`, the Domain Lead must derive a plan from its exact Task Card, then the Program Compiler must bind the accepted baseline commit, relevant ownership locks, contract hashes, RED/GREEN command and required approval. Do not combine two contract IDs in one WorkPacket.
+For each of `E19`, `E20`, `E21`, `E22`, the Domain Lead must derive an implementation plan from its exact Task Card, then the Program Compiler must bind the accepted baseline commit, relevant ownership locks, contract hashes, verification commands and required approval. Do not combine two contract IDs in one WorkPacket.
 
 Expected: four packet hashes, four non-overlapping leased worktrees, and no consumer packet based on a pre-contract commit.
 
@@ -271,7 +271,7 @@ Expected: exactly `D01-01`, `D01-02`, `D02-01`, `D03-01`, `D05-01`, `D06-01`, `D
 
 - [ ] **Step 5: Implement E23 before E24**
 
-Run RED/GREEN commands from the cards:
+Run the implementation and verification commands from the cards:
 
 ```bash
 python3 -m unittest discover -s tools/agent-program/tests -p 'test_*lease*.py'

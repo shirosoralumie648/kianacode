@@ -24,7 +24,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test repo_map_behavior --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -71,7 +71,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test context_index_incremental --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -117,7 +117,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test embedding_backend --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -165,7 +165,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test vector_store_persistence --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -211,7 +211,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test hybrid_retrieval --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -257,7 +257,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test code_graph --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -303,7 +303,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --test rag_context_pack --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -348,7 +348,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test context_rag_command --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -395,7 +395,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test context_rag_acceptance --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

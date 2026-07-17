@@ -82,10 +82,18 @@ Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地�
 - **Commercial delivery**: 个人开源版、官方云和企业自托管版共享核心契约，但租户、RBAC、审计和数据保留边界必须隔离
 - **Scope control**: `reference/` 覆盖通过能力矩阵治理；没有矩阵条目、owner、测试和证据的能力不能进入完成统计
 
+## Planning Execution Rule
+
+- **全项目不采用 TDD**：任何新计划、重规划或实现任务不得要求测试先于实现、RED→GREEN 循环、失败测试驱动开发，或把 `tdd=true` 作为任务前置条件。
+- 实施顺序统一为：先按已批准的接口、状态机和安全合同完成最小实现，再运行 focused tests、adversarial checks、integration gates 和 review；验证可以覆盖正常、异常、边界和回归场景，但不改变实现先行的顺序。
+- 历史计划、总结和研究文档中的 TDD/RED/GREEN 文字仅保留为历史证据，不得作为当前执行要求；后续维护这些文档时不得新增 TDD 依赖。
+- 当前 GSD 配置中的 `tdd_mode: false` 是本项目配置依据。任何技能或模板默认要求 TDD 时，以本项目规则和用户指令为准。
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| 全项目规划与实现不采用 TDD，统一采用合同实现后验证 | 用户明确要求取消测试先行，同时保留 focused、adversarial、integration 和 review 的质量门禁 | — Locked |
 | 采用“能力与体验对齐 + 最大化合法移植”的组合策略 | 既覆盖目标能力，又避免专有源码复制和许可证风险 | — Pending |
 | Coding 以 Claude Code 公开功能覆盖为基线，但不追求命令或配置的直接兼容 | 用户要的是完整能力，Kiana 需要保留可演进的独立产品设计 | — Pending |
 | “更可靠地完成任务”是相对 Claude Code 的首要差异化 | 长任务、验证、证据和恢复比外观克隆更能形成长期价值 | — Pending |

@@ -24,7 +24,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-remote code_session_create_retries_auth_once_without_duplicate_session --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -73,7 +73,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-remote remote_websocket_reconnects_from_watermark_without_duplicate_events --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -121,7 +121,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-remote ccr_worker_rejects_stale_epoch_and_flushes_delivery_before_exit --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -169,7 +169,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-remote git_seed_bundle_excludes_secrets_and_binds_uploaded_digest --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -221,7 +221,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-bridge bridge_transport_orders_permission_cancel_assistant_and_result --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -274,7 +274,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-bridge bridge_work_loop_refreshes_existing_lease_while_at_capacity --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -325,7 +325,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_remote remote_cli_completes_create_send_hydrate_archive_flow --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

@@ -8,6 +8,8 @@
 
 目标执行环境：Codex 多会话 / 多 CLI 实例
 
+执行规则：全项目不采用 TDD。每个 WorkPacket 先按批准的合同完成实现，再补充并运行 focused、adversarial、integration、review 验证；不要求 pre-implementation failure run 或 RED→GREEN evidence。
+
 ## 1. 目标
 
 本设计定义如何使用 100 至 150 个可调度 Codex Agent，完成 Kiana 的全部产品目标，并把经过实战验证的多 Agent 协作能力迁入 Kiana 本身。
@@ -180,7 +182,7 @@ WorkPacket 是 Agent 的唯一执行输入。WorkPacket 一旦进入 `leased` �
 | Lease | `lease_id`、fencing epoch、heartbeat interval、expires_at |
 | Execution | Codex prompt、allowed commands、forbidden commands、network/secrets policy |
 | Budget | wall time、tool calls、changed files、LOC、output bytes、compile budget、retry count |
-| Verification | RED test、expected failure、GREEN command、domain gate、acceptance criteria |
+| Verification | post-implementation focused command、adversarial cases、domain gate、acceptance criteria |
 | Review | review focus、required reviewer roles、risk flags |
 | Integration | queue class、commit/patch contract、rollback strategy |
 
@@ -350,7 +352,7 @@ P01、P17、P26、P28、P29 是汇聚包，默认单写者。`Cargo.toml`、`Car
 
 总任务库为 `24 + 146 = 170` 个初始 WorkPacket。
 
-每个领域必须覆盖 reference mapping、公共契约、正常行为、错误恢复、安全权限、RED/GREEN 测试、跨模块集成和产品验收。若 packet 允许修改超过 8 个路径、包含多个目标、验证命令不相关，或同时触及 schema/runtime/UI，则必须拆成 child packets。
+每个领域必须覆盖 reference mapping、公共契约、正常行为、错误恢复、安全权限、实现后 focused/adversarial 验证、跨模块集成和产品验收。若 packet 允许修改超过 8 个路径、包含多个目标、验证命令不相关，或同时触及 schema/runtime/UI，则必须拆成 child packets。
 
 ## 8. Dependency DAG 与调度
 
@@ -400,7 +402,7 @@ Scheduler 按规范排序后一次性申请全部 physical 和 semantic locks。
 | Wave | 内容 | Builder 上限 | 晋级条件 |
 | --- | --- | ---: | --- |
 | W0 | 117 条变更审查、拆分提交、BaselineManifest | 0 | 新 baseline commit 与 ownership 明确 |
-| W1 | hang 诊断、P0 panic/竞态、公共契约冻结 | 4-8 | focused RED/GREEN、contract review |
+| W1 | hang 诊断、P0 panic/竞态、公共契约冻结 | 4-8 | post-implementation focused verification、contract review |
 | W2 | 14 个热点拆分、registry 分域 | 8-12 | golden/route/schema 行为不变 |
 | W3 | Runtime、Session、Tool、Workflow、Task/Swarm | 16 | domain、stress、recovery tests |
 | W4 | Provider、MCP、Remote、RAG、Memory、Notebook、clients | 16 | 每域端到端验收 |
@@ -435,9 +437,9 @@ Builder 必须：
 
 1. 校验 base commit、contract hashes 和 lease。
 2. 声明已理解 scope。
-3. 写 RED test 并证明失败原因正确。
-4. 实现最小改动。
-5. 跑 GREEN 和 focused gate。
+3. 按批准合同实现最小改动。
+4. 补充正常、异常、边界和回归验证场景。
+5. 跑 focused、adversarial 和适用的 integration gate。
 6. 审计 actual changed set。
 7. 在临时分支创建一个 packet commit。
 8. 写不可变 ResultPacket。
@@ -474,7 +476,7 @@ Reviewer 必须与 Implementer 不同，检查：
 - touch set 和 lease 范围。
 - 目标、非目标和 acceptance。
 - 隐藏兼容性、并发和安全问题。
-- RED test 是否真实证明原问题。
+- 实现后验证是否覆盖原问题、边界和回归风险。
 - 是否削弱 gate 或伪造 evidence。
 - reference capability 映射是否准确。
 
@@ -484,7 +486,7 @@ Verifier 在新 worktree 中重放 packet commit：
 
 | Gate | 内容 |
 | --- | --- |
-| G0 Packet | RED/GREEN、focused test、format |
+| G0 Packet | post-implementation focused/adversarial verification、format |
 | G1 Domain | crate、contract、领域集成测试 |
 | G2 Stress | concurrency、recovery、repeat、serial/default parallel |
 | G3 Repository | workspace check/test、schema、release local-RC |

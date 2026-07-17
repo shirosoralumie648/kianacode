@@ -26,7 +26,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session persisted_session_contract_is_versioned --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -77,7 +77,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session failed_prompt_does_not_mutate_session --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -126,7 +126,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_resume resume_recovers_only_valid_jsonl_prefix --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -173,7 +173,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session fork_preserves_parent_lineage_and_isolation --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -222,7 +222,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session transcript_projection_matches_runtime_events --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -268,7 +268,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session metadata_revision_is_atomic --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -312,7 +312,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test session_command archive_visibility_is_explicit --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -359,7 +359,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session concurrent_prompt_abort_preserves_turn_boundary --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -410,7 +410,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_session --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

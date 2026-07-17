@@ -29,6 +29,12 @@ acceptance/
 - `blocked_reason` 只描述当前门禁，不替代 `depends_on`。
 - Task Card revision 可以更新规划字段；已派发 WorkPacket 不可原地修改。
 
+## Execution Rule
+
+- 全项目不采用 TDD。Builder 先实现批准的 Task Card/WorkPacket 合同，再补充并运行 focused、adversarial、integration 和 review 验证。
+- `verification.expected_initial` 只描述实现或验证尚未完成的初始状态，不要求 pre-implementation failure run。
+- `acceptance/verification-gates.json` 只接受实现后 focused evidence；缺失、失败、跳过或与 Task Card 无关的验证均 fail closed。
+
 ## Identity Rules
 
 - 全局前置任务使用 `E01` 至 `E24`。

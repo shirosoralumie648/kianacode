@@ -24,7 +24,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-services mcp_transport_recovers_after_eof_without_replaying_completed_request --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -73,7 +73,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands mcp_status_resolves_sources_and_redacts_transport_secrets --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -124,7 +124,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools mcp_tool_preserves_pagination_and_cancellation_contract --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -172,7 +172,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-services lsp_service_restarts_crashed_server_and_preserves_workspace_root --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -218,7 +218,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools lsp_tool_applies_workspace_edit_only_inside_allowed_root --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -268,7 +268,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools web_fetch_rechecks_policy_after_redirect_and_limits_body --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -318,7 +318,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools web_search_returns_deduplicated_provenance_without_secret_leak --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -373,7 +373,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test external_tools external_tools_share_abort_policy_and_error_contract --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

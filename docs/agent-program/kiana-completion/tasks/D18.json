@@ -28,7 +28,7 @@
       ],
       "verification": {
         "command": "bash scripts/tests/release-gate-watchdog-smoke.sh",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -81,7 +81,7 @@
       ],
       "verification": {
         "command": "bash scripts/tests/release-provenance-smoke.sh",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -136,7 +136,7 @@
       ],
       "verification": {
         "command": "bash scripts/linux-release-smoke.sh --build-local --require-signature",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -191,7 +191,7 @@
       ],
       "verification": {
         "command": "bash scripts/macos-release-smoke.sh --require-signing --require-notarization",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -247,7 +247,7 @@
       ],
       "verification": {
         "command": "pwsh -NoProfile -File scripts/windows-release-smoke.ps1 -RequireAuthenticode -RequireNativeHost -RequireSandbox",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -307,7 +307,7 @@
       ],
       "verification": {
         "command": "bash scripts/tests/enterprise-offline-smoke.sh",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -362,7 +362,7 @@
       ],
       "verification": {
         "command": "bash scripts/tests/entitlement-enforcement-smoke.sh",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -425,7 +425,7 @@
       ],
       "verification": {
         "command": "KIANA_LIVE_SMOKE_REQUIRED=1 bash scripts/live-product-e2e-smoke.sh",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -483,7 +483,7 @@
       ],
       "verification": {
         "command": "KIANA_RELEASE_PROOF_REQUIRED=1 bash scripts/verify-commercial-release-artifacts.sh --strict",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -548,7 +548,7 @@
       ],
       "verification": {
         "command": "bash scripts/commercial-release-blockers-report.sh --fail-on-blockers --json",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

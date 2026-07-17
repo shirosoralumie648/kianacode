@@ -53,16 +53,10 @@
       "may_run_in_parallel": true,
       "command_categories": [
         {
-          "category_id": "named_red_test",
+          "category_id": "named_post_implementation_test",
           "required": true,
           "command_source": "task.verification.command",
-          "rule": "Run the named test before implementation and capture the expected task-specific failure or absence."
-        },
-        {
-          "category_id": "named_green_test",
-          "required": true,
-          "command_source": "task.verification.command",
-          "rule": "Run the same command after implementation and require every Task Card acceptance assertion to pass."
+          "rule": "Implement the approved Task Card contract first, then run the named command and require every acceptance assertion to pass. No pre-implementation failure run is required."
         },
         {
           "category_id": "format_and_static_scope",
@@ -82,22 +76,7 @@
       ],
       "required_evidence": [
         {
-          "evidence_id": "focused-red-run",
-          "required_fields": [
-            "task_id",
-            "attempt_id",
-            "base_commit",
-            "command",
-            "started_at",
-            "finished_at",
-            "exit_code",
-            "failure_reason",
-            "stdout_sha256",
-            "stderr_sha256"
-          ]
-        },
-        {
-          "evidence_id": "focused-green-run",
+          "evidence_id": "focused-post-implementation-run",
           "required_fields": [
             "task_id",
             "attempt_id",
@@ -134,7 +113,7 @@
         }
       ],
       "freshness_rules": [
-        "The green run is executed against the exact packet commit submitted for review.",
+        "The post-implementation focused run is executed against the exact packet commit submitted for review.",
         "The verifier reruns the focused command in a clean worktree after the implementer commit exists.",
         "Any packet commit, base commit, dependency commit, contract hash, or test fixture change invalidates the focused VerificationPacket."
       ],
@@ -143,7 +122,7 @@
         "Contract, auth, security, policy, schema, and release-workflow packets require their declared exclusive owner and Contract or Security Controller review."
       ],
       "fail_closed_rules": [
-        "A missing RED run, an unrelated RED failure, or a RED run that already passes blocks the packet until the test contract is corrected.",
+        "A missing, failed, skipped, or unrelated post-implementation focused run blocks the packet until the implementation or verification contract is corrected.",
         "A changed path outside the immutable WorkPacket scope produces scope_violation and quarantines the attempt.",
         "A timeout, crash, skipped test, ignored test, malformed evidence, or unverified acceptance assertion is a failed gate."
       ]

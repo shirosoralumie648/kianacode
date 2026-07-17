@@ -26,7 +26,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-types --test runtime_event_schema canonical_tool_lifecycle_events --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -76,7 +76,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools registry_rejects_duplicate_and_preserves_domain_order --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -124,7 +124,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools tool_execution_emits_one_terminal_result_for_every_path --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -171,7 +171,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools read_only_parallel_mutations_serial --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -217,7 +217,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools tool_context_rejects_symlink_and_parent_scope_escape --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -265,7 +265,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools permission_precedence_is_deterministic_and_fail_closed --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -314,7 +314,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-types --test project_trust project_trust_root_rejects_symlink_and_scope_drift --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -364,7 +364,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools shell_risk_policy_matches_bash_and_powershell --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -414,7 +414,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test sandbox_enforcement unsupported_or_missing_backend_fails_closed --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

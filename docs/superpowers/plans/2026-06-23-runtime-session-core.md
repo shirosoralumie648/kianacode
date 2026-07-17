@@ -1,6 +1,6 @@
 # Runtime Session Core Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution rule:** This project does not use TDD. Implement each approved contract first, then run the listed focused, integration, and release verification. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build Phase 1 from `docs/reference-migration-roadmap.md`: a typed runtime event schema and a JSONL session tree that keeps current SDK session files compatible.
 
@@ -28,7 +28,13 @@
 - Create: `kiana-types/src/runtime.rs`
 - Modify: `kiana-types/src/lib.rs`
 
-- [ ] **Step 1: Write the failing JSON golden tests**
+- [ ] **Step 1: Implement and export the runtime event schema**
+
+Create `kiana-types/src/runtime.rs` with public serde types for the approved event contract. Use `#[serde(tag = "type", rename_all = "snake_case")]` on `RuntimeEventPayload`, keep `parent_turn_id` optional, and make `sdk_message_to_runtime_event` choose `UserMessage`, `AssistantMessage`, or `SessionEvent` from the SDK message role.
+
+Export the runtime module and its public schema types from `kiana-types/src/lib.rs`.
+
+- [ ] **Step 2: Add the JSON golden verification cases**
 
 Create `kiana-types/tests/runtime_event_schema.rs` with:
 
@@ -172,35 +178,7 @@ fn sdk_message_adapter_maps_roles_to_runtime_events() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run:
-
-```bash
-cargo test -p kiana-types --test runtime_event_schema
-```
-
-Expected: FAIL with unresolved imports such as `no RuntimeEvent in the root`.
-
-- [ ] **Step 3: Implement the schema**
-
-Create `kiana-types/src/runtime.rs` with public serde types matching the tests. Use `#[serde(tag = "type", rename_all = "snake_case")]` on `RuntimeEventPayload`, keep `parent_turn_id` optional, and make `sdk_message_to_runtime_event` choose `UserMessage`, `AssistantMessage`, or `SessionEvent` from the SDK message role.
-
-- [ ] **Step 4: Export the schema**
-
-Add this to `kiana-types/src/lib.rs`:
-
-```rust
-pub mod runtime;
-
-pub use runtime::{
-    sdk_message_to_runtime_event, MessageRuntimeEvent, RuntimeErrorEvent, RuntimeEvent,
-    RuntimeEventPayload, RuntimePermissionRequestEvent, RuntimeResultEvent, RuntimeSessionEvent,
-    RuntimeStreamDeltaEvent, RuntimeToolCallEvent, RuntimeToolResultEvent,
-};
-```
-
-- [ ] **Step 5: Run the focused tests**
+- [ ] **Step 3: Run the focused verification**
 
 Run:
 
@@ -218,33 +196,19 @@ Expected: all `kiana-types` tests pass.
 - Modify: `kiana-commands/src/session.rs`
 - Modify: `kiana-entrypoints/tests/cli_session.rs`
 
-- [ ] **Step 1: Add a failing SDK persistence test**
-
-In the `sdk.rs` test module, add a test named `sdk_session_store_writes_runtime_event_jsonl_tree`. It should create a fixed session ID, append two prompts, and assert that `<root>/<session_id>/events.jsonl` exists with two JSON lines whose `type` values are `user_message`, sequences are `0` and `1`, and the second event has `parent_turn_id = "turn-0"`.
-
-- [ ] **Step 2: Run the failing test**
-
-Run:
-
-```bash
-cargo test -p kiana-entrypoints sdk_session_store_writes_runtime_event_jsonl_tree
-```
-
-Expected: FAIL because `events.jsonl` is not created.
-
-- [ ] **Step 3: Add session-tree paths and append helper**
+- [ ] **Step 1: Implement the JSONL persistence path while preserving legacy reads**
 
 In `sdk.rs`, add `session_tree_dir(root, session_id)`, `session_events_file(root, session_id)`, `append_runtime_events_for_missing_messages`, and `read_existing_runtime_event_count`. These helpers must validate `session_id`, create `<root>/<session_id>/`, and append only messages not already represented in `events.jsonl`.
 
-- [ ] **Step 4: Wire the append helper into writes**
-
 Call the append helper after successful legacy `write_session` operations that add or replace messages. For replacement flows such as hydrate/compact, rebuild the event file from the current session so the compatibility JSON and runtime JSONL agree.
-
-- [x] **Step 5: Preserve legacy reads**
 
 Keep `read_session` loading `<root>/<session_id>.json` first so existing user sessions are not migrated destructively. When the legacy JSON file is absent, fall back to `<root>/<session_id>/events.jsonl` and reconstruct the SDK session shape for listing, showing, and resume.
 
-- [x] **Step 6: Run focused session tests**
+- [ ] **Step 2: Add the SDK persistence verification case**
+
+In the `sdk.rs` test module, add a test named `sdk_session_store_writes_runtime_event_jsonl_tree`. It should create a fixed session ID, append two prompts, and assert that `<root>/<session_id>/events.jsonl` exists with two JSON lines whose `type` values are `user_message`, sequences are `0` and `1`, and the second event has `parent_turn_id = "turn-0"`.
+
+- [ ] **Step 3: Run focused session verification**
 
 Run:
 
@@ -263,19 +227,15 @@ Expected: session tree test and existing CLI session tests pass.
 - Modify: `kiana-entrypoints/tests/cli_resume.rs`
 - Modify: `kiana-entrypoints/tests/cli_session.rs`
 
-- [x] **Step 1: Add failing tests for fork and reply**
-
-Extend CLI session tests so `session fork` creates a fork event tree with copied parent events and a new `parent_session_id`, and `session reply --record-only` appends exactly one new runtime event.
-
-- [x] **Step 2: Add failing tests for resume**
-
-Extend CLI resume tests so `--continue` and `--resume <id>` still select sessions written with event trees.
-
-- [x] **Step 3: Implement event-tree copy and append behavior**
+- [x] **Step 1: Implement event-tree copy and append behavior**
 
 When forking, copy source messages into the forked compatibility JSON and rebuild the forked runtime event file with parent-turn linkage. When replying, append only the new message event after the legacy JSON write succeeds.
 
-- [x] **Step 4: Run focused tests**
+- [x] **Step 2: Add fork, reply, and resume regression verification**
+
+Extend CLI session tests so `session fork` creates a fork event tree with copied parent events and a new `parent_session_id`, and `session reply --record-only` appends exactly one new runtime event. Extend CLI resume tests so `--continue` and `--resume <id>` still select sessions written with event trees.
+
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -294,15 +254,15 @@ Expected: all focused session and resume tests pass.
 - Modify: `kiana-remote/src/sdk_message_adapter.rs`
 - Modify: `kiana-bridge/src/sdk_message_adapter.rs`
 
-- [x] **Step 1: Add failing adapter tests**
-
-Add tests proving SDK, remote, and bridge adapters can emit `RuntimeEvent` values for user messages, assistant deltas, tool calls, tool results, permission requests, errors, and turn results.
-
-- [x] **Step 2: Implement adapter functions without changing public CLI output**
+- [x] **Step 1: Implement adapter functions without changing public CLI output**
 
 Expose conversion helpers that return `RuntimeEvent` while keeping existing JSON output stable. This reduces release risk because CLI text and old SDK JSON remain compatible.
 
-- [x] **Step 3: Run adapter tests**
+- [x] **Step 2: Add adapter regression verification**
+
+Add tests proving SDK, remote, and bridge adapters can emit `RuntimeEvent` values for user messages, assistant deltas, tool calls, tool results, permission requests, errors, and turn results.
+
+- [x] **Step 3: Run adapter verification**
 
 Run:
 

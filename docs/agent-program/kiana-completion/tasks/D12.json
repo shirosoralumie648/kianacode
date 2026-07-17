@@ -29,7 +29,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients run test -- shared/test/app-client.test.ts",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -83,7 +83,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/web test -- ConnectView.test.tsx",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -130,7 +130,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/web test -- ConversationWorkspace.test.tsx",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -179,7 +179,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/web test -- ChatFlow.test.tsx",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -229,7 +229,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/web test -- CodingFlow.test.tsx",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -282,7 +282,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/web test -- OperationsView.test.tsx",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -332,7 +332,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/ide test -- kianaClient.test.ts",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -380,7 +380,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/ide test -- chatFlow.test.ts",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -432,7 +432,7 @@
       ],
       "verification": {
         "command": "npm --prefix clients/ide test -- localCodingFlow.test.ts extension.e2e.test.ts && npm --prefix clients/ide run package",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

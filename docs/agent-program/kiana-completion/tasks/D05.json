@@ -28,7 +28,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test workflow_runtime workflow_template_rejects_cycle_or_unreachable_node --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -82,7 +82,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test workflow_runtime workflow_init_resume_is_idempotent --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -134,7 +134,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test workflow_artifact_integrity artifact_batch_commit_is_atomic_and_content_addressed --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -188,7 +188,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test workflow_runtime transition_requires_unique_edge_and_same_run_evidence --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -242,7 +242,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test review_packet workflow_completion_requires_verified_same_run_packet --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -296,7 +296,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test workflow_integrity report_detects_state_event_artifact_packet_mismatch --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -350,7 +350,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test project_command project_board_projection_is_stable --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -400,7 +400,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test router_command router_returns_one_explainable_action --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -456,7 +456,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test workflow_transition_command cli_uses_canonical_workflow_transition --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -510,7 +510,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test workflow_integrity_command project_os_workflow_acceptance --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

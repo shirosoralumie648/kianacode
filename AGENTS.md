@@ -10,6 +10,186 @@ Kiana 是一个面向高级个人用户、公开发行用户、团队和企业�
 
 **Core Value:** Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地完成真实长任务，并用可验证证据和可恢复状态证明任务确实完成。
 
+```mermaid
+flowchart TD
+  %% Product surfaces
+  subgraph SURFACES["产品入口"]
+    CLI["CLI / REPL"]
+    TUI["TUI"]
+    SDK["Headless SDK"]
+    MCPCLIENT["MCP Client"]
+    IDE["IDE Extension"]
+    DESKTOP["Desktop"]
+    WEB["Web / App Server"]
+    REMOTE["Remote / Enterprise"]
+  end
+
+  subgraph PRESENTATION["客户端与协议层"]
+    UI["kiana-screens<br/>kiana-components"]
+    CLIENT["kiana-client<br/>连接、重试、流消费、请求构造"]
+    PROTOCOL["kiana-protocol<br/>CommandRequest / RunRequest<br/>Response / RuntimeEvent"]
+  end
+
+  CLI --> CLIENT
+  TUI --> UI --> CLIENT
+  SDK --> CLIENT
+  MCPCLIENT --> CLIENT
+  IDE --> CLIENT
+  DESKTOP --> UI
+  WEB --> CLIENT
+  REMOTE --> CLIENT
+  CLIENT --> PROTOCOL
+
+  %% Daemon
+  subgraph DAEMON["kiana-daemon：唯一组合根"]
+    TRANSPORT["Transport<br/>stdio / IPC / HTTP / WS"]
+    AUTH["Identity / Tenant / ProjectTrust"]
+    SESSION["Session Supervisor<br/>lifecycle / cancellation / recovery"]
+    HOST["Runtime Host<br/>依赖注入 / adapter wiring"]
+    STREAM["Event Stream<br/>subscription / replay / backpressure"]
+    DAEMONLIFE["Daemon Lifecycle<br/>start / stop / upgrade / health"]
+  end
+
+  PROTOCOL --> TRANSPORT
+  TRANSPORT --> AUTH
+  AUTH --> SESSION
+  SESSION --> HOST
+  DAEMONLIFE --> HOST
+  STREAM --> TRANSPORT
+
+  %% Core control plane
+  subgraph CONTROL["kiana-core：唯一控制平面"]
+    COREAPI["Core API<br/>handle_command / start_run / resume"]
+    ORCH["Run Orchestrator<br/>状态机 / 调度 / cancellation"]
+    CAPCTRL["Capability Controller<br/>request / decision / execution"]
+    EVENTCTRL["Event Coordinator<br/>事实写入 / sequence / idempotency"]
+    ARTCTRL["Artifact Coordinator<br/>manifest / provenance / integrity"]
+
+    DOMAIN["kiana-domain<br/>纯领域模型与不变量"]
+    PORTS["kiana-ports<br/>仅 trait 与端口契约"]
+    WORKFLOW["kiana-workflow<br/>DAG / transition / resume / recovery"]
+    POLICY["kiana-policy<br/>trust / RBAC / permissions / network"]
+    GATES["kiana-gates<br/>approval / verification / completion"]
+  end
+
+  HOST --> COREAPI
+  COREAPI --> ORCH
+  ORCH --> DOMAIN
+  ORCH --> WORKFLOW
+  ORCH --> POLICY
+  ORCH --> GATES
+  ORCH --> CAPCTRL
+  ORCH --> EVENTCTRL
+  ORCH --> ARTCTRL
+  CAPCTRL --> PORTS
+  EVENTCTRL --> PORTS
+  ARTCTRL --> PORTS
+
+  %% Runner
+  subgraph RUNNER_LAYER["模型执行层"]
+    RUNPORT["RunnerPort<br/>由 kiana-ports 定义"]
+    RUNPROTO["kiana-runner-protocol<br/>RunCommand / RunnerEvent<br/>CapabilityRequest / Result"]
+    RUNADAPTER["Daemon Runner Adapter"]
+    RUNNER["kiana-runner<br/>模型循环 / streaming / context assembly"]
+  end
+
+  ORCH --> RUNPORT
+  RUNADAPTER -.->|实现 RunnerPort| RUNPORT
+  HOST --> RUNADAPTER
+  RUNADAPTER -->|RunCommand| RUNNER
+  RUNNER -->|RunnerEvent / CapabilityRequest| RUNADAPTER
+  RUNADAPTER --> ORCH
+  RUNNER -.-> RUNPROTO
+  RUNADAPTER -.-> RUNPROTO
+  ORCH -.-> RUNPROTO
+
+  %% Capability broker
+  subgraph BROKERS["统一能力与副作用出口"]
+    CAPBROKER["kiana-capability-broker<br/>审批、预算、审计、执行路由"]
+    TOOLBROKER["kiana-tool-broker<br/>工具发现与调用"]
+    MODELGW["kiana-model-gateway<br/>Anthropic / OpenAI / Ollama"]
+    CONTEXTGW["kiana-context-broker<br/>query / repo map / memory"]
+    MCPB["kiana-mcp-broker"]
+    SECRET["kiana-secret-broker"]
+    SANDBOX["kiana-sandbox"]
+    FILES["kiana-filesystem"]
+    PROCESS["kiana-process"]
+    NETWORK["kiana-network / web"]
+    COMPUTER["kiana-computer-use"]
+  end
+
+  CAPBROKER -.->|实现 CapabilityBrokerPort| PORTS
+  HOST --> CAPBROKER
+  CAPBROKER --> TOOLBROKER
+  CAPBROKER --> MODELGW
+  CAPBROKER --> CONTEXTGW
+  CAPBROKER --> MCPB
+  CAPBROKER --> SECRET
+  CAPBROKER --> SANDBOX
+  CAPBROKER --> FILES
+  CAPBROKER --> PROCESS
+  CAPBROKER --> NETWORK
+  CAPBROKER --> COMPUTER
+
+  %% Persistence
+  subgraph PERSISTENCE["持久化与读模型"]
+    EVENTLOG["kiana-eventlog<br/>append-only fact source"]
+    ARTIFACTS["kiana-artifacts<br/>evidence / output / manifest"]
+    PROJECTIONS["kiana-projections<br/>session / workflow / task read models"]
+    AUDIT["Audit Projection"]
+    SEARCH["Search / Index Projection"]
+  end
+
+  EVENTLOG -.->|实现 EventStorePort| PORTS
+  ARTIFACTS -.->|实现 ArtifactStorePort| PORTS
+  PROJECTIONS -.->|实现 ProjectionStorePort| PORTS
+  HOST --> EVENTLOG
+  HOST --> ARTIFACTS
+  HOST --> PROJECTIONS
+  EVENTLOG --> PROJECTIONS
+  PROJECTIONS --> AUDIT
+  PROJECTIONS --> SEARCH
+  EVENTLOG --> STREAM
+  PROJECTIONS --> STREAM
+
+  %% Extensions
+  subgraph EXTENSIONS["扩展与能力目录"]
+    SKILLS["kiana-skill-catalog"]
+    PLUGINS["kiana-plugin-catalog"]
+    HOOKS["kiana-hook-catalog"]
+    TOOLCAT["Tool Descriptor Catalog"]
+  end
+
+  PLUGINS --> SKILLS
+  PLUGINS --> HOOKS
+  PLUGINS --> TOOLCAT
+  SKILLS -.->|实现 SkillCatalogPort| PORTS
+  HOOKS -.->|实现 HookCatalogPort| PORTS
+  TOOLCAT --> TOOLBROKER
+  POLICY --> SKILLS
+  POLICY --> PLUGINS
+
+  %% External systems
+  subgraph EXTERNAL["外部系统"]
+    PROVIDERS["Model Providers"]
+    MCPSERVERS["External MCP Servers"]
+    KEYCHAIN["OS Keychain / Secret Vault"]
+    OSRUNTIME["OS / Container / WSL"]
+    REPOSITORY["Workspace / Git Repository"]
+    WEBNET["Web / Enterprise Services"]
+  end
+
+  MODELGW --> PROVIDERS
+  MCPB --> MCPSERVERS
+  SECRET --> KEYCHAIN
+  SANDBOX --> OSRUNTIME
+  PROCESS --> OSRUNTIME
+  FILES --> REPOSITORY
+  CONTEXTGW --> REPOSITORY
+  NETWORK --> WEBNET
+  COMPUTER --> OSRUNTIME
+```
+
 ### Constraints
 
 - **Tech stack**: 延续 Rust 2021、Tokio、Cargo workspace 和既有 crate 分层；共享契约先进入 `kiana-types` 或对应低层 crate

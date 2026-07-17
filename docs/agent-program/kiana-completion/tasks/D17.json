@@ -25,7 +25,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-services --test provider_usage --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -72,7 +72,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test cli_runtime_usage --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -118,7 +118,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --test sdk_usage_ledger --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -165,7 +165,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test cost_command --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -213,7 +213,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-services --test analytics_store --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -264,7 +264,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test usage_cost_stats --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -315,7 +315,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-services --test observability_export --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

@@ -24,7 +24,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test notebook_policy --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -74,7 +74,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test notebook_sandbox --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -122,7 +122,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test notebook_limits --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -169,7 +169,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test notebook_edit_integrity --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -219,7 +219,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test data_interpreter --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -267,7 +267,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test data_artifact_provenance --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -314,7 +314,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test eda_command --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -361,7 +361,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test eda_workflow_evidence --locked --offline --no-fail-fast",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

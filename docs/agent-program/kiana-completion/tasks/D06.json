@@ -29,7 +29,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test project_board task_card_rejects_illegal_state_transition --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -82,7 +82,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test task_tools task_crud_is_idempotent_and_revision_checked --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -129,7 +129,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test swarm_dispatch workpacket_hash_covers_execution_scope --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -179,7 +179,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test swarm_planner planner_excludes_blocked_and_overlapping_tasks --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -228,7 +228,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --test swarm_dispatch dispatch_persistence_is_atomic_and_idempotent --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -279,7 +279,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test team_runtime mailbox_append_ack_is_exactly_once --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -329,7 +329,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools --test team_runtime resident_worker_claims_once_and_submits_one_result --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -379,7 +379,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test swarm_command cancel_rejects_reused_or_mismatched_process_identity --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -428,7 +428,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test swarm_command monitor_retries_only_clean_failure_within_budget --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -478,7 +478,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test swarm_command integration_failure_restores_exact_checkpoint --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -528,7 +528,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test swarm_command bounded_swarm_end_to_end_recovery --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

@@ -40,7 +40,7 @@ Run:
 
 Expected: exit 0.
 
-- [ ] **Step 2: Run the RED verification**
+- [ ] **Step 2: Run the precondition verification**
 
 Run:
 
@@ -201,7 +201,7 @@ Run this exact command from the repository root:
 
 Expected: one captured_paths line with a positive count and a 40-character HEAD. The only new files are the two capture outputs.
 
-- [ ] **Step 4: Run the GREEN verification**
+- [ ] **Step 4: Run the post-capture verification**
 
 Run:
 

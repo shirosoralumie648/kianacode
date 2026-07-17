@@ -25,7 +25,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-skills skill_source_precedence_respects_project_trust --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -77,7 +77,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-skills plugin_skill_cache_tracks_install_enable_disable_in_process --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -127,7 +127,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands plugin_validate_reports_all_invalid_components_without_installing --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -174,7 +174,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands plugin_receipt_rejects_post_install_content_or_source_tampering --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -226,7 +226,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands plugin_install_failure_rolls_back_files_state_and_receipt --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -279,7 +279,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query plugin_hooks_respect_trust_timeout_and_cancellation --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -337,7 +337,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands reload_plugins_publishes_one_consistent_component_snapshot --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

@@ -27,7 +27,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools file_mutation_is_atomic_and_reports_exact_change --lib --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -75,7 +75,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test checkpoint_command checkpoint_manifest_binds_all_baseline_content --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -122,7 +122,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test checkpoint_command restore_round_trip_preserves_out_of_scope_paths --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -170,7 +170,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test diff_command session_changes_diff_uses_canonical_runtime_events --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -216,7 +216,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test commit_command commit_stages_only_selected_safe_paths --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -264,7 +264,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test checks_command checks_run_does_not_mutate_active_worktree --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -310,7 +310,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test review_command review_decision_binds_checkpoint_patch_and_checks --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [

@@ -213,7 +213,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --lib --locked --offline cli::tests -- --test-threads=1",
-        "expected_initial": "baseline selector exits 0 after W1 hang diagnostics and its output is captured",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "the same selector exits 0 with unchanged CLI golden outputs"
       },
       "acceptance": [
@@ -258,7 +258,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --lib --locked --offline direct_connect_app_contract -- --test-threads=1",
-        "expected_initial": "baseline app-contract selector exits 0 and route inventory is captured",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "selector exits 0 and route inventory, auth, and schema goldens are unchanged"
       },
       "acceptance": [
@@ -302,7 +302,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --lib --locked --offline runner::tests -- --test-threads=1",
-        "expected_initial": "baseline runner tests exit 0 after W1 hang containment",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "the same runner tests exit 0 with unchanged event and provider-turn goldens"
       },
       "acceptance": [
@@ -349,7 +349,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints --lib --locked --offline team_runtime_parity -- --test-threads=1",
-        "expected_initial": "baseline team and tool-loop selectors exit 0 with captured event order",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "selectors exit 0 with unchanged tool, permission, and shutdown behavior"
       },
       "acceptance": [
@@ -397,7 +397,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands --test swarm_command --locked --offline --no-fail-fast",
-        "expected_initial": "baseline command tests exit 0 after W1 race fixes",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "workflow and swarm command JSON contracts remain unchanged"
       },
       "acceptance": [
@@ -445,7 +445,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-bridge --locked --offline --no-fail-fast",
-        "expected_initial": "baseline bridge crate tests exit 0 and protocol order is captured",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "bridge crate tests exit 0 with unchanged protocol and shutdown behavior"
       },
       "acceptance": [
@@ -490,7 +490,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-commands plugin --lib --locked --offline --no-fail-fast",
-        "expected_initial": "baseline plugin tests exit 0 and receipt goldens are captured",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "plugin tests exit 0 with unchanged receipt, policy, and materialization outputs"
       },
       "acceptance": [
@@ -539,7 +539,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools team --lib --locked --offline --no-fail-fast",
-        "expected_initial": "baseline agent and team tests exit 0 after transactional store foundations",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "tests exit 0 with unchanged agent resolution and mailbox behavior"
       },
       "acceptance": [
@@ -587,7 +587,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints tui --lib --locked --offline --no-fail-fast",
-        "expected_initial": "baseline TUI reducers and headless tests exit 0",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "TUI tests exit 0 with identical event-to-view projections"
       },
       "acceptance": [
@@ -633,7 +633,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-services mcp --lib --locked --offline --no-fail-fast",
-        "expected_initial": "baseline MCP service tests exit 0 and protocol fixtures are captured",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "service and tool adapter tests exit 0 with unchanged protocol frames"
       },
       "acceptance": [
@@ -682,7 +682,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-query --locked --offline --no-fail-fast",
-        "expected_initial": "baseline query crate tests exit 0 and context JSON goldens are captured",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "query tests exit 0 with identical context index, search, vector, and pack outputs"
       },
       "acceptance": [
@@ -729,7 +729,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tools registry --lib --locked --offline && cargo test -p kiana-commands registry --lib --locked --offline",
-        "expected_initial": "baseline registry lists and ordering goldens exit 0",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "both registry suites exit 0 with identical names and duplicate rejection"
       },
       "acceptance": [
@@ -776,7 +776,7 @@
       ],
       "verification": {
         "command": "bash scripts/commercial-release-handoff-smoke.sh && bash scripts/schema-contract-smoke.sh",
-        "expected_initial": "baseline handoff and schema smokes exit 0 with captured output",
+        "expected_initial": "read-only source and historical-behavior observations are planning context only, not an implementation gate; dynamic test evidence is collected after implementation",
         "expected_success": "the same smokes exit 0 and no blocker condition is removed"
       },
       "acceptance": [
@@ -874,7 +874,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-types --test runtime_event_schema --locked --offline && cargo test -p kiana-entrypoints --test cli_session --locked --offline",
-        "expected_initial": "contract gap tests fail or are absent before the freeze",
+        "expected_initial": "contract freeze is incomplete or its post-implementation verification has not passed",
         "expected_success": "commands exit 0 and versioned goldens reject unknown or incomplete contracts"
       },
       "acceptance": [
@@ -930,7 +930,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-types tool --lib --locked --offline && cargo test -p kiana-tools permission --lib --locked --offline",
-        "expected_initial": "contract gap tests fail or are absent before the freeze",
+        "expected_initial": "contract freeze is incomplete or its post-implementation verification has not passed",
         "expected_success": "commands exit 0 and denied, aborted, failed, and completed paths each emit one terminal result"
       },
       "acceptance": [
@@ -987,7 +987,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-tasks --locked --offline --no-fail-fast",
-        "expected_initial": "contract gap tests fail or are absent before the freeze",
+        "expected_initial": "contract freeze is incomplete or its post-implementation verification has not passed",
         "expected_success": "crate tests exit 0 and immutable packet/evidence identities cover every execution field"
       },
       "acceptance": [
@@ -1041,7 +1041,7 @@
       ],
       "verification": {
         "command": "bash scripts/schema-contract-smoke.sh && bash scripts/commercial-release-handoff-smoke.sh",
-        "expected_initial": "new contract gap fixtures fail or are absent before the freeze",
+        "expected_initial": "contract gap fixtures are incomplete or their post-implementation verification has not passed",
         "expected_success": "both commands exit 0 and missing external proof remains a typed blocker"
       },
       "acceptance": [
@@ -1095,7 +1095,7 @@
       ],
       "verification": {
         "command": "python3 -m unittest discover -s tools/agent-program/tests -p 'test_*lease*.py'",
-        "expected_initial": "named lease and fencing tests are absent or fail before implementation",
+        "expected_initial": "lease and fencing implementation is incomplete or its post-implementation verification has not passed",
         "expected_success": "command exits 0 under concurrent claim, expiry, stale-token, restart, and terminal-result fixtures"
       },
       "acceptance": [
@@ -1145,7 +1145,7 @@
       ],
       "verification": {
         "command": "python3 -m unittest discover -s tools/agent-program/tests -p 'test_*queue*.py'",
-        "expected_initial": "named queue, train, and semaphore tests are absent or fail before implementation",
+        "expected_initial": "queue, train, and semaphore implementation is incomplete or its post-implementation verification has not passed",
         "expected_success": "command exits 0 for stale base, scope violation, train bisection, and slot-exhaustion fixtures"
       },
       "acceptance": [

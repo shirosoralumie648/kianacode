@@ -119,7 +119,8 @@
         },
         "expected_initial": {
           "type": "string",
-          "minLength": 4
+          "minLength": 4,
+          "description": "Initial implementation or verification state only; must not require a pre-implementation failing test."
         },
         "expected_success": {
           "type": "string",

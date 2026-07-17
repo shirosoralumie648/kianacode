@@ -24,7 +24,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints interactive_input_classifier_routes_every_input_once --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -72,7 +72,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints repl_cancel_clears_permission_and_starts_next_queued_prompt_once --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -121,7 +121,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints tui_live_and_replayed_runtime_events_reduce_identically --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -168,7 +168,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints tui_session_operations_refresh_transcript_and_active_session --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -215,7 +215,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints tui_changed_file_can_open_diff_checkpoint_and_review_flow --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -263,7 +263,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-entrypoints tui_settings_and_doctor_render_runtime_errors_without_stale_defaults --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
@@ -313,7 +313,7 @@
       ],
       "verification": {
         "command": "cargo test -p kiana-components components_preserve_focus_and_content_under_narrow_resize --locked --offline",
-        "expected_initial": "named RED test is absent or fails before implementation",
+        "expected_initial": "implementation is incomplete or the named post-implementation verification has not passed",
         "expected_success": "command exits 0 and all acceptance assertions pass"
       },
       "acceptance": [
