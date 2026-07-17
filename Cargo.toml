@@ -90,6 +90,7 @@ kiana-gates = { path = "kiana-gates" }
 kiana-policy = { path = "kiana-policy" }
 kiana-ports = { path = "kiana-ports" }
 kiana-protocol = { path = "kiana-protocol" }
+kiana-query = { path = "kiana-query" }
 kiana-runner = { path = "kiana-runner" }
 kiana-runner-protocol = { path = "kiana-runner-protocol" }
 kiana-workflow = { path = "kiana-workflow" }

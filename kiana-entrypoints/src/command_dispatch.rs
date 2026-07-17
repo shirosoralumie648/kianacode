@@ -58,7 +58,7 @@ async fn execute_control_plane_command(
     metadata.permission_profile = PermissionProfile::Safe;
 
     let client = KianaClient::new(LocalDaemonTransport {
-        host: Arc::new(DaemonHost::local()),
+        host: Arc::new(DaemonHost::local()?),
     });
     let response = client
         .command(metadata, name, arguments)
@@ -95,8 +95,10 @@ fn status_name(status: ExecutionStatus) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiana_commands::CommandType;
+    use kiana_commands::{context::ContextCommand, CommandType};
     use std::collections::HashMap;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     struct LocalCommand;
 
@@ -173,5 +175,62 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(error.to_string(), "control_plane_project_root_required");
+    }
+
+    #[tokio::test]
+    async fn context_repo_map_uses_client_daemon_core_and_query_handler() {
+        let root = fixture_root("repo-map");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub struct RoutedContext;\n").unwrap();
+        let result = execute_command(
+            &ContextCommand,
+            CommandContext {
+                args: "repo-map --json --max-tokens 1000".to_owned(),
+                app_state: HashMap::from([
+                    ("cwd".to_owned(), Value::String(root.display().to_string())),
+                    ("project_trusted".to_owned(), Value::Bool(true)),
+                ]),
+            },
+        )
+        .await
+        .unwrap();
+        let map: Value = serde_json::from_str(&result.value).unwrap();
+        assert_eq!(map["token_budget"], 1000);
+        assert_eq!(map["files"][0]["path"], "src/lib.rs");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn context_repo_map_does_not_promote_unknown_project_trust() {
+        let root = fixture_root("untrusted");
+        fs::create_dir_all(&root).unwrap();
+        let error = execute_command(
+            &ContextCommand,
+            CommandContext {
+                args: "repo-map --json".to_owned(),
+                app_state: HashMap::from([(
+                    "cwd".to_owned(),
+                    Value::String(root.display().to_string()),
+                )]),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "control_plane_command_denied:project_untrusted"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    fn fixture_root(label: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "kiana-command-dispatch-{label}-{}-{nanos}",
+            std::process::id()
+        ))
     }
 }

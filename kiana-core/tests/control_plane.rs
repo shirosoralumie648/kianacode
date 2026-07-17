@@ -108,6 +108,48 @@ async fn architecture_command_records_accepted_and_completed_events() {
 }
 
 #[tokio::test]
+async fn routed_context_query_records_one_monotonic_capability_event_sequence() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .handle_command(
+            context,
+            CommandIntent::new(
+                "context.query.v1",
+                json!({
+                    "operation": "repo_map",
+                    "output": "json",
+                    "options": { "max_tokens": 1000 },
+                }),
+            ),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    let events = events.read_request(&request_id).await.unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .map(|event| (event.sequence, event.kind.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (1, "request.accepted"),
+            (2, "capability.decision"),
+            (3, "capability.completed"),
+        ]
+    );
+}
+
+#[tokio::test]
 async fn untrusted_and_unknown_commands_fail_closed_with_events() {
     let harness = CoreHarness::new();
     let untrusted = RequestContext::local("session-1", "/repo");

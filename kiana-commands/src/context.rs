@@ -1,17 +1,17 @@
 use crate::local_state::{app_state_array_len, app_state_keys};
-use crate::types::{Command, CommandContext, CommandResult, CommandType};
+use crate::types::{Command, CommandContext, CommandResult, CommandRoute, CommandType};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
     build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, build_repo_map, ingest_context_artifacts, search_context_index,
+    build_persistent_context_index, ingest_context_artifacts, search_context_index,
     search_context_vectors, ContextArtifactDependencyGraph, ContextArtifactIngest,
     ContextArtifactIngestOptions, ContextArtifactOptions, ContextArtifactReadiness,
     ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
     ContextPackOptions, ContextSearchOptions, ContextSearchResults, ContextVectorSearchOptions,
-    ContextVectorSearchResults, RepoMap, RepoMapOptions,
+    ContextVectorSearchResults,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -36,10 +36,21 @@ impl Command for ContextCommand {
         true
     }
 
+    fn route(&self, context: &CommandContext) -> anyhow::Result<CommandRoute> {
+        let args = context.args.trim();
+        if let Some(rest) = args.strip_prefix("repo-map") {
+            return repo_map_route(rest.trim());
+        }
+        Ok(CommandRoute::Local)
+    }
+
     async fn execute(&self, context: CommandContext) -> anyhow::Result<CommandResult> {
         let args = context.args.trim();
         if let Some(rest) = args.strip_prefix("repo-map") {
-            return repo_map_result(&context, rest.trim());
+            if is_help_args(rest.trim()) {
+                return Ok(CommandResult::text(usage()));
+            }
+            return Err(anyhow!("command_requires_control_plane"));
         }
         if let Some(rest) = args.strip_prefix("index") {
             return index_result(&context, rest.trim());
@@ -97,11 +108,15 @@ impl Command for ContextCommand {
     }
 }
 
+fn is_help_args(args: &str) -> bool {
+    matches!(args, "help" | "--help" | "-h")
+}
+
 fn usage() -> &'static str {
     "Usage: kiana context [status|json|repo-map [--json] [--max-tokens N]|index [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifacts [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|ingest --source DIR [--json] [--root DIR] [--store DIR] [--max-bytes-per-file N]|artifact-store [--json] [--root DIR] [--cache PATH] [--max-bytes-per-file N]|artifact-readiness [--json] [--root DIR] [--max-bytes-per-file N]|artifact-graph [--json] [--root DIR] [--max-bytes-per-file N]|search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|vector-search <query> [--json] [--root DIR] [--limit N] [--max-bytes-per-file N]|pack <query> [--json] [--root DIR] [--limit N] [--max-snippet-lines N] [--max-bytes-per-file N]]"
 }
 
-fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
+fn repo_map_route(args: &str) -> anyhow::Result<CommandRoute> {
     let mut json = false;
     let mut max_tokens = None;
     let mut parts = args.split_whitespace();
@@ -118,16 +133,23 @@ fn repo_map_result(context: &CommandContext, args: &str) -> anyhow::Result<Comma
                 let value = arg.trim_start_matches("--max-tokens=");
                 max_tokens = Some(parse_max_tokens(value)?);
             }
-            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
+            "help" | "--help" | "-h" => return Ok(CommandRoute::Local),
             _ => return Err(anyhow!(usage())),
         }
     }
 
-    let map = build_repo_map(context_cwd(context), RepoMapOptions { max_tokens })?;
-    if json {
-        return Ok(CommandResult::text(serde_json::to_string_pretty(&map)?));
+    let mut options = serde_json::Map::new();
+    if let Some(max_tokens) = max_tokens {
+        options.insert("max_tokens".to_owned(), Value::from(max_tokens));
     }
-    Ok(CommandResult::text(format_repo_map_text(&map)))
+    Ok(CommandRoute::ControlPlane {
+        name: "context.query.v1".to_owned(),
+        arguments: serde_json::json!({
+            "operation": "repo_map",
+            "output": if json { "json" } else { "text" },
+            "options": options,
+        }),
+    })
 }
 
 fn index_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
@@ -740,34 +762,6 @@ fn context_cwd(context: &CommandContext) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn format_repo_map_text(map: &RepoMap) -> String {
-    let mut lines = vec![
-        "Repo map".to_string(),
-        format!("root: {}", map.root),
-        format!(
-            "files: {} estimated_tokens: {}/{} truncated: {} omitted_files: {}",
-            map.files.len(),
-            map.estimated_tokens,
-            map.token_budget,
-            map.truncated,
-            map.omitted_files
-        ),
-    ];
-    for file in &map.files {
-        lines.push(format!(
-            "- {} [{}] bytes={} tokens={}",
-            file.path,
-            file.language.as_deref().unwrap_or("unknown"),
-            file.bytes,
-            file.estimated_tokens
-        ));
-        if !file.symbols.is_empty() {
-            lines.push(format!("  symbols: {}", file.symbols.join(", ")));
-        }
-    }
-    lines.join("\n")
-}
-
 fn format_context_index_text(index: &ContextIndex) -> String {
     let mut lines = vec![
         "Context index".to_string(),
@@ -1079,7 +1073,7 @@ fn format_context_pack_text(pack: &ContextPack) -> String {
 #[cfg(test)]
 mod tests {
     use super::ContextCommand;
-    use crate::{Command, CommandContext};
+    use crate::{Command, CommandContext, CommandRoute};
     use serde_json::json;
     use std::collections::HashMap;
     use std::fs;
@@ -1099,40 +1093,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn context_repo_map_json_uses_cwd_and_budget() {
-        let root = fixture_root("command");
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::write(
-            root.join("src/lib.rs"),
-            "pub struct Widget;\nfn render() {}\n",
-        )
-        .unwrap();
+    async fn context_repo_map_routes_to_the_control_plane() {
+        let context = CommandContext {
+            args: "repo-map --json --max-tokens 1000".to_string(),
+            app_state: HashMap::new(),
+        };
+        let route = ContextCommand.route(&context).unwrap();
 
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "repo-map --json --max-tokens 1000".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
+        assert_eq!(
+            route,
+            CommandRoute::ControlPlane {
+                name: "context.query.v1".to_owned(),
+                arguments: json!({
+                    "operation": "repo_map",
+                    "output": "json",
+                    "options": { "max_tokens": 1000 },
+                }),
+            }
+        );
+        let error = ContextCommand.execute(context).await.unwrap_err();
+        assert_eq!(error.to_string(), "command_requires_control_plane");
+    }
 
-        assert_eq!(value["token_budget"], 1000);
-        assert_eq!(value["truncated"], false);
-        assert_eq!(value["files"][0]["path"], "src/lib.rs");
-        assert_eq!(value["files"][0]["language"], "rust");
-        assert!(value["files"][0]["symbols"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|symbol| symbol == "struct Widget"));
-        assert!(value["files"][0]["symbols"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|symbol| symbol == "fn render"));
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    #[tokio::test]
+    async fn context_repo_map_help_stays_local() {
+        let context = CommandContext {
+            args: "repo-map --help".to_owned(),
+            app_state: HashMap::new(),
+        };
+        assert_eq!(ContextCommand.route(&context).unwrap(), CommandRoute::Local);
+        let result = ContextCommand.execute(context).await.unwrap();
+        assert!(result.value.starts_with("Usage: kiana context"));
     }
 
     #[tokio::test]

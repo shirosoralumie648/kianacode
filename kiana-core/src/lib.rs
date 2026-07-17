@@ -1,8 +1,8 @@
 //! The single command and capability control plane for Kiana.
 
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityRequest, CommandIntent, CoreResponse, ExecutionStatus,
-    GateDecision, RequestContext, RuntimeEvent,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest, CommandIntent, CoreResponse,
+    ExecutionStatus, GateDecision, RequestContext, RiskLevel, RuntimeEvent,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -12,6 +12,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 pub const LEGACY_EDGES_REMAINING: usize = 10;
+const CONTEXT_QUERY_COMMAND: &str = "context.query.v1";
+const CONTEXT_REPO_MAP_OPERATION: &str = "context.repo_map";
 
 pub struct ControlPlane {
     policy: Arc<dyn PolicyEngine>,
@@ -43,6 +45,9 @@ impl ControlPlane {
         context: RequestContext,
         intent: CommandIntent,
     ) -> Result<CoreResponse, CoreError> {
+        if intent.name == CONTEXT_QUERY_COMMAND {
+            return self.handle_context_query(context, intent.arguments).await;
+        }
         let request_id = context.request_id;
         self.append_event(
             request_id,
@@ -87,6 +92,42 @@ impl ControlPlane {
         self.append_event(request_id, 2, "command.completed", output.clone())
             .await?;
         Ok(CoreResponse::completed(request_id, output))
+    }
+
+    async fn handle_context_query(
+        &self,
+        context: RequestContext,
+        arguments: Value,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let Some(arguments) = normalize_repo_map_arguments(&context, &arguments) else {
+            self.append_event(
+                request_id,
+                1,
+                "request.accepted",
+                json!({ "command": CONTEXT_QUERY_COMMAND }),
+            )
+            .await?;
+            self.append_event(
+                request_id,
+                2,
+                "command.rejected",
+                json!({ "reason": "command_arguments_invalid" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "command_arguments_invalid",
+            ));
+        };
+        let request = CapabilityRequest::new(
+            request_id,
+            CapabilityKind::Query,
+            CONTEXT_REPO_MAP_OPERATION,
+            arguments,
+        )
+        .with_risk(RiskLevel::ReadOnly);
+        self.authorize_and_execute(&context, request).await
     }
 
     pub async fn authorize_and_execute(
@@ -223,6 +264,44 @@ impl ControlPlane {
             .await?;
         Ok(())
     }
+}
+
+fn normalize_repo_map_arguments(context: &RequestContext, arguments: &Value) -> Option<Value> {
+    let arguments = arguments.as_object()?;
+    if arguments.keys().any(|key| {
+        !matches!(
+            key.as_str(),
+            "operation" | "output" | "options" | "project_root"
+        )
+    }) {
+        return None;
+    }
+    if arguments.get("operation")?.as_str()? != "repo_map" {
+        return None;
+    }
+    let output = arguments.get("output")?.as_str()?;
+    if !matches!(output, "json" | "text") {
+        return None;
+    }
+    let options = arguments.get("options")?.as_object()?;
+    if options.keys().any(|key| key != "max_tokens") {
+        return None;
+    }
+    let max_tokens = match options.get("max_tokens") {
+        Some(value) => {
+            let value = value.as_u64()?;
+            if value == 0 {
+                return None;
+            }
+            Some(value)
+        }
+        None => None,
+    };
+    Some(json!({
+        "project_root": context.project_root,
+        "output": output,
+        "max_tokens": max_tokens,
+    }))
 }
 
 #[derive(Debug, thiserror::Error)]

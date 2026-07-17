@@ -1,5 +1,7 @@
 //! Composition root for Kiana control-plane adapters.
 
+mod context_query;
+
 use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
@@ -22,15 +24,17 @@ impl DaemonHost {
         Self { core }
     }
 
-    pub fn local() -> Self {
+    pub fn local() -> Result<Self, PortError> {
+        let mut capabilities = CapabilityBroker::new();
+        context_query::register(&mut capabilities)?;
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
             Arc::new(MemoryEventLog::new()),
-            Arc::new(CapabilityBroker::new()),
+            Arc::new(capabilities),
             Arc::new(RunnerAdapter(ProtocolRunner)),
         );
-        Self::new(Arc::new(core))
+        Ok(Self::new(Arc::new(core)))
     }
 
     pub async fn handle(&self, request: RequestEnvelope) -> ResponseEnvelope {

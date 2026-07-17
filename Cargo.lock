@@ -2575,6 +2575,7 @@ dependencies = [
  "kiana-policy",
  "kiana-ports",
  "kiana-protocol",
+ "kiana-query",
  "kiana-runner",
  "kiana-runner-protocol",
  "serde_json",

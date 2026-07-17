@@ -268,7 +268,7 @@ async fn architecture_main(args: &[String]) -> Result<()> {
     metadata.project_trusted = true;
     metadata.actor_id = Some("local-cli".to_owned());
     let client = KianaClient::new(LocalDaemonTransport {
-        host: Arc::new(DaemonHost::local()),
+        host: Arc::new(DaemonHost::local()?),
     });
     let response = client
         .command(metadata, "system.architecture", Value::Null)

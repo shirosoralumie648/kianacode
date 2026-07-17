@@ -20,11 +20,12 @@ kiana-gates.workspace = true
 kiana-policy.workspace = true
 kiana-ports.workspace = true
 kiana-protocol.workspace = true
+kiana-query.workspace = true
 kiana-runner.workspace = true
 kiana-runner-protocol.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 kiana-client.workspace = true
-tokio.workspace = true
