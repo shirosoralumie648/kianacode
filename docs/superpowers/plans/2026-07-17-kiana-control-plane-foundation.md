@@ -1,6 +1,6 @@
 # Kiana Control Plane Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution rule:** 本项目不采用 TDD。每个任务先实现已批准的架构合同，再添加并运行 focused、adversarial、integration 和 review 验证。Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 建立可运行的 `Client -> Protocol -> Daemon -> Core -> Policy/Gates -> EventLog` 纵向切片，并用自动化依赖守卫冻结现有 RUN/CMD 越权边。
 
@@ -52,7 +52,31 @@ kiana-entrypoints/tests/cli_architecture.rs 验证入口可发现且输出稳定
 - Create: `kiana-core/src/lib.rs`
 - Create: `kiana-core/tests/dependency_boundaries.rs`
 
-- [ ] **Step 1: 写失败的依赖边界测试**
+- [ ] **Step 1: 创建可解析的最小 crate 骨架并注册 workspace members**
+
+先为下列每个 crate 创建最小 `Cargo.toml` 和仅含 crate-level 文档的 `src/lib.rs`，再修改根 `Cargo.toml`。任何时刻都不得让 workspace 指向不存在的目录：
+
+向根 `Cargo.toml` 加入：
+
+```toml
+"kiana-capability-broker",
+"kiana-client",
+"kiana-core",
+"kiana-daemon",
+"kiana-domain",
+"kiana-eventlog",
+"kiana-gates",
+"kiana-policy",
+"kiana-ports",
+"kiana-protocol",
+"kiana-runner",
+"kiana-runner-protocol",
+"kiana-workflow",
+```
+
+同时在 `[workspace.dependencies]` 注册同名 path dependencies。
+
+- [ ] **Step 2: 实现依赖边界测试**
 
 创建测试，调用 `cargo metadata --no-deps --format-version 1`，提取 workspace 内部直接依赖，并定义两类规则：
 
@@ -113,43 +137,13 @@ const LEGACY_EDGES: &[(&str, &str)] = &[
 
 测试必须拒绝严格 crate 的额外内部依赖，并拒绝不在 `LEGACY_EDGES` 中的新 `surface/command/runner -> implementation` 边。
 
-- [ ] **Step 2: 运行测试并确认失败**
-
-Run: `cargo test -p kiana-core --test dependency_boundaries -- --nocapture`
-
-Expected: FAIL，指出 `kiana-core` 尚未成为 workspace package。
-
-- [ ] **Step 3: 创建可解析的最小 crate 骨架并注册 workspace members**
-
-先为下列每个 crate 创建最小 `Cargo.toml` 和仅含 crate-level 文档的 `src/lib.rs`，再修改根 `Cargo.toml`。任何时刻都不得让 workspace 指向不存在的目录：
-
-向根 `Cargo.toml` 加入：
-
-```toml
-"kiana-capability-broker",
-"kiana-client",
-"kiana-core",
-"kiana-daemon",
-"kiana-domain",
-"kiana-eventlog",
-"kiana-gates",
-"kiana-policy",
-"kiana-ports",
-"kiana-protocol",
-"kiana-runner",
-"kiana-runner-protocol",
-"kiana-workflow",
-```
-
-同时在 `[workspace.dependencies]` 注册同名 path dependencies。
-
-- [ ] **Step 4: 运行边界测试并确认骨架通过**
+- [ ] **Step 3: 运行边界测试并确认骨架通过**
 
 Run: `cargo test -p kiana-core --test dependency_boundaries -- --nocapture`
 
 Expected: PASS；严格 crate 此时没有额外内部依赖，legacy edge 集合与基线一致。
 
-- [ ] **Step 5: 提交依赖守卫基线**
+- [ ] **Step 4: 提交依赖守卫基线**
 
 ```bash
 git add Cargo.toml kiana-capability-broker kiana-client kiana-core kiana-daemon \
@@ -168,7 +162,52 @@ git commit -m "test: freeze control plane dependency boundaries"
 - Modify: `kiana-runner/Cargo.toml`
 - Modify: `kiana-runner/src/lib.rs`
 
-- [ ] **Step 1: 写 Domain 状态和 secret-redaction 测试**
+- [ ] **Step 1: 实现纯 Domain 合同**
+
+实现以下公开类型及构造函数：
+
+```rust
+RequestId, SessionId, RunId, EventId
+PermissionProfile::{Safe, Balanced, Autonomous}
+RequestContext
+CommandIntent
+CapabilityKind
+RiskLevel
+CapabilityRequest
+AuthorizedCapabilityRequest
+CapabilityResult
+PolicyDecision
+GateDecision
+ExecutionStatus
+RuntimeEvent
+CoreResponse
+```
+
+`AuthorizedCapabilityRequest::new` 必须要求非空 `authorization_id`；`RuntimeEvent::new` 必须要求 `sequence > 0`。
+
+- [ ] **Step 2: 实现 Runner Protocol**
+
+```rust
+pub enum RunnerCommand {
+    Start { run_id: RunId, prompt: String },
+    CapabilityResult { run_id: RunId, result: CapabilityResult },
+    Cancel { run_id: RunId, reason: String },
+}
+
+pub enum RunnerEvent {
+    Started { run_id: RunId },
+    Delta { run_id: RunId, text: String },
+    CapabilityRequested { run_id: RunId, request: CapabilityRequest },
+    Completed { run_id: RunId, output: Value },
+    Failed { run_id: RunId, error: String },
+}
+```
+
+- [ ] **Step 3: 实现 fail-closed Runner 基线**
+
+`ProtocolRunner` 只消费 `RunnerCommand` 并产生 `RunnerEvent`。在 Model Gateway 尚未注入时，`Start` 必须返回同一 `run_id` 的 `Started` 和 `Failed { error: "model_gateway_unavailable" }`，不得伪造 completed；`Cancel` 返回确定的 cancelled failure event。该 crate 不得依赖 `kiana-tools`、`kiana-services` 或 `kiana-query`。
+
+- [ ] **Step 4: 添加实现后 Domain 与 Runner verification**
 
 测试覆盖：
 
@@ -194,51 +233,6 @@ fn capability_request_serialization_contains_reference_not_secret_value() {
 }
 ```
 
-- [ ] **Step 2: 实现纯 Domain 合同**
-
-实现以下公开类型及构造函数：
-
-```rust
-RequestId, SessionId, RunId, EventId
-PermissionProfile::{Safe, Balanced, Autonomous}
-RequestContext
-CommandIntent
-CapabilityKind
-RiskLevel
-CapabilityRequest
-AuthorizedCapabilityRequest
-CapabilityResult
-PolicyDecision
-GateDecision
-ExecutionStatus
-RuntimeEvent
-CoreResponse
-```
-
-`AuthorizedCapabilityRequest::new` 必须要求非空 `authorization_id`；`RuntimeEvent::new` 必须要求 `sequence > 0`。
-
-- [ ] **Step 3: 实现 Runner Protocol**
-
-```rust
-pub enum RunnerCommand {
-    Start { run_id: RunId, prompt: String },
-    CapabilityResult { run_id: RunId, result: CapabilityResult },
-    Cancel { run_id: RunId, reason: String },
-}
-
-pub enum RunnerEvent {
-    Started { run_id: RunId },
-    Delta { run_id: RunId, text: String },
-    CapabilityRequested { run_id: RunId, request: CapabilityRequest },
-    Completed { run_id: RunId, output: Value },
-    Failed { run_id: RunId, error: String },
-}
-```
-
-- [ ] **Step 4: 实现 fail-closed Runner 基线**
-
-`ProtocolRunner` 只消费 `RunnerCommand` 并产生 `RunnerEvent`。在 Model Gateway 尚未注入时，`Start` 必须返回同一 `run_id` 的 `Started` 和 `Failed { error: "model_gateway_unavailable" }`，不得伪造 completed；`Cancel` 返回确定的 cancelled failure event。该 crate 不得依赖 `kiana-tools`、`kiana-services` 或 `kiana-query`。
-
 - [ ] **Step 5: 验证合同测试**
 
 Run: `cargo test -p kiana-domain -p kiana-runner-protocol -p kiana-runner`
@@ -262,7 +256,29 @@ git commit -m "feat: add control plane domain contracts"
 - Modify: `kiana-workflow/Cargo.toml`
 - Modify: `kiana-workflow/src/lib.rs`
 
-- [ ] **Step 1: 写 fail-closed policy 测试**
+- [ ] **Step 1: 实现 Policy 与 Gate**
+
+`DefaultPolicyEngine` 必须：未知/不可信项目拒绝 capability；只读可信请求允许；写入和外部副作用返回 `Ask`；secret、付款、发布、删除和权限变更始终返回 `Ask` 或 `Deny`。
+
+`DefaultGateEngine` 必须把 `PolicyDecision::Ask` 转换为 `GateDecision::AwaitingApproval`，不得自动升级为 Allow。
+
+- [ ] **Step 2: 实现 Workflow transition**
+
+```rust
+pub enum WorkflowState {
+    Requested,
+    Running,
+    AwaitingApproval,
+    Blocked,
+    Completed,
+    Failed,
+    ResultUnknown,
+}
+```
+
+只允许：`Requested -> Running/Blocked`、`Running -> AwaitingApproval/Completed/Failed/ResultUnknown`、`AwaitingApproval -> Running/Blocked`。终态拒绝继续 transition。
+
+- [ ] **Step 3: 添加实现后 fail-closed verification**
 
 ```rust
 #[test]
@@ -287,28 +303,6 @@ fn trusted_read_only_capability_is_allowed() {
 }
 ```
 
-- [ ] **Step 2: 实现 Policy 与 Gate**
-
-`DefaultPolicyEngine` 必须：未知/不可信项目拒绝 capability；只读可信请求允许；写入和外部副作用返回 `Ask`；secret、付款、发布、删除和权限变更始终返回 `Ask` 或 `Deny`。
-
-`DefaultGateEngine` 必须把 `PolicyDecision::Ask` 转换为 `GateDecision::AwaitingApproval`，不得自动升级为 Allow。
-
-- [ ] **Step 3: 实现 Workflow transition**
-
-```rust
-pub enum WorkflowState {
-    Requested,
-    Running,
-    AwaitingApproval,
-    Blocked,
-    Completed,
-    Failed,
-    ResultUnknown,
-}
-```
-
-只允许：`Requested -> Running/Blocked`、`Running -> AwaitingApproval/Completed/Failed/ResultUnknown`、`AwaitingApproval -> Running/Blocked`。终态拒绝继续 transition。
-
 - [ ] **Step 4: 运行 focused tests**
 
 Run: `cargo test -p kiana-policy -p kiana-gates -p kiana-workflow`
@@ -332,7 +326,7 @@ git commit -m "feat: add fail-closed policy and workflow gates"
 - Modify: `kiana-capability-broker/Cargo.toml`
 - Modify: `kiana-capability-broker/src/lib.rs`
 
-- [ ] **Step 1: 写 port contract 测试**
+- [ ] **Step 1: 实现 port contracts**
 
 定义并测试：
 
@@ -365,7 +359,7 @@ pub trait RunnerPort: Send + Sync {
 
 Broker 以 `(CapabilityKind, operation)` 注册 `CapabilityHandler`。未注册 handler 返回 `PortError::Unavailable`，不得返回空成功结果。
 
-- [ ] **Step 4: 运行 focused tests**
+- [ ] **Step 4: 添加并运行实现后 contract tests**
 
 Run: `cargo test -p kiana-ports -p kiana-eventlog -p kiana-capability-broker`
 
@@ -385,7 +379,25 @@ git commit -m "feat: add capability and event store ports"
 - Modify: `kiana-core/src/lib.rs`
 - Create: `kiana-core/tests/control_plane.rs`
 
-- [ ] **Step 1: 写 command 纵向失败测试**
+- [ ] **Step 1: 实现 ControlPlane**
+
+```rust
+pub struct ControlPlane {
+    policy: Arc<dyn PolicyEngine>,
+    gates: Arc<dyn GateEngine>,
+    events: Arc<dyn EventStorePort>,
+    capabilities: Arc<dyn CapabilityBrokerPort>,
+    runner: Arc<dyn RunnerPort>,
+}
+```
+
+`handle_command` 只注册 `system.architecture`，返回 crate 边界和 `legacy_edges_remaining`；未知 command 返回结构化 `blocked`，并写 `command.rejected` event。
+
+- [ ] **Step 2: 实现 authorize_and_execute**
+
+顺序必须固定为：写 accepted event、policy evaluate、gate evaluate、写 decision event、构造 AuthorizedCapabilityRequest、broker execute、写 result event。任何 error 都返回结构化失败且保留已经发生的事件。
+
+- [ ] **Step 3: 添加实现后 command 纵向 verification**
 
 ```rust
 #[tokio::test]
@@ -406,24 +418,6 @@ async fn architecture_command_records_accepted_and_completed_events() {
                ["request.accepted", "command.completed"]);
 }
 ```
-
-- [ ] **Step 2: 实现 ControlPlane**
-
-```rust
-pub struct ControlPlane {
-    policy: Arc<dyn PolicyEngine>,
-    gates: Arc<dyn GateEngine>,
-    events: Arc<dyn EventStorePort>,
-    capabilities: Arc<dyn CapabilityBrokerPort>,
-    runner: Arc<dyn RunnerPort>,
-}
-```
-
-`handle_command` 只注册 `system.architecture`，返回 crate 边界和 `legacy_edges_remaining`；未知 command 返回结构化 `blocked`，并写 `command.rejected` event。
-
-- [ ] **Step 3: 实现 authorize_and_execute**
-
-顺序必须固定为：写 accepted event、policy evaluate、gate evaluate、写 decision event、构造 AuthorizedCapabilityRequest、broker execute、写 result event。任何 error 都返回结构化失败且保留已经发生的事件。
 
 - [ ] **Step 4: 运行 Core tests**
 
@@ -449,7 +443,7 @@ git commit -m "feat: add Kiana control plane core"
 - Modify: `kiana-daemon/src/lib.rs`
 - Create: `kiana-daemon/tests/control_plane.rs`
 
-- [ ] **Step 1: 写协议 round-trip 测试**
+- [ ] **Step 1: 实现 versioned protocol envelopes**
 
 协议 envelope 必须包含 `schema = "kiana.protocol.v1"`、request id、session id、project root 和 body：
 
@@ -485,7 +479,7 @@ Client 只能构造协议请求和消费响应，不能读取环境变量或实�
 
 Daemon 负责把 `RequestEnvelope` 转为 Domain context/intent，调用 Core，再转为 `ResponseEnvelope`。schema 不匹配、空 session、空 project root 和 identity 缺失必须在进入 Core 前拒绝。
 
-- [ ] **Step 4: 写完整 in-process 测试**
+- [ ] **Step 4: 添加实现后 protocol round-trip 与 in-process verification**
 
 测试内定义 `InProcessTransport`，持有 `Arc<DaemonHost>` 并实现 `ClientTransport`：
 
@@ -521,7 +515,13 @@ git commit -m "feat: add client protocol and daemon host"
 - Modify: `kiana-entrypoints/src/cli.rs`
 - Create: `kiana-entrypoints/tests/cli_architecture.rs`
 
-- [ ] **Step 1: 写 CLI 失败测试**
+- [ ] **Step 1: 实现窄入口 adapter**
+
+在 `main_with_args` 的本地命令分派前识别 `architecture status`。构造 local `DaemonHost`、测试安全的 unavailable Runner 和 fail-closed Capability Broker，通过 `KianaClient` 发起 `system.architecture`，再输出 text 或 JSON。
+
+不得从该函数调用 `create_default_command_registry()`、`create_default_registry()` 或 Provider/Query API。
+
+- [ ] **Step 2: 添加实现后 CLI verification**
 
 新增测试运行：
 
@@ -540,25 +540,13 @@ kiana architecture status --json
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
-
-Run: `cargo test -p kiana-entrypoints --test cli_architecture architecture_status`
-
-Expected: FAIL，当前 CLI 报 unknown command。
-
-- [ ] **Step 3: 实现窄入口 adapter**
-
-在 `main_with_args` 的本地命令分派前识别 `architecture status`。构造 local `DaemonHost`、测试安全的 unavailable Runner 和 fail-closed Capability Broker，通过 `KianaClient` 发起 `system.architecture`，再输出 text 或 JSON。
-
-不得从该函数调用 `create_default_command_registry()`、`create_default_registry()` 或 Provider/Query API。
-
-- [ ] **Step 4: 运行 CLI 测试**
+- [ ] **Step 3: 运行 CLI 测试**
 
 Run: `cargo test -p kiana-entrypoints --test cli_architecture architecture_status`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交 CLI 接入**
+- [ ] **Step 4: 提交 CLI 接入**
 
 ```bash
 git add kiana-entrypoints
