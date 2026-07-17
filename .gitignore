@@ -9,12 +9,39 @@ dist/
 
 # Local Kiana runtime state
 .kiana/tasks/
+.kiana/workflows/
+.kiana/teams/
+.kiana/bg-tasks/
+.kiana/plans/
+.kiana/swarm-worktrees/
+.kiana/context-ingest/
+.kiana/context-index.json
+.kiana/context-artifacts.json
+.kiana/context-artifact-store.json
+.kiana/first-start.json
+.kiana/oauth.json
+.kiana/trust.json
 .kiana/tmp/
 .kiana/logs/
 **/.kiana/tasks/
+**/.kiana/workflows/
+**/.kiana/teams/
+**/.kiana/bg-tasks/
+**/.kiana/plans/
+**/.kiana/swarm-worktrees/
+**/.kiana/context-ingest/
+**/.kiana/context-index.json
+**/.kiana/context-artifacts.json
+**/.kiana/context-artifact-store.json
+**/.kiana/first-start.json
+**/.kiana/oauth.json
+**/.kiana/trust.json
 **/.kiana/tmp/
 **/.kiana/logs/
 *kiana-post-tool-use-hook-*post-hook.json*
+
+# Generated GSD code-intelligence cache
+.planning/intel/
 
 # Local assistant/editor state
 .claude/*.local.md
@@ -51,6 +78,15 @@ Thumbs.db
 # Build caches
 .cargo/
 sccache/
+
+# Python caches and local test state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Coverage and profiling
 *.profraw
