@@ -54,6 +54,7 @@ pub enum Slice {
     PublicBaseline,
     ReferenceGovernance,
     SemanticNegative,
+    DriftRefresh,
 }
 
 impl Slice {
@@ -64,6 +65,7 @@ impl Slice {
             "public-baseline" => Ok(Self::PublicBaseline),
             "reference-governance" => Ok(Self::ReferenceGovernance),
             "semantic-negative" => Ok(Self::SemanticNegative),
+            "drift-refresh" => Ok(Self::DriftRefresh),
             _ => Err(UsageError),
         }
     }
@@ -75,6 +77,7 @@ impl Slice {
             Self::PublicBaseline => "public-baseline",
             Self::ReferenceGovernance => "reference-governance",
             Self::SemanticNegative => "semantic-negative",
+            Self::DriftRefresh => "drift-refresh",
         }
     }
 

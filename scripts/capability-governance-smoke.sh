@@ -10,20 +10,20 @@ ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 cd "$ROOT"
 
 usage() {
-  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative}" >&2
+  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative|drift-refresh}" >&2
 }
 
 if (($# == 2)) && [[ "${1:-}" == "--internal-worker" ]]; then
   slice="$2"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh) ;;
     *) echo "supervisor_worker_invalid: unknown slice" >&2; exit 1 ;;
   esac
   worker_mode=1
 elif (($# == 1)); then
   slice="$1"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh) ;;
     *) usage; exit 2 ;;
   esac
   supervisor_bin="$ROOT/target/debug/kiana-capability-governance-supervisor"
@@ -83,11 +83,15 @@ minimal_fixture="$fixtures_dir/minimal-graph.json"
 full_fixture="$fixtures_dir/full-38-repositories.json"
 hostile_fixture="$fixtures_dir/hostile-rendering.json"
 offline_fixture="$fixtures_dir/offline-source-identity.json"
+refresh_request="$fixtures_dir/refresh-request.json"
+refresh_result="$fixtures_dir/refresh-result.json"
 protected_inputs=(
   "$minimal_fixture"
   "$full_fixture"
   "$hostile_fixture"
   "$offline_fixture"
+  "$refresh_request"
+  "$refresh_result"
   scripts/validate-json-schema.py
   docs/schemas/kiana-official-source-artifact.v1.schema.json
   docs/schemas/kiana-public-parity-baseline.v1.schema.json
@@ -145,13 +149,12 @@ PY
     run_python -m json.tool "$schema" >/dev/null
   done
 
-  shopt -s nullglob
-  fixtures=("$fixtures_dir"/*.json)
-  shopt -u nullglob
-  if ((${#fixtures[@]} == 0)); then
-    echo "fixture_required: $minimal_fixture" >&2
-    return 1
-  fi
+  fixtures=(
+    "$minimal_fixture"
+    "$full_fixture"
+    "$hostile_fixture"
+    "$offline_fixture"
+  )
 
   for fixture in "${fixtures[@]}"; do
     manifest="$tmp_dir/$(basename "${fixture%.json}").instances.tsv"
@@ -1171,12 +1174,95 @@ run_semantic_negative_slice() {
   fi
 }
 
+run_drift_refresh_slice() {
+  local before after output_root
+  before="$(protected_hashes)"
+  output_root="$tmp_dir/refresh-output"
+
+  run_python - "$refresh_request" "$tmp_dir" <<'PY'
+import json
+import importlib.util
+import pathlib
+import sys
+
+request = pathlib.Path(sys.argv[1])
+output = pathlib.Path(sys.argv[2])
+module_path = pathlib.Path("scripts/freeze-capability-governance.py")
+spec = importlib.util.spec_from_file_location("kiana_freeze_capability_governance", module_path)
+if spec is None or spec.loader is None:
+    raise SystemExit("drift_runner_unavailable: cannot load lifecycle module")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+cases = [
+    "no_drift",
+    "repository_head_drift",
+    "repository_tree_drift",
+    "license_hash_drift",
+    "content_tree_drift",
+    "official_source_hash_drift",
+    "target_revision_drift",
+    "source_unavailable",
+]
+expected = {
+    "no_drift": (0, "current", []),
+    **{case: (1, "stale", [case]) for case in cases[1:-1]},
+    "source_unavailable": (1, "unavailable", ["source_unavailable"]),
+}
+for case in cases:
+    path = output / f"drift-{case}.json"
+    exit_code = module._check_drift(
+        module.argparse.Namespace(
+            fixture_bundle=request,
+            case=case,
+            output=path,
+            manifest=None,
+            live_reference_root=None,
+            target_root=None,
+            official_source_artifact=None,
+        )
+    )
+    report = json.loads(path.read_text(encoding="utf-8"))
+    expected_exit, expected_status, expected_codes = expected[case]
+    actual_codes = [error["code"] for error in report.get("errors", [])]
+    if (
+        exit_code != expected_exit
+        or report.get("status") != expected_status
+        or actual_codes != expected_codes
+        or (
+            case == "source_unavailable"
+            and (report.get("current") is not False or report.get("freshness") == "current")
+        )
+    ):
+        raise SystemExit(
+            f"drift_case_failed: {case}:{exit_code}:{report}"
+        )
+PY
+
+  run_python scripts/freeze-capability-governance.py refresh \
+    --fixture-bundle "$minimal_fixture" \
+    --drift-report "$refresh_request" \
+    --output-root "$output_root" \
+    --revision-id fixture-refresh \
+    --review-revision fixture-review
+  diff -u "$refresh_result" "$output_root/refresh-result.json"
+  run_python scripts/validate-capability-governance.py \
+    validate --manifest "$output_root/current.json" --json >/dev/null
+
+  after="$(protected_hashes)"
+  if [[ "$before" != "$after" ]]; then
+    echo "protected_input_modified: drift-refresh execution changed a protected input" >&2
+    return 1
+  fi
+  echo "OK: drift-refresh exact cases and immutable successor contract pass"
+}
+
 case "$slice" in
   schemas) run_schema_slice ;;
   fixture-shapes) run_fixture_shape_slice ;;
   public-baseline) run_public_baseline_slice ;;
   reference-governance) run_reference_governance_slice ;;
   semantic-negative) run_semantic_negative_slice ;;
+  drift-refresh) run_drift_refresh_slice ;;
 esac
 
 # The Rust worker launcher owns the completion receipt. The semantic worker can

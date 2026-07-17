@@ -1,0 +1,62 @@
+{
+  "affected_subjects": [
+    "decision.repo-git",
+    "official-source-fixture",
+    "repo-content",
+    "repo-git"
+  ],
+  "bundle_selector": {
+    "capability_decisions": {
+      "path": "current.json#capability_decision_revisions/current",
+      "revision_id": "fixture-refresh.capability-decisions",
+      "sha256": "c6ba6f760e3f46aa3ddcaadeabacd2f671335e6be0a7b69f21920a145d982e6b"
+    },
+    "evaluation_time": "2026-07-15T00:02:00Z",
+    "evidence_head": {
+      "path": "current.json#evidence_revisions/current",
+      "revision_id": "fixture-refresh.evidence",
+      "sha256": "ab80a80c80e1d6a61879156b9dd0c95c3b883991a5655521c597f1704ba6fd6d"
+    },
+    "legacy_authority": {
+      "path": "scripts/fixtures/capability-governance/valid/minimal-graph.json#legacy_authority_revisions/current",
+      "revision_id": "legacy-authority-current",
+      "sha256": "92181225fc307ce1ed3d8b7e73d8547be346b0bfbf252d60648aa41a829d946b"
+    },
+    "official_source_artifact": {
+      "artifact_id": "official-source-fixture",
+      "path": "current.json#official_source_artifact",
+      "sha256": "1730ede30e172357caae58bdbc124241d87e67440b13367ab43a6640d04a5a00"
+    },
+    "public_baseline": {
+      "path": "current.json#public_baseline_revisions/current",
+      "revision_id": "fixture-refresh.public-baseline",
+      "sha256": "5838e04276e465efa42360d0e4ac916531085ad9611f3b0347e625addfb2308a"
+    },
+    "repository_registry": {
+      "path": "current.json#repository_registry_revisions/current",
+      "revision_id": "fixture-refresh.repository-registry",
+      "sha256": "2c865077a1e1698ceb26be994179483f2162876e964bb89bacae0cd666735c50"
+    },
+    "schema": "kiana.capability-governance-bundle.v1",
+    "version": "1.0"
+  },
+  "current": {
+    "path": "current.json",
+    "sha256": "c6298877cb5c4a72e40cf4ac4c28aad85cd028047ded0dc9ed44cdfd6f67f7ce"
+  },
+  "drift_report_sha256": "9c07b5eed5f59c7a47b6559c3de5a4970cfa3ff7facc8936173b4165eff08151",
+  "event_codes": [
+    "repository_head_drift",
+    "repository_tree_drift",
+    "license_hash_drift",
+    "content_tree_drift",
+    "official_source_hash_drift",
+    "target_revision_drift",
+    "source_unavailable"
+  ],
+  "review_revision": "fixture-review",
+  "revision_id": "fixture-refresh",
+  "schema": "kiana.capability-governance-refresh-result.v1",
+  "source_bundle_sha256": "ef27464d1f1c718f0fe06c95e02f283f0baeb658e85867f13b2f4cb571d5d7e4",
+  "version": "1.0"
+}

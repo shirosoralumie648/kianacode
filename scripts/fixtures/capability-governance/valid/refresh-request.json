@@ -1,10 +1,9 @@
 {
   "affected_subjects": [
-    "decision.target",
+    "decision.repo-git",
     "official-source-fixture",
     "repo-content",
-    "repo-git",
-    "repo-missing"
+    "repo-git"
   ],
   "cases": [
     "no_drift",
@@ -58,14 +57,14 @@
       "detail": "",
       "freshness": "stale",
       "path": "artifact.bin",
-      "subject_id": "decision.target"
+      "subject_id": "decision.repo-git"
     },
     {
       "code": "source_unavailable",
       "detail": "controlled fixture source is unavailable",
       "freshness": "stale",
       "path": "reference/missing",
-      "subject_id": "repo-missing"
+      "subject_id": "repo-content"
     }
   ],
   "events": [
@@ -103,13 +102,13 @@
       "code": "target_revision_drift",
       "event_type": "stale",
       "freshness": "stale",
-      "subject_id": "decision.target"
+      "subject_id": "decision.repo-git"
     },
     {
       "code": "source_unavailable",
       "event_type": "blocked_observation",
       "freshness": "unavailable",
-      "subject_id": "repo-missing"
+      "subject_id": "repo-content"
     }
   ],
   "fixture": {

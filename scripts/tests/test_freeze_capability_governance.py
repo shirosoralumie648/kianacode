@@ -334,7 +334,11 @@ class CapabilityGovernanceRefreshTests(unittest.TestCase):
         old_records = predecessor["evidence_revisions"][-1]["records"]
         new_records = current["evidence_revisions"][-1]["records"]
         self.assertEqual(old_records, new_records[: len(old_records)])
-        appended = new_records[len(old_records) :]
+        appended = [
+            record
+            for record in new_records[len(old_records) :]
+            if ".event." in record["evidence_id"]
+        ]
         expected_codes = [error["code"] for error in read_json(REFRESH_REQUEST)["errors"]]
         self.assertEqual(
             expected_codes,
@@ -441,6 +445,63 @@ class CapabilityGovernanceRefreshTests(unittest.TestCase):
             self.assertEqual(2, result.returncode)
             self.assertFalse(output_root.exists())
             self.assertIn("affected_subject_unknown", result.stderr)
+
+    def test_single_target_drift_only_advances_affected_families(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            request = read_json(REFRESH_REQUEST)
+            request["affected_subjects"] = ["decision.repo-git"]
+            request["errors"] = [
+                error
+                for error in request["errors"]
+                if error["code"] == "target_revision_drift"
+            ]
+            request["events"] = [
+                event
+                for event in request["events"]
+                if event["code"] == "target_revision_drift"
+            ]
+            request_path = root / "target-drift.json"
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            output_root = root / "output"
+            result = run_cli(
+                "refresh",
+                "--fixture-bundle",
+                MINIMAL_GRAPH,
+                "--drift-report",
+                request_path,
+                "--output-root",
+                output_root,
+                "--revision-id",
+                "target-refresh",
+                "--review-revision",
+                "target-review",
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            predecessor = read_json(MINIMAL_GRAPH)
+            current = read_json(output_root / "current.json")
+
+        self.assertEqual(
+            predecessor["official_source_artifact"],
+            current["official_source_artifact"],
+        )
+        self.assertEqual(
+            len(predecessor["public_baseline_revisions"]),
+            len(current["public_baseline_revisions"]),
+        )
+        self.assertEqual(
+            len(predecessor["repository_registry_revisions"]),
+            len(current["repository_registry_revisions"]),
+        )
+        self.assertEqual(
+            len(predecessor["capability_decision_revisions"]) + 1,
+            len(current["capability_decision_revisions"]),
+        )
+        self.assertEqual(
+            len(predecessor["evidence_revisions"]) + 1,
+            len(current["evidence_revisions"]),
+        )
 
 
 if __name__ == "__main__":

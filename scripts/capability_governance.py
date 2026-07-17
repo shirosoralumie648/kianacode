@@ -1040,7 +1040,11 @@ def _validate_manifest_bindings(bundle: Mapping[str, Any], errors: list[Governan
         _error(errors, "evaluation_time_invalid", path="$.bundle_manifest.evaluation_time")
 
 
-def _validate_official_source(bundle: Mapping[str, Any], errors: list[GovernanceError]) -> dict[str, Mapping[str, Any]]:
+def _validate_official_source(
+    bundle: Mapping[str, Any],
+    errors: list[GovernanceError],
+    root: Path,
+) -> dict[str, Mapping[str, Any]]:
     artifact = bundle.get("official_source_artifact")
     if not isinstance(artifact, Mapping):
         _error(errors, "official_source_required", path="$.official_source_artifact")
@@ -1072,6 +1076,33 @@ def _validate_official_source(bundle: Mapping[str, Any], errors: list[Governance
         content = b"\n".join(normalized_entries) + b"\n"
         if hashlib.sha256(content).hexdigest() != artifact.get("content_sha256"):
             _error(errors, "source_content_sha256", artifact.get("artifact_id", ""))
+    if artifact.get("revision_kind") == "successor":
+        previous_path = artifact.get("previous_revision_path")
+        try:
+            previous = load_bound_json(root, previous_path)
+        except GovernanceUsageError as exc:
+            _error(
+                errors,
+                "previous_revision_required",
+                artifact.get("revision_id", ""),
+                previous_path,
+                exc,
+            )
+        else:
+            if not isinstance(previous, Mapping):
+                _error(
+                    errors,
+                    "previous_revision_required",
+                    artifact.get("revision_id", ""),
+                    previous_path,
+                )
+            else:
+                errors.extend(
+                    validate_revision_ancestry(
+                        [previous, artifact],
+                        family="official_source_artifact_revisions",
+                    )
+                )
     return entries
 
 
@@ -1080,6 +1111,7 @@ def _validate_public_baselines(
     source_entries: Mapping[str, Mapping[str, Any]],
     evidence_records: Sequence[Mapping[str, Any]],
     errors: list[GovernanceError],
+    root: Path,
 ) -> None:
     artifact = bundle.get("official_source_artifact") or {}
     evaluation_time = (bundle.get("bundle_manifest") or {}).get("evaluation_time")
@@ -1087,11 +1119,19 @@ def _validate_public_baselines(
         revision_id = revision.get("revision_id", f"revision-{revision_index}")
         path = f"$.public_baseline_revisions[{revision_index}]"
         binding = revision.get("source_artifact") or {}
-        if binding.get("artifact_id") != artifact.get("artifact_id"):
-            _error(errors, "source_artifact_id", revision_id, f"{path}.source_artifact")
+        bound_artifact: Mapping[str, Any] = artifact
         if binding.get("sha256") != canonical_sha256(artifact):
+            try:
+                candidate = load_bound_json(root, binding.get("path", ""))
+            except GovernanceUsageError:
+                candidate = None
+            if isinstance(candidate, Mapping):
+                bound_artifact = candidate
+        if binding.get("artifact_id") != bound_artifact.get("artifact_id"):
+            _error(errors, "source_artifact_id", revision_id, f"{path}.source_artifact")
+        if binding.get("sha256") != canonical_sha256(bound_artifact):
             _error(errors, "source_artifact_sha256", revision_id, f"{path}.source_artifact")
-        if binding.get("content_sha256") != artifact.get("content_sha256"):
+        if binding.get("content_sha256") != bound_artifact.get("content_sha256"):
             _error(errors, "source_content_sha256", revision_id, f"{path}.source_artifact")
         if not validate_relative_path(binding.get("path")):
             _error(errors, "unsafe_path", revision_id, binding.get("path", ""))
@@ -1310,13 +1350,13 @@ def validate_governance(
     for instance in instances:
         errors.extend(structural_errors(instance, root))
     _validate_safe_inputs(bundle, errors)
-    source_entries = _validate_official_source(bundle, errors)
+    source_entries = _validate_official_source(bundle, errors, root)
     for family_key in REVISION_FAMILIES:
         revisions = bundle.get(family_key)
         if isinstance(revisions, list):
             errors.extend(validate_revision_ancestry(revisions, family=family_key))
     evidence_records = _validate_evidence(bundle, errors)
-    _validate_public_baselines(bundle, source_entries, evidence_records, errors)
+    _validate_public_baselines(bundle, source_entries, evidence_records, errors, root)
     _validate_registry_and_decisions(bundle, errors)
     _validate_manifest_bindings(bundle, errors)
     return sorted_errors(errors)
@@ -1437,17 +1477,74 @@ def content_tree_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _read_git_head(path: Path) -> str | None:
+    dot_git = path / ".git"
+    if dot_git.is_dir():
+        git_dir = dot_git.resolve()
+    elif dot_git.is_file():
+        try:
+            raw = _bounded_read(dot_git, 4096).decode("utf-8").strip()
+        except (GovernanceUsageError, UnicodeDecodeError):
+            return None
+        if not raw.startswith("gitdir: "):
+            return None
+        git_dir = (path / raw.removeprefix("gitdir: ")).resolve()
+    else:
+        return None
+    head_path = git_dir / "HEAD"
+    try:
+        head = _bounded_read(head_path, 4096).decode("ascii").strip()
+    except (GovernanceUsageError, UnicodeDecodeError):
+        return None
+    if re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", head):
+        return head
+    if not head.startswith("ref: "):
+        return None
+    reference = head.removeprefix("ref: ")
+    reference_path = PurePosixPath(reference)
+    if reference_path.is_absolute() or ".." in reference_path.parts:
+        return None
+    roots = [git_dir]
+    common_dir_path = git_dir / "commondir"
+    if common_dir_path.is_file():
+        try:
+            common_raw = _bounded_read(common_dir_path, 4096).decode("utf-8").strip()
+            roots.append((git_dir / common_raw).resolve())
+        except (GovernanceUsageError, UnicodeDecodeError):
+            pass
+    for root in roots:
+        loose = root.joinpath(*reference_path.parts)
+        if loose.is_file():
+            try:
+                value = _bounded_read(loose, 4096).decode("ascii").strip()
+            except (GovernanceUsageError, UnicodeDecodeError):
+                continue
+            if re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", value):
+                return value
+        packed = root / "packed-refs"
+        if packed.is_file():
+            try:
+                lines = _bounded_read(packed).decode("ascii").splitlines()
+            except (GovernanceUsageError, UnicodeDecodeError):
+                continue
+            for line in lines:
+                if not line or line.startswith(("#", "^")):
+                    continue
+                value, separator, name = line.partition(" ")
+                if (
+                    separator
+                    and name == reference
+                    and re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", value)
+                ):
+                    return value
+    return None
+
+
 def repository_fingerprint(path: Path) -> dict[str, str]:
     path = path.resolve()
-    result = subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "HEAD"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
     fingerprint = {"tree_sha256": content_tree_sha256(path)}
-    if result.returncode == 0:
-        fingerprint["git_head"] = result.stdout.strip()
+    if git_head := _read_git_head(path):
+        fingerprint["git_head"] = git_head
     license_files = sorted(
         candidate
         for candidate in path.iterdir()
