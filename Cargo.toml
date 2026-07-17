@@ -2,9 +2,11 @@
 resolver = "2"
 members = [
     "kiana-bootstrap",
+    "kiana-capability-broker",
     "kiana-capability-governance-supervisor",
     "kiana-bridge",
     "kiana-chrome-mcp",
+    "kiana-client",
     "kiana-color-diff",
     "kiana-commands",
     "kiana-components",
@@ -12,11 +14,21 @@ members = [
     "kiana-computer-mcp",
     "kiana-constants",
     "kiana-coordinator",
+    "kiana-core",
+    "kiana-daemon",
+    "kiana-domain",
     "kiana-entrypoints",
+    "kiana-eventlog",
+    "kiana-gates",
     "kiana-ink",
     "kiana-modifiers",
+    "kiana-policy",
+    "kiana-ports",
+    "kiana-protocol",
     "kiana-query",
     "kiana-remote",
+    "kiana-runner",
+    "kiana-runner-protocol",
     "kiana-screen-capture",
     "kiana-screens",
     "kiana-services",
@@ -25,6 +37,7 @@ members = [
     "kiana-tools",
     "kiana-types",
     "kiana-url-handler",
+    "kiana-workflow",
 ]
 
 [workspace.package]
@@ -67,6 +80,19 @@ kiana-types = { path = "kiana-types" }
 kiana-constants = { path = "kiana-constants" }
 kiana-coordinator = { path = "kiana-coordinator" }
 kiana-bootstrap = { path = "kiana-bootstrap" }
+kiana-capability-broker = { path = "kiana-capability-broker" }
+kiana-client = { path = "kiana-client" }
+kiana-core = { path = "kiana-core" }
+kiana-daemon = { path = "kiana-daemon" }
+kiana-domain = { path = "kiana-domain" }
+kiana-eventlog = { path = "kiana-eventlog" }
+kiana-gates = { path = "kiana-gates" }
+kiana-policy = { path = "kiana-policy" }
+kiana-ports = { path = "kiana-ports" }
+kiana-protocol = { path = "kiana-protocol" }
+kiana-runner = { path = "kiana-runner" }
+kiana-runner-protocol = { path = "kiana-runner-protocol" }
+kiana-workflow = { path = "kiana-workflow" }
 
 [profile.release]
 opt-level = 3

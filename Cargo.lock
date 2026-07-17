@@ -2413,6 +2413,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kiana-capability-broker"
+version = "0.1.0"
+
+[[package]]
 name = "kiana-capability-governance-supervisor"
 version = "0.1.0"
 dependencies = [
@@ -2432,6 +2436,10 @@ dependencies = [
  "tokio",
  "tokio-test",
 ]
+
+[[package]]
+name = "kiana-client"
+version = "0.1.0"
 
 [[package]]
 name = "kiana-color-diff"
@@ -2522,6 +2530,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kiana-core"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "kiana-daemon"
+version = "0.1.0"
+
+[[package]]
+name = "kiana-domain"
+version = "0.1.0"
+
+[[package]]
 name = "kiana-entrypoints"
 version = "0.1.0"
 dependencies = [
@@ -2559,6 +2582,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kiana-eventlog"
+version = "0.1.0"
+
+[[package]]
+name = "kiana-gates"
+version = "0.1.0"
+
+[[package]]
 name = "kiana-ink"
 version = "0.1.0"
 dependencies = [
@@ -2578,6 +2609,18 @@ dependencies = [
  "windows 0.58.0",
  "x11-dl",
 ]
+
+[[package]]
+name = "kiana-policy"
+version = "0.1.0"
+
+[[package]]
+name = "kiana-ports"
+version = "0.1.0"
+
+[[package]]
+name = "kiana-protocol"
+version = "0.1.0"
 
 [[package]]
 name = "kiana-query"
@@ -2610,6 +2653,14 @@ dependencies = [
  "tokio-tungstenite 0.28.0",
  "uuid",
 ]
+
+[[package]]
+name = "kiana-runner"
+version = "0.1.0"
+
+[[package]]
+name = "kiana-runner-protocol"
+version = "0.1.0"
 
 [[package]]
 name = "kiana-screen-capture"
@@ -2755,6 +2806,10 @@ dependencies = [
  "windows 0.58.0",
  "zbus 4.4.0",
 ]
+
+[[package]]
+name = "kiana-workflow"
+version = "0.1.0"
 
 [[package]]
 name = "kv-log-macro"
