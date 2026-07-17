@@ -442,7 +442,7 @@ Phases 1-9 establish shared gates. Phases 10-15 may run as parallel pack workstr
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. 现状基线与证据治理 | 8/12 | In Progress|  |
+| 1. 现状基线与证据治理 | 9/12 | In Progress|  |
 | 2. 可复现工具链与依赖收敛 | 尚未规划 | Not started | - |
 | 3. 契约与 Schema 基线 | 尚未规划 | Not started | - |
 | 4. 状态权威与投影恢复 | 尚未规划 | Not started | - |
