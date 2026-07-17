@@ -417,10 +417,12 @@ impl TuiRuntime {
         let current_session_id = self.session_id.clone();
         let events_tx = self.events_tx.clone();
         tokio::spawn(async move {
-            let result = command
-                .execute(CommandContext { args, app_state })
-                .await
-                .map_err(|error| error.to_string());
+            let result = crate::command_dispatch::execute_command(
+                command.as_ref(),
+                CommandContext { args, app_state },
+            )
+            .await
+            .map_err(|error| error.to_string());
             let session_sync = match &result {
                 Ok(result) => match session_sync_request(&name, result, &current_session_id) {
                     Some(session_id) => Some(

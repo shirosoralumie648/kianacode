@@ -46,6 +46,12 @@ pub struct CommandContext {
     pub app_state: HashMap<String, Value>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum CommandRoute {
+    Local,
+    ControlPlane { name: String, arguments: Value },
+}
+
 pub const COMMAND_ARGV_APP_STATE_KEY: &str = "__kiana_command_argv";
 
 #[async_trait]
@@ -61,6 +67,9 @@ pub trait Command: Send + Sync {
     }
     fn supports_non_interactive(&self) -> bool {
         false
+    }
+    fn route(&self, _context: &CommandContext) -> anyhow::Result<CommandRoute> {
+        Ok(CommandRoute::Local)
     }
     async fn execute(&self, context: CommandContext) -> anyhow::Result<CommandResult>;
 }

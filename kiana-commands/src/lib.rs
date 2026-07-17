@@ -59,7 +59,9 @@ pub mod version;
 pub mod vim;
 
 pub use registry::{create_default_command_registry, CommandRegistry};
-pub use types::{Command, CommandContext, CommandResult, CommandType, COMMAND_ARGV_APP_STATE_KEY};
+pub use types::{
+    Command, CommandContext, CommandResult, CommandRoute, CommandType, COMMAND_ARGV_APP_STATE_KEY,
+};
 
 #[cfg(test)]
 pub(crate) fn test_env_lock() -> &'static std::sync::Mutex<()> {

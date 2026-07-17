@@ -47,12 +47,14 @@ pub async fn run_repl() -> Result<()> {
                     .expect("classified command must exist in registry");
                 let command_state = command_app_state(&app_state, &session_id, &cwd);
                 let should_clear_session = is_clear_session_command(&name, &args);
-                let result = command
-                    .execute(CommandContext {
+                let result = crate::command_dispatch::execute_command(
+                    command.as_ref(),
+                    CommandContext {
                         args,
                         app_state: command_state,
-                    })
-                    .await?;
+                    },
+                )
+                .await?;
 
                 if result.output_type == "exit" {
                     if !result.value.is_empty() {

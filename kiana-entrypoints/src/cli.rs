@@ -6342,8 +6342,9 @@ async fn direct_connect_app_command_run_payload(
 
     let command_type = command.command_type();
     let command_args = request.args.join(" ");
-    let result = command
-        .execute(CommandContext {
+    let result = crate::command_dispatch::execute_command(
+        command.as_ref(),
+        CommandContext {
             args: command_args,
             app_state: HashMap::from([
                 (
@@ -6355,14 +6356,15 @@ async fn direct_connect_app_command_run_payload(
                     Value::Array(request.args.iter().cloned().map(Value::String).collect()),
                 ),
             ]),
-        })
-        .await
-        .map_err(|error| {
-            (
-                axum::http::StatusCode::BAD_REQUEST,
-                format!("failed to run command '{name}': {error}"),
-            )
-        })?;
+        },
+    )
+    .await
+    .map_err(|error| {
+        (
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to run command '{name}': {error}"),
+        )
+    })?;
     let output = serde_json::to_value(result).map_err(|error| {
         (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -13616,12 +13618,14 @@ async fn run_local_command(args: &[String]) -> Result<Option<kiana_commands::Com
         COMMAND_ARGV_APP_STATE_KEY.to_string(),
         Value::Array(args[1..].iter().cloned().map(Value::String).collect()),
     );
-    let result = command
-        .execute(CommandContext {
+    let result = crate::command_dispatch::execute_command(
+        command.as_ref(),
+        CommandContext {
             args: command_args,
             app_state,
-        })
-        .await?;
+        },
+    )
+    .await?;
     Ok(Some(result))
 }
 

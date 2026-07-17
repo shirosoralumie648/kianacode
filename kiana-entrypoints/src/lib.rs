@@ -1,5 +1,6 @@
 pub mod bg;
 pub mod cli;
+pub mod command_dispatch;
 pub mod init;
 pub mod mcp;
 pub mod repl;
