@@ -12,3 +12,7 @@ readme.workspace = true
 publish = false
 
 [dependencies]
+kiana-domain.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

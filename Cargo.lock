@@ -2594,6 +2594,9 @@ version = "0.1.0"
 [[package]]
 name = "kiana-gates"
 version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+]
 
 [[package]]
 name = "kiana-ink"
@@ -2619,6 +2622,10 @@ dependencies = [
 [[package]]
 name = "kiana-policy"
 version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+ "serde_json",
+]
 
 [[package]]
 name = "kiana-ports"
@@ -2826,6 +2833,11 @@ dependencies = [
 [[package]]
 name = "kiana-workflow"
 version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+ "serde",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "kv-log-macro"

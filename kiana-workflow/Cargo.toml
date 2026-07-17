@@ -12,3 +12,6 @@ readme.workspace = true
 publish = false
 
 [dependencies]
+kiana-domain.workspace = true
+serde.workspace = true
+thiserror.workspace = true
