@@ -126,19 +126,23 @@ pub const KIANA_HOME_ENV: &str = "KIANA_HOME";
 pub const DISABLED_PLUGINS_FILE: &str = "disabled_plugins.json";
 
 pub fn plugins_dir() -> PathBuf {
+    user_plugins_dir().unwrap_or_else(|| PathBuf::from(".kiana").join("plugins"))
+}
+
+pub fn user_plugins_dir() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os(KIANA_PLUGINS_DIR_ENV) {
-        return PathBuf::from(path);
+        return Some(PathBuf::from(path));
     }
     if let Some(home) = std::env::var_os(KIANA_HOME_ENV) {
-        return PathBuf::from(home).join("plugins");
+        return Some(PathBuf::from(home).join("plugins"));
     }
-    home_dir()
-        .map(|home| home.join(".kiana").join("plugins"))
-        .unwrap_or_else(|| PathBuf::from(".kiana").join("plugins"))
+    home_dir().map(|home| home.join(".kiana").join("plugins"))
 }
 
 pub fn installed_plugin_roots() -> Vec<PathBuf> {
-    enabled_plugin_roots_in(&plugins_dir())
+    user_plugins_dir()
+        .map(|dir| enabled_plugin_roots_in(&dir))
+        .unwrap_or_default()
 }
 
 pub fn all_plugin_roots_in(plugins_dir: &Path) -> Vec<PathBuf> {
@@ -303,5 +307,88 @@ fn home_dir() -> Option<PathBuf> {
     #[cfg(not(windows))]
     {
         std::env::var_os("HOME").map(PathBuf::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct EnvSnapshot {
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvSnapshot {
+        fn take(keys: &[&'static str]) -> Self {
+            Self {
+                values: keys
+                    .iter()
+                    .map(|key| (*key, std::env::var_os(key)))
+                    .collect(),
+            }
+        }
+    }
+
+    impl Drop for EnvSnapshot {
+        fn drop(&mut self) {
+            for (key, value) in self.values.iter().rev() {
+                match value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
+
+    struct CurrentDirSnapshot(PathBuf);
+
+    impl CurrentDirSnapshot {
+        fn set(path: &Path) -> Self {
+            let previous = std::env::current_dir().unwrap();
+            std::env::set_current_dir(path).unwrap();
+            Self(previous)
+        }
+    }
+
+    impl Drop for CurrentDirSnapshot {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.0);
+        }
+    }
+
+    #[test]
+    fn installed_plugin_roots_do_not_fall_back_to_project_relative_plugins() {
+        let _process_env_lock = crate::process_env_lock();
+        let _env =
+            EnvSnapshot::take(&[KIANA_PLUGINS_DIR_ENV, KIANA_HOME_ENV, "HOME", "USERPROFILE"]);
+        std::env::remove_var(KIANA_PLUGINS_DIR_ENV);
+        std::env::remove_var(KIANA_HOME_ENV);
+        std::env::remove_var("HOME");
+        std::env::remove_var("USERPROFILE");
+        let root = std::env::temp_dir().join(format!(
+            "kiana-plugin-no-home-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let plugin_root = root
+            .join(".kiana")
+            .join("plugins")
+            .join("project-controlled");
+        fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+        fs::write(
+            plugin_root.join(".codex-plugin").join("plugin.json"),
+            r#"{"name":"project-controlled"}"#,
+        )
+        .unwrap();
+        let _cwd = CurrentDirSnapshot::set(&root);
+
+        assert!(installed_plugin_roots().is_empty());
+
+        let _ = fs::remove_dir_all(root);
     }
 }
