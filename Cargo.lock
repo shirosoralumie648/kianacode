@@ -2447,6 +2447,13 @@ dependencies = [
 [[package]]
 name = "kiana-client"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "kiana-protocol",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+]
 
 [[package]]
 name = "kiana-color-diff"
@@ -2557,6 +2564,22 @@ dependencies = [
 [[package]]
 name = "kiana-daemon"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "kiana-capability-broker",
+ "kiana-client",
+ "kiana-core",
+ "kiana-domain",
+ "kiana-eventlog",
+ "kiana-gates",
+ "kiana-policy",
+ "kiana-ports",
+ "kiana-protocol",
+ "kiana-runner",
+ "kiana-runner-protocol",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "kiana-domain"
@@ -2665,6 +2688,11 @@ dependencies = [
 [[package]]
 name = "kiana-protocol"
 version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "kiana-query"
