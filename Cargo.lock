@@ -2543,6 +2543,12 @@ version = "0.1.0"
 [[package]]
 name = "kiana-domain"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "uuid",
+]
 
 [[package]]
 name = "kiana-entrypoints"
@@ -2657,10 +2663,20 @@ dependencies = [
 [[package]]
 name = "kiana-runner"
 version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+ "kiana-runner-protocol",
+ "tokio",
+]
 
 [[package]]
 name = "kiana-runner-protocol"
 version = "0.1.0"
+dependencies = [
+ "kiana-domain",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "kiana-screen-capture"

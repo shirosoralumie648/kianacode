@@ -12,3 +12,8 @@ readme.workspace = true
 publish = false
 
 [dependencies]
+kiana-domain.workspace = true
+kiana-runner-protocol.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
