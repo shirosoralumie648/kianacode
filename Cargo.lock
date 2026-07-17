@@ -2540,7 +2540,18 @@ dependencies = [
 name = "kiana-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "kiana-capability-broker",
+ "kiana-domain",
+ "kiana-eventlog",
+ "kiana-gates",
+ "kiana-policy",
+ "kiana-ports",
+ "kiana-runner-protocol",
+ "kiana-workflow",
  "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]

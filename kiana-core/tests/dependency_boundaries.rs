@@ -86,6 +86,7 @@ fn workspace_dependencies() -> BTreeMap<String, BTreeSet<String>> {
                 .as_array()
                 .unwrap()
                 .iter()
+                .filter(|dependency| dependency["kind"].is_null())
                 .filter_map(|dependency| dependency["name"].as_str())
                 .filter(|dependency| workspace_names.contains(*dependency))
                 .map(str::to_owned)

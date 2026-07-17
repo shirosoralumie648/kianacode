@@ -12,6 +12,17 @@ readme.workspace = true
 publish = false
 
 [dependencies]
+kiana-domain.workspace = true
+kiana-gates.workspace = true
+kiana-policy.workspace = true
+kiana-ports.workspace = true
+kiana-runner-protocol.workspace = true
+kiana-workflow.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+kiana-capability-broker.workspace = true
+kiana-eventlog.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
