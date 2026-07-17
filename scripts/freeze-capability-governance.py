@@ -27,6 +27,7 @@ from capability_governance import (
     GovernanceError,
     GovernanceUsageError,
     canonical_sha256,
+    compare_repository_fingerprint,
     detect_drift,
     file_sha256,
     load_fixture_bundle,
@@ -36,6 +37,7 @@ from capability_governance import (
     record_sha256,
     resolve_repository_path,
     sorted_errors,
+    validate_relative_path,
     validate_governance,
     validate_revision_ancestry,
 )
@@ -90,6 +92,22 @@ def _parser() -> argparse.ArgumentParser:
     refresh.add_argument("--output-root", type=Path, required=True)
     refresh.add_argument("--revision-id", required=True)
     refresh.add_argument("--review-revision", required=True)
+
+    review = commands.add_parser(
+        "review-refresh",
+        help="accept fully observed drift into immutable reviewed successors",
+    )
+    review.add_argument("--manifest", type=Path, required=True)
+    review.add_argument("--drift-report", type=Path, required=True)
+    review.add_argument("--output-root", type=Path, required=True)
+    review.add_argument("--revision-id", required=True)
+    review.add_argument("--review-revision", required=True)
+    review.add_argument("--evaluation-time", required=True)
+    review.add_argument("--selector-path", required=True)
+    review.add_argument("--registry-path", required=True)
+    review.add_argument("--decisions-path", required=True)
+    review.add_argument("--evidence-path", required=True)
+    review.add_argument("--drift-artifact-path", required=True)
     return parser
 
 
@@ -203,6 +221,7 @@ def _repository_binding(repository: Mapping[str, Any]) -> dict[str, Any]:
             "revision_kind",
             "revision_value",
             "tree_sha256",
+            "tree_hash_kind",
             "license_sha256",
         )
         if key in repository
@@ -258,7 +277,10 @@ def _observe_fingerprints(
             )
             live_path = live_reference_root.joinpath(*relative.parts).resolve()
             live_path.relative_to(live_reference_root.resolve())
-            repositories[repo_id] = repository_fingerprint(live_path)
+            repositories[repo_id] = repository_fingerprint(
+                live_path,
+                expected=repository,
+            )
         except (ValueError, OSError, GovernanceUsageError):
             repositories[repo_id] = {"availability": "unavailable"}
     targets: dict[str, Any] = {}
@@ -664,6 +686,7 @@ def _base_evidence_record(
     supersedes: list[str],
     event_type: str,
     reason: str,
+    artifact_path: str = "drift-report.json",
 ) -> dict[str, Any]:
     return {
         "sequence": 0,
@@ -682,7 +705,7 @@ def _base_evidence_record(
             "binding_id": f"source.{evidence_id}",
             "revision_kind": "external_revision",
             "revision_value": source_revision,
-            "path": "drift-report.json",
+            "path": artifact_path,
             "sha256": canonical_sha256(source_revision),
         },
         "target_binding": {
@@ -712,7 +735,7 @@ def _base_evidence_record(
         "observed_at": timestamp,
         "artifact": {
             "artifact_kind": "repository_path",
-            "path": "drift-report.json",
+            "path": artifact_path,
             "sha256": drift_sha256,
             "media_type": "application/json",
             "byte_size": drift_size,
@@ -729,7 +752,7 @@ def _base_evidence_record(
 
 
 def _load_refresh_bundle(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
-    if args.fixture_bundle is not None:
+    if getattr(args, "fixture_bundle", None) is not None:
         source_path = args.fixture_bundle.resolve()
         bundle = load_fixture_bundle(source_path, root=REPOSITORY_ROOT)
     else:
@@ -807,10 +830,16 @@ def _build_refresh_successor(
     review_revision: str,
     drift_sha256: str,
     drift_size: int,
+    accepted_observations: Mapping[str, Any] | None = None,
+    evaluation_time: str | None = None,
+    drift_artifact_path: str = "drift-report.json",
 ) -> tuple[dict[str, Any], list[str]]:
     successor = copy.deepcopy(dict(bundle))
-    timestamp = str((bundle.get("bundle_manifest") or {}).get("evaluation_time", ""))
+    timestamp = evaluation_time or str(
+        (bundle.get("bundle_manifest") or {}).get("evaluation_time", "")
+    )
     _require_rfc3339(timestamp)
+    accepting_review = accepted_observations is not None
     artifact_id = str((bundle.get("official_source_artifact") or {}).get("artifact_id", ""))
     official_codes = by_subject.get(artifact_id, set())
 
@@ -881,11 +910,63 @@ def _build_refresh_successor(
     if registry_head is not None:
         registry_head["snapshot_id"] = f"{revision_id}.repository-snapshot"
         for repository in registry_head.get("repositories", []):
-            codes = by_subject.get(str(repository.get("repo_id", "")), set())
+            repo_id = str(repository.get("repo_id", ""))
+            codes = by_subject.get(repo_id, set())
             if codes:
-                repository["freshness"] = "stale"
-                if "source_unavailable" in codes:
-                    repository["availability"] = "missing"
+                if accepting_review:
+                    observed = (accepted_observations.get("repositories") or {}).get(repo_id)
+                    if not isinstance(observed, Mapping):
+                        raise GovernanceUsageError(
+                            f"observation_missing: repository {repo_id}"
+                        )
+                    tree_sha256 = observed.get("tree_sha256")
+                    tree_hash_kind = observed.get("tree_hash_kind")
+                    license_sha256 = observed.get("license_sha256")
+                    if (
+                        not isinstance(tree_sha256, str)
+                        or not re.fullmatch(r"[a-f0-9]{64}", tree_sha256)
+                        or tree_hash_kind
+                        not in {"git_object_tree_sha256", "content_tree_sha256"}
+                        or not isinstance(license_sha256, str)
+                        or not re.fullmatch(r"[a-f0-9]{64}", license_sha256)
+                    ):
+                        raise GovernanceUsageError(
+                            f"observation_invalid: repository {repo_id}"
+                        )
+                    if repository.get("revision_kind") == "git_commit":
+                        git_head = observed.get("git_head")
+                        if (
+                            observed.get("worktree_clean") != "true"
+                            or tree_hash_kind != "git_object_tree_sha256"
+                            or not isinstance(git_head, str)
+                            or not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", git_head)
+                        ):
+                            raise GovernanceUsageError(
+                                f"observation_invalid: Git repository {repo_id} is not clean"
+                            )
+                        repository["git_head"] = git_head
+                        repository["revision_value"] = git_head
+                    else:
+                        if tree_hash_kind != "content_tree_sha256" or "git_head" in observed:
+                            raise GovernanceUsageError(
+                                f"observation_invalid: content repository {repo_id}"
+                            )
+                        repository.pop("git_head", None)
+                        repository["revision_value"] = tree_sha256
+                    repository.update(
+                        {
+                            "availability": "available",
+                            "freshness": "current",
+                            "scanned_at": timestamp,
+                            "tree_sha256": tree_sha256,
+                            "tree_hash_kind": tree_hash_kind,
+                            "license_sha256": license_sha256,
+                        }
+                    )
+                else:
+                    repository["freshness"] = "stale"
+                    if "source_unavailable" in codes:
+                        repository["availability"] = "missing"
 
     decision_head = new_heads.get("capability_decision_revisions")
     decision_to_repo: dict[str, str] = {}
@@ -896,12 +977,41 @@ def _build_refresh_successor(
     )
     if decision_head is not None:
         decision_head["review_revision"] = review_revision
+    reviewed_repositories = {
+        str(repository.get("repo_id", "")): repository
+        for repository in (
+            registry_head.get("repositories", [])
+            if registry_head is not None
+            else registry_previous.get("repositories", [])
+        )
+    }
     for decision in decision_rows:
         decision_id = str(decision.get("decision_id", ""))
         repo_id = str(decision.get("repo_id", ""))
         decision_to_repo[decision_id] = repo_id
         if decision_head is not None and (by_subject.get(decision_id) or by_subject.get(repo_id)):
-            decision["freshness"] = "stale"
+            if accepting_review:
+                repository = reviewed_repositories.get(repo_id)
+                target = (accepted_observations.get("targets") or {}).get(decision_id)
+                if not isinstance(repository, Mapping) or not isinstance(target, Mapping):
+                    raise GovernanceUsageError(
+                        f"observation_missing: decision {decision_id}"
+                    )
+                target_value = target.get("revision_value")
+                if (
+                    target.get("revision_kind") != decision.get("target_revision_kind")
+                    or not isinstance(target_value, str)
+                    or not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", target_value)
+                ):
+                    raise GovernanceUsageError(
+                        f"observation_invalid: decision {decision_id}"
+                    )
+                decision["source_revision_kind"] = repository["revision_kind"]
+                decision["source_revision_value"] = repository["revision_value"]
+                decision["target_revision_value"] = target_value
+                decision["freshness"] = "current"
+            else:
+                decision["freshness"] = "stale"
             decision["review_revision"] = review_revision
 
     evidence_head = new_heads["evidence_revisions"]
@@ -956,7 +1066,13 @@ def _build_refresh_successor(
         if subject_family == "capability_decision":
             codes.update(by_subject.get(decision_to_repo.get(subject_id, ""), set()))
         affected = bool(codes)
-        reason = f"drift:{sorted(codes)[0]}" if affected else "revision_rebind"
+        reason = (
+            f"reviewed_refresh:{sorted(codes)[0]}"
+            if accepting_review and affected
+            else f"drift:{sorted(codes)[0]}"
+            if affected
+            else "revision_rebind"
+        )
         record = _base_evidence_record(
             evidence_id=new_id,
             subject_family=subject_family,
@@ -968,13 +1084,14 @@ def _build_refresh_successor(
             timestamp=timestamp,
             drift_sha256=drift_sha256,
             drift_size=drift_size,
-            freshness="stale" if affected else "current",
-            result="blocked" if affected else "pass",
-            coverage_state="blocked" if affected else "verified",
+            freshness="current" if accepting_review or not affected else "stale",
+            result="pass" if accepting_review or not affected else "blocked",
+            coverage_state="verified" if accepting_review or not affected else "blocked",
             proof_level=("local_contract" if environment_kind == "local_contract" else "source"),
             supersedes=[old_id],
-            event_type="stale" if affected else "supersession",
+            event_type="supersession" if accepting_review or not affected else "stale",
             reason=reason,
+            artifact_path=drift_artifact_path,
         )
         _append_record(records, record)
 
@@ -1009,17 +1126,23 @@ def _build_refresh_successor(
             timestamp=timestamp,
             drift_sha256=drift_sha256,
             drift_size=drift_size,
-            freshness="stale",
-            result="blocked" if code == "source_unavailable" else "fail",
-            coverage_state="blocked",
+            freshness="current" if accepting_review else "stale",
+            result="pass"
+            if accepting_review
+            else "blocked"
+            if code == "source_unavailable"
+            else "fail",
+            coverage_state="verified" if accepting_review else "blocked",
             proof_level="source",
             supersedes=[],
-            event_type="stale",
-            reason=f"drift:{code}",
+            event_type="supersession" if accepting_review else "stale",
+            reason=f"reviewed_refresh:{code}" if accepting_review else f"drift:{code}",
+            artifact_path=drift_artifact_path,
         )
         _append_record(records, event)
 
     manifest = copy.deepcopy(dict(bundle["bundle_manifest"]))
+    manifest["evaluation_time"] = timestamp
     manifest["evidence_head"] = {
         "revision_id": evidence_head["revision_id"],
         "path": "current.json#evidence_revisions/current",
@@ -1098,6 +1221,7 @@ def _refresh_result(
 
 
 def _write_staged_json(path: Path, value: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -1149,6 +1273,240 @@ def _publish_refresh(
             stage.rmdir() if stage.exists() else None
 
 
+def _require_publication_path(value: str, label: str) -> str:
+    if not validate_relative_path(value) or not value.startswith(
+        "docs/agent-program/kiana-completion/governance/"
+    ):
+        raise GovernanceUsageError(
+            f"{label}_invalid: path must stay under the governance authority root"
+        )
+    return value
+
+
+def _validate_review_observations(
+    report: Any,
+    bundle: Mapping[str, Any],
+) -> tuple[list[Mapping[str, Any]], dict[str, set[str]], Mapping[str, Any]]:
+    errors, by_subject = _validate_refresh_report(report, bundle)
+    frozen = report.get("frozen_fingerprints")
+    if not isinstance(frozen, Mapping) or canonical_sha256(frozen) != canonical_sha256(
+        _frozen_fingerprints(bundle)
+    ):
+        raise GovernanceUsageError(
+            "drift_report_binding_mismatch: frozen fingerprints do not match predecessor"
+        )
+    codes = {str(error.get("code")) for error in errors}
+    if codes.intersection({"source_unavailable", "official_source_hash_drift"}):
+        raise GovernanceUsageError(
+            "review_blocked: unavailable or changed official sources require a new controlled artifact"
+        )
+    observed = report.get("observed_fingerprints")
+    if not isinstance(observed, Mapping):
+        raise GovernanceUsageError("drift_report_invalid: observed fingerprints are required")
+    official = observed.get("official_source")
+    expected_official = _frozen_fingerprints(bundle)["official_source"]
+    if not isinstance(official, Mapping) or canonical_sha256(official) != canonical_sha256(
+        expected_official
+    ):
+        raise GovernanceUsageError(
+            "official_source_binding_mismatch: review cannot replace controlled source bytes"
+        )
+    if not isinstance(observed.get("repositories"), Mapping) or not isinstance(
+        observed.get("targets"), Mapping
+    ):
+        raise GovernanceUsageError(
+            "drift_report_invalid: repository and target observations are required"
+        )
+    recomputed: list[GovernanceError] = []
+    frozen_fingerprints = _frozen_fingerprints(bundle)
+    frozen_official = frozen_fingerprints["official_source"]
+    if canonical_sha256(official) != canonical_sha256(frozen_official):
+        recomputed.append(
+            GovernanceError(
+                "official_source_hash_drift",
+                str(frozen_official.get("artifact_id", "")),
+                freshness="stale",
+            )
+        )
+    registry = (bundle.get("repository_registry_revisions") or [{}])[-1]
+    observed_repositories = observed["repositories"]
+    for repository in registry.get("repositories", []):
+        repo_id = str(repository.get("repo_id", ""))
+        fingerprint = observed_repositories.get(repo_id)
+        recomputed.extend(
+            compare_repository_fingerprint(
+                repository,
+                fingerprint if isinstance(fingerprint, Mapping) else None,
+            )
+        )
+    decisions = (bundle.get("capability_decision_revisions") or [{}])[-1]
+    observed_targets = observed["targets"]
+    for decision in decisions.get("decisions", []):
+        if decision.get("freshness") != "current":
+            continue
+        decision_id = str(decision.get("decision_id", ""))
+        target = observed_targets.get(decision_id)
+        if (
+            not isinstance(target, Mapping)
+            or target.get("revision_kind") != decision.get("target_revision_kind")
+            or target.get("revision_value") != decision.get("target_revision_value")
+        ):
+            recomputed.append(
+                GovernanceError(
+                    "target_revision_drift",
+                    decision_id,
+                    str(decision.get("target_path", "")),
+                    freshness="stale",
+                )
+            )
+    reported_errors = [
+        {
+            "code": str(error.get("code", "")),
+            "subject_id": str(error.get("subject_id", "")),
+            "path": str(error.get("path", "")),
+            "detail": str(error.get("detail", "")),
+            "freshness": error.get("freshness"),
+        }
+        for error in errors
+    ]
+    actual_errors = [error.as_dict() for error in sorted_errors(recomputed)]
+    if reported_errors != actual_errors:
+        raise GovernanceUsageError(
+            "drift_report_observation_mismatch: reported errors do not match observations"
+        )
+    return errors, by_subject, observed
+
+
+def _publish_review(
+    output_root: Path,
+    *,
+    selector_path: str,
+    selector: Mapping[str, Any],
+    registry_path: str,
+    registry: Mapping[str, Any],
+    decisions_path: str,
+    decisions: Mapping[str, Any],
+    evidence_path: str,
+    evidence: Mapping[str, Any],
+    drift_artifact_path: str,
+    drift_report_path: Path,
+) -> None:
+    publication_paths = {
+        selector_path,
+        registry_path,
+        decisions_path,
+        evidence_path,
+        drift_artifact_path,
+    }
+    if len(publication_paths) != 5:
+        raise GovernanceUsageError("output_collision: publication paths must be unique")
+    if output_root.is_symlink():
+        raise GovernanceUsageError("output_escape: symlink output root is forbidden")
+    parent = output_root.parent.resolve(strict=True)
+    target = parent / output_root.name
+    if target.exists() and (not target.is_dir() or any(target.iterdir())):
+        raise GovernanceUsageError("output_exists: output root must be absent or empty")
+    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.review-", dir=parent))
+    published = False
+    try:
+        for relative, value in (
+            (selector_path, selector),
+            (registry_path, registry),
+            (decisions_path, decisions),
+            (evidence_path, evidence),
+        ):
+            destination = stage.joinpath(*PurePosixPath(relative).parts)
+            _write_staged_json(destination, value)
+        drift_destination = stage.joinpath(*PurePosixPath(drift_artifact_path).parts)
+        drift_destination.parent.mkdir(parents=True, exist_ok=True)
+        drift_destination.write_bytes(drift_report_path.read_bytes())
+        if target.exists():
+            target.rmdir()
+        os.rename(stage, target)
+        published = True
+    finally:
+        if not published and stage.exists():
+            for child in sorted(stage.rglob("*"), reverse=True):
+                child.unlink() if child.is_file() or child.is_symlink() else child.rmdir()
+            stage.rmdir()
+
+
+def _review_refresh(args: argparse.Namespace) -> int:
+    revision_id = _require_stable_id(args.revision_id, "revision_id")
+    review_revision = _require_stable_id(args.review_revision, "review_revision")
+    evaluation_time = _require_rfc3339(args.evaluation_time)
+    selector_path = _require_publication_path(args.selector_path, "selector_path")
+    registry_path = _require_publication_path(args.registry_path, "registry_path")
+    decisions_path = _require_publication_path(args.decisions_path, "decisions_path")
+    evidence_path = _require_publication_path(args.evidence_path, "evidence_path")
+    drift_artifact_path = _require_publication_path(
+        args.drift_artifact_path,
+        "drift_artifact_path",
+    )
+
+    bundle, _source_path = _load_refresh_bundle(args)
+    drift_path = args.drift_report.resolve()
+    report = load_json(drift_path)
+    errors, by_subject, observed = _validate_review_observations(report, bundle)
+    drift_sha256 = file_sha256(drift_path)
+    successor, _event_codes = _build_refresh_successor(
+        bundle,
+        errors=errors,
+        by_subject=by_subject,
+        revision_id=revision_id,
+        review_revision=review_revision,
+        drift_sha256=drift_sha256,
+        drift_size=drift_path.stat().st_size,
+        accepted_observations=observed,
+        evaluation_time=evaluation_time,
+        drift_artifact_path=drift_artifact_path,
+    )
+
+    registry = successor["repository_registry_revisions"][-1]
+    decisions = successor["capability_decision_revisions"][-1]
+    evidence = successor["evidence_revisions"][-1]
+    selector = successor["bundle_manifest"]
+    selector.update(
+        {
+            "repository_registry": {
+                "revision_id": registry["revision_id"],
+                "path": registry_path,
+                "sha256": canonical_sha256(registry),
+            },
+            "capability_decisions": {
+                "revision_id": decisions["revision_id"],
+                "path": decisions_path,
+                "sha256": canonical_sha256(decisions),
+            },
+            "evidence_head": {
+                "revision_id": evidence["revision_id"],
+                "path": evidence_path,
+                "sha256": canonical_sha256(evidence),
+            },
+            "evaluation_time": evaluation_time,
+        }
+    )
+    validation_errors = validate_governance(successor, root=REPOSITORY_ROOT)
+    if validation_errors:
+        codes = ",".join(error.code for error in validation_errors[:10])
+        raise GovernanceUsageError(f"review_successor_invalid: {codes}")
+
+    _publish_review(
+        args.output_root,
+        selector_path=selector_path,
+        selector=selector,
+        registry_path=registry_path,
+        registry=registry,
+        decisions_path=decisions_path,
+        decisions=decisions,
+        evidence_path=evidence_path,
+        evidence=evidence,
+        drift_artifact_path=drift_artifact_path,
+        drift_report_path=drift_path,
+    )
+    return 0
+
+
 def _refresh(args: argparse.Namespace) -> int:
     revision_id = _require_stable_id(args.revision_id, "revision_id")
     review_revision = _require_stable_id(args.review_revision, "review_revision")
@@ -1191,6 +1549,8 @@ def main() -> int:
             return _freeze(args)
         if args.command == "check-drift":
             return _check_drift(args)
+        if args.command == "review-refresh":
+            return _review_refresh(args)
         return _refresh(args)
     except (GovernanceUsageError, OSError, ValueError, base64.binascii.Error) as exc:
         if isinstance(exc, GovernanceUsageError):

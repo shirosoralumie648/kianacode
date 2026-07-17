@@ -35,6 +35,8 @@ D-20 将治理事实严格拆为四类不可互相替代的 family：
 
 `freeze` 只把受控离线输入包装为不可覆盖的冻结收据；`check-drift` 比较 checked-in 指纹和明确传入的本地观察；`refresh` 根据 drift report 创建自包含 successor，并只推进受影响 family。refresh 之后先完成来源解释、license/security 和 evidence review，再人工更新 path/hash-only selector。不得把 selector 的移动当作功能完成证明。
 
+Git-backed reference 的 canonical source 是 `revision_kind=git_commit` 指向的提交对象树：`tree_hash_kind=git_object_tree_sha256` 对 Git tree object identity 建立 SHA-256 envelope。未提交和 ignored checkout 字节不属于该 source authority，也不能改变已冻结提交；HEAD 变化会触发 `repository_head_drift` 并重算新 tree identity。没有独立 Git identity 的受控快照使用 `tree_hash_kind=content_tree_sha256`，按排序相对路径和文件字节做有文件数、单文件和总字节上限的流式哈希。JSON 的 16 MiB 输入上限不再错误复用于 repository content fingerprint。
+
 ```bash
 tmp="$(mktemp -d)"
 
@@ -59,7 +61,22 @@ python3 scripts/freeze-capability-governance.py refresh \
   --output-root "$tmp/refreshed" \
   --revision-id governance-refresh-YYYY-MM-DD \
   --review-revision governance-review-YYYY-MM-DD
+
+python3 scripts/freeze-capability-governance.py review-refresh \
+  --manifest docs/agent-program/kiana-completion/governance/current.json \
+  --drift-report "$tmp/drift.json" \
+  --output-root "$tmp/reviewed" \
+  --revision-id governance-review-YYYY-MM-DD-v1 \
+  --review-revision reference-reviewed-YYYY-MM-DD \
+  --evaluation-time YYYY-MM-DDTHH:MM:SSZ \
+  --selector-path docs/agent-program/kiana-completion/governance/current.json \
+  --registry-path docs/agent-program/kiana-completion/governance/repository-registry/references-YYYY-MM-DD.json \
+  --decisions-path docs/agent-program/kiana-completion/governance/capability-decisions/review-YYYY-MM-DD.json \
+  --evidence-path docs/agent-program/kiana-completion/governance/evidence/revisions/evidence-YYYY-MM-DD.json \
+  --drift-artifact-path docs/agent-program/kiana-completion/governance/drift/references-YYYY-MM-DD.json
 ```
+
+`review-refresh` 不会把任意 stale report 自动洗成 current。它要求 report 的 frozen fingerprint 精确绑定 predecessor，独立重算 observed drift 并拒绝遗漏/伪造，同时拒绝 `source_unavailable` 和未经新受控工件确认的 official-source 变化。命令只在显式 review revision 和 evaluation time 下生成新的 registry、decision、evidence successor 与 selector staging tree；发布者仍须验证 staging、审查 diff，并以新文件落盘，不能覆盖 predecessor。
 
 这些 Phase 1 CLI 禁止直接访问网络，也不安装新 package；它们只使用 Python 标准库、checked-in 工件和显式本地根。新的网络采集必须经过共享网络策略和人工来源审查，在 CLI 之外产出新的受控输入；抓取失败产生 blocked/stale 事实，不能沿用旧字节冒充 current。
 

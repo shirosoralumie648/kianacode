@@ -55,6 +55,8 @@ fn linux_public_slices_succeed_after_prebuilt_binary() {
         "semantic-negative",
         "drift-refresh",
         "legacy-authority",
+        "generated-views",
+        "production",
     ] {
         let output = run_binary(slice);
         assert!(

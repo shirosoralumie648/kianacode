@@ -45,7 +45,7 @@
   "from_revision_sha256": "76f44c5e6e87b9e327ce06f62fcbb29500ec1f064e4ea5ac46d1bf0b5d34d290",
   "removed_ids": [],
   "schema": "kiana.capability-governance-diff.v1",
-  "to_revision_id": "reference-registry-2026-07-15-reviewed",
-  "to_revision_sha256": "130a38ec086517d2c0a1080215c74cbb435f4e6813ffc6af9c401722e8b86831",
+  "to_revision_id": "governance-review-2026-07-18-v1.repository-registry",
+  "to_revision_sha256": "261febc1af1c7a0212b965c35f4657872834b19a6060bb21b97994ad6ac29137",
   "version": "1.0"
 }

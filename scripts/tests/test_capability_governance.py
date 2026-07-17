@@ -282,10 +282,57 @@ class GovernanceDriftAndUsageContractTests(unittest.TestCase):
             self.repository_drift_codes({"revision_value": "0" * 40}),
         )
 
+    def test_content_tree_fingerprint_streams_files_larger_than_json_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / "large.bin"
+            payload.write_bytes(b"x" * (governance.MAX_JSON_BYTES + 1))
+
+            first = governance.content_tree_sha256(root)
+            second = governance.content_tree_sha256(root)
+
+        self.assertEqual(first, second)
+        self.assertRegex(first, r"^[a-f0-9]{64}$")
+
+    def test_git_fingerprint_uses_commit_object_tree_not_checkout_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repository"
+            fingerprint = self.initialize_git_repository(root)
+            self.assertEqual("git_object_tree_sha256", fingerprint["tree_hash_kind"])
+            self.assertEqual("true", fingerprint["worktree_clean"])
+
+            (root / "untracked.txt").write_text("not frozen\n", encoding="utf-8")
+            (root / "LICENSE").write_text("uncommitted license\n", encoding="utf-8")
+            changed = governance.repository_fingerprint(root)
+
+        self.assertEqual(fingerprint["tree_sha256"], changed["tree_sha256"])
+        self.assertEqual(fingerprint["license_sha256"], changed["license_sha256"])
+        self.assertEqual("true", changed["worktree_clean"])
+        frozen = {
+            "repo_id": "fixture-repository",
+            "path": "reference/fixture-repository",
+            "revision_kind": "git_commit",
+            "revision_value": fingerprint["git_head"],
+            "tree_sha256": fingerprint["tree_sha256"],
+            "tree_hash_kind": fingerprint["tree_hash_kind"],
+            "license_sha256": fingerprint["license_sha256"],
+        }
+        self.assertEqual([], governance.compare_repository_fingerprint(frozen, changed))
+
     def test_repository_tree_drift_keeps_exact_code(self) -> None:
         self.assertIn(
             "repository_tree_drift",
             self.repository_drift_codes({"tree_sha256": "0" * 64}),
+        )
+
+    def test_repository_tree_hash_kind_must_match_revision_kind(self) -> None:
+        bundle = load_minimal_bundle()
+        repository = bundle["repository_registry_revisions"][-1]["repositories"][0]
+        repository["tree_hash_kind"] = "content_tree_sha256"
+
+        self.assertIn(
+            "tree_hash_kind_mismatch",
+            error_codes(governance.validate_governance(bundle)),
         )
 
     def test_license_hash_drift_has_exact_code(self) -> None:

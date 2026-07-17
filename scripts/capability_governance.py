@@ -16,8 +16,10 @@ import importlib.util
 import json
 import os
 import re
+import stat as stat_module
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -31,6 +33,10 @@ MAX_COLLECTION_ITEMS = 50_000
 MAX_TOTAL_NODES = 500_000
 MAX_NESTING_DEPTH = 64
 MAX_DIAGNOSTIC_CHARS = 512
+MAX_FINGERPRINT_FILE_BYTES = 4 * 1024 * 1024 * 1024
+MAX_FINGERPRINT_TREE_BYTES = 16 * 1024 * 1024 * 1024
+GIT_FINGERPRINT_TIMEOUT_SECONDS = 10
+MAX_REPOSITORY_OBSERVERS = 4
 
 PROOF_RANK = {
     "none": 0,
@@ -1285,6 +1291,15 @@ def _validate_registry_and_decisions(bundle: Mapping[str, Any], errors: list[Gov
                 _error(errors, "git_head_mismatch", repo_id)
             if repository.get("revision_kind") == "content_tree_sha256" and "git_head" in repository:
                 _error(errors, "content_git_head_forbidden", repo_id)
+            expected_tree_hash_kind = {
+                "git_commit": "git_object_tree_sha256",
+                "content_tree_sha256": "content_tree_sha256",
+            }.get(repository.get("revision_kind"))
+            if (
+                repository.get("tree_hash_kind") is not None
+                and repository.get("tree_hash_kind") != expected_tree_hash_kind
+            ):
+                _error(errors, "tree_hash_kind_mismatch", repo_id)
             if _PROHIBITED_COMPLETION_KEYS.intersection(_iter_keys(repository)):
                 _error(errors, "registry_completion_authority", repo_id)
 
@@ -1406,6 +1421,16 @@ def _revision_chain_from_head(head_path: Path, root: Path) -> list[Mapping[str, 
         current = previous
         current_path = resolve_repository_path(root, _split_binding_path(previous_raw)[0])
     return list(reversed(reverse))
+
+
+def load_revision_chain_from_head(
+    head_path: Path,
+    *,
+    root: Path,
+) -> list[Mapping[str, Any]]:
+    """Load one immutable revision chain from genesis through the supplied head."""
+
+    return _revision_chain_from_head(head_path.resolve(), root.resolve())
 
 
 def validate_history_file(head_path: Path, *, root: Path | None = None) -> list[GovernanceError]:
@@ -1962,21 +1987,178 @@ def content_tree_sha256(root: Path) -> str:
         for path in root.rglob("*")
         if path.is_file() and ".git" not in path.relative_to(root).parts
     )
+    if len(files) > MAX_COLLECTION_ITEMS:
+        raise GovernanceUsageError(
+            f"fingerprint_too_large: tree exceeds {MAX_COLLECTION_ITEMS} files"
+        )
+    total_bytes = 0
     for path in files:
-        if path.is_symlink():
-            resolved = path.resolve()
-            try:
-                resolved.relative_to(root)
-            except ValueError as exc:
-                raise GovernanceUsageError(
-                    f"symlink_escape: {_sanitize_path_for_output(path.relative_to(root))}"
-                ) from exc
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise GovernanceUsageError(
+                f"symlink_escape: {_sanitize_path_for_output(path.relative_to(root))}"
+            ) from exc
         relative = path.relative_to(root).as_posix().encode("utf-8")
-        payload = _bounded_read(path)
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
+        try:
+            with resolved.open("rb") as handle:
+                before = os.fstat(handle.fileno())
+                if not stat_module.S_ISREG(before.st_mode):
+                    raise GovernanceUsageError(
+                        f"fingerprint_unavailable: {_sanitize_path_for_output(path)} is not a regular file"
+                    )
+                if before.st_size > MAX_FINGERPRINT_FILE_BYTES:
+                    raise GovernanceUsageError(
+                        "fingerprint_too_large: "
+                        f"{_sanitize_path_for_output(path)} exceeds {MAX_FINGERPRINT_FILE_BYTES} bytes"
+                    )
+                total_bytes += before.st_size
+                if total_bytes > MAX_FINGERPRINT_TREE_BYTES:
+                    raise GovernanceUsageError(
+                        f"fingerprint_too_large: tree exceeds {MAX_FINGERPRINT_TREE_BYTES} bytes"
+                    )
+                digest.update(len(relative).to_bytes(8, "big"))
+                digest.update(relative)
+                digest.update(before.st_size.to_bytes(8, "big"))
+                observed_size = 0
+                while chunk := handle.read(1024 * 1024):
+                    observed_size += len(chunk)
+                    digest.update(chunk)
+                after = os.fstat(handle.fileno())
+        except OSError as exc:
+            raise GovernanceUsageError(
+                f"fingerprint_unavailable: {_sanitize_text(exc)}"
+            ) from exc
+        if (
+            observed_size != before.st_size
+            or after.st_dev != before.st_dev
+            or after.st_ino != before.st_ino
+            or after.st_size != before.st_size
+            or after.st_mtime_ns != before.st_mtime_ns
+        ):
+            raise GovernanceUsageError(
+                f"fingerprint_changed_during_read: {_sanitize_path_for_output(path)}"
+            )
+    return digest.hexdigest()
+
+
+def _git_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_OPTIONAL_LOCKS": "0",
+            "LC_ALL": "C",
+        }
+    )
+    return environment
+
+
+def _run_git(path: Path, arguments: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                "-C",
+                str(path),
+                *arguments,
+            ],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=GIT_FINGERPRINT_TIMEOUT_SECONDS,
+            env=_git_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GovernanceUsageError(
+            f"git_fingerprint_unavailable: {_sanitize_text(exc)}"
+        ) from exc
+    if len(result.stdout) > MAX_JSON_BYTES or len(result.stderr) > MAX_JSON_BYTES:
+        raise GovernanceUsageError("git_fingerprint_too_large: git output limit exceeded")
+    return result
+
+
+def _git_object_tree_fingerprint(
+    path: Path,
+    git_head: str,
+    expected: Mapping[str, Any] | None,
+) -> tuple[str, str, bool] | None:
+    dot_git = path / ".git"
+    if dot_git.is_dir() and not (dot_git / "objects").exists():
+        # Synthetic fixtures use a minimal HEAD-only directory. They retain the
+        # content-tree algorithm and cannot be mistaken for a production Git repository.
+        return None
+
+    if (
+        expected is not None
+        and expected.get("revision_kind") == "git_commit"
+        and expected.get("revision_value") == git_head
+        and expected.get("tree_hash_kind") == "git_object_tree_sha256"
+        and isinstance(expected.get("tree_sha256"), str)
+        and re.fullmatch(r"[a-f0-9]{64}", str(expected.get("tree_sha256")))
+        and isinstance(expected.get("license_sha256"), str)
+        and re.fullmatch(r"[a-f0-9]{64}", str(expected.get("license_sha256")))
+    ):
+        return str(expected["tree_sha256"]), str(expected["license_sha256"]), True
+
+    tree = _run_git(path, ["rev-parse", "--verify", "HEAD^{tree}"])
+    if tree.returncode != 0:
+        raise GovernanceUsageError("git_fingerprint_unavailable: cannot resolve HEAD tree")
+    tree_oid = tree.stdout.decode("ascii", errors="strict").strip()
+    if not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", tree_oid):
+        raise GovernanceUsageError("git_fingerprint_invalid: invalid HEAD tree object ID")
+    object_format = "sha256" if len(tree_oid) == 64 else "sha1"
+    payload = f"git-object-tree-v1\0{object_format}\0{tree_oid}\n".encode("ascii")
+    return hashlib.sha256(payload).hexdigest(), _git_license_sha256(path), True
+
+
+def _git_license_sha256(path: Path) -> str:
+    listing = _run_git(path, ["ls-tree", "-z", "--full-tree", "HEAD"])
+    if listing.returncode != 0:
+        raise GovernanceUsageError("git_fingerprint_unavailable: cannot list HEAD tree")
+    candidates: list[tuple[bytes, str]] = []
+    entries = listing.stdout.split(b"\x00")
+    if entries[-1] != b"":
+        raise GovernanceUsageError("git_fingerprint_invalid: unterminated tree listing")
+    for entry in entries[:-1]:
+        metadata, separator, name = entry.partition(b"\t")
+        fields = metadata.split(b" ")
+        if not separator or len(fields) != 3:
+            raise GovernanceUsageError("git_fingerprint_invalid: malformed tree entry")
+        _mode, object_type, object_id = fields
+        if object_type != b"blob" or not name.lower().startswith(
+            (b"license", b"copying", b"notice")
+        ):
+            continue
+        try:
+            object_id_text = object_id.decode("ascii", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise GovernanceUsageError(
+                "git_fingerprint_invalid: invalid license object ID"
+            ) from exc
+        if not re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", object_id_text):
+            raise GovernanceUsageError(
+                "git_fingerprint_invalid: invalid license object ID"
+            )
+        candidates.append((name, object_id_text))
+    if len(candidates) > MAX_COLLECTION_ITEMS:
+        raise GovernanceUsageError("git_fingerprint_too_large: too many license files")
+    digest = hashlib.sha256()
+    for name, object_id in sorted(candidates):
+        blob = _run_git(path, ["cat-file", "blob", object_id])
+        if blob.returncode != 0:
+            raise GovernanceUsageError(
+                "git_fingerprint_unavailable: cannot read license blob"
+            )
+        digest.update(name)
+        digest.update(b"\x00")
+        digest.update(blob.stdout)
     return digest.hexdigest()
 
 
@@ -2043,24 +2225,43 @@ def _read_git_head(path: Path) -> str | None:
     return None
 
 
-def repository_fingerprint(path: Path) -> dict[str, str]:
+def repository_fingerprint(
+    path: Path,
+    *,
+    expected: Mapping[str, Any] | None = None,
+) -> dict[str, str]:
     path = path.resolve()
-    fingerprint = {"tree_sha256": content_tree_sha256(path)}
-    if git_head := _read_git_head(path):
-        fingerprint["git_head"] = git_head
-    license_files = sorted(
-        candidate
-        for candidate in path.iterdir()
-        if candidate.is_file()
-        and candidate.name.lower().startswith(("license", "copying", "notice"))
+    git_head = _read_git_head(path)
+    git_tree = (
+        _git_object_tree_fingerprint(path, git_head, expected) if git_head else None
     )
-    if license_files:
+    if git_tree is None:
+        fingerprint = {
+            "tree_sha256": content_tree_sha256(path),
+            "tree_hash_kind": "content_tree_sha256",
+        }
+        license_files = sorted(
+            candidate
+            for candidate in path.iterdir()
+            if candidate.is_file()
+            and candidate.name.lower().startswith(("license", "copying", "notice"))
+        )
         digest = hashlib.sha256()
         for candidate in license_files:
             digest.update(candidate.name.encode("utf-8"))
             digest.update(b"\x00")
             digest.update(_bounded_read(candidate))
         fingerprint["license_sha256"] = digest.hexdigest()
+    else:
+        tree_sha256, license_sha256, worktree_clean = git_tree
+        fingerprint = {
+            "tree_sha256": tree_sha256,
+            "tree_hash_kind": "git_object_tree_sha256",
+            "worktree_clean": "true" if worktree_clean else "false",
+            "license_sha256": license_sha256,
+        }
+    if git_head:
+        fingerprint["git_head"] = git_head
     return fingerprint
 
 
@@ -2088,7 +2289,13 @@ def compare_repository_fingerprint(
         and fingerprint.get("git_head") != repository.get("revision_value")
     ):
         _error(errors, "repository_head_drift", repo_id, raw_path, freshness="stale")
-    if fingerprint.get("tree_sha256") != repository.get("tree_sha256"):
+    tree_hash_kind = repository.get("tree_hash_kind")
+    tree_changed = fingerprint.get("tree_sha256") != repository.get("tree_sha256")
+    if tree_hash_kind is not None and fingerprint.get("tree_hash_kind") != tree_hash_kind:
+        tree_changed = True
+    if fingerprint.get("worktree_clean") == "false":
+        tree_changed = True
+    if tree_changed:
         tree_code = (
             "content_tree_drift"
             if repository.get("revision_kind") == "content_tree_sha256"
@@ -2122,19 +2329,36 @@ def detect_drift(
         )
     registry_revisions = bundle.get("repository_registry_revisions") or []
     if registry_revisions:
-        for repository in registry_revisions[-1].get("repositories", []):
+        repositories = registry_revisions[-1].get("repositories", [])
+        reference_root = live_reference_root.resolve()
+
+        def observe_repository(
+            repository: Mapping[str, Any],
+        ) -> tuple[Mapping[str, str] | None, Exception | None]:
             raw_path = repository.get("path", "")
             try:
                 relative = PurePosixPath(str(raw_path)).relative_to("reference")
-                live_path = live_reference_root.joinpath(*relative.parts).resolve()
-                live_path.relative_to(live_reference_root.resolve())
-                fingerprint = repository_fingerprint(live_path)
+                live_path = reference_root.joinpath(*relative.parts).resolve()
+                live_path.relative_to(reference_root)
+                fingerprint = repository_fingerprint(live_path, expected=repository)
             except (ValueError, OSError, GovernanceUsageError) as exc:
+                return None, exc
+            return fingerprint, None
+
+        workers = min(MAX_REPOSITORY_OBSERVERS, max(1, len(repositories)))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            observations = list(executor.map(observe_repository, repositories))
+        for repository, (fingerprint, observation_error) in zip(
+            repositories,
+            observations,
+            strict=True,
+        ):
+            if fingerprint is None:
                 errors.extend(
                     compare_repository_fingerprint(
                         repository,
                         None,
-                        observation_error=exc,
+                        observation_error=observation_error,
                     )
                 )
             else:

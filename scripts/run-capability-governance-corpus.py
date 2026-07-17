@@ -268,6 +268,7 @@ def run_oversized_case(
 def run() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--temp-root", type=Path)
+    parser.add_argument("--case", action="append", dest="selected_cases")
     args = parser.parse_args()
     cli = load_cli_module()
     integrity_manifest = load_json(INTEGRITY_ROOT / "expected-errors.json")
@@ -276,6 +277,12 @@ def run() -> None:
     case_ids = [case["case_id"] for case in cases]
     if len(case_ids) != len(set(case_ids)):
         raise CorpusFailure("duplicate_case_id: corpus case IDs must be unique")
+    if args.selected_cases:
+        unknown = sorted(set(args.selected_cases) - set(case_ids))
+        if unknown:
+            raise CorpusFailure(f"unknown_case_id: {','.join(unknown)}")
+        selected = set(args.selected_cases)
+        cases = [case for case in cases if case["case_id"] in selected]
     before = protected_hashes()
     scenarios = drift_scenarios()
     with tempfile.TemporaryDirectory(
@@ -317,12 +324,17 @@ def run() -> None:
                     raise CorpusFailure(
                         f"{case['case_id']}: historical evidence {preserved_id} was removed"
                     )
-        for fixture in (
-            VALID_ROOT / "minimal-graph.json",
-            VALID_ROOT / "full-38-repositories.json",
-            VALID_ROOT / "offline-source-identity.json",
-            VALID_ROOT / "hostile-rendering.json",
-        ):
+        positive_fixtures = (
+            ()
+            if args.selected_cases
+            else (
+                VALID_ROOT / "minimal-graph.json",
+                VALID_ROOT / "full-38-repositories.json",
+                VALID_ROOT / "offline-source-identity.json",
+                VALID_ROOT / "hostile-rendering.json",
+            )
+        )
+        for fixture in positive_fixtures:
             exit_code, report, stdout, stderr = run_cli(
                 cli,
                 ["validate", "--fixture-bundle", str(fixture), "--json"],
@@ -335,7 +347,7 @@ def run() -> None:
         raise CorpusFailure("protected_input_modified: corpus execution changed protected bytes")
     print(
         f"OK: capability governance corpus cases={len(cases)} "
-        "valid_fixtures=4 protected_inputs=12"
+        f"valid_fixtures={len(positive_fixtures)} protected_inputs=12"
     )
 
 

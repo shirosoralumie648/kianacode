@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,14 @@ REFRESH_REQUEST = (
 REFRESH_RESULT = REFRESH_REQUEST.with_name("refresh-result.json")
 MINIMAL_GRAPH = REFRESH_REQUEST.with_name("minimal-graph.json")
 VALIDATOR = ROOT / "scripts" / "validate-capability-governance.py"
+FREEZE_SPEC = importlib.util.spec_from_file_location(
+    "kiana_freeze_capability_governance_tests",
+    CLI,
+)
+if FREEZE_SPEC is None or FREEZE_SPEC.loader is None:
+    raise RuntimeError("freeze capability governance module is unavailable")
+freeze = importlib.util.module_from_spec(FREEZE_SPEC)
+FREEZE_SPEC.loader.exec_module(freeze)
 
 CASES = [
     "no_drift",
@@ -348,6 +357,90 @@ class CapabilityGovernanceRefreshTests(unittest.TestCase):
         self.assertTrue(
             all(record["transition_event"]["event_type"] == "stale" for record in appended)
         )
+
+    def test_review_refresh_accepts_exact_observations_into_current_successors(self) -> None:
+        predecessor = read_json(MINIMAL_GRAPH)
+        frozen = freeze._frozen_fingerprints(predecessor)
+        observed = json.loads(json.dumps(frozen))
+        for repository in predecessor["repository_registry_revisions"][-1]["repositories"]:
+            fingerprint = observed["repositories"][repository["repo_id"]]
+            if repository["revision_kind"] == "git_commit":
+                fingerprint.update(
+                    {
+                        "git_head": repository["revision_value"],
+                        "tree_hash_kind": "git_object_tree_sha256",
+                        "worktree_clean": "true",
+                    }
+                )
+            else:
+                fingerprint["tree_hash_kind"] = "content_tree_sha256"
+        decision = predecessor["capability_decision_revisions"][-1]["decisions"][0]
+        decision_id = decision["decision_id"]
+        observed["targets"][decision_id]["revision_value"] = "f" * 64
+        error = governance.GovernanceError(
+            "target_revision_drift",
+            decision_id,
+            decision["target_path"],
+            freshness="stale",
+        )
+        report = {
+            "status": "stale",
+            "current": False,
+            "freshness": "stale",
+            "errors": [error.as_dict()],
+            "affected_subjects": [decision_id],
+            "frozen_fingerprints": frozen,
+            "observed_fingerprints": observed,
+        }
+
+        errors, by_subject, accepted = freeze._validate_review_observations(
+            report,
+            predecessor,
+        )
+        successor, _event_codes = freeze._build_refresh_successor(
+            predecessor,
+            errors=errors,
+            by_subject=by_subject,
+            revision_id="fixture-reviewed-refresh",
+            review_revision="fixture-reviewed",
+            drift_sha256="d" * 64,
+            drift_size=123,
+            accepted_observations=accepted,
+            evaluation_time=predecessor["bundle_manifest"]["evaluation_time"],
+            drift_artifact_path=(
+                "docs/agent-program/kiana-completion/governance/drift/fixture.json"
+            ),
+        )
+
+        validation_errors = governance.validate_governance(successor, root=ROOT)
+        self.assertEqual([], validation_errors)
+        reviewed = successor["capability_decision_revisions"][-1]["decisions"][0]
+        self.assertEqual("f" * 64, reviewed["target_revision_value"])
+        self.assertEqual("current", reviewed["freshness"])
+        old_count = len(predecessor["evidence_revisions"][-1]["records"])
+        appended = successor["evidence_revisions"][-1]["records"][old_count:]
+        self.assertTrue(appended)
+        self.assertTrue(all(record["result"] == "pass" for record in appended))
+        self.assertTrue(all(record["freshness"] == "current" for record in appended))
+
+        tampered = json.loads(json.dumps(report))
+        tampered["errors"][0]["path"] = "wrong/path"
+        with self.assertRaisesRegex(
+            governance.GovernanceUsageError,
+            "drift_report_observation_mismatch",
+        ):
+            freeze._validate_review_observations(tampered, predecessor)
+
+        tampered_binding = json.loads(json.dumps(report))
+        repository_id = next(iter(tampered_binding["frozen_fingerprints"]["repositories"]))
+        tampered_binding["frozen_fingerprints"]["repositories"][repository_id][
+            "tree_hash_kind"
+        ] = "content_tree_sha256"
+        with self.assertRaisesRegex(
+            governance.GovernanceUsageError,
+            "drift_report_binding_mismatch",
+        ):
+            freeze._validate_review_observations(tampered_binding, predecessor)
 
     def test_refresh_request_subjects_exist_in_predecessor(self) -> None:
         request = read_json(REFRESH_REQUEST)

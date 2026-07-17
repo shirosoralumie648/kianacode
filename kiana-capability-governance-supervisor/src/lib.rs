@@ -56,6 +56,8 @@ pub enum Slice {
     SemanticNegative,
     DriftRefresh,
     LegacyAuthority,
+    GeneratedViews,
+    Production,
 }
 
 impl Slice {
@@ -68,6 +70,8 @@ impl Slice {
             "semantic-negative" => Ok(Self::SemanticNegative),
             "drift-refresh" => Ok(Self::DriftRefresh),
             "legacy-authority" => Ok(Self::LegacyAuthority),
+            "generated-views" => Ok(Self::GeneratedViews),
+            "production" => Ok(Self::Production),
             _ => Err(UsageError),
         }
     }
@@ -81,6 +85,8 @@ impl Slice {
             Self::SemanticNegative => "semantic-negative",
             Self::DriftRefresh => "drift-refresh",
             Self::LegacyAuthority => "legacy-authority",
+            Self::GeneratedViews => "generated-views",
+            Self::Production => "production",
         }
     }
 
@@ -2568,6 +2574,8 @@ mod tests {
         assert!(Slice::parse_public("semantic-negative").is_ok());
         assert!(Slice::parse_public("drift-refresh").is_ok());
         assert!(Slice::parse_public("legacy-authority").is_ok());
+        assert!(Slice::parse_public("generated-views").is_ok());
+        assert!(Slice::parse_public("production").is_ok());
         let args = vec![OsString::from("supervisor"), OsString::from("schemas")];
         assert!(matches!(
             parse_invocation(&args),

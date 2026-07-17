@@ -10,22 +10,29 @@ ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 cd "$ROOT"
 
 usage() {
-  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative|drift-refresh|legacy-authority}" >&2
+  echo "usage: scripts/capability-governance-smoke.sh [{schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative|drift-refresh|legacy-authority|generated-views|production}]" >&2
 }
+
+public_slices=(
+  schemas
+  fixture-shapes
+  public-baseline
+  reference-governance
+  semantic-negative
+  drift-refresh
+  legacy-authority
+  generated-views
+  production
+)
 
 if (($# == 2)) && [[ "${1:-}" == "--internal-worker" ]]; then
   slice="$2"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh | legacy-authority) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh | legacy-authority | generated-views | production) ;;
     *) echo "supervisor_worker_invalid: unknown slice" >&2; exit 1 ;;
   esac
   worker_mode=1
-elif (($# == 1)); then
-  slice="$1"
-  case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh | legacy-authority) ;;
-    *) usage; exit 2 ;;
-  esac
+elif (($# <= 1)); then
   supervisor_bin="$ROOT/target/debug/kiana-capability-governance-supervisor"
   if [[ ! -x "$supervisor_bin" ]]; then
     echo "supervisor_unavailable: build kiana-capability-governance-supervisor with --locked --offline" >&2
@@ -34,7 +41,54 @@ elif (($# == 1)); then
   unset BASH_ENV ENV PYTHONPATH PYTHONHOME PYTHONSTARTUP LD_PRELOAD LD_LIBRARY_PATH
   export PATH="/usr/bin:/bin"
   export LC_ALL="C"
-  exec "$supervisor_bin" "$slice"
+  if (($# == 1)); then
+    slice="$1"
+    case "$slice" in
+      schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh | legacy-authority | generated-views | production) ;;
+      *) usage; exit 2 ;;
+    esac
+    exec "$supervisor_bin" "$slice"
+  fi
+  aggregate_tmp="$(mktemp -d)"
+  aggregate_pids=()
+  cleanup_aggregate() {
+    local cleanup_status=$?
+    local pid
+
+    trap - EXIT INT TERM
+    for pid in "${aggregate_pids[@]}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -TERM "$pid" 2>/dev/null || true
+      fi
+      wait "$pid" 2>/dev/null || true
+    done
+    rm -rf "$aggregate_tmp"
+    return "$cleanup_status"
+  }
+  trap cleanup_aggregate EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  for index in "${!public_slices[@]}"; do
+    slice="${public_slices[$index]}"
+    "$supervisor_bin" "$slice" \
+      >"$aggregate_tmp/$index.stdout" \
+      2>"$aggregate_tmp/$index.stderr" &
+    aggregate_pids+=("$!")
+  done
+  aggregate_status=0
+  for index in "${!aggregate_pids[@]}"; do
+    if ! wait "${aggregate_pids[$index]}"; then
+      aggregate_status=1
+    fi
+  done
+  for index in "${!public_slices[@]}"; do
+    cat "$aggregate_tmp/$index.stdout"
+    cat "$aggregate_tmp/$index.stderr" >&2
+  done
+  trap - EXIT INT TERM
+  rm -rf "$aggregate_tmp"
+  aggregate_tmp=""
+  exit "$aggregate_status"
 else
   usage
   exit 2
@@ -509,7 +563,7 @@ PY
     return 1
   fi
 
-  run_python - "$full_fixture" docs/agent-program/kiana-completion/references.json reference <<'PY'
+  run_python - "$full_fixture" docs/agent-program/kiana-completion/references.json <<'PY'
 import hashlib
 import json
 import pathlib
@@ -518,7 +572,6 @@ import sys
 
 fixture_path = pathlib.Path(sys.argv[1])
 seed_path = pathlib.Path(sys.argv[2])
-reference_root = pathlib.Path(sys.argv[3])
 bundle = json.loads(fixture_path.read_text(encoding="utf-8"))
 expected_bundle_keys = {
     "official_source_artifact",
@@ -633,23 +686,6 @@ if set(repo_paths) != set(seed_rows):
         "seed_reconciliation",
         f"missing={sorted(set(seed_rows) - set(repo_paths))} extra={sorted(set(repo_paths) - set(seed_rows))}",
     )
-
-if reference_root.exists():
-    if not reference_root.is_dir():
-        fail("reference_root_invalid", reference_root.as_posix())
-    try:
-        live_paths = {
-            f"reference/{path.name}"
-            for path in reference_root.iterdir()
-            if path.is_dir()
-        }
-    except OSError:
-        fail("reference_root_unavailable", reference_root.as_posix())
-    if set(repo_paths) != live_paths:
-        fail(
-            "repository_path_reconciliation",
-            f"missing={sorted(live_paths - set(repo_paths))} extra={sorted(set(repo_paths) - live_paths)}",
-        )
 
 content_paths = {
     "reference/claude-code-main (2)",
@@ -1287,6 +1323,277 @@ PY
   echo "OK: legacy authority inventory, ancestry, and explicit current heads match"
 }
 
+exercise_governance_diff() {
+  local family="$1"
+  local from_path="$2"
+  local to_path="$3"
+  local output_path="$4"
+  local label="$5"
+  local first_path="$tmp_dir/$label-first.json"
+  local tampered_path="$tmp_dir/$label-tampered.json"
+
+  run_python scripts/generate-capability-governance.py diff \
+    --family "$family" --from "$from_path" --to "$to_path" --output "$output_path"
+  cp "$output_path" "$first_path"
+  run_python scripts/generate-capability-governance.py diff \
+    --family "$family" --from "$from_path" --to "$to_path" --output "$output_path" --check
+  run_python scripts/validate-json-schema.py \
+    docs/schemas/kiana-capability-governance-diff.v1.schema.json "$output_path" >/dev/null
+  run_python - "$output_path" "$from_path" "$to_path" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+output, before, after = map(pathlib.Path, sys.argv[1:])
+document = json.loads(output.read_text(encoding="utf-8"))
+before_value = json.loads(before.read_text(encoding="utf-8"))
+after_value = json.loads(after.read_text(encoding="utf-8"))
+expected = {
+    "from_revision_id": before_value["revision_id"],
+    "from_revision_sha256": hashlib.sha256(before.read_bytes()).hexdigest(),
+    "to_revision_id": after_value["revision_id"],
+    "to_revision_sha256": hashlib.sha256(after.read_bytes()).hexdigest(),
+}
+if any(document.get(key) != value for key, value in expected.items()):
+    raise SystemExit("diff_binding_mismatch")
+PY
+  printf ' ' >>"$output_path"
+  cp "$output_path" "$tampered_path"
+  if run_python scripts/generate-capability-governance.py diff \
+    --family "$family" --from "$from_path" --to "$to_path" --output "$output_path" --check \
+    2>"$tmp_dir/$label-tamper.err"; then
+    echo "diff_tamper_accepted: $family" >&2
+    return 1
+  fi
+  cmp "$tampered_path" "$output_path"
+  cp "$first_path" "$output_path"
+}
+
+run_generated_views_slice() {
+  local before after
+  local -a selected_paths
+  local governance_root="docs/agent-program/kiana-completion/governance"
+  local manifest="$governance_root/current.json"
+  local output_root="$tmp_dir/generated"
+  local compat_root="$tmp_dir/compat"
+  local repository_root="$tmp_dir/repository"
+  local hostile_root="$tmp_dir/hostile"
+  local public_from="$governance_root/public-baselines/cc-public-2026-07-15-genesis.json"
+  local registry_from="$governance_root/repository-registry/references-2026-07-15-genesis.json"
+  local public_to registry_to
+
+  run_python - "$manifest" >"$tmp_dir/generated-selected-paths.txt" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(manifest["public_baseline"]["path"])
+print(manifest["repository_registry"]["path"])
+PY
+  mapfile -t selected_paths <"$tmp_dir/generated-selected-paths.txt"
+  if ((${#selected_paths[@]} != 2)); then
+    echo "selected_head_paths_invalid: generated-views" >&2
+    return 1
+  fi
+  public_to="${selected_paths[0]}"
+  registry_to="${selected_paths[1]}"
+
+  before="$(protected_hashes)"
+  run_python scripts/generate-capability-governance.py render \
+    --manifest "$manifest" --output-root "$output_root"
+  run_python scripts/generate-capability-governance.py render \
+    --manifest "$manifest" --output-root "$output_root" --check
+
+  mkdir -p "$hostile_root"
+  run_python - "$manifest" "$hostile_root/attempt.json" "$hostile_root/escape.txt" <<'PY'
+import json
+import pathlib
+import sys
+
+source, target, escape = map(pathlib.Path, sys.argv[1:])
+value = json.loads(source.read_text(encoding="utf-8"))
+value["repository_output_path"] = escape.as_posix()
+target.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
+PY
+  if run_python scripts/generate-capability-governance.py render \
+    --manifest "$hostile_root/attempt.json" --output-root "$hostile_root/out" \
+    2>"$tmp_dir/render-escape.err"; then
+    echo "render_escape_accepted" >&2
+    return 1
+  fi
+  run_python - "$hostile_root" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+files = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
+if files != {"attempt.json"} or (root / "escape.txt").exists():
+    raise SystemExit(f"render_escape_write: {sorted(files)}")
+PY
+
+  run_python scripts/generate-capability-governance.py render-compat \
+    --manifest "$manifest" --output-root "$compat_root" \
+    --repository-output-root "$repository_root" \
+    --compat-manifest "$governance_root/compat-outputs.json"
+  run_python - "$compat_root" "$repository_root" "$tmp_dir/compat-before.json" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+roots = [pathlib.Path(value) for value in sys.argv[1:3]]
+output = pathlib.Path(sys.argv[3])
+rows = [
+    [root.name, path.relative_to(root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns]
+    for root in roots
+    for path in sorted(root.rglob("*"))
+    if path.is_file()
+]
+output.write_text(json.dumps(rows, sort_keys=True) + "\n", encoding="utf-8")
+PY
+  run_python scripts/generate-capability-governance.py render-compat \
+    --manifest "$manifest" --output-root "$compat_root" \
+    --repository-output-root "$repository_root" \
+    --compat-manifest "$governance_root/compat-outputs.json" --check
+  run_python - "$compat_root" "$repository_root" "$tmp_dir/compat-after.json" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+roots = [pathlib.Path(value) for value in sys.argv[1:3]]
+output = pathlib.Path(sys.argv[3])
+rows = [
+    [root.name, path.relative_to(root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns]
+    for root in roots
+    for path in sorted(root.rglob("*"))
+    if path.is_file()
+]
+output.write_text(json.dumps(rows, sort_keys=True) + "\n", encoding="utf-8")
+PY
+  cmp "$tmp_dir/compat-before.json" "$tmp_dir/compat-after.json"
+  run_python - "$repository_root" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+files = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
+expected = {"docs/reference_audit/CAPABILITY-GOVERNANCE.generated.txt"}
+if files != expected:
+    raise SystemExit(f"compat_output_mismatch: {sorted(files)}")
+PY
+
+  exercise_governance_diff \
+    public-baseline "$public_from" "$public_to" "$tmp_dir/public-diff.json" public
+  exercise_governance_diff \
+    repository-registry "$registry_from" "$registry_to" "$tmp_dir/registry-diff.json" registry
+  cmp "$tmp_dir/public-diff.json" \
+    "$governance_root/diffs/public-baseline/cc-public-2026-07-15.genesis-to-current.json"
+  cmp "$tmp_dir/registry-diff.json" \
+    "$governance_root/diffs/repository-registry/references-2026-07-15.genesis-to-current.json"
+  diff -ru "$governance_root/generated" "$output_root"
+
+  after="$(protected_hashes)"
+  if [[ "$before" != "$after" ]]; then
+    echo "protected_input_modified: generated-views changed a protected input" >&2
+    return 1
+  fi
+  echo "OK: generated views, confinement, exact diffs, and tamper rejection pass"
+}
+
+run_production_slice() {
+  local governance_root="docs/agent-program/kiana-completion/governance"
+  local manifest="$governance_root/current.json"
+  local started="$SECONDS"
+  local drift_report="$tmp_dir/production-drift.json"
+  local source public registry decisions evidence legacy
+  local -a selected_paths
+
+  run_python - "$manifest" >"$tmp_dir/production-selected-paths.txt" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+for key in (
+    "official_source_artifact",
+    "public_baseline",
+    "repository_registry",
+    "capability_decisions",
+    "evidence_head",
+    "legacy_authority",
+):
+    print(manifest[key]["path"].split("#", 1)[0])
+PY
+  mapfile -t selected_paths <"$tmp_dir/production-selected-paths.txt"
+  if ((${#selected_paths[@]} != 6)); then
+    echo "selected_head_paths_invalid: production" >&2
+    return 1
+  fi
+  source="${selected_paths[0]}"
+  public="${selected_paths[1]}"
+  registry="${selected_paths[2]}"
+  decisions="${selected_paths[3]}"
+  evidence="${selected_paths[4]}"
+  legacy="${selected_paths[5]}"
+  run_python - "$manifest" "$registry" <<'PY'
+import datetime
+import json
+import pathlib
+import sys
+
+manifest_path, registry_path = map(pathlib.Path, sys.argv[1:])
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+registry = json.loads(registry_path.read_text(encoding="utf-8"))
+try:
+    datetime.datetime.strptime(manifest["evaluation_time"], "%Y-%m-%dT%H:%M:%SZ")
+except (KeyError, TypeError, ValueError) as exc:
+    raise SystemExit("production_evaluation_time_invalid") from exc
+rows = registry.get("repositories", [])
+if registry.get("expected_count") != 38 or len(rows) != 38:
+    raise SystemExit("production_repository_count")
+if len({row.get("repo_id") for row in rows}) != 38 or len({row.get("path") for row in rows}) != 38:
+    raise SystemExit("production_repository_identity")
+if any(row.get("freshness") != "current" for row in rows):
+    raise SystemExit("production_repository_freshness")
+PY
+  run_python scripts/validate-capability-governance.py check-drift \
+    --manifest "$manifest" --live-reference-root reference --target-root . \
+    --official-source-artifact "$source" --json >"$drift_report"
+  run_python - "$drift_report" <<'PY'
+import json
+import pathlib
+import sys
+
+report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+if report.get("status") != "current" or report.get("errors") != []:
+    raise SystemExit("production_drift_detected")
+PY
+  run_python scripts/run-capability-governance-corpus.py \
+    --temp-root "$tmp_dir" \
+    --case integrity.evidence-expired \
+    --case integrity.newer-failed-retest
+  run_legacy_authority_slice
+  run_python scripts/generate-capability-governance.py verify-production \
+    --manifest "$manifest" \
+    --generated-root "$governance_root/generated" \
+    --repository-output-root . \
+    --compat-manifest "$governance_root/compat-outputs.json" \
+    --public-from "$governance_root/public-baselines/cc-public-2026-07-15-genesis.json" \
+    --public-to "$public" \
+    --public-diff "$governance_root/diffs/public-baseline/cc-public-2026-07-15.genesis-to-current.json" \
+    --registry-from "$governance_root/repository-registry/references-2026-07-15-genesis.json" \
+    --registry-to "$registry" \
+    --registry-diff "$governance_root/diffs/repository-registry/references-2026-07-15.genesis-to-current.json"
+  if ((SECONDS - started >= 30)); then
+    echo "production_deadline_exceeded" >&2
+    return 1
+  fi
+  echo "OK: production governance heads, ancestry, drift, evidence, and generated bytes pass"
+}
+
 case "$slice" in
   schemas) run_schema_slice ;;
   fixture-shapes) run_fixture_shape_slice ;;
@@ -1295,6 +1602,8 @@ case "$slice" in
   semantic-negative) run_semantic_negative_slice ;;
   drift-refresh) run_drift_refresh_slice ;;
   legacy-authority) run_legacy_authority_slice ;;
+  generated-views) run_generated_views_slice ;;
+  production) run_production_slice ;;
 esac
 
 # The Rust worker launcher owns the completion receipt. The semantic worker can
