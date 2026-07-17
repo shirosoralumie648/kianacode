@@ -10,20 +10,20 @@ ROOT="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd -P)"
 cd "$ROOT"
 
 usage() {
-  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative|drift-refresh}" >&2
+  echo "usage: scripts/capability-governance-smoke.sh {schemas|fixture-shapes|public-baseline|reference-governance|semantic-negative|drift-refresh|legacy-authority}" >&2
 }
 
 if (($# == 2)) && [[ "${1:-}" == "--internal-worker" ]]; then
   slice="$2"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh | legacy-authority) ;;
     *) echo "supervisor_worker_invalid: unknown slice" >&2; exit 1 ;;
   esac
   worker_mode=1
 elif (($# == 1)); then
   slice="$1"
   case "$slice" in
-    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh) ;;
+    schemas | fixture-shapes | public-baseline | reference-governance | semantic-negative | drift-refresh | legacy-authority) ;;
     *) usage; exit 2 ;;
   esac
   supervisor_bin="$ROOT/target/debug/kiana-capability-governance-supervisor"
@@ -1208,6 +1208,7 @@ expected = {
     **{case: (1, "stale", [case]) for case in cases[1:-1]},
     "source_unavailable": (1, "unavailable", ["source_unavailable"]),
 }
+
 for case in cases:
     path = output / f"drift-{case}.json"
     exit_code = module._check_drift(
@@ -1256,6 +1257,36 @@ PY
   echo "OK: drift-refresh exact cases and immutable successor contract pass"
 }
 
+run_legacy_authority_slice() {
+  local governance_root="docs/agent-program/kiana-completion/governance"
+  local genesis="$governance_root/legacy-authority/legacy-authority-2026-07-15-genesis.json"
+  local head="$governance_root/legacy-authority/legacy-authority-2026-07-15.json"
+  local current="$governance_root/current.json"
+
+  run_python scripts/validate-json-schema.py docs/schemas/kiana-legacy-authority-classification.v1.schema.json "$genesis" >/dev/null
+  run_python scripts/validate-json-schema.py docs/schemas/kiana-legacy-authority-classification.v1.schema.json "$head" >/dev/null
+  run_python scripts/validate-json-schema.py docs/schemas/kiana-capability-governance-bundle.v1.schema.json "$current" >/dev/null
+  run_python scripts/validate-capability-governance.py validate-history --head "$head" --json >/dev/null
+  run_python - "$head" "$current" <<'PY'
+import hashlib, json, pathlib, sys
+head = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+current = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+expected = {p.as_posix() for p in pathlib.Path("docs/reference_audit").glob("*.md")}
+expected |= {"docs/reference-feature-matrix.md", "docs/reference-migration-roadmap.md", "docs/commercial-release-readiness.md", "docs/agent-program/kiana-completion/references.json"}
+rows = {entry["path"]: entry for entry in head["entries"]}
+if set(rows) != expected or len(rows) != len(head["entries"]): raise SystemExit("legacy_inventory_mismatch")
+for path, entry in rows.items():
+    if hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest() != entry["content_sha256"]: raise SystemExit(f"legacy_hash_drift:{path}")
+    if not entry["rationale"] or not entry["replacement_view"]: raise SystemExit(f"legacy_classification_incomplete:{path}")
+for key in ("official_source_artifact", "public_baseline", "repository_registry", "capability_decisions", "evidence_head", "legacy_authority"):
+    binding = current[key]
+    value = json.loads(pathlib.Path(binding["path"]).read_text(encoding="utf-8"))
+    payload = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    if hashlib.sha256(payload).hexdigest() != binding["sha256"]: raise SystemExit(f"current_head_hash:{key}")
+PY
+  echo "OK: legacy authority inventory, ancestry, and explicit current heads match"
+}
+
 case "$slice" in
   schemas) run_schema_slice ;;
   fixture-shapes) run_fixture_shape_slice ;;
@@ -1263,6 +1294,7 @@ case "$slice" in
   reference-governance) run_reference_governance_slice ;;
   semantic-negative) run_semantic_negative_slice ;;
   drift-refresh) run_drift_refresh_slice ;;
+  legacy-authority) run_legacy_authority_slice ;;
 esac
 
 # The Rust worker launcher owns the completion receipt. The semantic worker can

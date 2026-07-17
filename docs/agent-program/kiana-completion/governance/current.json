@@ -1,0 +1,35 @@
+{
+  "schema": "kiana.capability-governance-bundle.v1",
+  "version": "1.0",
+  "official_source_artifact": {
+    "artifact_id": "cc-public-official-2026-07-15",
+    "path": "docs/agent-program/kiana-completion/governance/source-artifacts/claude-code-public-2026-07-15.json",
+    "sha256": "ef875bdcf1d808083680d7a7c0be320d3bdc3938ec95c78594cb7471af69f850"
+  },
+  "public_baseline": {
+    "revision_id": "cc-public-baseline-2026-07-15-reviewed",
+    "path": "docs/agent-program/kiana-completion/governance/public-baselines/cc-public-2026-07-15.json",
+    "sha256": "f680007984bf8865469a315361e3e792a21de85731e1ccdac6a07313061af02e"
+  },
+  "repository_registry": {
+    "revision_id": "reference-registry-2026-07-15-reviewed",
+    "path": "docs/agent-program/kiana-completion/governance/repository-registry/references-2026-07-15.json",
+    "sha256": "dc8502a6c73974c1ae7cbced176a857d1527c872853a6dbe093f6102fcecdf43"
+  },
+  "capability_decisions": {
+    "revision_id": "reference-decisions-2026-07-15-reviewed",
+    "path": "docs/agent-program/kiana-completion/governance/capability-decisions/review-2026-07-15.json",
+    "sha256": "419c3cb3ec1eef3d940ca3e2a481377df8e274a9a58a09fc5b37d6b652d91e0d"
+  },
+  "evidence_head": {
+    "revision_id": "evidence-2026-07-15-reviewed",
+    "path": "docs/agent-program/kiana-completion/governance/evidence/revisions/evidence-2026-07-15.json",
+    "sha256": "36d2212b1ff46b4fc15bdb78deb0a44e1e91343ac436beae8df64b40542e3391"
+  },
+  "legacy_authority": {
+    "revision_id": "legacy-authority-2026-07-15-reviewed",
+    "path": "docs/agent-program/kiana-completion/governance/legacy-authority/legacy-authority-2026-07-15.json",
+    "sha256": "6f7b8408979f3a68c64c32d3c5b1dd0175da88a5d5ee95da06895864db90eb60"
+  },
+  "evaluation_time": "2026-07-17T11:32:00Z"
+}

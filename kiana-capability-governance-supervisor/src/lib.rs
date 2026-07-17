@@ -55,6 +55,7 @@ pub enum Slice {
     ReferenceGovernance,
     SemanticNegative,
     DriftRefresh,
+    LegacyAuthority,
 }
 
 impl Slice {
@@ -66,6 +67,7 @@ impl Slice {
             "reference-governance" => Ok(Self::ReferenceGovernance),
             "semantic-negative" => Ok(Self::SemanticNegative),
             "drift-refresh" => Ok(Self::DriftRefresh),
+            "legacy-authority" => Ok(Self::LegacyAuthority),
             _ => Err(UsageError),
         }
     }
@@ -78,6 +80,7 @@ impl Slice {
             Self::ReferenceGovernance => "reference-governance",
             Self::SemanticNegative => "semantic-negative",
             Self::DriftRefresh => "drift-refresh",
+            Self::LegacyAuthority => "legacy-authority",
         }
     }
 
@@ -2564,6 +2567,7 @@ mod tests {
         assert!(Slice::parse_public("reference-governance").is_ok());
         assert!(Slice::parse_public("semantic-negative").is_ok());
         assert!(Slice::parse_public("drift-refresh").is_ok());
+        assert!(Slice::parse_public("legacy-authority").is_ok());
         let args = vec![OsString::from("supervisor"), OsString::from("schemas")];
         assert!(matches!(
             parse_invocation(&args),
