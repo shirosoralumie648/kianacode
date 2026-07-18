@@ -1,6 +1,6 @@
 # Kiana Code 使用指南
 
-本文只描述当前 Rust workspace 已接上的真实入口。历史重构计划和阶段总结请看 `ROADMAP.md` / `REWRITE-REPORT.md`，不要把它们当作当前可执行说明。
+本文只描述当前 Rust workspace 已接上的真实入口。产品边界以 `.planning/PROJECT.md` 为准，当前阶段以 `.planning/ROADMAP.md` 为准，控制平面迁移以 `docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md` 为准。
 
 ## 启动方式
 
