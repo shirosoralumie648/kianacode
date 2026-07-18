@@ -4,7 +4,7 @@ use kiana_daemon::DaemonHost;
 use kiana_protocol::{ExecutionStatus, RequestEnvelope, RequestMetadata, ResponseEnvelope};
 use serde_json::{json, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -159,6 +159,255 @@ async fn malformed_repo_map_intent_is_blocked_before_the_handler() {
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Blocked);
     assert_eq!(response.error.as_deref(), Some("command_arguments_invalid"));
+}
+
+#[tokio::test]
+async fn read_only_context_queries_preserve_json_and_text_contracts() {
+    let root = fixture_root("read-only-context");
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("tests")).unwrap();
+    fs::write(
+        root.join("docs/design.md"),
+        "The release API is implemented in src/lib.rs.\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn checkout_flow() {}\n// checkout workflow\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("tests/lib_test.rs"),
+        "use kiana::checkout_flow;\n",
+    )
+    .unwrap();
+
+    let graph = context_query(
+        &root,
+        json!({
+            "operation": "artifact_graph",
+            "output": "json",
+            "options": {},
+        }),
+    )
+    .await;
+    let graph = command_json(&graph);
+    assert_eq!(
+        graph["schema"],
+        "kiana.context-artifact-dependency-graph.v1"
+    );
+    assert_eq!(graph["nodes"].as_array().unwrap().len(), 3);
+    assert!(graph["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|edge| edge["relation"] == "path_reference"));
+
+    let readiness = context_query(
+        &root,
+        json!({
+            "operation": "artifact_readiness",
+            "output": "json",
+            "options": {},
+        }),
+    )
+    .await;
+    let readiness = command_json(&readiness);
+    assert_eq!(readiness["schema"], "kiana.context-artifact-readiness.v1");
+    assert_eq!(readiness["status"], "incomplete");
+    assert_eq!(readiness["missing_roles"], json!(["prd", "tasks"]));
+
+    let search = context_query(
+        &root,
+        json!({
+            "operation": "search",
+            "output": "json",
+            "options": { "query": "checkout", "limit": 1 },
+        }),
+    )
+    .await;
+    let search = command_json(&search);
+    assert_eq!(search["schema"], "kiana.context-search.v1");
+    assert_eq!(search["limit"], 1);
+    assert_eq!(search["hits"][0]["path"], "src/lib.rs");
+
+    let vectors = context_query(
+        &root,
+        json!({
+            "operation": "vector_search",
+            "output": "json",
+            "options": { "query": "checkout flow", "limit": 1 },
+        }),
+    )
+    .await;
+    let vectors = command_json(&vectors);
+    assert_eq!(vectors["schema"], "kiana.context-vector-search.v1");
+    assert_eq!(vectors["dimensions"], 64);
+    assert_eq!(vectors["hits"][0]["path"], "src/lib.rs");
+
+    let pack = context_query(
+        &root,
+        json!({
+            "operation": "pack",
+            "output": "text",
+            "options": {
+                "query": "checkout",
+                "limit": 1,
+                "max_snippet_lines": 1
+            },
+        }),
+    )
+    .await;
+    let pack = command_text(&pack);
+    assert!(pack.starts_with("Context pack\nroot: "));
+    assert!(pack.contains("artifact_graph: schema=kiana.context-artifact-graph.v1 nodes=1 edges=1"));
+    assert!(pack.contains("relation=matched terms=checkout"));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn context_query_roots_are_confined_to_metadata_project_root() {
+    let root = fixture_root("root-confinement");
+    let outside = fixture_root("root-confinement-outside");
+    fs::create_dir_all(root.join("nested")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(root.join("nested/inside.md"), "inside checkout\n").unwrap();
+    fs::write(outside.join("secret.md"), "outside checkout\n").unwrap();
+
+    let inside = context_query(
+        &root,
+        json!({
+            "operation": "search",
+            "output": "json",
+            "options": { "query": "checkout", "root": "nested" },
+            "project_root": outside,
+        }),
+    )
+    .await;
+    assert_eq!(inside.status, ExecutionStatus::Completed);
+    let inside = command_json(&inside);
+    assert_eq!(inside["hits"][0]["path"], "inside.md");
+    assert!(!inside.to_string().contains("secret.md"));
+
+    let absolute = context_query(
+        &root,
+        json!({
+            "operation": "search",
+            "output": "json",
+            "options": { "query": "checkout", "root": outside },
+        }),
+    )
+    .await;
+    assert_eq!(absolute.status, ExecutionStatus::Blocked);
+    assert_eq!(absolute.error.as_deref(), Some("command_arguments_invalid"));
+
+    let parent = context_query(
+        &root,
+        json!({
+            "operation": "search",
+            "output": "json",
+            "options": { "query": "checkout", "root": "../" },
+        }),
+    )
+    .await;
+    assert_eq!(parent.status, ExecutionStatus::Blocked);
+    assert_eq!(parent.error.as_deref(), Some("command_arguments_invalid"));
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&outside, root.join("escape")).unwrap();
+        let symlink = context_query(
+            &root,
+            json!({
+                "operation": "search",
+                "output": "json",
+                "options": { "query": "checkout", "root": "escape" },
+            }),
+        )
+        .await;
+        assert_eq!(symlink.status, ExecutionStatus::Failed);
+        assert!(symlink
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("context_root_outside_project"));
+    }
+
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(outside);
+}
+
+#[tokio::test]
+async fn context_query_operation_and_numeric_bounds_fail_closed() {
+    let root = fixture_root("query-bounds");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("README.md"), "checkout\n").unwrap();
+
+    let unknown = context_query(
+        &root,
+        json!({
+            "operation": "execute",
+            "output": "json",
+            "options": {},
+        }),
+    )
+    .await;
+    assert_eq!(unknown.status, ExecutionStatus::Blocked);
+    assert_eq!(unknown.error.as_deref(), Some("command_unregistered"));
+
+    let oversized_limit = context_query(
+        &root,
+        json!({
+            "operation": "search",
+            "output": "json",
+            "options": { "query": "checkout", "limit": 1001 },
+        }),
+    )
+    .await;
+    assert_eq!(oversized_limit.status, ExecutionStatus::Blocked);
+    assert_eq!(
+        oversized_limit.error.as_deref(),
+        Some("command_arguments_invalid")
+    );
+
+    let oversized_bytes = context_query(
+        &root,
+        json!({
+            "operation": "artifact_graph",
+            "output": "json",
+            "options": { "max_bytes_per_file": 16 * 1024 * 1024 + 1 },
+        }),
+    )
+    .await;
+    assert_eq!(oversized_bytes.status, ExecutionStatus::Blocked);
+    assert_eq!(
+        oversized_bytes.error.as_deref(),
+        Some("command_arguments_invalid")
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+async fn context_query(root: &Path, arguments: Value) -> ResponseEnvelope {
+    let host = Arc::new(DaemonHost::local().unwrap());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = RequestMetadata::local("session-context", root.to_string_lossy());
+    metadata.project_trusted = true;
+    client
+        .command(metadata, "context.query.v1", arguments)
+        .await
+        .unwrap()
+}
+
+fn command_text(response: &ResponseEnvelope) -> &str {
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    response.output["command_result"]["value"].as_str().unwrap()
+}
+
+fn command_json(response: &ResponseEnvelope) -> Value {
+    serde_json::from_str(command_text(response)).unwrap()
 }
 
 fn fixture_root(label: &str) -> PathBuf {

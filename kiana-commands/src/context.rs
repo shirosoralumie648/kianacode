@@ -3,15 +3,11 @@ use crate::types::{Command, CommandContext, CommandResult, CommandRoute, Command
 use anyhow::anyhow;
 use async_trait::async_trait;
 use kiana_query::{
-    build_context_artifact_dependency_graph, build_context_artifact_readiness,
-    build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
+    build_context_artifact_store, build_context_artifacts, build_context_index,
     build_persistent_context_artifact_store, build_persistent_context_artifacts,
-    build_persistent_context_index, ingest_context_artifacts, search_context_index,
-    search_context_vectors, ContextArtifactDependencyGraph, ContextArtifactIngest,
-    ContextArtifactIngestOptions, ContextArtifactOptions, ContextArtifactReadiness,
-    ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
-    ContextPackOptions, ContextSearchOptions, ContextSearchResults, ContextVectorSearchOptions,
-    ContextVectorSearchResults,
+    build_persistent_context_index, ingest_context_artifacts, ContextArtifactIngest,
+    ContextArtifactIngestOptions, ContextArtifactOptions, ContextArtifactStore, ContextArtifacts,
+    ContextIndex, ContextIndexOptions,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -41,6 +37,21 @@ impl Command for ContextCommand {
         if let Some(rest) = args.strip_prefix("repo-map") {
             return repo_map_route(rest.trim());
         }
+        if let Some(rest) = args.strip_prefix("artifact-readiness") {
+            return artifact_query_route("artifact_readiness", rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("artifact-graph") {
+            return artifact_query_route("artifact_graph", rest.trim());
+        }
+        if let Some(rest) = args.strip_prefix("search") {
+            return search_query_route("search", rest.trim(), false);
+        }
+        if let Some(rest) = args.strip_prefix("vector-search") {
+            return search_query_route("vector_search", rest.trim(), false);
+        }
+        if let Some(rest) = args.strip_prefix("pack") {
+            return search_query_route("pack", rest.trim(), true);
+        }
         Ok(CommandRoute::Local)
     }
 
@@ -65,19 +76,19 @@ impl Command for ContextCommand {
             return artifact_store_result(&context, rest.trim());
         }
         if let Some(rest) = args.strip_prefix("artifact-readiness") {
-            return artifact_readiness_result(&context, rest.trim());
+            return migrated_query_result(rest.trim());
         }
         if let Some(rest) = args.strip_prefix("artifact-graph") {
-            return artifact_graph_result(&context, rest.trim());
+            return migrated_query_result(rest.trim());
         }
         if let Some(rest) = args.strip_prefix("search") {
-            return search_result(&context, rest.trim());
+            return migrated_query_result(rest.trim());
         }
         if let Some(rest) = args.strip_prefix("vector-search") {
-            return vector_search_result(&context, rest.trim());
+            return migrated_query_result(rest.trim());
         }
         if let Some(rest) = args.strip_prefix("pack") {
-            return pack_result(&context, rest.trim());
+            return migrated_query_result(rest.trim());
         }
 
         match args {
@@ -110,6 +121,13 @@ impl Command for ContextCommand {
 
 fn is_help_args(args: &str) -> bool {
     matches!(args, "help" | "--help" | "-h")
+}
+
+fn migrated_query_result(args: &str) -> anyhow::Result<CommandResult> {
+    if is_help_args(args) {
+        return Ok(CommandResult::text(usage()));
+    }
+    Err(anyhow!("command_requires_control_plane"))
 }
 
 fn usage() -> &'static str {
@@ -147,6 +165,172 @@ fn repo_map_route(args: &str) -> anyhow::Result<CommandRoute> {
         arguments: serde_json::json!({
             "operation": "repo_map",
             "output": if json { "json" } else { "text" },
+            "options": options,
+        }),
+    })
+}
+
+fn artifact_query_route(operation: &str, args: &str) -> anyhow::Result<CommandRoute> {
+    let mut json = false;
+    let mut root = None;
+    let mut max_bytes_per_file = None;
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                root = Some(
+                    parts
+                        .next()
+                        .ok_or_else(|| anyhow!("--root requires a directory path"))?
+                        .to_owned(),
+                );
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                parse_path(value, "--root")?;
+                root = Some(value.to_owned());
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "help" | "--help" | "-h" => return Ok(CommandRoute::Local),
+            _ => return Err(anyhow!(usage())),
+        }
+    }
+    if let Some(value) = root.as_deref() {
+        parse_path(value, "--root")?;
+    }
+
+    let mut options = serde_json::Map::new();
+    if let Some(root) = root {
+        options.insert("root".to_owned(), Value::String(root));
+    }
+    if let Some(max_bytes_per_file) = max_bytes_per_file {
+        options.insert(
+            "max_bytes_per_file".to_owned(),
+            Value::from(max_bytes_per_file),
+        );
+    }
+    context_query_route(operation, json, options)
+}
+
+fn search_query_route(
+    operation: &str,
+    args: &str,
+    allow_max_snippet_lines: bool,
+) -> anyhow::Result<CommandRoute> {
+    let mut json = false;
+    let mut root = None;
+    let mut limit = None;
+    let mut max_bytes_per_file = None;
+    let mut max_snippet_lines = None;
+    let mut query = Vec::new();
+    let mut parts = args.split_whitespace();
+    while let Some(arg) = parts.next() {
+        match arg {
+            "--json" => json = true,
+            "--root" => {
+                root = Some(
+                    parts
+                        .next()
+                        .ok_or_else(|| anyhow!("--root requires a directory path"))?
+                        .to_owned(),
+                );
+            }
+            "--limit" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            "--max-bytes-per-file" => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            "--max-snippet-lines" if allow_max_snippet_lines => {
+                let value = parts
+                    .next()
+                    .ok_or_else(|| anyhow!("--max-snippet-lines requires a positive integer"))?;
+                max_snippet_lines = Some(parse_positive_usize(value, "--max-snippet-lines")?);
+            }
+            _ if arg.starts_with("--root=") => {
+                let value = arg.trim_start_matches("--root=");
+                parse_path(value, "--root")?;
+                root = Some(value.to_owned());
+            }
+            _ if arg.starts_with("--limit=") => {
+                let value = arg.trim_start_matches("--limit=");
+                limit = Some(parse_positive_usize(value, "--limit")?);
+            }
+            _ if arg.starts_with("--max-bytes-per-file=") => {
+                let value = arg.trim_start_matches("--max-bytes-per-file=");
+                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
+            }
+            _ if allow_max_snippet_lines && arg.starts_with("--max-snippet-lines=") => {
+                let value = arg.trim_start_matches("--max-snippet-lines=");
+                max_snippet_lines = Some(parse_positive_usize(value, "--max-snippet-lines")?);
+            }
+            "help" | "--help" | "-h" if query.is_empty() => return Ok(CommandRoute::Local),
+            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
+            _ => query.push(arg.to_owned()),
+        }
+    }
+    if query.is_empty() {
+        return Err(anyhow!(match operation {
+            "search" => "Usage: kiana context search <query> [--json] [--limit N]",
+            "vector_search" => {
+                "Usage: kiana context vector-search <query> [--json] [--limit N]"
+            }
+            _ => "Usage: kiana context pack <query> [--json] [--limit N]",
+        }));
+    }
+    if let Some(value) = root.as_deref() {
+        parse_path(value, "--root")?;
+    }
+
+    let mut options = serde_json::Map::new();
+    options.insert("query".to_owned(), Value::String(query.join(" ")));
+    if let Some(root) = root {
+        options.insert("root".to_owned(), Value::String(root));
+    }
+    if let Some(limit) = limit {
+        options.insert("limit".to_owned(), Value::from(limit));
+    }
+    if let Some(max_bytes_per_file) = max_bytes_per_file {
+        options.insert(
+            "max_bytes_per_file".to_owned(),
+            Value::from(max_bytes_per_file),
+        );
+    }
+    if let Some(max_snippet_lines) = max_snippet_lines {
+        options.insert(
+            "max_snippet_lines".to_owned(),
+            Value::from(max_snippet_lines),
+        );
+    }
+    context_query_route(operation, json, options)
+}
+
+fn context_query_route(
+    operation: &str,
+    json_output: bool,
+    options: serde_json::Map<String, Value>,
+) -> anyhow::Result<CommandRoute> {
+    Ok(CommandRoute::ControlPlane {
+        name: "context.query.v1".to_owned(),
+        arguments: serde_json::json!({
+            "operation": operation,
+            "output": if json_output { "json" } else { "text" },
             "options": options,
         }),
     })
@@ -343,51 +527,6 @@ fn ingest_result(context: &CommandContext, args: &str) -> anyhow::Result<Command
     )))
 }
 
-fn artifact_graph_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
-    let mut json = false;
-    let mut root = None;
-    let mut max_bytes_per_file = None;
-    let mut parts = args.split_whitespace();
-    while let Some(arg) = parts.next() {
-        match arg {
-            "--json" => json = true,
-            "--root" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
-                root = Some(parse_root(value)?);
-            }
-            "--max-bytes-per-file" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            _ if arg.starts_with("--root=") => {
-                let value = arg.trim_start_matches("--root=");
-                root = Some(parse_root(value)?);
-            }
-            _ if arg.starts_with("--max-bytes-per-file=") => {
-                let value = arg.trim_start_matches("--max-bytes-per-file=");
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
-            _ => return Err(anyhow!(usage())),
-        }
-    }
-
-    let graph = build_context_artifact_dependency_graph(
-        context_root(context, root),
-        ContextArtifactOptions { max_bytes_per_file },
-    )?;
-    if json {
-        return Ok(CommandResult::text(serde_json::to_string_pretty(&graph)?));
-    }
-    Ok(CommandResult::text(format_context_artifact_graph_text(
-        &graph,
-    )))
-}
-
 fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
     let mut json = false;
     let mut root = None;
@@ -449,271 +588,6 @@ fn artifact_store_result(context: &CommandContext, args: &str) -> anyhow::Result
     Ok(CommandResult::text(format_context_artifact_store_text(
         &store,
     )))
-}
-
-fn artifact_readiness_result(
-    context: &CommandContext,
-    args: &str,
-) -> anyhow::Result<CommandResult> {
-    let mut json = false;
-    let mut root = None;
-    let mut max_bytes_per_file = None;
-    let mut parts = args.split_whitespace();
-    while let Some(arg) = parts.next() {
-        match arg {
-            "--json" => json = true,
-            "--root" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
-                root = Some(parse_root(value)?);
-            }
-            "--max-bytes-per-file" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            _ if arg.starts_with("--root=") => {
-                let value = arg.trim_start_matches("--root=");
-                root = Some(parse_root(value)?);
-            }
-            _ if arg.starts_with("--max-bytes-per-file=") => {
-                let value = arg.trim_start_matches("--max-bytes-per-file=");
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            "help" | "--help" | "-h" => return Ok(CommandResult::text(usage())),
-            _ => return Err(anyhow!(usage())),
-        }
-    }
-
-    let readiness = build_context_artifact_readiness(
-        context_root(context, root),
-        ContextArtifactOptions { max_bytes_per_file },
-    )?;
-    if json {
-        return Ok(CommandResult::text(serde_json::to_string_pretty(
-            &readiness,
-        )?));
-    }
-    Ok(CommandResult::text(format_context_artifact_readiness_text(
-        &readiness,
-    )))
-}
-
-fn search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
-    let mut json = false;
-    let mut root = None;
-    let mut limit = None;
-    let mut max_bytes_per_file = None;
-    let mut query = Vec::new();
-    let mut parts = args.split_whitespace();
-    while let Some(arg) = parts.next() {
-        match arg {
-            "--json" => json = true,
-            "--root" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
-                root = Some(parse_root(value)?);
-            }
-            "--limit" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
-                limit = Some(parse_positive_usize(value, "--limit")?);
-            }
-            "--max-bytes-per-file" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            _ if arg.starts_with("--limit=") => {
-                let value = arg.trim_start_matches("--limit=");
-                limit = Some(parse_positive_usize(value, "--limit")?);
-            }
-            _ if arg.starts_with("--root=") => {
-                let value = arg.trim_start_matches("--root=");
-                root = Some(parse_root(value)?);
-            }
-            _ if arg.starts_with("--max-bytes-per-file=") => {
-                let value = arg.trim_start_matches("--max-bytes-per-file=");
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            "help" | "--help" | "-h" if query.is_empty() => {
-                return Ok(CommandResult::text(usage()))
-            }
-            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
-            _ => query.push(arg.to_string()),
-        }
-    }
-    if query.is_empty() {
-        return Err(anyhow!(
-            "Usage: kiana context search <query> [--json] [--limit N]"
-        ));
-    }
-
-    let results = search_context_index(
-        context_root(context, root),
-        &query.join(" "),
-        ContextSearchOptions {
-            limit,
-            max_bytes_per_file,
-        },
-    )?;
-    if json {
-        return Ok(CommandResult::text(serde_json::to_string_pretty(&results)?));
-    }
-    Ok(CommandResult::text(format_context_search_text(&results)))
-}
-
-fn vector_search_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
-    let mut json = false;
-    let mut root = None;
-    let mut limit = None;
-    let mut max_bytes_per_file = None;
-    let mut query = Vec::new();
-    let mut parts = args.split_whitespace();
-    while let Some(arg) = parts.next() {
-        match arg {
-            "--json" => json = true,
-            "--root" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
-                root = Some(parse_root(value)?);
-            }
-            "--limit" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
-                limit = Some(parse_positive_usize(value, "--limit")?);
-            }
-            "--max-bytes-per-file" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            _ if arg.starts_with("--limit=") => {
-                let value = arg.trim_start_matches("--limit=");
-                limit = Some(parse_positive_usize(value, "--limit")?);
-            }
-            _ if arg.starts_with("--root=") => {
-                let value = arg.trim_start_matches("--root=");
-                root = Some(parse_root(value)?);
-            }
-            _ if arg.starts_with("--max-bytes-per-file=") => {
-                let value = arg.trim_start_matches("--max-bytes-per-file=");
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            "help" | "--help" | "-h" if query.is_empty() => {
-                return Ok(CommandResult::text(usage()))
-            }
-            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
-            _ => query.push(arg.to_string()),
-        }
-    }
-    if query.is_empty() {
-        return Err(anyhow!(
-            "Usage: kiana context vector-search <query> [--json] [--limit N]"
-        ));
-    }
-
-    let results = search_context_vectors(
-        context_root(context, root),
-        &query.join(" "),
-        ContextVectorSearchOptions {
-            limit,
-            max_bytes_per_file,
-        },
-    )?;
-    if json {
-        return Ok(CommandResult::text(serde_json::to_string_pretty(&results)?));
-    }
-    Ok(CommandResult::text(format_context_vector_search_text(
-        &results,
-    )))
-}
-
-fn pack_result(context: &CommandContext, args: &str) -> anyhow::Result<CommandResult> {
-    let mut json = false;
-    let mut root = None;
-    let mut limit = None;
-    let mut max_bytes_per_file = None;
-    let mut max_snippet_lines = None;
-    let mut query = Vec::new();
-    let mut parts = args.split_whitespace();
-    while let Some(arg) = parts.next() {
-        match arg {
-            "--json" => json = true,
-            "--root" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--root requires a directory path"))?;
-                root = Some(parse_root(value)?);
-            }
-            "--limit" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--limit requires a positive integer"))?;
-                limit = Some(parse_positive_usize(value, "--limit")?);
-            }
-            "--max-snippet-lines" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--max-snippet-lines requires a positive integer"))?;
-                max_snippet_lines = Some(parse_positive_usize(value, "--max-snippet-lines")?);
-            }
-            "--max-bytes-per-file" => {
-                let value = parts
-                    .next()
-                    .ok_or_else(|| anyhow!("--max-bytes-per-file requires a positive integer"))?;
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            _ if arg.starts_with("--limit=") => {
-                let value = arg.trim_start_matches("--limit=");
-                limit = Some(parse_positive_usize(value, "--limit")?);
-            }
-            _ if arg.starts_with("--root=") => {
-                let value = arg.trim_start_matches("--root=");
-                root = Some(parse_root(value)?);
-            }
-            _ if arg.starts_with("--max-snippet-lines=") => {
-                let value = arg.trim_start_matches("--max-snippet-lines=");
-                max_snippet_lines = Some(parse_positive_usize(value, "--max-snippet-lines")?);
-            }
-            _ if arg.starts_with("--max-bytes-per-file=") => {
-                let value = arg.trim_start_matches("--max-bytes-per-file=");
-                max_bytes_per_file = Some(parse_positive_usize(value, "--max-bytes-per-file")?);
-            }
-            "help" | "--help" | "-h" if query.is_empty() => {
-                return Ok(CommandResult::text(usage()))
-            }
-            _ if arg.starts_with('-') => return Err(anyhow!(usage())),
-            _ => query.push(arg.to_string()),
-        }
-    }
-    if query.is_empty() {
-        return Err(anyhow!(
-            "Usage: kiana context pack <query> [--json] [--limit N]"
-        ));
-    }
-
-    let pack = build_context_pack(
-        context_root(context, root),
-        &query.join(" "),
-        ContextPackOptions {
-            limit,
-            max_bytes_per_file,
-            max_snippet_lines,
-        },
-    )?;
-    if json {
-        return Ok(CommandResult::text(serde_json::to_string_pretty(&pack)?));
-    }
-    Ok(CommandResult::text(format_context_pack_text(&pack)))
 }
 
 fn parse_max_tokens(value: &str) -> anyhow::Result<u64> {
@@ -873,36 +747,6 @@ fn format_context_artifact_ingest_text(report: &ContextArtifactIngest) -> String
     lines.join("\n")
 }
 
-fn format_context_artifact_graph_text(graph: &ContextArtifactDependencyGraph) -> String {
-    let mut lines = vec![
-        "Context artifact graph".to_string(),
-        format!("root: {}", graph.root),
-        format!(
-            "schema: {} nodes={} edges={}",
-            graph.schema,
-            graph.nodes.len(),
-            graph.edges.len()
-        ),
-    ];
-    for node in &graph.nodes {
-        lines.push(format!(
-            "- {} [{}] kind={} hash={} id={}",
-            node.path,
-            node.language.as_deref().unwrap_or("unknown"),
-            node.kind,
-            node.content_hash,
-            node.id
-        ));
-    }
-    for edge in &graph.edges {
-        lines.push(format!(
-            "  edge: {} -> {} relation={} evidence={}",
-            edge.source, edge.target, edge.relation, edge.evidence
-        ));
-    }
-    lines.join("\n")
-}
-
 fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
     let mut lines = vec![
         "Context artifact store".to_string(),
@@ -935,136 +779,6 @@ fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
             cache.reused_dependencies,
             cache.added_dependencies,
             cache.removed_dependencies
-        ));
-    }
-    lines.join("\n")
-}
-
-fn format_context_artifact_readiness_text(readiness: &ContextArtifactReadiness) -> String {
-    let mut lines = vec![
-        "Context artifact readiness".to_string(),
-        format!("root: {}", readiness.root),
-        format!(
-            "schema: {} status={} artifacts={} dependencies={}",
-            readiness.schema,
-            readiness.status,
-            readiness.artifact_count,
-            readiness.dependency_count
-        ),
-        format!("artifact_store_schema: {}", readiness.artifact_store_schema),
-        format!(
-            "missing_roles: {}",
-            if readiness.missing_roles.is_empty() {
-                "none".to_string()
-            } else {
-                readiness.missing_roles.join(",")
-            }
-        ),
-    ];
-    for role in &readiness.required_roles {
-        lines.push(format!(
-            "- {} required={} present={} count={}",
-            role.role, role.required, role.present, role.count
-        ));
-    }
-    lines.join("\n")
-}
-
-fn format_context_search_text(results: &ContextSearchResults) -> String {
-    let mut lines = vec![
-        "Context search".to_string(),
-        format!("root: {}", results.root),
-        format!(
-            "query: {} terms={} files_indexed={} skipped_files={}",
-            results.query,
-            results.terms.join(","),
-            results.files_indexed,
-            results.skipped_files
-        ),
-    ];
-    for hit in &results.hits {
-        lines.push(format!(
-            "- {}:{} score={} occurrences={} terms={}",
-            hit.path,
-            hit.line_number,
-            hit.score,
-            hit.occurrences,
-            hit.matched_terms.join(",")
-        ));
-        if !hit.line.is_empty() {
-            lines.push(format!("  {}", hit.line));
-        }
-    }
-    lines.join("\n")
-}
-
-fn format_context_vector_search_text(results: &ContextVectorSearchResults) -> String {
-    let mut lines = vec![
-        "Context vector search".to_string(),
-        format!("root: {}", results.root),
-        format!(
-            "query: {} terms={} model={} dimensions={} files_indexed={} skipped_files={}",
-            results.query,
-            results.terms.join(","),
-            results.embedding_model,
-            results.dimensions,
-            results.files_indexed,
-            results.skipped_files
-        ),
-    ];
-    for hit in &results.hits {
-        lines.push(format!(
-            "- {}:{} score={:.6} token_overlap={} hash={}",
-            hit.path, hit.line_number, hit.score, hit.token_overlap, hit.content_hash
-        ));
-        if !hit.line.is_empty() {
-            lines.push(format!("  {}", hit.line));
-        }
-    }
-    lines.join("\n")
-}
-
-fn format_context_pack_text(pack: &ContextPack) -> String {
-    let mut lines = vec![
-        "Context pack".to_string(),
-        format!("root: {}", pack.root),
-        format!(
-            "query: {} terms={} files_indexed={} skipped_files={} snippets={}",
-            pack.query,
-            pack.terms.join(","),
-            pack.files_indexed,
-            pack.skipped_files,
-            pack.snippets.len()
-        ),
-        format!(
-            "artifact_graph: schema={} nodes={} edges={}",
-            pack.artifact_graph.schema,
-            pack.artifact_graph.nodes.len(),
-            pack.artifact_graph.edges.len()
-        ),
-    ];
-    for snippet in &pack.snippets {
-        lines.push(format!(
-            "- {}:{}-{} score={} occurrences={} terms={} hash={}",
-            snippet.path,
-            snippet.start_line,
-            snippet.end_line,
-            snippet.score,
-            snippet.occurrences,
-            snippet.matched_terms.join(","),
-            snippet.content_hash
-        ));
-        if !snippet.excerpt.is_empty() {
-            lines.push(snippet.excerpt.clone());
-        }
-    }
-    for edge in &pack.artifact_graph.edges {
-        lines.push(format!(
-            "  graph: {} -> {} relation={} terms={}",
-            edge.source,
-            edge.target,
-            edge.relation,
-            edge.matched_terms.join(",")
         ));
     }
     lines.join("\n")
@@ -1283,186 +997,75 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn context_search_json_returns_ranked_hits() {
-        let root = fixture_root("search-command");
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::write(
-            root.join("src/lib.rs"),
-            "pub fn checkout() {}\n// checkout checkout\n",
-        )
-        .unwrap();
-        fs::write(root.join("README.md"), "checkout guide\n").unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "search checkout --json --limit 1".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
-        assert_eq!(value["schema"], "kiana.context-search.v1");
-        assert_eq!(value["terms"][0], "checkout");
-        assert_eq!(value["hits"].as_array().unwrap().len(), 1);
-        assert_eq!(value["hits"][0]["path"], "src/lib.rs");
-        assert_eq!(value["hits"][0]["line_number"], 1);
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
-    }
-
-    #[tokio::test]
-    async fn context_search_json_matches_path_only_query() {
-        let root = fixture_root("search-path-command");
-        fs::create_dir_all(root.join("docs")).unwrap();
-        fs::write(root.join("docs/path-only.md"), "first module summary\n").unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "search docs/path-only.md --json --limit 1".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
-        assert_eq!(value["schema"], "kiana.context-search.v1");
-        assert_eq!(value["hits"].as_array().unwrap().len(), 1);
-        assert_eq!(value["hits"][0]["path"], "docs/path-only.md");
-        assert_eq!(value["hits"][0]["occurrences"], 0);
-        assert_eq!(value["hits"][0]["line"], "first module summary");
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
-    }
-
-    #[tokio::test]
-    async fn context_vector_search_json_returns_hash_embedding_hits() {
-        let root = fixture_root("vector-search-command");
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::write(
-            root.join("src/lib.rs"),
-            "pub fn checkout_flow() {}\n// checkout workflow for invoices\n",
-        )
-        .unwrap();
-        fs::write(root.join("README.md"), "refund notes\n").unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "vector-search checkout flow --json --limit 1".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
-        assert_eq!(value["schema"], "kiana.context-vector-search.v1");
+    async fn context_search_queries_route_with_structured_options() {
+        let context = CommandContext {
+            args:
+                "vector-search checkout flow --json --root src --limit 2 --max-bytes-per-file 4096"
+                    .to_owned(),
+            app_state: HashMap::new(),
+        };
         assert_eq!(
-            value["embedding_model"],
-            "kiana.deterministic-hash-embedding.v1"
+            ContextCommand.route(&context).unwrap(),
+            CommandRoute::ControlPlane {
+                name: "context.query.v1".to_owned(),
+                arguments: json!({
+                    "operation": "vector_search",
+                    "output": "json",
+                    "options": {
+                        "query": "checkout flow",
+                        "root": "src",
+                        "limit": 2,
+                        "max_bytes_per_file": 4096,
+                    },
+                }),
+            }
         );
-        assert_eq!(value["dimensions"], 64);
-        assert_eq!(value["limit"], 1);
-        assert_eq!(value["hits"].as_array().unwrap().len(), 1);
-        assert_eq!(value["hits"][0]["path"], "src/lib.rs");
-        assert!(value["hits"][0]["score"].as_f64().unwrap() > 0.0);
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+        assert_eq!(
+            ContextCommand
+                .execute(context)
+                .await
+                .unwrap_err()
+                .to_string(),
+            "command_requires_control_plane"
+        );
     }
 
     #[tokio::test]
-    async fn context_pack_json_returns_snippets() {
-        let root = fixture_root("pack-command");
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::write(
-            root.join("src/lib.rs"),
-            "pub fn checkout() {}\n// checkout checkout\n",
-        )
-        .unwrap();
-        fs::write(root.join("README.md"), "checkout guide\n").unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "pack checkout --json --limit 1 --max-snippet-lines 1".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
-        assert_eq!(value["schema"], "kiana.context-pack.v1");
-        assert_eq!(value["terms"][0], "checkout");
-        assert_eq!(value["limit"], 1);
-        assert_eq!(value["max_snippet_lines"], 1);
-        assert_eq!(value["snippets"].as_array().unwrap().len(), 1);
-        assert_eq!(value["snippets"][0]["path"], "src/lib.rs");
-        assert_eq!(value["snippets"][0]["start_line"], 1);
-        assert_eq!(value["snippets"][0]["end_line"], 1);
-        assert!(value["snippets"][0]["excerpt"]
-            .as_str()
-            .unwrap()
-            .contains("checkout"));
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+    async fn context_pack_routes_snippet_limits_without_client_risk() {
+        let context = CommandContext {
+            args: "pack checkout --limit=1 --max-snippet-lines=3".to_owned(),
+            app_state: HashMap::new(),
+        };
+        assert_eq!(
+            ContextCommand.route(&context).unwrap(),
+            CommandRoute::ControlPlane {
+                name: "context.query.v1".to_owned(),
+                arguments: json!({
+                    "operation": "pack",
+                    "output": "text",
+                    "options": {
+                        "query": "checkout",
+                        "limit": 1,
+                        "max_snippet_lines": 3,
+                    },
+                }),
+            }
+        );
     }
 
     #[tokio::test]
-    async fn context_pack_json_uses_explicit_root() {
-        let cwd = fixture_root("pack-root-cwd");
-        let artifact_root = fixture_root("pack-root-artifact");
-        fs::create_dir_all(artifact_root.join("bundle")).unwrap();
-        fs::write(
-            artifact_root.join("bundle/notes.md"),
-            "first artifact line\nsecond line\n",
-        )
-        .unwrap();
+    async fn context_search_rejects_missing_query_and_unknown_flags() {
+        let missing = CommandContext {
+            args: "search --json".to_owned(),
+            app_state: HashMap::new(),
+        };
+        assert!(ContextCommand.route(&missing).is_err());
 
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: format!(
-                    "pack bundle/notes.md --json --root {} --limit 1 --max-snippet-lines 1",
-                    artifact_root.to_string_lossy().replace('\\', "/")
-                ),
-                app_state: HashMap::from([("cwd".to_string(), json!(cwd))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
-        assert_eq!(value["schema"], "kiana.context-pack.v1");
-        assert_eq!(value["snippets"].as_array().unwrap().len(), 1);
-        assert_eq!(value["snippets"][0]["path"], "bundle/notes.md");
-        assert_eq!(value["snippets"][0]["occurrences"], 0);
-        assert_eq!(value["snippets"][0]["excerpt"], "first artifact line");
-
-        let _ = fs::remove_dir_all(cwd);
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
-    }
-
-    #[tokio::test]
-    async fn context_pack_text_reports_artifact_graph_summary() {
-        let root = fixture_root("pack-text-artifact-graph");
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::write(
-            root.join("src/lib.rs"),
-            "pub fn checkout() {}\n// checkout workflow\n",
-        )
-        .unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "pack checkout --limit 1 --max-snippet-lines 1".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-
-        assert!(result
-            .value
-            .contains("artifact_graph: schema=kiana.context-artifact-graph.v1 nodes=1 edges=1"));
-        assert!(result.value.contains("graph: query:checkout -> snippet:"));
-        assert!(result.value.contains("relation=matched terms=checkout"));
-
-        let _ = fs::remove_dir_all(root);
+        let unknown = CommandContext {
+            args: "pack checkout --risk local-write".to_owned(),
+            app_state: HashMap::new(),
+        };
+        assert!(ContextCommand.route(&unknown).is_err());
     }
 
     #[tokio::test]
@@ -1590,43 +1193,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn context_artifact_graph_json_reports_test_edges() {
-        let root = fixture_root("artifact-graph-command");
-        fs::create_dir_all(root.join("docs")).unwrap();
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::create_dir_all(root.join("tests")).unwrap();
-        fs::write(
-            root.join("docs/design.md"),
-            "The release API is implemented in src/lib.rs.\n",
-        )
-        .unwrap();
-        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
-        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "artifact-graph --json".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
+    async fn context_artifact_graph_routes_to_the_control_plane() {
+        let context = CommandContext {
+            args: "artifact-graph --json --root docs --max-bytes-per-file 8192".to_owned(),
+            app_state: HashMap::new(),
+        };
         assert_eq!(
-            value["schema"],
-            "kiana.context-artifact-dependency-graph.v1"
+            ContextCommand.route(&context).unwrap(),
+            CommandRoute::ControlPlane {
+                name: "context.query.v1".to_owned(),
+                arguments: json!({
+                    "operation": "artifact_graph",
+                    "output": "json",
+                    "options": {
+                        "root": "docs",
+                        "max_bytes_per_file": 8192,
+                    },
+                }),
+            }
         );
-        assert_eq!(value["nodes"].as_array().unwrap().len(), 3);
-        assert!(value["edges"].as_array().unwrap().iter().any(|edge| {
-            edge["relation"] == "test_of"
-                && edge["evidence"] == "tests/lib_test.rs matches src/lib.rs"
-        }));
-        assert!(value["edges"].as_array().unwrap().iter().any(|edge| {
-            edge["relation"] == "path_reference"
-                && edge["evidence"] == "docs/design.md references src/lib.rs"
-        }));
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
+        assert_eq!(
+            ContextCommand
+                .execute(context)
+                .await
+                .unwrap_err()
+                .to_string(),
+            "command_requires_control_plane"
+        );
     }
 
     #[tokio::test]
@@ -1687,55 +1280,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn context_artifact_readiness_json_reports_missing_roles() {
-        let root = fixture_root("artifact-readiness-command");
-        fs::create_dir_all(root.join("docs")).unwrap();
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::create_dir_all(root.join("tests")).unwrap();
-        fs::write(
-            root.join("docs/design.md"),
-            "The release API is implemented in src/lib.rs.\n",
-        )
-        .unwrap();
-        fs::write(root.join("src/lib.rs"), "pub fn release() {}\n").unwrap();
-        fs::write(root.join("tests/lib_test.rs"), "use kiana::release;\n").unwrap();
-
-        let result = ContextCommand
-            .execute(CommandContext {
-                args: "artifact-readiness --json".to_string(),
-                app_state: HashMap::from([("cwd".to_string(), json!(root))]),
-            })
-            .await
-            .unwrap();
-        let value: serde_json::Value = serde_json::from_str(&result.value).unwrap();
-
-        assert_eq!(value["schema"], "kiana.context-artifact-readiness.v1");
-        assert_eq!(value["status"], "incomplete");
+    async fn context_artifact_readiness_routes_with_empty_options() {
+        let context = CommandContext {
+            args: "artifact-readiness --json".to_owned(),
+            app_state: HashMap::new(),
+        };
         assert_eq!(
-            value["artifact_store_schema"],
-            "kiana.context-artifact-store.v1"
+            ContextCommand.route(&context).unwrap(),
+            CommandRoute::ControlPlane {
+                name: "context.query.v1".to_owned(),
+                arguments: json!({
+                    "operation": "artifact_readiness",
+                    "output": "json",
+                    "options": {},
+                }),
+            }
         );
-        assert_eq!(value["artifact_count"], 3);
-        assert_eq!(value["dependency_count"], 2);
-        assert_eq!(value["missing_roles"], json!(["prd", "tasks"]));
-        assert!(value["required_roles"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|role| role["role"] == "design"
-                && role["required"] == true
-                && role["present"] == true
-                && role["count"] == 1));
-        assert!(value["required_roles"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|role| role["role"] == "prd"
-                && role["required"] == true
-                && role["present"] == false
-                && role["count"] == 0));
-
-        let _ = fs::remove_dir_all(Path::new(value["root"].as_str().unwrap()));
     }
 
     #[tokio::test]

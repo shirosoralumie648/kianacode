@@ -223,6 +223,49 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    #[tokio::test]
+    async fn context_read_queries_use_the_same_dispatcher() {
+        let root = fixture_root("read-queries");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn checkout_flow() {}\n// checkout workflow\n",
+        )
+        .unwrap();
+        let app_state = HashMap::from([
+            ("cwd".to_owned(), Value::String(root.display().to_string())),
+            ("project_trusted".to_owned(), Value::Bool(true)),
+        ]);
+
+        let search = execute_command(
+            &ContextCommand,
+            CommandContext {
+                args: "search checkout --json --limit 1".to_owned(),
+                app_state: app_state.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        let search: Value = serde_json::from_str(&search.value).unwrap();
+        assert_eq!(search["schema"], "kiana.context-search.v1");
+        assert_eq!(search["hits"][0]["path"], "src/lib.rs");
+
+        let pack = execute_command(
+            &ContextCommand,
+            CommandContext {
+                args: "pack checkout --json --limit 1 --max-snippet-lines 1".to_owned(),
+                app_state,
+            },
+        )
+        .await
+        .unwrap();
+        let pack: Value = serde_json::from_str(&pack.value).unwrap();
+        assert_eq!(pack["schema"], "kiana.context-pack.v1");
+        assert_eq!(pack["snippets"][0]["path"], "src/lib.rs");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
     fn fixture_root(label: &str) -> std::path::PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)

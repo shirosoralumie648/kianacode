@@ -2578,6 +2578,7 @@ dependencies = [
  "kiana-query",
  "kiana-runner",
  "kiana-runner-protocol",
+ "serde",
  "serde_json",
  "tokio",
 ]
