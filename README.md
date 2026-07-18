@@ -51,11 +51,11 @@ flowchart TD
   "schema": "kiana.architecture-status.v1",
   "control_plane": "kiana-core",
   "composition_root": "kiana-daemon",
-  "legacy_edges_remaining": 10
+  "legacy_edges_remaining": 9
 }
 ```
 
-已迁移到 `Client -> Protocol -> Daemon -> Core -> Broker` 的 Context Query 包括 `repo-map`、`artifact-graph`、`artifact-readiness`、`search`、`vector-search` 和 `pack`。`index`、`artifacts`、`artifact-store` 与 `ingest` 仍保留 legacy 实现，等待 LocalWrite approval/resume 合同完成后迁移；因此 `kiana-commands -> kiana-query` 依赖暂时不能删除。
+已迁移到 `Client -> Protocol -> Daemon -> Core -> Broker` 的 Context Query 包括 `repo-map`、`index`、`artifacts`、`artifact-store`、`artifact-graph`、`artifact-readiness`、`search`、`vector-search`、`pack` 和 `ingest`。缓存 materialization 与 ingest 会由 Core 标记为 `LocalWrite`，只有经过 approval/resume 合同后才触达 daemon 文件系统；`kiana-daemon` 是唯一的 `kiana-query` concrete adapter 组合根，`kiana-commands` 不再直接依赖 `kiana-query`。
 
 ## 快速开始
 
@@ -64,6 +64,9 @@ flowchart TD
 ```bash
 # 开发构建
 cargo build -p kiana-entrypoints --bin kiana --locked
+
+# 发布构建
+cargo build --release -p kiana-entrypoints --bin kiana
 
 # 查看命令
 ./target/debug/kiana --help
