@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-app-server-approval-decision.v1.schema.json",
+  "title": "Kiana App Server Approval Decision v1",
+  "type": "object",
+  "required": ["schema", "status", "request_id", "output", "error"],
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.approval-decision.v1"
+    },
+    "status": {
+      "enum": ["completed", "denied", "blocked", "failed", "result_unknown"]
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "output": {},
+    "error": {
+      "type": ["string", "null"]
+    }
+  },
+  "additionalProperties": false
+}

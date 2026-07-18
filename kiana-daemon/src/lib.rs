@@ -1,7 +1,9 @@
 //! Composition root for Kiana control-plane adapters.
 
+mod approval_store;
 mod context_query;
 
+use approval_store::MemoryApprovalStore;
 use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
@@ -32,6 +34,7 @@ impl DaemonHost {
             Arc::new(DefaultGateEngine),
             Arc::new(MemoryEventLog::new()),
             Arc::new(capabilities),
+            Arc::new(MemoryApprovalStore::new()),
             Arc::new(RunnerAdapter(ProtocolRunner)),
         );
         Ok(Self::new(Arc::new(core)))
@@ -71,9 +74,18 @@ impl DaemonHost {
                     .handle_command(context, CommandIntent::new(command.name, command.arguments))
                     .await
             }
+            RequestBody::ApprovalDecision(decision) => {
+                self.core
+                    .decide_approval(&context, decision.approval_id, decision.decision)
+                    .await
+            }
         };
         match response {
-            Ok(response) => ResponseEnvelope::from_core(response),
+            Ok(response) => {
+                let mut response = ResponseEnvelope::from_core(response);
+                response.request_id = request_id;
+                response
+            }
             Err(error) => ResponseEnvelope {
                 schema: PROTOCOL_SCHEMA.to_owned(),
                 request_id,

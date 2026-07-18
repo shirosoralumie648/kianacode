@@ -93,30 +93,44 @@
       "additionalProperties": false
     },
     "status": {
-      "const": "ok"
+      "enum": ["ok", "awaiting_approval"]
     },
     "executed": {
       "type": "boolean"
     },
     "output": {
-      "type": "object",
-      "required": ["output_type", "value", "metadata"],
-      "properties": {
-        "output_type": {
-          "type": "string",
-          "minLength": 1
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["output_type", "value", "metadata"],
+          "properties": {
+            "output_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "type": "string"
+            },
+            "metadata": {
+              "type": ["object", "null"],
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
         },
-        "value": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": ["object", "null"],
-          "additionalProperties": {
-            "type": "string"
-          }
+        {
+          "type": "object",
+          "required": ["approval"],
+          "properties": {
+            "approval": {
+              "$ref": "kiana-approval-challenge.v1.schema.json"
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
     }
   },
   "additionalProperties": false

@@ -4,10 +4,15 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_commands::{Command, CommandContext, CommandResult, CommandRoute};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, PermissionProfile,
+    RequestEnvelope, RequestMetadata, ResponseEnvelope,
 };
 use serde_json::Value;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
+pub const APPROVE_LOCAL_WRITE_APP_STATE_KEY: &str = "approve_local_write";
+
+static LOCAL_DAEMON: OnceLock<Arc<DaemonHost>> = OnceLock::new();
 
 struct LocalDaemonTransport {
     host: Arc<DaemonHost>,
@@ -24,8 +29,44 @@ pub async fn execute_command(
     command: &dyn Command,
     context: CommandContext,
 ) -> anyhow::Result<CommandResult> {
+    let approve_local_write = context
+        .app_state
+        .get(APPROVE_LOCAL_WRITE_APP_STATE_KEY)
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let approval_context = context.clone();
+    match dispatch_command(command, context).await? {
+        CommandDispatchOutcome::Completed(result) => Ok(result),
+        CommandDispatchOutcome::AwaitingApproval(challenge) if approve_local_write => {
+            resolve_command_approval(
+                &approval_context,
+                challenge.approval_id,
+                ApprovalDecision::Approve,
+            )
+            .await
+        }
+        CommandDispatchOutcome::AwaitingApproval(challenge) => Err(anyhow!(
+            "control_plane_command_awaiting_approval:{}",
+            serde_json::to_string(&challenge)?
+        )),
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CommandDispatchOutcome {
+    Completed(CommandResult),
+    AwaitingApproval(ApprovalChallenge),
+}
+
+pub async fn dispatch_command(
+    command: &dyn Command,
+    context: CommandContext,
+) -> anyhow::Result<CommandDispatchOutcome> {
     match command.route(&context)? {
-        CommandRoute::Local => command.execute(context).await,
+        CommandRoute::Local => command
+            .execute(context)
+            .await
+            .map(CommandDispatchOutcome::Completed),
         CommandRoute::ControlPlane { name, arguments } => {
             execute_control_plane_command(&context, name, arguments).await
         }
@@ -36,7 +77,48 @@ async fn execute_control_plane_command(
     context: &CommandContext,
     name: String,
     arguments: Value,
+) -> anyhow::Result<CommandDispatchOutcome> {
+    let metadata = request_metadata(context)?;
+    let client = KianaClient::new(LocalDaemonTransport {
+        host: local_daemon()?,
+    });
+    let response = client
+        .command(metadata, name, arguments)
+        .await
+        .map_err(anyhow::Error::msg)?;
+    response_outcome(response)
+}
+
+pub async fn resolve_command_approval(
+    context: &CommandContext,
+    approval_id: ApprovalId,
+    decision: ApprovalDecision,
 ) -> anyhow::Result<CommandResult> {
+    let response = resolve_command_approval_response(context, approval_id, decision).await?;
+    match response_outcome(response)? {
+        CommandDispatchOutcome::Completed(result) => Ok(result),
+        CommandDispatchOutcome::AwaitingApproval(_) => {
+            Err(anyhow!("approval_decision_returned_new_challenge"))
+        }
+    }
+}
+
+pub async fn resolve_command_approval_response(
+    context: &CommandContext,
+    approval_id: ApprovalId,
+    decision: ApprovalDecision,
+) -> anyhow::Result<ResponseEnvelope> {
+    let metadata = request_metadata(context)?;
+    let client = KianaClient::new(LocalDaemonTransport {
+        host: local_daemon()?,
+    });
+    client
+        .approval_decision(metadata, approval_id, decision)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+fn request_metadata(context: &CommandContext) -> anyhow::Result<RequestMetadata> {
     let project_root = context
         .app_state
         .get("cwd")
@@ -52,18 +134,33 @@ async fn execute_control_plane_command(
         .filter(|value| !value.is_empty())
         .unwrap_or("local-command");
     let mut metadata = RequestMetadata::local(session_id, project_root);
-    metadata.actor_id = Some("local-command".to_owned());
+    metadata.actor_id = Some(
+        context
+            .app_state
+            .get("actor_id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|actor| !actor.is_empty())
+            .unwrap_or("local-command")
+            .to_owned(),
+    );
     metadata.project_trusted =
         kiana_types::project_trust_from_app_state(&context.app_state).as_bool();
     metadata.permission_profile = PermissionProfile::Safe;
+    Ok(metadata)
+}
 
-    let client = KianaClient::new(LocalDaemonTransport {
-        host: Arc::new(DaemonHost::local()?),
-    });
-    let response = client
-        .command(metadata, name, arguments)
-        .await
-        .map_err(anyhow::Error::msg)?;
+fn response_outcome(response: ResponseEnvelope) -> anyhow::Result<CommandDispatchOutcome> {
+    if response.status == ExecutionStatus::AwaitingApproval {
+        let challenge = response
+            .output
+            .get("approval")
+            .cloned()
+            .ok_or_else(|| anyhow!("control_plane_approval_challenge_missing"))?;
+        let challenge = serde_json::from_value(challenge)
+            .context("control_plane_approval_challenge_invalid")?;
+        return Ok(CommandDispatchOutcome::AwaitingApproval(challenge));
+    }
     if response.status != ExecutionStatus::Completed {
         return Err(anyhow!(
             "control_plane_command_{}:{}",
@@ -76,7 +173,21 @@ async fn execute_control_plane_command(
         .get("command_result")
         .cloned()
         .ok_or_else(|| anyhow!("control_plane_command_result_missing"))?;
-    serde_json::from_value(result).context("control_plane_command_result_invalid")
+    serde_json::from_value(result)
+        .context("control_plane_command_result_invalid")
+        .map(CommandDispatchOutcome::Completed)
+}
+
+fn local_daemon() -> anyhow::Result<Arc<DaemonHost>> {
+    if let Some(host) = LOCAL_DAEMON.get() {
+        return Ok(host.clone());
+    }
+    let candidate = Arc::new(DaemonHost::local()?);
+    let _ = LOCAL_DAEMON.set(candidate);
+    LOCAL_DAEMON
+        .get()
+        .cloned()
+        .ok_or_else(|| anyhow!("local_daemon_initialization_failed"))
 }
 
 fn status_name(status: ExecutionStatus) -> &'static str {

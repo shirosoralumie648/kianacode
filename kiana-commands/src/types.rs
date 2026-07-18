@@ -41,6 +41,7 @@ impl CommandResult {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CommandContext {
     pub args: String,
     pub app_state: HashMap<String, Value>,

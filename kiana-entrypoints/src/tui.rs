@@ -417,12 +417,55 @@ impl TuiRuntime {
         let current_session_id = self.session_id.clone();
         let events_tx = self.events_tx.clone();
         tokio::spawn(async move {
-            let result = crate::command_dispatch::execute_command(
+            let command_context = CommandContext { args, app_state };
+            let result = match crate::command_dispatch::dispatch_command(
                 command.as_ref(),
-                CommandContext { args, app_state },
+                command_context.clone(),
             )
             .await
-            .map_err(|error| error.to_string());
+            {
+                Ok(crate::command_dispatch::CommandDispatchOutcome::Completed(result)) => {
+                    Ok(result)
+                }
+                Ok(crate::command_dispatch::CommandDispatchOutcome::AwaitingApproval(
+                    challenge,
+                )) => {
+                    let (respond_to, response) = oneshot::channel();
+                    let request = command_approval_permission_request(&challenge);
+                    if events_tx
+                        .send(TuiEvent::PermissionRequested {
+                            request,
+                            respond_to,
+                        })
+                        .is_err()
+                    {
+                        Err("Local write approval UI is unavailable.".to_owned())
+                    } else {
+                        match response.await {
+                            Ok(PermissionPromptDecision::Allow) => {
+                                crate::command_dispatch::resolve_command_approval(
+                                    &command_context,
+                                    challenge.approval_id,
+                                    kiana_protocol::ApprovalDecision::Approve,
+                                )
+                                .await
+                                .map_err(|error| error.to_string())
+                            }
+                            Ok(PermissionPromptDecision::Deny(_)) => {
+                                let _ = crate::command_dispatch::resolve_command_approval(
+                                    &command_context,
+                                    challenge.approval_id,
+                                    kiana_protocol::ApprovalDecision::Deny,
+                                )
+                                .await;
+                                Err("Local write denied in TUI.".to_owned())
+                            }
+                            Err(_) => Err("Local write approval UI closed.".to_owned()),
+                        }
+                    }
+                }
+                Err(error) => Err(error.to_string()),
+            };
             let session_sync = match &result {
                 Ok(result) => match session_sync_request(&name, result, &current_session_id) {
                     Some(session_id) => Some(
@@ -1844,6 +1887,28 @@ fn format_permission_request_message(request: &PermissionPromptRequest) -> Strin
     ));
     lines.push("Respond with /allow, /approve, /deny, or /reject.".to_string());
     lines.join("\n")
+}
+
+fn command_approval_permission_request(
+    challenge: &kiana_protocol::ApprovalChallenge,
+) -> PermissionPromptRequest {
+    PermissionPromptRequest {
+        request_id: challenge.request_id.to_string(),
+        tool_name: "LocalWrite".to_owned(),
+        input: serde_json::json!({
+            "approval_id": challenge.approval_id,
+            "request_hash": challenge.request_hash,
+            "expires_at_unix_ms": challenge.expires_at_unix_ms,
+        }),
+        tool_use_id: challenge.approval_id.to_string(),
+        permission_suggestions: serde_json::json!([]),
+        blocked_path: None,
+        decision_reason: serde_json::json!({
+            "reason": challenge.reason,
+            "approval_schema": challenge.schema,
+        }),
+        agent_id: None,
+    }
 }
 
 fn permission_panel_from_request(request: &PermissionPromptRequest) -> ReplPermissionPanel {

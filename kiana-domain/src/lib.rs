@@ -42,6 +42,9 @@ macro_rules! uuid_id {
 uuid_id!(RequestId);
 uuid_id!(RunId);
 uuid_id!(EventId);
+uuid_id!(ApprovalId);
+
+pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -168,6 +171,29 @@ impl CapabilityRequest {
         self.risk = risk;
         self
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalDecision {
+    Approve,
+    Deny,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApprovalChallenge {
+    pub schema: String,
+    pub approval_id: ApprovalId,
+    pub request_id: RequestId,
+    pub request_hash: String,
+    pub expires_at_unix_ms: u64,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingApproval {
+    pub challenge: ApprovalChallenge,
+    pub request: CapabilityRequest,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

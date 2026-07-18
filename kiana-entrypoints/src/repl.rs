@@ -47,14 +47,48 @@ pub async fn run_repl() -> Result<()> {
                     .expect("classified command must exist in registry");
                 let command_state = command_app_state(&app_state, &session_id, &cwd);
                 let should_clear_session = is_clear_session_command(&name, &args);
-                let result = crate::command_dispatch::execute_command(
+                let command_context = CommandContext {
+                    args,
+                    app_state: command_state,
+                };
+                let result = match crate::command_dispatch::dispatch_command(
                     command.as_ref(),
-                    CommandContext {
-                        args,
-                        app_state: command_state,
-                    },
+                    command_context.clone(),
                 )
-                .await?;
+                .await?
+                {
+                    crate::command_dispatch::CommandDispatchOutcome::Completed(result) => result,
+                    crate::command_dispatch::CommandDispatchOutcome::AwaitingApproval(
+                        challenge,
+                    ) => {
+                        println!(
+                            "{} Local write approval requested: {}",
+                            "Kiana:".bright_cyan().bold(),
+                            challenge.reason
+                        );
+                        let approved = editor
+                            .readline("Approve this exact request? [y/N] ")
+                            .map(|answer| matches!(answer.trim(), "y" | "Y" | "yes" | "YES"))
+                            .unwrap_or(false);
+                        if !approved {
+                            let _ = crate::command_dispatch::resolve_command_approval(
+                                &command_context,
+                                challenge.approval_id,
+                                kiana_protocol::ApprovalDecision::Deny,
+                            )
+                            .await;
+                            println!("{} Local write denied.", "Kiana:".bright_cyan().bold());
+                            println!();
+                            continue;
+                        }
+                        crate::command_dispatch::resolve_command_approval(
+                            &command_context,
+                            challenge.approval_id,
+                            kiana_protocol::ApprovalDecision::Approve,
+                        )
+                        .await?
+                    }
+                };
 
                 if result.output_type == "exit" {
                     if !result.value.is_empty() {

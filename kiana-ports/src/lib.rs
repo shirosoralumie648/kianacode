@@ -1,7 +1,10 @@
 //! Stable ports implemented by Kiana daemon adapters.
 
 use async_trait::async_trait;
-use kiana_domain::{AuthorizedCapabilityRequest, CapabilityResult, RequestId, RuntimeEvent};
+use kiana_domain::{
+    ApprovalChallenge, ApprovalId, AuthorizedCapabilityRequest, CapabilityRequest,
+    CapabilityResult, PendingApproval, RequestContext, RequestId, RuntimeEvent,
+};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 
 #[async_trait]
@@ -17,6 +20,24 @@ pub trait CapabilityBrokerPort: Send + Sync {
         &self,
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError>;
+}
+
+#[async_trait]
+pub trait ApprovalStorePort: Send + Sync {
+    async fn stage(
+        &self,
+        context: &RequestContext,
+        request: CapabilityRequest,
+        reason: &str,
+    ) -> Result<ApprovalChallenge, PortError>;
+
+    async fn activate(&self, approval_id: ApprovalId) -> Result<(), PortError>;
+
+    async fn consume(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+    ) -> Result<PendingApproval, PortError>;
 }
 
 #[async_trait]

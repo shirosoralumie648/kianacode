@@ -26,6 +26,7 @@ kiana-runner-protocol.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "0.10"
 tokio.workspace = true
 
 [dev-dependencies]

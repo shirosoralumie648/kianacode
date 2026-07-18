@@ -2,16 +2,18 @@ use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest, CapabilityResult,
-    CommandIntent, ExecutionStatus, RequestContext, RequestId, RuntimeEvent,
+    ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
+    CapabilityRequest, CapabilityResult, CommandIntent, ExecutionStatus, PendingApproval,
+    RequestContext, RequestId, RuntimeEvent, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
-use kiana_ports::{CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
+use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 struct UnavailableRunner;
 
@@ -34,6 +36,73 @@ impl CapabilityBrokerPort for SuccessfulBroker {
             request.request.request_id,
             json!({ "changed": true }),
         ))
+    }
+}
+
+#[derive(Default)]
+struct TestApprovalStore {
+    pending: Mutex<Option<(PendingApproval, bool, bool)>>,
+}
+
+#[async_trait]
+impl ApprovalStorePort for TestApprovalStore {
+    async fn stage(
+        &self,
+        context: &RequestContext,
+        request: CapabilityRequest,
+        reason: &str,
+    ) -> Result<ApprovalChallenge, PortError> {
+        let challenge = ApprovalChallenge {
+            schema: APPROVAL_CHALLENGE_SCHEMA.to_owned(),
+            approval_id: ApprovalId::new(),
+            request_id: context.request_id,
+            request_hash: "a".repeat(64),
+            expires_at_unix_ms: u64::MAX,
+            reason: reason.to_owned(),
+        };
+        *self.pending.lock().await = Some((
+            PendingApproval {
+                challenge: challenge.clone(),
+                request,
+            },
+            false,
+            false,
+        ));
+        Ok(challenge)
+    }
+
+    async fn activate(&self, approval_id: ApprovalId) -> Result<(), PortError> {
+        let mut pending = self.pending.lock().await;
+        let Some((pending, active, consumed)) = pending.as_mut() else {
+            return Err(PortError::Failed("approval_not_found".to_owned()));
+        };
+        if pending.challenge.approval_id != approval_id || *consumed {
+            return Err(PortError::Failed("approval_not_found".to_owned()));
+        }
+        *active = true;
+        Ok(())
+    }
+
+    async fn consume(
+        &self,
+        _context: &RequestContext,
+        approval_id: ApprovalId,
+    ) -> Result<PendingApproval, PortError> {
+        let mut pending = self.pending.lock().await;
+        let Some((pending, active, consumed)) = pending.as_mut() else {
+            return Err(PortError::Failed("approval_not_found".to_owned()));
+        };
+        if pending.challenge.approval_id != approval_id {
+            return Err(PortError::Failed("approval_not_found".to_owned()));
+        }
+        if !*active {
+            return Err(PortError::Failed("approval_not_active".to_owned()));
+        }
+        if *consumed {
+            return Err(PortError::Conflict("approval_already_consumed".to_owned()));
+        }
+        *consumed = true;
+        Ok(pending.clone())
     }
 }
 
@@ -69,6 +138,7 @@ impl CoreHarness {
             Arc::new(DefaultGateEngine),
             events.clone(),
             Arc::new(CapabilityBroker::new()),
+            Arc::new(TestApprovalStore::default()),
             Arc::new(UnavailableRunner),
         );
         Self { core, events }
@@ -115,6 +185,7 @@ async fn routed_context_query_records_one_monotonic_capability_event_sequence() 
         Arc::new(DefaultGateEngine),
         events.clone(),
         Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
         Arc::new(UnavailableRunner),
     );
     let context = trusted_context();
@@ -229,13 +300,85 @@ async fn write_capability_waits_for_approval_without_calling_broker() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::AwaitingApproval);
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(response.output["approval"].clone()).unwrap();
+    assert_eq!(challenge.request_id, context.request_id);
+    assert_eq!(challenge.request_hash.len(), 64);
     let events = harness
         .events
         .read_request(&context.request_id)
         .await
         .unwrap();
-    assert_eq!(events.len(), 2);
+    assert_eq!(events.len(), 3);
     assert_eq!(events[1].kind, "capability.decision");
+    assert_eq!(events[2].kind, "approval.requested");
+}
+
+#[tokio::test]
+async fn approval_resumes_the_stored_request_once_with_monotonic_events() {
+    let events = Arc::new(MemoryEventLog::new());
+    let approvals = Arc::new(TestApprovalStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        approvals,
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let request = CapabilityRequest::new(
+        context.request_id,
+        CapabilityKind::Filesystem,
+        "write",
+        json!({ "path": "approved.txt" }),
+    )
+    .with_risk(kiana_domain::RiskLevel::LocalWrite);
+    let awaiting = core.authorize_and_execute(&context, request).await.unwrap();
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+
+    let mut decision_context = context.clone();
+    decision_context.request_id = RequestId::new();
+    let completed = core
+        .decide_approval(
+            &decision_context,
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+        )
+        .await
+        .unwrap();
+    assert_eq!(completed.status, ExecutionStatus::Completed);
+    assert_eq!(completed.request_id, context.request_id);
+    let events = events.read_request(&context.request_id).await.unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .map(|event| (event.sequence, event.kind.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (1, "request.accepted"),
+            (2, "capability.decision"),
+            (3, "approval.requested"),
+            (4, "approval.approved"),
+            (5, "capability.completed"),
+        ]
+    );
+
+    let replay = core
+        .decide_approval(
+            &decision_context,
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+        )
+        .await
+        .unwrap();
+    assert_eq!(replay.status, ExecutionStatus::Blocked);
+    assert!(replay
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("approval_already_consumed"));
 }
 
 #[tokio::test]
@@ -246,6 +389,7 @@ async fn completed_side_effect_with_missing_result_event_is_result_unknown() {
         Arc::new(DefaultGateEngine),
         events,
         Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
         Arc::new(UnavailableRunner),
     );
     let context = trusted_context();

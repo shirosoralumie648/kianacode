@@ -1,12 +1,13 @@
 //! The single command and capability control plane for Kiana.
 
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest, CommandIntent, CoreResponse,
-    ExecutionStatus, GateDecision, RequestContext, RiskLevel, RuntimeEvent,
+    ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
+    CommandIntent, CoreResponse, ExecutionStatus, GateDecision, RequestContext, RiskLevel,
+    RuntimeEvent,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
-use kiana_ports::{CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
+use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
 use std::path::{Component, Path};
@@ -29,6 +30,7 @@ pub struct ControlPlane {
     gates: Arc<dyn GateEngine>,
     events: Arc<dyn EventStorePort>,
     capabilities: Arc<dyn CapabilityBrokerPort>,
+    approvals: Arc<dyn ApprovalStorePort>,
     runner: Arc<dyn RunnerPort>,
 }
 
@@ -38,6 +40,7 @@ impl ControlPlane {
         gates: Arc<dyn GateEngine>,
         events: Arc<dyn EventStorePort>,
         capabilities: Arc<dyn CapabilityBrokerPort>,
+        approvals: Arc<dyn ApprovalStorePort>,
         runner: Arc<dyn RunnerPort>,
     ) -> Self {
         Self {
@@ -45,6 +48,7 @@ impl ControlPlane {
             gates,
             events,
             capabilities,
+            approvals,
             runner,
         }
     }
@@ -177,10 +181,25 @@ impl ControlPlane {
         let authorization_id = match gate {
             GateDecision::Allowed { authorization_id } => authorization_id,
             GateDecision::AwaitingApproval { reason } => {
+                let challenge = self.approvals.stage(context, request, &reason).await?;
+                self.append_event(
+                    request_id,
+                    3,
+                    "approval.requested",
+                    json!({
+                        "approval_id": challenge.approval_id,
+                        "request_hash": &challenge.request_hash,
+                        "session_id": context.session_id,
+                        "actor_id": context.actor_id,
+                        "expires_at_unix_ms": challenge.expires_at_unix_ms,
+                    }),
+                )
+                .await?;
+                self.approvals.activate(challenge.approval_id).await?;
                 return Ok(CoreResponse {
                     request_id,
                     status: ExecutionStatus::AwaitingApproval,
-                    output: Value::Null,
+                    output: json!({ "approval": challenge }),
                     error: Some(reason),
                 });
             }
@@ -194,6 +213,60 @@ impl ControlPlane {
             }
         };
 
+        self.execute_authorized_request(request, authorization_id, 3)
+            .await
+    }
+
+    pub async fn decide_approval(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+    ) -> Result<CoreResponse, CoreError> {
+        let pending = match self.approvals.consume(context, approval_id).await {
+            Ok(pending) => pending,
+            Err(error) => {
+                return Ok(CoreResponse::blocked(context.request_id, error.to_string()));
+            }
+        };
+        let request_id = pending.request.request_id;
+        let event_kind = match decision {
+            ApprovalDecision::Approve => "approval.approved",
+            ApprovalDecision::Deny => "approval.denied",
+        };
+        self.append_event(
+            request_id,
+            4,
+            event_kind,
+            json!({
+                "approval_id": approval_id,
+                "request_hash": pending.challenge.request_hash,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+            }),
+        )
+        .await?;
+
+        if decision == ApprovalDecision::Deny {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Denied,
+                output: json!({ "approval_id": approval_id }),
+                error: Some("approval_denied".to_owned()),
+            });
+        }
+
+        self.execute_authorized_request(pending.request, format!("approval:{approval_id}"), 5)
+            .await
+    }
+
+    async fn execute_authorized_request(
+        &self,
+        request: CapabilityRequest,
+        authorization_id: String,
+        result_sequence: u64,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = request.request_id;
         let authorized = AuthorizedCapabilityRequest::new(authorization_id, request)?;
         match self.capabilities.execute(authorized).await {
             Ok(result) => {
@@ -214,7 +287,7 @@ impl ControlPlane {
                 if self
                     .append_event(
                         request_id,
-                        3,
+                        result_sequence,
                         if success {
                             "capability.completed"
                         } else {
@@ -243,7 +316,7 @@ impl ControlPlane {
                 let reason = error.to_string();
                 self.append_event(
                     request_id,
-                    3,
+                    result_sequence,
                     "capability.failed",
                     json!({ "error": &reason }),
                 )

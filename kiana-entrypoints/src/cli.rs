@@ -10,8 +10,9 @@ use kiana_commands::{
 };
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    ExecutionStatus as ControlPlaneStatus, RequestEnvelope as ControlPlaneRequest,
-    RequestMetadata as ControlPlaneMetadata, ResponseEnvelope as ControlPlaneResponse,
+    ApprovalDecision, ApprovalId, ExecutionStatus as ControlPlaneStatus,
+    RequestEnvelope as ControlPlaneRequest, RequestMetadata as ControlPlaneMetadata,
+    ResponseEnvelope as ControlPlaneResponse,
 };
 use kiana_query::{
     build_context_artifact_dependency_graph, build_context_artifact_readiness,
@@ -206,7 +207,7 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return session_main(&args[1..]).await;
     }
 
-    if let Some(result) = run_local_command(&args).await? {
+    if let Some(result) = run_local_command(&args, &runtime_flags).await? {
         if !result.value.is_empty() {
             println!("{}", result.value);
         }
@@ -1976,6 +1977,7 @@ struct RuntimeFlags {
     session_id: Option<String>,
     session_name: Option<String>,
     no_session_persistence: bool,
+    approve_local_write: bool,
     strict_mcp_config: bool,
     bare: bool,
     add_dirs: Vec<String>,
@@ -2044,6 +2046,11 @@ fn extract_runtime_flags(args: Vec<String>) -> Result<(Vec<String>, RuntimeFlags
             }
             if arg == "--no-session-persistence" {
                 flags.no_session_persistence = true;
+                index += 1;
+                continue;
+            }
+            if arg == "--approve-local-write" {
+                flags.approve_local_write = true;
                 index += 1;
                 continue;
             }
@@ -5421,6 +5428,10 @@ fn direct_connect_server_router(state: DirectConnectServerState) -> axum::Router
             axum::routing::post(direct_connect_app_command_run_handler),
         )
         .route(
+            "/app/approvals/decision",
+            axum::routing::post(direct_connect_app_approval_decision_handler),
+        )
+        .route(
             "/app/config/resolved",
             axum::routing::get(direct_connect_app_config_resolved_handler),
         )
@@ -6259,6 +6270,12 @@ struct DirectConnectCommandRunRequest {
     args: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct DirectConnectApprovalDecisionRequest {
+    approval_id: ApprovalId,
+    decision: ApprovalDecision,
+}
+
 async fn direct_connect_app_command_run_handler(
     axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
     headers: axum::http::HeaderMap,
@@ -6342,35 +6359,52 @@ async fn direct_connect_app_command_run_payload(
 
     let command_type = command.command_type();
     let command_args = request.args.join(" ");
-    let result = crate::command_dispatch::execute_command(
-        command.as_ref(),
-        CommandContext {
-            args: command_args,
-            app_state: HashMap::from([
+    let command_context = CommandContext {
+        args: command_args,
+        app_state: HashMap::from([
+            (
+                "cwd".to_string(),
+                Value::String(state.workspace.display().to_string()),
+            ),
+            (
+                "session_id".to_string(),
+                Value::String("app-server-command".to_owned()),
+            ),
+            (
+                "actor_id".to_string(),
+                Value::String("app-server".to_owned()),
+            ),
+            (
+                COMMAND_ARGV_APP_STATE_KEY.to_string(),
+                Value::Array(request.args.iter().cloned().map(Value::String).collect()),
+            ),
+        ]),
+    };
+    let outcome = crate::command_dispatch::dispatch_command(command.as_ref(), command_context)
+        .await
+        .map_err(|error| {
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                format!("failed to run command '{name}': {error}"),
+            )
+        })?;
+    let (status, executed, output) = match outcome {
+        crate::command_dispatch::CommandDispatchOutcome::Completed(result) => (
+            "ok",
+            !matches!(command_type, CommandType::Prompt),
+            serde_json::to_value(result).map_err(|error| {
                 (
-                    "cwd".to_string(),
-                    Value::String(state.workspace.display().to_string()),
-                ),
-                (
-                    COMMAND_ARGV_APP_STATE_KEY.to_string(),
-                    Value::Array(request.args.iter().cloned().map(Value::String).collect()),
-                ),
-            ]),
-        },
-    )
-    .await
-    .map_err(|error| {
-        (
-            axum::http::StatusCode::BAD_REQUEST,
-            format!("failed to run command '{name}': {error}"),
-        )
-    })?;
-    let output = serde_json::to_value(result).map_err(|error| {
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            format!("failed to serialize command '{name}' result: {error}"),
-        )
-    })?;
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("failed to serialize command '{name}' result: {error}"),
+                )
+            })?,
+        ),
+        crate::command_dispatch::CommandDispatchOutcome::AwaitingApproval(challenge) => (
+            "awaiting_approval",
+            false,
+            serde_json::json!({ "approval": challenge }),
+        ),
+    };
     let (source_kind, plugin_name) = direct_connect_app_command_source(&name);
     let arg_count = request.args.len();
     let args = request.args;
@@ -6394,10 +6428,76 @@ async fn direct_connect_app_command_run_payload(
             "args": args,
             "arg_count": arg_count,
         },
-        "status": "ok",
-        "executed": !matches!(command_type, CommandType::Prompt),
+        "status": status,
+        "executed": executed,
         "output": output,
     }))
+}
+
+async fn direct_connect_app_approval_decision_handler(
+    axum::extract::State(state): axum::extract::State<DirectConnectServerState>,
+    headers: axum::http::HeaderMap,
+    axum::Json(body): axum::Json<DirectConnectApprovalDecisionRequest>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    if !direct_connect_authorized(&state.auth_token, &headers) {
+        return direct_connect_json_error(
+            axum::http::StatusCode::UNAUTHORIZED,
+            "missing or invalid bearer token",
+        );
+    }
+
+    let context = CommandContext {
+        args: String::new(),
+        app_state: HashMap::from([
+            (
+                "cwd".to_owned(),
+                Value::String(state.workspace.display().to_string()),
+            ),
+            (
+                "session_id".to_owned(),
+                Value::String("app-server-command".to_owned()),
+            ),
+            (
+                "actor_id".to_owned(),
+                Value::String("app-server".to_owned()),
+            ),
+        ]),
+    };
+    match crate::command_dispatch::resolve_command_approval_response(
+        &context,
+        body.approval_id,
+        body.decision,
+    )
+    .await
+    {
+        Ok(response) => axum::Json(serde_json::json!({
+            "schema": "kiana.app-server.approval-decision.v1",
+            "status": direct_connect_approval_status(response.status),
+            "request_id": response.request_id,
+            "output": response.output,
+            "error": response.error,
+        }))
+        .into_response(),
+        Err(error) => direct_connect_json_error(
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("failed to resolve approval: {error}"),
+        ),
+    }
+}
+
+fn direct_connect_approval_status(status: ControlPlaneStatus) -> &'static str {
+    match status {
+        ControlPlaneStatus::Accepted => "accepted",
+        ControlPlaneStatus::Denied => "denied",
+        ControlPlaneStatus::AwaitingApproval => "awaiting_approval",
+        ControlPlaneStatus::Running => "running",
+        ControlPlaneStatus::Completed => "completed",
+        ControlPlaneStatus::Failed => "failed",
+        ControlPlaneStatus::ResultUnknown => "result_unknown",
+        ControlPlaneStatus::Blocked => "blocked",
+    }
 }
 
 fn app_settings_sections_json(sections: Vec<SettingsSection>) -> Value {
@@ -10386,6 +10486,7 @@ fn direct_connect_app_capabilities() -> Vec<&'static str> {
         "tasks.read",
         "commands.read",
         "commands.run",
+        "approvals.decide",
         "config.resolved.read",
         "doctor.read",
         "release.blockers.read",
@@ -10469,6 +10570,7 @@ fn direct_connect_app_endpoints() -> Vec<Value> {
         direct_connect_app_endpoint("GET", "/app/team/plan", "kiana.team-plan.v1"),
         direct_connect_app_endpoint("GET", "/app/commands", "kiana.app-server.commands.v1"),
         direct_connect_app_endpoint("POST", "/app/commands/run", "kiana.app-server.command-run.v1"),
+        direct_connect_app_endpoint("POST", "/app/approvals/decision", "kiana.app-server.approval-decision.v1"),
         direct_connect_app_endpoint("GET", "/app/config/resolved", "kiana.app-server.config-resolved.v1"),
         direct_connect_app_endpoint("GET", "/app/doctor", "kiana.app-server.doctor.v1"),
         direct_connect_app_endpoint("GET", "/app/release/blockers", "kiana.commercial-release-blockers.v1"),
@@ -13590,7 +13692,10 @@ async fn cli_main() -> Result<()> {
     crate::repl::run_repl().await
 }
 
-async fn run_local_command(args: &[String]) -> Result<Option<kiana_commands::CommandResult>> {
+async fn run_local_command(
+    args: &[String],
+    runtime_flags: &RuntimeFlags,
+) -> Result<Option<kiana_commands::CommandResult>> {
     let name = args[0].trim_start_matches('/');
     let command_args = args[1..].join(" ");
     let registry = create_default_command_registry();
@@ -13617,6 +13722,10 @@ async fn run_local_command(args: &[String]) -> Result<Option<kiana_commands::Com
     app_state.insert(
         COMMAND_ARGV_APP_STATE_KEY.to_string(),
         Value::Array(args[1..].iter().cloned().map(Value::String).collect()),
+    );
+    app_state.insert(
+        crate::command_dispatch::APPROVE_LOCAL_WRITE_APP_STATE_KEY.to_owned(),
+        Value::Bool(runtime_flags.approve_local_write),
     );
     let result = crate::command_dispatch::execute_command(
         command.as_ref(),
@@ -13648,6 +13757,9 @@ fn print_help() {
     println!("  kiana --model <name> -p <prompt>  Override the model for this run");
     println!("  kiana --fallback-model <name> -p <prompt>  Retry overloads on another model");
     println!("  kiana --permission-profile <profile> -p <prompt>  Use read-only/workspace/full/ask/plan permissions");
+    println!(
+        "  kiana --approve-local-write <command>  Approve one daemon-issued local-write challenge"
+    );
     println!("  kiana --permission-prompt-tool <tool> -p <prompt>  Use MCP approval in ask mode");
     println!("  kiana --agent <name> -p <prompt>  Use a configured custom agent prompt");
     println!("  kiana --agents '{{...}}' --agent <name> -p <prompt>  Use inline agent JSON");
@@ -17561,6 +17673,7 @@ mod tests {
             "ask".to_string(),
             "--permission-profile=read-only".to_string(),
             "--allowed-tools=Bash(git:*)".to_string(),
+            "--approve-local-write".to_string(),
             "reply".to_string(),
             "session-1".to_string(),
             "hello".to_string(),
@@ -17575,6 +17688,7 @@ mod tests {
                 permission_profile: Some("read-only".to_string()),
                 allowed_tools: Some("Bash(git:*)".to_string()),
                 disallowed_tools: None,
+                approve_local_write: true,
                 ..RuntimeFlags::default()
             }
         );
@@ -18557,11 +18671,14 @@ mod tests {
         let _cwd = CurrentDirGuard::set(&project);
         kiana_types::write_project_trust(&project, kiana_types::ProjectTrust::Trusted).unwrap();
 
-        let result = run_local_command(&[
-            "skills".to_string(),
-            "audit".to_string(),
-            "--json".to_string(),
-        ])
+        let result = run_local_command(
+            &[
+                "skills".to_string(),
+                "audit".to_string(),
+                "--json".to_string(),
+            ],
+            &RuntimeFlags::default(),
+        )
         .await
         .unwrap()
         .unwrap();
@@ -24856,10 +24973,13 @@ mod tests {
     #[tokio::test]
     async fn prompt_local_commands_allow_help_in_non_interactive_cli() {
         for name in ["commit", "init"] {
-            let result = run_local_command(&[name.to_string(), "--help".to_string()])
-                .await
-                .unwrap()
-                .expect("local command result");
+            let result = run_local_command(
+                &[name.to_string(), "--help".to_string()],
+                &RuntimeFlags::default(),
+            )
+            .await
+            .unwrap()
+            .expect("local command result");
             assert!(
                 result.value.contains(&format!("Usage: kiana {name}")),
                 "{name} help output was:\n{}",
@@ -24896,11 +25016,13 @@ mod tests {
         .unwrap();
         std::env::set_var("KIANA_PLUGINS_DIR", &plugins_dir);
 
-        let result =
-            run_local_command(&["review-tools:audit".to_string(), "src/lib.rs".to_string()])
-                .await
-                .unwrap()
-                .expect("plugin prompt command result");
+        let result = run_local_command(
+            &["review-tools:audit".to_string(), "src/lib.rs".to_string()],
+            &RuntimeFlags::default(),
+        )
+        .await
+        .unwrap()
+        .expect("plugin prompt command result");
 
         assert!(result.value.contains("Audit src/lib.rs"));
         assert!(result
@@ -24912,11 +25034,14 @@ mod tests {
 
     #[tokio::test]
     async fn cli_model_list_json_outputs_provider_capabilities() {
-        let result = run_local_command(&[
-            "model".to_string(),
-            "list".to_string(),
-            "--json".to_string(),
-        ])
+        let result = run_local_command(
+            &[
+                "model".to_string(),
+                "list".to_string(),
+                "--json".to_string(),
+            ],
+            &RuntimeFlags::default(),
+        )
         .await
         .unwrap()
         .expect("model list result");
@@ -24968,11 +25093,14 @@ mod tests {
             std::env::remove_var(key);
         }
 
-        let result = run_local_command(&[
-            "model".to_string(),
-            "catalog".to_string(),
-            "--json".to_string(),
-        ])
+        let result = run_local_command(
+            &[
+                "model".to_string(),
+                "catalog".to_string(),
+                "--json".to_string(),
+            ],
+            &RuntimeFlags::default(),
+        )
         .await
         .unwrap()
         .expect("model catalog result");
@@ -25021,11 +25149,14 @@ mod tests {
             std::env::remove_var(key);
         }
 
-        let result = run_local_command(&[
-            "model".to_string(),
-            "smoke".to_string(),
-            "--json".to_string(),
-        ])
+        let result = run_local_command(
+            &[
+                "model".to_string(),
+                "smoke".to_string(),
+                "--json".to_string(),
+            ],
+            &RuntimeFlags::default(),
+        )
         .await
         .unwrap()
         .expect("model smoke result");
@@ -25065,11 +25196,14 @@ mod tests {
         std::env::set_var("KIANA_ENTERPRISE_ACCOUNT_ID", "acct_cli");
         std::env::set_var("KIANA_SUPPORT_CONTACT", "support@example.test");
 
-        let result = run_local_command(&[
-            "license".to_string(),
-            "status".to_string(),
-            "--json".to_string(),
-        ])
+        let result = run_local_command(
+            &[
+                "license".to_string(),
+                "status".to_string(),
+                "--json".to_string(),
+            ],
+            &RuntimeFlags::default(),
+        )
         .await
         .unwrap()
         .expect("license status result");

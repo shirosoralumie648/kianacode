@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
-use kiana_protocol::{ExecutionStatus, RequestEnvelope, RequestMetadata, ResponseEnvelope};
+use kiana_protocol::{
+    ApprovalDecision, ApprovalId, ExecutionStatus, RequestEnvelope, RequestMetadata,
+    ResponseEnvelope,
+};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -91,6 +94,26 @@ async fn malformed_envelope_is_rejected_before_core() {
 
     let accepted = host.handle(valid).await;
     assert_eq!(accepted.status, ExecutionStatus::Completed);
+}
+
+#[tokio::test]
+async fn approval_decision_without_a_daemon_challenge_is_blocked() {
+    let host = DaemonHost::local().unwrap();
+    let mut metadata = trusted_metadata();
+    metadata.request_id = kiana_protocol::RequestId::new();
+    let response = host
+        .handle(RequestEnvelope::approval_decision(
+            metadata,
+            ApprovalId::new(),
+            ApprovalDecision::Approve,
+        ))
+        .await;
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert!(response
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("approval_not_found"));
 }
 
 #[tokio::test]

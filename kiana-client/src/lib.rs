@@ -1,7 +1,9 @@
 //! Transport-neutral client for Kiana protocol requests.
 
 use async_trait::async_trait;
-use kiana_protocol::{RequestEnvelope, RequestMetadata, ResponseEnvelope};
+use kiana_protocol::{
+    ApprovalDecision, ApprovalId, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+};
 use serde_json::Value;
 
 #[async_trait]
@@ -29,6 +31,21 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::command(metadata, name, arguments))
+            .await
+    }
+
+    pub async fn approval_decision(
+        &self,
+        metadata: RequestMetadata,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::approval_decision(
+                metadata,
+                approval_id,
+                decision,
+            ))
             .await
     }
 }
