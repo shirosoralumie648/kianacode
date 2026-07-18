@@ -16,6 +16,13 @@ use std::sync::Arc;
 pub const LEGACY_EDGES_REMAINING: usize = 10;
 const CONTEXT_QUERY_COMMAND: &str = "context.query.v1";
 const CONTEXT_REPO_MAP_OPERATION: &str = "context.repo_map";
+const CONTEXT_INDEX_OPERATION: &str = "context.index.read";
+const CONTEXT_INDEX_CACHE_OPERATION: &str = "context.index.cache.write";
+const CONTEXT_ARTIFACTS_OPERATION: &str = "context.artifacts.read";
+const CONTEXT_ARTIFACTS_CACHE_OPERATION: &str = "context.artifacts.cache.write";
+const CONTEXT_ARTIFACT_STORE_OPERATION: &str = "context.artifact_store.read";
+const CONTEXT_ARTIFACT_STORE_CACHE_OPERATION: &str = "context.artifact_store.cache.write";
+const CONTEXT_ARTIFACT_INGEST_OPERATION: &str = "context.artifact_ingest.write";
 const CONTEXT_ARTIFACT_GRAPH_OPERATION: &str = "context.artifact_graph.read";
 const CONTEXT_ARTIFACT_READINESS_OPERATION: &str = "context.artifact_readiness.read";
 const CONTEXT_SEARCH_OPERATION: &str = "context.search";
@@ -140,7 +147,7 @@ impl ControlPlane {
             normalized.operation,
             normalized.arguments,
         )
-        .with_risk(RiskLevel::ReadOnly);
+        .with_risk(normalized.risk);
         self.authorize_and_execute(&context, request).await
     }
 
@@ -380,12 +387,13 @@ fn normalize_context_query_arguments(
         .and_then(Value::as_object)
         .ok_or(ContextQueryIntentError::Invalid)?;
 
-    let (broker_operation, normalized) = match operation {
+    let (broker_operation, risk, normalized) = match operation {
         "repo_map" => {
             ensure_option_keys(options, &["max_tokens"])?;
             let max_tokens = optional_bounded_u64(options, "max_tokens", u64::MAX)?;
             (
                 CONTEXT_REPO_MAP_OPERATION,
+                RiskLevel::ReadOnly,
                 json!({
                     "project_root": context.project_root,
                     "output": output,
@@ -395,7 +403,7 @@ fn normalize_context_query_arguments(
         }
         "artifact_graph" | "artifact_readiness" => {
             ensure_option_keys(options, &["root", "max_bytes_per_file"])?;
-            let root = optional_relative_root(options)?;
+            let root = optional_relative_path(options, "root")?;
             let max_bytes_per_file =
                 optional_bounded_u64(options, "max_bytes_per_file", MAX_CONTEXT_BYTES_PER_FILE)?;
             let broker_operation = if operation == "artifact_graph" {
@@ -405,9 +413,74 @@ fn normalize_context_query_arguments(
             };
             (
                 broker_operation,
+                RiskLevel::ReadOnly,
                 json!({
                     "project_root": context.project_root,
                     "root": root,
+                    "output": output,
+                    "max_bytes_per_file": max_bytes_per_file,
+                }),
+            )
+        }
+        "index" | "artifacts" | "artifact_store" => {
+            ensure_option_keys(options, &["root", "max_bytes_per_file"])?;
+            let root = optional_relative_path(options, "root")?;
+            let max_bytes_per_file =
+                optional_bounded_u64(options, "max_bytes_per_file", MAX_CONTEXT_BYTES_PER_FILE)?;
+            let broker_operation = match operation {
+                "index" => CONTEXT_INDEX_OPERATION,
+                "artifacts" => CONTEXT_ARTIFACTS_OPERATION,
+                _ => CONTEXT_ARTIFACT_STORE_OPERATION,
+            };
+            (
+                broker_operation,
+                RiskLevel::ReadOnly,
+                json!({
+                    "project_root": context.project_root,
+                    "root": root,
+                    "output": output,
+                    "max_bytes_per_file": max_bytes_per_file,
+                }),
+            )
+        }
+        "index_cache_write" | "artifacts_cache_write" | "artifact_store_cache_write" => {
+            ensure_option_keys(options, &["root", "cache", "max_bytes_per_file"])?;
+            let root = optional_relative_path(options, "root")?;
+            let cache = required_relative_path(options, "cache")?;
+            let max_bytes_per_file =
+                optional_bounded_u64(options, "max_bytes_per_file", MAX_CONTEXT_BYTES_PER_FILE)?;
+            let broker_operation = match operation {
+                "index_cache_write" => CONTEXT_INDEX_CACHE_OPERATION,
+                "artifacts_cache_write" => CONTEXT_ARTIFACTS_CACHE_OPERATION,
+                _ => CONTEXT_ARTIFACT_STORE_CACHE_OPERATION,
+            };
+            (
+                broker_operation,
+                RiskLevel::LocalWrite,
+                json!({
+                    "project_root": context.project_root,
+                    "root": root,
+                    "cache": cache,
+                    "output": output,
+                    "max_bytes_per_file": max_bytes_per_file,
+                }),
+            )
+        }
+        "artifact_ingest_write" => {
+            ensure_option_keys(options, &["root", "source", "store", "max_bytes_per_file"])?;
+            let root = optional_relative_path(options, "root")?;
+            let source = required_relative_path(options, "source")?;
+            let store = optional_relative_path(options, "store")?;
+            let max_bytes_per_file =
+                optional_bounded_u64(options, "max_bytes_per_file", MAX_CONTEXT_BYTES_PER_FILE)?;
+            (
+                CONTEXT_ARTIFACT_INGEST_OPERATION,
+                RiskLevel::LocalWrite,
+                json!({
+                    "project_root": context.project_root,
+                    "root": root,
+                    "source": source,
+                    "store": store,
                     "output": output,
                     "max_bytes_per_file": max_bytes_per_file,
                 }),
@@ -432,7 +505,7 @@ fn normalize_context_query_arguments(
                 .map(str::trim)
                 .filter(|query| !query.is_empty())
                 .ok_or(ContextQueryIntentError::Invalid)?;
-            let root = optional_relative_root(options)?;
+            let root = optional_relative_path(options, "root")?;
             let limit = optional_bounded_u64(options, "limit", MAX_CONTEXT_LIMIT)?;
             let max_bytes_per_file =
                 optional_bounded_u64(options, "max_bytes_per_file", MAX_CONTEXT_BYTES_PER_FILE)?;
@@ -466,13 +539,14 @@ fn normalize_context_query_arguments(
                     "max_bytes_per_file": max_bytes_per_file,
                 })
             };
-            (broker_operation, normalized)
+            (broker_operation, RiskLevel::ReadOnly, normalized)
         }
         _ => return Err(ContextQueryIntentError::Unregistered),
     };
 
     Ok(NormalizedContextQuery {
         operation: broker_operation,
+        risk,
         arguments: normalized,
     })
 }
@@ -502,18 +576,38 @@ fn optional_bounded_u64(
     }
 }
 
-fn optional_relative_root(
+fn optional_relative_path(
     options: &serde_json::Map<String, Value>,
+    key: &str,
 ) -> Result<Option<String>, ContextQueryIntentError> {
-    let Some(root) = options.get("root") else {
+    let Some(value) = options.get(key) else {
         return Ok(None);
     };
-    let root = root
+    let value = value
         .as_str()
         .map(str::trim)
-        .filter(|root| !root.is_empty())
+        .filter(|value| !value.is_empty())
         .ok_or(ContextQueryIntentError::Invalid)?;
-    let path = Path::new(root);
+    validate_relative_path(value)?;
+    Ok(Some(value.to_owned()))
+}
+
+fn required_relative_path(
+    options: &serde_json::Map<String, Value>,
+    key: &str,
+) -> Result<String, ContextQueryIntentError> {
+    let value = options
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or(ContextQueryIntentError::Invalid)?;
+    validate_relative_path(value)?;
+    Ok(value.to_owned())
+}
+
+fn validate_relative_path(value: &str) -> Result<(), ContextQueryIntentError> {
+    let path = Path::new(value);
     if path.is_absolute()
         || path.components().any(|component| {
             matches!(
@@ -524,11 +618,12 @@ fn optional_relative_root(
     {
         return Err(ContextQueryIntentError::Invalid);
     }
-    Ok(Some(root.to_owned()))
+    Ok(())
 }
 
 struct NormalizedContextQuery {
     operation: &'static str,
+    risk: RiskLevel,
     arguments: Value,
 }
 

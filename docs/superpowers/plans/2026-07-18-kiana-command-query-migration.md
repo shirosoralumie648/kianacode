@@ -362,23 +362,23 @@ git commit -m "feat: add resumable command approval gates"
 - Test: `kiana-daemon/tests/control_plane.rs`
 - Test: `kiana-entrypoints/src/cli.rs`
 
-- [ ] **Step 1: 迁移 cache materialization**
+- [x] **Step 1: 迁移 cache materialization**
 
 `index/artifacts/artifact-store --cache` 固定为 `RiskLevel::LocalWrite`；cache path 必须在 project root 下，写入结果保留 existing cache status contract。
 
-- [ ] **Step 2: 迁移 ingest**
+- [x] **Step 2: 迁移 ingest**
 
 `context ingest` 固定为 `RiskLevel::LocalWrite`；source 和 store 均限制在 project root，symlink escape 在执行前拒绝。
 
-- [ ] **Step 3: 验证 approval 后的字节 parity 和副作用边界**
+- [x] **Step 3: 验证 approval 后的字节 parity 和副作用边界**
 
 验证未批准不创建目录/文件，批准只写允许路径，重复 approval 不重复执行，event persistence failure 返回 `result_unknown`。
 
-- [ ] **Step 4: 运行 focused tests 并提交**
+- [x] **Step 4: 运行 focused tests 并提交**
 
 ```bash
-cargo test -p kiana-commands context --locked --offline
-cargo test -p kiana-daemon context_query --locked --offline
+cargo test -p kiana-commands --lib context --locked --offline
+cargo test -p kiana-daemon --test control_plane --locked --offline
 cargo test -p kiana-entrypoints context --locked --offline
 cargo fmt --all --check
 git commit -m "feat: gate context materialization through core"

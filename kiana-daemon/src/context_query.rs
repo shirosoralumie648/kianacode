@@ -3,14 +3,19 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, RequestId};
 use kiana_ports::PortError;
 use kiana_query::{
-    build_context_artifact_dependency_graph, build_context_artifact_readiness, build_context_pack,
-    build_repo_map, search_context_index, search_context_vectors, ContextArtifactDependencyGraph,
-    ContextArtifactOptions, ContextArtifactReadiness, ContextPack, ContextPackOptions,
-    ContextSearchOptions, ContextSearchResults, ContextVectorSearchOptions,
+    build_context_artifact_dependency_graph, build_context_artifact_readiness,
+    build_context_artifact_store, build_context_artifacts, build_context_index, build_context_pack,
+    build_persistent_context_artifact_store, build_persistent_context_artifacts,
+    build_persistent_context_index, build_repo_map, ingest_context_artifacts, search_context_index,
+    search_context_vectors, ContextArtifactDependencyGraph, ContextArtifactIngest,
+    ContextArtifactIngestOptions, ContextArtifactOptions, ContextArtifactReadiness,
+    ContextArtifactStore, ContextArtifacts, ContextIndex, ContextIndexOptions, ContextPack,
+    ContextPackOptions, ContextSearchOptions, ContextSearchResults, ContextVectorSearchOptions,
     ContextVectorSearchResults, RepoMap, RepoMapOptions,
 };
 use serde::Serialize;
 use serde_json::{json, Map, Value};
+use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -20,6 +25,13 @@ const ARTIFACT_READINESS_OPERATION: &str = "context.artifact_readiness.read";
 const SEARCH_OPERATION: &str = "context.search";
 const VECTOR_SEARCH_OPERATION: &str = "context.vector_search";
 const PACK_OPERATION: &str = "context.pack";
+const INDEX_OPERATION: &str = "context.index.read";
+const INDEX_CACHE_OPERATION: &str = "context.index.cache.write";
+const ARTIFACTS_OPERATION: &str = "context.artifacts.read";
+const ARTIFACTS_CACHE_OPERATION: &str = "context.artifacts.cache.write";
+const ARTIFACT_STORE_OPERATION: &str = "context.artifact_store.read";
+const ARTIFACT_STORE_CACHE_OPERATION: &str = "context.artifact_store.cache.write";
+const ARTIFACT_INGEST_OPERATION: &str = "context.artifact_ingest.write";
 
 pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
     broker.register_static(
@@ -38,6 +50,21 @@ pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
             CapabilityKind::Query,
             operation.broker_key(),
             Arc::new(ReadQueryHandler { operation }),
+        )?;
+    }
+    for operation in [
+        MaterializationOperation::Index,
+        MaterializationOperation::IndexCache,
+        MaterializationOperation::Artifacts,
+        MaterializationOperation::ArtifactsCache,
+        MaterializationOperation::ArtifactStore,
+        MaterializationOperation::ArtifactStoreCache,
+        MaterializationOperation::Ingest,
+    ] {
+        broker.register_static(
+            CapabilityKind::Query,
+            operation.broker_key(),
+            Arc::new(MaterializationHandler { operation }),
         )?;
     }
     Ok(())
@@ -95,6 +122,277 @@ impl ReadQueryOperation {
             Self::Search => "search",
             Self::VectorSearch => "vector_search",
             Self::Pack => "pack",
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum MaterializationOperation {
+    Index,
+    IndexCache,
+    Artifacts,
+    ArtifactsCache,
+    ArtifactStore,
+    ArtifactStoreCache,
+    Ingest,
+}
+
+impl MaterializationOperation {
+    fn broker_key(self) -> &'static str {
+        match self {
+            Self::Index => INDEX_OPERATION,
+            Self::IndexCache => INDEX_CACHE_OPERATION,
+            Self::Artifacts => ARTIFACTS_OPERATION,
+            Self::ArtifactsCache => ARTIFACTS_CACHE_OPERATION,
+            Self::ArtifactStore => ARTIFACT_STORE_OPERATION,
+            Self::ArtifactStoreCache => ARTIFACT_STORE_CACHE_OPERATION,
+            Self::Ingest => ARTIFACT_INGEST_OPERATION,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Index | Self::IndexCache => "index",
+            Self::Artifacts | Self::ArtifactsCache => "artifacts",
+            Self::ArtifactStore | Self::ArtifactStoreCache => "artifact_store",
+            Self::Ingest => "artifact_ingest",
+        }
+    }
+}
+
+struct MaterializationHandler {
+    operation: MaterializationOperation,
+}
+
+#[async_trait]
+impl CapabilityHandler for MaterializationHandler {
+    async fn execute(
+        &self,
+        request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        ensure_operation(&request, self.operation.broker_key())?;
+        let request_id = request.request.request_id;
+        let arguments =
+            validated_materialization_arguments(self.operation, &request.request.arguments)?;
+        let operation = self.operation;
+        let value =
+            tokio::task::spawn_blocking(move || execute_materialization(operation, arguments))
+                .await
+                .map_err(|error| {
+                    PortError::Failed(format!("context_{}_join_failed:{error}", operation.label()))
+                })??;
+        Ok(CapabilityResult::success(
+            request_id,
+            json!({
+                "command_result": {
+                    "output_type": "text",
+                    "value": value,
+                    "metadata": null,
+                }
+            }),
+        ))
+    }
+}
+
+struct MaterializationArguments {
+    project_root: String,
+    root: Option<String>,
+    output: String,
+    max_bytes_per_file: Option<usize>,
+    cache: Option<String>,
+    source: Option<String>,
+    store: Option<String>,
+}
+
+fn validated_materialization_arguments(
+    operation: MaterializationOperation,
+    arguments: &Value,
+) -> Result<MaterializationArguments, PortError> {
+    let arguments = arguments_object(arguments)?;
+    let expected = match operation {
+        MaterializationOperation::Index
+        | MaterializationOperation::Artifacts
+        | MaterializationOperation::ArtifactStore => {
+            &["project_root", "root", "output", "max_bytes_per_file"][..]
+        }
+        MaterializationOperation::IndexCache
+        | MaterializationOperation::ArtifactsCache
+        | MaterializationOperation::ArtifactStoreCache => &[
+            "project_root",
+            "root",
+            "output",
+            "cache",
+            "max_bytes_per_file",
+        ][..],
+        MaterializationOperation::Ingest => &[
+            "project_root",
+            "root",
+            "output",
+            "source",
+            "store",
+            "max_bytes_per_file",
+        ][..],
+    };
+    ensure_exact_keys(arguments, expected)?;
+    let cache = match operation {
+        MaterializationOperation::IndexCache
+        | MaterializationOperation::ArtifactsCache
+        | MaterializationOperation::ArtifactStoreCache => {
+            Some(required_string(arguments, "cache")?.to_owned())
+        }
+        _ => None,
+    };
+    let source = if matches!(operation, MaterializationOperation::Ingest) {
+        Some(required_string(arguments, "source")?.to_owned())
+    } else {
+        None
+    };
+    Ok(MaterializationArguments {
+        project_root: required_string(arguments, "project_root")?.to_owned(),
+        root: optional_string(arguments, "root")?,
+        output: required_output(arguments)?.to_owned(),
+        max_bytes_per_file: optional_usize(arguments, "max_bytes_per_file")?,
+        cache,
+        source,
+        store: optional_string(arguments, "store")?,
+    })
+}
+
+fn execute_materialization(
+    operation: MaterializationOperation,
+    arguments: MaterializationArguments,
+) -> Result<String, PortError> {
+    let root = confined_context_root(&arguments.project_root, arguments.root.as_deref())?;
+    let options = ContextArtifactOptions {
+        max_bytes_per_file: arguments.max_bytes_per_file,
+    };
+    match operation {
+        MaterializationOperation::Index => {
+            let index = build_context_index(
+                &root,
+                ContextIndexOptions {
+                    max_bytes_per_file: arguments.max_bytes_per_file,
+                },
+            )
+            .map_err(|error| PortError::Failed(format!("context_index_failed:{error}")))?;
+            render_output(
+                &index,
+                &arguments.output,
+                "index",
+                format_context_index_text,
+            )
+        }
+        MaterializationOperation::IndexCache => {
+            let cache = confined_write_path(
+                &root,
+                arguments.cache.as_deref().unwrap_or_default(),
+                "context index cache",
+            )?;
+            let index = build_persistent_context_index(
+                &root,
+                ContextIndexOptions {
+                    max_bytes_per_file: arguments.max_bytes_per_file,
+                },
+                cache,
+            )
+            .map_err(|error| PortError::Failed(format!("context_index_cache_failed:{error}")))?;
+            render_output(
+                &index,
+                &arguments.output,
+                "index",
+                format_context_index_text,
+            )
+        }
+        MaterializationOperation::Artifacts => {
+            let artifacts = build_context_artifacts(&root, options)
+                .map_err(|error| PortError::Failed(format!("context_artifacts_failed:{error}")))?;
+            render_output(
+                &artifacts,
+                &arguments.output,
+                "artifacts",
+                format_context_artifacts_text,
+            )
+        }
+        MaterializationOperation::ArtifactsCache => {
+            let cache = confined_write_path(
+                &root,
+                arguments.cache.as_deref().unwrap_or_default(),
+                "context artifacts cache",
+            )?;
+            let artifacts =
+                build_persistent_context_artifacts(&root, options, cache).map_err(|error| {
+                    PortError::Failed(format!("context_artifacts_cache_failed:{error}"))
+                })?;
+            render_output(
+                &artifacts,
+                &arguments.output,
+                "artifacts",
+                format_context_artifacts_text,
+            )
+        }
+        MaterializationOperation::ArtifactStore => {
+            let store = build_context_artifact_store(&root, options).map_err(|error| {
+                PortError::Failed(format!("context_artifact_store_failed:{error}"))
+            })?;
+            render_output(
+                &store,
+                &arguments.output,
+                "artifact_store",
+                format_context_artifact_store_text,
+            )
+        }
+        MaterializationOperation::ArtifactStoreCache => {
+            let cache = confined_write_path(
+                &root,
+                arguments.cache.as_deref().unwrap_or_default(),
+                "context artifact store cache",
+            )?;
+            let store = build_persistent_context_artifact_store(&root, options, cache).map_err(
+                |error| PortError::Failed(format!("context_artifact_store_cache_failed:{error}")),
+            )?;
+            render_output(
+                &store,
+                &arguments.output,
+                "artifact_store",
+                format_context_artifact_store_text,
+            )
+        }
+        MaterializationOperation::Ingest => {
+            let source = confined_existing_dir(
+                &root,
+                arguments.source.as_deref().unwrap_or_default(),
+                "context artifact ingest source",
+            )?;
+            let store = confined_write_dir(
+                &root,
+                arguments
+                    .store
+                    .as_deref()
+                    .unwrap_or(".kiana/context-ingest"),
+                "context artifact ingest store",
+            )?;
+            if source.starts_with(&store) {
+                return Err(PortError::Failed(
+                    "context_artifact_ingest_source_inside_store".to_owned(),
+                ));
+            }
+            let ingest = ingest_context_artifacts(
+                &root,
+                source,
+                ContextArtifactIngestOptions {
+                    store_dir: Some(store),
+                    max_bytes_per_file: arguments.max_bytes_per_file,
+                },
+            )
+            .map_err(|error| {
+                PortError::Failed(format!("context_artifact_ingest_failed:{error}"))
+            })?;
+            render_output(
+                &ingest,
+                &arguments.output,
+                "artifact_ingest",
+                format_context_artifact_ingest_text,
+            )
         }
     }
 }
@@ -217,6 +515,154 @@ fn execute_read_query(
             render_output(&pack, &arguments.output, "pack", format_context_pack_text)
         }
     }
+}
+
+fn format_context_index_text(index: &ContextIndex) -> String {
+    let mut lines = vec![
+        "Context index".to_owned(),
+        format!("root: {}", index.root),
+        format!(
+            "files_indexed: {} skipped_files: {} total_bytes: {}",
+            index.files_indexed, index.skipped_files, index.total_bytes
+        ),
+    ];
+    for file in &index.files {
+        lines.push(format!(
+            "- {} [{}] bytes={} lines={} hash={}",
+            file.path,
+            file.language.as_deref().unwrap_or("unknown"),
+            file.bytes,
+            file.line_count,
+            file.content_hash
+        ));
+    }
+    if let Some(cache) = &index.cache {
+        lines.push(format!(
+            "cache: {} status={} reused={} added={} changed={} removed={}",
+            cache.path,
+            cache.status,
+            cache.reused_files,
+            cache.added_files,
+            cache.changed_files,
+            cache.removed_files
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifacts_text(report: &ContextArtifacts) -> String {
+    let mut lines = vec![
+        "Context artifacts".to_owned(),
+        format!("root: {}", report.root),
+        format!(
+            "files_indexed: {} skipped_files: {} artifacts={}",
+            report.files_indexed,
+            report.skipped_files,
+            report.artifacts.len()
+        ),
+    ];
+    for artifact in &report.artifacts {
+        lines.push(format!(
+            "- {} [{}] kind={} bytes={} lines={} hash={} id={}",
+            artifact.path,
+            artifact.language.as_deref().unwrap_or("unknown"),
+            artifact.kind,
+            artifact.bytes,
+            artifact.line_count,
+            artifact.content_hash,
+            artifact.id
+        ));
+    }
+    if let Some(cache) = &report.cache {
+        lines.push(format!(
+            "cache: {} status={} reused={} added={} changed={} removed={}",
+            cache.path,
+            cache.status,
+            cache.reused_artifacts,
+            cache.added_artifacts,
+            cache.changed_artifacts,
+            cache.removed_artifacts
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifact_ingest_text(report: &ContextArtifactIngest) -> String {
+    let mut lines = vec![
+        "Context artifact ingest".to_owned(),
+        format!("root: {}", report.root),
+        format!("source_root: {}", report.source_root),
+        format!("store_dir: {}", report.store_dir),
+        format!("manifest_path: {}", report.manifest_path),
+        format!(
+            "schema: {} artifacts_schema: {} ingested_files: {} skipped_files: {} total_bytes: {}",
+            report.schema,
+            report.artifacts_schema,
+            report.ingested_files,
+            report.skipped_files,
+            report.total_bytes
+        ),
+        format!(
+            "sync: {} status={} reused={} added={} changed={} removed={}",
+            report.sync.path,
+            report.sync.status,
+            report.sync.reused_files,
+            report.sync.added_files,
+            report.sync.changed_files,
+            report.sync.removed_files
+        ),
+    ];
+    for artifact in &report.artifacts {
+        lines.push(format!(
+            "- {} -> {} [{}] kind={} bytes={} lines={} hash={} id={}",
+            artifact.source_path,
+            artifact.stored_path,
+            artifact.language.as_deref().unwrap_or("unknown"),
+            artifact.kind,
+            artifact.bytes,
+            artifact.line_count,
+            artifact.content_hash,
+            artifact.id
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_context_artifact_store_text(store: &ContextArtifactStore) -> String {
+    let mut lines = vec![
+        "Context artifact store".to_owned(),
+        format!("root: {}", store.root),
+        format!(
+            "schema: {} artifacts={} dependencies={}",
+            store.schema, store.artifact_count, store.dependency_count
+        ),
+        format!("artifacts_schema: {}", store.artifacts_schema),
+        format!("dependency_graph_schema: {}", store.dependency_graph_schema),
+        format!(
+            "artifact_roles: {}",
+            store
+                .artifact_roles
+                .iter()
+                .map(|role| format!("{}={}", role.role, role.count))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    ];
+    if let Some(cache) = &store.cache {
+        lines.push(format!(
+            "cache: {} status={} reused_artifacts={} added_artifacts={} changed_artifacts={} removed_artifacts={} reused_dependencies={} added_dependencies={} removed_dependencies={}",
+            cache.path,
+            cache.status,
+            cache.reused_artifacts,
+            cache.added_artifacts,
+            cache.changed_artifacts,
+            cache.removed_artifacts,
+            cache.reused_dependencies,
+            cache.added_dependencies,
+            cache.removed_dependencies
+        ));
+    }
+    lines.join("\n")
 }
 
 fn required_query(arguments: &ReadQueryArguments) -> Result<&str, PortError> {
@@ -420,6 +866,92 @@ fn confined_context_root(
         ));
     }
     Ok(root)
+}
+
+fn confined_existing_dir(root: &Path, relative: &str, label: &str) -> Result<PathBuf, PortError> {
+    let relative = validated_relative_path(relative, label)?;
+    let candidate = root.join(relative);
+    let resolved = candidate
+        .canonicalize()
+        .map_err(|error| PortError::Failed(format!("{label}_invalid:{error}")))?;
+    if !resolved.starts_with(root) {
+        return Err(PortError::Failed(format!("{label}_outside_project")));
+    }
+    if !resolved.is_dir() {
+        return Err(PortError::Failed(format!("{label}_invalid:not_directory")));
+    }
+    Ok(resolved)
+}
+
+fn confined_write_path(root: &Path, relative: &str, label: &str) -> Result<PathBuf, PortError> {
+    let relative = validated_relative_path(relative, label)?;
+    let candidate = root.join(relative);
+    ensure_write_containment(root, &candidate, label)?;
+    Ok(candidate)
+}
+
+fn confined_write_dir(root: &Path, relative: &str, label: &str) -> Result<PathBuf, PortError> {
+    let candidate = confined_write_path(root, relative, label)?;
+    if let Ok(metadata) = fs::symlink_metadata(&candidate) {
+        if !metadata.file_type().is_dir() {
+            return Err(PortError::Failed(format!("{label}_invalid:not_directory")));
+        }
+    }
+    Ok(candidate)
+}
+
+fn validated_relative_path<'a>(value: &'a str, label: &str) -> Result<&'a str, PortError> {
+    let value = value.trim();
+    let path = Path::new(value);
+    if value.is_empty()
+        || path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(PortError::Failed(format!("{label}_invalid:not_relative")));
+    }
+    Ok(value)
+}
+
+fn ensure_write_containment(root: &Path, candidate: &Path, label: &str) -> Result<(), PortError> {
+    if let Ok(metadata) = fs::symlink_metadata(candidate) {
+        if metadata.file_type().is_symlink() || metadata.is_file() {
+            let resolved = candidate
+                .canonicalize()
+                .map_err(|error| PortError::Failed(format!("{label}_invalid:{error}")))?;
+            if !resolved.starts_with(root) {
+                return Err(PortError::Failed(format!("{label}_outside_project")));
+            }
+            return Ok(());
+        }
+    }
+
+    let mut ancestor = candidate;
+    loop {
+        match fs::symlink_metadata(ancestor) {
+            Ok(_) => {
+                let resolved = ancestor
+                    .canonicalize()
+                    .map_err(|error| PortError::Failed(format!("{label}_invalid:{error}")))?;
+                if !resolved.starts_with(root) {
+                    return Err(PortError::Failed(format!("{label}_outside_project")));
+                }
+                return Ok(());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                ancestor = ancestor.parent().ok_or_else(|| {
+                    PortError::Failed(format!("{label}_invalid:no_existing_parent"))
+                })?;
+            }
+            Err(error) => {
+                return Err(PortError::Failed(format!("{label}_invalid:{error}")));
+            }
+        }
+    }
 }
 
 fn command_result<T: Serialize>(
