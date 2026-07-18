@@ -408,7 +408,7 @@ rg -n 'kiana_query::' kiana-commands/src kiana-commands/tests
 
 从 `LEGACY_EDGES` 删除 `("kiana-commands", "kiana-query")`，将 `LEGACY_EDGES_REMAINING` 从 10 改为 9，CLI architecture contract 同步更新。
 
-- [ ] **Step 3: 运行完整 verification**
+- [x] **Step 3: 运行完整 verification**
 
 ```bash
 cargo fmt --all --check
@@ -421,7 +421,9 @@ cargo test --workspace --locked --offline --no-fail-fast
 
 已知 `kiana-computer-input::tests::test_init` 平台环境失败必须单独报告，不得把 focused pass 描述为 workspace 全绿。
 
-- [ ] **Step 4: 提交 Query edge 删除**
+实际结果：`cargo test --workspace --locked --offline --no-fail-fast` 已完成；当前仅有两个环境边界失败：`kiana-capability-governance-supervisor::supervisor_linux::linux_public_slices_succeed_after_prebuilt_binary` 超时，以及 `kiana-computer-input::tests::test_init` 在无桌面输入后端环境中失败。其余 workspace targets、doc tests 和本迁移 focused tests 通过。
+
+- [x] **Step 4: 提交 Query edge 删除**
 
 ```bash
 git add kiana-commands/Cargo.toml kiana-commands/src/context.rs \
@@ -430,6 +432,8 @@ git add kiana-commands/Cargo.toml kiana-commands/src/context.rs \
   docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md
 git commit -m "refactor: remove command query dependency"
 ```
+
+已提交：`de6dc9a`（materialization control-plane gate）、`1fbc9d6`（删除 command/query legacy edge）、`6ce0a5e`（同步架构状态文档）。
 
 ## 完成标准
 
