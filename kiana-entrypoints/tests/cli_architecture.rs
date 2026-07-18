@@ -18,5 +18,5 @@ fn architecture_status_routes_through_the_real_binary() {
     assert_eq!(status["schema"], "kiana.architecture-status.v1");
     assert_eq!(status["control_plane"], "kiana-core");
     assert_eq!(status["composition_root"], "kiana-daemon");
-    assert_eq!(status["legacy_edges_remaining"], 10);
+    assert_eq!(status["legacy_edges_remaining"], 9);
 }

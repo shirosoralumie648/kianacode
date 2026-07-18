@@ -49,7 +49,6 @@ const LEGACY_EDGES: &[(&str, &str)] = &[
     ("kiana-entrypoints", "kiana-query"),
     ("kiana-entrypoints", "kiana-services"),
     ("kiana-entrypoints", "kiana-tools"),
-    ("kiana-commands", "kiana-query"),
     ("kiana-commands", "kiana-services"),
     ("kiana-commands", "kiana-tasks"),
     ("kiana-commands", "kiana-tools"),

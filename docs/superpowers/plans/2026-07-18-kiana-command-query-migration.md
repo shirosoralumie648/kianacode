@@ -394,7 +394,7 @@ git commit -m "feat: gate context materialization through core"
 - Modify: `kiana-entrypoints/tests/cli_architecture.rs`
 - Modify: `docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md`
 
-- [ ] **Step 1: 删除最后的 Query imports 和 dependency**
+- [x] **Step 1: 删除最后的 Query imports 和 dependency**
 
 确认：
 
@@ -404,7 +404,7 @@ rg -n 'kiana_query::' kiana-commands/src kiana-commands/tests
 
 必须没有输出，然后从 `kiana-commands/Cargo.toml` 删除 `kiana-query`。
 
-- [ ] **Step 2: 收紧依赖守卫和架构状态**
+- [x] **Step 2: 收紧依赖守卫和架构状态**
 
 从 `LEGACY_EDGES` 删除 `("kiana-commands", "kiana-query")`，将 `LEGACY_EDGES_REMAINING` 从 10 改为 9，CLI architecture contract 同步更新。
 

@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use std::path::{Component, Path};
 use std::sync::Arc;
 
-pub const LEGACY_EDGES_REMAINING: usize = 10;
+pub const LEGACY_EDGES_REMAINING: usize = 9;
 const CONTEXT_QUERY_COMMAND: &str = "context.query.v1";
 const CONTEXT_REPO_MAP_OPERATION: &str = "context.repo_map";
 const CONTEXT_INDEX_OPERATION: &str = "context.index.read";

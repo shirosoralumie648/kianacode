@@ -26,7 +26,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tokio = { version = "1.0", features = ["full"] }
 kiana-bootstrap = { path = "../kiana-bootstrap", version = "0.1.0" }
 kiana-modifiers = { path = "../kiana-modifiers", version = "0.1.0" }
-kiana-query = { path = "../kiana-query", version = "0.1.0" }
 kiana-services = { path = "../kiana-services", version = "0.1.0" }
 kiana-skills = { path = "../kiana-skills", version = "0.1.0" }
 kiana-tasks = { path = "../kiana-tasks", version = "0.1.0" }

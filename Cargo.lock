@@ -2474,7 +2474,6 @@ dependencies = [
  "clap",
  "kiana-bootstrap",
  "kiana-modifiers",
- "kiana-query",
  "kiana-services",
  "kiana-skills",
  "kiana-tasks",
