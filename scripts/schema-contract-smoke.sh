@@ -2220,5 +2220,6 @@ for platform in ["linux", "macos", "windows"]:
         raise SystemExit(f"platform security blocker is missing {expected}")
 PY
 bash scripts/commercial-release-handoff-smoke.sh >/dev/null
+bash scripts/capability-governance-smoke.sh
 
 echo "schema contract smoke passed"
