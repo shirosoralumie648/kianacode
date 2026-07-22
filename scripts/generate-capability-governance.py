@@ -25,6 +25,7 @@ from capability_governance import (
     preflight_output_paths,
     render_compat_warning,
     render_governance_views,
+    resolve_repository_path,
     structural_errors,
     validate_revision_ancestry,
     write_or_check_outputs,
@@ -122,12 +123,16 @@ def validated_diff_document(
     after = load_json(after_path)
     if not isinstance(before, dict) or not isinstance(after, dict):
         raise GovernanceUsageError("diff_revision_invalid: roots must be objects")
-    errors = [*structural_errors(before, root), *structural_errors(after, root)]
     family_key = {
         "public-baseline": "public_baseline_revisions",
         "repository-registry": "repository_registry_revisions",
     }[family]
     chain = load_revision_chain_from_head(after_path, root=root)
+    errors = [
+        error
+        for revision in chain
+        for error in structural_errors(revision, root)
+    ]
     errors.extend(validate_revision_ancestry(chain, family=family_key))
     matching_ancestors = [
         revision
@@ -157,13 +162,61 @@ def validated_diff_document(
     return document
 
 
+def validate_diff_family_authority(
+    family: str,
+    after_path: Path,
+    root: Path,
+) -> None:
+    manifest_path = root / "docs/agent-program/kiana-completion/governance/current.json"
+    manifest = load_json(manifest_path)
+    if not isinstance(manifest, dict):
+        raise GovernanceUsageError("manifest_invalid: root must be an object")
+    errors = structural_errors(manifest, root)
+    if errors:
+        raise GovernanceUsageError(f"manifest_invalid: {errors[0].code}")
+    binding_key, family_key = {
+        "public-baseline": ("public_baseline", "public_baseline_revisions"),
+        "repository-registry": (
+            "repository_registry",
+            "repository_registry_revisions",
+        ),
+    }[family]
+    binding = manifest.get(binding_key)
+    if not isinstance(binding, dict):
+        raise GovernanceUsageError(f"manifest_invalid: {binding_key} binding is required")
+    selected_path = resolve_repository_path(root, str(binding.get("path", "")))
+    selected = load_json(selected_path)
+    if not isinstance(selected, dict) or (
+        binding.get("revision_id") != selected.get("revision_id")
+        or binding.get("sha256") != canonical_sha256(selected)
+    ):
+        raise GovernanceUsageError("diff_revision_invalid: selected head binding mismatch")
+    chain = load_revision_chain_from_head(selected_path, root=root)
+    chain_errors = [
+        error
+        for revision in chain
+        for error in structural_errors(revision, root)
+    ]
+    chain_errors.extend(validate_revision_ancestry(chain, family=family_key))
+    if chain_errors:
+        raise GovernanceUsageError(
+            f"diff_revision_invalid: selected family {chain_errors[0].code}"
+        )
+    target = load_json(after_path.resolve())
+    if not isinstance(target, dict) or sum(
+        revision.get("revision_id") == target.get("revision_id")
+        and canonical_sha256(revision) == canonical_sha256(target)
+        for revision in chain
+    ) != 1:
+        raise GovernanceUsageError(
+            "diff_revision_invalid: to revision is not in the selected family ancestry"
+        )
+
+
 def diff_command(args: argparse.Namespace, root: Path) -> bool:
-    # The production selector remains the closed authority even when callers
-    # request a diff between two explicitly supplied immutable revisions.
-    load_validated_manifest_bundle(
-        root / "docs/agent-program/kiana-completion/governance/current.json",
-        root=root,
-    )
+    # The closed production selector must select the exact family ancestry used
+    # by this command. Unrelated families are validated by render/production.
+    validate_diff_family_authority(args.family, args.to_path, root)
     document = validated_diff_document(
         args.family,
         args.from_path,
