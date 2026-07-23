@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import shutil
@@ -7,6 +8,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +31,23 @@ generator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(generator)
 
 GOVERNANCE_ROOT = ROOT / "docs/agent-program/kiana-completion/governance"
+
+EXPECTED_PRODUCTION_CHECK_IDS = (
+    "canonical-bundle",
+    "current-selector",
+    "evaluation-time",
+    "repository-identities-38",
+    "official-source-drift",
+    "reference-drift",
+    "target-drift",
+    "integrity.evidence-expired",
+    "integrity.newer-failed-retest",
+    "legacy-authority",
+    "generated-views",
+    "compatibility-output",
+    "public-baseline-diff",
+    "repository-registry-diff",
+)
 
 
 def read_json(path: Path) -> dict[str, object]:
@@ -101,6 +121,164 @@ class CapabilityGovernanceGeneratorTests(unittest.TestCase):
                     head_path,
                     root,
                 )
+
+
+class ProductionReportAuthorityTests(unittest.TestCase):
+    def _current_bundle_and_binding(self) -> tuple[dict[str, object], str, str]:
+        bundle = governance.load_validated_manifest_bundle(
+            GOVERNANCE_ROOT / "current.json",
+            root=ROOT,
+        )
+        manifest = bundle["bundle_manifest"]
+        self.assertIsInstance(manifest, dict)
+        return (
+            bundle,
+            governance.canonical_sha256(manifest),
+            str(manifest["evaluation_time"]),
+        )
+
+    def _passing_report(self, manifest_sha256: str, evaluation_time: str) -> dict[str, object]:
+        return governance.build_production_report(
+            manifest_sha256=manifest_sha256,
+            evaluation_time=evaluation_time,
+            checks=[
+                {"id": check_id, "status": "pass"}
+                for check_id in EXPECTED_PRODUCTION_CHECK_IDS
+            ],
+        )
+
+    def test_production_report_is_a_closed_current_manifest_contract(self) -> None:
+        _bundle, manifest_sha256, evaluation_time = self._current_bundle_and_binding()
+        report = self._passing_report(manifest_sha256, evaluation_time)
+
+        self.assertEqual(
+            governance.PRODUCTION_REPORT_SCHEMA,
+            "kiana.capability-governance-production-report.v1",
+        )
+        self.assertEqual(governance.PRODUCTION_REPORT_VERSION, "1.0")
+        self.assertEqual(governance.PRODUCTION_CHECK_IDS, EXPECTED_PRODUCTION_CHECK_IDS)
+        self.assertEqual(
+            set(report),
+            {
+                "schema",
+                "version",
+                "status",
+                "manifest_sha256",
+                "evaluation_time",
+                "checks",
+            },
+        )
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(
+            [row["id"] for row in report["checks"]],
+            list(EXPECTED_PRODUCTION_CHECK_IDS),
+        )
+        self.assertEqual(
+            governance.validate_production_report(
+                report,
+                manifest_sha256=manifest_sha256,
+                evaluation_time=evaluation_time,
+            ),
+            report,
+        )
+
+    def test_production_report_rejects_every_partial_or_nonpassing_mutation(self) -> None:
+        _bundle, manifest_sha256, evaluation_time = self._current_bundle_and_binding()
+        report = self._passing_report(manifest_sha256, evaluation_time)
+
+        mutations = {
+            "unknown_id": lambda value: value["checks"][0].update({"id": "unknown-check"}),
+            "unknown_field": lambda value: value.update({"unexpected": "value"}),
+            "missing_id": lambda value: value["checks"].pop(),
+            "duplicate_id": lambda value: value["checks"][-1].update(
+                {"id": EXPECTED_PRODUCTION_CHECK_IDS[0]}
+            ),
+            "stale_metadata": lambda value: value.update(
+                {"evaluation_time": "2000-01-01T00:00:00Z"}
+            ),
+            "stale_row": lambda value: value["checks"][0].update({"status": "stale"}),
+            "malformed_type": lambda value: value.update({"checks": {"id": "not-an-array"}}),
+            "malformed_status": lambda value: value["checks"][0].update(
+                {"status": "unknown"}
+            ),
+            "failing_row": lambda value: value["checks"][0].update({"status": "fail"}),
+        }
+
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                candidate = copy.deepcopy(report)
+                mutate(candidate)
+                with self.assertRaisesRegex(
+                    governance.GovernanceUsageError,
+                    "production_report_invalid",
+                ):
+                    governance.validate_production_report(
+                        candidate,
+                        manifest_sha256=manifest_sha256,
+                        evaluation_time=evaluation_time,
+                    )
+
+    def test_verify_production_loads_the_complete_bundle_once(self) -> None:
+        bundle, manifest_sha256, evaluation_time = self._current_bundle_and_binding()
+        manifest = bundle["bundle_manifest"]
+        self.assertIsInstance(manifest, dict)
+        public_to = governance.resolve_repository_path(
+            ROOT,
+            str(manifest["public_baseline"]["path"]).split("#", 1)[0],
+        )
+        registry_to = governance.resolve_repository_path(
+            ROOT,
+            str(manifest["repository_registry"]["path"]).split("#", 1)[0],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            args = SimpleNamespace(
+                manifest=GOVERNANCE_ROOT / "current.json",
+                generated_root=GOVERNANCE_ROOT / "generated",
+                repository_output_root=ROOT,
+                compat_manifest=GOVERNANCE_ROOT / "compat-outputs.json",
+                public_from=GOVERNANCE_ROOT
+                / "public-baselines/cc-public-2026-07-15-genesis.json",
+                public_to=public_to,
+                public_diff=GOVERNANCE_ROOT
+                / "diffs/public-baseline/cc-public-2026-07-15.genesis-to-current.json",
+                registry_from=GOVERNANCE_ROOT
+                / "repository-registry/references-2026-07-15-genesis.json",
+                registry_to=registry_to,
+                registry_diff=GOVERNANCE_ROOT
+                / "diffs/repository-registry/references-2026-07-15.genesis-to-current.json",
+                report=output / "production-report.json",
+                drift_report=output / "production-drift.json",
+            )
+            original_loader = generator.load_validated_manifest_bundle
+            calls = 0
+
+            def counted_loader(*arguments: object, **kwargs: object) -> dict[str, object]:
+                nonlocal calls
+                calls += 1
+                return original_loader(*arguments, **kwargs)
+
+            with mock.patch.object(
+                generator,
+                "load_validated_manifest_bundle",
+                side_effect=counted_loader,
+            ):
+                self.assertTrue(generator.verify_production_command(args, ROOT))
+
+            self.assertEqual(calls, 1)
+            report = read_json(args.report)
+            self.assertEqual(
+                governance.validate_production_report(
+                    report,
+                    manifest_sha256=manifest_sha256,
+                    evaluation_time=evaluation_time,
+                ),
+                report,
+            )
+            drift_report = read_json(args.drift_report)
+            self.assertEqual(drift_report["status"], "current")
+            self.assertEqual(drift_report["errors"], [])
 
 
 if __name__ == "__main__":
