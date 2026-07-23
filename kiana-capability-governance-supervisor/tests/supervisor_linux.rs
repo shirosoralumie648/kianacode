@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use kiana_capability_governance_supervisor::{
     run_public, CleanupState, FailureCode, LinuxProcessLauncher, Slice, SupervisorConfig,
-    WorkerExit, SUPERVISOR_WORKER_EXIT_CODE,
+    WorkerExit, SLICE_DEADLINE, SUPERVISOR_WORKER_EXIT_CODE,
 };
 
 static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -36,6 +36,91 @@ fn run_binary(slice: &str) -> Output {
         .env_clear()
         .output()
         .unwrap()
+}
+
+#[derive(Debug)]
+struct ProductionSample {
+    exit_status: Option<i32>,
+    succeeded: bool,
+    stdout: String,
+    stderr: String,
+    wall_elapsed: Duration,
+    rust_elapsed_seconds: Option<f64>,
+    elapsed_parse_error: Option<String>,
+    runtime_roots_before: BTreeSet<PathBuf>,
+    runtime_roots_after: BTreeSet<PathBuf>,
+}
+
+fn parse_production_elapsed_seconds(stdout: &str) -> Result<f64, String> {
+    if stdout.matches("elapsed_seconds=").count() != 1 {
+        return Err("production elapsed_seconds marker must occur exactly once".to_owned());
+    }
+    if stdout.matches("offline=true").count() != 1 {
+        return Err("production offline success marker must occur exactly once".to_owned());
+    }
+
+    let lines = stdout
+        .lines()
+        .filter(|line| line.starts_with("OK: slice=production "))
+        .collect::<Vec<_>>();
+    let [line] = lines.as_slice() else {
+        return Err("Rust production success line must occur exactly once".to_owned());
+    };
+    let elapsed = line
+        .strip_prefix("OK: slice=production elapsed_seconds=")
+        .and_then(|value| value.strip_suffix(" offline=true"))
+        .ok_or_else(|| "Rust production success line is malformed".to_owned())?
+        .parse::<f64>()
+        .map_err(|_| "Rust production elapsed_seconds is malformed".to_owned())?;
+    if !elapsed.is_finite() || elapsed < 0.0 {
+        return Err("Rust production elapsed_seconds is outside its valid domain".to_owned());
+    }
+    Ok(elapsed)
+}
+
+fn run_production_sample() -> ProductionSample {
+    let runtime_roots_before = runtime_roots();
+    let started = Instant::now();
+    let output = run_binary("production");
+    let wall_elapsed = started.elapsed();
+    let runtime_roots_after = runtime_roots();
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let (rust_elapsed_seconds, elapsed_parse_error) = if output.status.success() {
+        match parse_production_elapsed_seconds(&stdout) {
+            Ok(elapsed) => (Some(elapsed), None),
+            Err(error) => (None, Some(error)),
+        }
+    } else {
+        (None, None)
+    };
+
+    ProductionSample {
+        exit_status: output.status.code(),
+        succeeded: output.status.success(),
+        stdout,
+        stderr,
+        wall_elapsed,
+        rust_elapsed_seconds,
+        elapsed_parse_error,
+        runtime_roots_before,
+        runtime_roots_after,
+    }
+}
+
+fn production_sample_diagnostic(index: usize, sample: &ProductionSample) -> String {
+    format!(
+        "sample={index} exit_status={:?} succeeded={} wall_elapsed_seconds={:.3} rust_elapsed_seconds={:?} elapsed_parse_error={:?} runtime_roots_before={:?} runtime_roots_after={:?}\nstdout:\n{}\nstderr:\n{}",
+        sample.exit_status,
+        sample.succeeded,
+        sample.wall_elapsed.as_secs_f64(),
+        sample.rust_elapsed_seconds,
+        sample.elapsed_parse_error,
+        sample.runtime_roots_before,
+        sample.runtime_roots_after,
+        sample.stdout,
+        sample.stderr,
+    )
 }
 
 fn test_lock() -> std::sync::MutexGuard<'static, ()> {
@@ -72,6 +157,76 @@ fn linux_public_slices_succeed_after_prebuilt_binary() {
         assert!(!stdout.contains("INJECTED"));
         assert!(!stdout.contains("kiana-capability-governance-"));
     }
+}
+
+#[test]
+fn linux_production_slice_has_fresh_process_headroom() {
+    let _guard = test_lock();
+    assert_eq!(SLICE_DEADLINE, Duration::from_secs(30));
+
+    // Each invocation starts a new public supervisor, bwrap sandbox, Bash worker, and
+    // isolated Python process. It intentionally does not attempt global page-cache eviction.
+    let samples = [run_production_sample(), run_production_sample()];
+    let mut failures = Vec::new();
+
+    for (index, sample) in samples.iter().enumerate() {
+        if sample.runtime_roots_before != sample.runtime_roots_after {
+            failures.push(format!("sample={index} left a runtime-root residue"));
+        }
+        if !sample.succeeded {
+            if sample.rust_elapsed_seconds.is_some() || sample.elapsed_parse_error.is_some() {
+                failures.push(format!(
+                    "sample={index} parsed a Rust success result despite a failed public invocation"
+                ));
+            }
+            failures.push(format!(
+                "sample={index} public production invocation failed"
+            ));
+            continue;
+        }
+        if !sample.stderr.is_empty() {
+            failures.push(format!(
+                "sample={index} public production stderr was not empty"
+            ));
+        }
+        if sample.stdout.matches("offline=true").count() != 1 {
+            failures.push(format!(
+                "sample={index} did not emit exactly one offline success marker"
+            ));
+        }
+        if sample.stdout.contains("socket(")
+            || sample.stderr.contains("socket(")
+            || sample.stdout.contains("INJECTED")
+            || sample.stderr.contains("INJECTED")
+        {
+            failures.push(format!(
+                "sample={index} reported a network syscall diagnostic"
+            ));
+        }
+        if sample.stdout.contains("kiana-capability-governance-")
+            || sample.stderr.contains("kiana-capability-governance-")
+        {
+            failures.push(format!("sample={index} leaked a runtime-root path"));
+        }
+
+        match sample.rust_elapsed_seconds {
+            Some(elapsed) if elapsed < 25.0 => {}
+            Some(elapsed) => failures.push(format!(
+                "sample={index} Rust elapsed_seconds={elapsed:.3} is not below the fixed 25-second headroom ceiling"
+            )),
+            None => failures.push(format!(
+                "sample={index} did not provide one valid Rust-emitted elapsed_seconds value"
+            )),
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "fresh-process production headroom regression failed:\n{}\n{}\n{}",
+        failures.join("\n"),
+        production_sample_diagnostic(0, &samples[0]),
+        production_sample_diagnostic(1, &samples[1]),
+    );
 }
 
 #[test]
