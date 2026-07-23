@@ -28,6 +28,24 @@ from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 
 VALIDATION_SCHEMA = "kiana.capability-governance-validation.v1"
+PRODUCTION_REPORT_SCHEMA = "kiana.capability-governance-production-report.v1"
+PRODUCTION_REPORT_VERSION = "1.0"
+PRODUCTION_CHECK_IDS = (
+    "canonical-bundle",
+    "current-selector",
+    "evaluation-time",
+    "repository-identities-38",
+    "official-source-drift",
+    "reference-drift",
+    "target-drift",
+    "integrity.evidence-expired",
+    "integrity.newer-failed-retest",
+    "legacy-authority",
+    "generated-views",
+    "compatibility-output",
+    "public-baseline-diff",
+    "repository-registry-diff",
+)
 MAX_JSON_BYTES = 16 * 1024 * 1024
 MAX_COLLECTION_ITEMS = 50_000
 MAX_TOTAL_NODES = 500_000
@@ -161,6 +179,100 @@ def canonical_json_bytes(value: Any) -> bytes:
 
 def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
+
+def _production_report_error(detail: str) -> GovernanceUsageError:
+    return GovernanceUsageError(f"production_report_invalid: {detail}")
+
+
+def validate_production_report(
+    report: Mapping[str, Any],
+    *,
+    manifest_sha256: str,
+    evaluation_time: str,
+    require_success: bool = True,
+) -> dict[str, Any]:
+    """Validate the closed report handoff used by production and its Bash consumer."""
+
+    expected_keys = {
+        "schema",
+        "version",
+        "status",
+        "manifest_sha256",
+        "evaluation_time",
+        "checks",
+    }
+    if not isinstance(report, Mapping) or set(report) != expected_keys:
+        raise _production_report_error("top_level_fields")
+    if report.get("schema") != PRODUCTION_REPORT_SCHEMA:
+        raise _production_report_error("schema")
+    if report.get("version") != PRODUCTION_REPORT_VERSION:
+        raise _production_report_error("version")
+    if report.get("status") not in {"pass", "fail"}:
+        raise _production_report_error("status")
+    if (
+        not isinstance(manifest_sha256, str)
+        or re.fullmatch(r"[a-f0-9]{64}", manifest_sha256) is None
+        or report.get("manifest_sha256") != manifest_sha256
+    ):
+        raise _production_report_error("manifest_sha256")
+    if (
+        not isinstance(evaluation_time, str)
+        or _parse_time(evaluation_time) is None
+        or report.get("evaluation_time") != evaluation_time
+    ):
+        raise _production_report_error("evaluation_time")
+    checks = report.get("checks")
+    if not isinstance(checks, list):
+        raise _production_report_error("checks")
+    check_ids: list[str] = []
+    check_statuses: list[str] = []
+    for row in checks:
+        if not isinstance(row, Mapping) or set(row) != {"id", "status"}:
+            raise _production_report_error("check_fields")
+        check_id = row.get("id")
+        check_status = row.get("status")
+        if not isinstance(check_id, str):
+            raise _production_report_error("check_id")
+        if check_status not in {"pass", "fail", "stale"}:
+            raise _production_report_error("check_status")
+        check_ids.append(check_id)
+        check_statuses.append(check_status)
+    if tuple(check_ids) != PRODUCTION_CHECK_IDS:
+        raise _production_report_error("check_ids")
+    expected_status = "pass" if all(status == "pass" for status in check_statuses) else "fail"
+    if report.get("status") != expected_status:
+        raise _production_report_error("status_consistency")
+    if require_success and (
+        report.get("status") != "pass" or any(status != "pass" for status in check_statuses)
+    ):
+        raise _production_report_error("non_pass_check")
+    return dict(report)
+
+
+def build_production_report(
+    *,
+    manifest_sha256: str,
+    evaluation_time: str,
+    checks: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Construct one deterministic production report before it is self-validated."""
+
+    rows = [dict(row) for row in checks]
+    report = {
+        "schema": PRODUCTION_REPORT_SCHEMA,
+        "version": PRODUCTION_REPORT_VERSION,
+        "status": "pass" if all(row.get("status") == "pass" for row in rows) else "fail",
+        "manifest_sha256": manifest_sha256,
+        "evaluation_time": evaluation_time,
+        "checks": rows,
+    }
+    return validate_production_report(
+        report,
+        manifest_sha256=manifest_sha256,
+        evaluation_time=evaluation_time,
+        require_success=False,
+    )
 
 
 def record_sha256(record: Mapping[str, Any]) -> str:
