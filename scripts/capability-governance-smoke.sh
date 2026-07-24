@@ -1508,90 +1508,52 @@ run_production_slice() {
   local manifest="$governance_root/current.json"
   local started="$SECONDS"
   local drift_report="$tmp_dir/production-drift.json"
-  local source public registry decisions evidence legacy
-  local -a selected_paths
+  local production_report="$tmp_dir/production-report.json"
 
-  run_python - "$manifest" >"$tmp_dir/production-selected-paths.txt" <<'PY'
-import json
-import pathlib
-import sys
-
-manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-for key in (
-    "official_source_artifact",
-    "public_baseline",
-    "repository_registry",
-    "capability_decisions",
-    "evidence_head",
-    "legacy_authority",
-):
-    print(manifest[key]["path"].split("#", 1)[0])
-PY
-  mapfile -t selected_paths <"$tmp_dir/production-selected-paths.txt"
-  if ((${#selected_paths[@]} != 6)); then
-    echo "selected_head_paths_invalid: production" >&2
-    return 1
-  fi
-  source="${selected_paths[0]}"
-  public="${selected_paths[1]}"
-  registry="${selected_paths[2]}"
-  decisions="${selected_paths[3]}"
-  evidence="${selected_paths[4]}"
-  legacy="${selected_paths[5]}"
-  run_python - "$manifest" "$registry" <<'PY'
-import datetime
-import json
-import pathlib
-import sys
-
-manifest_path, registry_path = map(pathlib.Path, sys.argv[1:])
-manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-registry = json.loads(registry_path.read_text(encoding="utf-8"))
-try:
-    datetime.datetime.strptime(manifest["evaluation_time"], "%Y-%m-%dT%H:%M:%SZ")
-except (KeyError, TypeError, ValueError) as exc:
-    raise SystemExit("production_evaluation_time_invalid") from exc
-rows = registry.get("repositories", [])
-if registry.get("expected_count") != 38 or len(rows) != 38:
-    raise SystemExit("production_repository_count")
-if len({row.get("repo_id") for row in rows}) != 38 or len({row.get("path") for row in rows}) != 38:
-    raise SystemExit("production_repository_identity")
-if any(row.get("freshness") != "current" for row in rows):
-    raise SystemExit("production_repository_freshness")
-PY
-  run_python scripts/validate-capability-governance.py check-drift \
-    --manifest "$manifest" --live-reference-root reference --target-root . \
-    --official-source-artifact "$source" --json >"$drift_report"
-  run_python - "$drift_report" <<'PY'
-import json
-import pathlib
-import sys
-
-report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-if report.get("status") != "current" or report.get("errors") != []:
-    raise SystemExit("production_drift_detected")
-PY
-  run_python scripts/run-capability-governance-corpus.py \
-    --temp-root "$tmp_dir" \
-    --case integrity.evidence-expired \
-    --case integrity.newer-failed-retest
-  run_legacy_authority_slice
   run_python scripts/generate-capability-governance.py verify-production \
     --manifest "$manifest" \
     --generated-root "$governance_root/generated" \
     --repository-output-root . \
     --compat-manifest "$governance_root/compat-outputs.json" \
     --public-from "$governance_root/public-baselines/cc-public-2026-07-15-genesis.json" \
-    --public-to "$public" \
+    --public-to "$governance_root/public-baselines/cc-public-2026-07-15.json" \
     --public-diff "$governance_root/diffs/public-baseline/cc-public-2026-07-15.genesis-to-current.json" \
     --registry-from "$governance_root/repository-registry/references-2026-07-15-genesis.json" \
-    --registry-to "$registry" \
-    --registry-diff "$governance_root/diffs/repository-registry/references-2026-07-15.genesis-to-current.json"
+    --registry-to "$governance_root/repository-registry/references-2026-07-22.json" \
+    --registry-diff "$governance_root/diffs/repository-registry/references-2026-07-15.genesis-to-current.json" \
+    --report "$production_report" \
+    --drift-report "$drift_report"
+  run_python - "$production_report" "$manifest" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path.cwd().resolve()
+scripts = (root / "scripts").resolve()
+module_path = scripts / "capability_governance.py"
+if not module_path.is_file():
+    raise SystemExit("production_report_validator_unavailable")
+sys.path.insert(0, str(scripts))
+import capability_governance as governance
+
+if pathlib.Path(governance.__file__).resolve() != module_path:
+    raise SystemExit("production_report_validator_untrusted")
+report_path, manifest_path = map(pathlib.Path, sys.argv[1:])
+report = json.loads(report_path.read_text(encoding="utf-8"))
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+if not isinstance(manifest, dict) or not isinstance(manifest.get("evaluation_time"), str):
+    raise SystemExit("production_manifest_invalid")
+governance.validate_production_report(
+    report,
+    manifest_sha256=governance.canonical_sha256(manifest),
+    evaluation_time=manifest["evaluation_time"],
+)
+PY
   if ((SECONDS - started >= 30)); then
     echo "production_deadline_exceeded" >&2
     return 1
   fi
-  echo "OK: production governance heads, ancestry, drift, evidence, and generated bytes pass"
+  echo "OK: production governance report, drift, evidence, ancestry, and generated bytes pass"
 }
 
 case "$slice" in
