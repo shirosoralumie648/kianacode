@@ -281,5 +281,85 @@ class ProductionReportAuthorityTests(unittest.TestCase):
             self.assertEqual(drift_report["errors"], [])
 
 
+    def test_verify_production_deterministic_json_bytes_call_count(self) -> None:
+        """Profiling gate: deterministic_json_bytes must be called at most once per
+        diff document per verify_production_command invocation.
+
+        Pre-optimization baseline: 6 calls total —
+          - 2 for public_document (preflight + write_or_check_outputs),
+          - 2 for registry_document (preflight + write_or_check_outputs),
+          - 2 from _write_json_output (drift_report + production report).
+        Target after caching: at most 4 calls —
+          - 1 for _public_bytes (cached, reused in both preflight and write),
+          - 1 for _registry_bytes (cached, reused in both preflight and write),
+          - 2 from _write_json_output (unchanged — one per JSON report write).
+
+        This test fails RED before Task 2 caches the bytes; it becomes the
+        immutable GREEN gate once caching is in place.
+        """
+        bundle, manifest_sha256, evaluation_time = self._current_bundle_and_binding()
+        manifest = bundle["bundle_manifest"]
+        self.assertIsInstance(manifest, dict)
+        public_to = governance.resolve_repository_path(
+            ROOT,
+            str(manifest["public_baseline"]["path"]).split("#", 1)[0],
+        )
+        registry_to = governance.resolve_repository_path(
+            ROOT,
+            str(manifest["repository_registry"]["path"]).split("#", 1)[0],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            args = SimpleNamespace(
+                manifest=GOVERNANCE_ROOT / "current.json",
+                generated_root=GOVERNANCE_ROOT / "generated",
+                repository_output_root=ROOT,
+                compat_manifest=GOVERNANCE_ROOT / "compat-outputs.json",
+                public_from=GOVERNANCE_ROOT
+                / "public-baselines/cc-public-2026-07-15-genesis.json",
+                public_to=public_to,
+                public_diff=GOVERNANCE_ROOT
+                / "diffs/public-baseline/cc-public-2026-07-15.genesis-to-current.json",
+                registry_from=GOVERNANCE_ROOT
+                / "repository-registry/references-2026-07-15-genesis.json",
+                registry_to=registry_to,
+                registry_diff=GOVERNANCE_ROOT
+                / "diffs/repository-registry/references-2026-07-15.genesis-to-current.json",
+                report=output / "production-report.json",
+                drift_report=output / "production-drift.json",
+            )
+            call_count = 0
+            original_fn = generator.deterministic_json_bytes
+
+            def counting_fn(*arguments: object, **kwargs: object) -> bytes:
+                nonlocal call_count
+                call_count += 1
+                return original_fn(*arguments, **kwargs)
+
+            with mock.patch.object(
+                generator,
+                "deterministic_json_bytes",
+                side_effect=counting_fn,
+            ):
+                self.assertTrue(generator.verify_production_command(args, ROOT))
+
+            # Target: at most 4 calls total —
+            #   - 1 cached assignment for _public_bytes
+            #   - 1 cached assignment for _registry_bytes
+            #   - 2 from _write_json_output (drift_report + production report)
+            # Pre-optimization baseline: 6 calls (double-computation for both
+            # diff documents in preflight+write, plus 2 _write_json_output calls).
+            self.assertLessEqual(
+                call_count,
+                4,
+                f"deterministic_json_bytes called {call_count} times in "
+                f"verify_production_command; expected at most 4 (one cached "
+                f"bytes per diff document + 2 _write_json_output calls). "
+                f"Pre-optimization baseline is 6 (double-computation for both "
+                f"public_document and registry_document).",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
