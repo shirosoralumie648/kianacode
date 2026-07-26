@@ -503,6 +503,11 @@ def verify_production_command(args: argparse.Namespace, root: Path) -> bool:
         args.registry_to,
         root,
     )
+    # Cache serialized bytes for each diff document once so that both
+    # preflight_output_paths and write_or_check_outputs reuse the same
+    # in-memory bytes rather than recomputing the serialization twice.
+    _public_bytes = deterministic_json_bytes(public_document)
+    _registry_bytes = deterministic_json_bytes(registry_document)
 
     checks = [
         {"id": "canonical-bundle", "status": "pass"},
@@ -568,9 +573,9 @@ def verify_production_command(args: argparse.Namespace, root: Path) -> bool:
                     lambda: write_or_check_outputs(
                         preflight_output_paths(
                             args.public_diff.parent,
-                            {args.public_diff.name: deterministic_json_bytes(public_document)},
+                            {args.public_diff.name: _public_bytes},
                         ),
-                        {args.public_diff.name: deterministic_json_bytes(public_document)},
+                        {args.public_diff.name: _public_bytes},
                         check=True,
                     )
                 ),
@@ -581,9 +586,9 @@ def verify_production_command(args: argparse.Namespace, root: Path) -> bool:
                     lambda: write_or_check_outputs(
                         preflight_output_paths(
                             args.registry_diff.parent,
-                            {args.registry_diff.name: deterministic_json_bytes(registry_document)},
+                            {args.registry_diff.name: _registry_bytes},
                         ),
-                        {args.registry_diff.name: deterministic_json_bytes(registry_document)},
+                        {args.registry_diff.name: _registry_bytes},
                         check=True,
                     )
                 ),
