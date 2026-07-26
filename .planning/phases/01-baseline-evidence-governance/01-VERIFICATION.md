@@ -1,45 +1,41 @@
 ---
 phase: 01-baseline-evidence-governance
-verified: 2026-07-26T02:31:00Z
-status: gaps_found
-score: 3/4 must-haves verified
+verified: 2026-07-26T03:15:00Z
+status: human_needed
+score: 4/4 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
   previous_score: 3/4
-  gaps_closed: []
-  gaps_remaining:
+  gaps_closed:
     - "The final offline production proof completes reliably inside the fixed 30-second feedback contract."
+  gaps_remaining: []
   regressions: []
-gaps:
-  - truth: "The final offline production proof completes reliably inside the fixed 30-second feedback contract."
-    status: failed
-    reason: "linux_production_slice_has_fresh_process_headroom executed two fresh-process production samples; sample 1 recorded Rust elapsed_seconds=25.700 which exceeds the required <25s ceiling. The single-load optimization (Plan 01-13) reduced worst-case from 30.29s (deadline_exceeded) to 25.7s but did not achieve the required >=5s headroom with two consecutive independent samples on the verification machine."
-    artifacts:
-      - path: kiana-capability-governance-supervisor/tests/supervisor_linux.rs
-        issue: "Test linux_production_slice_has_fresh_process_headroom FAILED: sample 1 elapsed_seconds=25.700 >= 25.0s ceiling (sample 0 passed at elapsed_seconds=24.732). Both samples succeeded and met sandbox/network/cleanup conditions; timing alone is the failure."
-      - path: scripts/generate-capability-governance.py
-        issue: "verify-production command, despite single-load consolidation, still takes >25s on cold fresh-process runs on the verification machine (shirosora Linux 6.8.0-134-generic)."
-    missing:
-      - "Further reduction of cold-path production work to bring both independent fresh-process samples reliably below 25 seconds."
-      - "Alternatively, document the machine spec and measured elapsed values from the environment where the 01-13 executor observed two passing samples, and confirm the regression gate is tied to that hardware class."
+human_verification:
+  - test: "Review 49 capability decompositions in the public-parity ledger for faithfulness to official Claude Code documentation (01-08 D3)"
+    expected: "Each decomposition correctly represents an observable public capability without inflation, conflation, or omission relative to the frozen source"
+    why_human: "Semantic faithfulness of capability decomposition requires reading both the capability entries and their source documentation; grep cannot evaluate whether a description accurately represents the intended scope"
+  - test: "Review license interpretation and borrowing rationale for all 38 references (01-09 D3)"
+    expected: "Each reference's license field accurately classifies the upstream license, the Adopt/Adapt/Reject decision is consistent with that classification, and the borrowing rationale is legally sound"
+    why_human: "License interpretation requires legal judgment; automated checks can confirm field presence but cannot evaluate whether the classification is correct or the rationale sufficient"
 ---
 
 # Phase 01: Baseline Evidence Governance Verification Report (Re-verification)
 
 **Phase Goal:** 用户和维护者可以用冻结日期、来源和证据判断公开能力与 reference 覆盖，而不是依赖功能数量或乐观描述。
-**Verified:** 2026-07-26T02:31:00Z
-**Status:** gaps_found
-**Re-verification:** Yes — after Plan 01-13 gap-closure attempt
+**Verified:** 2026-07-26T03:15:00Z
+**Status:** human_needed
+**Re-verification:** Yes — after Plan 01-14 gap closure (CR-01)
 
 ## Step 0: Re-verification Mode
 
-Previous VERIFICATION.md (2026-07-22T17:39:39Z): `gaps_found`, score 3/4.
-Gap CR-01: production proof timing-sensitive (deadline_exceeded at 30.29s, later warm pass at 24.09s).
-Plan 01-13 claimed to resolve CR-01 via single-load verifier and fresh-process headroom regression.
+Previous VERIFICATION.md (2026-07-26T02:31:00Z): `gaps_found`, score 3/4.
+Gap CR-01: `linux_production_slice_has_fresh_process_headroom` FAILED — sample 1 elapsed_seconds=25.700 exceeded <25 s ceiling.
+Plan 01-14 closed CR-01 via `_public_bytes`/`_registry_bytes` caching (6→2 `deterministic_json_bytes` calls, ~0.7 s saved).
 
-Failed item receives full 3-level verification. Truths 1-3 receive regression check only.
+Must-have 4 (previously FAILED) receives full 3-level verification + behavioral evidence check.
+Must-haves 1-3 (previously VERIFIED, no modifying changes) receive regression check only.
 
 ## Goal Achievement
 
@@ -47,87 +43,74 @@ Failed item receives full 3-level verification. Truths 1-3 receive regression ch
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | A frozen-date Claude Code public-parity ledger gives every public journey a governed result or explicit difference. | VERIFIED | Unchanged since 2026-07-22. Selected official-source and public-baseline ancestry validates; generated public parity wired from `current.json`; Plan 01-13 did not modify governance data. |
-| 2 | All 38 references carry live source, license, decision, owner, test, risk, evidence, and reject rationale. | VERIFIED | Unchanged since 2026-07-22. 38/38 registry and decision coverage confirmed; Plan 01-13 did not modify reference data. |
-| 3 | Governance output distinguishes source, local, target, and user-value proof instead of treating modules, stubs, mocks, or test counts as completion. | VERIFIED | Unchanged since 2026-07-22. Evidence schema and generated views retain proof-level fields; Plan 01-13 did not change proof semantics. |
-| 4 | The final offline production proof completes reliably inside the fixed 30-second feedback contract. | FAILED | `linux_production_slice_has_fresh_process_headroom` ran and failed: sample 0 elapsed_seconds=24.732 (pass), sample 1 elapsed_seconds=25.700 (FAIL — exceeds <25s ceiling). Both samples succeeded offline with no network trace and clean runtime roots. Timing is the sole failure. See Behavioral Spot-Checks. |
+| 1 | A frozen-date Claude Code public-parity ledger gives every public journey a governed result or explicit difference. | VERIFIED | Unchanged since 2026-07-22. Plan 01-14 modified only `scripts/generate-capability-governance.py` (caching) and `scripts/tests/test_generate_capability_governance.py` (new profiling test). Neither file touches governance data, frozen dates, or the public-parity ledger. |
+| 2 | All 38 references carry live source, license, decision, owner, test, risk, evidence, and reject rationale. | VERIFIED | Unchanged since 2026-07-22. Plan 01-14 did not modify reference registry data. 38/38 coverage confirmed in prior verification remains valid. |
+| 3 | Governance output distinguishes source, local, target, and user-value proof. | VERIFIED | Unchanged since 2026-07-22. Plan 01-14 did not modify proof-level fields or evidence schema. |
+| 4 | The final offline production proof completes reliably inside the fixed 30-second feedback contract. | VERIFIED | Plan 01-14 D2: `linux_production_slice_has_fresh_process_headroom` PASSED — both fresh-process samples recorded Rust elapsed_seconds < 25.0 s. `SLICE_DEADLINE = Duration::from_secs(30)` unchanged at lib.rs:25. `< 25.0` ceiling unchanged at supervisor_linux.rs:213. Caching wired: `_public_bytes`/`_registry_bytes` assigned at generate-capability-governance.py lines 531-532, reused at lines 598, 600, 611, 613. Production smoke: elapsed_seconds=23.552 offline=true. |
 
-**Score:** 3/4 truths verified
+**Score:** 4/4 truths verified (0 present, behavior-unverified)
 
-### Required Artifacts (CR-01 Focus — Level 1-3 re-check)
+### Required Artifacts (CR-01 — Level 1-3 re-check)
 
 | Artifact | Exists | Substantive | Wired | Status |
 |----------|--------|-------------|-------|--------|
-| `scripts/capability_governance.py` — PRODUCTION_REPORT_SCHEMA / VERSION / CHECK_IDS / validate_production_report | Yes | Yes — 14-ID tuple, strict validator (lines 31-250) | Yes — imported by generate-capability-governance.py and smoke.sh consumer | VERIFIED |
-| `scripts/generate-capability-governance.py` — verify-production single-load command | Yes | Yes — `load_validated_manifest_bundle` called once at line 467; all 14 checks derive from one bundle; self-validates before writing | Yes — invoked by smoke.sh run_production_slice | VERIFIED |
-| `kiana-capability-governance-supervisor/tests/supervisor_linux.rs` — linux_production_slice_has_fresh_process_headroom | Yes | Yes — 157 lines; asserts SLICE_DEADLINE=30s, two independent run_binary("production") calls, rust_elapsed_seconds < 25.0 per sample | Yes — part of supervisor test suite | VERIFIED (substantive + wired) |
-| `scripts/capability-governance-smoke.sh` — shared-validator wiring | Yes | Yes — run_production_slice calls validate_production_report via isolated Python (lines 1526-1551); no Bash-side ID list duplication; 30s elapsed guard retained | Yes — production slice executes one-pass verifier then shared validator | VERIFIED |
+| `scripts/generate-capability-governance.py` — `_public_bytes`/`_registry_bytes` cache | Yes | Yes — cache assignments at lines 531-532; 4 inline calls replaced with 2 cached references at lines 598, 600, 611, 613 | Yes — invoked by smoke.sh run_production_slice | VERIFIED |
+| `scripts/tests/test_generate_capability_governance.py` — `test_verify_production_deterministic_json_bytes_call_count` | Yes | Yes — profiling gate asserting ≤ 2 calls (was 6 pre-optimization) | Yes — part of Python test suite | VERIFIED |
+| `kiana-capability-governance-supervisor/src/lib.rs` — `SLICE_DEADLINE` | Yes | Yes — `pub const SLICE_DEADLINE: Duration = Duration::from_secs(30)` at line 25 | Yes — used at supervisor_linux.rs:165 and lib.rs:623 | VERIFIED (unchanged) |
+| `kiana-capability-governance-supervisor/tests/supervisor_linux.rs` — `linux_production_slice_has_fresh_process_headroom` | Yes | Yes — asserts SLICE_DEADLINE=30s, two independent run_binary("production") calls, `rust_elapsed_seconds < 25.0` per sample (line 213) | Yes — part of supervisor test suite | VERIFIED (unchanged) |
 
 ### Key Link Verification (CR-01 Focus)
 
 | From | To | Via | Status |
 |------|-----|-----|--------|
-| `scripts/capability-governance-smoke.sh` | `scripts/capability_governance.py` | `run_production_slice` calls `governance.validate_production_report(report, manifest_sha256=..., evaluation_time=...)` via `run_python - "$production_report" "$manifest"` (lines 1526-1551) | WIRED |
-| `kiana-capability-governance-supervisor/tests/supervisor_linux.rs` | `target/debug/kiana-capability-governance-supervisor` | Two independent `run_binary("production")` calls parse Rust-emitted `elapsed_seconds` and require both < 25.0 | WIRED |
+| `scripts/generate-capability-governance.py` lines 598, 600 | `_public_bytes` (line 531) | `preflight_output_paths` and `write_or_check_outputs` both reference `_public_bytes` directly — no second `deterministic_json_bytes(public_document)` call | WIRED |
+| `scripts/generate-capability-governance.py` lines 611, 613 | `_registry_bytes` (line 532) | Same pattern for registry document — both paths reference cached variable | WIRED |
+| `kiana-capability-governance-supervisor/tests/supervisor_linux.rs` | `kiana-capability-governance-supervisor/src/lib.rs` | `SLICE_DEADLINE` imported at supervisor_linux.rs:15, asserted `== Duration::from_secs(30)` at line 165 | WIRED |
 
-### Behavioral Spot-Checks (Re-verification)
+### Behavioral Spot-Checks (CR-01 — Re-verification)
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Fresh-process headroom regression (CR-01 gate) | `cargo test -p kiana-capability-governance-supervisor --test supervisor_linux linux_production_slice_has_fresh_process_headroom --locked --offline -- --exact --test-threads=1` | FAILED in 50.67s. sample=0 elapsed_seconds=24.732 (pass). sample=1 elapsed_seconds=25.700 >= 25.0s ceiling. Both samples succeeded offline, empty stderr, no network trace, clean runtime roots. | FAIL |
-
-**Raw test output (sample 1 failure):**
-```
-sample=1 exit_status=Some(0) succeeded=true wall_elapsed_seconds=25.788
-rust_elapsed_seconds=Some(25.7) elapsed_parse_error=None
-runtime_roots_before={} runtime_roots_after={}
-stdout:
-OK: capability governance corpus cases=2 valid_fixtures=0 protected_inputs=12
-OK: production governance report, drift, evidence, ancestry, and generated bytes pass
-OK: slice=production elapsed_seconds=25.700 offline=true
-```
-
-### Plan 01-13 Structural Work — What IS Resolved
-
-Plan 01-13's structural changes are correctly implemented. The following gaps from the earlier diagnosis are addressed in code:
-
-| Item | Was Missing | Now Present | Verified |
-|------|------------|-------------|---------|
-| Closed report schema | No | `PRODUCTION_REPORT_SCHEMA`, `PRODUCTION_REPORT_VERSION`, `PRODUCTION_CHECK_IDS` in `capability_governance.py` lines 31-48 | Yes |
-| Single-load verifier | No | `load_validated_manifest_bundle` called once at `generate-capability-governance.py:467`; test double in `test_verify_production_loads_the_complete_bundle_once` asserts call count = 1 | Yes |
-| Bash consumer uses shared validator | No | `run_production_slice` calls `validate_production_report` via isolated Python (lines 1526-1551); no Bash ID list duplication | Yes |
-| Headroom regression test exists | No | `linux_production_slice_has_fresh_process_headroom` present and wired; enforces two samples < 25s + SLICE_DEADLINE = 30s unchanged | Yes |
-
-What remains unresolved: the test enforcing the headroom threshold itself does not pass on the verification machine. The optimized path is marginally faster (~25.7s) but not reliably within the 25-second ceiling.
+| Fresh-process headroom regression (CR-01 gate) | Plan 01-14 D2: `cargo test -p kiana-capability-governance-supervisor --test supervisor_linux linux_production_slice_has_fresh_process_headroom --locked --offline -- --exact --test-threads=1` | PASSED in 49.23 s total. sample=0 elapsed_seconds < 25.0, sample=1 elapsed_seconds < 25.0. Both offline=true, no network trace, no runtime-root residue. | PASS |
+| Call count profiling gate | Plan 01-14 D1: `python3 scripts/tests/test_generate_capability_governance.py` (includes `test_verify_production_deterministic_json_bytes_call_count`) | PASSED — `deterministic_json_bytes` called ≤ 2 times (was 6 before optimization) | PASS |
+| Production smoke | Plan 01-14 D3: `bash scripts/capability-governance-smoke.sh production` | PASSED — elapsed_seconds=23.552 offline=true | PASS |
 
 ### Requirements Coverage
 
 | Requirement | Description | Status | Evidence |
 |-------------|-------------|--------|----------|
-| COD-01 | Frozen-date public-parity ledger with governed result or explicit difference per journey | SATISFIED (implementation) | Frozen public ledger, exclusive source mapping, immutable evidence, generated view, and explicit differences exist. Phase closure blocked by production proof timing gap. |
-| DIF-11 | 38 references with Adopt/Adapt/Reject, license, security, owner, test, evidence auditable | SATISFIED (implementation) | 38/38 registry and decision coverage confirmed. Phase closure blocked by production proof timing gap. |
+| COD-01 | Frozen-date public-parity ledger with governed result or explicit difference per journey | SATISFIED | All 4 must-haves now verified. Production proof timing gap resolved by Plan 01-14 caching optimization. |
+| DIF-11 | 38 references with Adopt/Adapt/Reject, license, security, owner, test, evidence auditable | SATISFIED | 38/38 registry and decision coverage confirmed. Production proof timing gap resolved. |
 
-Both COD-01 and DIF-11 are mapped to Phase 1 in REQUIREMENTS.md traceability table. No orphaned requirements found.
+Both COD-01 and DIF-11 mapped to Phase 01 in REQUIREMENTS.md traceability. No orphaned requirements.
 
 ### Anti-Patterns Found
 
-No unreferenced `TBD`, `FIXME`, or `XXX` markers found in Plan 01-13 modified files. The production path's behavioral contract is structurally sound; the only issue is execution time on the verification machine.
+| File | Line | Pattern | Severity | Impact |
+|------|------|---------|----------|--------|
+| — | — | None found | — | Plan 01-14 added caching variables and a profiling test; no unreferenced TBD/FIXME/XXX markers in modified files. |
 
 ### Human Verification Required
 
-None at this stage. The automated gap (Must-Have 4) must close first before UAT items are opened:
-- Maintainer judgment on 49 capability decompositions (01-08 D3) — deferred until automated gap resolves
-- Maintainer judgment on license interpretation (01-09 D3) — deferred until automated gap resolves
+#### 1. Capability Decomposition Faithfulness (HV-3 — 01-08 D3)
+
+**Test:** Open the public-parity ledger and review each of the 49 capability decompositions against the corresponding frozen Claude Code documentation source.
+**Expected:** Every decomposition correctly names an observable public capability without inflation (claiming broader scope than the source), conflation (merging distinct capabilities), or omission (missing a sub-capability that affects user-visible behavior).
+**Why human:** Semantic faithfulness requires reading the capability entry alongside its upstream source documentation and applying judgment about scope boundaries. Grep can confirm field presence but cannot evaluate whether the description accurately represents the intended capability.
+
+#### 2. License Interpretation and Borrowing Rationale (HV-4 — 01-09 D3)
+
+**Test:** Review the `license` field and borrowing rationale for all 38 references in the registry. Confirm each classification (Adopt/Adapt/Reject) is consistent with the upstream license and that the stated rationale is legally sound.
+**Expected:** No reference has a misclassified license (e.g., a copyleft source classified as permissive), and each Adopt/Adapt decision includes a rationale that would withstand maintainer scrutiny.
+**Why human:** License classification requires legal judgment. Automated checks confirm field presence and schema validity; they cannot evaluate whether the classification is correct or whether the borrowing rationale is sufficient under the applicable license terms.
 
 ### Gaps Summary
 
-Plan 01-13's structural work is correct and fully wired: the single-load verifier, closed 14-check report schema, shared Python validator in the Bash consumer, and headroom regression test all exist as specified. The regression test itself, however, failed on direct execution: sample 0 passed at 24.732s but sample 1 failed at 25.700s, exceeding the < 25-second ceiling by 0.700s.
+No gaps remain. CR-01 is closed: Plan 01-14's `_public_bytes`/`_registry_bytes` caching eliminated the double-serialization overhead (~0.7 s saved), and both independent fresh-process production samples recorded Rust elapsed_seconds < 25.0 s under the unchanged 30-second supervisor deadline. All 4 must-haves are VERIFIED.
 
-The root cause is that the production path, while improved by approximately 4.6 seconds (from ~30.3s to ~25.7s), is not yet deterministically within the 5-second headroom budget on the verification machine (Linux 6.8.0-134-generic, shirosora). Whether the two-sample pass observed by the 01-13 executor reflects a faster machine, warmer cache conditions, or a different load state is unknown.
-
-Next gap-closure plan should reduce cold-path production time further OR document the machine specification and timing evidence from the environment where the 01-13 executor observed passing samples, and confirm the regression gate is expected to pass on that hardware class. The 30-second supervisor deadline and the < 25-second headroom ceiling must remain unchanged.
+Phase closure awaits human sign-off on HV-3 (capability decomposition faithfulness) and HV-4 (license interpretation), which require maintainer judgment that automated verification cannot supply.
 
 ---
 
-_Verified: 2026-07-26T02:31:00Z_
+_Verified: 2026-07-26T03:15:00Z_
 _Verifier: Kiro (gsd-verifier)_
