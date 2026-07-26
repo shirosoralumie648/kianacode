@@ -14,9 +14,22 @@
 - 作为本地优先用户，我可以无需账户使用完整个人产品，并自主备份、迁移、导出和删除数据。
 - 作为平台与扩展开发者，我可以通过稳定的 SDK、RPC、MCP、plugin、skill、hook 和 domain-pack contracts 扩展 Kiana，而不复制核心运行时。
 
+## Acceptance Vocabulary (Proof Levels)
+
+全项目统一四级证据等级。任何需求、特性（FEAT，见 `.planning/features/`）或阶段成功标准，在其要求等级的证据到位前不得标记完成：
+
+| Level | 含义 | 典型证据 |
+|-------|------|----------|
+| `source` | 公开来源/合同/实现入口已被审查记录 | 冻结来源、schema、代码路径审查 |
+| `local_behavior` | 本地可复现行为验证通过 | focused/integration 测试、本地 smoke、fixture 回放 |
+| `target_environment` | 目标平台/环境真实验证通过 | 目标 OS 安装/升级、live provider、真实服务回执 |
+| `user_value` | 目标用户在真实任务中验收通过 | 用户旅程签收、acceptance 记录 |
+
+低等级证据不能替代高等级证明（AF-03）。等级定义与 `docs/agent-program/kiana-completion/governance/` parity 账本的 `required_proof_level` 完全一致。
+
 ## v1 Requirements
 
-以下 98 项共同构成首个正式版本。每项都必须从 source existence 逐级推进到适用的 local、target-environment 和 user-value proof；低等级证据不能替代高等级证明。
+以下 104 项（98 项功能需求 + 6 项横切 NFR）共同构成首个正式版本。每项都必须按验收词汇表从 source 逐级推进到其要求的证据等级；低等级证据不能替代高等级证明。
 
 ### Kiana Core
 
@@ -140,6 +153,15 @@
 - [x] **DIF-11**: Audited capability superset 让 38 个 reference 和专有公开基线逐项记录 Adopt/Adapt/Reject、license、安全、owner、test 与 evidence，并能解释取舍
 - [ ] **DIF-12**: Transparent release and enterprise readiness 让用户和管理员查看 local/external blockers、签名、SBOM、平台与 acceptance 证据，未完成能力不能被营销措辞掩盖
 
+### Cross-cutting NFR
+
+- [ ] **NFR-01**: 冷启动、大仓 repo-map/索引、上下文构建和长会话内存有版本化性能预算与回归门禁；Phase 1 已证的 fresh-process <25s 冷启动作为初始预算并按发布收紧，超预算是 release blocker
+- [ ] **NFR-02**: 结构化日志、trace、doctor 诊断和性能计数在 CLI、TUI、Headless、Desktop、Web 一致可用且默认仅本地；支持导出脱敏诊断包用于个人支持路径
+- [ ] **NFR-03**: 所有产品入口的用户可见字符串外化并至少提供简体中文与英文；CJK、长文本和窄终端布局经过验证，语言可按用户配置切换
+- [ ] **NFR-04**: 提供从 Claude Code 的配置、session、memory 和 MCP 配置的可审查导入路径；导入前预览、导入后可回滚，不静默覆盖 Kiana 已有配置
+- [ ] **NFR-05**: CLI/TUI 与图形入口满足键盘完整导航、screen reader 兼容、reduced motion 与对比度要求，并有可重复的可访问性检查清单
+- [ ] **NFR-06**: 错误信息包含原因、影响与下一步操作；loading/empty/error/offline/degraded/permission-denied 状态在所有入口一致；帮助与文档入口从错误现场可达
+
 ## v2 Requirements
 
 以下能力明确推迟到 1.0 之后，不得用来替代或推迟已批准的 v1 能力。
@@ -203,7 +225,7 @@
 
 Kiana 1.0 只有在以下条件同时成立时才完成：
 
-1. 98 项 v1 requirements 全部实现、验证并提交，roadmap traceability 覆盖率为 100%。
+1. 104 项 v1 requirements（含 6 项横切 NFR）全部实现、验证并提交，roadmap traceability 覆盖率为 100%。
 2. 三个能力包、全部产品入口、Local Personal、Official Cloud 和 Enterprise Self-hosted 均通过各自目标环境黄金旅程。
 3. 所有高风险副作用、恢复、租户隔离、Research integrity 和跨入口连续性均通过故障注入与负面测试。
 4. 发布物可复现、签名、带 checksum/SBOM/provenance，并完成 Linux/macOS/Windows-WSL 生命周期验证。
@@ -313,12 +335,18 @@ Kiana 1.0 只有在以下条件同时成立时才完成：
 | DIF-10 | Phase 13 | Pending |
 | DIF-11 | Phase 1 | Complete |
 | DIF-12 | Phase 2 | Pending |
+| NFR-01 | Phase 16 | Pending |
+| NFR-02 | Phase 16 | Pending |
+| NFR-03 | Phase 18 | Pending |
+| NFR-04 | Phase 10 | Pending |
+| NFR-05 | Phase 18 | Pending |
+| NFR-06 | Phase 19 | Pending |
 
 **Coverage:**
-- v1 requirements: 98 total
-- Mapped to phases: 98
+- v1 requirements: 104 total (98 functional + 6 NFR)
+- Mapped to phases: 104
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-15*
-*Last updated: 2026-07-15 after initial definition*
+*Last updated: 2026-07-26 — added acceptance vocabulary (proof levels) and cross-cutting NFR group per planning-system enhancement design*
