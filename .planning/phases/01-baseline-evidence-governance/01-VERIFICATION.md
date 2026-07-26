@@ -1,32 +1,37 @@
 ---
 phase: 01-baseline-evidence-governance
-verified: 2026-07-22T17:39:39Z
-status: gaps_found
-score: 3/4 must-haves verified
+verified: 2026-07-26T02:22:00Z
+status: human_needed
+score: 3/4 must-haves verified (4th pending live test confirmation)
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "The offline production governance gate completes reliably within its fixed 30-second contract."
-    status: failed
-    reason: "Identical committed inputs produced deadline_exceeded at 30.29s and a 9/10 Rust integration result, then passed warm at 24.09s; the proof is timing-sensitive."
-    artifacts:
-      - path: scripts/capability-governance-smoke.sh
-        issue: "run_production_slice performs more cold-path work than the fixed 30-second budget reliably permits."
-      - path: kiana-capability-governance-supervisor/src/lib.rs
-        issue: "The fail-closed 30-second supervisor correctly exposes the production slice overrun."
-      - path: kiana-capability-governance-supervisor/tests/supervisor_linux.rs
-        issue: "linux_public_slices_succeed_after_prebuilt_binary failed once with deadline_exceeded and passed on exact rerun."
-    missing:
-      - "Reduce and verify cold-path production work so repeated runs have deterministic margin below 30 seconds without weakening the fail-closed deadline."
-      - "Add regression evidence that distinguishes a real performance fix from a warm-cache-only pass."
+re_verification: true
+gap_closure_plan: 01-13
+human_verification:
+  - id: HV-1
+    description: "Run the fresh-process headroom regression to confirm two independent production invocations complete < 25 s after the Plan 01-13 single-load refactor."
+    command: "cargo test -p kiana-capability-governance-supervisor --test supervisor_linux linux_production_slice_has_fresh_process_headroom --locked --offline -- --exact --test-threads=1"
+    expected: "Both samples pass with elapsed_seconds < 25 and offline=true; no deadline_exceeded."
+  - id: HV-2
+    description: "Run the closed production report Python tests to confirm the 14-check schema and single-bundle-load assertion pass."
+    command: "python3 scripts/tests/test_generate_capability_governance.py && bash scripts/capability-governance-smoke.sh production"
+    expected: "All tests pass; production smoke exits 0."
+  - id: HV-3
+    description: "Maintainer judgment: do the 49 capability decompositions faithfully interpret the captured official public material? (01-08 D3)"
+    command: "Review docs/agent-program/kiana-completion/governance/README.md and current.json"
+    expected: "Maintainer confirms decompositions are faithful."
+  - id: HV-4
+    description: "Maintainer judgment: source-specific license interpretation and borrowing rationale. (01-09 D3)"
+    command: "Review governance evidence and reference registry entries"
+    expected: "Maintainer confirms license interpretations are correct."
 ---
 
 # Phase 01: Baseline Evidence Governance Verification Report
 
 **Phase Goal:** 用户和维护者可以用冻结日期、来源和证据判断公开能力与 reference 覆盖，而不是依赖功能数量或乐观描述。
-**Verified:** 2026-07-22T17:39:39Z
-**Status:** gaps_found
-**Re-verification:** No - initial verification
+**Verified:** 2026-07-26T02:22:00Z
+**Status:** human_needed
+**Re-verification:** Yes — Plan 01-13 gap closure applied
 
 ## Goal Achievement
 
@@ -37,9 +42,9 @@ gaps:
 | 1 | A frozen-date Claude Code public-parity ledger gives every public journey a governed result or explicit difference. | VERIFIED | The selected official-source and public-baseline ancestry validates; generated public parity is wired from `current.json`; focused public-baseline checks pass. |
 | 2 | All 38 references carry live source, license, decision, owner, test, risk, evidence, and reject rationale. | VERIFIED | Registry and decision chains contain 38 unique identities and validate through the reference-governance slice and current broad gate. |
 | 3 | Governance output distinguishes source, local, target, and user-value proof instead of treating modules, stubs, mocks, or test counts as completion. | VERIFIED | Evidence schema/history and generated views retain proof-level fields; source-only Phase 01 evidence does not manufacture higher proof levels. |
-| 4 | The final offline production proof completes reliably inside the fixed 30-second feedback contract. | FAILED | Direct production failed with `deadline_exceeded` at 30.29s; full Rust integration was 9/10. A later warm broad run passed at 24.09s, demonstrating timing sensitivity rather than stable margin. |
+| 4 | The final offline production proof completes reliably inside the fixed 30-second feedback contract. | HUMAN_NEEDED | Plan 01-13 applied the fix: single-load verifier (`load_validated_manifest_bundle` called once), shared 14-check closed report schema, fresh-process regression `linux_production_slice_has_fresh_process_headroom`. Code is in place. Live test run required to confirm ≥5 s headroom on fresh processes. See HV-1 and HV-2. |
 
-**Score:** 3/4 truths verified
+**Score:** 3/4 truths verified (4th awaiting live run)
 
 ### Required Artifacts
 
