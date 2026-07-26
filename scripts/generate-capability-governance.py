@@ -305,7 +305,18 @@ def _check_current_repository_identities(bundle: Mapping[str, Any]) -> bool:
     return True
 
 
-def _run_production_corpus(args: argparse.Namespace, root: Path) -> bool:
+def _run_production_corpus(
+    args: argparse.Namespace,
+    root: Path,
+    *,
+    proc: "subprocess.Popen[bytes] | None" = None,
+) -> bool:
+    if proc is not None:
+        # Reuse an already-started subprocess (launched early for parallelism).
+        returncode = proc.wait()
+        if returncode != 0:
+            raise GovernanceUsageError("production_corpus_failed")
+        return True
     temporary_root = args.report.parent
     temporary_root.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
@@ -461,6 +472,28 @@ def _check_production_obligation(action: Callable[[], bool]) -> str:
 
 
 def verify_production_command(args: argparse.Namespace, root: Path) -> bool:
+    # Start the corpus subprocess before bundle loading so it runs in parallel
+    # with load_validated_manifest_bundle (the dominant hot spot at ~12 s).
+    # The corpus check is an independent fresh Python process; overlapping it
+    # with bundle loading removes its cold-start time from the critical path
+    # without changing which checks run, their report order, or any boundary.
+    _corpus_tmp = args.report.parent
+    _corpus_tmp.mkdir(parents=True, exist_ok=True)
+    _corpus_proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-I",
+            str(root / "scripts/run-capability-governance-corpus.py"),
+            "--temp-root",
+            str(_corpus_tmp),
+            "--case",
+            "integrity.evidence-expired",
+            "--case",
+            "integrity.newer-failed-retest",
+        ],
+        stdin=subprocess.DEVNULL,
+    )
+
     # The complete canonical bundle is deliberately loaded once. Every later
     # obligation consumes this immutable in-memory authority rather than
     # reloading the selector or semantic graph through another CLI process.
@@ -543,7 +576,7 @@ def verify_production_command(args: argparse.Namespace, root: Path) -> bool:
         },
     ]
     corpus_status = _check_production_obligation(
-        lambda: _run_production_corpus(args, root)
+        lambda: _run_production_corpus(args, root, proc=_corpus_proc)
     )
     checks.extend(
         [
