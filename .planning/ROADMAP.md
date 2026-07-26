@@ -49,10 +49,10 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
   2. 维护者可以检查 38/38 reference 的 live source、license、Adopt/Adapt/Reject、owner、test、risk 与 evidence，且任何拒绝都有理由。
   3. 进度与审计报告能区分 source、local、target 和 user-value proof，不会把模块、stub、mock 或测试数量报告成产品完成。
 
-**Plans**: 13/13 plans complete
+**Plans**: 14/14 plans complete
 
 - [x] 01-13-PLAN.md
-- [ ] 01-14-PLAN.md — *gap_closure: close CR-01 — achieve reliable fresh-process production headroom (both samples < 25 s)*
+- [x] 01-14-PLAN.md — *gap_closure: close CR-01 — achieve reliable fresh-process production headroom (both samples < 25 s)*
 
 **Wave 1**
 
@@ -445,7 +445,7 @@ Phases 1-9 establish shared gates. Phases 10-15 may run as parallel pack workstr
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. 现状基线与证据治理 | 13/13 | Complete   | 2026-07-26 |
+| 1. 现状基线与证据治理 | 14/14 | Complete   | 2026-07-26 |
 | 2. 可复现工具链与依赖收敛 | 尚未规划 | Not started | - |
 | 3. 契约与 Schema 基线 | 尚未规划 | Not started | - |
 | 4. 状态权威与投影恢复 | 尚未规划 | Not started | - |
