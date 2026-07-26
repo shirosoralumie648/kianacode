@@ -52,6 +52,7 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
 **Plans**: 13/13 plans complete
 
 - [x] 01-13-PLAN.md
+- [ ] 01-14-PLAN.md — *gap_closure: close CR-01 — achieve reliable fresh-process production headroom (both samples < 25 s)*
 
 **Wave 1**
 
