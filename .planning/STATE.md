@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: 可复现工具链与依赖收敛
+current_phase: 3
+current_phase_name: 契约与 Schema 基线
 status: executing
-stopped_at: Completed 01-12-PLAN.md; awaiting Phase 01 verification
-last_updated: "2026-07-26T03:30:05.370Z"
-last_activity: 2026-07-26
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+stopped_at: Phase 02 complete; ready for Phase 3 planning
+last_updated: "2026-07-27T06:18:26.000Z"
+last_activity: 2026-07-27
+last_activity_desc: Phase 02 complete (toolchain + build-inputs + blocker report extensions), transitioned to Phase 3
 progress:
   total_phases: 24
-  completed_phases: 1
-  total_plans: 14
-  completed_plans: 14
-  percent: 4
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
+  percent: 8
 ---
 
 # Project State

@@ -460,7 +460,7 @@ Phases 1-9 establish shared gates. Phases 10-15 may run as parallel pack workstr
 | Phase | Plans Complete | Status | Completed | Milestone | Features |
 |-------|----------------|--------|-----------|-----------|----------|
 | 1. 现状基线与证据治理 | 14/14 | Complete | 2026-07-26 | M0 前置 | [01](features/01-FEATURES.md) |
-| 2. 可复现工具链与依赖收敛 | 尚未规划 | Not started | - | M0 前置 | [02](features/02-FEATURES.md) |
+| 2. 可复现工具链与依赖收敛 | 2/2 | Complete | 2026-07-27 | M0 前置 | [02](features/02-FEATURES.md) |
 | 3. 契约与 Schema 基线 | 尚未规划 | Not started | - | M0 | [03](features/03-FEATURES.md) |
 | 4. 状态权威与投影恢复 | 尚未规划 | Not started | - | M0 | [04](features/04-FEATURES.md) |
 | 5. 策略、信任、凭据与本地数据边界 | 尚未规划 | Not started | - | M0 | [05](features/05-FEATURES.md) |
