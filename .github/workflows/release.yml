@@ -39,7 +39,7 @@ jobs:
           echo "KIANA_RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
           echo "KIANA_RELEASE_BASE_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}" >> "$GITHUB_ENV"
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
 
       - uses: Swatinem/rust-cache@v2
 

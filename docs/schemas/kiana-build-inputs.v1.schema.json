@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kiana.local/schemas/kiana-build-inputs.v1.schema.json",
+  "title": "Kiana Build Inputs v1",
+  "description": "Build inputs recorded by CI to anchor reproducibility: toolchain channel + resolved version, Cargo.lock hash, Git HEAD, timestamp, CI run ID.",
+  "type": "object",
+  "required": ["schema", "toolchain_channel", "toolchain_version", "cargo_lock_hash", "source_hash", "build_timestamp", "ci_run_id"],
+  "properties": {
+    "schema":            { "const": "kiana.build-inputs.v1" },
+    "toolchain_channel": { "type": "string", "minLength": 1 },
+    "toolchain_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+    "cargo_lock_hash":   { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source_hash":       { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "build_timestamp":   { "type": "string", "minLength": 1 },
+    "ci_run_id":         { "type": "string" }
+  },
+  "additionalProperties": false
+}

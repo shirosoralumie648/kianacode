@@ -2222,4 +2222,19 @@ PY
 bash scripts/commercial-release-handoff-smoke.sh >/dev/null
 bash scripts/capability-governance-smoke.sh
 
+# build-inputs schema contract (Phase 2)
+"$python" scripts/validate-json-schema.py \
+  docs/schemas/kiana-build-inputs.v1.schema.json \
+  scripts/fixtures/valid-build-inputs.json >/dev/null
+"$python" - <<'PY'
+import subprocess, sys
+result = subprocess.run(
+    [sys.executable, "scripts/validate-json-schema.py",
+     "docs/schemas/kiana-build-inputs.v1.schema.json",
+     "scripts/fixtures/invalid-build-inputs-missing-version.json"],
+    capture_output=True)
+if result.returncode == 0:
+    raise SystemExit("invalid-build-inputs-missing-version.json should have failed schema validation but passed")
+PY
+
 echo "schema contract smoke passed"

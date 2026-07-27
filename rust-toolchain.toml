@@ -1,0 +1,7 @@
+# Kiana Rust toolchain declaration.
+# We track the latest stable channel — the actual resolved version is
+# recorded in dist/build-inputs.json at CI time (not locked here).
+# Upgrade policy: docs/toolchain-upgrade-policy.md
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy", "rust-src"]
