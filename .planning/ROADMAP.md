@@ -438,34 +438,48 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
 
 **Plans**: TBD
 
+## Milestone Index
+
+| 里程碑 | 名称 | 覆盖阶段 | 性质 |
+|--------|------|----------|------|
+| M0 | Walking Skeleton | Phase 3-6（横切最薄链路） | 内部可演示 |
+| M1 | Coding Alpha | Phase 7-10 | 限定用户 Alpha |
+| M2 | Coding Beta + 生态 | Phase 11 + 16 | 公开 Beta |
+| M3 | Research/Daily Alpha | Phase 12-15 | 能力包 Alpha |
+| M4 | Surfaces Beta | Phase 17-19 | 全入口 Beta |
+| M5 | Cloud/Enterprise RC | Phase 20-23 | 商业 RC |
+| M6 | 1.0 | Phase 24 | 正式发布 |
+
+详细退出门禁见 [MILESTONES.md](MILESTONES.md)。特性账本索引：`.planning/features/NN-FEATURES.md`（01-24）。领域旅程账本：`.planning/journeys/`（core/coding/research/daily/surfaces/cloud/enterprise）。设计文档索引：[DESIGN-INDEX.md](DESIGN-INDEX.md)。
+
 ## Progress
 
 **Execution Order:**
 Phases 1-9 establish shared gates. Phases 10-15 may run as parallel pack workstreams after their listed dependencies. Phases 16-19 converge product surfaces, Phases 20-23 add commercial delivery forms, and Phase 24 authorizes release language.
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. 现状基线与证据治理 | 14/14 | Complete    | 2026-07-26 |
-| 2. 可复现工具链与依赖收敛 | 尚未规划 | Not started | - |
-| 3. 契约与 Schema 基线 | 尚未规划 | Not started | - |
-| 4. 状态权威与投影恢复 | 尚未规划 | Not started | - |
-| 5. 策略、信任、凭据与本地数据边界 | 尚未规划 | Not started | - |
-| 6. RuntimeHost 与运行时抽取 | 尚未规划 | Not started | - |
-| 7. Provider 能力协商与适配闭环 | 尚未规划 | Not started | - |
-| 8. 可靠 Workflow、证据与副作用语义 | 尚未规划 | Not started | - |
-| 9. 受限多 Agent、扩展与 Pack 契约 | 尚未规划 | Not started | - |
-| 10. Coding 公开基线与仓库闭环 | 尚未规划 | Not started | - |
-| 11. Coding 生态、自动化与远程闭环 | 尚未规划 | Not started | - |
-| 12. Research 来源、引用与证据图谱 | 尚未规划 | Not started | - |
-| 13. Research 实验、论文、复现与领域 Pack | 尚未规划 | Not started | - |
-| 14. Daily 对象、Connector 与审批控制 | 尚未规划 | Not started | - |
-| 15. Daily 自动化、回执与团队 Handoff | 尚未规划 | Not started | - |
-| 16. Terminal、Headless 与 MCP 产品闭环 | 尚未规划 | Not started | - |
-| 17. IDE 客户端 | 尚未规划 | Not started | - |
-| 18. Desktop 与 Web/App Server | 尚未规划 | Not started | - |
-| 19. 跨入口本地连续性与平台交付 | 尚未规划 | Not started | - |
-| 20. Official Cloud 身份、同步与租户数据基础 | 尚未规划 | Not started | - |
-| 21. Official Cloud Worker、团队、计费与运维 | 尚未规划 | Not started | - |
-| 22. Enterprise 部署、身份与集中治理 | 尚未规划 | Not started | - |
-| 23. Enterprise 审计、数据生命周期、DR 与支持 | 尚未规划 | Not started | - |
-| 24. 1.0 全量收敛与发布证明 | 尚未规划 | Not started | - |
+| Phase | Plans Complete | Status | Completed | Milestone | Features |
+|-------|----------------|--------|-----------|-----------|----------|
+| 1. 现状基线与证据治理 | 14/14 | Complete | 2026-07-26 | M0 前置 | [01](features/01-FEATURES.md) |
+| 2. 可复现工具链与依赖收敛 | 尚未规划 | Not started | - | M0 前置 | [02](features/02-FEATURES.md) |
+| 3. 契约与 Schema 基线 | 尚未规划 | Not started | - | M0 | [03](features/03-FEATURES.md) |
+| 4. 状态权威与投影恢复 | 尚未规划 | Not started | - | M0 | [04](features/04-FEATURES.md) |
+| 5. 策略、信任、凭据与本地数据边界 | 尚未规划 | Not started | - | M0 | [05](features/05-FEATURES.md) |
+| 6. RuntimeHost 与运行时抽取 | 尚未规划 | Not started | - | M0 | [06](features/06-FEATURES.md) |
+| 7. Provider 能力协商与适配闭环 | 尚未规划 | Not started | - | M1 | [07](features/07-FEATURES.md) |
+| 8. 可靠 Workflow、证据与副作用语义 | 尚未规划 | Not started | - | M1 | [08](features/08-FEATURES.md) |
+| 9. 受限多 Agent、扩展与 Pack 契约 | 尚未规划 | Not started | - | M1 | [09](features/09-FEATURES.md) |
+| 10. Coding 公开基线与仓库闭环 | 尚未规划 | Not started | - | M1 | [10](features/10-FEATURES.md) |
+| 11. Coding 生态、自动化与远程闭环 | 尚未规划 | Not started | - | M2 | [11](features/11-FEATURES.md) |
+| 12. Research 来源、引用与证据图谱 | 尚未规划 | Not started | - | M3 | [12](features/12-FEATURES.md) |
+| 13. Research 实验、论文、复现与领域 Pack | 尚未规划 | Not started | - | M3 | [13](features/13-FEATURES.md) |
+| 14. Daily 对象、Connector 与审批控制 | 尚未规划 | Not started | - | M3 | [14](features/14-FEATURES.md) |
+| 15. Daily 自动化、回执与团队 Handoff | 尚未规划 | Not started | - | M3 | [15](features/15-FEATURES.md) |
+| 16. Terminal、Headless 与 MCP 产品闭环 | 尚未规划 | Not started | - | M2 | [16](features/16-FEATURES.md) |
+| 17. IDE 客户端 | 尚未规划 | Not started | - | M4 | [17](features/17-FEATURES.md) |
+| 18. Desktop 与 Web/App Server | 尚未规划 | Not started | - | M4 | [18](features/18-FEATURES.md) |
+| 19. 跨入口本地连续性与平台交付 | 尚未规划 | Not started | - | M4 | [19](features/19-FEATURES.md) |
+| 20. Official Cloud 身份、同步与租户数据基础 | 尚未规划 | Not started | - | M5 | [20](features/20-FEATURES.md) |
+| 21. Official Cloud Worker、团队、计费与运维 | 尚未规划 | Not started | - | M5 | [21](features/21-FEATURES.md) |
+| 22. Enterprise 部署、身份与集中治理 | 尚未规划 | Not started | - | M5 | [22](features/22-FEATURES.md) |
+| 23. Enterprise 审计、数据生命周期、DR 与支持 | 尚未规划 | Not started | - | M5 | [23](features/23-FEATURES.md) |
+| 24. 1.0 全量收敛与发布证明 | 尚未规划 | Not started | - | M6 | [24](features/24-FEATURES.md) |

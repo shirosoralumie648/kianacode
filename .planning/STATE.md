@@ -83,6 +83,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - 采用用户批准的 horizontal foundation 顺序：contract/state/policy/runtime 先于 pack 与 surface 扩张。
 - 采用 research 验证的 24 个 fine-grained sequential phases。
 - Coding、Research、Daily、全部入口、Official Cloud、Enterprise 和 12 项 DIF 要求均保留在 1.0。
+- [2026-07-26]: 规划体系增强——补充特性分解层（features/NN-FEATURES.md）、统一验收词汇（proof levels）、六项横切 NFR（NFR-01..06）、领域旅程账本（journeys/ 七域）、M0-M6 发布列车（MILESTONES.md）与设计文档索引（DESIGN-INDEX.md）。规则：稳定的"是什么+怎么验收"现在全阶段补全；易变的"改哪些文件"仍 JIT。详见 docs/superpowers/specs/2026-07-26-kiana-planning-system-enhancement-design.md。
 - [Phase 01]: Official-source coverage stays inside the public-baseline family through an exclusive capability mapping or reviewed exclusion. — Prevents a fifth completion authority and preserves exhaustive source-entry review.
 - [Phase 01]: Repository domains remain imported classification labels and aliases use one exact seven-key shape. — Prevents compatibility labels or legacy names from becoming proof or repository-wide decisions.
 - [Phase 01]: Current Adopt/Adapt records require compatible license, approved security review, target revision, tests, and evidence. — Keeps capability governance fail closed without implying product completion.
