@@ -6,11 +6,18 @@ cd "$(dirname "$0")/.."
 format="text"
 fail_on_blockers=0
 handoff_out="${KIANA_COMMERCIAL_HANDOFF_OUT:-}"
+audience="maintainer"
 
 while (($# > 0)); do
   case "$1" in
     --json)
       format="json"
+      ;;
+    --md)
+      format="md"
+      ;;
+    --audience=*)
+      audience="${1#--audience=}"
       ;;
     --fail-on-blockers)
       fail_on_blockers=1
@@ -28,10 +35,16 @@ while (($# > 0)); do
       ;;
     -h|--help)
       cat <<'EOF'
-usage: scripts/commercial-release-blockers-report.sh [--json] [--fail-on-blockers] [--handoff-md PATH]
+usage: scripts/commercial-release-blockers-report.sh [--json] [--md] [--audience=maintainer|user] [--fail-on-blockers] [--handoff-md PATH]
 
 Writes a lightweight commercial release readiness report without running cargo,
 network, signing, or package-manager publication gates.
+
+  --json                Machine-readable JSON output to stdout.
+  --md                  Markdown output to stdout.
+  --audience=user       Redacted summary view (paths/hostnames stripped, counts only).
+                        Default is maintainer (full technical detail).
+  --fail-on-blockers    Exit non-zero if any blockers are detected.
 
 Set KIANA_COMMERCIAL_BLOCKERS_OUT to also write the JSON report to a file.
 Set KIANA_COMMERCIAL_HANDOFF_OUT or pass --handoff-md to write an assignment
@@ -59,6 +72,7 @@ python_bin() {
 }
 
 KIANA_BLOCKERS_FORMAT="$format" \
+KIANA_BLOCKERS_AUDIENCE="$audience" \
 KIANA_BLOCKERS_FAIL_ON_BLOCKERS="$fail_on_blockers" \
 KIANA_BLOCKERS_HANDOFF_OUT="$handoff_out" \
 "$(python_bin)" - <<'PY'
@@ -1110,6 +1124,84 @@ add_check(
     env=["CARGO_HOME", "CARGO_REGISTRIES_CRATES_IO_PROTOCOL", "CARGO_NET_GIT_FETCH_WITH_CLI"],
 )
 
+# toolchain checks (Phase 2 — DIF-12)
+toolchain_file = ROOT / "rust-toolchain.toml"
+toolchain_ok = toolchain_file.is_file() and "channel" in toolchain_file.read_text(encoding="utf-8")
+add_check(
+    id="toolchain.rust-toolchain-file",
+    category="build-test",
+    title="rust-toolchain.toml is present with channel declaration",
+    ok=toolchain_ok,
+    external=False,
+    gate='cat rust-toolchain.toml',
+    evidence=(
+        f"rust-toolchain.toml present with channel declaration"
+        if toolchain_ok
+        else "rust-toolchain.toml missing or has no 'channel' field"
+    ),
+    required_action='Create rust-toolchain.toml with channel = "stable" and required components (see docs/toolchain-upgrade-policy.md).',
+    paths=["rust-toolchain.toml"],
+    commands=['python3 -c "import tomllib,pathlib; d=tomllib.loads(pathlib.Path(\'rust-toolchain.toml\').read_text()); assert d[\'toolchain\'][\'channel\']"'],
+    resolution_scope="local-automation",
+    acceptance_artifacts=["rust-toolchain.toml"],
+)
+
+build_inputs_path = Path(os.environ.get("DIST_DIR", "dist")) / "build-inputs.json"
+build_inputs, build_inputs_error = load_json(build_inputs_path)
+build_inputs_ok = (
+    build_inputs_error is None
+    and isinstance(build_inputs, dict)
+    and build_inputs.get("schema") == "kiana.build-inputs.v1"
+    and filled(build_inputs, "toolchain_version")
+    and filled(build_inputs, "cargo_lock_hash")
+    and filled(build_inputs, "source_hash")
+)
+add_check(
+    id="toolchain.build-inputs",
+    category="build-test",
+    title="dist/build-inputs.json records toolchain version, Cargo.lock hash, and source hash",
+    ok=build_inputs_ok,
+    external=False,
+    gate="bash scripts/release-smoke.sh",
+    evidence=(
+        f"build-inputs accepted: toolchain={build_inputs.get('toolchain_version')} "
+        f"source={build_inputs.get('source_hash', '')[:8]}"
+        if build_inputs_ok
+        else (
+            f"build-inputs invalid: {build_inputs_error}"
+            if build_inputs_error
+            else "build-inputs missing required fields"
+        )
+    ),
+    required_action="Run the CI release-smoke job to generate dist/build-inputs.json, or run the record-build-inputs step locally.",
+    paths=[str(build_inputs_path)],
+    commands=["bash scripts/release-smoke.sh", "bash scripts/schema-contract-smoke.sh"],
+    env=["DIST_DIR", "GITHUB_RUN_ID"],
+    resolution_scope="local-automation",
+    acceptance_artifacts=[str(build_inputs_path)],
+)
+
+sbom_path = Path(os.environ.get("DIST_DIR", "dist")) / "sbom.cdx.json"
+sbom_ok = sbom_path.is_file() and sbom_path.stat().st_size > 0
+add_check(
+    id="sbom.present",
+    category="build-test",
+    title="dist/sbom.cdx.json is present (SBOM signing in Wave 3)",
+    ok=sbom_ok,
+    external=False,
+    gate="bash scripts/generate-sbom.sh",
+    evidence=(
+        f"SBOM present: {sbom_path} ({sbom_path.stat().st_size} bytes)"
+        if sbom_ok
+        else f"SBOM missing: {sbom_path}"
+    ),
+    required_action="Run scripts/generate-sbom.sh to produce dist/sbom.cdx.json.",
+    paths=[str(sbom_path)],
+    commands=["bash scripts/generate-sbom.sh"],
+    env=["DIST_DIR"],
+    resolution_scope="local-automation",
+    acceptance_artifacts=[str(sbom_path)],
+)
 quick_xml_versions, quick_xml_error = locked_registry_package_versions("quick-xml")
 old_quick_xml_versions = [
     version for version in quick_xml_versions if version_tuple(version) < version_tuple("0.41.0")
@@ -1815,6 +1907,51 @@ def md_escape(value):
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
+def render_user_markdown(report):
+    """Redacted summary view for user/admin audience — counts only, no paths or env vars."""
+    import re as _re
+    summary = report["summary"]
+    category_counts = {}
+    for check in report["checks"]:
+        cat = check["category"]
+        category_counts.setdefault(cat, {"satisfied": 0, "blocking": 0})
+        category_counts[cat][check["status"]] = category_counts[cat].get(check["status"], 0) + 1
+    lines = [
+        f"# Kiana Release Readiness — {report['version']}",
+        "",
+        f"Generated: {report['generated_at']}",
+        f"Status: **{report['status']}**",
+        "",
+        "## Blocker Summary",
+        "",
+        f"- Total checks: {summary['total_checks']}",
+        f"- Satisfied: {summary['satisfied']}",
+        f"- Blocking: {summary['blocking']}",
+        f"  - External (need off-repo action): {summary['external_blocking']}",
+        f"  - Local (automatable): {summary['local_blocking']}",
+        "",
+        "## By Category",
+        "",
+        "| Category | Satisfied | Blocking |",
+        "| --- | --- | --- |",
+    ]
+    for cat, counts in sorted(category_counts.items()):
+        lines.append(f"| {cat} | {counts.get('satisfied', 0)} | {counts.get('blocking', 0)} |")
+    lines.append("")
+    if summary["blocking"]:
+        lines.append("## Action Required")
+        lines.append("")
+        for check in report["checks"]:
+            if check["status"] != "blocking":
+                continue
+            owner_type = "External" if check["external"] else "Local"
+            lines.append(f"- **{check['id']}** [{owner_type}]: {check['title']}")
+            lines.append(f"  - Owner: {check['owner']} ({check['owner_status']})")
+            lines.append(f"  - Scope: {check['resolution_scope']}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def render_handoff_markdown(report):
     summary = report["summary"]
     lines = [
@@ -1919,6 +2056,12 @@ if handoff_out:
 
 if os.environ.get("KIANA_BLOCKERS_FORMAT") == "json":
     print(json.dumps(report, indent=2, sort_keys=True))
+elif os.environ.get("KIANA_BLOCKERS_FORMAT") == "md":
+    audience = os.environ.get("KIANA_BLOCKERS_AUDIENCE", "maintainer")
+    if audience == "user":
+        print(render_user_markdown(report))
+    else:
+        print(render_handoff_markdown(report))
 else:
     summary = report["summary"]
     print(f"Kiana commercial release blockers for {VERSION} ({EXPECTED_TAG})")
