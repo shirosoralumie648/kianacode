@@ -1202,6 +1202,50 @@ add_check(
     resolution_scope="local-automation",
     acceptance_artifacts=[str(sbom_path)],
 )
+
+sbom_sig_path = Path(os.environ.get("DIST_DIR", "dist")) / "sbom.cdx.json.sig"
+sbom_signed_ok = sbom_sig_path.is_file() and sbom_sig_path.stat().st_size > 0
+add_check(
+    id="sbom.signed",
+    category="build-test",
+    title="dist/sbom.cdx.json is signed (dist/sbom.cdx.json.sig present)",
+    ok=sbom_signed_ok,
+    external=False,
+    gate="bash scripts/sign-sbom.sh",
+    evidence=(
+        f"SBOM signature present: {sbom_sig_path} ({sbom_sig_path.stat().st_size} bytes)"
+        if sbom_signed_ok
+        else f"SBOM signature missing: {sbom_sig_path}"
+    ),
+    required_action="Set KIANA_SIGNING_COMMAND and run scripts/sign-sbom.sh to sign dist/sbom.cdx.json.",
+    paths=[str(sbom_sig_path)],
+    commands=["bash scripts/generate-sbom.sh", "KIANA_SIGNING_COMMAND=<cmd> bash scripts/sign-sbom.sh"],
+    env=["DIST_DIR", "KIANA_SIGNING_COMMAND"],
+    resolution_scope="local-automation",
+    acceptance_artifacts=[str(sbom_sig_path)],
+)
+
+license_summary_path = Path(os.environ.get("DIST_DIR", "dist")) / "license-summary.json"
+license_summary_ok = license_summary_path.is_file() and license_summary_path.stat().st_size > 0
+add_check(
+    id="license.compliance-summary",
+    category="build-test",
+    title="dist/license-summary.json standalone license compliance summary is present",
+    ok=license_summary_ok,
+    external=False,
+    gate="bash scripts/generate-license-summary.sh --json --out dist/license-summary.json",
+    evidence=(
+        f"license summary present: {license_summary_path} ({license_summary_path.stat().st_size} bytes)"
+        if license_summary_ok
+        else f"license summary missing: {license_summary_path}"
+    ),
+    required_action="Run scripts/generate-license-summary.sh --json --out dist/license-summary.json to produce the user-exportable license compliance summary.",
+    paths=[str(license_summary_path)],
+    commands=["bash scripts/generate-license-summary.sh --json --out dist/license-summary.json"],
+    env=["DIST_DIR"],
+    resolution_scope="local-automation",
+    acceptance_artifacts=[str(license_summary_path)],
+)
 quick_xml_versions, quick_xml_error = locked_registry_package_versions("quick-xml")
 old_quick_xml_versions = [
     version for version in quick_xml_versions if version_tuple(version) < version_tuple("0.41.0")
