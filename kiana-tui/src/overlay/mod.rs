@@ -1,6 +1,10 @@
 // kiana-tui/src/overlay/mod.rs
+pub mod search;
+
 use crossterm::event::KeyEvent;
 use ratatui::{Frame, layout::Rect};
+
+pub use search::{SearchMode, SearchOverlay, SearchResult};
 
 /// 覆盖层操作结果
 #[derive(Debug, Clone, PartialEq, Eq)]
