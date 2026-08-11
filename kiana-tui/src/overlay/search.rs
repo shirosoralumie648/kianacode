@@ -3,7 +3,13 @@
 use crate::overlay::{Overlay, OverlayAction};
 use crate::search::calculate_match_score;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, layout::Rect};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+};
 
 /// 搜索模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,11 +163,65 @@ impl SearchOverlay {
     pub fn selected_result(&self) -> Option<&SearchResult> {
         self.results.get(self.selected_index)
     }
+
+    /// 获取当前选中的内容文本（Task 6 要求）
+    pub fn get_selected_content(&self) -> Option<String> {
+        self.selected_result().map(|result| result.text.clone())
+    }
 }
 
 impl Overlay for SearchOverlay {
-    fn render(&self, _frame: &mut Frame, _area: Rect) {
-        // 占位符实现 - 将在后续任务中实现
+    fn render(&self, frame: &mut Frame, area: Rect) {
+        // 清除背景区域
+        frame.render_widget(Clear, area);
+
+        // 创建一个居中的弹出窗口（80% 宽度，80% 高度）
+        let popup_width = (area.width as f32 * 0.8) as u16;
+        let popup_height = (area.height as f32 * 0.8) as u16;
+        let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+        let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+        let popup_area = Rect {
+            x: area.x + popup_x,
+            y: area.y + popup_y,
+            width: popup_width,
+            height: popup_height,
+        };
+
+        // 创建主边框块
+        let block = Block::default()
+            .title(self.title())
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan));
+
+        frame.render_widget(block, popup_area);
+
+        // 计算内部区域（去掉边框）
+        let inner_area = Rect {
+            x: popup_area.x + 1,
+            y: popup_area.y + 1,
+            width: popup_area.width.saturating_sub(2),
+            height: popup_area.height.saturating_sub(2),
+        };
+
+        // 布局：搜索框(1行) + 结果列表(剩余-1行) + 状态栏(1行)
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),      // 搜索输入
+                Constraint::Min(3),          // 结果列表
+                Constraint::Length(1),      // 状态栏
+            ])
+            .split(inner_area);
+
+        // 渲染搜索输入框
+        self.render_search_input(frame, chunks[0]);
+
+        // 渲染结果列表
+        self.render_results_list(frame, chunks[1]);
+
+        // 渲染状态栏
+        self.render_status_bar(frame, chunks[2]);
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> OverlayAction {
@@ -191,6 +251,143 @@ impl Overlay for SearchOverlay {
             SearchMode::UserInputs => "搜索用户输入 (Ctrl+R)",
             SearchMode::AllMessages => "搜索所有消息",
         }
+    }
+}
+
+impl SearchOverlay {
+    /// 渲染搜索输入框
+    fn render_search_input(&self, frame: &mut Frame, area: Rect) {
+        let search_text = if self.query.is_empty() {
+            Line::from(vec![
+                Span::styled("搜索: ", Style::default().fg(Color::Yellow)),
+                Span::styled("(输入以搜索...)", Style::default().fg(Color::DarkGray)),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled("搜索: ", Style::default().fg(Color::Yellow)),
+                Span::styled(&self.query, Style::default().fg(Color::White)),
+                Span::styled("_", Style::default().fg(Color::Cyan)),
+            ])
+        };
+
+        let paragraph = Paragraph::new(search_text);
+        frame.render_widget(paragraph, area);
+    }
+
+    /// 渲染结果列表
+    fn render_results_list(&self, frame: &mut Frame, area: Rect) {
+        if self.results.is_empty() {
+            // 显示空状态消息
+            let empty_msg = if self.query.is_empty() {
+                "开始输入以搜索历史消息..."
+            } else {
+                "未找到匹配结果"
+            };
+
+            let paragraph = Paragraph::new(Line::from(vec![
+                Span::styled(empty_msg, Style::default().fg(Color::DarkGray)),
+            ]));
+            frame.render_widget(paragraph, area);
+            return;
+        }
+
+        // 创建结果列表项
+        let items: Vec<ListItem> = self
+            .results
+            .iter()
+            .enumerate()
+            .map(|(idx, result)| {
+                let is_selected = idx == self.selected_index;
+
+                // 高亮匹配位置
+                let styled_text = self.highlight_matches(&result.text, &result.positions);
+
+                let style = if is_selected {
+                    Style::default()
+                        .bg(Color::Blue)
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+
+                ListItem::new(styled_text).style(style)
+            })
+            .collect();
+
+        let list = List::new(items);
+        frame.render_widget(list, area);
+    }
+
+    /// 渲染状态栏
+    fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
+        let status_text = if self.results.is_empty() {
+            Line::from(vec![
+                Span::styled("Esc", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::raw(" 关闭 | "),
+                Span::styled("Ctrl+U", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::raw(" 切换模式"),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(
+                    format!("{}/{}", self.selected_index + 1, self.results.len()),
+                    Style::default().fg(Color::Cyan),
+                ),
+                Span::raw(" | "),
+                Span::styled("↑↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::raw(" 导航 | "),
+                Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::raw(" 选择 | "),
+                Span::styled("Esc", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::raw(" 取消"),
+            ])
+        };
+
+        let paragraph = Paragraph::new(status_text);
+        frame.render_widget(paragraph, area);
+    }
+
+    /// 高亮匹配位置
+    fn highlight_matches(&self, text: &str, positions: &[usize]) -> Line<'static> {
+        if positions.is_empty() {
+            return Line::from(text.to_string());
+        }
+
+        let mut spans = Vec::new();
+        let chars: Vec<char> = text.chars().collect();
+        let mut last_pos = 0;
+
+        for &pos in positions {
+            if pos >= chars.len() {
+                continue;
+            }
+
+            // 添加匹配前的普通文本
+            if pos > last_pos {
+                let normal_text: String = chars[last_pos..pos].iter().collect();
+                spans.push(Span::raw(normal_text));
+            }
+
+            // 添加高亮的匹配字符
+            let match_char: String = chars[pos..pos + 1].iter().collect();
+            spans.push(Span::styled(
+                match_char,
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ));
+
+            last_pos = pos + 1;
+        }
+
+        // 添加剩余的文本
+        if last_pos < chars.len() {
+            let remaining_text: String = chars[last_pos..].iter().collect();
+            spans.push(Span::raw(remaining_text));
+        }
+
+        Line::from(spans)
     }
 }
 
@@ -469,5 +666,96 @@ mod tests {
         // 切换模式应该重置选择索引
         overlay.toggle_mode(&items);
         assert_eq!(overlay.selected_index(), 0);
+    }
+
+    #[test]
+    fn test_get_selected_content() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec![
+            "first item".to_string(),
+            "second item".to_string(),
+            "third item".to_string(),
+        ];
+        overlay.set_query("item".to_string(), &items);
+
+        // 测试获取第一个选中的内容
+        let content = overlay.get_selected_content();
+        assert!(content.is_some());
+        let first = content.unwrap();
+
+        // 移动到下一个并测试
+        overlay.select_next();
+        let content = overlay.get_selected_content();
+        assert!(content.is_some());
+        let second = content.unwrap();
+
+        // 移动到第三个并测试
+        overlay.select_next();
+        let content = overlay.get_selected_content();
+        assert!(content.is_some());
+        let third = content.unwrap();
+
+        // 验证我们有三个不同的结果
+        assert_ne!(first, second);
+        assert_ne!(second, third);
+        assert_ne!(first, third);
+
+        // 验证不会越界（停留在最后一个）
+        overlay.select_next();
+        let content = overlay.get_selected_content();
+        assert!(content.is_some());
+        assert_eq!(content.unwrap(), third);
+    }
+
+    #[test]
+    fn test_get_selected_content_empty() {
+        let overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let content = overlay.get_selected_content();
+        assert!(content.is_none());
+    }
+
+    #[test]
+    fn test_get_selected_content_after_search() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec![
+            "hello world".to_string(),
+            "goodbye world".to_string(),
+            "hello rust".to_string(),
+        ];
+
+        // 搜索 "hello" 应该只匹配两个
+        overlay.set_query("hello".to_string(), &items);
+
+        let content = overlay.get_selected_content();
+        assert!(content.is_some());
+        assert_eq!(content.unwrap(), "hello world");
+
+        overlay.select_next();
+        let content = overlay.get_selected_content();
+        assert!(content.is_some());
+        assert_eq!(content.unwrap(), "hello rust");
+    }
+
+    #[test]
+    fn test_navigation_wraparound_bounds() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec![
+            "item1".to_string(),
+            "item2".to_string(),
+        ];
+        overlay.set_query("item".to_string(), &items);
+
+        // 测试向下到达末尾不会越界
+        assert_eq!(overlay.selected_index(), 0);
+        overlay.select_next();
+        assert_eq!(overlay.selected_index(), 1);
+        overlay.select_next();
+        assert_eq!(overlay.selected_index(), 1); // 应该停留在末尾
+
+        // 测试向上回到开头不会越界
+        overlay.select_previous();
+        assert_eq!(overlay.selected_index(), 0);
+        overlay.select_previous();
+        assert_eq!(overlay.selected_index(), 0); // 应该停留在开头
     }
 }
