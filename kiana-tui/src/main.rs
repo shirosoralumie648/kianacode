@@ -9,7 +9,7 @@ use acp::{AcpClient, AcpMessage};
 use anyhow::Result;
 use config::Config;
 use completion::CompletionEngine;
-use kiana_tui::overlay::{Overlay, OverlayAction};
+use kiana_tui::overlay::{Overlay, OverlayAction, SearchOverlay, SearchMode};
 use markdown::render_markdown;
 use sessions::SessionManager;
 use crossterm::{
@@ -924,6 +924,11 @@ fn run_app() -> Result<()> {
                     f.render_widget(Clear, popup_area);
                     f.render_widget(list, popup_area);
                 }
+
+                // Task 8: 如果有激活的覆盖层，渲染在最上层
+                if let Some(overlay) = &app.active_overlay {
+                    overlay.render(f, f.area());
+                }
             })?;
 
             app.mark_rendered();
@@ -932,6 +937,59 @@ fn run_app() -> Result<()> {
         // Handle input events
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
+                // Task 8: 优先处理overlay事件
+                if let Some(overlay) = &mut app.active_overlay {
+                    let action = overlay.handle_key(key);
+
+                    match action {
+                        OverlayAction::Continue => {
+                            // 覆盖层继续显示，标记需要重新渲染
+                            app.needs_render = true;
+                            continue;
+                        }
+                        OverlayAction::Close => {
+                            // 关闭覆盖层
+                            app.close_overlay();
+                            app.needs_render = true;
+                            continue;
+                        }
+                        OverlayAction::Submit(result) => {
+                            // 保存结果，关闭覆盖层
+                            app.overlay_result = Some(result);
+                            app.close_overlay();
+                            app.needs_render = true;
+                            // 继续处理结果（Task 11将实现）
+                            continue;
+                        }
+                    }
+                }
+
+                // Task 9: 检测 Ctrl+R 触发搜索历史
+                if let KeyEvent {
+                    code: KeyCode::Char('r'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                } = key {
+                    // 创建 SearchOverlay
+                    let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+
+                    // 收集用户消息作为搜索源
+                    let user_messages: Vec<String> = app.messages
+                        .iter()
+                        .filter(|msg| msg.role == "user")
+                        .map(|msg| msg.content.clone())
+                        .collect();
+
+                    // 初始化搜索（空查询）
+                    overlay.set_query(String::new(), &user_messages);
+
+                    // 设置为活动覆盖层
+                    app.active_overlay = Some(Box::new(overlay));
+                    app.needs_render = true;
+                    continue;
+                }
+
+                // 常规按键处理
                 match key {
                     KeyEvent {
                         code: KeyCode::Char('c'),
