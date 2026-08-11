@@ -97,3 +97,4 @@ flamegraph.svg
 
 # Logs
 *.log
+.worktrees/
