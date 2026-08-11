@@ -934,6 +934,14 @@ fn run_app() -> Result<()> {
             app.mark_rendered();
         }
 
+        // Task 11: 处理 overlay 返回的结果
+        if let Some(result) = app.take_overlay_result() {
+            // 将结果填充到输入缓冲区
+            app.input_buffer = result.clone();
+            app.cursor_pos = result.len();
+            app.needs_render = true;
+        }
+
         // Handle input events
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
@@ -958,7 +966,6 @@ fn run_app() -> Result<()> {
                             app.overlay_result = Some(result);
                             app.close_overlay();
                             app.needs_render = true;
-                            // 继续处理结果（Task 11将实现）
                             continue;
                         }
                     }
@@ -1240,5 +1247,21 @@ mod tests {
 
         assert_eq!(app.take_overlay_result(), Some("test result".to_string()));
         assert!(app.take_overlay_result().is_none()); // Already consumed
+    }
+
+    #[test]
+    fn test_overlay_result_fills_input() {
+        let mut app = App::new();
+        app.overlay_result = Some("selected message".to_string());
+
+        // 模拟结果处理
+        if let Some(result) = app.take_overlay_result() {
+            app.input_buffer = result.clone();
+            app.cursor_pos = result.len();
+        }
+
+        assert_eq!(app.input_buffer, "selected message");
+        assert_eq!(app.cursor_pos, 16);
+        assert!(app.take_overlay_result().is_none()); // 已消费
     }
 }
