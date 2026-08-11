@@ -163,12 +163,7 @@ impl CompletionEngine {
             0
         };
 
-        let new_input = format!(
-            "{}{}{}",
-            &input[..token_start],
-            completion,
-            after_cursor
-        );
+        let new_input = format!("{}{}{}", &input[..token_start], completion, after_cursor);
         let new_cursor_pos = token_start + completion.len();
 
         (new_input, new_cursor_pos)
@@ -198,7 +193,8 @@ mod tests {
         assert_eq!(result, "/review");
         assert_eq!(cursor, 7);
 
-        let (result, cursor) = CompletionEngine::apply_completion("/review src/ma", 14, "src/main.rs");
+        let (result, cursor) =
+            CompletionEngine::apply_completion("/review src/ma", 14, "src/main.rs");
         assert_eq!(result, "/review src/main.rs");
         assert_eq!(cursor, 19);
     }

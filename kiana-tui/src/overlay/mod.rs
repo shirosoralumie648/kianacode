@@ -2,7 +2,7 @@
 pub mod search;
 
 use crossterm::event::KeyEvent;
-use ratatui::{Frame, layout::Rect};
+use ratatui::{layout::Rect, Frame};
 
 pub use search::{SearchMode, SearchOverlay, SearchResult};
 

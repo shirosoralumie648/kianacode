@@ -1,22 +1,21 @@
 mod acp;
 mod commands;
 mod completion;
+mod config;
 mod markdown;
 mod sessions;
-mod config;
 
 use acp::{AcpClient, AcpMessage};
 use anyhow::Result;
-use config::Config;
 use completion::CompletionEngine;
-use kiana_tui::overlay::{Overlay, OverlayAction, SearchOverlay, SearchMode};
-use markdown::render_markdown;
-use sessions::SessionManager;
+use config::Config;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use kiana_tui::overlay::{Overlay, OverlayAction, SearchMode, SearchOverlay};
+use markdown::render_markdown;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -25,11 +24,12 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
     Terminal,
 };
-use std::io;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use std::time::{Duration, Instant};
+use sessions::SessionManager;
 use std::collections::VecDeque;
+use std::io;
+use std::time::{Duration, Instant};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 // Performance configuration
 const MAX_MESSAGES: usize = 1000; // FIFO limit for memory management
@@ -70,8 +70,8 @@ struct App {
     completions: Vec<String>,
     completion_selected: usize,
     config: Config,
-    config_mode: bool, // Whether we're in config editing mode
-    config_field: usize, // Which field is selected in config editor
+    config_mode: bool,          // Whether we're in config editing mode
+    config_field: usize,        // Which field is selected in config editor
     config_temp_buffer: String, // Temporary buffer for editing config values
     session_manager: SessionManager,
     show_session_list: bool,
@@ -91,7 +91,10 @@ impl App {
         });
 
         let session_manager = SessionManager::new().unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to initialize session manager: {}. Using minimal state.", e);
+            eprintln!(
+                "Warning: Failed to initialize session manager: {}. Using minimal state.",
+                e
+            );
             // This shouldn't fail in practice, but we handle it gracefully
             SessionManager::new().unwrap()
         });
@@ -167,10 +170,7 @@ impl App {
         tracing::info!("ACP server spawned in {:?}", spawn_time);
 
         let init_start = Instant::now();
-        let project_root = std::env::current_dir()?
-            .to_str()
-            .unwrap_or(".")
-            .to_string();
+        let project_root = std::env::current_dir()?.to_str().unwrap_or(".").to_string();
 
         let session_id = match client.initialize_session(&project_root) {
             Ok(id) => id,
@@ -186,8 +186,10 @@ impl App {
 
         self.add_message(Message::new(
             "system",
-            format!("Session initialized: {} (spawn: {:?}, init: {:?})",
-                session_id, spawn_time, init_time),
+            format!(
+                "Session initialized: {} (spawn: {:?}, init: {:?})",
+                session_id, spawn_time, init_time
+            ),
         ));
 
         self.session_id = Some(session_id);
@@ -246,7 +248,10 @@ impl App {
         if self.input_buffer.len() > MAX_INPUT_LENGTH {
             self.add_message(Message::new(
                 "error",
-                format!("Input exceeds maximum length of {} characters", MAX_INPUT_LENGTH),
+                format!(
+                    "Input exceeds maximum length of {} characters",
+                    MAX_INPUT_LENGTH
+                ),
             ));
             self.input_buffer.clear();
             return;
@@ -306,12 +311,18 @@ impl App {
                     match self.session_manager.new_session() {
                         Ok(new_id) => {
                             self.messages.clear();
-                            self.add_message(Message::new("system", format!("New session created: {}", new_id)));
+                            self.add_message(Message::new(
+                                "system",
+                                format!("New session created: {}", new_id),
+                            ));
                             self.acp_client = None;
                             self.session_id = None;
                         }
                         Err(e) => {
-                            self.add_message(Message::new("error", format!("Failed to create new session: {}", e)));
+                            self.add_message(Message::new(
+                                "error",
+                                format!("Failed to create new session: {}", e),
+                            ));
                         }
                     }
                     self.input_buffer.clear();
@@ -320,12 +331,18 @@ impl App {
                 "fork" => {
                     match self.session_manager.fork_session() {
                         Ok(new_id) => {
-                            self.add_message(Message::new("system", format!("Session forked: {}", new_id)));
+                            self.add_message(Message::new(
+                                "system",
+                                format!("Session forked: {}", new_id),
+                            ));
                             self.acp_client = None;
                             self.session_id = None;
                         }
                         Err(e) => {
-                            self.add_message(Message::new("error", format!("Failed to fork session: {}", e)));
+                            self.add_message(Message::new(
+                                "error",
+                                format!("Failed to fork session: {}", e),
+                            ));
                         }
                     }
                     self.input_buffer.clear();
@@ -339,12 +356,18 @@ impl App {
                         match self.session_manager.switch_session(session_id) {
                             Ok(()) => {
                                 self.messages.clear();
-                                self.add_message(Message::new("system", format!("Switched to session: {}", session_id)));
+                                self.add_message(Message::new(
+                                    "system",
+                                    format!("Switched to session: {}", session_id),
+                                ));
                                 self.acp_client = None;
                                 self.session_id = None;
                             }
                             Err(e) => {
-                                self.add_message(Message::new("error", format!("Failed to switch session: {}", e)));
+                                self.add_message(Message::new(
+                                    "error",
+                                    format!("Failed to switch session: {}", e),
+                                ));
                             }
                         }
                     }
@@ -366,31 +389,39 @@ impl App {
         // Determine ACP command and arguments
         let (acp_command, acp_arguments) = if let Some(cmd_name) = command_name {
             if let Some(slash_cmd) = commands::find_command(cmd_name) {
-                (slash_cmd.acp_command.to_string(), slash_cmd.build_arguments(arguments))
+                (
+                    slash_cmd.acp_command.to_string(),
+                    slash_cmd.build_arguments(arguments),
+                )
             } else {
                 // Unknown command, treat as regular query
-                ("system.architecture".to_string(), serde_json::json!({"query": input}))
+                (
+                    "system.architecture".to_string(),
+                    serde_json::json!({"query": input}),
+                )
             }
         } else {
             // Regular input, use default command
-            ("system.architecture".to_string(), serde_json::json!({"query": input}))
+            (
+                "system.architecture".to_string(),
+                serde_json::json!({"query": input}),
+            )
         };
 
         // Try to execute command via ACP
         if let (Some(client), Some(session_id)) = (&mut self.acp_client, &self.session_id) {
             let execute_start = Instant::now();
-            match client.execute_command(
-                session_id,
-                &acp_command,
-                acp_arguments,
-            ) {
+            match client.execute_command(session_id, &acp_command, acp_arguments) {
                 Ok(result) => {
                     let execute_time = execute_start.elapsed();
                     self.status_message = None;
 
                     // Extract content from response
                     let mut content = if let Some(content) = result.get("content") {
-                        content.as_str().unwrap_or("No content in response").to_string()
+                        content
+                            .as_str()
+                            .unwrap_or("No content in response")
+                            .to_string()
                     } else {
                         format!("{}", result)
                     };
@@ -406,20 +437,34 @@ impl App {
                     tracing::error!("Command execution failed: {}", error_msg);
 
                     if error_msg.contains("timeout") {
-                        self.add_message(Message::new("error", "Request timeout after 30 seconds. Please retry."));
-                    } else if error_msg.contains("connection closed") || error_msg.contains("connection lost") {
-                        self.add_message(Message::new("error", "Connection lost. Press 'r' to reconnect."));
+                        self.add_message(Message::new(
+                            "error",
+                            "Request timeout after 30 seconds. Please retry.",
+                        ));
+                    } else if error_msg.contains("connection closed")
+                        || error_msg.contains("connection lost")
+                    {
+                        self.add_message(Message::new(
+                            "error",
+                            "Connection lost. Press 'r' to reconnect.",
+                        ));
                         self.acp_client = None;
                         self.session_id = None;
                         self.show_retry_button = true;
                     } else {
-                        self.add_message(Message::new("error", format!("Command execution failed: {}", error_msg)));
+                        self.add_message(Message::new(
+                            "error",
+                            format!("Command execution failed: {}", error_msg),
+                        ));
                     }
                 }
             }
         } else {
             self.status_message = None;
-            self.add_message(Message::new("error", "ACP not initialized. Connection to server failed."));
+            self.add_message(Message::new(
+                "error",
+                "ACP not initialized. Connection to server failed.",
+            ));
         }
 
         self.scroll_to_bottom();
@@ -429,7 +474,9 @@ impl App {
     }
 
     fn trigger_completion(&mut self) {
-        self.completions = self.completion_engine.get_completions(&self.input_buffer, self.cursor_pos);
+        self.completions = self
+            .completion_engine
+            .get_completions(&self.input_buffer, self.cursor_pos);
         self.completion_selected = 0;
 
         if self.completions.len() == 1 {
@@ -454,11 +501,8 @@ impl App {
         }
 
         let completion = self.completions[self.completion_selected].clone();
-        let (new_input, new_cursor) = CompletionEngine::apply_completion(
-            &self.input_buffer,
-            self.cursor_pos,
-            &completion,
-        );
+        let (new_input, new_cursor) =
+            CompletionEngine::apply_completion(&self.input_buffer, self.cursor_pos, &completion);
         self.input_buffer = new_input;
         self.cursor_pos = new_cursor;
         self.completions.clear();
@@ -543,13 +587,15 @@ impl App {
                 if let Some(event_type) = params.get("event_type").and_then(|v| v.as_str()) {
                     let message = match event_type {
                         "tool_use" => {
-                            let tool_name = params.get("tool_name")
+                            let tool_name = params
+                                .get("tool_name")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown");
                             format!("Using tool: {}", tool_name)
                         }
                         "file_read" => {
-                            let file_path = params.get("file_path")
+                            let file_path = params
+                                .get("file_path")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown");
                             format!("Reading file: {}", file_path)
@@ -597,7 +643,8 @@ impl App {
             }
             KeyCode::Down => {
                 // Move to next field
-                if self.config_field < 4 {  // 5 fields total (0-4)
+                if self.config_field < 4 {
+                    // 5 fields total (0-4)
                     self.config_field += 1;
                     self.config_temp_buffer.clear();
                     self.needs_render = true;
@@ -660,13 +707,19 @@ impl App {
     fn save_config(&mut self) -> bool {
         // Validate before saving
         if let Err(e) = self.config.validate() {
-            self.add_message(Message::new("error", format!("Invalid configuration: {}", e)));
+            self.add_message(Message::new(
+                "error",
+                format!("Invalid configuration: {}", e),
+            ));
             return false;
         }
 
         // Save to file
         if let Err(e) = self.config.save() {
-            self.add_message(Message::new("error", format!("Failed to save config: {}", e)));
+            self.add_message(Message::new(
+                "error",
+                format!("Failed to save config: {}", e),
+            ));
             return false;
         }
 
@@ -677,13 +730,13 @@ impl App {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),   // Title
-                Constraint::Length(3),   // Provider
-                Constraint::Length(3),   // Model
-                Constraint::Length(3),   // Temperature
-                Constraint::Length(3),   // Max tokens
-                Constraint::Length(3),   // Buttons
-                Constraint::Min(1),      // Remaining space
+                Constraint::Length(3), // Title
+                Constraint::Length(3), // Provider
+                Constraint::Length(3), // Model
+                Constraint::Length(3), // Temperature
+                Constraint::Length(3), // Max tokens
+                Constraint::Length(3), // Buttons
+                Constraint::Min(1),    // Remaining space
             ])
             .split(area);
 
@@ -692,14 +745,20 @@ impl App {
 
         // Title
         let title = Paragraph::new("Configuration Editor")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
             .block(Block::default().borders(Borders::ALL))
             .alignment(Alignment::Center);
         f.render_widget(title, chunks[0]);
 
         // Provider field
         let provider_style = if self.config_field == 0 {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -715,7 +774,9 @@ impl App {
 
         // Model field
         let model_style = if self.config_field == 1 {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -731,7 +792,9 @@ impl App {
 
         // Temperature field
         let temp_style = if self.config_field == 2 {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -747,7 +810,9 @@ impl App {
 
         // Max tokens field
         let tokens_style = if self.config_field == 3 {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -763,7 +828,9 @@ impl App {
 
         // Buttons
         let button_style = if self.config_field == 4 {
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Green)
         };
@@ -798,7 +865,11 @@ fn run_app() -> Result<()> {
             .split(f.area());
 
         let title = Paragraph::new("Kiana Chat - Initializing...")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(title, chunks[0]);
     })?;
@@ -816,15 +887,19 @@ fn run_app() -> Result<()> {
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([
-                        Constraint::Length(3),      // Title bar
-                        Constraint::Min(1),         // Conversation area
-                        Constraint::Length(3),      // Input box
+                        Constraint::Length(3), // Title bar
+                        Constraint::Min(1),    // Conversation area
+                        Constraint::Length(3), // Input box
                     ])
                     .split(f.area());
 
                 // Title bar
                 let title = Paragraph::new("Kiana Chat")
-                    .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                    .style(
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    )
                     .block(Block::default().borders(Borders::ALL));
                 f.render_widget(title, chunks[0]);
 
@@ -844,9 +919,10 @@ fn run_app() -> Result<()> {
                     };
 
                     // Add role prefix
-                    message_lines.push(Line::from(vec![
-                        Span::styled(prefix, style.add_modifier(Modifier::BOLD)),
-                    ]));
+                    message_lines.push(Line::from(vec![Span::styled(
+                        prefix,
+                        style.add_modifier(Modifier::BOLD),
+                    )]));
 
                     // Render content with markdown for assistant messages
                     if msg.role == "assistant" {
@@ -867,20 +943,30 @@ fn run_app() -> Result<()> {
                 if let Some(status) = &app.status_message {
                     message_lines.push(Line::from(vec![
                         Span::styled("⏳ ", Style::default().fg(Color::Yellow)),
-                        Span::styled(status, Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC)),
+                        Span::styled(
+                            status,
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
                     ]));
                 }
 
                 let scroll_info = if app.messages.len() > conversation_height {
-                    format!(" [{}/{}]", app.scroll_offset.min(app.messages.len()), app.messages.len())
+                    format!(
+                        " [{}/{}]",
+                        app.scroll_offset.min(app.messages.len()),
+                        app.messages.len()
+                    )
                 } else {
                     String::new()
                 };
 
-                let conversation = Paragraph::new(message_lines)
-                    .block(Block::default()
+                let conversation = Paragraph::new(message_lines).block(
+                    Block::default()
                         .borders(Borders::ALL)
-                        .title(format!("Messages{}", scroll_info)));
+                        .title(format!("Messages{}", scroll_info)),
+                );
                 f.render_widget(conversation, chunks[1]);
 
                 // Input box
@@ -890,13 +976,17 @@ fn run_app() -> Result<()> {
                     Span::styled("█", Style::default().fg(Color::Gray)),
                 ])];
 
-                let input = Paragraph::new(input_text)
-                    .block(Block::default().borders(Borders::ALL).title("Input (Ctrl-C to exit, Tab to complete)"));
+                let input = Paragraph::new(input_text).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Input (Ctrl-C to exit, Tab to complete)"),
+                );
                 f.render_widget(input, chunks[2]);
 
                 // Completion popup
                 if app.completions.len() > 1 {
-                    let completion_items: Vec<ListItem> = app.completions
+                    let completion_items: Vec<ListItem> = app
+                        .completions
                         .iter()
                         .enumerate()
                         .map(|(idx, item)| {
@@ -909,8 +999,11 @@ fn run_app() -> Result<()> {
                         })
                         .collect();
 
-                    let list = List::new(completion_items)
-                        .block(Block::default().borders(Borders::ALL).title("Completions (Tab/Shift+Tab to navigate, Enter to select)"));
+                    let list = List::new(completion_items).block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title("Completions (Tab/Shift+Tab to navigate, Enter to select)"),
+                    );
 
                     // Position popup above input box
                     let popup_height = (app.completions.len() + 2).min(10) as u16;
@@ -976,12 +1069,14 @@ fn run_app() -> Result<()> {
                     code: KeyCode::Char('r'),
                     modifiers: KeyModifiers::CONTROL,
                     ..
-                } = key {
+                } = key
+                {
                     // 创建 SearchOverlay
                     let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
 
                     // 收集用户消息作为搜索源
-                    let user_messages: Vec<String> = app.messages
+                    let user_messages: Vec<String> = app
+                        .messages
                         .iter()
                         .filter(|msg| msg.role == "user")
                         .map(|msg| msg.content.clone())
@@ -1031,8 +1126,7 @@ fn run_app() -> Result<()> {
                         }
                     }
                     KeyEvent {
-                        code: KeyCode::Tab,
-                        ..
+                        code: KeyCode::Tab, ..
                     } => {
                         if !app.completions.is_empty() {
                             app.completion_next();
@@ -1041,8 +1135,7 @@ fn run_app() -> Result<()> {
                         }
                     }
                     KeyEvent {
-                        code: KeyCode::Esc,
-                        ..
+                        code: KeyCode::Esc, ..
                     } => {
                         if !app.completions.is_empty() {
                             app.completions.clear();
@@ -1050,8 +1143,7 @@ fn run_app() -> Result<()> {
                         }
                     }
                     KeyEvent {
-                        code: KeyCode::Up,
-                        ..
+                        code: KeyCode::Up, ..
                     } => {
                         if app.completions.is_empty() {
                             app.scroll_up();
@@ -1131,8 +1223,7 @@ fn run_app() -> Result<()> {
                         app.needs_render = true;
                     }
                     KeyEvent {
-                        code: KeyCode::End,
-                        ..
+                        code: KeyCode::End, ..
                     } => {
                         app.cursor_pos = app.input_buffer.len();
                         app.completions.clear();

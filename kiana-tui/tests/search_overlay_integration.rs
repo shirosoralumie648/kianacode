@@ -16,10 +16,7 @@ fn test_search_overlay_interaction_flow() {
     use kiana_tui::overlay::search::{SearchMode, SearchOverlay};
     use kiana_tui::overlay::{Overlay, OverlayAction};
 
-    let messages = vec![
-        "hello world".to_string(),
-        "goodbye world".to_string(),
-    ];
+    let messages = vec!["hello world".to_string(), "goodbye world".to_string()];
 
     let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
 
@@ -29,7 +26,11 @@ fn test_search_overlay_interaction_flow() {
     // 验证查询已更新并有结果
     assert_eq!(overlay.query(), "hello");
     assert!(!overlay.results().is_empty(), "Should have search results");
-    assert_eq!(overlay.results().len(), 1, "Should have one result matching 'hello'");
+    assert_eq!(
+        overlay.results().len(),
+        1,
+        "Should have one result matching 'hello'"
+    );
 
     // 验证第一个结果是 "hello world"
     assert_eq!(overlay.results()[0].text, "hello world");

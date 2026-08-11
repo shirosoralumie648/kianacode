@@ -121,7 +121,5 @@ pub fn register_commands() -> Vec<SlashCommand> {
 
 /// Find a command by name from the registered commands
 pub fn find_command(name: &str) -> Option<SlashCommand> {
-    register_commands()
-        .into_iter()
-        .find(|cmd| cmd.name == name)
+    register_commands().into_iter().find(|cmd| cmd.name == name)
 }

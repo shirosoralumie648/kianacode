@@ -4,11 +4,11 @@ use crate::overlay::{Overlay, OverlayAction};
 use crate::search::calculate_match_score;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    Frame,
 };
 
 /// 搜索模式
@@ -208,9 +208,9 @@ impl Overlay for SearchOverlay {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1),      // 搜索输入
-                Constraint::Min(3),          // 结果列表
-                Constraint::Length(1),      // 状态栏
+                Constraint::Length(1), // 搜索输入
+                Constraint::Min(3),    // 结果列表
+                Constraint::Length(1), // 状态栏
             ])
             .split(inner_area);
 
@@ -284,9 +284,10 @@ impl SearchOverlay {
                 "未找到匹配结果"
             };
 
-            let paragraph = Paragraph::new(Line::from(vec![
-                Span::styled(empty_msg, Style::default().fg(Color::DarkGray)),
-            ]));
+            let paragraph = Paragraph::new(Line::from(vec![Span::styled(
+                empty_msg,
+                Style::default().fg(Color::DarkGray),
+            )]));
             frame.render_widget(paragraph, area);
             return;
         }
@@ -323,9 +324,19 @@ impl SearchOverlay {
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
         let status_text = if self.results.is_empty() {
             Line::from(vec![
-                Span::styled("Esc", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" 关闭 | "),
-                Span::styled("Ctrl+U", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Ctrl+U",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" 切换模式"),
             ])
         } else {
@@ -335,11 +346,26 @@ impl SearchOverlay {
                     Style::default().fg(Color::Cyan),
                 ),
                 Span::raw(" | "),
-                Span::styled("↑↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "↑↓",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" 导航 | "),
-                Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Enter",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" 选择 | "),
-                Span::styled("Esc", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" 取消"),
             ])
         };
@@ -404,12 +430,7 @@ mod tests {
 
     #[test]
     fn test_search_result_creation() {
-        let result = SearchResult::new(
-            "test content".to_string(),
-            5,
-            vec![0, 1, 2],
-            10,
-        );
+        let result = SearchResult::new("test content".to_string(), 5, vec![0, 1, 2], 10);
         assert_eq!(result.text, "test content");
         assert_eq!(result.score, 5);
         assert_eq!(result.positions, vec![0, 1, 2]);
@@ -604,9 +625,7 @@ mod tests {
         let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
 
         // 创建 100 个匹配项
-        let items: Vec<String> = (0..100)
-            .map(|i| format!("test item {}", i))
-            .collect();
+        let items: Vec<String> = (0..100).map(|i| format!("test item {}", i)).collect();
 
         overlay.set_query("test".to_string(), &items);
 
@@ -618,9 +637,9 @@ mod tests {
     fn test_search_sorts_by_score() {
         let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
         let items = vec![
-            "the hello world".to_string(),   // 匹配在位置 4
-            "hello".to_string(),              // 匹配在位置 0（最佳）
-            "say hello rust".to_string(),     // 匹配在位置 4
+            "the hello world".to_string(), // 匹配在位置 4
+            "hello".to_string(),           // 匹配在位置 0（最佳）
+            "say hello rust".to_string(),  // 匹配在位置 4
         ];
 
         overlay.set_query("hello".to_string(), &items);
@@ -739,10 +758,7 @@ mod tests {
     #[test]
     fn test_navigation_wraparound_bounds() {
         let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
-        let items = vec![
-            "item1".to_string(),
-            "item2".to_string(),
-        ];
+        let items = vec!["item1".to_string(), "item2".to_string()];
         overlay.set_query("item".to_string(), &items);
 
         // 测试向下到达末尾不会越界

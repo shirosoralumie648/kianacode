@@ -50,7 +50,9 @@ fn parse_inline_markdown(line: &str) -> Line<'static> {
     let mut spans = Vec::new();
 
     // Handle list items
-    let (_indent, content) = if line.trim_start().starts_with("- ") || line.trim_start().starts_with("* ") {
+    let (_indent, content) = if line.trim_start().starts_with("- ")
+        || line.trim_start().starts_with("* ")
+    {
         let indent_count = line.len() - line.trim_start().len();
         let indent = " ".repeat(indent_count);
         spans.push(Span::raw(indent));
@@ -62,7 +64,10 @@ fn parse_inline_markdown(line: &str) -> Line<'static> {
             let indent = " ".repeat(indent_count);
             let num_part = &line.trim_start()[..line.trim_start().len() - stripped.len()];
             spans.push(Span::raw(indent));
-            spans.push(Span::styled(format!("{}. ", num_part), Style::default().fg(Color::Cyan)));
+            spans.push(Span::styled(
+                format!("{}. ", num_part),
+                Style::default().fg(Color::Cyan),
+            ));
             (indent_count + num_part.len() + 2, &stripped[2..])
         } else {
             (0, line)

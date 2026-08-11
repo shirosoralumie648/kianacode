@@ -118,7 +118,8 @@ impl SessionManager {
     pub fn new_session(&mut self) -> Result<String> {
         // Save current session
         self.save_session(&self.current)?;
-        self.history.insert(self.current.id.clone(), self.current.clone());
+        self.history
+            .insert(self.current.id.clone(), self.current.clone());
 
         // Create new session
         let new_id = Self::generate_id();
@@ -136,7 +137,8 @@ impl SessionManager {
         let new_id = format!("{}_fork", Self::generate_id());
         let forked = self.current.fork(new_id.clone());
 
-        self.history.insert(self.current.id.clone(), self.current.clone());
+        self.history
+            .insert(self.current.id.clone(), self.current.clone());
         self.current = forked;
         self.save_session(&self.current)?;
 
@@ -154,15 +156,14 @@ impl SessionManager {
         } else {
             // Try loading from disk if not in memory
             let path = self.session_path(id);
-            let contents = fs::read_to_string(&path)
-                .context("Session not found")?;
-            serde_json::from_str::<Session>(&contents)
-                .context("Failed to parse session")?
+            let contents = fs::read_to_string(&path).context("Session not found")?;
+            serde_json::from_str::<Session>(&contents).context("Failed to parse session")?
         };
 
         // Save current session
         self.save_session(&self.current)?;
-        self.history.insert(self.current.id.clone(), self.current.clone());
+        self.history
+            .insert(self.current.id.clone(), self.current.clone());
 
         // Switch to new session
         self.current = session;
@@ -171,7 +172,8 @@ impl SessionManager {
     }
 
     pub fn list_sessions(&self) -> Vec<(String, DateTime<Utc>)> {
-        let mut sessions: Vec<_> = self.history
+        let mut sessions: Vec<_> = self
+            .history
             .values()
             .map(|s| (s.id.clone(), s.created_at))
             .collect();

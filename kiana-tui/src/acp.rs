@@ -30,7 +30,11 @@ impl AcpClient {
 
         for attempt in 0..max_retries {
             if attempt > 0 {
-                tracing::warn!("Retrying ACP server spawn (attempt {}/{})", attempt + 1, max_retries);
+                tracing::warn!(
+                    "Retrying ACP server spawn (attempt {}/{})",
+                    attempt + 1,
+                    max_retries
+                );
                 thread::sleep(Duration::from_secs(1));
             }
 
@@ -40,13 +44,19 @@ impl AcpClient {
                     return Ok(client);
                 }
                 Err(e) => {
-                    tracing::error!("Failed to spawn ACP server (attempt {}): {}", attempt + 1, e);
+                    tracing::error!(
+                        "Failed to spawn ACP server (attempt {}): {}",
+                        attempt + 1,
+                        e
+                    );
                     last_error = Some(e);
                 }
             }
         }
 
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Failed to spawn ACP server after {} attempts", max_retries)))
+        Err(last_error.unwrap_or_else(|| {
+            anyhow::anyhow!("Failed to spawn ACP server after {} attempts", max_retries)
+        }))
     }
 
     fn try_spawn() -> Result<Self> {
@@ -81,8 +91,11 @@ impl AcpClient {
                     Ok(_) => {
                         if let Ok(message) = serde_json::from_str::<Value>(&line) {
                             // Check if it's a notification (has method but no id)
-                            let acp_msg = if message.get("method").is_some() && message.get("id").is_none() {
-                                let method = message["method"].as_str().unwrap_or("unknown").to_string();
+                            let acp_msg = if message.get("method").is_some()
+                                && message.get("id").is_none()
+                            {
+                                let method =
+                                    message["method"].as_str().unwrap_or("unknown").to_string();
                                 let params = message.get("params").cloned().unwrap_or(Value::Null);
                                 AcpMessage::Notification(method, params)
                             } else {

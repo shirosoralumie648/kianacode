@@ -14,7 +14,7 @@ pub struct Config {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    pub name: String,  // "anthropic" / "openai" / "ollama"
+    pub name: String, // "anthropic" / "openai" / "ollama"
     pub model: String,
 }
 
@@ -53,8 +53,7 @@ impl Default for Config {
 impl Config {
     /// Get the config file path (~/.kiana/config.toml)
     pub fn config_path() -> Result<PathBuf> {
-        let home = dirs::home_dir()
-            .context("Failed to get home directory")?;
+        let home = dirs::home_dir().context("Failed to get home directory")?;
         Ok(home.join(".kiana").join("config.toml"))
     }
 
@@ -82,12 +81,12 @@ impl Config {
 
         // Create directory if it doesn't exist
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create config directory: {}", parent.display())
+            })?;
         }
 
-        let contents = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
+        let contents = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
         fs::write(&path, contents)
             .with_context(|| format!("Failed to write config file: {}", path.display()))?;
@@ -99,7 +98,10 @@ impl Config {
     pub fn validate(&self) -> Result<()> {
         // Validate provider name
         if !["anthropic", "openai", "ollama"].contains(&self.provider.name.as_str()) {
-            anyhow::bail!("Invalid provider: {}. Must be one of: anthropic, openai, ollama", self.provider.name);
+            anyhow::bail!(
+                "Invalid provider: {}. Must be one of: anthropic, openai, ollama",
+                self.provider.name
+            );
         }
 
         // Validate model name is not empty
