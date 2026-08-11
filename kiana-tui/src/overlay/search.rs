@@ -88,13 +88,14 @@ impl SearchOverlay {
         self.perform_search(items);
     }
 
-    /// 执行搜索（占位符实现）
+    /// 执行搜索并更新结果列表
     ///
-    /// 在完整实现中，此方法会：
-    /// 1. 根据 mode 决定搜索范围
+    /// 该方法会：
+    /// 1. 根据 mode 决定搜索范围（当前仅支持 UserInputs，未来可扩展）
     /// 2. 对每个项目调用 calculate_match_score
     /// 3. 收集并排序结果
-    /// 4. 更新 self.results
+    /// 4. 限制结果数量到 50 条
+    /// 5. 更新 self.results
     fn perform_search(&mut self, items: &[String]) {
         self.results.clear();
         self.selected_index = 0;
@@ -117,7 +118,25 @@ impl SearchOverlay {
         // 按分数排序（越小越好）
         matches.sort_by_key(|r| r.score);
 
+        // 限制结果数量到 50 条
+        matches.truncate(50);
+
         self.results = matches;
+    }
+
+    /// 更新搜索查询并重新执行搜索
+    pub fn update_query(&mut self, query: String, items: &[String]) {
+        self.query = query;
+        self.perform_search(items);
+    }
+
+    /// 切换搜索模式
+    pub fn toggle_mode(&mut self, items: &[String]) {
+        self.mode = match self.mode {
+            SearchMode::UserInputs => SearchMode::AllMessages,
+            SearchMode::AllMessages => SearchMode::UserInputs,
+        };
+        self.perform_search(items);
     }
 
     /// 向上移动选择
@@ -351,6 +370,104 @@ mod tests {
 
         let action = overlay.handle_key(up);
         assert_eq!(action, OverlayAction::Continue);
+        assert_eq!(overlay.selected_index(), 0);
+    }
+
+    #[test]
+    fn test_update_query() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec![
+            "hello world".to_string(),
+            "goodbye world".to_string(),
+            "hello rust".to_string(),
+        ];
+
+        overlay.update_query("hello".to_string(), &items);
+        assert_eq!(overlay.query(), "hello");
+        assert_eq!(overlay.results().len(), 2);
+        assert_eq!(overlay.results()[0].text, "hello world");
+        assert_eq!(overlay.results()[1].text, "hello rust");
+    }
+
+    #[test]
+    fn test_toggle_mode() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        assert_eq!(overlay.mode(), SearchMode::UserInputs);
+
+        let items = vec!["test".to_string()];
+        overlay.toggle_mode(&items);
+        assert_eq!(overlay.mode(), SearchMode::AllMessages);
+
+        overlay.toggle_mode(&items);
+        assert_eq!(overlay.mode(), SearchMode::UserInputs);
+    }
+
+    #[test]
+    fn test_search_results_limited_to_50() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+
+        // 创建 100 个匹配项
+        let items: Vec<String> = (0..100)
+            .map(|i| format!("test item {}", i))
+            .collect();
+
+        overlay.set_query("test".to_string(), &items);
+
+        // 结果应该被限制在 50 条
+        assert_eq!(overlay.results().len(), 50);
+    }
+
+    #[test]
+    fn test_search_sorts_by_score() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec![
+            "the hello world".to_string(),   // 匹配在位置 4
+            "hello".to_string(),              // 匹配在位置 0（最佳）
+            "say hello rust".to_string(),     // 匹配在位置 4
+        ];
+
+        overlay.set_query("hello".to_string(), &items);
+
+        // 结果应该按分数排序（分数越低越好）
+        assert_eq!(overlay.results().len(), 3);
+        // "hello" 应该排在第一位（分数为 0）
+        assert_eq!(overlay.results()[0].text, "hello");
+        assert_eq!(overlay.results()[0].score, 0);
+        // 其他两个应该有更高的分数
+        assert!(overlay.results()[1].score > 0);
+        assert!(overlay.results()[2].score > 0);
+    }
+
+    #[test]
+    fn test_update_query_resets_selection() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec![
+            "item1".to_string(),
+            "item2".to_string(),
+            "item3".to_string(),
+        ];
+
+        overlay.set_query("item".to_string(), &items);
+        overlay.select_next();
+        overlay.select_next();
+        assert_eq!(overlay.selected_index(), 2);
+
+        // 更新查询应该重置选择索引
+        overlay.update_query("item2".to_string(), &items);
+        assert_eq!(overlay.selected_index(), 0);
+    }
+
+    #[test]
+    fn test_toggle_mode_resets_selection() {
+        let mut overlay = SearchOverlay::new(SearchMode::UserInputs);
+        let items = vec!["item1".to_string(), "item2".to_string()];
+
+        overlay.set_query("item".to_string(), &items);
+        overlay.select_next();
+        assert_eq!(overlay.selected_index(), 1);
+
+        // 切换模式应该重置选择索引
+        overlay.toggle_mode(&items);
         assert_eq!(overlay.selected_index(), 0);
     }
 }
