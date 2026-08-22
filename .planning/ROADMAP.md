@@ -16,7 +16,7 @@
 ## 当前里程碑：v0.3
 
 - [x] **Phase 1: Role catalog + policy** — `planning/pm`、`planning/architect`、`executing/builder`；policy 认 role
-- [ ] **Phase 2: Independent Builder spawn** — packet 是唯一输入；新 session，不复制编排器 transcript
+- [x] **Phase 2: Independent Builder spawn** — packet 是唯一输入；新 session，不复制编排器 transcript
 - [ ] **Phase 3: One bounded symposium** — PM+Architect，硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
 - [ ] **Phase 4: Eval + install** — 黄金路径 eval 与安装/升级/回滚跑 demo（可后做，不阻塞 Phase 1–3）
 
@@ -43,6 +43,8 @@
 1. 派 Builder = 新 session；不复制编排器 transcript。
 2. Work packet 是工人唯一输入。
 3. 不把 TeamCreate/SendMessage 接成产品总线。
+
+**Plans:** 已执行。验证：`.planning/phases/6-VERIFICATION.md`。证明级别 `local_behavior`。CLI 是 `kiana run --packet <path>`；packet 不能和 prompt / `--continue` / `--cancel` / `--receipt` 混用。同核证明在 in-process DaemonHost。
 
 ### Phase 3: One bounded symposium
 

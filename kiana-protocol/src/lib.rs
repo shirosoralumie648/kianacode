@@ -2,8 +2,9 @@
 
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
-    ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, PermissionProfile, RequestId,
-    RoleSpec, RunId, SessionId, DEPARTMENT_EXECUTING, ROLE_BUILDER,
+    normalize_role_path, ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus,
+    PermissionProfile, RequestId, RoleSpec, RunId, SessionId, WorkPacket, DEPARTMENT_EXECUTING,
+    ROLE_BUILDER, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -133,6 +134,14 @@ impl RequestEnvelope {
         }
     }
 
+    pub fn spawn(metadata: RequestMetadata, packet: WorkPacket, sandbox: Option<String>) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Spawn(SpawnRequest { packet, sandbox }),
+        }
+    }
+
     pub fn receipt(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
@@ -151,6 +160,7 @@ pub enum RequestBody {
     Continue(ContinueRequest),
     Cancel(CancelRequest),
     Receipt(ReceiptRequest),
+    Spawn(SpawnRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -193,6 +203,13 @@ pub struct CancelRequest {
 pub struct ReceiptRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SpawnRequest {
+    pub packet: WorkPacket,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -335,5 +352,28 @@ mod tests {
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             receipt_request
         );
+    }
+
+    #[test]
+    fn spawn_envelope_round_trips_packet_without_transcript() {
+        let mut metadata = RequestMetadata::local("builder-1", "/repo");
+        metadata.project_trusted = true;
+        metadata.assign_role(&RoleSpec::builder());
+        let packet = WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt");
+        let request =
+            RequestEnvelope::spawn(metadata, packet.clone(), Some("workspace-write".to_owned()));
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["type"], "spawn");
+        assert_eq!(encoded["body"]["request"]["packet"]["id"], "wp-1");
+        assert_eq!(
+            encoded["body"]["request"]["packet"]["schema"],
+            WORK_PACKET_SCHEMA
+        );
+        assert!(encoded["body"]["request"].get("prompt").is_none());
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
+        );
+        assert!(!packet.as_prompt().contains("PLANNER_SECRET_TOKEN"));
     }
 }

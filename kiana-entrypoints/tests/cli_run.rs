@@ -26,6 +26,23 @@ fn apply_patch_cassette_for(path: &str) -> String {
     )
 }
 
+fn write_builder_packet(root: &Path) {
+    fs::create_dir_all(root.join("packet")).unwrap();
+    fs::write(
+        root.join("packet").join("TASK.json"),
+        r#"{
+  "schema": "kiana.work-packet.v1",
+  "id": "wp-1",
+  "from_department": "planning",
+  "to_department": "executing",
+  "assignee_role": "builder",
+  "goal": "create GOLDEN_PATH.txt containing hello",
+  "path_allow": ["GOLDEN_PATH.txt"]
+}"#,
+    )
+    .unwrap();
+}
+
 fn unique_dir(label: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -422,6 +439,142 @@ fn tui_without_tty_is_not_the_product_path() {
     );
     assert!(!text.contains("harness: kiana-harness"), "{text}");
     assert!(!text.contains("kiana-harness"), "{text}");
+}
+
+#[test]
+fn packet_spawn_creates_golden_path_without_prompt() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    write_builder_packet(&fixture);
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--sandbox",
+            "workspace-write",
+            "--packet",
+            "packet/TASK.json",
+        ],
+    );
+    assert!(output.status.success(), "{}", combined(&output));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["status"], "completed");
+    assert_eq!(response["output"]["role_id"], "builder");
+    assert_eq!(response["output"]["department_id"], "executing");
+    assert_eq!(response["output"]["work_packet_id"], "wp-1");
+    assert_eq!(response["output"]["input"], "work_packet");
+    assert_eq!(response["output"]["files_changed"][0], "GOLDEN_PATH.txt");
+    assert_eq!(
+        fs::read_to_string(fixture.join("GOLDEN_PATH.txt")).unwrap(),
+        "hello\n"
+    );
+}
+
+#[test]
+fn packet_unknown_path_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--sandbox",
+            "workspace-write",
+            "--packet",
+            "packet/MISSING.json",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("packet_not_found"),
+        "{}",
+        combined(&output)
+    );
+    assert!(!fixture.join("GOLDEN_PATH.txt").exists());
+}
+
+#[test]
+fn packet_with_prompt_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    write_builder_packet(&fixture);
+    let output = kiana_in(
+        &fixture,
+        &home,
+        &[
+            "run",
+            "--json",
+            "--packet",
+            "packet/TASK.json",
+            "--",
+            "also a prompt",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("packet_prompt_conflict"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn packet_role_pm_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    write_builder_packet(&fixture);
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--role",
+            "pm",
+            "--sandbox",
+            "workspace-write",
+            "--packet",
+            "packet/TASK.json",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("packet_role_must_be_builder"),
+        "{}",
+        combined(&output)
+    );
+    assert!(!fixture.join("GOLDEN_PATH.txt").exists());
+}
+
+#[test]
+fn packet_parent_path_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &["run", "--json", "--packet", "../secret.json"],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("packet_path_denied"),
+        "{}",
+        combined(&output)
+    );
 }
 
 #[test]

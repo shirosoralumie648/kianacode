@@ -108,6 +108,7 @@ impl DaemonHost {
             permission_profile: request.metadata.permission_profile,
             role_id: role.role_id,
             department_id: role.department_id,
+            work_packet_id: None,
         };
         let response = match request.body {
             RequestBody::Command(command) => {
@@ -128,6 +129,11 @@ impl DaemonHost {
             }
             RequestBody::Cancel(run) => self.core.cancel_run(context, run.run_id, run.reason).await,
             RequestBody::Receipt(receipt) => self.core.read_receipt(context, receipt.run_id).await,
+            RequestBody::Spawn(spawn) => {
+                self.core
+                    .spawn_from_packet(context, spawn.packet, spawn.sandbox)
+                    .await
+            }
         };
         match response {
             Ok(response) => {

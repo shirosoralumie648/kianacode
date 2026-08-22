@@ -106,6 +106,8 @@ pub struct RequestContext {
     pub role_id: String,
     #[serde(default = "default_department_id")]
     pub department_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_packet_id: Option<String>,
 }
 
 impl RequestContext {
@@ -119,6 +121,7 @@ impl RequestContext {
             permission_profile: PermissionProfile::Safe,
             role_id: default_role_id(),
             department_id: default_department_id(),
+            work_packet_id: None,
         }
     }
 
@@ -138,6 +141,7 @@ pub const ROLE_SANDBOX_WORKSPACE_WRITE: &str = "workspace-write";
 pub const PLANNING_PATH_CHARTER: &str = "charter";
 pub const PLANNING_PATH_PLAN: &str = "plan";
 pub const PLANNING_PATH_PACKET: &str = "packet";
+pub const WORK_PACKET_SCHEMA: &str = "kiana.work-packet.v1";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RoleSpec {
@@ -314,6 +318,98 @@ impl DepartmentSpec {
             .into_iter()
             .find(|department| department.department_id == department_id)
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct WorkPacket {
+    pub schema: String,
+    pub id: String,
+    #[serde(default = "default_from_department")]
+    pub from_department: String,
+    #[serde(default = "default_department_id")]
+    pub to_department: String,
+    #[serde(default = "default_role_id")]
+    pub assignee_role: String,
+    pub goal: String,
+    #[serde(default)]
+    pub path_allow: Vec<String>,
+    #[serde(default)]
+    pub acceptance: Vec<String>,
+    #[serde(default)]
+    pub forbidden: Vec<String>,
+}
+
+fn default_from_department() -> String {
+    DEPARTMENT_PLANNING.to_owned()
+}
+
+impl WorkPacket {
+    pub fn builder_task(id: impl Into<String>, goal: impl Into<String>) -> Self {
+        Self {
+            schema: WORK_PACKET_SCHEMA.to_owned(),
+            id: id.into(),
+            from_department: default_from_department(),
+            to_department: default_department_id(),
+            assignee_role: default_role_id(),
+            goal: goal.into(),
+            path_allow: Vec::new(),
+            acceptance: Vec::new(),
+            forbidden: Vec::new(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != WORK_PACKET_SCHEMA {
+            return Err("packet_invalid");
+        }
+        if self.id.trim().is_empty() {
+            return Err("packet_id_required");
+        }
+        if self.goal.trim().is_empty() {
+            return Err("packet_goal_required");
+        }
+        let role = RoleSpec::lookup(&self.assignee_role).ok_or("packet_role_unknown")?;
+        if role.role_id != ROLE_BUILDER {
+            return Err("packet_role_must_be_builder");
+        }
+        if role.department_id != DEPARTMENT_EXECUTING {
+            return Err("packet_department_must_be_executing");
+        }
+        let to = self.to_department.trim();
+        if !to.is_empty() && to != DEPARTMENT_EXECUTING {
+            return Err("packet_department_must_be_executing");
+        }
+        Ok(())
+    }
+
+    pub fn as_prompt(&self) -> String {
+        let mut lines = vec![
+            format!("Work packet {}", self.id.trim()),
+            format!(
+                "From: {} -> {}/{}",
+                self.from_department.trim(),
+                self.to_department.trim(),
+                self.assignee_role.trim()
+            ),
+            format!("Goal: {}", self.goal.trim()),
+        ];
+        push_packet_list(&mut lines, "Path allow", &self.path_allow);
+        push_packet_list(&mut lines, "Acceptance", &self.acceptance);
+        push_packet_list(&mut lines, "Forbidden", &self.forbidden);
+        lines.join("\n")
+    }
+}
+
+fn push_packet_list(lines: &mut Vec<String>, label: &str, values: &[String]) {
+    let values: Vec<_> = values
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .collect();
+    if values.is_empty() {
+        return;
+    }
+    lines.push(format!("{label}: {}", values.join(", ")));
 }
 
 pub fn normalize_role_path(path: &str) -> Option<String> {
@@ -657,6 +753,24 @@ mod tests {
         let context = RequestContext::local("session-1", "/repo");
         assert_eq!(context.role_id, ROLE_BUILDER);
         assert_eq!(context.department_id, DEPARTMENT_EXECUTING);
+        assert_eq!(context.work_packet_id, None);
+    }
+
+    #[test]
+    fn work_packet_prompt_is_only_packet_fields() {
+        let mut packet =
+            WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt containing hello");
+        packet.path_allow = vec!["GOLDEN_PATH.txt".to_owned()];
+        packet.acceptance = vec!["file exists".to_owned()];
+        packet.validate().unwrap();
+        let prompt = packet.as_prompt();
+        assert!(prompt.contains("Work packet wp-1"));
+        assert!(prompt.contains("Goal: create GOLDEN_PATH.txt containing hello"));
+        assert!(prompt.contains("Path allow: GOLDEN_PATH.txt"));
+        assert!(!prompt.contains("PLANNER_SECRET_TOKEN"));
+        let mut architect = packet.clone();
+        architect.assignee_role = ROLE_ARCHITECT.to_owned();
+        assert_eq!(architect.validate(), Err("packet_role_must_be_builder"));
     }
 
     #[test]

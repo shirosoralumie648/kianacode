@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
+    WorkPacket,
 };
 use serde_json::Value;
 
@@ -92,6 +93,17 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::receipt(metadata, run_id))
+            .await
+    }
+
+    pub async fn spawn(
+        &self,
+        metadata: RequestMetadata,
+        packet: WorkPacket,
+        sandbox: Option<String>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::spawn(metadata, packet, sandbox))
             .await
     }
 }

@@ -3,7 +3,7 @@
 use kiana_domain::{
     ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
     CapabilityResult, CommandIntent, CoreResponse, ExecutionStatus, GateDecision,
-    PermissionProfile, RequestContext, RiskLevel, RoleSpec, RunId, RuntimeEvent,
+    PermissionProfile, RequestContext, RiskLevel, RoleSpec, RunId, RuntimeEvent, WorkPacket,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -349,6 +349,42 @@ impl ControlPlane {
                 })
             }
         }
+    }
+
+    pub async fn spawn_from_packet(
+        &self,
+        mut context: RequestContext,
+        packet: WorkPacket,
+        sandbox: Option<String>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        if let Err(reason) = packet.validate() {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({ "reason": reason, "command": "run.spawn" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+        if self.session_known(context.session_id.as_str()) {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({
+                    "reason": "spawn_session_not_fresh",
+                    "command": "run.spawn",
+                    "session_id": context.session_id,
+                }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "spawn_session_not_fresh"));
+        }
+        context.assign_role(&RoleSpec::builder());
+        context.work_packet_id = Some(packet.id.clone());
+        self.start_run(context, packet.as_prompt(), sandbox).await
     }
 
     pub async fn start_run(
@@ -1001,6 +1037,13 @@ impl ControlPlane {
             .ok_or("session_not_found")
     }
 
+    fn session_known(&self, session_id: &str) -> bool {
+        self.sessions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains_key(session_id)
+    }
+
     fn remember_session(&self, session_id: &str, run_id: RunId) {
         self.sessions
             .lock()
@@ -1079,16 +1122,19 @@ impl ControlPlane {
 
 fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value {
     let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
-    json!({
-        "schema": RUN_RESULT_SCHEMA,
-        "run_id": run_id,
-        "session_id": context.session_id,
-        "harness": HARNESS_ID,
-        "sandbox": sandbox,
-        "role_id": worker.role_id,
-        "department_id": worker.department_id,
-        "prompt_hash": worker.prompt_hash,
-    })
+    with_work_packet(
+        json!({
+            "schema": RUN_RESULT_SCHEMA,
+            "run_id": run_id,
+            "session_id": context.session_id,
+            "harness": HARNESS_ID,
+            "sandbox": sandbox,
+            "role_id": worker.role_id,
+            "department_id": worker.department_id,
+            "prompt_hash": worker.prompt_hash,
+        }),
+        context,
+    )
 }
 
 fn receipt_from_events(
@@ -1099,19 +1145,35 @@ fn receipt_from_events(
     events: &[RuntimeEvent],
 ) -> Value {
     let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
-    json!({
-        "schema": RUN_RESULT_SCHEMA,
-        "run_id": run_id,
-        "session_id": context.session_id,
-        "harness": HARNESS_ID,
-        "sandbox": sandbox,
-        "role_id": worker.role_id,
-        "department_id": worker.department_id,
-        "prompt_hash": worker.prompt_hash,
-        "files_changed": files_changed_from_events(events),
-        "capabilities": capabilities_from_events(events),
-        "output": output,
-    })
+    with_work_packet(
+        json!({
+            "schema": RUN_RESULT_SCHEMA,
+            "run_id": run_id,
+            "session_id": context.session_id,
+            "harness": HARNESS_ID,
+            "sandbox": sandbox,
+            "role_id": worker.role_id,
+            "department_id": worker.department_id,
+            "prompt_hash": worker.prompt_hash,
+            "files_changed": files_changed_from_events(events),
+            "capabilities": capabilities_from_events(events),
+            "output": output,
+        }),
+        context,
+    )
+}
+
+fn with_work_packet(mut receipt: Value, context: &RequestContext) -> Value {
+    if let Some(work_packet_id) = context
+        .work_packet_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        receipt["work_packet_id"] = json!(work_packet_id);
+        receipt["input"] = json!("work_packet");
+    }
+    receipt
 }
 
 fn filter_run_events(

@@ -3,7 +3,7 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
     ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
-    RoleSpec, RunId,
+    RoleSpec, RunId, SessionId, WorkPacket,
 };
 use kiana_runner::{
     KianaHarness, ModelClient, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
@@ -70,6 +70,28 @@ fn temp_project() -> PathBuf {
 fn scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
     let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()));
     Arc::new(DaemonHost::with_harness(harness).expect("daemon with kiana harness"))
+}
+
+struct CapturingModel {
+    inner: ScriptedModel,
+    seen: Mutex<Vec<ModelRequest>>,
+}
+
+impl CapturingModel {
+    fn from_json(outputs: serde_json::Value) -> Arc<Self> {
+        Arc::new(Self {
+            inner: ScriptedModel::from_json(&outputs).unwrap(),
+            seen: Mutex::new(Vec::new()),
+        })
+    }
+}
+
+#[async_trait]
+impl ModelClient for CapturingModel {
+    async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+        self.seen.lock().unwrap().push(request.clone());
+        self.inner.complete(request).await
+    }
 }
 
 #[test]
@@ -605,4 +627,105 @@ async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
     let log = fs::read_to_string(&events).unwrap();
     assert!(log.contains(&first_run_id));
     assert_eq!(log.matches("run.completed").count(), 2);
+}
+
+#[tokio::test]
+async fn spawn_builder_from_packet_does_not_copy_planner_transcript() {
+    let root = temp_project();
+    let mut outputs = apply_patch_cassette().as_array().cloned().unwrap();
+    outputs.insert(0, json!({"text": "planned"}));
+    let model = CapturingModel::from_json(json!(outputs));
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut planner = trusted_write_metadata_in(&root);
+    planner.session_id = SessionId::new("planner-1");
+    planner.assign_role(&RoleSpec::pm());
+    let planned = client
+        .run(
+            planner,
+            "PLANNER_SECRET_TOKEN write a packet",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(planned.status, ExecutionStatus::Completed, "{planned:?}");
+
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-1");
+    let packet = WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt containing hello");
+    let spawned = client
+        .spawn(builder, packet, Some("workspace-write".to_owned()))
+        .await
+        .unwrap();
+    assert_eq!(spawned.status, ExecutionStatus::Completed, "{spawned:?}");
+    assert_eq!(spawned.output["session_id"], "builder-1");
+    assert_ne!(spawned.output["session_id"], planned.output["session_id"]);
+    assert_eq!(spawned.output["role_id"], "builder");
+    assert_eq!(spawned.output["department_id"], "executing");
+    assert_eq!(spawned.output["work_packet_id"], "wp-1");
+    assert_eq!(spawned.output["input"], "work_packet");
+    assert_eq!(spawned.output["files_changed"][0], "GOLDEN_PATH.txt");
+    assert_eq!(
+        fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
+        "hello\n"
+    );
+
+    let seen = model.seen.lock().unwrap();
+    assert!(seen.len() >= 2, "{seen:?}");
+    let planner_text: String = seen[0]
+        .messages
+        .iter()
+        .filter(|message| message.role == ModelRole::User)
+        .map(|message| message.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        planner_text.contains("PLANNER_SECRET_TOKEN"),
+        "{planner_text}"
+    );
+    let builder_text: String = seen
+        .iter()
+        .skip(1)
+        .flat_map(|request| request.messages.iter())
+        .filter(|message| message.role == ModelRole::User)
+        .map(|message| message.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !builder_text.contains("PLANNER_SECRET_TOKEN"),
+        "{builder_text}"
+    );
+    assert!(builder_text.contains("Work packet wp-1"), "{builder_text}");
+    assert!(
+        builder_text.contains("Goal: create GOLDEN_PATH.txt containing hello"),
+        "{builder_text}"
+    );
+}
+
+#[tokio::test]
+async fn spawn_reuses_of_a_live_session_fail_closed() {
+    let root = temp_project();
+    let host = scripted_host(json!([
+        {"text": "first"},
+        {"text": "should not spawn"}
+    ]));
+    let client = KianaClient::new(InProcessTransport { host });
+    let started = client
+        .run(trusted_write_metadata_in(&root), "hello", None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let spawned = client
+        .spawn(
+            trusted_write_metadata_in(&root),
+            WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(spawned.status, ExecutionStatus::Blocked, "{spawned:?}");
+    assert_eq!(spawned.error.as_deref(), Some("spawn_session_not_fresh"));
 }

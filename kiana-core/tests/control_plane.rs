@@ -4,7 +4,8 @@ use kiana_core::ControlPlane;
 use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
     CapabilityRequest, CapabilityResult, CommandIntent, ExecutionStatus, PendingApproval,
-    PermissionProfile, RequestContext, RequestId, RuntimeEvent, APPROVAL_CHALLENGE_SCHEMA,
+    PermissionProfile, RequestContext, RequestId, RuntimeEvent, WorkPacket,
+    APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -567,6 +568,75 @@ async fn start_run_brokers_apply_patch_when_trusted_workspace_write() {
     assert_eq!(response.output["role_id"], "builder");
     assert_eq!(response.output["department_id"], "executing");
     assert_eq!(*broker.calls.lock().await, 1);
+}
+
+#[tokio::test]
+async fn spawn_from_packet_starts_a_fresh_builder_session() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "planned"},
+        {"text": "spawned from packet"}
+    ])));
+    let mut planner = trusted_context();
+    planner.session_id = kiana_domain::SessionId::new("planner-1");
+    planner.permission_profile = PermissionProfile::Balanced;
+    let planned = harness
+        .core
+        .start_run(
+            planner,
+            "PLANNER_SECRET_TOKEN write a packet".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(planned.status, ExecutionStatus::Completed);
+
+    let mut worker = trusted_context();
+    worker.session_id = kiana_domain::SessionId::new("builder-1");
+    worker.permission_profile = PermissionProfile::Balanced;
+    worker.assign_role(&kiana_domain::RoleSpec::pm());
+    let packet = WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt containing hello");
+    let spawned = harness
+        .core
+        .spawn_from_packet(worker, packet, Some("workspace-write".to_owned()))
+        .await
+        .unwrap();
+    assert_eq!(spawned.status, ExecutionStatus::Completed, "{spawned:?}");
+    assert_eq!(spawned.output["session_id"], "builder-1");
+    assert_ne!(spawned.output["session_id"], planned.output["session_id"]);
+    assert_eq!(spawned.output["role_id"], "builder");
+    assert_eq!(spawned.output["department_id"], "executing");
+    assert_eq!(spawned.output["work_packet_id"], "wp-1");
+    assert_eq!(spawned.output["input"], "work_packet");
+    assert_eq!(spawned.output["output"]["text"], "spawned from packet");
+}
+
+#[tokio::test]
+async fn spawn_reuses_of_a_live_session_fail_closed() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "first"},
+        {"text": "should not spawn"}
+    ])));
+    let mut context = trusted_context();
+    context.permission_profile = PermissionProfile::Balanced;
+    let started = harness
+        .core
+        .start_run(context.clone(), "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed);
+    let mut spawn_context = context;
+    spawn_context.request_id = RequestId::new();
+    let spawned = harness
+        .core
+        .spawn_from_packet(
+            spawn_context,
+            WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(spawned.status, ExecutionStatus::Blocked, "{spawned:?}");
+    assert_eq!(spawned.error.as_deref(), Some("spawn_session_not_fresh"));
 }
 
 #[tokio::test]

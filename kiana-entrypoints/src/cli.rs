@@ -325,13 +325,14 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect] [--packet <path>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
     let mut json_output = false;
     let mut sandbox: Option<String> = None;
     let mut role: Option<String> = None;
+    let mut packet_path: Option<String> = None;
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
     let mut receipt_id: Option<String> = None;
@@ -362,6 +363,17 @@ async fn run_main(args: &[String]) -> Result<()> {
             }
             value if value.starts_with("--role=") => {
                 role = Some(value.trim_start_matches("--role=").to_owned());
+            }
+            "--packet" => {
+                index += 1;
+                packet_path = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("packet_path_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--packet=") => {
+                packet_path = Some(value.trim_start_matches("--packet=").to_owned());
             }
             "--continue" => {
                 index += 1;
@@ -408,17 +420,30 @@ async fn run_main(args: &[String]) -> Result<()> {
         index += 1;
     }
 
-    let exclusive = u8::from(continue_id.is_some())
+    let exclusive = u8::from(packet_path.is_some())
+        + u8::from(continue_id.is_some())
         + u8::from(cancel_id.is_some())
         + u8::from(receipt_id.is_some());
     if exclusive > 1 {
         return Err(anyhow!(
-            "use only one of --continue, --cancel, or --receipt"
+            "use only one of --packet, --continue, --cancel, or --receipt"
         ));
     }
 
     let prompt = prompt_parts.join(" ");
-    if cancel_id.is_none() && receipt_id.is_none() && prompt.trim().is_empty() {
+    if let Some(path) = packet_path.as_deref().map(str::trim) {
+        if path.is_empty() {
+            return Err(anyhow!("packet_path_required"));
+        }
+        if !prompt.trim().is_empty() {
+            return Err(anyhow!("packet_prompt_conflict"));
+        }
+    }
+    if cancel_id.is_none()
+        && receipt_id.is_none()
+        && packet_path.is_none()
+        && prompt.trim().is_empty()
+    {
         return Err(anyhow!("prompt_required"));
     }
 
@@ -450,6 +475,9 @@ async fn run_main(args: &[String]) -> Result<()> {
         }
         let run_id = kiana_protocol::RunId::parse_str(&id);
         crate::harness_run::continue_envelope(id, prompt, run_id, &options).await?
+    } else if let Some(packet_path) = packet_path {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        crate::harness_run::spawn_envelope(session_id, packet_path, &options).await?
     } else {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::run_envelope(session_id, prompt, &options).await?
@@ -13961,7 +13989,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
-    println!("  kiana run [--json] [--role builder|pm|architect] <prompt>  Execute a prompt through the Kiana harness");
+    println!("  kiana run [--json] [--role builder|pm|architect] [--packet <path>] <prompt>  Execute a prompt or work packet through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");
