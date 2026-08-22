@@ -6,19 +6,19 @@
 ## 版本阶梯（后版本未打开）
 
 - [x] **v0.2 Runnable Local Agent**
-- [ ] **v0.3 Trusted Workbench + planning/executing + one symposium** ← 当前
-- [ ] **v0.4 Coding pack baseline**
+- [x] **v0.3 Trusted Workbench + planning/executing + one symposium**
+- [ ] **v0.4 Coding pack baseline** ← 当前
 - [ ] **v0.5 Five departments + six-layer RAG**
 - [ ] **v0.6 Extra surfaces, same core**
 - [ ] **v1.0 Personal complete product**
 - [ ] **v1.x Team / enterprise**
 
-## 当前里程碑：v0.3
+## 已完成：v0.3
 
 - [x] **Phase 1: Role catalog + policy** — `planning/pm`、`planning/architect`、`executing/builder`；policy 认 role
 - [x] **Phase 2: Independent Builder spawn** — packet 是唯一输入；新 session，不复制编排器 transcript
 - [x] **Phase 3: One bounded symposium** — PM+Architect，硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
-- [ ] **Phase 4: Eval + install** — 黄金路径 eval 与安装/升级/回滚跑 demo（可后做，不阻塞 Phase 1–3）
+- [x] **Phase 4: Eval + install** — cassette 黄金路径 + 临时 install demo；TUI 保持 park
 
 ### Phase 1: Role catalog + policy
 
@@ -67,6 +67,8 @@
 1. fixture + cassette：文件出现且收据可指。
 2. `install.sh` / release smoke 跑 v0.2/v0.3 demo。
 3. TUI 保持 park 或书面再迁。
+
+**Plans:** 已执行。验证：`.planning/phases/8-VERIFICATION.md`。证明级别 `local_behavior`。闸门是 `scripts/harness-golden-smoke.sh` + `scripts/v03-workbench-smoke.sh`（临时 `INSTALL_DIR`）。不是 `scripts/release-smoke.sh`，不是 live provider。
 
 ## 已完成：v0.2
 

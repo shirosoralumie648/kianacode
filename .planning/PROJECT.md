@@ -10,9 +10,9 @@
 
 ## Current Milestone
 
-**v0.3 Trusted Workbench + company kernel** — 规划部 + 执行部。Phase 1 已本地绿：RoleSpec 是派工单位，policy 认 `role_id` + `department_id`。默认工人仍是 `role=builder` / `department=executing`。下一期：独立 Builder spawn。
+**v0.3 Trusted Workbench + company kernel** — Phase 1–4 已本地绿：规划部 + 执行部交接、一场有界会、cassette eval、临时 install demo。默认工人仍是 `role=builder` / `department=executing`。`kiana tui` 保持 park。下一站：v0.4 Reviewer≠作者（`REV-01`）。
 
-后续：Phase 2 独立 Builder spawn → Phase 3 一次有界 Symposium → Phase 4 eval/安装 → v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
+后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
 
 ## Core Value
 

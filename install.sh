@@ -58,6 +58,18 @@ find_source_dir() {
     printf '%s\n' "$TMP_DIR/kiana"
 }
 
+copy_existing_bin() {
+    local src="$1"
+    if [[ ! -f "$src" ]]; then
+        echo "❌ 找不到二进制: $src" >&2
+        exit 1
+    fi
+    mkdir -p "$INSTALL_DIR"
+    cp "$src" "$INSTALL_DIR/kiana${EXE_EXT}"
+    chmod +x "$INSTALL_DIR/kiana${EXE_EXT}"
+    echo "✅ 使用已有二进制: $src"
+}
+
 build_from_source() {
     local source_dir="$1"
     echo "🔨 从源码编译..."
@@ -77,9 +89,23 @@ build_from_source() {
     echo "✅ 编译完成"
 }
 
-# 安装
-SOURCE_DIR="$(find_source_dir)"
-build_from_source "$SOURCE_DIR"
+if [[ -n "${KIANA_BIN:-}" ]]; then
+    copy_existing_bin "$KIANA_BIN"
+else
+    SOURCE_DIR="$(find_source_dir)"
+    if [[ "${KIANA_SKIP_BUILD:-0}" == "1" ]]; then
+        if [[ -x "$SOURCE_DIR/target/release/kiana${EXE_EXT}" ]]; then
+            copy_existing_bin "$SOURCE_DIR/target/release/kiana${EXE_EXT}"
+        elif [[ -x "$SOURCE_DIR/target/debug/kiana${EXE_EXT}" ]]; then
+            copy_existing_bin "$SOURCE_DIR/target/debug/kiana${EXE_EXT}"
+        else
+            echo "❌ KIANA_SKIP_BUILD=1 但找不到 target/release/kiana 或 target/debug/kiana；设置 KIANA_BIN 或先编译" >&2
+            exit 1
+        fi
+    else
+        build_from_source "$SOURCE_DIR"
+    fi
+fi
 
 # 设置 PATH
 setup_path() {
@@ -108,26 +134,42 @@ else
     setup_path
 fi
 
-# 验证安装
-doctor_output="$("$INSTALL_DIR/kiana${EXE_EXT}" doctor 2>&1 || true)"
-if "$INSTALL_DIR/kiana${EXE_EXT}" --version &> /dev/null && grep -q "Doctor" <<<"$doctor_output"; then
-    echo ""
-    echo "🎉 安装成功！"
-    echo ""
-    echo "📝 下一步:"
-    echo "   1. 初始化配置文件（可选）:"
-    echo "      kiana config init"
-    echo ""
-    echo "   2. 设置 API key（二选一）:"
-    echo "      export ANTHROPIC_API_KEY=\"your-key\""
-    echo "      kiana login \"your-key\""
-    echo ""
-    echo "   3. 启动 Kiana:"
-    echo "      kiana"
-    echo ""
-    echo "💡 首次使用？查看快速入门:"
-    echo "   https://github.com/kiana-project/kiana#quickstart"
-else
-    echo "❌ 安装验证失败"
+installed="$INSTALL_DIR/kiana${EXE_EXT}"
+doctor_output="$("$installed" doctor 2>&1 || true)"
+run_help="$("$installed" run --help 2>&1 || true)"
+
+if ! "$installed" --version &> /dev/null; then
+    echo "❌ 安装验证失败: --version"
     exit 1
 fi
+if ! grep -q "Doctor" <<<"$doctor_output"; then
+    echo "❌ 安装验证失败: doctor"
+    exit 1
+fi
+if ! grep -q -- "--symposium" <<<"$run_help"; then
+    echo "❌ 安装验证失败: kiana run --help 缺少 --symposium"
+    exit 1
+fi
+if ! grep -q -- "--packet" <<<"$run_help"; then
+    echo "❌ 安装验证失败: kiana run --help 缺少 --packet"
+    exit 1
+fi
+
+echo ""
+echo "🎉 安装成功！"
+echo ""
+echo "📝 下一步（v0.3 demo，受信仓库）:"
+echo "   1. kiana trust ."
+echo ""
+echo "   2. 规划会（anti-meeting 可跳过辩论，仍写出决议和包）:"
+echo "      kiana run --symposium --anti-meeting --sandbox workspace-write --json -- \"create GOLDEN_PATH.txt containing hello\""
+echo ""
+echo "   3. 独立 Builder 消费 packet:"
+echo "      kiana run --packet packet/TASK.json --sandbox workspace-write --json"
+echo ""
+echo "   4. v0.2 回归仍可用:"
+echo "      kiana run --sandbox workspace-write -- \"create GOLDEN_PATH.txt containing hello\""
+echo ""
+echo "💡 cassette 黄金路径: bash scripts/harness-golden-smoke.sh"
+echo "   kiana tui 在 v0.2 已 park，不是产品路径。"
+echo "   证明上限 local_behavior；live provider 不是安装完成条件。"

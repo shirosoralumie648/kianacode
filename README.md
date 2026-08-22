@@ -2,7 +2,7 @@
 
 Local-first agent **company OS**: PMP process groups are departments, roles have independent context/prompts/ACL, departments may hold bounded symposiums, memory is layered RAG.
 
-当前执行里程碑是 **v0.3：规划部 + 执行部**。v0.2 黄金路径仍必须绿（`kiana run` / print → daemon → `KianaHarness`，默认工人是执行部 Builder）。`kiana tui` **park**：仍走 legacy SDK/stream，不是产品路径。
+v0.3（规划部 + 执行部 + 一场有界会 + cassette eval/install demo）已本地绿。v0.2 黄金路径仍必须绿（`kiana run` / print → daemon → `KianaHarness`，默认工人是执行部 Builder）。`kiana tui` **park**：仍走 legacy SDK/stream，不是产品路径。下一站是 v0.4 Reviewer≠作者。
 
 从 0 到完整产品的方案（按 `reference/` 中 coding agent 的 git 顺序 + 公司编制）在：
 
@@ -11,13 +11,36 @@ Local-first agent **company OS**: PMP process groups are departments, roles have
 - [PROCESS.md](PROCESS.md) — git 证据、外环站、内环 SOP
 - [PHASES.md](PHASES.md) — 每一期做什么、改哪些 crate、对照哪些 reference 文件
 
-这不是 1.0 声明。Claude Code / Desktop / 企业是北星，必须按阶梯打开。
+这不是 1.0 声明。Claude Code / Desktop / 企业是北星，必须按阶梯打开。证明上限本里程碑是 `local_behavior`。
 
 ```bash
-# after a real provider is configured and the repo is trusted
+# after the repo is trusted
 kiana trust .
+
+# v0.3 planning symposium (anti-meeting skips debate, still writes artifacts)
+kiana run --symposium --anti-meeting --sandbox workspace-write --json -- \
+  "create GOLDEN_PATH.txt containing hello"
+# plan/DECISION.json + packet/TASK.json; Builder is not seated
+
+# independent Builder consumes the packet
+kiana run --packet packet/TASK.json --sandbox workspace-write --json
+
+# v0.2 Builder direct-write still works
 kiana run --sandbox workspace-write -- "create GOLDEN_PATH.txt containing hello"
-kiana run --role pm --sandbox workspace-write -- "write plan/WORK.md"
+```
+
+CI / local cassette eval (not a live provider):
+
+```bash
+bash scripts/harness-golden-smoke.sh
+bash scripts/v03-workbench-smoke.sh
+```
+
+Install demo (temp dir; does not claim `~/.local/bin` production-ready):
+
+```bash
+INSTALL_DIR=/tmp/kiana-phase4-bin KIANA_SKIP_PATH_SETUP=1 KIANA_SKIP_BUILD=1 \
+  KIANA_BIN=target/debug/kiana bash install.sh
 ```
 
 License: MIT OR Apache-2.0.
