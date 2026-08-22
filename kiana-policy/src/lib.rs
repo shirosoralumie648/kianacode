@@ -47,9 +47,19 @@ impl PolicyEngine for DefaultPolicyEngine {
                     }
                 }
             }
-            RiskLevel::ExternalSideEffect => PolicyDecision::Ask {
-                reason: "external_side_effect_requires_approval".to_owned(),
-            },
+            RiskLevel::ExternalSideEffect => {
+                if request.operation == "mcp.call"
+                    && !matches!(context.permission_profile, PermissionProfile::Safe)
+                {
+                    PolicyDecision::Allow {
+                        authorization_id: format!("policy:{}", request.request_id),
+                    }
+                } else {
+                    PolicyDecision::Ask {
+                        reason: "external_side_effect_requires_approval".to_owned(),
+                    }
+                }
+            }
             RiskLevel::Critical => PolicyDecision::Ask {
                 reason: "critical_action_requires_approval".to_owned(),
             },
@@ -106,6 +116,7 @@ fn harness_tool_name(operation: &str) -> Option<&'static str> {
     match operation {
         "apply_patch" | "file_change" => Some("apply_patch"),
         "shell.exec" | "shell" | "bash" | "exec" | "command_execution" => Some("shell"),
+        "mcp.call" | "mcp" => Some("mcp"),
         _ => None,
     }
 }
@@ -286,6 +297,60 @@ mod tests {
         ) {
             PolicyDecision::Deny { reason } => assert_eq!(reason, "role_unknown"),
             other => panic!("expected deny, got {other:?}"),
+        }
+    }
+
+    fn mcp_call() -> CapabilityRequest {
+        CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Network,
+            "mcp.call",
+            serde_json::json!({ "tool": "echo" }),
+        )
+        .with_risk(RiskLevel::ExternalSideEffect)
+    }
+
+    #[test]
+    fn trusted_builder_workspace_write_allows_mcp_call() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        assert!(matches!(
+            DefaultPolicyEngine.evaluate(&context, &mcp_call()),
+            PolicyDecision::Allow { .. }
+        ));
+    }
+
+    #[test]
+    fn untrusted_mcp_call_is_denied() {
+        let context = RequestContext::local("session-1", "/repo");
+        match DefaultPolicyEngine.evaluate(&context, &mcp_call()) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "project_untrusted"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reviewer_cannot_call_mcp() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        context.assign_role(&RoleSpec::reviewer());
+        match DefaultPolicyEngine.evaluate(&context, &mcp_call()) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_tool_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn read_only_mcp_call_still_asks() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        match DefaultPolicyEngine.evaluate(&context, &mcp_call()) {
+            PolicyDecision::Ask { reason } => {
+                assert_eq!(reason, "external_side_effect_requires_approval")
+            }
+            other => panic!("expected ask, got {other:?}"),
         }
     }
 }

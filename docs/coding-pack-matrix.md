@@ -1,9 +1,9 @@
 # Coding pack 公开行为矩阵（CODE-01）
 
 Date: 2026-08-23
-Status: **签字草稿**（v0.4 Phase 2）
-Proof: `local_behavior` documentation
-Companion: `.planning/phases/10-CONTEXT.md`、`PHASES.md` v0.4.1、`DESIGN.md` §4、`PROCESS.md` 站 9–10
+Status: **签字草稿**（v0.4 Phase 2）+ CODE-02 stdio **已绿**（v0.4 Phase 3）
+Proof: `local_behavior`
+Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.md`、`PHASES.md` v0.4.2、`DESIGN.md` §4
 
 本文件是 v1.0 `REL-03` 的审计底表。没有本表条目、owner、测试和证据的能力，不得计入 Coding pack 完成。
 
@@ -31,12 +31,12 @@ Companion: `.planning/phases/10-CONTEXT.md`、`PHASES.md` v0.4.1、`DESIGN.md` �
 
 | 标记 | 含义 |
 |---|---|
-| **已绿** | v0.2 / v0.3 / v0.4 Phase 1 已在 owned harness 上证明 |
+| **已绿** | v0.2 / v0.3 / v0.4 Phase 1–3 已在 owned harness 上证明 |
 | **文档本期** | 本 Phase 只进矩阵，不写代码 |
-| **矩阵后开** | 本草稿签字后才允许开实现；默认下一刀是 CODE-02 |
+| **矩阵后开** | 本草稿签字后才允许开实现；默认下一刀是 CODE-03 |
 | **冻结** | 直到声明的版本，或永远不做产品总线 |
 
-v0.4 Phase 2 **没有** 实现行。所有未绿能力在本 commit 里都不是代码。
+v0.4 Phase 3 只把 P0-MCP / CODE-02 的 **stdio** 打成已绿。HTTP MCP、skills、provider 仍不是代码完成。
 
 ### 0.3 对照源（只行为）
 
@@ -47,13 +47,13 @@ v0.4 Phase 2 **没有** 实现行。所有未绿能力在本 commit 里都不是
 | `reference/claude-code-rev-main/README.md` + `src/` **目录名** | 用户可见工具/命令名的存在证明 | dump，无 git；禁止搬源码 |
 | `reference/claude-code-main (2)/claude-code-main/` | 官方公开仓库的安装/插件叙事 | `LICENSE.md` = Anthropic 专有；无完整运行时源码 |
 | `reference/claude-code-rust` | 反面教材：第 1 天 v1.0.0 | 禁止当站序或完成定义 |
-| Codex / deepseek / pi / cline git（`PROCESS.md`） | MCP/skills **何时**进产品 | 不在本 Phase 实现 |
+| Codex / deepseek / pi / cline git（`PROCESS.md`） | MCP/skills **何时**进产品 | 不把 git 日期当完成 |
 
-两个 dump 无 git，不能当演进证据。Kiana 工人形状跟 Codex：模型只见 `shell` + `apply_patch`，副作用由 daemon broker。
+两个 dump 无 git，不能当演进证据。Kiana 工人形状跟 Codex：模型只见 `shell` + `apply_patch` + `mcp`，副作用由 daemon broker。
 
 ### 0.4 本草稿锁死的产品决策
 
-1. owned harness 保持两工具。不把 `kiana-tools` 50+ 接上当完成。
+1. owned harness 保持 broker 工具面：`shell` + `apply_patch` + `mcp`。不把 `kiana-tools` 50+ 接上当完成。
 2. P0 ≠ dump 工具数。Read/Grep/Glob 不是 P0；今天用 `shell` 搜。
 3. MCP 必须经 daemon broker 进 harness，禁止 `runner.rs` 当产品 MCP。
 4. Skills / hooks 必须经 harness + trust，加载器存在 ≠ 接到工人。
@@ -80,7 +80,7 @@ v0.4 Phase 2 **没有** 实现行。所有未绿能力在本 commit 里都不是
 | P0-ROLE | 每次 run 带角色与部门；默认执行部 Builder；规划角色不能写 src | COMPANY.md；本仓 v0.3 | 目录 `planning/pm` `planning/architect` `executing/builder` `monitoring/reviewer` | `kiana-domain` RoleSpec | Phase 1–3 CLI 测试 | 本仓 | P0 | 已绿 |
 | P0-REV | 作者 ≠ 评审；评审新 session；确定性门 | 教程 `/review` 只作行为名；COMPANY 监控部 | `kiana run --review <author_session_id>` 写 `gate/REVIEW.json`；不跑模型；不复制 transcript | `kiana-core`；`kiana-domain` | `.planning/phases/9-VERIFICATION.md` | 本仓 | P0 | 已绿 |
 | P0-ORCH | 独立上下文工人；packet 是唯一输入；规划会有界 | COMPANY.md；architect-loop；OpenSpec | `--packet` 新 session；`--symposium` PM+Architect 硬顶轮次；anti-meeting 可跳过 | `kiana-core`；`kiana-domain` | `.planning/phases/6,7,8-VERIFICATION.md` | 本仓 + 方法对照 | P0 | 已绿 |
-| P0-MCP | 作为 MCP **客户端** 发现/调用外部 server（stdio / HTTP）；工具经同一审批/沙箱 | 教程 `22-mcp.md`；Codex mcp-types 2025-05-02；deepseek `packages/mcp` 2026-07-07 | **缺口。** `kiana-services` 有 McpClient 类型；`kiana-tools/mcp_tool.rs` 与 `kiana-entrypoints/mcp.rs` 走 **legacy 注册表 / MCP server**。harness 模型看不见 MCP 工具 | 未来：daemon broker + `kiana-runner` 动态工具；禁止 `runner.rs` | 缺 harness 测试 | MCP 规范公开；实现对照 Codex/deepseek Apache/MIT，不对照 dump | P0 | 矩阵后开（CODE-02） |
+| P0-MCP | 作为 MCP **客户端** 发现/调用外部 server（stdio / HTTP）；工具经同一审批/沙箱 | 教程 `22-mcp.md`；Codex mcp-types 2025-05-02；deepseek `packages/mcp` 2026-07-07 | **stdio 已绿。** 模型工具 `mcp` → broker `mcp.call`。`KIANA_MCP_SERVERS_JSON`。HTTP → `mcp_transport_unsupported`。legacy `kiana-tools/mcp_tool.rs` 与 `kiana-entrypoints/mcp.rs` **仍不算产品路径** | `kiana-daemon` `harness_mcp.rs`；`kiana-runner` `tools.rs`；`kiana-policy` | `.planning/phases/11-VERIFICATION.md`；`trusted_builder_stdio_mcp_echoes_through_daemon` | MCP 规范公开；实现对照 Codex/deepseek Apache/MIT，不对照 dump | P0 | 已绿（stdio）；HTTP 仍后开 |
 | P0-SKILL | 项目/用户 Skill 对工人可见；trust 决定项目 Skill；按需加载 | 教程 `26-agent-skills.md`；`reference/skills` | **加载器在、harness 未接。** `kiana-skills` 已按 cwd/trust/plugin 缓存 | `kiana-skills` → 接到 `kiana-runner` / daemon | 有 crate 测试，无 harness 产品证据 | Agent Skills 公开用法可借鉴；dump SkillTool 禁止搬 | P0 | 矩阵后开（CODE-03） |
 | P0-HOOK | pre/post tool、stop、session 钩子能拦或续；失败可见 | 教程 `33-hooks.md`；deepseek `packages/hooks` | `kiana-query` 有 stop/pre/post hook 编排，**未证明在 KianaHarness 产品路径上** | `kiana-query` → harness | query 单测 ≠ 产品 | 行为对照 | P0 | 矩阵后开（CODE-03） |
 | P0-PROV | 多供应商能力差必须显式报告/降级，禁止静默装等价 | 教程 `05-third-party-models.md`；OpenHands provider settings；12-factor #2/#3 | `kiana-services` 有 Anthropic / OpenAI-compatible / Ollama 与 `UnsupportedCapability`。**`kiana run` 未向用户证明**「该供应商缺 tools/streaming」 | `kiana-services`；`kiana-daemon/src/model_client.rs` | provider 单测有 unsupported_tools；无 CLI 产品证据 | 本仓 + 行为对照 | P0 | 矩阵后开（CODE-04） |
@@ -114,7 +114,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 
 | ID | 公开行为 | 实现约束（签字） | 参考（实现形状，不抄 dump） | 是否本期 |
 |---|---|---|---|---|
-| CODE-02 | MCP client | 发现、列出工具、调用、错误、权限全走 daemon broker。stdio 默认本地进程；HTTP 远程。SSE 不作为新默认。第一次调用要审批。失败码可见。**禁止** `kiana-entrypoints/src/runner.rs` 接 MCP。**禁止**把 `kiana-tools/mcp_tool.rs` 标成完成 | Codex `codex-rs/codex-mcp` + `scripts/mcp_conformance/`；deepseek `packages/mcp`；cline `extensions/mcp`；continue `mcpToolName.ts`；orca inspector | 矩阵后开 |
+| CODE-02 | MCP client | 发现、列出工具、调用、错误、权限全走 daemon broker。stdio 默认本地进程；HTTP 远程。SSE 不作为新默认。第一次调用要审批。失败码可见。**禁止** `kiana-entrypoints/src/runner.rs` 接 MCP。**禁止**把 `kiana-tools/mcp_tool.rs` 标成完成 | Codex `codex-rs/codex-mcp` + `scripts/mcp_conformance/`；deepseek `packages/mcp`；cline `extensions/mcp`；continue `mcpToolName.ts`；orca inspector | 已绿（stdio）；HTTP 仍 `mcp_transport_unsupported` |
 | CODE-03 | Skills / hooks | Skill 可见性跟 ProjectTrust；用户/bundled 在未信任时仍可；项目 `.claude/skills` 或 Kiana 等价目录未信任 withhold。接到 harness 工具面或 prompt 装配。Hooks fail-closed。ECC / awesome-agent-skills 是目录不是运行时 | `reference/skills`；deepseek `packages/skill` `packages/hooks`；pi extensions；gstack `SKILL.md` | 矩阵后开（MCP 之后） |
 | CODE-04 | Provider 显式降级 | Anthropic / OpenAI-compatible / Ollama：缺 tools 或 streaming 必须在 `kiana run --json` 里出现机器可读错误，不能空转成功 | 本仓 `ProviderError::UnsupportedCapability`；OpenHands provider settings；pi reasoning-token；aider `models.py` | 矩阵后开（可与 MCP 后并行） |
 
@@ -147,7 +147,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | ID | 行为 / 目录 | 为什么冻 | 直到 |
 |---|---|---|---|
 | FZ-TEAM | dump `TeamCreateTool` `SendMessageTool`；本仓 `kiana-coordinator` | 自由群聊总线。跨部门只交 packet | **永远**不当产品总线 |
-| FZ-TOOLS | 把 `kiana-tools` 50+ 接到 harness | 完成定义会变成工具数。owned harness 是 Codex 两工具 + broker | 永远不按「接上」完成；单点能力走 broker |
+| FZ-TOOLS | 把 `kiana-tools` 50+ 接到 harness | 完成定义会变成工具数。owned harness 是 Codex 形 broker 工具面（`shell` + `apply_patch` + `mcp`） | 永远不按「接上」完成；单点能力走 broker |
 | FZ-DUMP | `reference/claude-code-rev-main/src/**` 当实现 | 无 git 的还原树；许可证不清 | 永远只许模块名对照 |
 | FZ-CCMAIN | `reference/claude-code-main (2)` 源码复用 | Anthropic Commercial ToS | 永远只许公开 README/插件叙事 |
 | FZ-CCRUST | `reference/claude-code-rust` 站序 | 第 1 天发布 v1.0.0 再修编译再补 MCP | 永远当反面教材 |
@@ -167,15 +167,15 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 
 | 顺序 | 站 | 需求 | 用户可见完成 | 不做什么 |
 |---|---|---|---|---|
-| 下一刀 | v0.4.2 | CODE-02 | `kiana run` 的工人能经 daemon 调一个本地 stdio MCP；未信任 deny；JSON 标明 harness + mcp | 市场、SSO、把 legacy mcp_tool 打勾 |
-| 然后 | v0.4.3 | CODE-03 | 受信项目的一条 Skill 出现在 harness 上下文或工具面；未信任项目 Skill 不出现；至少一种 stop/pre hook 可拦 | 把 awesome-agent-skills 当运行时 |
+| 已完成 | v0.4.2 | CODE-02 | `kiana run` 的工人能经 daemon 调一个本地 stdio MCP；未信任 deny；JSON 标明 harness + mcp | 市场、SSO、把 legacy mcp_tool 打勾 |
+| 下一刀 | v0.4.3 | CODE-03 | 受信项目的一条 Skill 出现在 harness 上下文或工具面；未信任项目 Skill 不出现；至少一种 stop/pre hook 可拦 | 把 awesome-agent-skills 当运行时 |
 | 然后或并行 | v0.4.4 | CODE-04 | 不支持 tools 的 provider profile → 机器可读失败，不写盘、不假成功 | live 矩阵当完成 |
 | 仅当需要 | v0.4.5 | P1-READ | 结构化 Grep/Glob/Read 走 broker + 同一 sandbox | 50-tool 注册表 |
 | 再然后 | v0.5 | LONG/DEPT/MEM | 五部门对象 + 六层 RAG ACL | 用 MCP 代替部门 |
 | 再然后 | v0.6 | SURF2 | SDK/print 100% harness；下一入口 IDE 优先于 Desktop | 为 Desktop 复制 runner |
 | 再然后 | v1.0 | REL | 安装升级回滚 + 文档 + **本表 P0 全绿** | 工具数 100%、企业、TUI 像素对等 |
 
-`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.2 可以开，但仍是独立 Phase，不得混进本 commit。
+`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.2 CODE-02 stdio 已绿。下一独立 Phase 是 v0.4.3 CODE-03。
 
 ---
 
@@ -189,7 +189,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | FileReadTool FileEditTool FileWriteTool | P0-WRITE / P1-READ | 写 = apply_patch；读 = shell 或日后 P1-READ |
 | GlobTool GrepTool | P1-READ | 矩阵后开，非 P0 |
 | WebFetchTool WebSearchTool WebBrowserTool | P1-WEB | 经 MCP 或冻 |
-| MCPTool ListMcpResourcesTool ReadMcpResourceTool McpAuthTool | P0-MCP / CODE-02 | 矩阵后开 |
+| MCPTool ListMcpResourcesTool ReadMcpResourceTool McpAuthTool | P0-MCP / CODE-02 | stdio 已绿；HTTP/auth 仍后开 |
 | SkillTool DiscoverSkillsTool | P0-SKILL / CODE-03 | 矩阵后开 |
 | EnterPlanModeTool ExitPlanModeTool VerifyPlanExecutionTool | P1-PLAN | 用角色替代 |
 | TaskCreateTool TaskGetTool TaskListTool TaskOutputTool TaskStopTool TaskUpdateTool | P1-SUB | 用 packet/role，不抄 Task 工具 |

@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 pub const TOOL_SHELL: &str = "shell";
 pub const TOOL_APPLY_PATCH: &str = "apply_patch";
+pub const TOOL_MCP: &str = "mcp";
 pub const MAX_STEPS_PER_TURN: u32 = 32;
 
 pub fn tool_schemas() -> Vec<Value> {
@@ -42,6 +43,20 @@ pub fn tool_schemas() -> Vec<Value> {
                     "path": { "type": "string" }
                 },
                 "required": ["patch"]
+            }
+        }),
+        json!({
+            "name": TOOL_MCP,
+            "description": "Call a configured MCP server tool through the daemon broker. stdio only. Untrusted projects are denied.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "server": { "type": "string" },
+                    "tool": { "type": "string" },
+                    "tool_name": { "type": "string" },
+                    "arguments": { "type": "object" }
+                },
+                "required": ["tool"]
             }
         }),
     ]
@@ -80,6 +95,22 @@ pub fn capability_for_tool(
             }),
         )
         .with_risk(RiskLevel::LocalWrite)),
+        TOOL_MCP | "mcp.call" => Ok(CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Network,
+            "mcp.call",
+            json!({
+                "server": call.arguments.get("server").cloned().unwrap_or(Value::Null),
+                "tool": call.arguments.get("tool").cloned().unwrap_or(
+                    call.arguments.get("tool_name").cloned().unwrap_or(Value::Null)
+                ),
+                "arguments": call.arguments.get("arguments").cloned().unwrap_or(json!({})),
+                "call_id": call.id,
+                "sandbox": sandbox,
+                "project_root": project_root,
+            }),
+        )
+        .with_risk(RiskLevel::ExternalSideEffect)),
         other => Err(format!("tool_unsupported:{other}")),
     }
 }
@@ -145,5 +176,29 @@ mod tests {
         assert_eq!(request.capability, CapabilityKind::Filesystem);
         assert_eq!(request.risk, RiskLevel::LocalWrite);
         assert_eq!(request.arguments["project_root"], "/repo");
+    }
+
+    #[test]
+    fn mcp_is_an_external_side_effect_on_the_network_broker() {
+        let request = capability_for_tool(
+            &ModelToolCall {
+                id: "c-mcp".to_owned(),
+                name: TOOL_MCP.to_owned(),
+                arguments: json!({
+                    "server": "mock",
+                    "tool": "echo",
+                    "arguments": { "message": "hello" }
+                }),
+            },
+            "workspace-write",
+            "/repo",
+        )
+        .unwrap();
+        assert_eq!(request.capability, CapabilityKind::Network);
+        assert_eq!(request.operation, "mcp.call");
+        assert_eq!(request.risk, RiskLevel::ExternalSideEffect);
+        assert_eq!(request.arguments["server"], "mock");
+        assert_eq!(request.arguments["tool"], "echo");
+        assert_eq!(request.arguments["arguments"]["message"], "hello");
     }
 }

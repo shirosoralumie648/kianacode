@@ -940,3 +940,225 @@ async fn review_same_session_as_author_fails_closed() {
         Some("review_author_session_denied")
     );
 }
+
+fn mcp_echo_cassette() -> serde_json::Value {
+    json!([
+        {
+            "text": "calling mcp",
+            "tool_calls": [{
+                "id": "c-mcp",
+                "name": "mcp",
+                "arguments": {
+                    "server": "mock",
+                    "tool": "echo",
+                    "arguments": { "message": "hello" }
+                }
+            }]
+        },
+        {"text": "mcp echoed hello"}
+    ])
+}
+
+struct EnvGuard {
+    key: &'static str,
+    previous: Option<String>,
+}
+
+impl EnvGuard {
+    fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let previous = std::env::var(key).ok();
+        std::env::set_var(key, value);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => std::env::set_var(self.key, value),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
+
+fn write_mock_mcp_server() -> PathBuf {
+    let path = temp_project().join("mock-mcp.py");
+    fs::write(
+        &path,
+        r#"
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    method = msg.get("method")
+    if method == "initialize":
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "id": msg["id"],
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "mock", "version": "1.0.0"}
+            }
+        }), flush=True)
+    elif method == "notifications/initialized":
+        continue
+    elif method == "tools/list":
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "id": msg["id"],
+            "result": {"tools": [{
+                "name": "echo",
+                "description": "Echo a message",
+                "inputSchema": {"type": "object"}
+            }]}
+        }), flush=True)
+    elif method == "tools/call":
+        args = msg.get("params", {}).get("arguments", {})
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "id": msg["id"],
+            "result": {"content": [{"type": "text", "text": args.get("message", "")}]}
+        }), flush=True)
+    else:
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "id": msg.get("id"),
+            "error": {"code": -32601, "message": method}
+        }), flush=True)
+"#,
+    )
+    .unwrap();
+    path
+}
+
+fn python3_available() -> bool {
+    std::process::Command::new("python3")
+        .arg("--version")
+        .output()
+        .is_ok()
+}
+
+fn tool_result_text(seen: &[ModelRequest]) -> &str {
+    seen.get(1)
+        .and_then(|request| {
+            request
+                .messages
+                .iter()
+                .find(|message| message.role == ModelRole::Tool)
+                .map(|message| message.text.as_str())
+        })
+        .unwrap_or("")
+}
+
+#[tokio::test]
+async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
+    if !python3_available() {
+        eprintln!("skipping MCP stdio test because python3 is unavailable");
+        return;
+    }
+    let script = write_mock_mcp_server();
+    let config = json!([{
+        "name": "mock",
+        "transport": "stdio",
+        "command": "python3",
+        "args": ["-u", script.display().to_string()]
+    }]);
+    let _guard = EnvGuard::set("KIANA_MCP_SERVERS_JSON", config.to_string());
+    let model = CapturingModel::from_json(mcp_echo_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "echo hello via mcp",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(response.output["output"]["text"], "mcp echoed hello");
+    let seen = model.seen.lock().unwrap();
+    assert!(seen.len() >= 2, "expected a tool result turn: {seen:?}");
+    let tool_text = tool_result_text(&seen);
+    assert!(
+        tool_text.contains("hello") && tool_text.contains("kiana.mcp-result.v1"),
+        "{tool_text}"
+    );
+}
+
+#[tokio::test]
+async fn untrusted_mcp_does_not_spawn_a_server() {
+    let model = CapturingModel::from_json(mcp_echo_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+    let metadata = RequestMetadata::local("session-1", root.to_string_lossy());
+    let response = client
+        .run(metadata, "echo hello via mcp", None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let seen = model.seen.lock().unwrap();
+    let tool_text = tool_result_text(&seen);
+    assert!(tool_text.contains("project_untrusted"), "{tool_text}");
+}
+
+#[tokio::test]
+async fn reviewer_cannot_call_mcp() {
+    let host = scripted_host(mcp_echo_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::reviewer());
+    let response = client
+        .run(metadata, "echo hello via mcp", None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_tool_denied"));
+    assert_eq!(response.output["role_id"], "reviewer");
+    assert_eq!(response.output["department_id"], "monitoring");
+    assert_eq!(response.output["sandbox"], "read-only");
+}
+
+#[tokio::test]
+async fn http_mcp_is_unsupported_this_slice() {
+    let config = json!([{
+        "name": "mock",
+        "transport": "http",
+        "url": "https://example.invalid/mcp"
+    }]);
+    let _guard = EnvGuard::set("KIANA_MCP_SERVERS_JSON", config.to_string());
+    let model = CapturingModel::from_json(mcp_echo_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "echo hello via mcp",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let seen = model.seen.lock().unwrap();
+    let tool_text = tool_result_text(&seen);
+    assert!(
+        tool_text.contains("mcp_transport_unsupported"),
+        "{tool_text}"
+    );
+}

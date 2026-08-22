@@ -4,6 +4,7 @@ mod apply_patch;
 mod approval_store;
 mod context_query;
 mod harness_capabilities;
+mod harness_mcp;
 mod harness_sandbox;
 mod model_client;
 
@@ -60,6 +61,7 @@ impl DaemonHost {
         let mut capabilities = CapabilityBroker::new();
         context_query::register(&mut capabilities)?;
         harness_capabilities::register(&mut capabilities)?;
+        harness_mcp::register(&mut capabilities)?;
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),

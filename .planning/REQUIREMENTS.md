@@ -1,7 +1,7 @@
 # Requirements
 
 v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
-北星是 Company OS（见 `COMPANY.md`）。v0.4 Phase 1（`REV-01`）与 Phase 2（`CODE-01` 矩阵草稿）已本地绿。下一执行集是 **v0.4.2 MCP client 经 daemon**（`CODE-02`）。五部门与六层 RAG 仍冻结到 v0.5。
+北星是 Company OS（见 `COMPANY.md`）。v0.4 Phase 1（`REV-01`）、Phase 2（`CODE-01` 矩阵草稿）与 Phase 3（`CODE-02` stdio MCP client）已本地绿。下一执行集是 **v0.4.3 skills/hooks 接到 harness**（`CODE-03`）。五部门与六层 RAG 仍冻结到 v0.5。
 
 ## v0.3 — Current
 
@@ -39,7 +39,7 @@ v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
 
 - **PATH-01**: `kiana run` 在受信仓库中走 `DaemonHost` → `KianaHarness` 完成一回合
 - **PATH-02**: print / `-p` 同一 spine，输出含 `harness: kiana-harness`
-- **PATH-03**: 模型可见工具只有 `shell` 与 `apply_patch`；由 daemon broker，不经 `kiana-tools` 注册表
+- **PATH-03**: 模型可见工具是 `shell`、`apply_patch` 与 `mcp`；由 daemon broker，不经 `kiana-tools` 注册表
 - **PATH-04**: 真 provider 或「录制自真 provider」的回放；fake-script 只算路由回归
 
 ### TRUST — Fail-closed
@@ -69,7 +69,7 @@ v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
 ### v0.4 CODE — Coding pack audit
 
 - **CODE-01**: Claude Code 公开核心行为矩阵（每项 owner/测试/证据/许可证）— **草稿已签字**：`docs/coding-pack-matrix.md`
-- **CODE-02**: MCP client 经 daemon，不经 `runner.rs`
+- **CODE-02**: MCP client 经 daemon，不经 `runner.rs` — **stdio 已本地绿**；HTTP 仍 `mcp_transport_unsupported`
 - **CODE-03**: skills/hooks 接到 harness（可作为角色包）
 - **CODE-04**: 多供应商能力差异显式降级
 - **REV-01**: Reviewer 与 Builder 不得同一 session_id（监控部最小编制）

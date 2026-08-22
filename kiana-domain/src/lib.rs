@@ -178,8 +178,8 @@ impl RoleSpec {
         Self::new(
             ROLE_BUILDER,
             DEPARTMENT_EXECUTING,
-            "You are Kiana's executing Builder. Use only the provided tools `shell` and `apply_patch`. Never request danger-full-access.",
-            vec!["shell".to_owned(), "apply_patch".to_owned()],
+            "You are Kiana's executing Builder. Use only the provided tools `shell`, `apply_patch`, and `mcp`. Never request danger-full-access.",
+            vec!["shell".to_owned(), "apply_patch".to_owned(), "mcp".to_owned()],
             ROLE_SANDBOX_WORKSPACE_WRITE,
             vec![".".to_owned()],
             vec!["project".to_owned()],
@@ -1045,7 +1045,7 @@ mod tests {
         let department = DepartmentSpec::executing();
         assert_eq!(role.role_id, ROLE_BUILDER);
         assert_eq!(role.department_id, DEPARTMENT_EXECUTING);
-        assert_eq!(role.tools, ["shell", "apply_patch"]);
+        assert_eq!(role.tools, ["shell", "apply_patch", "mcp"]);
         assert_eq!(role.sandbox, ROLE_SANDBOX_WORKSPACE_WRITE);
         assert_eq!(role.path_allow, ["."]);
         assert!(!role.prompt_hash.is_empty());

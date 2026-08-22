@@ -10,7 +10,7 @@
 
 ## Current Milestone
 
-**v0.4 Coding pack baseline** — Phase 1–2 已本地绿：Reviewer≠作者；公开行为矩阵草稿在 `docs/coding-pack-matrix.md`。默认工人仍是 `role=builder` / `department=executing`。`kiana tui` 保持 park。下一站：v0.4.2 MCP client 经 daemon（`CODE-02`），不要跳到五部门。
+**v0.4 Coding pack baseline** — Phase 1–3 已本地绿：Reviewer≠作者；公开行为矩阵草稿；stdio MCP client 经 daemon。默认工人仍是 `role=builder` / `department=executing`。`kiana tui` 保持 park。下一站：v0.4.3 skills/hooks 接到 harness（`CODE-03`），不要跳到五部门。
 
 后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
 

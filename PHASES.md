@@ -375,9 +375,9 @@ MCP 市场、IDE、Desktop、企业、`kiana-tools` 新家族、computer-use、�
 - 反面教材：`reference/claude-code-rust`（第 1 天 v1.0.0）。
 - 产出：`docs/coding-pack-matrix.md`（已落盘，不要恢复旧 104 req 语料）。验证：`.planning/phases/10-VERIFICATION.md`。
 
-**v0.4.2 MCP client 经 daemon**
+**v0.4.2 MCP client 经 daemon** — **已本地绿**
 
-- 改：新 broker 路径或现有 crate，**禁止** `runner.rs` 接 MCP。
+- 改：新 broker 路径或现有 crate，**禁止** `runner.rs` 接 MCP。验证：`.planning/phases/11-VERIFICATION.md`。stdio only；HTTP fail-closed。
 - 参考：
   - Codex `reference/codex/codex-rs/codex-mcp`、`scripts/mcp_conformance/`（2025-05-02 才有 mcp-types）
   - deepseek `packages/mcp`（2026-07-07，loop 之后约 4 周）
@@ -583,9 +583,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源、v0.5+ 需求 ID。v0.4.2 只打开 CODE-02。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源、v0.5+ 需求 ID。v0.4.3 只打开 CODE-03。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.4 Phase 2 已签字（`docs/coding-pack-matrix.md`）。  
-下一命令：打开 **v0.4.2 CODE-02**（MCP client 经 daemon）。对照矩阵 §3 / §6。不要同时开 skills、五部门、TUI、Read/Grep/Glob。
+当前计数：v0.4 Phase 3 / CODE-02 stdio MCP 已本地绿。  
+下一命令：打开 **v0.4.3 CODE-03**（skills/hooks 接到 harness）。对照矩阵 §3 / §6。不要同时开五部门、TUI、Read/Grep/Glob、provider live 矩阵。

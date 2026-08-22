@@ -17,7 +17,8 @@
 
 - [x] **Phase 1: Reviewer ≠ author** — `monitoring/reviewer` 新 session；写 `gate/REVIEW.json`
 - [x] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
-- [ ] **Later: MCP / skills / provider / readonly tools** — 矩阵签字后再开；下一刀是 CODE-02 MCP client 经 daemon
+- [x] **Phase 3: MCP client through daemon** — 模型工具 `mcp` → broker `mcp.call`；stdio only
+- [ ] **Later: skills / provider / readonly tools** — 下一刀是 CODE-03 skills/hooks 接上 harness
 
 ### Phase 1: Reviewer ≠ author
 
@@ -46,6 +47,20 @@
 5. 下一实现站写死为 CODE-02（MCP client 经 daemon）。本 Phase 不写 MCP 代码。
 
 **Plans:** 已执行。验证：`.planning/phases/10-VERIFICATION.md`。证明级别 `local_behavior`（文档）。矩阵是签字草稿；v0.4.2 起才允许实现 CODE-02。
+
+### Phase 3: MCP client through daemon
+
+**Goal:** 受信 Builder 经 `DaemonHost` 调一个本地 stdio MCP。模型只见 `mcp`；执行是 `mcp.call`。未信任 deny；Reviewer/PM 不能调。
+**Requirements:** CODE-02（PATH-03 扩展为 `shell` + `apply_patch` + `mcp`）
+**Success Criteria:**
+
+1. 配置是 `KIANA_MCP_SERVERS_JSON`；不新增 `kiana run` 开关；不格式化 `cli.rs`。
+2. 只 stdio。HTTP / SSE / WS → `mcp_transport_unsupported`。
+3. 未信任 → `project_untrusted`。角色无 `mcp` → `role_tool_denied`。Safe/read-only → Ask。trusted + Balanced + Builder → Allow。
+4. 禁止把 `kiana-tools/mcp_tool.rs` 或 `kiana-entrypoints/src/mcp.rs`（Kiana 当 MCP server）标成完成。
+5. 证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/11-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。HTTP 仍 fail-closed。下一刀 CODE-03。
 
 ## 已完成：v0.3
 
