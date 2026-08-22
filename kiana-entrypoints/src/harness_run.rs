@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -40,16 +40,8 @@ pub async fn run_envelope(
     prompt: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    let project_root = project_root_from_options(options)?;
-    let trusted = project_trusted(&project_root)?;
     let policy = sandbox_policy_from_options(options)?;
-    let mut metadata = RequestMetadata::local(session_id.into(), project_root);
-    metadata.actor_id = Some("local-cli".to_owned());
-    metadata.project_trusted = trusted;
-    metadata.permission_profile = policy.permission_profile;
-    let client = KianaClient::new(LocalDaemonTransport {
-        host: Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?),
-    });
+    let (client, metadata) = local_client(session_id, options)?;
     client
         .run(metadata, prompt.into(), policy.sandbox)
         .await
@@ -62,6 +54,51 @@ pub async fn run_owned_harness(
     options: &HashMap<String, Value>,
 ) -> Result<HarnessRunResult> {
     completed_harness_result(run_envelope(session_id, prompt, options).await?)
+}
+
+fn local_client(
+    session_id: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<(KianaClient<LocalDaemonTransport>, RequestMetadata)> {
+    let project_root = project_root_from_options(options)?;
+    let trusted = project_trusted(&project_root)?;
+    let policy = sandbox_policy_from_options(options)?;
+    let mut metadata = RequestMetadata::local(session_id.into(), project_root);
+    metadata.actor_id = Some("local-cli".to_owned());
+    metadata.project_trusted = trusted;
+    metadata.permission_profile = policy.permission_profile;
+    let client = KianaClient::new(LocalDaemonTransport {
+        host: Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?),
+    });
+    Ok((client, metadata))
+}
+
+pub async fn continue_envelope(
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let policy = sandbox_policy_from_options(options)?;
+    let (client, metadata) = local_client(session_id, options)?;
+    client
+        .continue_run(metadata, prompt.into(), policy.sandbox, run_id)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+pub async fn cancel_envelope(
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    reason: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let (client, metadata) = local_client(session_id, options)?;
+    client
+        .cancel_run(metadata, run_id, reason.into())
+        .await
+        .map_err(anyhow::Error::msg)
 }
 
 pub fn completed_harness_result(response: ResponseEnvelope) -> Result<HarnessRunResult> {

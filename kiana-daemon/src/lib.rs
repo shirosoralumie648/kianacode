@@ -91,6 +91,12 @@ impl DaemonHost {
                     .await
             }
             RequestBody::Run(run) => self.core.start_run(context, run.prompt, run.sandbox).await,
+            RequestBody::Continue(run) => {
+                self.core
+                    .continue_run(context, run.prompt, run.sandbox, run.run_id)
+                    .await
+            }
+            RequestBody::Cancel(run) => self.core.cancel_run(context, run.run_id, run.reason).await,
         };
         match response {
             Ok(response) => {

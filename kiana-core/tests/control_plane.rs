@@ -595,3 +595,56 @@ async fn unavailable_harness_fails_without_completed_run() {
     assert!(kinds.contains(&"run.failed".to_owned()));
     assert!(!kinds.iter().any(|kind| kind == "run.completed"));
 }
+
+#[tokio::test]
+async fn continue_run_reuses_the_same_run_id() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "first turn"},
+        {"text": "continued"}
+    ])));
+    let context = trusted_context();
+    let started = harness
+        .core
+        .start_run(context.clone(), "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed);
+    let run_id = started.output["run_id"].clone();
+    let continued = harness
+        .core
+        .continue_run(trusted_context(), "keep going".to_owned(), None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        continued.status,
+        ExecutionStatus::Completed,
+        "{continued:?}"
+    );
+    assert_eq!(continued.output["run_id"], run_id);
+    assert_eq!(continued.output["output"]["text"], "continued");
+    assert_eq!(continued.output["session_id"], "session-1");
+}
+
+#[tokio::test]
+async fn continue_unknown_session_fails_closed() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([{"text": "should not run"}])));
+    let continued = harness
+        .core
+        .continue_run(trusted_context(), "keep going".to_owned(), None, None)
+        .await
+        .unwrap();
+    assert_eq!(continued.status, ExecutionStatus::Blocked);
+    assert_eq!(continued.error.as_deref(), Some("session_not_found"));
+}
+
+#[tokio::test]
+async fn cancel_unknown_run_fails_closed() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([{"text": "should not run"}])));
+    let cancelled = harness
+        .core
+        .cancel_run(trusted_context(), None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status, ExecutionStatus::Blocked);
+    assert_eq!(cancelled.error.as_deref(), Some("session_not_found"));
+}

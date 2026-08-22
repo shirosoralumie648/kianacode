@@ -325,12 +325,14 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--continue <id>] [--cancel <id>] [--] <prompt>");
         return Ok(());
     }
 
     let mut json_output = false;
     let mut sandbox: Option<String> = None;
+    let mut continue_id: Option<String> = None;
+    let mut cancel_id: Option<String> = None;
     let mut prompt_parts = Vec::new();
     let mut index = 1;
     while index < args.len() {
@@ -348,6 +350,28 @@ async fn run_main(args: &[String]) -> Result<()> {
             value if value.starts_with("--sandbox=") => {
                 sandbox = Some(value.trim_start_matches("--sandbox=").to_owned());
             }
+            "--continue" => {
+                index += 1;
+                continue_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("session_id_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--continue=") => {
+                continue_id = Some(value.trim_start_matches("--continue=").to_owned());
+            }
+            "--cancel" => {
+                index += 1;
+                cancel_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("session_id_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--cancel=") => {
+                cancel_id = Some(value.trim_start_matches("--cancel=").to_owned());
+            }
             "--" => {
                 prompt_parts.extend(args[index + 1..].iter().cloned());
                 break;
@@ -360,8 +384,12 @@ async fn run_main(args: &[String]) -> Result<()> {
         index += 1;
     }
 
+    if continue_id.is_some() && cancel_id.is_some() {
+        return Err(anyhow!("use only one of --continue or --cancel"));
+    }
+
     let prompt = prompt_parts.join(" ");
-    if prompt.trim().is_empty() {
+    if cancel_id.is_none() && prompt.trim().is_empty() {
         return Err(anyhow!("prompt_required"));
     }
 
@@ -369,7 +397,24 @@ async fn run_main(args: &[String]) -> Result<()> {
     if let Some(sandbox) = sandbox {
         options.insert("sandbox".to_string(), Value::String(sandbox));
     }
-    let response = crate::harness_run::run_envelope("kiana-harness-run", prompt, &options).await?;
+    let response = if let Some(id) = cancel_id {
+        let id = id.trim().to_owned();
+        if id.is_empty() {
+            return Err(anyhow!("session_id_required"));
+        }
+        let run_id = kiana_protocol::RunId::parse_str(&id);
+        crate::harness_run::cancel_envelope(id, run_id, "user", &options).await?
+    } else if let Some(id) = continue_id {
+        let id = id.trim().to_owned();
+        if id.is_empty() {
+            return Err(anyhow!("session_id_required"));
+        }
+        let run_id = kiana_protocol::RunId::parse_str(&id);
+        crate::harness_run::continue_envelope(id, prompt, run_id, &options).await?
+    } else {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        crate::harness_run::run_envelope(session_id, prompt, &options).await?
+    };
     if json_output {
         println!("{}", serde_json::to_string_pretty(&response)?);
         if response.status != ControlPlaneStatus::Completed {
@@ -390,6 +435,12 @@ async fn run_main(args: &[String]) -> Result<()> {
         println!("{text}");
     } else {
         println!("{}", serde_json::to_string_pretty(&response.output)?);
+    }
+    if let Some(session_id) = response.output["session_id"].as_str() {
+        println!("session_id: {session_id}");
+    }
+    if let Some(run_id) = response.output["run_id"].as_str() {
+        println!("run_id: {run_id}");
     }
     Ok(())
 }

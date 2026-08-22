@@ -3,7 +3,7 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, PermissionProfile, RequestId,
-    SessionId,
+    RunId, SessionId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -81,6 +81,38 @@ impl RequestEnvelope {
             }),
         }
     }
+
+    pub fn continue_run(
+        metadata: RequestMetadata,
+        prompt: impl Into<String>,
+        sandbox: Option<String>,
+        run_id: Option<RunId>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Continue(ContinueRequest {
+                prompt: prompt.into(),
+                sandbox,
+                run_id,
+            }),
+        }
+    }
+
+    pub fn cancel_run(
+        metadata: RequestMetadata,
+        run_id: Option<RunId>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Cancel(CancelRequest {
+                run_id,
+                reason: reason.into(),
+            }),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -89,6 +121,8 @@ pub enum RequestBody {
     Command(CommandRequest),
     ApprovalDecision(ApprovalDecisionRequest),
     Run(RunRequest),
+    Continue(ContinueRequest),
+    Cancel(CancelRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -108,6 +142,23 @@ pub struct RunRequest {
     pub prompt: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sandbox: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ContinueRequest {
+    pub prompt: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CancelRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<RunId>,
+    #[serde(default)]
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -192,6 +243,31 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             request
+        );
+    }
+
+    #[test]
+    fn continue_and_cancel_envelopes_round_trip() {
+        let mut metadata = RequestMetadata::local("session-1", "/repo");
+        metadata.project_trusted = true;
+        let run_id = RunId::new();
+        let continue_request =
+            RequestEnvelope::continue_run(metadata.clone(), "keep going", None, Some(run_id));
+        let encoded = serde_json::to_value(&continue_request).unwrap();
+        assert_eq!(encoded["body"]["type"], "continue");
+        assert_eq!(encoded["body"]["request"]["prompt"], "keep going");
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            continue_request
+        );
+
+        let cancel_request = RequestEnvelope::cancel_run(metadata, Some(run_id), "user");
+        let encoded = serde_json::to_value(&cancel_request).unwrap();
+        assert_eq!(encoded["body"]["type"], "cancel");
+        assert_eq!(encoded["body"]["request"]["reason"], "user");
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            cancel_request
         );
     }
 }

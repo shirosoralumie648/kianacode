@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use kiana_protocol::{
-    ApprovalDecision, ApprovalId, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    ApprovalDecision, ApprovalId, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
 };
 use serde_json::Value;
 
@@ -57,6 +57,31 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::run(metadata, prompt, sandbox))
+            .await
+    }
+
+    pub async fn continue_run(
+        &self,
+        metadata: RequestMetadata,
+        prompt: impl Into<String> + Send,
+        sandbox: Option<String>,
+        run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::continue_run(
+                metadata, prompt, sandbox, run_id,
+            ))
+            .await
+    }
+
+    pub async fn cancel_run(
+        &self,
+        metadata: RequestMetadata,
+        run_id: Option<RunId>,
+        reason: impl Into<String> + Send,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::cancel_run(metadata, run_id, reason))
             .await
     }
 }

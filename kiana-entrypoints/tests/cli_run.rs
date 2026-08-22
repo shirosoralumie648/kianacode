@@ -217,3 +217,66 @@ fn untrusted_workspace_write_does_not_create_file() {
     );
     assert!(!fixture.join("GOLDEN_PATH.txt").exists());
 }
+
+#[test]
+fn run_json_prints_session_and_run_ids() {
+    let script = harness_script(r#"[{"text":"architecture mapped"}]"#);
+    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
+        .env("KIANA_HARNESS_SCRIPT", &script)
+        .args(["run", "--json", "map the architecture"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", combined(&output));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["status"], "completed");
+    assert!(response["output"]["run_id"].as_str().is_some());
+    assert!(response["output"]["session_id"].as_str().is_some());
+}
+
+#[test]
+fn continue_unknown_session_fails_closed() {
+    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
+        .env_remove("KIANA_HARNESS_SCRIPT")
+        .args([
+            "run",
+            "--json",
+            "--continue",
+            "00000000-0000-4000-8000-000000000001",
+            "--",
+            "keep going",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "{}", combined(&output));
+    let combined = combined(&output);
+    assert!(
+        combined.contains("run_not_found") || combined.contains("session_not_found"),
+        "{combined}"
+    );
+    if let Ok(response) = serde_json::from_slice::<Value>(&output.stdout) {
+        assert_ne!(response["status"], "completed");
+    }
+}
+
+#[test]
+fn cancel_unknown_session_fails_closed() {
+    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
+        .env_remove("KIANA_HARNESS_SCRIPT")
+        .args([
+            "run",
+            "--json",
+            "--cancel",
+            "00000000-0000-4000-8000-000000000002",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "{}", combined(&output));
+    let combined = combined(&output);
+    assert!(
+        combined.contains("run_not_found") || combined.contains("session_not_found"),
+        "{combined}"
+    );
+    if let Ok(response) = serde_json::from_slice::<Value>(&output.stdout) {
+        assert_ne!(response["status"], "completed");
+    }
+}

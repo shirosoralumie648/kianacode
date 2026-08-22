@@ -16,7 +16,7 @@
 ## 当前里程碑：v0.2
 
 - [x] **Phase 1: CLI golden path** — `kiana run` / print 经 `DaemonHost` 完成受信真 provider 一回合
-- [ ] **Phase 2: Session continue / cancel / visible failure**
+- [x] **Phase 2: Session continue / cancel / visible failure**
 - [ ] **Phase 3: Durable receipts**
 - [ ] **Phase 4: TUI on harness, or park**
 
@@ -36,6 +36,13 @@
 
 **Depends on:** Phase 1
 **Requirements:** SESS-01, SESS-02, SESS-03, TRUST-03
+**Success Criteria:**
+
+1. 同一 `DaemonHost` 上 `--continue` 接到原 harness `ActiveRun`，不静默新开。
+2. `--cancel` 打断进行中的 `shell.exec`，完成后无新文件。
+3. 找不到 session / 空 prompt / 无模型：`status != completed`，错误码稳定。
+
+**Plans:** 已执行。验证：`.planning/phases/2-VERIFICATION.md`。证明级别 `local_behavior`。跨进程 continue 按设计 fail-closed。
 
 ### Phase 3: Durable receipts
 

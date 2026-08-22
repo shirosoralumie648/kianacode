@@ -10,8 +10,11 @@ use kiana_policy::PolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::{Component, Path};
 use std::sync::Arc;
+use std::sync::{Mutex, PoisonError};
+use tokio::sync::watch;
 
 pub const LEGACY_EDGES_REMAINING: usize = 9;
 pub const HARNESS_ID: &str = "kiana-harness";
@@ -41,6 +44,8 @@ pub struct ControlPlane {
     capabilities: Arc<dyn CapabilityBrokerPort>,
     approvals: Arc<dyn ApprovalStorePort>,
     runner: Arc<dyn RunnerPort>,
+    sessions: Mutex<HashMap<String, RunId>>,
+    cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
 }
 
 impl ControlPlane {
@@ -59,6 +64,8 @@ impl ControlPlane {
             capabilities,
             approvals,
             runner,
+            sessions: Mutex::new(HashMap::new()),
+            cancellations: Mutex::new(HashMap::new()),
         }
     }
 
@@ -351,7 +358,7 @@ impl ControlPlane {
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
-        let run_id = RunId::new();
+        let run_id = RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new);
         let mut sequence = 1u64;
         self.record_event(
             request_id,
@@ -403,7 +410,12 @@ impl ControlPlane {
         )
         .await?;
 
-        let mut pending_events = match self
+        // Session index and cancel watch must exist before the first model step
+        // so an in-flight cancel can resolve session-1 and abort shell.exec.
+        self.remember_session(context.session_id.as_str(), run_id);
+        let _cancel_rx = self.watch_cancel(run_id);
+
+        let pending_events = match self
             .runner
             .send(RunnerCommand::start_in(
                 run_id,
@@ -411,6 +423,103 @@ impl ControlPlane {
                 context.project_root.clone(),
                 sandbox.to_owned(),
             ))
+            .await
+        {
+            Ok(events) => events,
+            Err(error) => {
+                self.forget_session(context.session_id.as_str(), run_id);
+                self.clear_cancel(run_id);
+                let reason = error.to_string();
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.failed",
+                    json!({ "error": &reason }),
+                )
+                .await?;
+                return Ok(CoreResponse {
+                    request_id,
+                    status: ExecutionStatus::Failed,
+                    output: run_identity(&context, run_id, sandbox),
+                    error: Some(reason),
+                });
+            }
+        };
+
+        self.drive_run(&context, run_id, sandbox, pending_events, &mut sequence)
+            .await
+    }
+
+    pub async fn continue_run(
+        &self,
+        context: RequestContext,
+        prompt: String,
+        sandbox: Option<String>,
+        run_id: Option<RunId>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let mut sequence = 1u64;
+        let run_id = match self.resolve_run_id(&context, run_id) {
+            Ok(run_id) => run_id,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "request.accepted",
+                    json!({ "command": "run.continue" }),
+                )
+                .await?;
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "request.accepted",
+            json!({
+                "command": "run.continue",
+                "run_id": run_id,
+                "harness": HARNESS_ID,
+            }),
+        )
+        .await?;
+
+        if prompt.trim().is_empty() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "prompt_required" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "prompt_required"));
+        }
+
+        let sandbox = match authorized_harness_sandbox(&context, sandbox.as_deref()) {
+            Ok(sandbox) => sandbox,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+
+        let pending_events = match self
+            .runner
+            .send(RunnerCommand::continue_run(run_id, prompt))
             .await
         {
             Ok(events) => events,
@@ -426,12 +535,139 @@ impl ControlPlane {
                 return Ok(CoreResponse {
                     request_id,
                     status: ExecutionStatus::Failed,
-                    output: Value::Null,
+                    output: run_identity(&context, run_id, sandbox),
                     error: Some(reason),
                 });
             }
         };
 
+        self.drive_run(&context, run_id, sandbox, pending_events, &mut sequence)
+            .await
+    }
+
+    pub async fn cancel_run(
+        &self,
+        context: RequestContext,
+        run_id: Option<RunId>,
+        reason: String,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let mut sequence = 1u64;
+        let reason = if reason.trim().is_empty() {
+            "user".to_owned()
+        } else {
+            reason
+        };
+        let run_id = match self.resolve_run_id(&context, run_id) {
+            Ok(run_id) => run_id,
+            Err(code) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "request.accepted",
+                    json!({ "command": "run.cancel" }),
+                )
+                .await?;
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": code }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, code));
+            }
+        };
+
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "request.accepted",
+            json!({
+                "command": "run.cancel",
+                "run_id": run_id,
+                "reason": &reason,
+            }),
+        )
+        .await?;
+
+        let inflight = self.signal_cancel(run_id);
+        let events = match self
+            .runner
+            .send(RunnerCommand::Cancel {
+                run_id,
+                reason: reason.clone(),
+            })
+            .await
+        {
+            Ok(events) => events,
+            Err(error) => {
+                let reason = error.to_string();
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.failed",
+                    json!({ "error": &reason }),
+                )
+                .await?;
+                return Ok(CoreResponse {
+                    request_id,
+                    status: ExecutionStatus::Failed,
+                    output: run_identity(&context, run_id, "read-only"),
+                    error: Some(reason),
+                });
+            }
+        };
+
+        let error = events
+            .iter()
+            .find_map(|event| match event {
+                RunnerEvent::Failed { error, .. } => Some(error.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| format!("cancelled:{reason}"));
+        if error == "run_not_found" && !inflight {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "run_not_found" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "run_not_found"));
+        }
+
+        self.forget_session(context.session_id.as_str(), run_id);
+        let cancelled = if error == "run_not_found" {
+            format!("cancelled:{reason}")
+        } else {
+            error
+        };
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "run.cancelled",
+            json!({ "error": &cancelled }),
+        )
+        .await?;
+        Ok(CoreResponse {
+            request_id,
+            status: ExecutionStatus::Failed,
+            output: run_identity(&context, run_id, "read-only"),
+            error: Some(cancelled),
+        })
+    }
+
+    async fn drive_run(
+        &self,
+        context: &RequestContext,
+        run_id: RunId,
+        sandbox: &str,
+        mut pending_events: Vec<RunnerEvent>,
+        sequence: &mut u64,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let cancel_rx = self.watch_cancel(run_id);
         let mut output = Value::Null;
         let mut failed = None;
         let mut completed = false;
@@ -441,29 +677,20 @@ impl ControlPlane {
                 RunnerEvent::Started { run_id } => {
                     self.record_event(
                         request_id,
-                        &mut sequence,
+                        sequence,
                         "run.started",
                         json!({ "run_id": run_id }),
                     )
                     .await?;
                 }
                 RunnerEvent::Delta { text, .. } => {
-                    self.record_event(
-                        request_id,
-                        &mut sequence,
-                        "run.delta",
-                        json!({ "text": text }),
-                    )
-                    .await?;
+                    self.record_event(request_id, sequence, "run.delta", json!({ "text": text }))
+                        .await?;
                 }
                 RunnerEvent::CapabilityRequested { run_id, request } => {
                     match self
                         .broker_harness_capability(
-                            &context,
-                            request_id,
-                            run_id,
-                            &mut sequence,
-                            request,
+                            context, request_id, run_id, sequence, request, &cancel_rx,
                         )
                         .await?
                     {
@@ -480,14 +707,14 @@ impl ControlPlane {
                 } => {
                     output = harness_output;
                     completed = true;
-                    self.record_event(request_id, &mut sequence, "run.completed", output.clone())
+                    self.record_event(request_id, sequence, "run.completed", output.clone())
                         .await?;
                 }
                 RunnerEvent::Failed { error, .. } => {
                     failed = Some(error.clone());
                     self.record_event(
                         request_id,
-                        &mut sequence,
+                        sequence,
                         "run.failed",
                         json!({ "error": error }),
                     )
@@ -498,12 +725,20 @@ impl ControlPlane {
                 break;
             }
         }
+        self.clear_cancel(run_id);
 
         if let Some(error) = failed {
+            if error == "run_not_found" {
+                self.forget_session(context.session_id.as_str(), run_id);
+            }
             return Ok(CoreResponse {
                 request_id,
-                status: ExecutionStatus::Failed,
-                output,
+                status: if error == "run_not_found" {
+                    ExecutionStatus::Blocked
+                } else {
+                    ExecutionStatus::Failed
+                },
+                output: run_identity(context, run_id, sandbox),
                 error: Some(error),
             });
         }
@@ -511,7 +746,7 @@ impl ControlPlane {
             let reason = "run_result_missing";
             self.record_event(
                 request_id,
-                &mut sequence,
+                sequence,
                 "run.failed",
                 json!({ "error": reason }),
             )
@@ -519,23 +754,15 @@ impl ControlPlane {
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::Failed,
-                output,
+                output: run_identity(context, run_id, sandbox),
                 error: Some(reason.to_owned()),
             });
         }
 
-        let worker = RoleSpec::builder();
+        self.remember_session(context.session_id.as_str(), run_id);
         Ok(CoreResponse::completed(
             request_id,
-            json!({
-                "schema": RUN_RESULT_SCHEMA,
-                "run_id": run_id,
-                "harness": HARNESS_ID,
-                "sandbox": sandbox,
-                "role_id": worker.role_id,
-                "department_id": worker.department_id,
-                "output": output,
-            }),
+            run_receipt(context, run_id, sandbox, output),
         ))
     }
 
@@ -546,6 +773,7 @@ impl ControlPlane {
         run_id: RunId,
         sequence: &mut u64,
         request: CapabilityRequest,
+        cancel_rx: &watch::Receiver<bool>,
     ) -> Result<Result<Vec<RunnerEvent>, String>, CoreError> {
         self.record_event(
             request_id,
@@ -575,31 +803,45 @@ impl ControlPlane {
             GateDecision::Allowed { authorization_id } => {
                 let authorized =
                     AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
-                match self.capabilities.execute(authorized).await {
-                    Ok(result) => {
+                tokio::select! {
+                    _ = wait_until_cancelled(cancel_rx) => {
                         self.record_event(
                             request_id,
                             sequence,
-                            if result.success {
-                                "capability.completed"
-                            } else {
-                                "capability.failed"
-                            },
-                            result.output.clone(),
+                            "run.cancelled",
+                            json!({ "error": "cancelled:user" }),
                         )
                         .await?;
-                        result
+                        return Ok(Err("cancelled:user".to_owned()));
                     }
-                    Err(error) => {
-                        let reason = error.to_string();
-                        self.record_event(
-                            request_id,
-                            sequence,
-                            "capability.failed",
-                            json!({ "error": &reason }),
-                        )
-                        .await?;
-                        CapabilityResult::failure(request.request_id, reason)
+                    executed = self.capabilities.execute(authorized) => {
+                        match executed {
+                            Ok(result) => {
+                                self.record_event(
+                                    request_id,
+                                    sequence,
+                                    if result.success {
+                                        "capability.completed"
+                                    } else {
+                                        "capability.failed"
+                                    },
+                                    result.output.clone(),
+                                )
+                                .await?;
+                                result
+                            }
+                            Err(error) => {
+                                let reason = error.to_string();
+                                self.record_event(
+                                    request_id,
+                                    sequence,
+                                    "capability.failed",
+                                    json!({ "error": &reason }),
+                                )
+                                .await?;
+                                CapabilityResult::failure(request.request_id, reason)
+                            }
+                        }
                     }
                 }
             }
@@ -642,6 +884,75 @@ impl ControlPlane {
         Ok(self.runner.send(command).await?)
     }
 
+    fn resolve_run_id(
+        &self,
+        context: &RequestContext,
+        run_id: Option<RunId>,
+    ) -> Result<RunId, &'static str> {
+        if let Some(run_id) = run_id {
+            return Ok(run_id);
+        }
+        if let Some(parsed) = RunId::parse_str(context.session_id.as_str()) {
+            return Ok(parsed);
+        }
+        self.sessions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(context.session_id.as_str())
+            .copied()
+            .ok_or("session_not_found")
+    }
+
+    fn remember_session(&self, session_id: &str, run_id: RunId) {
+        self.sessions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(session_id.to_owned(), run_id);
+    }
+
+    fn forget_session(&self, session_id: &str, run_id: RunId) {
+        let mut sessions = self.sessions.lock().unwrap_or_else(PoisonError::into_inner);
+        if sessions.get(session_id) == Some(&run_id) {
+            sessions.remove(session_id);
+        }
+    }
+
+    fn watch_cancel(&self, run_id: RunId) -> watch::Receiver<bool> {
+        let mut cancellations = self
+            .cancellations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(tx) = cancellations.get(&run_id) {
+            return tx.subscribe();
+        }
+        let (tx, rx) = watch::channel(false);
+        cancellations.insert(run_id, tx);
+        rx
+    }
+
+    fn signal_cancel(&self, run_id: RunId) -> bool {
+        let mut cancellations = self
+            .cancellations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(tx) = cancellations.get(&run_id) {
+            let _ = tx.send(true);
+            return true;
+        }
+        // Cancel arrived before drive_run subscribed: leave a pre-signaled
+        // watch so the in-flight capability select! still aborts.
+        let (tx, _rx) = watch::channel(true);
+        cancellations.insert(run_id, tx);
+        false
+    }
+
+    fn clear_cancel(&self, run_id: RunId) {
+        self.cancellations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&run_id);
+    }
+
     async fn record_event(
         &self,
         request_id: kiana_domain::RequestId,
@@ -665,6 +976,42 @@ impl ControlPlane {
             .append(RuntimeEvent::new(request_id, sequence, kind, data)?)
             .await?;
         Ok(())
+    }
+}
+
+fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value {
+    json!({
+        "schema": RUN_RESULT_SCHEMA,
+        "run_id": run_id,
+        "session_id": context.session_id,
+        "harness": HARNESS_ID,
+        "sandbox": sandbox,
+    })
+}
+
+fn run_receipt(context: &RequestContext, run_id: RunId, sandbox: &str, output: Value) -> Value {
+    let worker = RoleSpec::builder();
+    json!({
+        "schema": RUN_RESULT_SCHEMA,
+        "run_id": run_id,
+        "session_id": context.session_id,
+        "harness": HARNESS_ID,
+        "sandbox": sandbox,
+        "role_id": worker.role_id,
+        "department_id": worker.department_id,
+        "output": output,
+    })
+}
+
+async fn wait_until_cancelled(rx: &watch::Receiver<bool>) {
+    let mut rx = rx.clone();
+    loop {
+        if *rx.borrow() {
+            return;
+        }
+        if rx.changed().await.is_err() {
+            return;
+        }
     }
 }
 

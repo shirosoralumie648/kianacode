@@ -20,6 +20,7 @@ kiana-runner-protocol.workspace = true
 kiana-workflow.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 kiana-capability-broker.workspace = true

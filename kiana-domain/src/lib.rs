@@ -44,6 +44,12 @@ uuid_id!(RunId);
 uuid_id!(EventId);
 uuid_id!(ApprovalId);
 
+impl RunId {
+    pub fn parse_str(value: &str) -> Option<Self> {
+        Uuid::parse_str(value.trim()).ok().map(Self::from_uuid)
+    }
+}
+
 pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]

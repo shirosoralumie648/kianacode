@@ -297,3 +297,104 @@ async fn shell_timeout_ms_is_brokered_as_a_timed_out_tool_result() {
         "brokered timeout should not wait for sleep 8, elapsed={elapsed:?}"
     );
 }
+
+#[tokio::test]
+async fn continue_on_the_same_host_reuses_the_run() {
+    let host = scripted_host(json!([
+        {"text": "first turn"},
+        {"text": "continued"}
+    ]));
+    let client = KianaClient::new(InProcessTransport { host });
+    let started = client.run(trusted_metadata(), "hello", None).await.unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = started.output["run_id"].clone();
+    let continued = client
+        .continue_run(trusted_metadata(), "keep going", None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        continued.status,
+        ExecutionStatus::Completed,
+        "{continued:?}"
+    );
+    assert_eq!(continued.output["run_id"], run_id);
+    assert_eq!(continued.output["output"]["text"], "continued");
+    assert_eq!(continued.output["session_id"], "session-1");
+}
+
+#[tokio::test]
+async fn continue_unknown_session_does_not_start_a_new_run() {
+    let host = scripted_host(json!([{"text": "should not run"}]));
+    let client = KianaClient::new(InProcessTransport { host });
+    let continued = client
+        .continue_run(trusted_metadata(), "keep going", None, None)
+        .await
+        .unwrap();
+    assert_ne!(continued.status, ExecutionStatus::Completed);
+    assert_eq!(continued.error.as_deref(), Some("session_not_found"));
+}
+
+struct CancelProbeModel;
+
+#[async_trait]
+impl ModelClient for CancelProbeModel {
+    async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+        Ok(ModelOutput {
+            text: "sleeping".to_owned(),
+            tool_calls: vec![ModelToolCall {
+                id: "c-cancel".to_owned(),
+                name: "shell".to_owned(),
+                arguments: json!({
+                    "command": "sh -c 'sleep 8; echo pwned > CANCELLED.txt'",
+                    "timeout_ms": 20000
+                }),
+            }],
+        })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_stops_in_flight_shell_before_it_writes() {
+    let root = temp_project();
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(Arc::new(CancelProbeModel)))
+            .expect("daemon with cancel probe"),
+    );
+    let runner = KianaClient::new(InProcessTransport {
+        host: Arc::clone(&host),
+    });
+    let canceller = KianaClient::new(InProcessTransport { host });
+    // EventLog sequences are per request_id; run and cancel are concurrent requests.
+    let run_metadata = trusted_write_metadata_in(&root);
+    let cancel_metadata = trusted_write_metadata_in(&root);
+    let run_task = tokio::spawn(async move {
+        runner
+            .run(
+                run_metadata,
+                "write after sleeping",
+                Some("workspace-write".to_owned()),
+            )
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    let cancelled = canceller
+        .cancel_run(cancel_metadata, None, "user")
+        .await
+        .unwrap();
+    assert_ne!(
+        cancelled.status,
+        ExecutionStatus::Completed,
+        "{cancelled:?}"
+    );
+    assert!(
+        cancelled
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("cancelled:"),
+        "{cancelled:?}"
+    );
+    let started = run_task.await.unwrap().unwrap();
+    assert_ne!(started.status, ExecutionStatus::Completed, "{started:?}");
+    assert!(!root.join("CANCELLED.txt").exists());
+}

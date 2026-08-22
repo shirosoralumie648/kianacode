@@ -22,6 +22,10 @@ pub enum RunnerCommand {
         run_id: RunId,
         result: CapabilityResult,
     },
+    Continue {
+        run_id: RunId,
+        prompt: String,
+    },
     Cancel {
         run_id: RunId,
         reason: String,
@@ -56,10 +60,18 @@ impl RunnerCommand {
         }
     }
 
+    pub fn continue_run(run_id: RunId, prompt: impl Into<String>) -> Self {
+        Self::Continue {
+            run_id,
+            prompt: prompt.into(),
+        }
+    }
+
     pub const fn run_id(&self) -> RunId {
         match self {
             Self::Start { run_id, .. }
             | Self::CapabilityResult { run_id, .. }
+            | Self::Continue { run_id, .. }
             | Self::Cancel { run_id, .. } => *run_id,
         }
     }
@@ -126,5 +138,15 @@ mod tests {
         let encoded = serde_json::to_value(&command).unwrap();
         assert_eq!(encoded["sandbox"], DEFAULT_HARNESS_SANDBOX);
         assert_eq!(encoded["project_root"], "");
+    }
+
+    #[test]
+    fn continue_command_round_trips_run_id_and_prompt() {
+        let command = RunnerCommand::continue_run(RunId::new(), "keep going");
+        let encoded = serde_json::to_vec(&command).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<RunnerCommand>(&encoded).unwrap(),
+            command
+        );
     }
 }

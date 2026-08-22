@@ -148,6 +148,7 @@ impl KianaHarness {
             RunnerCommand::CapabilityResult { run_id, result } => {
                 self.on_capability_result(run_id, result).await
             }
+            RunnerCommand::Continue { run_id, prompt } => self.continue_run(run_id, prompt).await,
             RunnerCommand::Cancel { run_id, reason } => self.cancel(run_id, reason),
         }
     }
@@ -159,6 +160,12 @@ impl KianaHarness {
         sandbox: String,
         project_root: String,
     ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        if self.has_run(run_id)? {
+            return Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: "run_already_exists".to_owned(),
+            }]);
+        }
         let sandbox = normalize_sandbox(&sandbox)?;
         let mut run = ActiveRun {
             run_id,
@@ -217,12 +224,62 @@ impl KianaHarness {
         Ok(events)
     }
 
+    async fn continue_run(
+        &self,
+        run_id: RunId,
+        prompt: String,
+    ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        if prompt.trim().is_empty() {
+            return Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: "prompt_required".to_owned(),
+            }]);
+        }
+        let mut run = match self.take_run(run_id) {
+            Ok(run) => run,
+            Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => {
+                return Ok(vec![RunnerEvent::Failed {
+                    run_id,
+                    error: "run_not_found".to_owned(),
+                }]);
+            }
+            Err(error) => return Err(error),
+        };
+        if !run.pending_tools.is_empty() {
+            let error = "run_busy".to_owned();
+            let events = vec![RunnerEvent::Failed {
+                run_id,
+                error: error.clone(),
+            }];
+            self.store_unless_terminal(run, &[])?;
+            return Ok(events);
+        }
+        run.steps = 0;
+        run.last_text.clear();
+        run.inbox
+            .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
+        for message in run.inbox.claim(InboxTarget::NextTurn) {
+            run.messages.push(ModelMessage::user(message.text));
+        }
+        let events = self.model_step(&mut run).await;
+        self.store_unless_terminal(run, &events)?;
+        Ok(events)
+    }
+
     fn cancel(&self, run_id: RunId, reason: String) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
-        let _ = self.take_run(run_id);
-        Ok(vec![RunnerEvent::Failed {
-            run_id,
-            error: format!("cancelled:{reason}"),
-        }])
+        match self.take_run(run_id) {
+            Ok(_) => Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: format!("cancelled:{reason}"),
+            }]),
+            Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => {
+                Ok(vec![RunnerEvent::Failed {
+                    run_id,
+                    error: "run_not_found".to_owned(),
+                }])
+            }
+            Err(error) => Err(error),
+        }
     }
 
     async fn model_step(&self, run: &mut ActiveRun) -> Vec<RunnerEvent> {
@@ -335,17 +392,23 @@ impl KianaHarness {
             .ok_or_else(|| KianaHarnessError::Failed("run_not_found".to_owned()))
     }
 
+    fn has_run(&self, run_id: RunId) -> Result<bool, KianaHarnessError> {
+        Ok(self
+            .runs
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .contains_key(&run_id))
+    }
+
     fn store_unless_terminal(
         &self,
         run: ActiveRun,
         events: &[RunnerEvent],
     ) -> Result<(), KianaHarnessError> {
-        if events.iter().any(|event| {
-            matches!(
-                event,
-                RunnerEvent::Completed { .. } | RunnerEvent::Failed { .. }
-            )
-        }) {
+        if events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Failed { .. }))
+        {
             return Ok(());
         }
         self.runs
@@ -740,5 +803,103 @@ mod tests {
             }
             other => panic!("unexpected {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn continue_appends_to_the_same_run_messages() {
+        #[derive(Debug)]
+        struct CaptureModel {
+            outputs: std::sync::Mutex<VecDeque<ModelOutput>>,
+            seen: std::sync::Mutex<Vec<Vec<String>>>,
+        }
+
+        #[async_trait::async_trait]
+        impl ModelClient for CaptureModel {
+            async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+                let texts = request
+                    .messages
+                    .iter()
+                    .map(|message| message.text.clone())
+                    .collect();
+                self.seen
+                    .lock()
+                    .map_err(|_| "capture_lock_poisoned".to_owned())?
+                    .push(texts);
+                self.outputs
+                    .lock()
+                    .map_err(|_| "capture_lock_poisoned".to_owned())?
+                    .pop_front()
+                    .ok_or_else(|| "harness_script_exhausted".to_owned())
+            }
+        }
+
+        let model = Arc::new(CaptureModel {
+            outputs: std::sync::Mutex::new(VecDeque::from([
+                ModelOutput::text("first turn"),
+                ModelOutput::text("continued"),
+            ])),
+            seen: std::sync::Mutex::new(Vec::new()),
+        });
+        let harness = KianaHarness::new(model.clone());
+        let run_id = RunId::new();
+        let started = harness
+            .send(RunnerCommand::start(run_id, "hello"))
+            .await
+            .unwrap();
+        assert!(started
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        let continued = harness
+            .send(RunnerCommand::continue_run(run_id, "keep going"))
+            .await
+            .unwrap();
+        assert!(continued
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Delta { text, .. } if text == "continued")));
+        assert!(continued
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        let seen = model.seen.lock().unwrap();
+        assert_eq!(seen.len(), 2);
+        assert!(seen[0].iter().any(|text| text == "hello"));
+        assert!(seen[1].iter().any(|text| text == "hello"));
+        assert!(seen[1].iter().any(|text| text == "keep going"));
+    }
+
+    #[tokio::test]
+    async fn continue_unknown_run_fails_without_starting() {
+        let harness = scripted(json!([{"text": "should not run"}]));
+        let run_id = RunId::new();
+        let events = harness
+            .send(RunnerCommand::continue_run(run_id, "keep going"))
+            .await
+            .unwrap();
+        assert_eq!(
+            events.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "run_not_found".to_owned(),
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_unknown_run_fails_closed() {
+        let harness = scripted(json!([{"text": "should not run"}]));
+        let run_id = RunId::new();
+        let events = harness
+            .send(RunnerCommand::Cancel {
+                run_id,
+                reason: "user".to_owned(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            events.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "run_not_found".to_owned(),
+            })
+        );
     }
 }
