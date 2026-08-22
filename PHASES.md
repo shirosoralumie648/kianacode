@@ -393,11 +393,11 @@ MCP 市场、IDE、Desktop、企业、`kiana-tools` 新家族、computer-use、�
 - 参考：`reference/skills/`（Agent Skills 规范用法）、`reference/awesome-agent-skills`（目录不是运行时）、deepseek `packages/skill`、`packages/hooks`、pi `packages/coding-agent/src/extensions`、gstack `SKILL.md`。
 - ECC / everything-claude-code：配置收藏，不是引擎。不是 SkillTool，不是全套 hook。
 
-**v0.4.4 Provider 矩阵显式降级**
+**v0.4.4 Provider 矩阵显式降级** — **已本地绿（fake text-only / unsupported_tools）**
 
-- `kiana-services/src/api/provider.rs`：Anthropic / OpenAI-compatible / Ollama 能力差必须报告。
+- Daemon `ProviderModelClient` 把 `UnsupportedCapability` 映射成 `unsupported_tools`。`DaemonHost::with_env_harness()` 走 env provider。验证：`.planning/phases/13-VERIFICATION.md`。
 - 参考：OpenHands 后期 `feat(settings): select supported LLM providers`；pi 早期 reasoning token 跨 provider；aider `models.py`、`llm.py`。
-- 12-factor #2/#3：自有 prompt 与 context，不要假装模型等价。
+- 12-factor #2/#3：自有 prompt 与 context，不要假装模型等价。不是 live 矩阵，不是 `unsupported_streaming`。
 
 **v0.4.5 只读工作台工具（矩阵要才做）**
 
@@ -584,9 +584,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源、v0.5+ 需求 ID。v0.4.4 只打开 CODE-04。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.4.5 仅当矩阵仍需要 P1-READ 才打开；否则下一站是 v0.5。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.4 Phase 4 / CODE-03 skills context + PreToolUse 已本地绿。  
-下一命令：打开 **v0.4.4 CODE-04**（provider 显式降级）。对照矩阵 §3 / §6。不要同时开五部门、TUI、Read/Grep/Glob、SkillTool。
+当前计数：v0.4.4 / CODE-04 fake text-only `unsupported_tools` 已本地绿。  
+下一命令：按矩阵 §6，**仅当需要**才打开 v0.4.5 P1-READ；否则打开 **v0.5**。不要同时开五部门、TUI、SkillTool、live provider。

@@ -10,7 +10,7 @@
 
 ## Current Milestone
 
-**v0.4 Coding pack baseline** — Phase 1–4 已本地绿：Reviewer≠作者；公开行为矩阵草稿；stdio MCP client 经 daemon；skills 作为 harness 上下文 + PreToolUse 可拦。默认工人仍是 `role=builder` / `department=executing`。`kiana tui` 保持 park。下一站：v0.4.4 provider 显式降级（`CODE-04`），不要跳到五部门。
+**v0.4 Coding pack baseline** — Phase 1–5 已本地绿：Reviewer≠作者；公开行为矩阵草稿；stdio MCP client 经 daemon；skills 作为 harness 上下文 + PreToolUse 可拦；fake text-only provider 显式 `unsupported_tools`。默认工人仍是 `role=builder` / `department=executing`。`kiana tui` 保持 park。下一站：仅当矩阵仍需要才做 v0.4.5 P1-READ，否则打开 v0.5。
 
 后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
 

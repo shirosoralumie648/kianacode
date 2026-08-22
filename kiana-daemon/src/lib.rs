@@ -41,6 +41,10 @@ impl DaemonHost {
         Self::with_runner(Arc::new(harness))
     }
 
+    pub fn with_env_harness() -> Result<Self, PortError> {
+        Self::with_runner(Arc::new(KianaHarness::new(model_client::from_env())))
+    }
+
     pub fn with_harness_on_disk(
         harness: KianaHarness,
         events_path: impl AsRef<std::path::Path>,

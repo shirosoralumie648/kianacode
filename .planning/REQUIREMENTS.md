@@ -1,7 +1,7 @@
 # Requirements
 
 v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
-北星是 Company OS（见 `COMPANY.md`）。v0.4 Phase 1–4（`REV-01`、`CODE-01` 矩阵草稿、`CODE-02` stdio MCP、`CODE-03` skills/PreToolUse）已本地绿。下一执行集是 **v0.4.4 provider 显式降级**（`CODE-04`）。五部门与六层 RAG 仍冻结到 v0.5。
+北星是 Company OS（见 `COMPANY.md`）。v0.4 Phase 1–5（`REV-01`、`CODE-01` 矩阵草稿、`CODE-02` stdio MCP、`CODE-03` skills/PreToolUse、`CODE-04` fake text-only `unsupported_tools`）已本地绿。下一执行集按矩阵 §6：仅当需要才做 **v0.4.5 P1-READ**，否则打开 v0.5。五部门与六层 RAG 仍冻结到 v0.5。
 
 ## v0.3 — Current
 
@@ -71,7 +71,7 @@ v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
 - **CODE-01**: Claude Code 公开核心行为矩阵（每项 owner/测试/证据/许可证）— **草稿已签字**：`docs/coding-pack-matrix.md`
 - **CODE-02**: MCP client 经 daemon，不经 `runner.rs` — **stdio 已本地绿**；HTTP 仍 `mcp_transport_unsupported`
 - **CODE-03**: skills/hooks 接到 harness（可作为角色包）— **已本地绿（context + PreToolUse）**；不是 skill 工具、不是全套 hook
-- **CODE-04**: 多供应商能力差异显式降级
+- **CODE-04**: 多供应商能力差异显式降级 — **已本地绿（fake text-only / unsupported_tools）**；不是 live，不是 `unsupported_streaming`
 - **REV-01**: Reviewer 与 Builder 不得同一 session_id（监控部最小编制）
 
 ### v0.5 LONG — 五部门 + 六层 RAG

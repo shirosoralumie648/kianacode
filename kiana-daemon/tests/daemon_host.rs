@@ -1266,3 +1266,31 @@ async fn pre_tool_use_hook_blocks_apply_patch_before_broker_execute() {
     let tool_text = tool_result_text(&seen);
     assert!(tool_text.contains("hook_blocked"), "{tool_text}");
 }
+
+#[tokio::test]
+async fn fake_text_only_provider_fails_closed_with_unsupported_tools() {
+    let _provider = EnvGuard::set("KIANA_PROVIDER", "fake");
+    let _model = EnvGuard::set("KIANA_FAKE_MODEL", "fake-text-only");
+    let _script = EnvGuard::set("KIANA_HARNESS_SCRIPT", "");
+    let root = temp_project();
+    let host = Arc::new(DaemonHost::with_env_harness().expect("env harness daemon"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    let error = response.error.as_deref().unwrap_or("");
+    assert!(
+        error.contains("unsupported_tools"),
+        "expected unsupported_tools, got {response:?}"
+    );
+    assert!(
+        !root.join("GOLDEN_PATH.txt").exists(),
+        "text-only provider must not write GOLDEN_PATH.txt"
+    );
+}

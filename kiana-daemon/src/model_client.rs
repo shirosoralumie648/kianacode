@@ -13,7 +13,7 @@ use kiana_runner::{
 use kiana_services::api::messages::{Message, MessagesRequest};
 use kiana_services::api::provider::{
     provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
-    OpenAiCompatibleProvider, Provider, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
+    OpenAiCompatibleProvider, Provider, ProviderError, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
     OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
 };
 use serde_json::{json, Value};
@@ -139,8 +139,16 @@ impl ModelClient for ProviderModelClient {
                 stream: Some(false),
             })
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(map_provider_complete_error)?;
         Ok(output_from_content(&response.content))
+    }
+}
+
+fn map_provider_complete_error(error: ProviderError) -> String {
+    if matches!(error, ProviderError::UnsupportedCapability { .. }) {
+        error.code().to_owned()
+    } else {
+        error.to_string()
     }
 }
 
@@ -256,7 +264,7 @@ fn output_from_content(content: &[Value]) -> ModelOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiana_services::api::provider::FakeProviderStep;
+    use kiana_services::api::provider::{FakeProviderStep, FAKE_TEXT_ONLY_MODEL_ID};
 
     #[tokio::test]
     async fn provider_wrapper_maps_tool_calls_and_final_text() {
@@ -304,5 +312,33 @@ mod tests {
             .unwrap();
         assert_eq!(second.text, "architecture mapped");
         assert!(second.tool_calls.is_empty());
+    }
+
+    #[tokio::test]
+    async fn text_only_provider_maps_unsupported_tools_code() {
+        let provider = FakeProvider::new(
+            FAKE_TEXT_ONLY_MODEL_ID.to_owned(),
+            vec![FakeProviderStep::AssistantText {
+                text: "should not be consumed".to_owned(),
+            }],
+        );
+        let client = ProviderModelClient {
+            provider: Box::new(provider),
+            model: FAKE_TEXT_ONLY_MODEL_ID.to_owned(),
+        };
+        let error = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user(
+                    "create a file named GOLDEN_PATH.txt containing hello",
+                )],
+                tools: vec![json!({
+                    "name": "apply_patch",
+                    "parameters": {"type": "object"}
+                })],
+                sandbox: "workspace-write".to_owned(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error, "unsupported_tools");
     }
 }

@@ -19,7 +19,8 @@
 - [x] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
 - [x] **Phase 3: MCP client through daemon** — 模型工具 `mcp` → broker `mcp.call`；stdio only
 - [x] **Phase 4: Skills / hooks on harness** — Skill 是 System 上下文；PreToolUse 可拦 brokered 工具
-- [ ] **Later: provider / readonly tools** — 下一刀是 CODE-04 provider 显式降级
+- [x] **Phase 5: Provider degrade** — fake text-only → `unsupported_tools`；不写盘、不假成功
+- [ ] **Later: readonly tools** — 仅当矩阵仍需要 P1-READ
 
 ### Phase 1: Reviewer ≠ author
 
@@ -75,7 +76,21 @@
 4. 禁止把 `kiana-tools` SkillTool 或全套 post/stop/session hook 标成完成。
 5. 证明级别 `local_behavior`。
 
-**Plans:** 已执行。验证：`.planning/phases/12-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。下一刀 CODE-04。
+**Plans:** 已执行。验证：`.planning/phases/12-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。
+
+### Phase 5: Provider degrade on harness
+
+**Goal:** 不支持 tools 的 provider profile 必须机器可读失败，禁止假成功、禁止写盘。
+**Requirements:** CODE-04
+**Success Criteria:**
+
+1. 产品证明走 in-process `DaemonHost::with_env_harness()`；不新增 `kiana run` 开关；不格式化 `cli.rs`。
+2. `ProviderModelClient` 把 `UnsupportedCapability` 映射成 `error.code()`（`unsupported_tools`）。
+3. `KIANA_PROVIDER=fake` + `KIANA_FAKE_MODEL=fake-text-only`：run `Failed`，error 含 `unsupported_tools`，`GOLDEN_PATH.txt` 不出现。
+4. 禁止把 live Anthropic/OpenAI/Ollama 或 `unsupported_streaming` 标成完成。Harness 仍发 `stream: Some(false)`。
+5. 证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/13-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。下一刀仅当矩阵仍需要 P1-READ，否则 v0.5。
 
 ## 已完成：v0.3
 
