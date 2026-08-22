@@ -3,7 +3,7 @@
 use kiana_domain::{
     ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
     CapabilityResult, CommandIntent, CoreResponse, ExecutionStatus, GateDecision,
-    PermissionProfile, RequestContext, RiskLevel, RunId, RuntimeEvent,
+    PermissionProfile, RequestContext, RiskLevel, RoleSpec, RunId, RuntimeEvent,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -524,6 +524,7 @@ impl ControlPlane {
             });
         }
 
+        let worker = RoleSpec::builder();
         Ok(CoreResponse::completed(
             request_id,
             json!({
@@ -531,6 +532,8 @@ impl ControlPlane {
                 "run_id": run_id,
                 "harness": HARNESS_ID,
                 "sandbox": sandbox,
+                "role_id": worker.role_id,
+                "department_id": worker.department_id,
                 "output": output,
             }),
         ))

@@ -362,9 +362,7 @@ async fn run_main(args: &[String]) -> Result<()> {
 
     let prompt = prompt_parts.join(" ");
     if prompt.trim().is_empty() {
-        return Err(anyhow!(
-            "usage: kiana run [--json] [--sandbox read-only|workspace-write] [--] <prompt>"
-        ));
+        return Err(anyhow!("prompt_required"));
     }
 
     let mut options = HashMap::new();

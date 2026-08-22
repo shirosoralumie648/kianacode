@@ -102,6 +102,45 @@ impl RequestContext {
     }
 }
 
+pub const ROLE_BUILDER: &str = "builder";
+pub const DEPARTMENT_EXECUTING: &str = "executing";
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RoleSpec {
+    pub role_id: String,
+    pub department_id: String,
+    pub prompt: String,
+    pub tools: Vec<String>,
+    pub knowledge_grants: Vec<String>,
+}
+
+impl RoleSpec {
+    pub fn builder() -> Self {
+        Self {
+            role_id: ROLE_BUILDER.to_owned(),
+            department_id: DEPARTMENT_EXECUTING.to_owned(),
+            prompt: "You are Kiana's executing Builder. Use only the provided tools `shell` and `apply_patch`. Never request danger-full-access.".to_owned(),
+            tools: vec!["shell".to_owned(), "apply_patch".to_owned()],
+            knowledge_grants: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DepartmentSpec {
+    pub department_id: String,
+    pub roles: Vec<String>,
+}
+
+impl DepartmentSpec {
+    pub fn executing() -> Self {
+        Self {
+            department_id: DEPARTMENT_EXECUTING.to_owned(),
+            roles: vec![ROLE_BUILDER.to_owned()],
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CommandIntent {
     pub name: String,
@@ -350,6 +389,17 @@ mod tests {
         let context = RequestContext::local("session-1", "/repo");
         assert!(!context.project_trusted);
         assert_eq!(context.permission_profile, PermissionProfile::Safe);
+    }
+
+    #[test]
+    fn v0_2_worker_is_executing_builder() {
+        let role = RoleSpec::builder();
+        let department = DepartmentSpec::executing();
+        assert_eq!(role.role_id, ROLE_BUILDER);
+        assert_eq!(role.department_id, DEPARTMENT_EXECUTING);
+        assert_eq!(role.tools, ["shell", "apply_patch"]);
+        assert_eq!(department.department_id, DEPARTMENT_EXECUTING);
+        assert_eq!(department.roles, [ROLE_BUILDER]);
     }
 
     #[test]

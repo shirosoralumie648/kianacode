@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
-use kiana_protocol::{ExecutionStatus, RequestEnvelope, RequestMetadata, ResponseEnvelope};
+use kiana_protocol::{
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+};
 use kiana_runner::{
     KianaHarness, ModelClient, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
 };
@@ -30,6 +32,28 @@ fn trusted_metadata_in(project_root: impl AsRef<Path>) -> RequestMetadata {
     let mut metadata = RequestMetadata::local("session-1", project_root.as_ref().to_string_lossy());
     metadata.project_trusted = true;
     metadata
+}
+
+fn trusted_write_metadata_in(project_root: impl AsRef<Path>) -> RequestMetadata {
+    let mut metadata = trusted_metadata_in(project_root);
+    metadata.permission_profile = PermissionProfile::Balanced;
+    metadata
+}
+
+fn apply_patch_cassette() -> serde_json::Value {
+    json!([
+        {
+            "text": "writing",
+            "tool_calls": [{
+                "id": "c1",
+                "name": "apply_patch",
+                "arguments": {
+                    "patch": "*** Begin Patch\n*** Add File: GOLDEN_PATH.txt\n+hello\n*** End Patch\n"
+                }
+            }]
+        },
+        {"text": "created GOLDEN_PATH.txt"}
+    ])
 }
 
 fn temp_project() -> PathBuf {
@@ -72,6 +96,70 @@ async fn run_brokers_kiana_harness_tools() {
         "kiana.harness-result.v1"
     );
     assert_eq!(response.output["output"]["text"], "architecture mapped");
+}
+
+#[tokio::test]
+async fn trusted_workspace_write_apply_patch_creates_file() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(response.output["sandbox"], "workspace-write");
+    assert_eq!(response.output["role_id"], "builder");
+    assert_eq!(response.output["department_id"], "executing");
+    assert_eq!(
+        fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
+        "hello\n"
+    );
+}
+
+#[tokio::test]
+async fn untrusted_workspace_write_does_not_create_file() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = RequestMetadata::local("session-1", root.to_string_lossy());
+    metadata.permission_profile = PermissionProfile::Balanced;
+    let response = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("workspace_write_requires_trusted_non_safe_profile")
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn trusted_read_only_apply_patch_does_not_create_file() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
 #[tokio::test]

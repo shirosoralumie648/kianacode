@@ -15,7 +15,7 @@
 
 ## 当前里程碑：v0.2
 
-- [ ] **Phase 1: CLI golden path** — `kiana run` / print 经 `DaemonHost` 完成受信真 provider 一回合
+- [x] **Phase 1: CLI golden path** — `kiana run` / print 经 `DaemonHost` 完成受信真 provider 一回合
 - [ ] **Phase 2: Session continue / cancel / visible failure**
 - [ ] **Phase 3: Durable receipts**
 - [ ] **Phase 4: TUI on harness, or park**
@@ -30,7 +30,7 @@
 2. 未信任 / 无模型 / 空 prompt fail-closed。
 3. Print 模式报告 `harness: kiana-harness`，不 dispatch `kiana-tools`。
 
-**Plans:** 无 — 先 discuss，再只计划这一期。
+**Plans:** 已执行。验证：trusted fixture + `--sandbox workspace-write` cassette `apply_patch` 写出 `GOLDEN_PATH.txt`；收据含 `harness: kiana-harness`、`role_id=builder`、`department_id=executing`。证明级别 `local_behavior`。
 
 ### Phase 2: Session continue / cancel / visible failure
 

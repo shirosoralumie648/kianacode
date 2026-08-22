@@ -476,6 +476,8 @@ async fn start_run_brokers_harness_tools() {
     assert_eq!(response.status, ExecutionStatus::Completed);
     assert_eq!(response.output["schema"], "kiana.run-result.v1");
     assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(response.output["role_id"], "builder");
+    assert_eq!(response.output["department_id"], "executing");
     assert_eq!(
         response.output["output"]["schema"],
         "kiana.harness-result.v1"
@@ -524,6 +526,47 @@ async fn untrusted_read_only_run_is_allowed_but_workspace_write_is_blocked() {
         blocked.error.as_deref(),
         Some("workspace_write_requires_trusted_non_safe_profile")
     );
+}
+
+#[tokio::test]
+async fn start_run_brokers_apply_patch_when_trusted_workspace_write() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        scripted_runner(json!([
+            {
+                "text": "writing",
+                "tool_calls": [{
+                    "id": "c1",
+                    "name": "apply_patch",
+                    "arguments": {
+                        "patch": "*** Begin Patch\n*** Add File: GOLDEN_PATH.txt\n+hello\n*** End Patch\n"
+                    }
+                }]
+            },
+            {"text": "created GOLDEN_PATH.txt"}
+        ])),
+        broker.clone(),
+    );
+    let mut context = trusted_context();
+    context.permission_profile = PermissionProfile::Balanced;
+    let response = harness
+        .core
+        .start_run(
+            context,
+            "create a file named GOLDEN_PATH.txt containing hello".to_owned(),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    assert_eq!(response.output["schema"], "kiana.run-result.v1");
+    assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(response.output["sandbox"], "workspace-write");
+    assert_eq!(response.output["role_id"], "builder");
+    assert_eq!(response.output["department_id"], "executing");
+    assert_eq!(*broker.calls.lock().await, 1);
 }
 
 #[tokio::test]

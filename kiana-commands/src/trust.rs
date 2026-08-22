@@ -53,7 +53,7 @@ impl Command for TrustCommand {
                 reject_unexpected_rest("trust json", rest)?;
                 status_json(&context)
             }
-            "trust" | "trusted" | "allow" | "enable" => {
+            "." | "trust" | "trusted" | "allow" | "enable" => {
                 reject_unexpected_rest("trust trust", rest)?;
                 set_trust(&context, ProjectTrust::Trusted)
             }
@@ -112,7 +112,7 @@ fn status(context: &CommandContext) -> Result<CommandResult> {
                 "legacy_project_file_reason: {}",
                 snapshot.legacy_project_file.reason
             ),
-            "usage: kiana trust trust | untrust | reset | status".to_string(),
+            "usage: kiana trust . | trust | untrust | reset | status".to_string(),
         ]
         .join("\n"),
     ))
@@ -318,7 +318,7 @@ fn reject_unexpected_rest(command: &str, rest: &str) -> Result<()> {
 }
 
 fn usage() -> &'static str {
-    "Usage:\n  kiana trust [status|list]\n  kiana trust trust\n  kiana trust untrust\n  kiana trust reset\n  kiana trust path\n  kiana trust json"
+    "Usage:\n  kiana trust .\n  kiana trust [status|list]\n  kiana trust trust\n  kiana trust untrust\n  kiana trust reset\n  kiana trust path\n  kiana trust json"
 }
 
 #[cfg(test)]
@@ -486,7 +486,7 @@ mod tests {
         assert_eq!(initial["legacy_project_file"]["ignored"], true);
 
         let trusted = TrustCommand
-            .execute(context("trust", &env.project))
+            .execute(context(".", &env.project))
             .await
             .unwrap();
         assert!(trusted.value.contains("project_trust: trusted"));

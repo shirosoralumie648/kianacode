@@ -1,6 +1,8 @@
 //! Pure policy decisions for Kiana control-plane requests.
 
-use kiana_domain::{CapabilityKind, CapabilityRequest, PolicyDecision, RequestContext, RiskLevel};
+use kiana_domain::{
+    CapabilityKind, CapabilityRequest, PermissionProfile, PolicyDecision, RequestContext, RiskLevel,
+};
 
 pub trait PolicyEngine: Send + Sync {
     fn evaluate(&self, context: &RequestContext, request: &CapabilityRequest) -> PolicyDecision;
@@ -29,9 +31,17 @@ impl PolicyEngine for DefaultPolicyEngine {
             RiskLevel::ReadOnly => PolicyDecision::Allow {
                 authorization_id: format!("policy:{}", request.request_id),
             },
-            RiskLevel::LocalWrite => PolicyDecision::Ask {
-                reason: "local_write_requires_approval".to_owned(),
-            },
+            RiskLevel::LocalWrite => {
+                if matches!(context.permission_profile, PermissionProfile::Safe) {
+                    PolicyDecision::Ask {
+                        reason: "local_write_requires_approval".to_owned(),
+                    }
+                } else {
+                    PolicyDecision::Allow {
+                        authorization_id: format!("policy:{}", request.request_id),
+                    }
+                }
+            }
             RiskLevel::ExternalSideEffect => PolicyDecision::Ask {
                 reason: "external_side_effect_requires_approval".to_owned(),
             },
@@ -61,7 +71,7 @@ fn is_sensitive_operation(operation: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiana_domain::{CapabilityKind, RequestId};
+    use kiana_domain::{CapabilityKind, PermissionProfile, RequestId};
     use serde_json::Value;
 
     fn capability(kind: CapabilityKind, risk: RiskLevel) -> CapabilityRequest {
@@ -87,6 +97,20 @@ mod tests {
             DefaultPolicyEngine.evaluate(&context, &request),
             PolicyDecision::Allow { .. }
         ));
+    }
+
+    #[test]
+    fn trusted_balanced_local_write_is_allowed() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        let request = capability(CapabilityKind::Filesystem, RiskLevel::LocalWrite);
+        match DefaultPolicyEngine.evaluate(&context, &request) {
+            PolicyDecision::Allow { authorization_id } => {
+                assert_eq!(authorization_id, format!("policy:{}", request.request_id));
+            }
+            other => panic!("expected allow, got {other:?}"),
+        }
     }
 
     #[test]

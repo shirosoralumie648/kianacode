@@ -5,6 +5,7 @@
 //! credentials fail closed.
 
 use async_trait::async_trait;
+use kiana_domain::RoleSpec;
 use kiana_runner::{
     ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
     UnavailableModel,
@@ -96,10 +97,7 @@ fn provider_system_prompt() -> String {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| {
-            "You are Kiana. Use the provided tools when they are needed. Never request danger-full-access."
-                .to_owned()
-        });
+        .unwrap_or_else(|| RoleSpec::builder().prompt);
     if let Ok(extra) = std::env::var("KIANA_APPEND_SYSTEM_PROMPT") {
         let extra = extra.trim();
         if !extra.is_empty() {
