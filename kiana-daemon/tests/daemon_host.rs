@@ -729,3 +729,138 @@ async fn spawn_reuses_of_a_live_session_fail_closed() {
     assert_eq!(spawned.status, ExecutionStatus::Blocked, "{spawned:?}");
     assert_eq!(spawned.error.as_deref(), Some("spawn_session_not_fresh"));
 }
+
+#[tokio::test]
+async fn anti_meeting_writes_decision_without_model_then_spawn() {
+    let root = temp_project();
+    let model = CapturingModel::from_json(apply_patch_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut chair = trusted_write_metadata_in(&root);
+    chair.session_id = SessionId::new("chair-1");
+    chair.assign_role(&RoleSpec::pm());
+    let convened = client
+        .convene(
+            chair,
+            "create GOLDEN_PATH.txt containing hello",
+            true,
+            4,
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Completed, "{convened:?}");
+    assert_eq!(convened.output["builder_present"], false);
+    assert_eq!(convened.output["skipped_meeting"], true);
+    assert_eq!(
+        convened.output["decision"]["schema"],
+        "kiana.decision-record.v1"
+    );
+    assert_eq!(convened.output["packet"]["schema"], "kiana.work-packet.v1");
+    assert!(root.join("plan/DECISION.json").exists());
+    assert!(root.join("packet/TASK.json").exists());
+    let seen = model.seen.lock().unwrap();
+    assert!(seen.is_empty(), "{seen:?}");
+    drop(seen);
+
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-1");
+    let packet: WorkPacket =
+        serde_json::from_value(convened.output["packet"].clone()).expect("packet");
+    let spawned = client
+        .spawn(builder, packet, Some("workspace-write".to_owned()))
+        .await
+        .unwrap();
+    assert_eq!(spawned.status, ExecutionStatus::Completed, "{spawned:?}");
+    assert_eq!(spawned.output["role_id"], "builder");
+    assert_eq!(
+        fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
+        "hello\n"
+    );
+}
+
+#[tokio::test]
+async fn convene_then_spawn_keeps_architect_on_blackboard_not_pm_transcript() {
+    let root = temp_project();
+    let mut outputs = vec![
+        json!({"text": "choose the vertical slice"}),
+        json!({"text": "agree with one slice"}),
+    ];
+    outputs.extend(apply_patch_cassette().as_array().cloned().unwrap());
+    let model = CapturingModel::from_json(json!(outputs));
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut chair = trusted_write_metadata_in(&root);
+    chair.session_id = SessionId::new("chair-1");
+    chair.assign_role(&RoleSpec::pm());
+    let convened = client
+        .convene(
+            chair,
+            "one vertical slice vs two packets",
+            false,
+            1,
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Completed, "{convened:?}");
+    assert_eq!(convened.output["builder_present"], false);
+    assert_eq!(convened.output["skipped_meeting"], false);
+
+    let seen = model.seen.lock().unwrap().clone();
+    assert!(seen.len() >= 2, "{seen:?}");
+    let pm_text: String = seen[0]
+        .messages
+        .iter()
+        .filter(|message| message.role == ModelRole::User)
+        .map(|message| message.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(pm_text.contains("Speak as pm"), "{pm_text}");
+    assert!(!pm_text.contains("PLANNER_SECRET_TOKEN"), "{pm_text}");
+
+    let architect_text: String = seen[1]
+        .messages
+        .iter()
+        .filter(|message| message.role == ModelRole::User)
+        .map(|message| message.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        architect_text.contains("Speak as architect"),
+        "{architect_text}"
+    );
+    assert!(
+        architect_text.contains("choose the vertical slice"),
+        "{architect_text}"
+    );
+    assert!(
+        architect_text.contains("Blackboard claims:"),
+        "{architect_text}"
+    );
+    assert!(!architect_text.contains("Speak as pm"), "{architect_text}");
+    assert!(
+        !architect_text.contains("PLANNER_SECRET_TOKEN"),
+        "{architect_text}"
+    );
+
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-1");
+    let packet: WorkPacket =
+        serde_json::from_value(convened.output["packet"].clone()).expect("packet");
+    let spawned = client
+        .spawn(builder, packet, Some("workspace-write".to_owned()))
+        .await
+        .unwrap();
+    assert_eq!(spawned.status, ExecutionStatus::Completed, "{spawned:?}");
+    assert_eq!(
+        fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
+        "hello\n"
+    );
+}

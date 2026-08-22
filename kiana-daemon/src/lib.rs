@@ -134,6 +134,17 @@ impl DaemonHost {
                     .spawn_from_packet(context, spawn.packet, spawn.sandbox)
                     .await
             }
+            RequestBody::Symposium(symposium) => {
+                self.core
+                    .convene_symposium(
+                        context,
+                        symposium.goal,
+                        symposium.anti_meeting,
+                        Some(symposium.max_rounds),
+                        symposium.sandbox,
+                    )
+                    .await
+            }
         };
         match response {
             Ok(response) => {

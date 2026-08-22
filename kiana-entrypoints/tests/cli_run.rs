@@ -599,3 +599,134 @@ fn cancel_unknown_session_fails_closed() {
         assert_ne!(response["status"], "completed");
     }
 }
+
+#[test]
+fn symposium_anti_meeting_writes_decision_and_packet() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_in(
+        &fixture,
+        &home,
+        &[
+            "run",
+            "--json",
+            "--symposium",
+            "--anti-meeting",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "create GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(output.status.success(), "{}", combined(&output));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["status"], "completed");
+    assert_eq!(response["output"]["schema"], "kiana.symposium-result.v1");
+    assert_eq!(response["output"]["builder_present"], false);
+    assert_eq!(response["output"]["skipped_meeting"], true);
+    assert_eq!(response["output"]["decision"]["schema"], "kiana.decision-record.v1");
+    assert_eq!(response["output"]["packet"]["assignee_role"], "builder");
+    let decision = fs::read_to_string(fixture.join("plan").join("DECISION.json")).unwrap();
+    let packet = fs::read_to_string(fixture.join("packet").join("TASK.json")).unwrap();
+    assert!(decision.contains("kiana.decision-record.v1"), "{decision}");
+    assert!(packet.contains("kiana.work-packet.v1"), "{packet}");
+    assert!(
+        packet.contains("create GOLDEN_PATH.txt containing hello"),
+        "{packet}"
+    );
+}
+
+#[test]
+fn symposium_role_builder_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let output = kiana_in(
+        &fixture,
+        &home,
+        &[
+            "run",
+            "--json",
+            "--symposium",
+            "--anti-meeting",
+            "--role",
+            "builder",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "create GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("symposium_chair_must_be_pm"),
+        "{}",
+        combined(&output)
+    );
+    assert!(!fixture.join("plan").join("DECISION.json").exists());
+}
+
+#[test]
+fn symposium_without_goal_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &["run", "--json", "--symposium", "--anti-meeting"],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("symposium_goal_required"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn anti_meeting_without_symposium_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &[
+            "run",
+            "--json",
+            "--anti-meeting",
+            "--",
+            "create GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("anti_meeting_requires_symposium"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn symposium_with_packet_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    write_builder_packet(&fixture);
+    let output = kiana_in(
+        &fixture,
+        &home,
+        &[
+            "run",
+            "--json",
+            "--symposium",
+            "--anti-meeting",
+            "--packet",
+            "packet/TASK.json",
+            "--",
+            "create GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("use only one of --symposium"),
+        "{}",
+        combined(&output)
+    );
+}
+

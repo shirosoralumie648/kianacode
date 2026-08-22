@@ -2,8 +2,10 @@
 
 use kiana_domain::{
     ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
-    CapabilityResult, CommandIntent, CoreResponse, ExecutionStatus, GateDecision,
-    PermissionProfile, RequestContext, RiskLevel, RoleSpec, RunId, RuntimeEvent, WorkPacket,
+    CapabilityResult, CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision,
+    PermissionProfile, RequestContext, RequestId, RiskLevel, RoleSpec, RunId, RuntimeEvent,
+    Symposium, SymposiumClaim, WorkPacket, DECISION_RECORD_PATH, PLANNING_PATH_PACKET,
+    PLANNING_PATH_PLAN, ROLE_ARCHITECT, ROLE_PM, SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -385,6 +387,222 @@ impl ControlPlane {
         context.assign_role(&RoleSpec::builder());
         context.work_packet_id = Some(packet.id.clone());
         self.start_run(context, packet.as_prompt(), sandbox).await
+    }
+
+    pub async fn convene_symposium(
+        &self,
+        mut context: RequestContext,
+        goal: String,
+        anti_meeting: bool,
+        max_rounds: Option<u32>,
+        sandbox: Option<String>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let mut sequence = 1u64;
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "request.accepted",
+            json!({
+                "command": "run.symposium",
+                "anti_meeting": anti_meeting,
+            }),
+        )
+        .await?;
+
+        let goal = goal.trim().to_owned();
+        if goal.is_empty() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "symposium_goal_required" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "symposium_goal_required"));
+        }
+
+        let Some(chair) = RoleSpec::lookup(&context.role_id) else {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "role_unknown" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "role_unknown"));
+        };
+        if chair.role_id != ROLE_PM {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "symposium_chair_must_be_pm" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "symposium_chair_must_be_pm",
+            ));
+        }
+        context.assign_role(&RoleSpec::pm());
+
+        let max_rounds = match Symposium::validate_max_rounds(
+            max_rounds.unwrap_or(Symposium::DEFAULT_MAX_ROUNDS),
+        ) {
+            Ok(value) => value,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+
+        match authorized_harness_sandbox(&context, sandbox.as_deref()) {
+            Ok("workspace-write") => {}
+            Ok(_) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": "symposium_requires_workspace_write" }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(
+                    request_id,
+                    "symposium_requires_workspace_write",
+                ));
+            }
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        }
+
+        let mut meeting = Symposium::planning(request_id.to_string(), goal, max_rounds);
+        if let Err(reason) = meeting.validate() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+
+        let mut speaker_sessions = Vec::new();
+        if !anti_meeting {
+            for round in 0..max_rounds {
+                for role_id in [ROLE_PM, ROLE_ARCHITECT] {
+                    let role = RoleSpec::lookup(role_id).unwrap_or_else(RoleSpec::pm);
+                    let session_id = meeting.speaker_session_id(role_id);
+                    let mut speaker = context.clone();
+                    speaker.request_id = RequestId::new();
+                    speaker.session_id = kiana_domain::SessionId::new(session_id.clone());
+                    speaker.assign_role(&role);
+                    speaker.permission_profile = PermissionProfile::Safe;
+                    let prompt = meeting.speaker_prompt(role_id);
+                    let turn = if round == 0 {
+                        self.start_run(speaker, prompt, None).await?
+                    } else {
+                        self.continue_run(speaker, prompt, None, None).await?
+                    };
+                    if turn.status != ExecutionStatus::Completed {
+                        let mut failed = turn;
+                        failed.request_id = request_id;
+                        return Ok(failed);
+                    }
+                    if let Some(text) = turn
+                        .output
+                        .get("output")
+                        .and_then(|output| output.get("text"))
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        meeting
+                            .blackboard
+                            .claims
+                            .push(SymposiumClaim::new(role_id, text));
+                    }
+                    if round == 0 {
+                        speaker_sessions.push(json!({
+                            "role_id": role_id,
+                            "session_id": session_id,
+                        }));
+                    }
+                }
+            }
+        }
+
+        let (decision, packet) = match meeting.close(anti_meeting) {
+            Ok(closed) => closed,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+
+        if let Err(reason) = write_planning_artifacts(&context.project_root, &decision, &packet) {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "symposium.closed",
+            json!({
+                "symposium_id": meeting.id,
+                "skipped_meeting": anti_meeting,
+                "builder_present": false,
+                "decision_id": decision.id,
+                "work_packet_id": packet.id,
+            }),
+        )
+        .await?;
+
+        Ok(CoreResponse::completed(
+            request_id,
+            json!({
+                "schema": SYMPOSIUM_RESULT_SCHEMA,
+                "harness": HARNESS_ID,
+                "symposium_id": meeting.id,
+                "status": meeting.status,
+                "builder_present": false,
+                "skipped_meeting": anti_meeting,
+                "decision": decision,
+                "packet": packet,
+                "decision_path": DECISION_RECORD_PATH,
+                "packet_path": WORK_PACKET_PATH,
+                "speaker_sessions": speaker_sessions,
+                "blackboard": meeting.blackboard,
+            }),
+        ))
     }
 
     pub async fn start_run(
@@ -1244,6 +1462,30 @@ async fn wait_until_cancelled(rx: &watch::Receiver<bool>) {
             return;
         }
     }
+}
+
+fn write_planning_artifacts(
+    project_root: &str,
+    decision: &DecisionRecord,
+    packet: &WorkPacket,
+) -> Result<(), &'static str> {
+    let root = Path::new(project_root);
+    if project_root.trim().is_empty() || !root.is_dir() {
+        return Err("symposium_artifact_write_failed");
+    }
+    std::fs::create_dir_all(root.join(PLANNING_PATH_PLAN))
+        .map_err(|_| "symposium_artifact_write_failed")?;
+    std::fs::create_dir_all(root.join(PLANNING_PATH_PACKET))
+        .map_err(|_| "symposium_artifact_write_failed")?;
+    let decision_json =
+        serde_json::to_string_pretty(decision).map_err(|_| "symposium_artifact_write_failed")?;
+    let packet_json =
+        serde_json::to_string_pretty(packet).map_err(|_| "symposium_artifact_write_failed")?;
+    std::fs::write(root.join(DECISION_RECORD_PATH), decision_json)
+        .map_err(|_| "symposium_artifact_write_failed")?;
+    std::fs::write(root.join(WORK_PACKET_PATH), packet_json)
+        .map_err(|_| "symposium_artifact_write_failed")?;
+    Ok(())
 }
 
 fn authorized_harness_sandbox(

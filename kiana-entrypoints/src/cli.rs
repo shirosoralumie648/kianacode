@@ -325,13 +325,15 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect] [--packet <path>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect] [--symposium [--anti-meeting]] [--packet <path>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
     let mut json_output = false;
     let mut sandbox: Option<String> = None;
     let mut role: Option<String> = None;
+    let mut symposium = false;
+    let mut anti_meeting = false;
     let mut packet_path: Option<String> = None;
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
@@ -364,6 +366,8 @@ async fn run_main(args: &[String]) -> Result<()> {
             value if value.starts_with("--role=") => {
                 role = Some(value.trim_start_matches("--role=").to_owned());
             }
+            "--symposium" => symposium = true,
+            "--anti-meeting" => anti_meeting = true,
             "--packet" => {
                 index += 1;
                 packet_path = Some(
@@ -420,14 +424,27 @@ async fn run_main(args: &[String]) -> Result<()> {
         index += 1;
     }
 
-    let exclusive = u8::from(packet_path.is_some())
+    let exclusive = u8::from(symposium)
+        + u8::from(packet_path.is_some())
         + u8::from(continue_id.is_some())
         + u8::from(cancel_id.is_some())
         + u8::from(receipt_id.is_some());
     if exclusive > 1 {
         return Err(anyhow!(
-            "use only one of --packet, --continue, --cancel, or --receipt"
+            "use only one of --symposium, --packet, --continue, --cancel, or --receipt"
         ));
+    }
+    if anti_meeting && !symposium {
+        return Err(anyhow!("anti_meeting_requires_symposium"));
+    }
+    if symposium {
+        if let Some(role_id) = role.as_deref() {
+            let pm = kiana_protocol::RoleSpec::lookup(role_id)
+                .is_some_and(|role| role.role_id == kiana_protocol::ROLE_PM);
+            if !pm {
+                return Err(anyhow!("symposium_chair_must_be_pm"));
+            }
+        }
     }
 
     let prompt = prompt_parts.join(" ");
@@ -444,6 +461,9 @@ async fn run_main(args: &[String]) -> Result<()> {
         && packet_path.is_none()
         && prompt.trim().is_empty()
     {
+        if symposium {
+            return Err(anyhow!("symposium_goal_required"));
+        }
         return Err(anyhow!("prompt_required"));
     }
 
@@ -475,6 +495,9 @@ async fn run_main(args: &[String]) -> Result<()> {
         }
         let run_id = kiana_protocol::RunId::parse_str(&id);
         crate::harness_run::continue_envelope(id, prompt, run_id, &options).await?
+    } else if symposium {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        crate::harness_run::symposium_envelope(session_id, prompt, anti_meeting, &options).await?
     } else if let Some(packet_path) = packet_path {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::spawn_envelope(session_id, packet_path, &options).await?
@@ -13989,7 +14012,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
-    println!("  kiana run [--json] [--role builder|pm|architect] [--packet <path>] <prompt>  Execute a prompt or work packet through the Kiana harness");
+    println!("  kiana run [--json] [--role builder|pm|architect] [--symposium [--anti-meeting]] [--packet <path>] <prompt>  Execute a prompt, symposium, or work packet through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");

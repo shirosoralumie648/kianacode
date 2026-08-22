@@ -142,6 +142,14 @@ pub const PLANNING_PATH_CHARTER: &str = "charter";
 pub const PLANNING_PATH_PLAN: &str = "plan";
 pub const PLANNING_PATH_PACKET: &str = "packet";
 pub const WORK_PACKET_SCHEMA: &str = "kiana.work-packet.v1";
+pub const DECISION_RECORD_SCHEMA: &str = "kiana.decision-record.v1";
+pub const SYMPOSIUM_SCHEMA: &str = "kiana.symposium.v1";
+pub const SYMPOSIUM_RESULT_SCHEMA: &str = "kiana.symposium-result.v1";
+pub const SYMPOSIUM_TYPE_DECISION: &str = "decision";
+pub const SYMPOSIUM_STATUS_CLOSED: &str = "closed";
+pub const SYMPOSIUM_STATUS_SKIPPED: &str = "skipped";
+pub const DECISION_RECORD_PATH: &str = "plan/DECISION.json";
+pub const WORK_PACKET_PATH: &str = "packet/TASK.json";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RoleSpec {
@@ -410,6 +418,243 @@ fn push_packet_list(lines: &mut Vec<String>, label: &str, values: &[String]) {
         return;
     }
     lines.push(format!("{label}: {}", values.join(", ")));
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SymposiumClaim {
+    pub speaker: String,
+    pub text: String,
+    #[serde(default)]
+    pub evidence_refs: Vec<String>,
+}
+
+impl SymposiumClaim {
+    pub fn new(speaker: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            speaker: speaker.into(),
+            text: text.into(),
+            evidence_refs: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SymposiumVote {
+    pub role: String,
+    pub stance: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Blackboard {
+    #[serde(default)]
+    pub claims: Vec<SymposiumClaim>,
+    #[serde(default)]
+    pub votes: Vec<SymposiumVote>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_decision: Option<String>,
+}
+
+impl Blackboard {
+    pub fn as_prompt(&self) -> String {
+        let mut lines = Vec::new();
+        if self.claims.is_empty() {
+            lines.push("Blackboard claims: (none)".to_owned());
+        } else {
+            lines.push("Blackboard claims:".to_owned());
+            for claim in &self.claims {
+                lines.push(format!("- {}: {}", claim.speaker.trim(), claim.text.trim()));
+            }
+        }
+        if !self.votes.is_empty() {
+            lines.push("Blackboard votes:".to_owned());
+            for vote in &self.votes {
+                lines.push(format!(
+                    "- {}: {} ({})",
+                    vote.role.trim(),
+                    vote.stance.trim(),
+                    vote.reason.trim()
+                ));
+            }
+        }
+        if let Some(draft) = self
+            .draft_decision
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            lines.push(format!("Draft decision: {draft}"));
+        }
+        lines.join("\n")
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DecisionRecord {
+    pub schema: String,
+    pub id: String,
+    pub symposium_id: String,
+    pub summary: String,
+    pub decision: String,
+    pub work_packet_id: String,
+    pub skipped_meeting: bool,
+}
+
+impl DecisionRecord {
+    pub fn closed(
+        id: impl Into<String>,
+        symposium_id: impl Into<String>,
+        summary: impl Into<String>,
+        decision: impl Into<String>,
+        work_packet_id: impl Into<String>,
+        skipped_meeting: bool,
+    ) -> Self {
+        Self {
+            schema: DECISION_RECORD_SCHEMA.to_owned(),
+            id: id.into(),
+            symposium_id: symposium_id.into(),
+            summary: summary.into(),
+            decision: decision.into(),
+            work_packet_id: work_packet_id.into(),
+            skipped_meeting,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Symposium {
+    pub schema: String,
+    pub id: String,
+    pub department_id: String,
+    #[serde(rename = "type")]
+    pub symposium_type: String,
+    pub agenda: String,
+    pub chair: String,
+    pub attendees: Vec<String>,
+    pub max_rounds: u32,
+    pub blackboard: Blackboard,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_packet_id: Option<String>,
+}
+
+impl Symposium {
+    pub const DEFAULT_MAX_ROUNDS: u32 = 4;
+    pub const MAX_ROUNDS_CAP: u32 = 8;
+
+    pub fn planning(id: impl Into<String>, agenda: impl Into<String>, max_rounds: u32) -> Self {
+        Self {
+            schema: SYMPOSIUM_SCHEMA.to_owned(),
+            id: id.into(),
+            department_id: DEPARTMENT_PLANNING.to_owned(),
+            symposium_type: SYMPOSIUM_TYPE_DECISION.to_owned(),
+            agenda: agenda.into(),
+            chair: ROLE_PM.to_owned(),
+            attendees: vec![ROLE_PM.to_owned(), ROLE_ARCHITECT.to_owned()],
+            max_rounds,
+            blackboard: Blackboard::default(),
+            status: "proposed".to_owned(),
+            decision_id: None,
+            work_packet_id: None,
+        }
+    }
+
+    pub fn validate_max_rounds(max_rounds: u32) -> Result<u32, &'static str> {
+        if max_rounds == 0 || max_rounds > Self::MAX_ROUNDS_CAP {
+            Err("symposium_max_rounds_invalid")
+        } else {
+            Ok(max_rounds)
+        }
+    }
+
+    pub fn speaker_prompt(&self, role_id: &str) -> String {
+        format!(
+            "Planning symposium {}\nChair: {}\nAttendees: {}\nSpeak as {}\nAgenda: {}\n{}\nReply with a claim or vote. Do not patch source. Do not invite the Builder.",
+            self.id.trim(),
+            self.chair.trim(),
+            self.attendees.join(", "),
+            role_id.trim(),
+            self.agenda.trim(),
+            self.blackboard.as_prompt()
+        )
+    }
+
+    pub fn speaker_session_id(&self, role_id: &str) -> String {
+        format!("{}-{}", self.id.trim(), role_id.trim())
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        Self::validate_max_rounds(self.max_rounds)?;
+        if self.agenda.trim().is_empty() {
+            return Err("symposium_goal_required");
+        }
+        if self.chair.trim() != ROLE_PM {
+            return Err("symposium_chair_must_be_pm");
+        }
+        if self
+            .attendees
+            .iter()
+            .any(|role| role.trim() == ROLE_BUILDER)
+        {
+            return Err("symposium_builder_not_attendee");
+        }
+        let expected = [ROLE_PM, ROLE_ARCHITECT];
+        if self.attendees.len() != expected.len()
+            || self
+                .attendees
+                .iter()
+                .zip(expected)
+                .any(|(got, want)| got.trim() != want)
+        {
+            return Err("symposium_attendees_invalid");
+        }
+        Ok(())
+    }
+
+    pub fn close(
+        &mut self,
+        skipped_meeting: bool,
+    ) -> Result<(DecisionRecord, WorkPacket), &'static str> {
+        self.validate()?;
+        let packet_id = format!("wp-{}", self.id.trim());
+        let decision_id = format!("dec-{}", self.id.trim());
+        let decision_text = self
+            .blackboard
+            .draft_decision
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| self.agenda.trim())
+            .to_owned();
+        if decision_text.is_empty() {
+            return Err("symposium_decision_required");
+        }
+        let summary = if skipped_meeting {
+            format!("Anti-meeting: proceed with {decision_text}")
+        } else {
+            format!("Planning symposium closed: {decision_text}")
+        };
+        let packet = WorkPacket::builder_task(packet_id.clone(), self.agenda.trim());
+        packet.validate()?;
+        let decision = DecisionRecord::closed(
+            decision_id,
+            self.id.clone(),
+            summary,
+            decision_text,
+            packet_id.clone(),
+            skipped_meeting,
+        );
+        self.status = if skipped_meeting {
+            SYMPOSIUM_STATUS_SKIPPED.to_owned()
+        } else {
+            SYMPOSIUM_STATUS_CLOSED.to_owned()
+        };
+        self.decision_id = Some(decision.id.clone());
+        self.work_packet_id = Some(packet_id);
+        Ok((decision, packet))
+    }
 }
 
 pub fn normalize_role_path(path: &str) -> Option<String> {
@@ -771,6 +1016,49 @@ mod tests {
         let mut architect = packet.clone();
         architect.assignee_role = ROLE_ARCHITECT.to_owned();
         assert_eq!(architect.validate(), Err("packet_role_must_be_builder"));
+    }
+
+    #[test]
+    fn planning_symposium_excludes_builder_and_prompt_is_blackboard_only() {
+        let mut meeting = Symposium::planning("sym-1", "one vertical slice vs two packets", 2);
+        meeting
+            .blackboard
+            .claims
+            .push(SymposiumClaim::new(ROLE_PM, "choose the vertical slice"));
+        assert_eq!(meeting.chair, ROLE_PM);
+        assert_eq!(meeting.attendees, [ROLE_PM, ROLE_ARCHITECT]);
+        assert!(!meeting.attendees.iter().any(|role| role == ROLE_BUILDER));
+        let prompt = meeting.speaker_prompt(ROLE_ARCHITECT);
+        assert!(prompt.contains("Speak as architect"));
+        assert!(prompt.contains("Blackboard claims:"));
+        assert!(prompt.contains("choose the vertical slice"));
+        assert!(!prompt.contains("PLANNER_SECRET_TOKEN"));
+        assert_eq!(
+            Symposium::validate_max_rounds(0),
+            Err("symposium_max_rounds_invalid")
+        );
+        meeting.validate().unwrap();
+        let (decision, packet) = meeting.close(false).unwrap();
+        assert_eq!(decision.schema, DECISION_RECORD_SCHEMA);
+        assert_eq!(packet.assignee_role, ROLE_BUILDER);
+        assert!(!decision.skipped_meeting);
+        assert_eq!(meeting.status, SYMPOSIUM_STATUS_CLOSED);
+        assert_eq!(packet.goal, "one vertical slice vs two packets");
+
+        let mut skipped =
+            Symposium::planning("sym-2", "create GOLDEN_PATH.txt containing hello", 4);
+        let (decision, packet) = skipped.close(true).unwrap();
+        assert!(decision.skipped_meeting);
+        assert_eq!(skipped.status, SYMPOSIUM_STATUS_SKIPPED);
+        assert_eq!(packet.goal, "create GOLDEN_PATH.txt containing hello");
+
+        let mut with_builder =
+            Symposium::planning("sym-3", "create GOLDEN_PATH.txt containing hello", 4);
+        with_builder.attendees.push(ROLE_BUILDER.to_owned());
+        assert_eq!(
+            with_builder.validate(),
+            Err("symposium_builder_not_attendee")
+        );
     }
 
     #[test]

@@ -718,3 +718,167 @@ async fn cancel_unknown_run_fails_closed() {
     assert_eq!(cancelled.status, ExecutionStatus::Blocked);
     assert_eq!(cancelled.error.as_deref(), Some("session_not_found"));
 }
+
+fn temp_project() -> std::path::PathBuf {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("kiana-core-symposium-{stamp}"));
+    std::fs::create_dir_all(&root).unwrap();
+    root
+}
+
+fn trusted_write_pm(root: &std::path::Path) -> RequestContext {
+    let mut context = RequestContext::local("chair-1", root.to_string_lossy());
+    context.project_trusted = true;
+    context.permission_profile = PermissionProfile::Balanced;
+    context.assign_role(&kiana_domain::RoleSpec::pm());
+    context
+}
+
+#[tokio::test]
+async fn anti_meeting_writes_artifacts_without_runner() {
+    let harness = CoreHarness::new();
+    let root = temp_project();
+    let convened = harness
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "create GOLDEN_PATH.txt containing hello".to_owned(),
+            true,
+            Some(4),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Completed, "{convened:?}");
+    assert_eq!(convened.output["schema"], "kiana.symposium-result.v1");
+    assert_eq!(convened.output["builder_present"], false);
+    assert_eq!(convened.output["skipped_meeting"], true);
+    assert_eq!(convened.output["packet"]["assignee_role"], "builder");
+    assert_eq!(convened.output["decision"]["skipped_meeting"], true);
+    let decision = std::fs::read_to_string(root.join("plan/DECISION.json")).unwrap();
+    let packet = std::fs::read_to_string(root.join("packet/TASK.json")).unwrap();
+    assert!(decision.contains("kiana.decision-record.v1"), "{decision}");
+    assert!(packet.contains("kiana.work-packet.v1"), "{packet}");
+    assert!(
+        packet.contains("create GOLDEN_PATH.txt containing hello"),
+        "{packet}"
+    );
+}
+
+#[tokio::test]
+async fn convene_two_rounds_uses_private_speaker_sessions() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "choose the vertical slice"},
+        {"text": "agree with one slice"},
+        {"text": "keep the slice"},
+        {"text": "still agree"}
+    ])));
+    let root = temp_project();
+    let context = trusted_write_pm(&root);
+    let request_id = context.request_id.to_string();
+    let convened = harness
+        .core
+        .convene_symposium(
+            context,
+            "one vertical slice vs two packets".to_owned(),
+            false,
+            Some(2),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Completed, "{convened:?}");
+    assert_eq!(convened.output["builder_present"], false);
+    assert_eq!(convened.output["skipped_meeting"], false);
+    let sessions = convened.output["speaker_sessions"].as_array().unwrap();
+    assert_eq!(sessions.len(), 2, "{sessions:?}");
+    assert_eq!(sessions[0]["role_id"], "pm");
+    assert_eq!(sessions[1]["role_id"], "architect");
+    assert_eq!(sessions[0]["session_id"], format!("{request_id}-pm"));
+    assert_eq!(sessions[1]["session_id"], format!("{request_id}-architect"));
+    assert_ne!(sessions[0]["session_id"], sessions[1]["session_id"]);
+    assert_ne!(sessions[0]["session_id"], "chair-1");
+    let claims = convened.output["blackboard"]["claims"].as_array().unwrap();
+    assert!(
+        claims
+            .iter()
+            .any(|claim| claim["speaker"] == "pm" && claim["text"] == "choose the vertical slice"),
+        "{claims:?}"
+    );
+    assert!(
+        claims.iter().any(|claim| claim["speaker"] == "architect"
+            && claim["text"] == "agree with one slice"),
+        "{claims:?}"
+    );
+    assert!(root.join("plan/DECISION.json").exists());
+    assert!(root.join("packet/TASK.json").exists());
+}
+
+#[tokio::test]
+async fn symposium_builder_chair_fails_closed() {
+    let harness = CoreHarness::new();
+    let root = temp_project();
+    let mut context = trusted_write_pm(&root);
+    context.assign_role(&kiana_domain::RoleSpec::builder());
+    let convened = harness
+        .core
+        .convene_symposium(
+            context,
+            "create GOLDEN_PATH.txt containing hello".to_owned(),
+            true,
+            Some(4),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert_eq!(
+        convened.error.as_deref(),
+        Some("symposium_chair_must_be_pm")
+    );
+    assert!(!root.join("plan/DECISION.json").exists());
+}
+
+#[tokio::test]
+async fn symposium_empty_goal_fails_closed() {
+    let harness = CoreHarness::new();
+    let root = temp_project();
+    let convened = harness
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "   ".to_owned(),
+            true,
+            Some(4),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert_eq!(convened.error.as_deref(), Some("symposium_goal_required"));
+}
+
+#[tokio::test]
+async fn symposium_max_rounds_zero_fails_closed() {
+    let harness = CoreHarness::new();
+    let root = temp_project();
+    let convened = harness
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "create GOLDEN_PATH.txt containing hello".to_owned(),
+            true,
+            Some(0),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert_eq!(
+        convened.error.as_deref(),
+        Some("symposium_max_rounds_invalid")
+    );
+}

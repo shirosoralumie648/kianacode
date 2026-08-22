@@ -3,8 +3,9 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus,
-    PermissionProfile, RequestId, RoleSpec, RunId, SessionId, WorkPacket, DEPARTMENT_EXECUTING,
-    ROLE_BUILDER, WORK_PACKET_SCHEMA,
+    PermissionProfile, RequestId, RoleSpec, RunId, SessionId, Symposium, WorkPacket,
+    DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM,
+    WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -142,6 +143,25 @@ impl RequestEnvelope {
         }
     }
 
+    pub fn symposium(
+        metadata: RequestMetadata,
+        goal: impl Into<String>,
+        anti_meeting: bool,
+        max_rounds: u32,
+        sandbox: Option<String>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Symposium(SymposiumRequest {
+                goal: goal.into(),
+                anti_meeting,
+                max_rounds,
+                sandbox,
+            }),
+        }
+    }
+
     pub fn receipt(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
@@ -161,6 +181,7 @@ pub enum RequestBody {
     Cancel(CancelRequest),
     Receipt(ReceiptRequest),
     Spawn(SpawnRequest),
+    Symposium(SymposiumRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -208,6 +229,21 @@ pub struct ReceiptRequest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SpawnRequest {
     pub packet: WorkPacket,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<String>,
+}
+
+fn default_symposium_max_rounds() -> u32 {
+    Symposium::DEFAULT_MAX_ROUNDS
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SymposiumRequest {
+    pub goal: String,
+    #[serde(default)]
+    pub anti_meeting: bool,
+    #[serde(default = "default_symposium_max_rounds")]
+    pub max_rounds: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sandbox: Option<String>,
 }
@@ -375,5 +411,32 @@ mod tests {
             request
         );
         assert!(!packet.as_prompt().contains("PLANNER_SECRET_TOKEN"));
+    }
+
+    #[test]
+    fn symposium_envelope_round_trips_goal_without_transcript() {
+        let mut metadata = RequestMetadata::local("chair-1", "/repo");
+        metadata.project_trusted = true;
+        metadata.assign_role(&RoleSpec::pm());
+        let request = RequestEnvelope::symposium(
+            metadata,
+            "create GOLDEN_PATH.txt containing hello",
+            true,
+            Symposium::DEFAULT_MAX_ROUNDS,
+            Some("workspace-write".to_owned()),
+        );
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["type"], "symposium");
+        assert_eq!(
+            encoded["body"]["request"]["goal"],
+            "create GOLDEN_PATH.txt containing hello"
+        );
+        assert_eq!(encoded["body"]["request"]["anti_meeting"], true);
+        assert_eq!(encoded["metadata"]["role_id"], ROLE_PM);
+        assert!(encoded["body"]["request"].get("prompt").is_none());
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
+        );
     }
 }

@@ -17,7 +17,7 @@
 
 - [x] **Phase 1: Role catalog + policy** — `planning/pm`、`planning/architect`、`executing/builder`；policy 认 role
 - [x] **Phase 2: Independent Builder spawn** — packet 是唯一输入；新 session，不复制编排器 transcript
-- [ ] **Phase 3: One bounded symposium** — PM+Architect，硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
+- [x] **Phase 3: One bounded symposium** — PM+Architect，硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
 - [ ] **Phase 4: Eval + install** — 黄金路径 eval 与安装/升级/回滚跑 demo（可后做，不阻塞 Phase 1–3）
 
 ### Phase 1: Role catalog + policy
@@ -55,6 +55,8 @@
 1. 一场规划会：PM+Architect，硬顶轮次，私有 session + 黑板。
 2. 产出 DecisionRecord + 一个 WorkPacket；Builder 默认不列席。
 3. anti-meeting 可跳过开会、直接异步包。
+
+**Plans:** 已执行。验证：`.planning/phases/7-VERIFICATION.md`。证明级别 `local_behavior`。CLI 是 `kiana run --symposium [--anti-meeting]`；不能和 `--packet` / `--continue` / `--cancel` / `--receipt` 混用。Chair 必须是 PM。同核证明在 in-process DaemonHost：私有 session + 黑板，Builder 不列席。
 
 ### Phase 4: Eval + install
 

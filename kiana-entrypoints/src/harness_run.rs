@@ -9,7 +9,7 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
     normalize_role_path, ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata,
-    ResponseEnvelope, RoleSpec, RunId, WorkPacket, ROLE_BUILDER,
+    ResponseEnvelope, RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -136,6 +136,33 @@ pub async fn spawn_envelope(
     let packet = load_work_packet(&metadata.project_root, packet_path.as_ref())?;
     client
         .spawn(metadata, packet, policy.sandbox)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+pub async fn symposium_envelope(
+    session_id: impl Into<String>,
+    goal: impl Into<String>,
+    anti_meeting: bool,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    if let Some(role_id) = string_option(options, "role") {
+        let pm = RoleSpec::lookup(&role_id).is_some_and(|role| role.role_id == ROLE_PM);
+        if !pm {
+            return Err(anyhow!("symposium_chair_must_be_pm"));
+        }
+    }
+    let policy = sandbox_policy_from_options(options)?;
+    let (client, mut metadata) = local_client(session_id, options)?;
+    metadata.assign_role(&RoleSpec::pm());
+    client
+        .convene(
+            metadata,
+            goal.into(),
+            anti_meeting,
+            Symposium::DEFAULT_MAX_ROUNDS,
+            policy.sandbox,
+        )
         .await
         .map_err(anyhow::Error::msg)
 }
