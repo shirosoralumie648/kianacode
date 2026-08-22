@@ -1,0 +1,25 @@
+{
+  "model_profile": "adaptive",
+  "commit_docs": false,
+  "parallelization": true,
+  "search_gitignored": false,
+  "git": {
+    "branching_strategy": "none"
+  },
+  "workflow": {
+    "research": false,
+    "plan_check": true,
+    "verifier": true,
+    "nyquist_validation": false,
+    "auto_advance": false,
+    "ui_phase": false,
+    "ui_review": false,
+    "ai_integration_phase": false,
+    "human_verify_mode": "end-of-phase",
+    "skip_discuss": false,
+    "code_review": true,
+    "tdd_mode": false,
+    "security_enforcement": true
+  },
+  "phase_naming": "sequential"
+}
