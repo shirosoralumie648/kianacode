@@ -2223,7 +2223,11 @@ for platform in ["linux", "macos", "windows"]:
         raise SystemExit(f"platform security blocker is missing {expected}")
 PY
 bash scripts/commercial-release-handoff-smoke.sh >/dev/null
-bash scripts/capability-governance-smoke.sh
+# Historical production ledgers under docs/agent-program were deleted.
+# Keep fixture-only slices so JSON schema contracts still gate.
+bash scripts/capability-governance-smoke.sh schemas
+bash scripts/capability-governance-smoke.sh fixture-shapes
+bash scripts/capability-governance-smoke.sh semantic-negative
 
 # build-inputs schema contract (Phase 2)
 "$python" scripts/validate-json-schema.py \

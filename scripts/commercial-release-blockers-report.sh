@@ -1139,7 +1139,7 @@ add_check(
         if toolchain_ok
         else "rust-toolchain.toml missing or has no 'channel' field"
     ),
-    required_action='Create rust-toolchain.toml with channel = "stable" and required components (see docs/toolchain-upgrade-policy.md).',
+    required_action='Create rust-toolchain.toml with channel = "stable" and required components.',
     paths=["rust-toolchain.toml"],
     commands=['python3 -c "import tomllib,pathlib; d=tomllib.loads(pathlib.Path(\'rust-toolchain.toml\').read_text()); assert d[\'toolchain\'][\'channel\']"'],
     resolution_scope="local-automation",

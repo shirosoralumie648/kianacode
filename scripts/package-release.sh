@@ -111,12 +111,11 @@ fi
 cargo build --release --locked --offline -p kiana-entrypoints --bin kiana
 verify_binary_format "target/release/kiana${exe_ext}"
 
-mkdir -p "$stage/docs/eval/fixtures" "$stage/docs/proof-templates" "$stage/docs/reference_audit" "$stage/docs/schemas" "$stage/scripts"
+mkdir -p "$stage/docs/eval/fixtures" "$stage/docs/proof-templates" "$stage/docs/schemas" "$stage/scripts"
 cp "target/release/kiana${exe_ext}" "$stage/"
 cp VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md SECURITY.md PRIVACY.md TELEMETRY.md "$stage/"
 cp LICENSE-MIT LICENSE-APACHE "$stage/"
-cp docs/reference-migration-roadmap.md docs/reference-feature-matrix.md docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md docs/sdk-runtime-events.md "$stage/docs/"
-cp docs/reference_audit/*.md "$stage/docs/reference_audit/"
+cp docs/sdk-runtime-events.md "$stage/docs/"
 cp docs/proof-templates/README.md docs/proof-templates/*.example.json "$stage/docs/proof-templates/"
 cp docs/eval/fixtures/* "$stage/docs/eval/fixtures/"
 cp docs/schemas/*.json "$stage/docs/schemas/"

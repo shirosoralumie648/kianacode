@@ -35,7 +35,6 @@ cargo test -p kiana-commands --no-fail-fast
 - `--json`、stream、app-server、MCP、release-proof 合同变化时同步更新 `docs/schemas/` 和 schema smoke
 - 产品入口不得直接调用 Tool / Service / Query implementation
 
-更完整的代码约定见 [`.planning/codebase/CONVENTIONS.md`](.planning/codebase/CONVENTIONS.md)。
 
 ## 文档
 

@@ -5,10 +5,10 @@ milestone_name: Runnable Local Agent MVP
 current_phase: 3
 current_phase_name: 黄金路径能跑通
 status: planning
-stopped_at: old 24-phase/Project OS/superpowers design corpus deleted; next is $gsd-discuss-phase 3 (skip_discuss: false). Phase 2 stays parked at human_needed.
+stopped_at: leftover historical docs deleted (phases/codebase/agent-program/reference audit); next is $gsd-discuss-phase 3 (skip_discuss: false). Phase 2 stays parked at human_needed.
 last_updated: "2026-08-22T11:22:12.029Z"
 last_activity: 2026-08-22
-last_activity_desc: Deleted old 24-phase / Project OS / superpowers design corpus after the v0.2 recut
+last_activity_desc: Deleted leftover historical planning, reference audit, and capability-governance ledgers
 progress:
   total_phases: 6
   completed_phases: 1
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-22)
 Phase: 3 of 6 — 黄金路径能跑通
 Plan: —
 Status: Planning — requirements and roadmap for v0.2 are written; discuss is next
-Last activity: 2026-08-22 — Deleted old 24-phase / Project OS / superpowers design corpus after the v0.2 recut
+Last activity: 2026-08-22 — Deleted leftover historical docs after the v0.2 recut
 
 Progress: [██░░░░░░░░] 17% (1/6 phases closed; Phase 2 implementation landed but human gate open; Phases 3–6 unplanned)
 
@@ -67,7 +67,7 @@ Progress: [██░░░░░░░░] 17% (1/6 phases closed; Phase 2 imple
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-- [2026-08-22] 剩余工作改为纵向 MVP（v0.2 Phase 3–6）。随后按用户要求删除旧 24 阶段 / Project OS / superpowers / features / journeys / parked 1.0 文档；它们不再作为执行依据。完整 1.0 仍是口头北星，需要时再写，不从旧档案恢复。
+- [2026-08-22] 剩余工作改为纵向 MVP（v0.2 Phase 3–6）。随后按用户要求删除旧设计档案，以及 Phase 1/2 规划考古、capability-governance 账本、reference audit 和商业就绪长文；它们不再作为执行依据。
 - ⚠ superseded: 采用用户批准的 horizontal foundation 顺序：contract/state/policy/runtime 先于 pack 与 surface 扩张。
 - ⚠ superseded as current execution: 采用 research 验证的 24 个 fine-grained sequential phases。
 - Coding、Research、Daily、全部入口、Official Cloud、Enterprise 和 12 项 DIF 要求仍保留在 1.0 北星，但不计入 v0.2 完成。
@@ -126,5 +126,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-08-22T11:22:12.029Z
-Stopped at: old 24-phase / Project OS / superpowers design corpus deleted. Next boundary is `$gsd-discuss-phase 3` (`skip_discuss: false`). Do not mark Phase 2 complete. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
+Stopped at: leftover historical docs deleted. Next boundary is `$gsd-discuss-phase 3` (`skip_discuss: false`). Do not mark Phase 2 complete. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
 Resume file: docs/planning-current.md

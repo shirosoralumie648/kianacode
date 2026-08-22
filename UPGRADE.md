@@ -5,7 +5,7 @@ automatic background updates.
 
 ## Supported Upgrade Path
 
-1. Read `CHANGELOG.md` and `docs/commercial-release-readiness.md`.
+1. Read `CHANGELOG.md`.
 2. Back up `~/.kiana/config.toml` and any local hooks, permissions, plugins, and
    task state under `~/.kiana`.
 3. Install the new binary into a staging location first.
@@ -62,5 +62,4 @@ Before a public commercial release, any incompatible change must update:
 - `CHANGELOG.md`
 - `UPGRADE.md`
 - `CONFIG.md`
-- `docs/commercial-release-readiness.md`
 - Relevant release smoke or package checks

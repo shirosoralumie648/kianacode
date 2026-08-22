@@ -1,76 +1,49 @@
 # Kiana 文档索引
 
-按读者和用途分流。**完成判定不看设计篇幅**，只看 capability matrix、测试、运行级 smoke 和发布证据。旧 24 阶段 / Project OS / superpowers 设计档案已删除。
+当前执行是 **v0.2 Runnable Local Agent MVP**。完成判定看黄金路径、测试和运行级 smoke，不看设计篇幅。
 
 ## 先看这些
 
 | 文档 | 用途 |
 | --- | --- |
-| [README.md](../README.md) | 产品定位、架构不变量、workspace 地图 |
-| [QUICKSTART.md](../QUICKSTART.md) | 编译、配置、REPL/TUI/print 的最短路径 |
-| [USAGE.md](../USAGE.md) | 已接线命令与操作手册 |
-| [CONFIG.md](../CONFIG.md) | `~/.kiana/config.toml` 与 provider 环境变量 |
-| [INSTALL.md](../INSTALL.md) | 源码安装、Makefile、tarball |
-| [docs/tui.md](tui.md) | 产品 TUI 与 `kiana-tui` crate 的边界 |
-| [docs/architecture.md](architecture.md) | 控制平面分层与 crate 职责 |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | 开发、验证、提交约定 |
+| [planning-current.md](planning-current.md) | 当前里程碑（先看这个） |
+| [README.md](../README.md) | 产品定位和最短入口 |
+| [QUICKSTART.md](../QUICKSTART.md) | 编译、配置、REPL/TUI/print |
+| [USAGE.md](../USAGE.md) | 已接线命令 |
+| [CONFIG.md](../CONFIG.md) | `~/.kiana/config.toml` 与 provider |
+| [docs/architecture.md](architecture.md) | 当前控制平面分层 |
+| [docs/tui.md](tui.md) | 产品 TUI 边界 |
 
-## 运维与发布
+## 规划
 
 | 文档 | 用途 |
 | --- | --- |
-| [RELEASE.md](../RELEASE.md) | 发布流程 |
-| [UPGRADE.md](../UPGRADE.md) | 升级/回滚注意 |
-| [SECURITY.md](../SECURITY.md) | 安全策略 |
-| [PRIVACY.md](../PRIVACY.md) | 隐私 |
-| [TELEMETRY.md](../TELEMETRY.md) | 遥测默认关闭 |
-| [CHANGELOG.md](../CHANGELOG.md) | 变更记录 |
-| [release-checklist.md](release-checklist.md) | 发布检查单 |
-| [commercial-release-readiness.md](commercial-release-readiness.md) | 商业就绪 blocker |
-| [distribution-channels.md](distribution-channels.md) | 分发渠道 |
-| [toolchain-upgrade-policy.md](toolchain-upgrade-policy.md) | 工具链升级策略 |
+| [`.planning/PROJECT.md`](../.planning/PROJECT.md) | 产品定义与 v0.2 范围 |
+| [`.planning/REQUIREMENTS.md`](../.planning/REQUIREMENTS.md) | PATH / SESS / TRUST / EVD |
+| [`.planning/ROADMAP.md`](../.planning/ROADMAP.md) | Phase 1–6 |
+| [`.planning/MILESTONES.md`](../.planning/MILESTONES.md) | 当前列车 |
+| [`.planning/STATE.md`](../.planning/STATE.md) | GSD 状态 |
 
-## 契约与运行时
+下一步是 `$gsd-discuss-phase 3`。没有 `03-*-PLAN.md`。
+
+## 运行时契约
 
 | 文档 | 用途 |
 | --- | --- |
 | [sdk-runtime-events.md](sdk-runtime-events.md) | RuntimeEvent SDK 合同 |
 | [docs/schemas/](schemas/) | pinned JSON Schema |
-| [architecture.md](architecture.md) | 控制平面分层（当前说明） |
+| [docs/eval/fixtures/](eval/fixtures/) | eval 命令 fixture |
+| [docs/proof-templates/](proof-templates/) | 发布证明模板 |
 
-JSON 合同变化后必须跑 `bash scripts/schema-contract-smoke.sh`。
+JSON 合同变化后跑 `bash scripts/schema-contract-smoke.sh`。
 
-## 规划权威
+## 其他用户文档
 
-GSD / 产品规划以这些文件为准，不要用过期的 phase 笔记覆盖它们。
-
-2026-08-22 起当前执行是 **v0.2 纵向 MVP**（Phase 3–6），不是原 24 阶段 1.0 横切链。
-
-| 文档 | 层级 |
-| --- | --- |
-| [planning-current.md](planning-current.md) | 当前里程碑说明（先看这个） |
-| [`.planning/PROJECT.md`](../.planning/PROJECT.md) | 产品定义、当前里程碑与约束 |
-| [`.planning/REQUIREMENTS.md`](../.planning/REQUIREMENTS.md) | v0.2 需求（PATH/SESS/TRUST/EVD） |
-| [`.planning/ROADMAP.md`](../.planning/ROADMAP.md) | 当前 Phase 1–6 |
-| [`.planning/MILESTONES.md`](../.planning/MILESTONES.md) | 当前 v0.2 列车 |
-| [`.planning/STATE.md`](../.planning/STATE.md) | 当前 GSD 执行状态 |
-
-`.planning/STATE.md` 的 YAML 头和正文可能短暂不一致；冲突时以 git 最新提交和实际 phase 目录为准，不要用过期百分比当作完成证明。
-
-## 治理与发布输入（不是产品完成）
-
-这些仍被 Phase 1/2 脚本和证据链使用，不能当成 1.0 已完成：
-
-- [reference-feature-matrix.md](reference-feature-matrix.md)
-- [reference-migration-roadmap.md](reference-migration-roadmap.md)
-- [reference_audit/](reference_audit/)
-- [agent-program/](agent-program/) — capability governance 生产账本
-
-`reference/` checkout 默认被 `.gitignore` 排除。
+[INSTALL.md](../INSTALL.md) · [CONTRIBUTING.md](../CONTRIBUTING.md) · [RELEASE.md](../RELEASE.md) · [UPGRADE.md](../UPGRADE.md) · [SECURITY.md](../SECURITY.md) · [PRIVACY.md](../PRIVACY.md) · [TELEMETRY.md](../TELEMETRY.md) · [CHANGELOG.md](../CHANGELOG.md)
 
 ## 仓库卫生
 
 - 默认分支是 `master`
-- 生成物 `graphify-out/`、本地 `.superpowers/` 会话笔记、VS Code `node_modules` / `*.vsix` 不应进入 git
-- 未落地的 ACP / plugins / scripting / VS Code extension 在本地分支 `wip/unlanded-extensions`
-- 旧 stash 备份在 `wip/stash-before-ctrl-r-merge`，不要直接应用到当前 master
+- 旧 24 阶段 / Project OS / superpowers / Phase 1–2 规划考古 / capability-governance 账本 / reference audit 已删除
+- 未落地的 ACP / plugins / scripting / VS Code extension 在 `wip/unlanded-extensions`
+- 旧 stash 备份在 `wip/stash-before-ctrl-r-merge`

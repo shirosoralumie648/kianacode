@@ -41,7 +41,7 @@
 | 5 | 信任与权限让 MVP 能用且 fail-closed | Pending |
 | 6 | 任务确实执行过的证据 | Pending |
 
-旧 Phase 3–24 设计文档、特性账本、journeys 和 1.0 需求附录已删除。后续里程碑需要时再写，不再从旧档案恢复。
+旧 Phase 3–24 设计文档、Phase 1/2 规划考古、capability-governance 账本、reference audit 和商业就绪长文已删除。后续里程碑需要时再写，不再从旧档案恢复。
 
 ## 证据边界
 

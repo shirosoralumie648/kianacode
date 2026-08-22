@@ -30,7 +30,7 @@ Phase 1 保持已完成。Phase 2 保持人审门禁，不把 local verification
 - **Revenue model**: 本地个人核心开源；官方云按同步、远程执行和团队能力收费；企业版通过自托管许可、治理能力、支持和服务商业化
 - **Success metric (current)**: 一条本地黄金路径在 CLI/TUI 上对真实仓库 + 真实 provider 可跑通，失败可见，并留下工具/改动证据
 - **Success metric (north star)**: Coding、Academic Research、Daily Work、全部产品入口、官方云和企业自托管版共同通过 1.0 发布门禁；1.0 不是 v0.2 的完成标准
-- **Strategy notes**: 当前执行见 `docs/planning-current.md` 和 `.planning/ROADMAP.md`。Phase 1 治理账本仍在 `docs/agent-program/` 与 `docs/reference-feature-matrix.md`。
+- **Strategy notes**: 当前执行见 `docs/planning-current.md` 和 `.planning/ROADMAP.md`。Phase 1/2 规划考古、capability-governance 账本和 reference audit 已删除，不再作为执行依据。
 
 ## Requirements
 
@@ -88,7 +88,6 @@ Phase 1 保持已完成。Phase 2 保持人审门禁，不把 local verification
 ## Context
 
 - 当前仓库是已有大量实现和文档的 brownfield Rust monorepo，而不是从零创建的新项目。
-- `.planning/codebase/` 已在 2026-07-13 完成七份代码库映射；该映射是现有能力和架构边界的初始事实来源。
 - 当前架构已经具备入口层、命令层、Assistant runtime、tool/workbench、workflow/project OS、context/hooks、extension/trust 等分层，应在这些边界上演进而不是另起一套运行时。
 - `reference/` 当前包含 38 个项目目录，覆盖 coding agents、agent runtimes、planning/workflow、memory/knowledge、multi-agent、IDE、app-server、research 和扩展生态。
 - 2026-08-22：用户明确要求先有能跑通的 MVP，再扩展成通用 agents 助手。原 24 阶段设计/规划文档已删除；Phase 1/2 执行记录保留。

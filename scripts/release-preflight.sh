@@ -41,15 +41,6 @@ require_manifest_field() {
 for file in \
   VERSION README.md RELEASE.md INSTALL.md CONFIG.md USAGE.md CHANGELOG.md UPGRADE.md \
   SECURITY.md PRIVACY.md TELEMETRY.md LICENSE-MIT LICENSE-APACHE deny.toml \
-  docs/reference-migration-roadmap.md docs/reference-feature-matrix.md \
-  docs/reference_audit/aider.md docs/reference_audit/autogen.md \
-  docs/reference_audit/claude-code-main.md docs/reference_audit/claude-code-rev-main.md \
-  docs/reference_audit/claude-code-rust.md docs/reference_audit/cline.md \
-  docs/reference_audit/codex.md docs/reference_audit/continue.md \
-  docs/reference_audit/kiana_capability_matrix.md docs/reference_audit/langchain.md \
-  docs/reference_audit/MetaGPT.md docs/reference_audit/OpenHands.md \
-  docs/reference_audit/pi.md docs/reference_audit/Roo-Code.md \
-  docs/commercial-release-readiness.md docs/release-checklist.md docs/distribution-channels.md \
   docs/sdk-runtime-events.md \
   docs/proof-templates/README.md \
   docs/proof-templates/source-control.example.json \
@@ -362,13 +353,13 @@ else
   fail "package lifecycle smoke does not cover workflow transition and completion"
 fi
 
-if grep -Fq 'docs/reference-feature-matrix.md' scripts/package-release.sh &&
-  grep -Fq 'docs/reference_audit/*.md' scripts/package-release.sh &&
-  grep -Fq 'docs/reference_audit/*.md' scripts/package-lifecycle-smoke.sh &&
-  grep -Fq 'package reference evidence differs from source' scripts/package-lifecycle-smoke.sh; then
-  pass "release package carries reference feature matrix and audit evidence"
+if grep -Fq 'docs/sdk-runtime-events.md' scripts/package-release.sh &&
+  grep -Fq 'docs/schemas/*.json' scripts/package-release.sh &&
+  grep -Fq 'docs/eval/fixtures/*' scripts/package-release.sh &&
+  grep -Fq 'docs/proof-templates/*.example.json' scripts/package-release.sh; then
+  pass "release package carries runtime schemas, eval fixtures, and proof templates"
 else
-  fail "release package does not carry reference feature matrix and audit evidence"
+  fail "release package does not carry runtime schemas, eval fixtures, or proof templates"
 fi
 
 if grep -Fq 'context index --json' scripts/release-smoke.sh &&
@@ -515,8 +506,7 @@ if grep -Fq 'smoke_project_trust "$release_bin"' scripts/release-smoke.sh &&
   grep -Fq 'smoke_installed_project_trust' scripts/package-lifecycle-smoke.sh &&
   grep -Fq 'project_local_trust_is_not_authoritative' scripts/release-smoke.sh &&
   grep -Fq '$KIANA_HOME/trust/projects/<project_id>.json' USAGE.md &&
-  grep -Fq 'kiana.project-trust.v2' docs/reference-migration-roadmap.md &&
-  grep -Fq 'legacy ignored' docs/reference-feature-matrix.md; then
+  grep -Fq 'kiana.project-trust.v2' USAGE.md; then
   pass "external fail-closed project trust documentation and installed-binary lifecycle smoke are wired"
 else
   fail "project trust release gates do not prove external unknown/trusted/reset lifecycle and legacy self-claim rejection"

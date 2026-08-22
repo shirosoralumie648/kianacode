@@ -262,6 +262,3 @@ them without production-like credentials.
 - `SECURITY.md`
 - `PRIVACY.md`
 - `TELEMETRY.md`
-- `docs/commercial-release-readiness.md`
-- `docs/release-checklist.md`
-- `docs/distribution-channels.md`

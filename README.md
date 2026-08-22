@@ -190,7 +190,6 @@ Linux 无桌面输入会话时，`kiana-computer-input::tests::test_init` 可能
 - [当前规划](docs/planning-current.md)
 - [项目定义](.planning/PROJECT.md)
 - [当前路线图](.planning/ROADMAP.md)
-- [商业发布就绪清单](docs/commercial-release-readiness.md)
 
 ## License
 
