@@ -18,7 +18,8 @@
 - [x] **Phase 1: Reviewer ≠ author** — `monitoring/reviewer` 新 session；写 `gate/REVIEW.json`
 - [x] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
 - [x] **Phase 3: MCP client through daemon** — 模型工具 `mcp` → broker `mcp.call`；stdio only
-- [ ] **Later: skills / provider / readonly tools** — 下一刀是 CODE-03 skills/hooks 接上 harness
+- [x] **Phase 4: Skills / hooks on harness** — Skill 是 System 上下文；PreToolUse 可拦 brokered 工具
+- [ ] **Later: provider / readonly tools** — 下一刀是 CODE-04 provider 显式降级
 
 ### Phase 1: Reviewer ≠ author
 
@@ -60,7 +61,21 @@
 4. 禁止把 `kiana-tools/mcp_tool.rs` 或 `kiana-entrypoints/src/mcp.rs`（Kiana 当 MCP server）标成完成。
 5. 证明级别 `local_behavior`。
 
-**Plans:** 已执行。验证：`.planning/phases/11-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。HTTP 仍 fail-closed。下一刀 CODE-03。
+**Plans:** 已执行。验证：`.planning/phases/11-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。HTTP 仍 fail-closed。
+
+### Phase 4: Skills / hooks on harness
+
+**Goal:** 受信 Builder 在 harness 第一条 System 消息里看见一条项目 Skill；未信任项目 Skill 不出现；PreToolUse 能在 broker execute 前拦住副作用。
+**Requirements:** CODE-03（PATH-03 仍是 `shell` + `apply_patch` + `mcp`）
+**Success Criteria:**
+
+1. Skills 是上下文，不是第四个模型工具。Daemon 用 `kiana-skills::load_all_skills_with_trust` 注入 `Start.instructions`。
+2. 用户 / `KIANA_HOME/skills` / bundled 未信任仍可见。项目 `.claude/skills` 与 `.kiana/skills` 必须 Trusted。
+3. 一个能拦的 hook：PreToolUse。policy Allow 之后、broker execute 之前。`Block` → `hook_blocked:...`；Ask → `hook_ask_unattended`。配置复用现有 hook env。不新增 `kiana run` 开关；不格式化 `cli.rs`。
+4. 禁止把 `kiana-tools` SkillTool 或全套 post/stop/session hook 标成完成。
+5. 证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/12-VERIFICATION.md`。证明级别 `local_behavior`。同核证明在 in-process DaemonHost。下一刀 CODE-04。
 
 ## 已完成：v0.3
 

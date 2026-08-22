@@ -12,13 +12,15 @@ use kiana_domain::{
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
+use kiana_query::{run_pre_tool_use_hooks, PreToolUseHookContext, ToolHookDecision};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
+use kiana_types::ProjectTrust;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::sync::{Mutex, PoisonError};
-use tokio::sync::watch;
+use tokio::sync::{watch, Notify};
 
 pub const LEGACY_EDGES_REMAINING: usize = 9;
 pub const HARNESS_ID: &str = "kiana-harness";
@@ -885,11 +887,13 @@ impl ControlPlane {
 
         let pending_events = match self
             .runner
-            .send(RunnerCommand::start_in(
+            .send(RunnerCommand::start_in_with_instructions(
                 run_id,
                 prompt,
                 context.project_root.clone(),
                 sandbox.to_owned(),
+                String::new(),
+                context.project_trusted,
             ))
             .await
         {
@@ -1362,45 +1366,56 @@ impl ControlPlane {
 
         let result = match gate {
             GateDecision::Allowed { authorization_id } => {
-                let authorized =
-                    AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
-                tokio::select! {
-                    _ = wait_until_cancelled(cancel_rx) => {
-                        self.record_event(
-                            request_id,
-                            sequence,
-                            "run.cancelled",
-                            json!({ "error": "cancelled:user" }),
-                        )
-                        .await?;
-                        return Ok(Err("cancelled:user".to_owned()));
-                    }
-                    executed = self.capabilities.execute(authorized) => {
-                        match executed {
-                            Ok(result) => {
-                                self.record_event(
-                                    request_id,
-                                    sequence,
-                                    if result.success {
-                                        "capability.completed"
-                                    } else {
-                                        "capability.failed"
-                                    },
-                                    result.output.clone(),
-                                )
-                                .await?;
-                                result
-                            }
-                            Err(error) => {
-                                let reason = error.to_string();
-                                self.record_event(
-                                    request_id,
-                                    sequence,
-                                    "capability.failed",
-                                    json!({ "error": &reason }),
-                                )
-                                .await?;
-                                CapabilityResult::failure(request.request_id, reason)
+                if let Some(reason) = pre_tool_hook_block(context, &request).await {
+                    self.record_event(
+                        request_id,
+                        sequence,
+                        "capability.failed",
+                        json!({ "error": &reason }),
+                    )
+                    .await?;
+                    CapabilityResult::failure(request.request_id, reason)
+                } else {
+                    let authorized =
+                        AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
+                    tokio::select! {
+                        _ = wait_until_cancelled(cancel_rx) => {
+                            self.record_event(
+                                request_id,
+                                sequence,
+                                "run.cancelled",
+                                json!({ "error": "cancelled:user" }),
+                            )
+                            .await?;
+                            return Ok(Err("cancelled:user".to_owned()));
+                        }
+                        executed = self.capabilities.execute(authorized) => {
+                            match executed {
+                                Ok(result) => {
+                                    self.record_event(
+                                        request_id,
+                                        sequence,
+                                        if result.success {
+                                            "capability.completed"
+                                        } else {
+                                            "capability.failed"
+                                        },
+                                        result.output.clone(),
+                                    )
+                                    .await?;
+                                    result
+                                }
+                                Err(error) => {
+                                    let reason = error.to_string();
+                                    self.record_event(
+                                        request_id,
+                                        sequence,
+                                        "capability.failed",
+                                        json!({ "error": &reason }),
+                                    )
+                                    .await?;
+                                    CapabilityResult::failure(request.request_id, reason)
+                                }
                             }
                         }
                     }
@@ -1748,6 +1763,54 @@ fn write_review_artifact(project_root: &str, packet: &ReviewPacket) -> Result<()
     std::fs::write(root.join(REVIEW_PACKET_PATH), packet_json)
         .map_err(|_| "review_artifact_write_failed")?;
     Ok(())
+}
+
+async fn pre_tool_hook_block(
+    context: &RequestContext,
+    request: &CapabilityRequest,
+) -> Option<String> {
+    let project_trust = if context.project_trusted {
+        ProjectTrust::Trusted
+    } else {
+        ProjectTrust::Untrusted
+    };
+    let decision = run_pre_tool_use_hooks(PreToolUseHookContext {
+        abort_signal: Arc::new(Notify::new()),
+        cwd: PathBuf::from(&context.project_root),
+        project_trust,
+        permission_mode: permission_mode_label(context.permission_profile),
+        query_source: HARNESS_ID.to_owned(),
+        tool_name: hook_tool_name(&request.operation),
+        tool_input: request.arguments.clone(),
+        tool_use_id: request
+            .arguments
+            .get("call_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+    })
+    .await;
+    match decision {
+        ToolHookDecision::Allow | ToolHookDecision::UpdateInput(_) => None,
+        ToolHookDecision::Block(reason) => Some(format!("hook_blocked:{reason}")),
+        ToolHookDecision::Ask { reason, .. } => Some(format!("hook_ask_unattended:{reason}")),
+    }
+}
+
+fn hook_tool_name(operation: &str) -> String {
+    match operation {
+        "apply_patch" | "file_change" => "apply_patch".to_owned(),
+        "shell.exec" | "shell" | "bash" | "exec" | "command_execution" => "shell".to_owned(),
+        "mcp.call" | "mcp" => "mcp".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
+fn permission_mode_label(profile: PermissionProfile) -> String {
+    match profile {
+        PermissionProfile::Safe => "safe".to_owned(),
+        PermissionProfile::Balanced => "balanced".to_owned(),
+        PermissionProfile::Autonomous => "autonomous".to_owned(),
+    }
 }
 
 fn authorized_harness_sandbox(

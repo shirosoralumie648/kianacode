@@ -386,11 +386,12 @@ MCP 市场、IDE、Desktop、企业、`kiana-tools` 新家族、computer-use、�
   - orca MCP inspector（2026-05-15，产品能跑终端之后）
 - 学：发现、调用、错误、权限。别学：MCP 市场、远程 MCP SSO。
 
-**v0.4.3 Skills / hooks**
+**v0.4.3 Skills / hooks** — **已本地绿（context + PreToolUse）**
 
-- Kiana 已有 `kiana-skills/`。接到 harness 可见性与 trust。
+- Skills 是 harness System 上下文，不是第四个模型工具。项目 `.claude/skills` / `.kiana/skills` 跟 ProjectTrust。验证：`.planning/phases/12-VERIFICATION.md`。
+- 一个能拦的 hook：PreToolUse，policy Allow 之后、broker execute 之前。
 - 参考：`reference/skills/`（Agent Skills 规范用法）、`reference/awesome-agent-skills`（目录不是运行时）、deepseek `packages/skill`、`packages/hooks`、pi `packages/coding-agent/src/extensions`、gstack `SKILL.md`。
-- ECC / everything-claude-code：配置收藏，不是引擎。
+- ECC / everything-claude-code：配置收藏，不是引擎。不是 SkillTool，不是全套 hook。
 
 **v0.4.4 Provider 矩阵显式降级**
 
@@ -583,9 +584,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源、v0.5+ 需求 ID。v0.4.3 只打开 CODE-03。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源、v0.5+ 需求 ID。v0.4.4 只打开 CODE-04。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.4 Phase 3 / CODE-02 stdio MCP 已本地绿。  
-下一命令：打开 **v0.4.3 CODE-03**（skills/hooks 接到 harness）。对照矩阵 §3 / §6。不要同时开五部门、TUI、Read/Grep/Glob、provider live 矩阵。
+当前计数：v0.4 Phase 4 / CODE-03 skills context + PreToolUse 已本地绿。  
+下一命令：打开 **v0.4.4 CODE-04**（provider 显式降级）。对照矩阵 §3 / §6。不要同时开五部门、TUI、Read/Grep/Glob、SkillTool。

@@ -6,6 +6,7 @@ mod context_query;
 mod harness_capabilities;
 mod harness_mcp;
 mod harness_sandbox;
+mod harness_skills;
 mod model_client;
 
 use approval_store::MemoryApprovalStore;
@@ -58,6 +59,7 @@ impl DaemonHost {
         runner: Arc<dyn RunnerPort>,
         events: Arc<dyn kiana_ports::EventStorePort>,
     ) -> Result<Self, PortError> {
+        let runner = harness_skills::SkillAwareRunner::wrap(runner);
         let mut capabilities = CapabilityBroker::new();
         context_query::register(&mut capabilities)?;
         harness_capabilities::register(&mut capabilities)?;

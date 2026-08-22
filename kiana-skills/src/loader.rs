@@ -168,9 +168,13 @@ pub async fn get_skill_dirs_with_trust(
             let mut current = canonical_cwd.as_path();
 
             loop {
-                let skill_dir = current.join(".claude").join("skills");
-                if skill_dir.exists() {
-                    project_dirs.push(skill_dir);
+                for skills_dir in [
+                    current.join(".claude").join("skills"),
+                    current.join(".kiana").join("skills"),
+                ] {
+                    if skills_dir.exists() {
+                        project_dirs.push(skills_dir);
+                    }
                 }
                 if current == project_root {
                     break;

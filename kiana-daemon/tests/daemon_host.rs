@@ -1162,3 +1162,107 @@ async fn http_mcp_is_unsupported_this_slice() {
         "{tool_text}"
     );
 }
+
+fn write_kiana_project_skill(root: &Path, name: &str) {
+    let dir = root.join(".kiana").join("skills").join(name);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("SKILL.md"),
+        format!("---\ndescription: {name} fixture\n---\n{name} body\n"),
+    )
+    .unwrap();
+}
+
+fn text_only_cassette() -> serde_json::Value {
+    json!([{ "text": "architecture mapped" }])
+}
+
+fn first_system_text(seen: &[ModelRequest]) -> &str {
+    seen.first()
+        .and_then(|request| request.messages.first())
+        .filter(|message| message.role == ModelRole::System)
+        .map(|message| message.text.as_str())
+        .unwrap_or("")
+}
+
+#[tokio::test]
+async fn trusted_project_skill_appears_in_harness_system_message() {
+    kiana_skills::clear_caches();
+    let root = temp_project();
+    write_kiana_project_skill(&root, "code03-harness-demo");
+    let model = CapturingModel::from_json(text_only_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(trusted_metadata_in(&root), "map the architecture", None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let seen = model.seen.lock().unwrap();
+    let system_text = first_system_text(&seen);
+    assert!(system_text.contains("code03-harness-demo"), "{system_text}");
+}
+
+#[tokio::test]
+async fn untrusted_project_skill_is_withheld_from_harness_system_message() {
+    kiana_skills::clear_caches();
+    let root = temp_project();
+    write_kiana_project_skill(&root, "code03-harness-demo");
+    let model = CapturingModel::from_json(text_only_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let metadata = RequestMetadata::local("session-1", root.to_string_lossy());
+    let response = client
+        .run(metadata, "map the architecture", None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let seen = model.seen.lock().unwrap();
+    let blob: String = seen
+        .iter()
+        .flat_map(|request| request.messages.iter())
+        .map(|message| message.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !blob.contains("code03-harness-demo"),
+        "untrusted project skill leaked: {blob}"
+    );
+}
+
+#[tokio::test]
+async fn pre_tool_use_hook_blocks_apply_patch_before_broker_execute() {
+    let _guard = EnvGuard::set(
+        "KIANA_PRE_TOOL_USE_HOOKS",
+        r#"printf '%s' '{"decision":"block","reason":"policy failed"}'"#,
+    );
+    let root = temp_project();
+    let model = CapturingModel::from_json(apply_patch_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert!(
+        !root.join("GOLDEN_PATH.txt").exists(),
+        "hook must prevent apply_patch side effect"
+    );
+    let seen = model.seen.lock().unwrap();
+    let tool_text = tool_result_text(&seen);
+    assert!(tool_text.contains("hook_blocked"), "{tool_text}");
+}

@@ -49,8 +49,8 @@ pub async fn load_all_skills(cwd: impl AsRef<Path>) -> Vec<Command> {
 /// Load all skills while honoring the caller's project trust decision.
 ///
 /// User-scoped and bundled skills remain available when a project is untrusted;
-/// project-scoped `.claude/skills` are withheld until the session marks the
-/// project trusted.
+/// project-scoped `.claude/skills` and `.kiana/skills` are withheld until the
+/// session marks the project trusted.
 pub async fn load_all_skills_with_trust(
     cwd: impl AsRef<Path>,
     project_trust: kiana_types::ProjectTrust,
@@ -445,6 +445,33 @@ mod tests {
         assert!(!skills.iter().any(|skill| skill.name == "parent-skill"));
         assert!(skills.iter().any(|skill| skill.name == "child-root-skill"));
         assert!(skills.iter().any(|skill| skill.name == "child-cwd-skill"));
+
+        clear_caches();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn kiana_project_skills_follow_the_same_trust_gate_as_claude_skills() {
+        let _guard = env_guard().await;
+        clear_caches();
+        let root = std::env::temp_dir().join(format!("kiana-skills-kiana-dir-{}", Uuid::new_v4()));
+        let cwd = root.join("project");
+        let project_skill = cwd.join(".kiana").join("skills").join("code03-kiana-dir");
+        fs::create_dir_all(&project_skill).unwrap();
+        fs::write(project_skill.join("SKILL.md"), "# Kiana project skill\n").unwrap();
+
+        let project_skills_dir = cwd.join(".kiana").join("skills");
+        let trusted_dirs = get_skill_dirs_with_trust(&cwd, ProjectTrust::Trusted).await;
+        assert!(trusted_dirs.contains(&project_skills_dir));
+        let trusted = load_all_skills_with_trust(&cwd, ProjectTrust::Trusted).await;
+        assert!(trusted.iter().any(|skill| skill.name == "code03-kiana-dir"));
+
+        for project_trust in [ProjectTrust::Unknown, ProjectTrust::Untrusted] {
+            let dirs = get_skill_dirs_with_trust(&cwd, project_trust).await;
+            assert!(!dirs.contains(&project_skills_dir));
+            let skills = load_all_skills_with_trust(&cwd, project_trust).await;
+            assert!(!skills.iter().any(|skill| skill.name == "code03-kiana-dir"));
+        }
 
         clear_caches();
         let _ = fs::remove_dir_all(root);

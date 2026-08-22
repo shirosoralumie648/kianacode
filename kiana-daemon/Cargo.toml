@@ -24,6 +24,8 @@ kiana-query.workspace = true
 kiana-runner.workspace = true
 kiana-runner-protocol.workspace = true
 kiana-services = { path = "../kiana-services", version = "0.1.0" }
+kiana-skills = { path = "../kiana-skills", version = "0.1.0" }
+kiana-types.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -32,3 +34,4 @@ tokio.workspace = true
 
 [dev-dependencies]
 kiana-client.workspace = true
+kiana-skills = { path = "../kiana-skills", version = "0.1.0" }

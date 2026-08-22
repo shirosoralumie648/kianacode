@@ -17,6 +17,10 @@ pub enum RunnerCommand {
         project_root: String,
         #[serde(default = "default_harness_sandbox")]
         sandbox: String,
+        #[serde(default)]
+        instructions: String,
+        #[serde(default)]
+        project_trusted: bool,
     },
     CapabilityResult {
         run_id: RunId,
@@ -43,6 +47,8 @@ impl RunnerCommand {
             prompt: prompt.into(),
             project_root: String::new(),
             sandbox: default_harness_sandbox(),
+            instructions: String::new(),
+            project_trusted: false,
         }
     }
 
@@ -52,11 +58,31 @@ impl RunnerCommand {
         project_root: impl Into<String>,
         sandbox: impl Into<String>,
     ) -> Self {
+        Self::start_in_with_instructions(
+            run_id,
+            prompt,
+            project_root,
+            sandbox,
+            String::new(),
+            false,
+        )
+    }
+
+    pub fn start_in_with_instructions(
+        run_id: RunId,
+        prompt: impl Into<String>,
+        project_root: impl Into<String>,
+        sandbox: impl Into<String>,
+        instructions: impl Into<String>,
+        project_trusted: bool,
+    ) -> Self {
         Self::Start {
             run_id,
             prompt: prompt.into(),
             project_root: project_root.into(),
             sandbox: sandbox.into(),
+            instructions: instructions.into(),
+            project_trusted,
         }
     }
 
@@ -138,6 +164,34 @@ mod tests {
         let encoded = serde_json::to_value(&command).unwrap();
         assert_eq!(encoded["sandbox"], DEFAULT_HARNESS_SANDBOX);
         assert_eq!(encoded["project_root"], "");
+        assert_eq!(encoded["instructions"], "");
+        assert_eq!(encoded["project_trusted"], false);
+    }
+
+    #[test]
+    fn start_command_deserializes_legacy_payload_without_instructions() {
+        let run_id = RunId::new();
+        let encoded = serde_json::json!({
+            "command": "start",
+            "run_id": run_id,
+            "prompt": "hello"
+        });
+        let command: RunnerCommand = serde_json::from_value(encoded).unwrap();
+        match command {
+            RunnerCommand::Start {
+                instructions,
+                project_trusted,
+                sandbox,
+                project_root,
+                ..
+            } => {
+                assert_eq!(instructions, "");
+                assert!(!project_trusted);
+                assert_eq!(sandbox, DEFAULT_HARNESS_SANDBOX);
+                assert_eq!(project_root, "");
+            }
+            other => panic!("expected start: {other:?}"),
+        }
     }
 
     #[test]

@@ -29,6 +29,15 @@ pub struct ModelMessage {
 }
 
 impl ModelMessage {
+    pub fn system(text: impl Into<String>) -> Self {
+        Self {
+            role: ModelRole::System,
+            text: text.into(),
+            tool_call_id: None,
+            tool_calls: Vec::new(),
+        }
+    }
+
     pub fn user(text: impl Into<String>) -> Self {
         Self {
             role: ModelRole::User,

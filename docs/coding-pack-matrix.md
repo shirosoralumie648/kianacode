@@ -1,9 +1,9 @@
 # Coding pack 公开行为矩阵（CODE-01）
 
 Date: 2026-08-23
-Status: **签字草稿**（v0.4 Phase 2）+ CODE-02 stdio **已绿**（v0.4 Phase 3）
+Status: **签字草稿**（v0.4 Phase 2）+ CODE-02 stdio **已绿** + CODE-03 context/PreToolUse **已绿**
 Proof: `local_behavior`
-Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.md`、`PHASES.md` v0.4.2、`DESIGN.md` §4
+Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.md`、`.planning/phases/12-VERIFICATION.md`、`PHASES.md` v0.4.3、`DESIGN.md` §4
 
 本文件是 v1.0 `REL-03` 的审计底表。没有本表条目、owner、测试和证据的能力，不得计入 Coding pack 完成。
 
@@ -31,12 +31,12 @@ Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.
 
 | 标记 | 含义 |
 |---|---|
-| **已绿** | v0.2 / v0.3 / v0.4 Phase 1–3 已在 owned harness 上证明 |
+| **已绿** | v0.2 / v0.3 / v0.4 Phase 1–4 已在 owned harness 上证明 |
 | **文档本期** | 本 Phase 只进矩阵，不写代码 |
-| **矩阵后开** | 本草稿签字后才允许开实现；默认下一刀是 CODE-03 |
+| **矩阵后开** | 本草稿签字后才允许开实现；默认下一刀是 CODE-04 |
 | **冻结** | 直到声明的版本，或永远不做产品总线 |
 
-v0.4 Phase 3 只把 P0-MCP / CODE-02 的 **stdio** 打成已绿。HTTP MCP、skills、provider 仍不是代码完成。
+v0.4 Phase 4 把 P0-SKILL / P0-HOOK / CODE-03 打成已绿（诚实：Skill 是 System 上下文，不是 skill 工具；hook 是 PreToolUse，不是全套）。HTTP MCP、provider 仍不是代码完成。
 
 ### 0.3 对照源（只行为）
 
@@ -81,8 +81,8 @@ v0.4 Phase 3 只把 P0-MCP / CODE-02 的 **stdio** 打成已绿。HTTP MCP、ski
 | P0-REV | 作者 ≠ 评审；评审新 session；确定性门 | 教程 `/review` 只作行为名；COMPANY 监控部 | `kiana run --review <author_session_id>` 写 `gate/REVIEW.json`；不跑模型；不复制 transcript | `kiana-core`；`kiana-domain` | `.planning/phases/9-VERIFICATION.md` | 本仓 | P0 | 已绿 |
 | P0-ORCH | 独立上下文工人；packet 是唯一输入；规划会有界 | COMPANY.md；architect-loop；OpenSpec | `--packet` 新 session；`--symposium` PM+Architect 硬顶轮次；anti-meeting 可跳过 | `kiana-core`；`kiana-domain` | `.planning/phases/6,7,8-VERIFICATION.md` | 本仓 + 方法对照 | P0 | 已绿 |
 | P0-MCP | 作为 MCP **客户端** 发现/调用外部 server（stdio / HTTP）；工具经同一审批/沙箱 | 教程 `22-mcp.md`；Codex mcp-types 2025-05-02；deepseek `packages/mcp` 2026-07-07 | **stdio 已绿。** 模型工具 `mcp` → broker `mcp.call`。`KIANA_MCP_SERVERS_JSON`。HTTP → `mcp_transport_unsupported`。legacy `kiana-tools/mcp_tool.rs` 与 `kiana-entrypoints/mcp.rs` **仍不算产品路径** | `kiana-daemon` `harness_mcp.rs`；`kiana-runner` `tools.rs`；`kiana-policy` | `.planning/phases/11-VERIFICATION.md`；`trusted_builder_stdio_mcp_echoes_through_daemon` | MCP 规范公开；实现对照 Codex/deepseek Apache/MIT，不对照 dump | P0 | 已绿（stdio）；HTTP 仍后开 |
-| P0-SKILL | 项目/用户 Skill 对工人可见；trust 决定项目 Skill；按需加载 | 教程 `26-agent-skills.md`；`reference/skills` | **加载器在、harness 未接。** `kiana-skills` 已按 cwd/trust/plugin 缓存 | `kiana-skills` → 接到 `kiana-runner` / daemon | 有 crate 测试，无 harness 产品证据 | Agent Skills 公开用法可借鉴；dump SkillTool 禁止搬 | P0 | 矩阵后开（CODE-03） |
-| P0-HOOK | pre/post tool、stop、session 钩子能拦或续；失败可见 | 教程 `33-hooks.md`；deepseek `packages/hooks` | `kiana-query` 有 stop/pre/post hook 编排，**未证明在 KianaHarness 产品路径上** | `kiana-query` → harness | query 单测 ≠ 产品 | 行为对照 | P0 | 矩阵后开（CODE-03） |
+| P0-SKILL | 项目/用户 Skill 对工人可见；trust 决定项目 Skill；按需加载 | 教程 `26-agent-skills.md`；`reference/skills` | **context 已绿。** Daemon `SkillAwareRunner` 把 skill pack 注入 harness 第一条 System 消息。项目 `.claude/skills` / `.kiana/skills` 未信任 withhold。不是模型工具 `skill`，不是 dump SkillTool | `kiana-daemon` `harness_skills.rs`；`kiana-skills`；`kiana-runner` | `.planning/phases/12-VERIFICATION.md`；`trusted_project_skill_appears_in_harness_system_message` | Agent Skills 公开用法可借鉴；dump SkillTool 禁止搬 | P0 | 已绿（context） |
+| P0-HOOK | pre/post tool、stop、session 钩子能拦或续；失败可见 | 教程 `33-hooks.md`；deepseek `packages/hooks` | **PreToolUse 已绿。** policy Allow 之后、broker execute 之前可 `hook_blocked`。Ask fail-closed。post/stop/session 仍不是产品完成 | `kiana-core` `pre_tool_hook_block`；`kiana-query` stop_hooks | `.planning/phases/12-VERIFICATION.md`；`pre_tool_use_hook_blocks_apply_patch_before_broker_execute` | 行为对照 | P0 | 已绿（PreToolUse） |
 | P0-PROV | 多供应商能力差必须显式报告/降级，禁止静默装等价 | 教程 `05-third-party-models.md`；OpenHands provider settings；12-factor #2/#3 | `kiana-services` 有 Anthropic / OpenAI-compatible / Ollama 与 `UnsupportedCapability`。**`kiana run` 未向用户证明**「该供应商缺 tools/streaming」 | `kiana-services`；`kiana-daemon/src/model_client.rs` | provider 单测有 unsupported_tools；无 CLI 产品证据 | 本仓 + 行为对照 | P0 | 矩阵后开（CODE-04） |
 
 P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜」列为 5 类内置工具之一。Kiana 选择 Codex 形——**用 `shell` 跑 `rg`/`ls`/`cat`**，不在 P0 再做一个 Read/Grep/Glob 注册表。若 v0.4.2–0.4.3 之后仍无法在沙箱里可靠搜索，再开 P1-READ。
@@ -115,15 +115,15 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | ID | 公开行为 | 实现约束（签字） | 参考（实现形状，不抄 dump） | 是否本期 |
 |---|---|---|---|---|
 | CODE-02 | MCP client | 发现、列出工具、调用、错误、权限全走 daemon broker。stdio 默认本地进程；HTTP 远程。SSE 不作为新默认。第一次调用要审批。失败码可见。**禁止** `kiana-entrypoints/src/runner.rs` 接 MCP。**禁止**把 `kiana-tools/mcp_tool.rs` 标成完成 | Codex `codex-rs/codex-mcp` + `scripts/mcp_conformance/`；deepseek `packages/mcp`；cline `extensions/mcp`；continue `mcpToolName.ts`；orca inspector | 已绿（stdio）；HTTP 仍 `mcp_transport_unsupported` |
-| CODE-03 | Skills / hooks | Skill 可见性跟 ProjectTrust；用户/bundled 在未信任时仍可；项目 `.claude/skills` 或 Kiana 等价目录未信任 withhold。接到 harness 工具面或 prompt 装配。Hooks fail-closed。ECC / awesome-agent-skills 是目录不是运行时 | `reference/skills`；deepseek `packages/skill` `packages/hooks`；pi extensions；gstack `SKILL.md` | 矩阵后开（MCP 之后） |
+| CODE-03 | Skills / hooks | Skill 可见性跟 ProjectTrust；用户/bundled 在未信任时仍可；项目 `.claude/skills` 或 Kiana 等价目录未信任 withhold。接到 harness **prompt 装配**（System），不是工具面。Hooks fail-closed。ECC / awesome-agent-skills 是目录不是运行时 | `reference/skills`；deepseek `packages/skill` `packages/hooks`；pi extensions；gstack `SKILL.md` | 已绿（context + PreToolUse） |
 | CODE-04 | Provider 显式降级 | Anthropic / OpenAI-compatible / Ollama：缺 tools 或 streaming 必须在 `kiana run --json` 里出现机器可读错误，不能空转成功 | 本仓 `ProviderError::UnsupportedCapability`；OpenHands provider settings；pi reasoning-token；aider `models.py` | 矩阵后开（可与 MCP 后并行） |
 
 已有但**不算完成**的代码：
 
 - `kiana-entrypoints/src/mcp.rs` — Kiana 作为 MCP **server** 暴露 legacy 工具，给别人调 Kiana。这是反方向。
 - `kiana-services/src/mcp.rs` + `kiana-tools/src/mcp_tool.rs` — client 在 legacy 注册表。
-- `kiana-skills/` — 加载器。
-- `kiana-query/src/stop_hooks.rs` — 查询循环钩子，未接 harness 黄金路径。
+- `kiana-skills/` — 加载器仍在；产品路径是 daemon 把它装配进 harness System，不是 SkillTool。
+- `kiana-query/src/stop_hooks.rs` — PreToolUse 已接到 harness 黄金路径；post/stop/session 仍未当产品完成。
 
 ---
 
@@ -168,14 +168,14 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | 顺序 | 站 | 需求 | 用户可见完成 | 不做什么 |
 |---|---|---|---|---|
 | 已完成 | v0.4.2 | CODE-02 | `kiana run` 的工人能经 daemon 调一个本地 stdio MCP；未信任 deny；JSON 标明 harness + mcp | 市场、SSO、把 legacy mcp_tool 打勾 |
-| 下一刀 | v0.4.3 | CODE-03 | 受信项目的一条 Skill 出现在 harness 上下文或工具面；未信任项目 Skill 不出现；至少一种 stop/pre hook 可拦 | 把 awesome-agent-skills 当运行时 |
-| 然后或并行 | v0.4.4 | CODE-04 | 不支持 tools 的 provider profile → 机器可读失败，不写盘、不假成功 | live 矩阵当完成 |
+| 已完成 | v0.4.3 | CODE-03 | 受信项目的一条 Skill 出现在 harness System 上下文；未信任项目 Skill 不出现；PreToolUse 可拦 apply_patch | 把 awesome-agent-skills 当运行时；SkillTool |
+| 下一刀 | v0.4.4 | CODE-04 | 不支持 tools 的 provider profile → 机器可读失败，不写盘、不假成功 | live 矩阵当完成 |
 | 仅当需要 | v0.4.5 | P1-READ | 结构化 Grep/Glob/Read 走 broker + 同一 sandbox | 50-tool 注册表 |
 | 再然后 | v0.5 | LONG/DEPT/MEM | 五部门对象 + 六层 RAG ACL | 用 MCP 代替部门 |
 | 再然后 | v0.6 | SURF2 | SDK/print 100% harness；下一入口 IDE 优先于 Desktop | 为 Desktop 复制 runner |
 | 再然后 | v1.0 | REL | 安装升级回滚 + 文档 + **本表 P0 全绿** | 工具数 100%、企业、TUI 像素对等 |
 
-`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.2 CODE-02 stdio 已绿。下一独立 Phase 是 v0.4.3 CODE-03。
+`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.3 CODE-03 context + PreToolUse 已绿。下一独立 Phase 是 v0.4.4 CODE-04。
 
 ---
 
@@ -190,7 +190,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | GlobTool GrepTool | P1-READ | 矩阵后开，非 P0 |
 | WebFetchTool WebSearchTool WebBrowserTool | P1-WEB | 经 MCP 或冻 |
 | MCPTool ListMcpResourcesTool ReadMcpResourceTool McpAuthTool | P0-MCP / CODE-02 | stdio 已绿；HTTP/auth 仍后开 |
-| SkillTool DiscoverSkillsTool | P0-SKILL / CODE-03 | 矩阵后开 |
+| SkillTool DiscoverSkillsTool | P0-SKILL / CODE-03 | context 已绿；**不是** SkillTool |
 | EnterPlanModeTool ExitPlanModeTool VerifyPlanExecutionTool | P1-PLAN | 用角色替代 |
 | TaskCreateTool TaskGetTool TaskListTool TaskOutputTool TaskStopTool TaskUpdateTool | P1-SUB | 用 packet/role，不抄 Task 工具 |
 | TeamCreateTool TeamDeleteTool SendMessageTool | FZ-TEAM | 永远不当总线 |

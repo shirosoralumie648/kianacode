@@ -144,7 +144,12 @@ impl KianaHarness {
                 prompt,
                 project_root,
                 sandbox,
-            } => self.start(run_id, prompt, sandbox, project_root).await,
+                instructions,
+                project_trusted: _,
+            } => {
+                self.start(run_id, prompt, sandbox, project_root, instructions)
+                    .await
+            }
             RunnerCommand::CapabilityResult { run_id, result } => {
                 self.on_capability_result(run_id, result).await
             }
@@ -159,6 +164,7 @@ impl KianaHarness {
         prompt: String,
         sandbox: String,
         project_root: String,
+        instructions: String,
     ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
         if self.has_run(run_id)? {
             return Ok(vec![RunnerEvent::Failed {
@@ -177,6 +183,9 @@ impl KianaHarness {
             steps: 0,
             last_text: String::new(),
         };
+        if !instructions.trim().is_empty() {
+            run.messages.push(ModelMessage::system(instructions));
+        }
         run.inbox
             .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
         for message in run.inbox.claim(InboxTarget::NextTurn) {
@@ -486,6 +495,39 @@ mod tests {
             self.seen.lock().unwrap().push(request.messages);
             Ok(ModelOutput::text("compacted"))
         }
+    }
+
+    #[tokio::test]
+    async fn start_instructions_become_the_first_system_message() {
+        let model = Arc::new(CapturingModel::default());
+        let harness = KianaHarness::new(model.clone());
+        let run_id = RunId::new();
+        let events = harness
+            .send(RunnerCommand::start_in_with_instructions(
+                run_id,
+                "map it",
+                "/repo",
+                DEFAULT_HARNESS_SANDBOX,
+                "Available skills:\n\n## code03-harness-demo\n",
+                true,
+            ))
+            .await
+            .unwrap();
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        let seen = model.seen.lock().unwrap();
+        let first = seen.first().expect("model saw a request");
+        assert_eq!(
+            first.first().map(|message| message.role.clone()),
+            Some(crate::model::ModelRole::System)
+        );
+        assert!(
+            first
+                .first()
+                .is_some_and(|message| message.text.contains("code03-harness-demo")),
+            "{first:?}"
+        );
     }
 
     #[tokio::test]
