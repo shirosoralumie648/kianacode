@@ -3,6 +3,7 @@ pub mod doctor;
 pub mod history;
 pub mod repl;
 pub mod resume_conversation;
+pub mod search_history;
 pub mod settings;
 
 pub use app::{

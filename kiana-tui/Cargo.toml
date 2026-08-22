@@ -1,4 +1,5 @@
 [package]
+autoexamples = false
 name = "kiana-tui"
 version.workspace = true
 edition.workspace = true
@@ -9,10 +10,11 @@ homepage.workspace = true
 description = "Terminal UI for Kiana Code AI assistant"
 
 [[bin]]
-name = "kiana"
+name = "kiana-tui"
 path = "src/main.rs"
 
 [dependencies]
+kiana-components = { path = "../kiana-components" }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 tokio = { workspace = true }
@@ -25,4 +27,14 @@ tracing-appender = "0.2"
 dirs = "5.0"
 toml = "0.8"
 chrono = { workspace = true, features = ["serde"] }
-uuid = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
+regex = { workspace = true }
+async-trait = "0.1"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "fuzzy_search"
+harness = false

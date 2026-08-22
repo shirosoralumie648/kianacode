@@ -35,6 +35,7 @@ members = [
     "kiana-skills",
     "kiana-tasks",
     "kiana-tools",
+    "kiana-tui",
     "kiana-types",
     "kiana-url-handler",
     "kiana-workflow",

@@ -1,10 +1,12 @@
 // kiana-tui/src/overlay/mod.rs
 pub mod search;
+pub mod search_with_preview;
 
 use crossterm::event::KeyEvent;
 use ratatui::{layout::Rect, Frame};
 
 pub use search::{SearchMode, SearchOverlay, SearchResult};
+pub use search_with_preview::{SearchResultWithPreview, SearchWithPreviewOverlay};
 
 /// 覆盖层操作结果
 #[derive(Debug, Clone, PartialEq, Eq)]

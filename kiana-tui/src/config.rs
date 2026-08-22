@@ -10,6 +10,8 @@ pub struct Config {
     pub parameters: ParametersConfig,
     #[serde(default)]
     pub keybindings: HashMap<String, String>,
+    #[serde(default = "default_enable_quick_jump")]
+    pub enable_quick_jump: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,6 +36,10 @@ fn default_max_tokens() -> u32 {
     4096
 }
 
+fn default_enable_quick_jump() -> bool {
+    true
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -46,6 +52,7 @@ impl Default for Config {
                 max_tokens: default_max_tokens(),
             },
             keybindings: HashMap::new(),
+            enable_quick_jump: default_enable_quick_jump(),
         }
     }
 }

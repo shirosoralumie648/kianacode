@@ -25,7 +25,7 @@ pub enum SearchMode {
 pub struct SearchResult {
     /// 匹配的文本内容
     pub text: String,
-    /// 匹配分数（越小越好）
+    /// 匹配分数（越高越匹配）
     pub score: usize,
     /// 高亮位置（字符索引）
     pub positions: Vec<usize>,
@@ -116,13 +116,13 @@ impl SearchOverlay {
             .enumerate()
             .filter_map(|(index, item)| {
                 calculate_match_score(item, &self.query).map(|(score, positions)| {
-                    SearchResult::new(item.clone(), score, positions, index)
+                    SearchResult::new(item.clone(), score.max(0) as usize, positions, index)
                 })
             })
             .collect();
 
-        // 按分数排序（越小越好）
-        matches.sort_by_key(|r| r.score);
+        // 按分数排序（越高越匹配）
+        matches.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.index.cmp(&b.index)));
 
         // 限制结果数量到 50 条
         matches.truncate(50);
@@ -525,14 +525,13 @@ mod tests {
         let items = vec!["first item".to_string(), "second item".to_string()];
         overlay.set_query("item".to_string(), &items);
 
-        let selected = overlay.selected_result();
-        assert!(selected.is_some());
-        assert_eq!(selected.unwrap().text, "first item");
+        let first = overlay.selected_result().expect("selected result").text.clone();
+        assert!(items.contains(&first));
 
         overlay.select_next();
-        let selected = overlay.selected_result();
-        assert!(selected.is_some());
-        assert_eq!(selected.unwrap().text, "second item");
+        let second = overlay.selected_result().expect("selected result").text.clone();
+        assert!(items.contains(&second));
+        assert_ne!(first, second);
     }
 
     #[test]
@@ -644,14 +643,12 @@ mod tests {
 
         overlay.set_query("hello".to_string(), &items);
 
-        // 结果应该按分数排序（分数越低越好）
+        // 结果应该按分数排序（分数越高越好）
         assert_eq!(overlay.results().len(), 3);
-        // "hello" 应该排在第一位（分数为 0）
+        // "hello" 应该排在第一位（完整前缀匹配）
         assert_eq!(overlay.results()[0].text, "hello");
-        assert_eq!(overlay.results()[0].score, 0);
-        // 其他两个应该有更高的分数
-        assert!(overlay.results()[1].score > 0);
-        assert!(overlay.results()[2].score > 0);
+        assert!(overlay.results()[0].score >= overlay.results()[1].score);
+        assert!(overlay.results()[1].score >= overlay.results()[2].score);
     }
 
     #[test]

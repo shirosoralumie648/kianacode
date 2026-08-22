@@ -2,20 +2,22 @@ mod acp;
 mod commands;
 mod completion;
 mod config;
-mod markdown;
+mod search;
 mod sessions;
 
 use acp::{AcpClient, AcpMessage};
 use anyhow::Result;
 use completion::CompletionEngine;
+use kiana_tui::components::notifications::{ToastLevel, ToastManager};
+use kiana_tui::components::{AppMode, HintCategory, HintPriority, KeyHint, StatusBar};
 use config::Config;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use kiana_tui::markdown::render_markdown;
 use kiana_tui::overlay::{Overlay, OverlayAction, SearchMode, SearchOverlay};
-use markdown::render_markdown;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -81,6 +83,11 @@ struct App {
     active_overlay: Option<Box<dyn Overlay>>,
     /// Result returned from overlay (waiting to be processed)
     overlay_result: Option<String>,
+    // Toast notifications
+    toast_manager: ToastManager,
+    // Status bar
+    status_bar: StatusBar,
+    mode: AppMode,
 }
 
 impl App {
@@ -124,6 +131,9 @@ impl App {
             session_list_selected: 0,
             active_overlay: None,
             overlay_result: None,
+            toast_manager: ToastManager::new(),
+            status_bar: StatusBar::new(),
+            mode: AppMode::Normal,
         }
     }
 
@@ -151,6 +161,148 @@ impl App {
     /// Close the current overlay
     fn close_overlay(&mut self) {
         self.active_overlay = None;
+        self.mode = AppMode::Normal;
+    }
+
+    /// Show an info toast notification
+    fn show_info(&mut self, message: String) {
+        self.toast_manager.add(message, ToastLevel::Info);
+        self.needs_render = true;
+    }
+
+    /// Show a success toast notification
+    fn show_success(&mut self, message: String) {
+        self.toast_manager.add(message, ToastLevel::Success);
+        self.needs_render = true;
+    }
+
+    /// Show a warning toast notification
+    fn show_warning(&mut self, message: String) {
+        self.toast_manager.add(message, ToastLevel::Warning);
+        self.needs_render = true;
+    }
+
+    /// Show an error toast notification
+    fn show_error(&mut self, message: String) {
+        self.toast_manager.add(message, ToastLevel::Error);
+        self.needs_render = true;
+    }
+
+    /// Update status bar based on current application state
+    /// Build context-aware keybinding hints based on current application state
+    fn build_contextual_hints(&self) -> Vec<KeyHint> {
+        let mut hints = Vec::new();
+
+        match self.mode {
+            AppMode::Normal => {
+                // Critical: always show quit
+                hints.push(
+                    KeyHint::new("Ctrl+C", "Quit")
+                        .with_priority(HintPriority::Critical)
+                        .with_category(HintCategory::System),
+                );
+
+                // High priority: navigation and primary actions
+                hints.push(
+                    KeyHint::new("Ctrl+R", "Search")
+                        .with_priority(HintPriority::High)
+                        .with_category(HintCategory::Navigation),
+                );
+
+                // Show completion hint only if completions are available
+                if !self.completions.is_empty() {
+                    hints.push(
+                        KeyHint::new("Tab", "Complete")
+                            .with_priority(HintPriority::High)
+                            .with_category(HintCategory::Edit),
+                    );
+                }
+
+                // Show connect hint if disconnected
+                if self.session_id.is_none() {
+                    hints.push(
+                        KeyHint::new("Ctrl+N", "Connect")
+                            .with_priority(HintPriority::High)
+                            .with_category(HintCategory::Action),
+                    );
+                }
+
+                // Medium priority: help and other utilities
+                hints.push(
+                    KeyHint::new("?", "Help")
+                        .with_priority(HintPriority::Medium)
+                        .with_category(HintCategory::System),
+                );
+            }
+            AppMode::Search => {
+                hints.push(
+                    KeyHint::new("Esc", "Cancel")
+                        .with_priority(HintPriority::Critical)
+                        .with_category(HintCategory::System),
+                );
+                hints.push(
+                    KeyHint::new("Enter", "Select")
+                        .with_priority(HintPriority::High)
+                        .with_category(HintCategory::Action),
+                );
+                hints.push(
+                    KeyHint::new("↑↓", "Navigate")
+                        .with_priority(HintPriority::High)
+                        .with_category(HintCategory::Navigation),
+                );
+            }
+            AppMode::Insert => {
+                hints.push(
+                    KeyHint::new("Esc", "Normal")
+                        .with_priority(HintPriority::Critical)
+                        .with_category(HintCategory::System),
+                );
+                hints.push(
+                    KeyHint::new("Enter", "Send")
+                        .with_priority(HintPriority::High)
+                        .with_category(HintCategory::Action),
+                );
+            }
+            AppMode::Config => {
+                hints.push(
+                    KeyHint::new("Esc", "Close")
+                        .with_priority(HintPriority::Critical)
+                        .with_category(HintCategory::System),
+                );
+                hints.push(
+                    KeyHint::new("Enter", "Save")
+                        .with_priority(HintPriority::High)
+                        .with_category(HintCategory::Action),
+                );
+            }
+            AppMode::Overlay => {
+                hints.push(
+                    KeyHint::new("Esc", "Close")
+                        .with_priority(HintPriority::Critical)
+                        .with_category(HintCategory::System),
+                );
+            }
+        }
+
+        hints
+    }
+
+    fn update_status_bar(&mut self) {
+        self.status_bar.set_mode(self.mode);
+
+        // Set status message based on session/connection state
+        if let Some(ref session_id) = self.session_id {
+            self.status_bar
+                .set_status(Some(format!("Session: {}", session_id)));
+        } else {
+            self.status_bar.set_status(Some("Not connected".into()));
+        }
+
+        // Use context-aware hints with intelligent filtering
+        // Note: We use a reasonable default width here; the actual filtering
+        // happens in render_right_section based on terminal width
+        let hints = self.build_contextual_hints();
+        self.status_bar.set_key_hints(hints);
     }
 
     fn init_acp(&mut self) -> Result<()> {
@@ -890,6 +1042,7 @@ fn run_app() -> Result<()> {
                         Constraint::Length(3), // Title bar
                         Constraint::Min(1),    // Conversation area
                         Constraint::Length(3), // Input box
+                        Constraint::Length(1), // Status bar
                     ])
                     .split(f.area());
 
@@ -985,24 +1138,35 @@ fn run_app() -> Result<()> {
 
                 // Completion popup
                 if app.completions.len() > 1 {
-                    let completion_items: Vec<ListItem> = app
+                    // Create ListItem objects with jump numbers if enabled
+                    let mut list_items: Vec<kiana_components::list::ListItem> = app
                         .completions
                         .iter()
                         .enumerate()
                         .map(|(idx, item)| {
-                            let style = if idx == app.completion_selected {
-                                Style::default().bg(Color::Blue).fg(Color::White)
-                            } else {
-                                Style::default()
-                            };
-                            ListItem::new(item.clone()).style(style)
+                            kiana_components::list::ListItem::new(item.clone())
+                                .focused(idx == app.completion_selected)
                         })
                         .collect();
 
-                    let list = List::new(completion_items).block(
+                    // Assign jump numbers if enabled
+                    if app.config.enable_quick_jump {
+                        let count = list_items.len().min(9);
+                        kiana_components::list::assign_jump_numbers(&mut list_items, 0, count);
+                    }
+
+                    // Render list items
+                    let mut completion_lines: Vec<Line<'static>> = Vec::new();
+                    for item in &list_items {
+                        completion_lines.extend(item.render());
+                    }
+
+                    let completion_text = Paragraph::new(completion_lines);
+
+                    let list = completion_text.block(
                         Block::default()
                             .borders(Borders::ALL)
-                            .title("Completions (Tab/Shift+Tab to navigate, Enter to select)"),
+                            .title("Completions (Tab/Shift+Tab, Enter, 1-9 to jump)"),
                     );
 
                     // Position popup above input box
@@ -1022,6 +1186,14 @@ fn run_app() -> Result<()> {
                 if let Some(overlay) = &app.active_overlay {
                     overlay.render(f, f.area());
                 }
+
+                // Update and render status bar
+                app.update_status_bar();
+                app.status_bar.render(f, chunks[3]);
+
+                // Prune expired toasts and render them on top of everything
+                app.toast_manager.prune_expired();
+                app.toast_manager.render(f, f.area());
             })?;
 
             app.mark_rendered();
@@ -1087,6 +1259,7 @@ fn run_app() -> Result<()> {
 
                     // 设置为活动覆盖层
                     app.active_overlay = Some(Box::new(overlay));
+                    app.mode = AppMode::Search;
                     app.needs_render = true;
                     continue;
                 }
@@ -1173,6 +1346,37 @@ fn run_app() -> Result<()> {
                         code: KeyCode::Char(c),
                         ..
                     } => {
+                        // Handle quick jump with number keys (1-9)
+                        if app.config.enable_quick_jump && c.is_ascii_digit() && c != '0' {
+                            let jump_num = c.to_digit(10).unwrap() as u8;
+
+                            // Try to jump in completion list
+                            if !app.completions.is_empty() {
+                                if let Some(target_idx) = kiana_components::list::find_jump_target(
+                                    jump_num,
+                                    0,
+                                    app.completions.len(),
+                                ) {
+                                    app.completion_selected = target_idx;
+                                    app.needs_render = true;
+                                    continue;
+                                }
+                            }
+                            // Try to jump in session list
+                            else if app.show_session_list {
+                                let sessions = app.session_manager.list_sessions();
+                                if let Some(target_idx) = kiana_components::list::find_jump_target(
+                                    jump_num,
+                                    app.session_list_selected,
+                                    sessions.len(),
+                                ) {
+                                    app.session_list_selected = target_idx;
+                                    app.needs_render = true;
+                                    continue;
+                                }
+                            }
+                        }
+
                         // Handle retry with 'r' key
                         if c == 'r' && app.show_retry_button {
                             app.retry_connection();
