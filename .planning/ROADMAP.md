@@ -16,8 +16,8 @@
 ## 当前里程碑：v0.4
 
 - [x] **Phase 1: Reviewer ≠ author** — `monitoring/reviewer` 新 session；写 `gate/REVIEW.json`
-- [ ] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
-- [ ] **Later: MCP / skills / provider / readonly tools** — 矩阵签字后再开
+- [x] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
+- [ ] **Later: MCP / skills / provider / readonly tools** — 矩阵签字后再开；下一刀是 CODE-02 MCP client 经 daemon
 
 ### Phase 1: Reviewer ≠ author
 
@@ -32,6 +32,20 @@
 5. 证明级别 `local_behavior`。
 
 **Plans:** 已执行。验证：`.planning/phases/9-VERIFICATION.md`。证明级别 `local_behavior`。CLI 是 `kiana run --review`；省略 `--role` 即 reviewer。同核证明在 in-process DaemonHost；跨进程 CLI 靠持久 `session_id` / `run.receipt`。
+
+### Phase 2: Coding pack matrix draft
+
+**Goal:** 对 Claude Code **公开**核心行为做审计表；先文档后代码。dump 工具目录名不是 P0。
+**Requirements:** CODE-01
+**Success Criteria:**
+
+1. `docs/coding-pack-matrix.md` 存在。
+2. 列齐全：公开行为、公开来源、Kiana 现状、owner、测试/证据、许可证、是否本期。
+3. P0 是核心路径（写盘/trust/session/收据/失败可见/Reviewer + 文档化的 MCP/skills/hooks/provider 缺口），不是 50 个 dump 工具。
+4. 冻结项写明：TeamCreate/SendMessage、TUI 迁核、五部门/RAG、Desktop/Web、chrome/computer-use、拆 `cli.rs`。
+5. 下一实现站写死为 CODE-02（MCP client 经 daemon）。本 Phase 不写 MCP 代码。
+
+**Plans:** 已执行。验证：`.planning/phases/10-VERIFICATION.md`。证明级别 `local_behavior`（文档）。矩阵是签字草稿；v0.4.2 起才允许实现 CODE-02。
 
 ## 已完成：v0.3
 
