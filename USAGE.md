@@ -1,6 +1,6 @@
 # Kiana Code 使用指南
 
-本文只描述当前 Rust workspace 已接上的真实入口。产品边界以 `.planning/PROJECT.md` 为准，当前阶段以 `.planning/ROADMAP.md` 为准，控制平面迁移以 `docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md` 为准。更短的入口见 [QUICKSTART.md](QUICKSTART.md)，文档地图见 [docs/README.md](docs/README.md)。
+本文只描述当前 Rust workspace 已接上的真实入口。产品边界以 `.planning/PROJECT.md` 为准，当前阶段以 `.planning/ROADMAP.md` 为准，控制平面说明以 [docs/architecture.md](docs/architecture.md) 为准。更短的入口见 [QUICKSTART.md](QUICKSTART.md)，文档地图见 [docs/README.md](docs/README.md)。
 
 ## 目录
 

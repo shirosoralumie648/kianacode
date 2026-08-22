@@ -1,6 +1,6 @@
 # Kiana 架构说明
 
-本文描述 **master 上实际存在的控制平面分层**。权威设计稿仍是 [2026-07-17 控制平面规格](superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md)；若本文与规格冲突，先修规格或先修代码，再改索引。
+本文描述 **master 上实际存在的控制平面分层**。产品定义见 [`.planning/PROJECT.md`](../.planning/PROJECT.md)，当前执行见 [planning-current.md](planning-current.md)。若本文与代码冲突，以 `kiana architecture status --json` 和源码为准，再改本文。
 
 ## 现状
 

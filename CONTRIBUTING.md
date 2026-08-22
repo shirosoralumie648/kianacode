@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢参与 Kiana。本文说明如何在当前 Rust workspace 里开发、验证和提交改动。产品范围与完成判定以 [`.planning/PROJECT.md`](.planning/PROJECT.md) 和 [`.planning/DESIGN-INDEX.md`](.planning/DESIGN-INDEX.md) 为准。
+感谢参与 Kiana。本文说明如何在当前 Rust workspace 里开发、验证和提交改动。产品范围与完成判定以 [`.planning/PROJECT.md`](.planning/PROJECT.md)、[`.planning/ROADMAP.md`](.planning/ROADMAP.md) 和 [docs/planning-current.md](docs/planning-current.md) 为准。
 
 ## 环境
 
@@ -39,7 +39,7 @@ cargo test -p kiana-commands --no-fail-fast
 
 ## 文档
 
-用户文档入口是 [docs/README.md](docs/README.md)。设计权威索引是 [`.planning/DESIGN-INDEX.md`](.planning/DESIGN-INDEX.md)。改用户可见行为时，至少更新：
+用户文档入口是 [docs/README.md](docs/README.md)。当前规划权威是 [docs/planning-current.md](docs/planning-current.md) 与 [`.planning/PROJECT.md`](.planning/PROJECT.md)。改用户可见行为时，至少更新：
 
 1. `README.md` 或 `QUICKSTART.md` 中对应入口
 2. `USAGE.md` 中已接线命令

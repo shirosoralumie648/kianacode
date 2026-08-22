@@ -21,7 +21,8 @@ minor versions may include breaking CLI, config, or storage changes. Use
 
 - Control-plane status is reported by `kiana architecture status --json`.
 - Documentation now points at `docs/README.md`, distinguishes product TUI from the `kiana-tui` crate, and records repository hygiene.
-- Remaining GSD work is recut as milestone **v0.2 Runnable Local Agent MVP** (vertical golden path). The 24-phase 1.0 horizontal train is parked as a north star; Phase 2 stays open at the human verification gate.
+- Remaining GSD work is recut as milestone **v0.2 Runnable Local Agent MVP** (vertical golden path). Phase 2 stays open at the human verification gate.
+- Deleted the old 24-phase / Project OS / superpowers design corpus. Runtime schemas, capability-governance ledgers, and user-facing docs remain.
 
 ### Repository
 

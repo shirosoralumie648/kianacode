@@ -1,6 +1,6 @@
 # Kiana 文档索引
 
-按读者和用途分流。设计文档很多，但**完成判定不看设计篇幅**，只看 capability matrix、测试、运行级 smoke 和发布证据。
+按读者和用途分流。**完成判定不看设计篇幅**，只看 capability matrix、测试、运行级 smoke 和发布证据。旧 24 阶段 / Project OS / superpowers 设计档案已删除。
 
 ## 先看这些
 
@@ -35,9 +35,8 @@
 | 文档 | 用途 |
 | --- | --- |
 | [sdk-runtime-events.md](sdk-runtime-events.md) | RuntimeEvent SDK 合同 |
-| [workflow-runtime-design.md](workflow-runtime-design.md) | WorkflowRun / EventLog |
 | [docs/schemas/](schemas/) | pinned JSON Schema |
-| [docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md](superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md) | 控制平面权威设计 |
+| [architecture.md](architecture.md) | 控制平面分层（当前说明） |
 
 JSON 合同变化后必须跑 `bash scripts/schema-contract-smoke.sh`。
 
@@ -50,29 +49,24 @@ GSD / 产品规划以这些文件为准，不要用过期的 phase 笔记覆盖�
 | 文档 | 层级 |
 | --- | --- |
 | [planning-current.md](planning-current.md) | 当前里程碑说明（先看这个） |
-| [`.planning/DESIGN-INDEX.md`](../.planning/DESIGN-INDEX.md) | 设计权威索引 |
 | [`.planning/PROJECT.md`](../.planning/PROJECT.md) | 产品定义、当前里程碑与约束 |
-| [`.planning/REQUIREMENTS.md`](../.planning/REQUIREMENTS.md) | v0.2 需求；104 项 1.0 账本在附录 |
-| [`.planning/ROADMAP.md`](../.planning/ROADMAP.md) | 当前 Phase 1–6；旧 3–24 在附录 |
-| [`.planning/MILESTONES.md`](../.planning/MILESTONES.md) | 当前 v0.2 列车与停放的 1.0 列车 |
+| [`.planning/REQUIREMENTS.md`](../.planning/REQUIREMENTS.md) | v0.2 需求（PATH/SESS/TRUST/EVD） |
+| [`.planning/ROADMAP.md`](../.planning/ROADMAP.md) | 当前 Phase 1–6 |
+| [`.planning/MILESTONES.md`](../.planning/MILESTONES.md) | 当前 v0.2 列车 |
 | [`.planning/STATE.md`](../.planning/STATE.md) | 当前 GSD 执行状态 |
 
 `.planning/STATE.md` 的 YAML 头和正文可能短暂不一致；冲突时以 git 最新提交和实际 phase 目录为准，不要用过期百分比当作完成证明。
 
-## 设计档案（不是完成证明）
+## 治理与发布输入（不是产品完成）
 
-这些是深度设计或审计输入，供规划引用，不代表对应代码已经交付：
+这些仍被 Phase 1/2 脚本和证据链使用，不能当成 1.0 已完成：
 
-- [kiana-product-functional-and-implementation-design.md](kiana-product-functional-and-implementation-design.md)
-- [kiana-personal-project-os-complete-design.md](kiana-personal-project-os-complete-design.md)
-- [kiana_project_os/](kiana_project_os/) — Project OS 36 分册
 - [reference-feature-matrix.md](reference-feature-matrix.md)
 - [reference-migration-roadmap.md](reference-migration-roadmap.md)
 - [reference_audit/](reference_audit/)
-- [agent-program/](agent-program/)
-- [superpowers/plans/](superpowers/plans/) 与 [superpowers/specs/](superpowers/specs/)
+- [agent-program/](agent-program/) — capability governance 生产账本
 
-`reference/` checkout 默认被 `.gitignore` 排除，审计笔记放在 `docs/reference_audit/`。
+`reference/` checkout 默认被 `.gitignore` 排除。
 
 ## 仓库卫生
 

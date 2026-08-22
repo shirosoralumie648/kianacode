@@ -4,7 +4,7 @@
 
 当前执行里程碑是 **v0.2 Runnable Local Agent MVP**：在已有 `kiana` 二进制上收出一条纵向可跑通的本地 coding agent 黄金路径，而不是继续铺原 Phase 3–24 的横切地基。
 
-Phase 1 证据治理已经完成。Phase 2 工具链实现已落地，但人审/签名/`dist/` 门禁仍开着，**不阻塞** Phase 3。Phase 3–6 把 CLI/TUI、一个真实 provider、read/edit/shell、trust fail-closed、可见失败和执行证据收成用户能演示的切片。完整 1.0（三包、全入口、云、企业、38-reference）停在 north star，见文末附录。
+Phase 1 证据治理已经完成。Phase 2 工具链实现已落地，但人审/签名/`dist/` 门禁仍开着，**不阻塞** Phase 3。Phase 3–6 把 CLI/TUI、一个真实 provider、read/edit/shell、trust fail-closed、可见失败和执行证据收成用户能演示的切片。完整 1.0（三包、全入口、云、企业、38-reference）不是本里程碑范围。旧 24 阶段设计文档已删除。
 
 ## Phases
 
@@ -12,7 +12,7 @@ Phase 1 证据治理已经完成。Phase 2 工具链实现已落地，但人审/
 
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions marked as INSERTED
-- Phases 1–2 are historical from the v1.0 train. Phases 3–6 are the current v0.2 MVP. Old 3–24 definitions are parked, not deleted.
+- Phases 1–2 are historical from the previous train. Phases 3–6 are the current v0.2 MVP.
 
 - [x] **Phase 1: 现状基线与证据治理** - 冻结公开行为和 38-reference 的可审计基线。 (completed 2026-07-26)
 - [ ] **Phase 2: 可复现工具链与依赖收敛** - 让构建输入和发布就绪状态可复现、可检查。（人审门禁仍开，不阻塞 v0.2）
@@ -163,9 +163,9 @@ Verification: `02-VERIFICATION.md` separates local_behavior from CI/signing evid
 | Phase 1 | 证据治理 | 1 | 已完成 |
 | Phase 2 | 可复现工具链 | 2 | 停放在人审门禁，不阻塞 v0.2 |
 | **v0.2** | Runnable Local Agent MVP | 3–6 | **当前执行** |
-| later | Coding 深度 / 其他包 / 入口 / 商业 / 1.0 | parked 原 3–24 | north star |
+| later | Coding 深度 / 其他包 / 入口 / 商业 / 1.0 | 未规划 | 以后再说 |
 
-详细列车说明见 [MILESTONES.md](MILESTONES.md)。当前规划说明见 [`docs/planning-current.md`](../docs/planning-current.md)。
+列车说明见 [MILESTONES.md](MILESTONES.md)。当前规划说明见 [`docs/planning-current.md`](../docs/planning-current.md)。
 
 ## Progress
 
@@ -180,24 +180,3 @@ Phase 1 is closed. Phase 2 stays open at the human gate and does not block Phase
 | 4. 会话可恢复、可取消、失败可见 | 尚未规划 | Not started | - | v0.2 |
 | 5. 信任与权限让 MVP 能用且 fail-closed | 尚未规划 | Not started | - | v0.2 |
 | 6. 任务确实执行过的证据 | 尚未规划 | Not started | - | v0.2 |
-
-## Appendix: Parked v1.0 phases (not current execution)
-
-The following were the remaining phases of the 24-phase horizontal 1.0 train. They remain useful as later-milestone input. Their FEATURES ledgers stay at `.planning/features/NN-FEATURES.md`. Old Phase 3 research lives at `.planning/parked/v1.0-north-star/phases/03-contract-schema-baseline/`.
-
-| Old # | Name | Original intent | Later home |
-|-------|------|-----------------|------------|
-| 3 | 契约与 Schema 基线 | 统一事件/registry 跨入口 | 多入口收敛时再做，不挡 MVP |
-| 4 | 状态权威与投影恢复 | EventLog 重建、session/memory 迁移 | v0.2 Phase 4 只做黄金路径恢复；完整权威延后 |
-| 5 | 策略、信任、凭据与本地数据边界 | 全入口统一 PolicyDecision | v0.2 Phase 5 只覆盖黄金路径 trust/profile |
-| 6 | RuntimeHost 与运行时抽取 | 一致 ContextPack / host | 已有 daemon/core/harness 先跑通，抽取延后 |
-| 7 | Provider 能力协商与适配闭环 | 多 provider 路由/降级/成本 | MVP 一个真实 provider；协商超集延后 |
-| 8 | 可靠 Workflow、证据与副作用语义 | DAG、verifier、result_unknown | v0.2 Phase 6 只做 run 收据 |
-| 9 | 受限多 Agent、扩展与 Pack 契约 | swarm/plugin isolation | 后续 Coding 深度 |
-| 10–11 | Coding 公开基线与生态 | 仓库闭环、MCP、远程、语音 | 后续 Coding 里程碑 |
-| 12–15 | Research / Daily packs | 文献证据、实验、连接器、审批 | 后续能力包里程碑 |
-| 16–19 | Terminal/IDE/Desktop/Web/平台 | 全入口与跨入口连续性 | 后续表面里程碑 |
-| 20–23 | Official Cloud / Enterprise | 同步、租户、RBAC、DR | 后续商业里程碑 |
-| 24 | 1.0 全量收敛与发布证明 | 目标环境 + 用户验收 | 仍是唯一允许“1.0”的门禁 |
-
-Do not resurrect old Phase 3 (`03-contract-schema-baseline`) as the next `$gsd-discuss-phase 3` target.

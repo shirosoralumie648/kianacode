@@ -20,7 +20,7 @@ Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地�
 
 本里程碑成功标准：用户在已信任仓库上用 `kiana -p` / `kiana run` / `kiana tui`、一个真实 provider、read/edit/shell 完成任务；trust/policy fail-closed；失败可见；跑完能指出工具与文件改动证据。只声称 `local_behavior`。
 
-明确移出本里程碑：IDE/Desktop/Web 产品闭环、Research/Daily pack、官方云、企业自托管、38-reference 产品完成、签名 `dist/`、1.0 措辞。这些留在 north star / 后续列车。
+明确移出本里程碑：IDE/Desktop/Web 产品闭环、Research/Daily pack、官方云、企业自托管、38-reference 产品完成、签名 `dist/`、1.0 措辞。旧设计文档已删除，不再作为执行依据。
 
 Phase 1 保持已完成。Phase 2 保持人审门禁，不把 local verification 升级为关闭，也不用它挡住 Phase 3。
 
@@ -30,7 +30,7 @@ Phase 1 保持已完成。Phase 2 保持人审门禁，不把 local verification
 - **Revenue model**: 本地个人核心开源；官方云按同步、远程执行和团队能力收费；企业版通过自托管许可、治理能力、支持和服务商业化
 - **Success metric (current)**: 一条本地黄金路径在 CLI/TUI 上对真实仓库 + 真实 provider 可跑通，失败可见，并留下工具/改动证据
 - **Success metric (north star)**: Coding、Academic Research、Daily Work、全部产品入口、官方云和企业自托管版共同通过 1.0 发布门禁；1.0 不是 v0.2 的完成标准
-- **Strategy notes**: 详细设计见 `docs/superpowers/specs/2026-07-14-kiana-complete-ai-agent-product-design.md`；现有迁移依据见 `docs/reference-migration-roadmap.md` 和 `docs/reference-feature-matrix.md`
+- **Strategy notes**: 当前执行见 `docs/planning-current.md` 和 `.planning/ROADMAP.md`。Phase 1 治理账本仍在 `docs/agent-program/` 与 `docs/reference-feature-matrix.md`。
 
 ## Requirements
 
@@ -91,10 +91,10 @@ Phase 1 保持已完成。Phase 2 保持人审门禁，不把 local verification
 - `.planning/codebase/` 已在 2026-07-13 完成七份代码库映射；该映射是现有能力和架构边界的初始事实来源。
 - 当前架构已经具备入口层、命令层、Assistant runtime、tool/workbench、workflow/project OS、context/hooks、extension/trust 等分层，应在这些边界上演进而不是另起一套运行时。
 - `reference/` 当前包含 38 个项目目录，覆盖 coding agents、agent runtimes、planning/workflow、memory/knowledge、multi-agent、IDE、app-server、research 和扩展生态。
-- 2026-08-22：用户明确要求先有能跑通的 MVP，再扩展成通用 agents 助手。原 24 阶段 horizontal foundation 对剩余工作失效；Phase 1/2 文物保留，旧 Phase 3–24 停放为 north star。
+- 2026-08-22：用户明确要求先有能跑通的 MVP，再扩展成通用 agents 助手。原 24 阶段设计/规划文档已删除；Phase 1/2 执行记录保留。
 - 当前产品已经能编译并接线 REPL / `kiana -p` / `kiana run` / `kiana tui`、多 provider 和工具循环；缺口是把它们收成可靠黄金路径，而不是再铺一层未使用的横切抽象。
 - `kiana architecture status --json` 仍报告 `legacy_edges_remaining: 9`。这是架构事实，不是 v0.2 完成障碍的替代指标。
-- 现有 `docs/reference-migration-roadmap.md` 主张 core-loop-first；v0.2 把它落实为可演示的本地 agent 黄金路径，而不是先做完 schema/RuntimeHost 再谈用户任务。
+- v0.2 把已接线的本地 agent 收成可演示黄金路径，而不是先做完 schema/RuntimeHost 再谈用户任务。
 - 完整 1.0 仍覆盖 Coding、Research、Daily、Cloud 和 Enterprise；那是后续里程碑，不是本里程碑范围。
 - Coding 仍是最高投入的能力包；v0.2 只取 coding 黄金路径，不取完整公开基线。
 - 用户改用 Kiana 的首要理由不是界面克隆，而是长任务、多 Agent、证据链、验证和恢复带来的更可靠任务完成能力。

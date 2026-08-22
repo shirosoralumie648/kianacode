@@ -130,13 +130,6 @@ for file in \
   docs/eval/fixtures/basic-runtime-baseline.json \
   docs/eval/fixtures/basic-tool-success.jsonl \
   docs/eval/fixtures/basic-tool-failure.jsonl \
-  docs/superpowers/specs/2026-07-11-offline-eval-harness-design.md \
-  docs/superpowers/plans/2026-07-11-offline-eval-harness.md \
-  docs/superpowers/plans/2026-07-11-eda-review-workbench.md \
-  docs/superpowers/specs/2026-07-11-workflow-transition-completion-design.md \
-  docs/superpowers/plans/2026-07-11-workflow-transition-completion.md \
-  docs/superpowers/specs/2026-07-11-bounded-swarm-process-identity-design.md \
-  docs/superpowers/plans/2026-07-11-bounded-swarm-process-identity.md \
   kiana-commands/src/eval.rs \
   kiana-commands/src/eda.rs \
   kiana-commands/src/memory.rs \

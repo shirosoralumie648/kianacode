@@ -41,7 +41,7 @@
 | 5 | 信任与权限让 MVP 能用且 fail-closed | Pending |
 | 6 | 任务确实执行过的证据 | Pending |
 
-旧 Phase 3–24（schema、状态权威、RuntimeHost-first、三包、全入口、云/企业、1.0 证明）停在 north star / 后续里程碑，目录与特性账本保留，不删除。
+旧 Phase 3–24 设计文档、特性账本、journeys 和 1.0 需求附录已删除。后续里程碑需要时再写，不再从旧档案恢复。
 
 ## 证据边界
 

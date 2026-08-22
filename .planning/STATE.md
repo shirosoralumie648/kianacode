@@ -5,10 +5,10 @@ milestone_name: Runnable Local Agent MVP
 current_phase: 3
 current_phase_name: 黄金路径能跑通
 status: planning
-stopped_at: v0.2 MVP roadmap written; next is $gsd-discuss-phase 3 (skip_discuss: false). Phase 2 stays parked at human_needed.
+stopped_at: old 24-phase/Project OS/superpowers design corpus deleted; next is $gsd-discuss-phase 3 (skip_discuss: false). Phase 2 stays parked at human_needed.
 last_updated: "2026-08-22T11:22:12.029Z"
 last_activity: 2026-08-22
-last_activity_desc: Recut remaining work from 24-phase horizontal 1.0 train into v0.2 runnable local agent MVP
+last_activity_desc: Deleted old 24-phase / Project OS / superpowers design corpus after the v0.2 recut
 progress:
   total_phases: 6
   completed_phases: 1
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-22)
 Phase: 3 of 6 — 黄金路径能跑通
 Plan: —
 Status: Planning — requirements and roadmap for v0.2 are written; discuss is next
-Last activity: 2026-08-22 — Recut remaining work into v0.2 Runnable Local Agent MVP
+Last activity: 2026-08-22 — Deleted old 24-phase / Project OS / superpowers design corpus after the v0.2 recut
 
 Progress: [██░░░░░░░░] 17% (1/6 phases closed; Phase 2 implementation landed but human gate open; Phases 3–6 unplanned)
 
@@ -67,11 +67,11 @@ Progress: [██░░░░░░░░] 17% (1/6 phases closed; Phase 2 imple
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-- [2026-08-22] 剩余工作改为纵向 MVP（v0.2 Phase 3–6），不再把原 Phase 3–24 横切地基当作当前执行。1.0 全量范围停为 north star。
+- [2026-08-22] 剩余工作改为纵向 MVP（v0.2 Phase 3–6）。随后按用户要求删除旧 24 阶段 / Project OS / superpowers / features / journeys / parked 1.0 文档；它们不再作为执行依据。完整 1.0 仍是口头北星，需要时再写，不从旧档案恢复。
 - ⚠ superseded: 采用用户批准的 horizontal foundation 顺序：contract/state/policy/runtime 先于 pack 与 surface 扩张。
 - ⚠ superseded as current execution: 采用 research 验证的 24 个 fine-grained sequential phases。
 - Coding、Research、Daily、全部入口、Official Cloud、Enterprise 和 12 项 DIF 要求仍保留在 1.0 北星，但不计入 v0.2 完成。
-- [2026-07-26]: 规划体系增强——补充特性分解层（features/NN-FEATURES.md）、统一验收词汇（proof levels）、六项横切 NFR（NFR-01..06）、领域旅程账本（journeys/ 七域）、M0-M6 发布列车（MILESTONES.md）与设计文档索引（DESIGN-INDEX.md）。规则：稳定的"是什么+怎么验收"现在全阶段补全；易变的"改哪些文件"仍 JIT。详见 docs/superpowers/specs/2026-07-26-kiana-planning-system-enhancement-design.md。
+- [2026-07-26]: 规划体系曾补充 features/journeys/M0-M6/DESIGN-INDEX。这些文档已于 2026-08-22 删除；当前执行以 v0.2 ROADMAP/REQUIREMENTS 为准。
 - [Phase 01]: Official-source coverage stays inside the public-baseline family through an exclusive capability mapping or reviewed exclusion. — Prevents a fifth completion authority and preserves exhaustive source-entry review.
 - [Phase 01]: Repository domains remain imported classification labels and aliases use one exact seven-key shape. — Prevents compatibility labels or legacy names from becoming proof or repository-wide decisions.
 - [Phase 01]: Current Adopt/Adapt records require compatible license, approved security review, target revision, tests, and evidence. — Keeps capability governance fail closed without implying product completion.
@@ -103,7 +103,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 02]: Lost `02-01-PLAN.md`/`02-02-PLAN.md` were reconstructed on 2026-08-22 from landed summaries and commits `c0bd383`/`0eaaa9e`/`05cc81a`; this is a record, not a re-implementation.
 - [Phase 02]: `dist/` artifacts stay generated and gitignored; toolchain.build-inputs, sbom.present, sbom.signed, and license.compliance-summary remain blocking until a real CI/signing/build run.
 - [Phase 02]: D-11 full Sigstore/`release-signature.json` is outside Phase 2 closeout; Wave 3 only added the SBOM signing hook and user-redacted SBOM.
-- [Phase 02]: ROADMAP Phase 2 stays unchecked until `human_verify_mode: end-of-phase`. That gate does not block v0.2. Current Phase 3 is the golden path, not parked `03-contract-schema-baseline`.
+- [Phase 02]: ROADMAP Phase 2 stays unchecked until `human_verify_mode: end-of-phase`. That gate does not block v0.2. Current Phase 3 is the golden path.
 
 ### Pending Todos
 
@@ -121,10 +121,10 @@ None yet.
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Post-1.0 | REQUIREMENTS.md 中 POST-01 至 POST-12 | Explicitly deferred | Initialization |
-| Parked 1.0 train | 原 Phase 3–24 横切地基与 104 项 v1.0 需求 | Parked as north star; not v0.2 execution | 2026-08-22 |
+| Deleted 1.0 corpus | 原 Phase 3–24 / 104 项 v1.0 需求 / Project OS / superpowers 文档 | Deleted 2026-08-22; rewrite later if needed | 2026-08-22 |
 
 ## Session Continuity
 
 Last session: 2026-08-22T11:22:12.029Z
-Stopped at: v0.2 MVP roadmap/requirements written. Next boundary is `$gsd-discuss-phase 3` (`skip_discuss: false`). Do not mark Phase 2 complete. Do not resurrect parked `03-contract-schema-baseline`. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
+Stopped at: old 24-phase / Project OS / superpowers design corpus deleted. Next boundary is `$gsd-discuss-phase 3` (`skip_discuss: false`). Do not mark Phase 2 complete. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
 Resume file: docs/planning-current.md

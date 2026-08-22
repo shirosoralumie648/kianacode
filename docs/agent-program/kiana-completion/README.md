@@ -1,6 +1,8 @@
 # Kiana Completion Agent Program
 
-本目录是 `docs/superpowers/specs/2026-07-13-kiana-hundred-agent-completion-program-design.md` 的版本化执行目录。
+> 2026-08-22：对应设计规格 `docs/superpowers/specs/2026-07-13-kiana-hundred-agent-completion-program-design.md` 已删除。本目录是 Phase 1 capability-governance 的版本化生产账本，不是 v0.2 当前执行依据。
+
+本目录保存当时冻结的 Task Card、领域定义、ownership package、依赖门禁和验收配置。
 
 它保存 170 张 Task Card、18 个领域定义、30 个 ownership package、依赖门禁和验收配置。Task Card 是规划对象，不是可直接派发的 WorkPacket。W0 Baseline Intake 完成后，Program Compiler 才能把 `ready` Task Card 与精确 `base_commit`、contract hashes、lease、fencing epoch 和预算绑定为不可变 WorkPacket。
 

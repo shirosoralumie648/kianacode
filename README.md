@@ -4,7 +4,7 @@ Kiana 是一个 local-first 的 AI Agent 产品工作区。同一个 Rust 核心
 
 当前仓库仍处于架构迁移期：代码可以编译和测试，但不能据此宣称已经完成 Claude Code、Claude Desktop 或 `reference/` 能力的完整替代。能力完成度以 capability matrix、测试、运行级 smoke 和发布证据为准。
 
-**当前里程碑是 v0.2 Runnable Local Agent MVP：** 先收一条能跑通的本地 coding agent 黄金路径（`kiana -p` / `kiana run` / `kiana tui` + 一个真实 provider + read/edit/shell），再扩展成更通用的助手。24 阶段 1.0 横切列车已停放为北星，不是当前执行主线。详见 [docs/planning-current.md](docs/planning-current.md) 和 [`.planning/ROADMAP.md`](.planning/ROADMAP.md)。
+**当前里程碑是 v0.2 Runnable Local Agent MVP：** 先收一条能跑通的本地 coding agent 黄金路径（`kiana -p` / `kiana run` / `kiana tui` + 一个真实 provider + read/edit/shell），再扩展成更通用的助手。旧 24 阶段设计文档已删除。详见 [docs/planning-current.md](docs/planning-current.md) 和 [`.planning/ROADMAP.md`](.planning/ROADMAP.md)。
 
 [English README](README.en.md) · [文档索引](docs/README.md) · [快速开始](QUICKSTART.md)
 
@@ -187,11 +187,9 @@ Linux 无桌面输入会话时，`kiana-computer-input::tests::test_init` 可能
 
 规划与治理：
 
+- [当前规划](docs/planning-current.md)
 - [项目定义](.planning/PROJECT.md)
 - [当前路线图](.planning/ROADMAP.md)
-- [设计权威索引](.planning/DESIGN-INDEX.md)
-- [控制平面架构设计](docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md)
-- [Reference 能力迁移](docs/reference-migration-roadmap.md)
 - [商业发布就绪清单](docs/commercial-release-readiness.md)
 
 ## License
