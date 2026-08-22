@@ -10,7 +10,7 @@ use kiana_policy::PolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path};
 use std::sync::Arc;
 use std::sync::{Mutex, PoisonError};
@@ -760,10 +760,87 @@ impl ControlPlane {
         }
 
         self.remember_session(context.session_id.as_str(), run_id);
+        let receipt = self
+            .run_receipt_from_store(context, run_id, sandbox, output)
+            .await?;
+        Ok(CoreResponse::completed(request_id, receipt))
+    }
+
+    pub async fn read_receipt(
+        &self,
+        context: RequestContext,
+        run_id: Option<RunId>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let run_id = match run_id.or_else(|| RunId::parse_str(context.session_id.as_str())) {
+            Some(run_id) => run_id,
+            None => {
+                return Ok(CoreResponse::blocked(request_id, "receipt_not_found"));
+            }
+        };
+        let events = self.events_for_run(&context, run_id).await?;
+        if events.is_empty() {
+            return Ok(CoreResponse::blocked(request_id, "receipt_not_found"));
+        }
+        let sandbox = events
+            .iter()
+            .rev()
+            .find_map(|event| event.data.get("sandbox").and_then(Value::as_str))
+            .unwrap_or("read-only");
+        if let Some(error) = events.iter().rev().find_map(|event| {
+            if event.kind == "run.failed" || event.kind == "run.cancelled" {
+                event
+                    .data
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            } else {
+                None
+            }
+        }) {
+            if !events.iter().any(|event| event.kind == "run.completed") {
+                return Ok(CoreResponse {
+                    request_id,
+                    status: ExecutionStatus::Failed,
+                    output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
+                    error: Some(error),
+                });
+            }
+        }
+        let output = events
+            .iter()
+            .rev()
+            .find(|event| event.kind == "run.completed")
+            .map(|event| event.data.clone())
+            .unwrap_or(Value::Null);
         Ok(CoreResponse::completed(
             request_id,
-            run_receipt(context, run_id, sandbox, output),
+            receipt_from_events(&context, run_id, sandbox, output, &events),
         ))
+    }
+
+    async fn run_receipt_from_store(
+        &self,
+        context: &RequestContext,
+        run_id: RunId,
+        sandbox: &str,
+        output: Value,
+    ) -> Result<Value, CoreError> {
+        let events = self.events_for_run(context, run_id).await?;
+        Ok(receipt_from_events(
+            context, run_id, sandbox, output, &events,
+        ))
+    }
+
+    async fn events_for_run(
+        &self,
+        context: &RequestContext,
+        run_id: RunId,
+    ) -> Result<Vec<RuntimeEvent>, CoreError> {
+        match self.events.read_all().await {
+            Ok(all) => Ok(filter_run_events(&all, run_id, context.session_id.as_str())),
+            Err(_) => Ok(self.events.read_request(&context.request_id).await?),
+        }
     }
 
     async fn broker_harness_capability(
@@ -989,7 +1066,13 @@ fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value
     })
 }
 
-fn run_receipt(context: &RequestContext, run_id: RunId, sandbox: &str, output: Value) -> Value {
+fn receipt_from_events(
+    context: &RequestContext,
+    run_id: RunId,
+    sandbox: &str,
+    output: Value,
+    events: &[RuntimeEvent],
+) -> Value {
     let worker = RoleSpec::builder();
     json!({
         "schema": RUN_RESULT_SCHEMA,
@@ -999,8 +1082,68 @@ fn run_receipt(context: &RequestContext, run_id: RunId, sandbox: &str, output: V
         "sandbox": sandbox,
         "role_id": worker.role_id,
         "department_id": worker.department_id,
+        "files_changed": files_changed_from_events(events),
+        "capabilities": capabilities_from_events(events),
         "output": output,
     })
+}
+
+fn filter_run_events(
+    events: &[RuntimeEvent],
+    run_id: RunId,
+    session_id: &str,
+) -> Vec<RuntimeEvent> {
+    let run_id_str = run_id.to_string();
+    let request_ids: HashSet<_> = events
+        .iter()
+        .filter(|event| {
+            event
+                .data
+                .get("run_id")
+                .and_then(Value::as_str)
+                .is_some_and(|value| value == run_id_str || value == session_id)
+        })
+        .map(|event| event.request_id)
+        .collect();
+    events
+        .iter()
+        .filter(|event| request_ids.contains(&event.request_id))
+        .cloned()
+        .collect()
+}
+
+fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> {
+    let mut files = Vec::new();
+    for event in events {
+        if event.kind != "capability.completed" {
+            continue;
+        }
+        let Some(changed) = event.data.get("changed").and_then(Value::as_array) else {
+            continue;
+        };
+        for item in changed {
+            let Some(path) = item.get("path").and_then(Value::as_str) else {
+                continue;
+            };
+            if !path.is_empty() && !files.iter().any(|existing| existing == path) {
+                files.push(path.to_owned());
+            }
+        }
+    }
+    files
+}
+
+fn capabilities_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
+    events
+        .iter()
+        .filter(|event| event.kind == "run.capability_requested")
+        .map(|event| {
+            json!({
+                "capability": event.data.get("capability"),
+                "operation": event.data.get("operation"),
+            })
+        })
+        .collect()
 }
 
 async fn wait_until_cancelled(rx: &watch::Receiver<bool>) {

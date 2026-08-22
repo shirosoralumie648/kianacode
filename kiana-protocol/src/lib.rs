@@ -113,6 +113,14 @@ impl RequestEnvelope {
             }),
         }
     }
+
+    pub fn receipt(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Receipt(ReceiptRequest { run_id }),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -123,6 +131,7 @@ pub enum RequestBody {
     Run(RunRequest),
     Continue(ContinueRequest),
     Cancel(CancelRequest),
+    Receipt(ReceiptRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -159,6 +168,12 @@ pub struct CancelRequest {
     pub run_id: Option<RunId>,
     #[serde(default)]
     pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ReceiptRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<RunId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -261,13 +276,21 @@ mod tests {
             continue_request
         );
 
-        let cancel_request = RequestEnvelope::cancel_run(metadata, Some(run_id), "user");
+        let cancel_request = RequestEnvelope::cancel_run(metadata.clone(), Some(run_id), "user");
         let encoded = serde_json::to_value(&cancel_request).unwrap();
         assert_eq!(encoded["body"]["type"], "cancel");
         assert_eq!(encoded["body"]["request"]["reason"], "user");
         assert_eq!(
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             cancel_request
+        );
+
+        let receipt_request = RequestEnvelope::receipt(metadata, Some(run_id));
+        let encoded = serde_json::to_value(&receipt_request).unwrap();
+        assert_eq!(encoded["body"]["type"], "receipt");
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            receipt_request
         );
     }
 }

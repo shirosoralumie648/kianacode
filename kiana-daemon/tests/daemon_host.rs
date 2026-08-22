@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
 };
 use kiana_runner::{
     KianaHarness, ModelClient, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
@@ -73,6 +73,8 @@ fn scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
 
 #[test]
 fn local_daemon_constructs_without_a_model() {
+    let home = temp_project();
+    std::env::set_var("KIANA_HOME", &home);
     let _host = DaemonHost::local().expect("local daemon");
 }
 
@@ -116,6 +118,7 @@ async fn trusted_workspace_write_apply_patch_creates_file() {
     assert_eq!(response.output["sandbox"], "workspace-write");
     assert_eq!(response.output["role_id"], "builder");
     assert_eq!(response.output["department_id"], "executing");
+    assert_eq!(response.output["files_changed"][0], "GOLDEN_PATH.txt");
     assert_eq!(
         fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
         "hello\n"
@@ -397,4 +400,104 @@ async fn cancel_stops_in_flight_shell_before_it_writes() {
     let started = run_task.await.unwrap().unwrap();
     assert_ne!(started.status, ExecutionStatus::Completed, "{started:?}");
     assert!(!root.join("CANCELLED.txt").exists());
+}
+
+fn other_file_cassette() -> serde_json::Value {
+    json!([
+        {
+            "text": "writing",
+            "tool_calls": [{
+                "id": "c2",
+                "name": "apply_patch",
+                "arguments": {
+                    "patch": "*** Begin Patch\n*** Add File: OTHER.txt\n+world\n*** End Patch\n"
+                }
+            }]
+        },
+        {"text": "created OTHER.txt"}
+    ])
+}
+
+#[tokio::test]
+async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
+    let root = temp_project();
+    let events = root.join("sessions").join("events.jsonl");
+    let first_run_id;
+    {
+        let host = Arc::new(
+            DaemonHost::with_harness_on_disk(
+                KianaHarness::new(Arc::new(
+                    ScriptedModel::from_json(&apply_patch_cassette()).unwrap(),
+                )),
+                &events,
+            )
+            .expect("disk daemon"),
+        );
+        let client = KianaClient::new(InProcessTransport { host });
+        let response = client
+            .run(
+                trusted_write_metadata_in(&root),
+                "create GOLDEN_PATH.txt",
+                Some("workspace-write".to_owned()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+        assert_eq!(response.output["files_changed"][0], "GOLDEN_PATH.txt");
+        first_run_id = response.output["run_id"].as_str().unwrap().to_owned();
+    }
+    {
+        let host = Arc::new(
+            DaemonHost::with_harness_on_disk(
+                KianaHarness::new(Arc::new(
+                    ScriptedModel::from_json(&other_file_cassette()).unwrap(),
+                )),
+                &events,
+            )
+            .expect("second disk daemon"),
+        );
+        let client = KianaClient::new(InProcessTransport { host });
+        let response = client
+            .run(
+                trusted_write_metadata_in(&root),
+                "create OTHER.txt",
+                Some("workspace-write".to_owned()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+        assert_eq!(response.output["files_changed"][0], "OTHER.txt");
+        assert_ne!(response.output["run_id"], first_run_id);
+    }
+    let host = Arc::new(
+        DaemonHost::with_harness_on_disk(
+            KianaHarness::new(Arc::new(ScriptedModel::from_json(&json!([])).unwrap())),
+            &events,
+        )
+        .expect("receipt daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let first = client
+        .receipt(
+            trusted_write_metadata_in(&root),
+            RunId::parse_str(&first_run_id),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.status, ExecutionStatus::Completed, "{first:?}");
+    assert_eq!(first.output["run_id"], first_run_id);
+    assert_eq!(first.output["files_changed"][0], "GOLDEN_PATH.txt");
+    assert!(
+        first.output["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["operation"] == "apply_patch"),
+        "{first:?}"
+    );
+    assert!(root.join("GOLDEN_PATH.txt").exists());
+    assert!(root.join("OTHER.txt").exists());
+    let log = fs::read_to_string(&events).unwrap();
+    assert!(log.contains(&first_run_id));
+    assert_eq!(log.matches("run.completed").count(), 2);
 }

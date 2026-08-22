@@ -11,7 +11,7 @@ use approval_store::MemoryApprovalStore;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
 use kiana_domain::{CommandIntent, RequestContext};
-use kiana_eventlog::MemoryEventLog;
+use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{PortError, RunnerPort};
@@ -29,21 +29,41 @@ impl DaemonHost {
     }
 
     pub fn local() -> Result<Self, PortError> {
-        Self::with_harness(KianaHarness::new(model_client::from_env()))
+        Self::with_runner_and_events(
+            Arc::new(KianaHarness::new(model_client::from_env())),
+            Arc::new(JsonlEventLog::open_default()?),
+        )
     }
 
     pub fn with_harness(harness: KianaHarness) -> Result<Self, PortError> {
         Self::with_runner(Arc::new(harness))
     }
 
+    pub fn with_harness_on_disk(
+        harness: KianaHarness,
+        events_path: impl AsRef<std::path::Path>,
+    ) -> Result<Self, PortError> {
+        Self::with_runner_and_events(
+            Arc::new(harness),
+            Arc::new(JsonlEventLog::open(events_path)?),
+        )
+    }
+
     pub fn with_runner(runner: Arc<dyn RunnerPort>) -> Result<Self, PortError> {
+        Self::with_runner_and_events(runner, Arc::new(MemoryEventLog::new()))
+    }
+
+    pub fn with_runner_and_events(
+        runner: Arc<dyn RunnerPort>,
+        events: Arc<dyn kiana_ports::EventStorePort>,
+    ) -> Result<Self, PortError> {
         let mut capabilities = CapabilityBroker::new();
         context_query::register(&mut capabilities)?;
         harness_capabilities::register(&mut capabilities)?;
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
-            Arc::new(MemoryEventLog::new()),
+            events,
             Arc::new(capabilities),
             Arc::new(MemoryApprovalStore::new()),
             runner,
@@ -97,6 +117,7 @@ impl DaemonHost {
                     .await
             }
             RequestBody::Cancel(run) => self.core.cancel_run(context, run.run_id, run.reason).await,
+            RequestBody::Receipt(receipt) => self.core.read_receipt(context, receipt.run_id).await,
         };
         match response {
             Ok(response) => {

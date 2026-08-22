@@ -325,7 +325,7 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--continue <id>] [--cancel <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
@@ -333,6 +333,7 @@ async fn run_main(args: &[String]) -> Result<()> {
     let mut sandbox: Option<String> = None;
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
+    let mut receipt_id: Option<String> = None;
     let mut prompt_parts = Vec::new();
     let mut index = 1;
     while index < args.len() {
@@ -372,6 +373,17 @@ async fn run_main(args: &[String]) -> Result<()> {
             value if value.starts_with("--cancel=") => {
                 cancel_id = Some(value.trim_start_matches("--cancel=").to_owned());
             }
+            "--receipt" => {
+                index += 1;
+                receipt_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("session_id_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--receipt=") => {
+                receipt_id = Some(value.trim_start_matches("--receipt=").to_owned());
+            }
             "--" => {
                 prompt_parts.extend(args[index + 1..].iter().cloned());
                 break;
@@ -384,12 +396,17 @@ async fn run_main(args: &[String]) -> Result<()> {
         index += 1;
     }
 
-    if continue_id.is_some() && cancel_id.is_some() {
-        return Err(anyhow!("use only one of --continue or --cancel"));
+    let exclusive = u8::from(continue_id.is_some())
+        + u8::from(cancel_id.is_some())
+        + u8::from(receipt_id.is_some());
+    if exclusive > 1 {
+        return Err(anyhow!(
+            "use only one of --continue, --cancel, or --receipt"
+        ));
     }
 
     let prompt = prompt_parts.join(" ");
-    if cancel_id.is_none() && prompt.trim().is_empty() {
+    if cancel_id.is_none() && receipt_id.is_none() && prompt.trim().is_empty() {
         return Err(anyhow!("prompt_required"));
     }
 
@@ -404,6 +421,13 @@ async fn run_main(args: &[String]) -> Result<()> {
         }
         let run_id = kiana_protocol::RunId::parse_str(&id);
         crate::harness_run::cancel_envelope(id, run_id, "user", &options).await?
+    } else if let Some(id) = receipt_id {
+        let id = id.trim().to_owned();
+        if id.is_empty() {
+            return Err(anyhow!("session_id_required"));
+        }
+        let run_id = kiana_protocol::RunId::parse_str(&id);
+        crate::harness_run::receipt_envelope(id, run_id, &options).await?
     } else if let Some(id) = continue_id {
         let id = id.trim().to_owned();
         if id.is_empty() {

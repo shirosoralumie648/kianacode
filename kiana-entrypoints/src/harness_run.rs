@@ -101,6 +101,18 @@ pub async fn cancel_envelope(
         .map_err(anyhow::Error::msg)
 }
 
+pub async fn receipt_envelope(
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let (client, metadata) = local_client(session_id, options)?;
+    client
+        .receipt(metadata, run_id)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
 pub fn completed_harness_result(response: ResponseEnvelope) -> Result<HarnessRunResult> {
     if response.status != ExecutionStatus::Completed {
         return Err(anyhow!(

@@ -17,7 +17,7 @@
 
 - [x] **Phase 1: CLI golden path** — `kiana run` / print 经 `DaemonHost` 完成受信真 provider 一回合
 - [x] **Phase 2: Session continue / cancel / visible failure**
-- [ ] **Phase 3: Durable receipts**
+- [x] **Phase 3: Durable receipts**
 - [ ] **Phase 4: TUI on harness, or park**
 
 ### Phase 1: CLI golden path
@@ -48,6 +48,13 @@
 
 **Depends on:** Phase 2
 **Requirements:** EVD-01, EVD-02, EVD-03
+**Success Criteria:**
+
+1. 工具调用与 `apply_patch` 文件变更写入 `$KIANA_HOME/sessions/events.jsonl`。
+2. `kiana run --json` 与 `kiana run --receipt <id> --json` 能列出本次 `files_changed` / `capabilities`。
+3. 杀进程再开，第一次收据仍在；第二次 run 只 append。
+
+**Plans:** 已执行。验证：`.planning/phases/3-VERIFICATION.md`。证明级别 `local_behavior`。`DaemonHost::local()` 走 `JsonlEventLog`；测试可留 `MemoryEventLog`。Legacy `--resume` 不是 harness 收据。
 
 ### Phase 4: TUI on harness, or park
 

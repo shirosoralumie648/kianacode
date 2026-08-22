@@ -12,6 +12,12 @@ pub trait EventStorePort: Send + Sync {
     async fn append(&self, event: RuntimeEvent) -> Result<(), PortError>;
 
     async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError>;
+
+    async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
+        Err(PortError::Failed(
+            "event_store_read_all_unsupported".to_owned(),
+        ))
+    }
 }
 
 #[async_trait]

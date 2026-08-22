@@ -15,7 +15,5 @@ publish = false
 kiana-domain.workspace = true
 kiana-ports.workspace = true
 async-trait.workspace = true
-tokio.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true
+tokio.workspace = true

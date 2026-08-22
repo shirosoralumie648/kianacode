@@ -84,6 +84,16 @@ where
             .send(RequestEnvelope::cancel_run(metadata, run_id, reason))
             .await
     }
+
+    pub async fn receipt(
+        &self,
+        metadata: RequestMetadata,
+        run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::receipt(metadata, run_id))
+            .await
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

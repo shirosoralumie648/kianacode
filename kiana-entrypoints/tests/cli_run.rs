@@ -50,6 +50,7 @@ fn kiana_in(cwd: &Path, home: &Path, args: &[&str]) -> Output {
         .current_dir(cwd)
         .env("KIANA_HOME", home)
         .env("HOME", home)
+        .env_remove("KIANA_HARNESS_SCRIPT")
         .env_remove("KIANA_PROVIDER")
         .env_remove("KIANA_FAKE_PROVIDER_SCRIPT")
         .env_remove("ANTHROPIC_API_KEY")
@@ -89,11 +90,14 @@ fn run_routes_through_kiana_harness_and_reports_brokered_result() {
     let script = harness_script(
         r#"[{"text":"running ls","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"ls"}}]},{"text":"architecture mapped"}]"#,
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
-        .env("KIANA_HARNESS_SCRIPT", &script)
-        .args(["run", "--json", "map the architecture"])
-        .output()
-        .unwrap();
+    let cwd = unique_dir("cwd");
+    let home = isolated_home();
+    let output = kiana_with_script(
+        &cwd,
+        &home,
+        &script,
+        &["run", "--json", "map the architecture"],
+    );
     assert!(
         output.status.success(),
         "{}",
@@ -113,16 +117,11 @@ fn run_routes_through_kiana_harness_and_reports_brokered_result() {
 
 #[test]
 fn run_without_model_fails_closed() {
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
-        .env_remove("KIANA_HARNESS_SCRIPT")
-        .env_remove("KIANA_PROVIDER")
-        .env_remove("KIANA_FAKE_PROVIDER_SCRIPT")
-        .env_remove("ANTHROPIC_API_KEY")
-        .env_remove("KIANA_OPENAI_API_KEY")
-        .env_remove("OPENAI_API_KEY")
-        .args(["run", "--json", "hello"])
-        .output()
-        .unwrap();
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &["run", "--json", "hello"],
+    );
     assert!(!output.status.success());
     let combined = combined(&output);
     assert!(
@@ -133,10 +132,7 @@ fn run_without_model_fails_closed() {
 
 #[test]
 fn empty_prompt_fails_closed_with_prompt_required() {
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
-        .args(["run", "--json"])
-        .output()
-        .unwrap();
+    let output = kiana_in(&unique_dir("cwd"), &isolated_home(), &["run", "--json"]);
     assert!(!output.status.success());
     assert!(
         combined(&output).contains("prompt_required"),
@@ -189,6 +185,28 @@ fn trusted_workspace_write_cassette_creates_golden_path_file() {
         fs::read_to_string(fixture.join("GOLDEN_PATH.txt")).unwrap(),
         "hello\n"
     );
+    assert_eq!(response["output"]["files_changed"][0], "GOLDEN_PATH.txt");
+    let run_id = response["output"]["run_id"].as_str().unwrap();
+    let receipt = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &["run", "--json", "--receipt", run_id],
+    );
+    assert!(receipt.status.success(), "{}", combined(&receipt));
+    let receipt: Value = serde_json::from_slice(&receipt.stdout).unwrap();
+    assert_eq!(receipt["status"], "completed");
+    assert_eq!(receipt["output"]["run_id"], run_id);
+    assert_eq!(receipt["output"]["files_changed"][0], "GOLDEN_PATH.txt");
+    assert!(
+        receipt["output"]["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["operation"] == "apply_patch"),
+        "{receipt:?}"
+    );
+    assert!(home.join("sessions").join("events.jsonl").exists());
 }
 
 #[test]
@@ -221,11 +239,12 @@ fn untrusted_workspace_write_does_not_create_file() {
 #[test]
 fn run_json_prints_session_and_run_ids() {
     let script = harness_script(r#"[{"text":"architecture mapped"}]"#);
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
-        .env("KIANA_HARNESS_SCRIPT", &script)
-        .args(["run", "--json", "map the architecture"])
-        .output()
-        .unwrap();
+    let output = kiana_with_script(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &script,
+        &["run", "--json", "map the architecture"],
+    );
     assert!(output.status.success(), "{}", combined(&output));
     let response: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(response["status"], "completed");
@@ -235,18 +254,18 @@ fn run_json_prints_session_and_run_ids() {
 
 #[test]
 fn continue_unknown_session_fails_closed() {
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
-        .env_remove("KIANA_HARNESS_SCRIPT")
-        .args([
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &[
             "run",
             "--json",
             "--continue",
             "00000000-0000-4000-8000-000000000001",
             "--",
             "keep going",
-        ])
-        .output()
-        .unwrap();
+        ],
+    );
     assert!(!output.status.success(), "{}", combined(&output));
     let combined = combined(&output);
     assert!(
@@ -259,17 +278,37 @@ fn continue_unknown_session_fails_closed() {
 }
 
 #[test]
+fn receipt_unknown_session_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &[
+            "run",
+            "--json",
+            "--receipt",
+            "00000000-0000-4000-8000-000000000003",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    let combined = combined(&output);
+    assert!(
+        combined.contains("receipt_not_found") || combined.contains("session_not_found"),
+        "{combined}"
+    );
+}
+
+#[test]
 fn cancel_unknown_session_fails_closed() {
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
-        .env_remove("KIANA_HARNESS_SCRIPT")
-        .args([
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &[
             "run",
             "--json",
             "--cancel",
             "00000000-0000-4000-8000-000000000002",
-        ])
-        .output()
-        .unwrap();
+        ],
+    );
     assert!(!output.status.success(), "{}", combined(&output));
     let combined = combined(&output);
     assert!(
