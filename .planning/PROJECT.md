@@ -4,17 +4,32 @@
 
 Kiana 是一个面向高级个人用户、公开发行用户、团队和企业的完整 AI Agent 产品。它以同一个本地优先的 `Kiana Core` 支撑 Coding、Academic Research 和 Daily Work 三个能力包，并通过 CLI/TUI、Headless SDK/RPC/MCP、IDE、Desktop、Web/App Server 提供一致的任务执行体验。
 
+**当前执行不是这个完整 1.0 画面。** 当前要把已经接线的本地 CLI/TUI agent 收成一条能跑通的黄金路径，再逐步扩展成“什么都能干”的助手。完整产品定义仍是北星，见 Current Milestone。
+
 产品以 Claude Code 的公开功能覆盖作为 Coding 基线，以 Claude Desktop 的桌面工作区和连接器体验作为桌面基线；同时逐项审计 `reference/` 中的项目，形成经过许可证、安全和产品治理的能力超集。个人核心采用 Open Core 模式开源，官方云与企业自托管版提供同步、远程执行、团队协作和治理能力。
 
 ## Core Value
 
 Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地完成真实长任务，并用可验证证据和可恢复状态证明任务确实完成。
 
+## Current Milestone
+
+**v0.2 Runnable Local Agent MVP**（2026-08-22 重切）
+
+先做一个能跑通的本地 coding agent，再逐渐做成更通用的 agents 助手。剩余工作改为纵向切片，不再继续执行原 Phase 3–24 横切地基（契约 → 状态 → 策略 → RuntimeHost → 三包 → 全入口 → 云/企业）。
+
+本里程碑成功标准：用户在已信任仓库上用 `kiana -p` / `kiana run` / `kiana tui`、一个真实 provider、read/edit/shell 完成任务；trust/policy fail-closed；失败可见；跑完能指出工具与文件改动证据。只声称 `local_behavior`。
+
+明确移出本里程碑：IDE/Desktop/Web 产品闭环、Research/Daily pack、官方云、企业自托管、38-reference 产品完成、签名 `dist/`、1.0 措辞。这些留在 north star / 后续列车。
+
+Phase 1 保持已完成。Phase 2 保持人审门禁，不把 local verification 升级为关闭，也不用它挡住 Phase 3。
+
 ## Business Context
 
 - **Customer**: 高级个人开发者与研究者、公开发行用户、协作团队，以及需要私有部署和集中治理的企业
 - **Revenue model**: 本地个人核心开源；官方云按同步、远程执行和团队能力收费；企业版通过自托管许可、治理能力、支持和服务商业化
-- **Success metric**: Coding、Academic Research、Daily Work、全部产品入口、官方云和企业自托管版共同通过 1.0 发布门禁，并能持续完成带证据的真实任务
+- **Success metric (current)**: 一条本地黄金路径在 CLI/TUI 上对真实仓库 + 真实 provider 可跑通，失败可见，并留下工具/改动证据
+- **Success metric (north star)**: Coding、Academic Research、Daily Work、全部产品入口、官方云和企业自托管版共同通过 1.0 发布门禁；1.0 不是 v0.2 的完成标准
 - **Strategy notes**: 详细设计见 `docs/superpowers/specs/2026-07-14-kiana-complete-ai-agent-product-design.md`；现有迁移依据见 `docs/reference-migration-roadmap.md` 和 `docs/reference-feature-matrix.md`
 
 ## Requirements
@@ -31,6 +46,17 @@ Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地�
 - ✓ Chrome、computer-use、screen capture、URL handler 和远程会话等集成基础已经存在 — existing
 
 ### Active
+
+本里程碑（v0.2）只把这些当作正在建造的假设，直到有 local_behavior 验证：
+
+- [ ] 用户能用 `kiana -p` / `kiana run` 在已信任仓库上跑通一次真实 provider + read/edit/shell 任务
+- [ ] 用户能用 `kiana tui` 跑通同一条黄金路径
+- [ ] 缺 provider/auth/trust 时失败可见，不假装成功
+- [ ] 用户能恢复/继续最近会话，并能取消进行中的 run
+- [ ] 未信任项目在写/执行前 fail-closed；permission profile 拒绝可见
+- [ ] 跑完后能检查工具调用、文件改动，并在重启后再次打开收据
+
+### North Star (later milestones, not current active)
 
 - [ ] Coding Pack 覆盖 Claude Code 的公开核心功能，但允许 Kiana 保留自己的命令、配置和交互设计
 - [ ] Kiana Core 为所有入口和能力包提供统一 runtime、session、provider、tool、policy、memory、workflow、evidence 与 recovery 契约
@@ -49,6 +75,8 @@ Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地�
 
 ### Out of Scope
 
+- 继续把原 Phase 3–24 横切地基当作当前执行主线 — 2026-08-22 起剩余工作改为纵向 MVP
+- 在 v0.2 声称 IDE/Desktop/Web、云、企业、Research/Daily 或 1.0 完成 — 那些是后续列车
 - 复制 Claude Code、Claude Desktop 或其他专有产品的非公开源码、品牌和受保护素材 — 只复刻公开可观察行为并独立实现
 - 为追求“全抄”而机械移植重复、废弃、不安全、许可证不兼容或仅为 stub/mock 的参考实现 — 每项拒绝必须在能力矩阵中说明理由
 - 以命令、页面、类型、测试桩或文档存在作为功能完成证据 — 完成必须绑定真实行为、验证和发布证据
@@ -63,8 +91,12 @@ Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地�
 - `.planning/codebase/` 已在 2026-07-13 完成七份代码库映射；该映射是现有能力和架构边界的初始事实来源。
 - 当前架构已经具备入口层、命令层、Assistant runtime、tool/workbench、workflow/project OS、context/hooks、extension/trust 等分层，应在这些边界上演进而不是另起一套运行时。
 - `reference/` 当前包含 38 个项目目录，覆盖 coding agents、agent runtimes、planning/workflow、memory/knowledge、multi-agent、IDE、app-server、research 和扩展生态。
-- 现有 `docs/reference-migration-roadmap.md` 主张 core-loop-first；本项目继续沿用其依赖顺序，但将最终范围扩展为 Coding、Research、Daily、Cloud 和 Enterprise 的统一 1.0。
-- Coding 获得最高开发投入，三条能力线并行推进；Coding 可以在 Alpha/Beta 阶段更早成熟，但正式 1.0 必须等待三条能力线与商业层共同达标。
+- 2026-08-22：用户明确要求先有能跑通的 MVP，再扩展成通用 agents 助手。原 24 阶段 horizontal foundation 对剩余工作失效；Phase 1/2 文物保留，旧 Phase 3–24 停放为 north star。
+- 当前产品已经能编译并接线 REPL / `kiana -p` / `kiana run` / `kiana tui`、多 provider 和工具循环；缺口是把它们收成可靠黄金路径，而不是再铺一层未使用的横切抽象。
+- `kiana architecture status --json` 仍报告 `legacy_edges_remaining: 9`。这是架构事实，不是 v0.2 完成障碍的替代指标。
+- 现有 `docs/reference-migration-roadmap.md` 主张 core-loop-first；v0.2 把它落实为可演示的本地 agent 黄金路径，而不是先做完 schema/RuntimeHost 再谈用户任务。
+- 完整 1.0 仍覆盖 Coding、Research、Daily、Cloud 和 Enterprise；那是后续里程碑，不是本里程碑范围。
+- Coding 仍是最高投入的能力包；v0.2 只取 coding 黄金路径，不取完整公开基线。
 - 用户改用 Kiana 的首要理由不是界面克隆，而是长任务、多 Agent、证据链、验证和恢复带来的更可靠任务完成能力。
 - 现有工作区含大量未提交实现与设计成果；规划提交必须保持原子性，不能将无关修改混入 GSD 文档提交。
 
@@ -94,13 +126,14 @@ Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地�
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | 全项目规划与实现不采用 TDD，统一采用合同实现后验证 | 用户明确要求取消测试先行，同时保留 focused、adversarial、integration 和 review 的质量门禁 | — Locked |
+| 剩余工作改为纵向可跑通 MVP（v0.2 Phase 3–6），而不是继续原 Phase 3–24 横切地基 | 用户要求先有能跑通的本地 agent，再扩展成通用助手；横切会把第一条黄金路径推到 Phase 10 | — Locked 2026-08-22 |
 | 采用“能力与体验对齐 + 最大化合法移植”的组合策略 | 既覆盖目标能力，又避免专有源码复制和许可证风险 | — Pending |
 | Coding 以 Claude Code 公开功能覆盖为基线，但不追求命令或配置的直接兼容 | 用户要的是完整能力，Kiana 需要保留可演进的独立产品设计 | — Pending |
 | “更可靠地完成任务”是相对 Claude Code 的首要差异化 | 长任务、验证、证据和恢复比外观克隆更能形成长期价值 | — Pending |
 | 采用稳定 Kiana Core、三个能力包和多端外壳 | 与现有 Rust 分层一致，并允许并行开发和统一验证 | — Pending |
 | 首版即采用多供应商和本地模型架构 | 避免单一厂商绑定，并支撑本地优先和成本控制 | — Pending |
 | Coding、Research、Daily 并行，Coding 投入最高，三者共同构成 1.0 | 保留 Coding 优先级，同时不把其他产品线降为长期实验功能 | — Pending |
-| 首个完整版本包含全部产品入口 | CLI、自动化、IDE、桌面和 Web 必须共享一套核心而不是成为后补旁路 | — Pending |
+| 首个完整版本包含全部产品入口 | 仍是 1.0 北星；v0.2 只交付 CLI print/run + `kiana tui` | ⚠️ Revisit — deferred out of current milestone 2026-08-22 |
 | 采用 Local-first 与首次启动自主权档位选择 | 同时满足个人可控性、易用性和高级自治需求 | — Pending |
 | 采用 Open Core，1.0 同时包含官方云与企业自托管 | 个人采用、商业收入和企业治理形成完整产品闭环 | — Pending |
 | 使用持续 Alpha/Beta，但严格保留 1.0 命名门禁 | 允许早期反馈，同时避免未完成产品被包装成正式版本 | — Pending |
@@ -125,4 +158,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-14 after initialization*
+*Last updated: 2026-08-22 after v0.2 MVP milestone recut*

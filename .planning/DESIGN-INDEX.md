@@ -3,6 +3,8 @@
 **Created:** 2026-07-26（规划体系增强，见 `docs/superpowers/specs/2026-07-26-kiana-planning-system-enhancement-design.md`）
 **规则：** phase 进入 discuss/research 时必须从本索引拉取该阶段的权威设计；索引与文档现状不符时先修索引再规划。特性账本（`.planning/features/`）的 `设计引用` 字段只能引用本索引中的条目。
 
+**2026-08-22：** 当前执行里程碑是 v0.2 Runnable Local Agent MVP。T0 中的 24 阶段 / 104 需求仍是北星档案；**当前范围以 `PROJECT.md` Current Milestone、`REQUIREMENTS.md` 正文 v1（PATH/SESS/TRUST/EVD）和 `ROADMAP.md` Phase 3–6 为准。** 不要把 `features/03-FEATURES.md` 或停放的 `03-contract-schema-baseline` 当成下一阶段。
+
 ## 层级定义
 
 | Tier | 含义 | 使用方式 |
@@ -17,9 +19,10 @@
 | 文档 | 覆盖 | 状态 |
 |------|------|------|
 | `.planning/PROJECT.md` | 项目定位、约束、Key Decisions、非 TDD 执行规则 | 权威 |
-| `.planning/REQUIREMENTS.md` | 104 项 v1 需求（含 NFR）、验收词汇表、anti-features、traceability | 权威 |
-| `.planning/ROADMAP.md` | 24 阶段、依赖链、成功标准 | 权威 |
-| `.planning/MILESTONES.md` | M0-M6 发布列车与退出门禁 | 权威 |
+| `.planning/REQUIREMENTS.md` | 当前：v0.2 PATH/SESS/TRUST/EVD。附录：原 104 项 1.0 北星账本 | 权威（先看正文，再看附录） |
+| `.planning/ROADMAP.md` | 当前 Phase 1–6 纵向 MVP；附录停放原 3–24 | 权威（当前执行） |
+| `.planning/MILESTONES.md` | 当前 v0.2 列车；原 M0–M6 为停放北星 | 权威（当前执行） |
+| `docs/planning-current.md` | 给人类读的里程碑重切说明 | 权威（当前执行） |
 | `docs/superpowers/specs/2026-07-14-kiana-complete-ai-agent-product-design.md` | 产品总纲：架构、执行模型、包、入口、商业门禁 | 权威 |
 
 ## T1 领域权威设计

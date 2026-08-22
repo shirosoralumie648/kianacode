@@ -4,6 +4,8 @@ Kiana is a local-first AI agent workspace. One Rust core serves Coding, Academic
 
 The repository is still in an architecture-migration period. The workspace builds and tests, but that is not a claim that Kiana already replaces Claude Code, Claude Desktop, or the `reference/` corpus. Completion is determined by the capability matrix, tests, runtime smoke, and release evidence.
 
+**Current milestone is v0.2 Runnable Local Agent MVP:** land one working local coding-agent golden path (`kiana -p` / `kiana run` / `kiana tui` + one real provider + read/edit/shell) before expanding into a general-purpose assistant. The 24-phase 1.0 horizontal train is parked as a north star, not the current execution line. See [docs/planning-current.md](docs/planning-current.md) and [`.planning/ROADMAP.md`](.planning/ROADMAP.md).
+
 [中文 README](README.md) · [Docs index](docs/README.md) · [Quick start](QUICKSTART.md)
 
 ## Architecture

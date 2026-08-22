@@ -2,7 +2,9 @@
 
 ## Overview
 
-Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可靠执行 -> 三个能力包 -> 全部产品入口 -> Official Cloud 与 Enterprise -> 发布证明”的依赖链演进。Coding、Academic Research 与 Daily Work 在共同基础完成后可并行推进，Coding 获得最高投入，但三个能力包、所有入口、Local Personal、Official Cloud、Enterprise Self-hosted 和 12 项差异化要求都必须在 1.0 收敛，不因排序而延期。
+当前执行里程碑是 **v0.2 Runnable Local Agent MVP**：在已有 `kiana` 二进制上收出一条纵向可跑通的本地 coding agent 黄金路径，而不是继续铺原 Phase 3–24 的横切地基。
+
+Phase 1 证据治理已经完成。Phase 2 工具链实现已落地，但人审/签名/`dist/` 门禁仍开着，**不阻塞** Phase 3。Phase 3–6 把 CLI/TUI、一个真实 provider、read/edit/shell、trust fail-closed、可见失败和执行证据收成用户能演示的切片。完整 1.0（三包、全入口、云、企业、38-reference）停在 north star，见文末附录。
 
 ## Phases
 
@@ -10,31 +12,14 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
 
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions marked as INSERTED
+- Phases 1–2 are historical from the v1.0 train. Phases 3–6 are the current v0.2 MVP. Old 3–24 definitions are parked, not deleted.
 
 - [x] **Phase 1: 现状基线与证据治理** - 冻结公开行为和 38-reference 的可审计基线。 (completed 2026-07-26)
-- [ ] **Phase 2: 可复现工具链与依赖收敛** - 让构建输入和发布就绪状态可复现、可检查。
-- [ ] **Phase 3: 契约与 Schema 基线** - 统一事件、工具和跨入口协议语义。
-- [ ] **Phase 4: 状态权威与投影恢复** - 建立可迁移、可重放、可重建的持久状态。
-- [ ] **Phase 5: 策略、信任、凭据与本地数据边界** - 让所有入口共享不可绕过的安全决策。
-- [ ] **Phase 6: RuntimeHost 与运行时抽取** - 让每个入口获得一致且可追溯的执行上下文。
-- [ ] **Phase 7: Provider 能力协商与适配闭环** - 显式呈现多 Provider 的路由、降级和成本差异。
-- [ ] **Phase 8: 可靠 Workflow、证据与副作用语义** - 用验收、证据、恢复和 result_unknown 驱动完成状态。
-- [ ] **Phase 9: 受限多 Agent、扩展与 Pack 契约** - 让并行执行和扩展生态可隔离、可审计、可回滚。
-- [ ] **Phase 10: Coding 公开基线与仓库闭环** - 完成从项目理解到安全修改、验证和 review 的真实旅程。
-- [ ] **Phase 11: Coding 生态、自动化与远程闭环** - 完成 MCP、Agent、workbench、Headless、远程和语音旅程。
-- [ ] **Phase 12: Research 来源、引用与证据图谱** - 建立从研究问题到可定位 claim 的可信来源链。
-- [ ] **Phase 13: Research 实验、论文、复现与领域 Pack** - 完成可验证实验、论文和领域研究交付。
-- [ ] **Phase 14: Daily 对象、Connector 与审批控制** - 建立个人对象、办公连接器和统一审批入口。
-- [ ] **Phase 15: Daily 自动化、回执与团队 Handoff** - 安全完成跨应用自动化、混合流程和团队交接。
-- [ ] **Phase 16: Terminal、Headless 与 MCP 产品闭环** - 让最早期产品入口完整消费统一核心。
-- [ ] **Phase 17: IDE 客户端** - 交付共享状态模型的 VS Code 与 JetBrains 体验。
-- [ ] **Phase 18: Desktop 与 Web/App Server** - 交付本地桌面工作区和统一 Web 控制面。
-- [ ] **Phase 19: 跨入口本地连续性与平台交付** - 证明无账户本地产品在多端和目标平台连续工作。
-- [ ] **Phase 20: Official Cloud 身份、同步与租户数据基础** - 建立可选账户、加密同步和租户隔离。
-- [ ] **Phase 21: Official Cloud Worker、团队、计费与运维** - 完成可商业运营的远程执行与协作服务。
-- [ ] **Phase 22: Enterprise 部署、身份与集中治理** - 完成自托管安装、企业身份、RBAC、凭据和受限网络。
-- [ ] **Phase 23: Enterprise 审计、数据生命周期、DR 与支持** - 完成企业恢复、运维和支持闭环。
-- [ ] **Phase 24: 1.0 全量收敛与发布证明** - 仅用真实目标环境和用户验收授权 1.0 发布。
+- [ ] **Phase 2: 可复现工具链与依赖收敛** - 让构建输入和发布就绪状态可复现、可检查。（人审门禁仍开，不阻塞 v0.2）
+- [ ] **Phase 3: 黄金路径能跑通** - 用户在已信任仓库上用 CLI/TUI 完成一次真实 provider + read/edit/shell 任务。
+- [ ] **Phase 4: 会话可恢复、可取消、失败可见** - 黄金路径可以继续、取消，并且失败原因明确。
+- [ ] **Phase 5: 信任与权限让 MVP 能用且 fail-closed** - 未信任或被拒绝的写/执行不会静默发生。
+- [ ] **Phase 6: 任务确实执行过的证据** - 用户能区分“模型声称完成”和“工具确实跑过”。
 
 ## Phase Details
 
@@ -109,382 +94,110 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
 - [x] `02-01-PLAN.md` — Wave 1 toolchain file, build-inputs schema, CI `@master` (reconstructed 2026-08-22 from `c0bd383` / `02-01-SUMMARY.md`)
 - [x] `02-02-PLAN.md` — Waves 2-3 CI build-inputs, dual-audience blockers, SBOM user export, license summary (reconstructed 2026-08-22 from `0eaaa9e`+`05cc81a` / `02-02-SUMMARY.md`)
 
-Verification: `02-VERIFICATION.md` separates local_behavior from CI/signing evidence. The Phase 2 checkbox stays unchecked until `human_verify_mode: end-of-phase`.
+Verification: `02-VERIFICATION.md` separates local_behavior from CI/signing evidence. The Phase 2 checkbox stays unchecked until `human_verify_mode: end-of-phase`. v0.2 MVP 不把该人审门禁当作 Phase 3 的前置条件。
 
-### Phase 3: 契约与 Schema 基线
+### Phase 3: 黄金路径能跑通
 
-**Goal**: 所有客户端以兼容、版本化的事件和 registry 契约理解同一运行事实。
-**Depends on**: Phase 1, Phase 2
-**Requirements**: CORE-01, CORE-04
+**Goal**: 用户在一个已信任的本地仓库上给出任务，Kiana 用一个真实 provider 和 read/edit/shell 完成一次可见的 agent 回合。
+**Depends on**: Phase 1
+**Does not wait for**: Phase 2 human closeout / signed `dist/`
+**Requirements**: PATH-01, PATH-02, PATH-03, PATH-04
 **Success Criteria** (what must be TRUE):
 
-  1. CLI、SDK/RPC、MCP、remote/bridge 和 App Server 可以序列化并重放同一组 typed RuntimeEvent、ID、terminal status 与结构化错误。
-  2. 旧客户端或旧数据可通过兼容 adapter 迁移；无法兼容的输入会被明确拒绝并给出诊断，而不是静默丢字段。
-  3. 用户通过任一入口发现 command、tool、MCP workbench 或 connector 时，看到一致的 schema、版本、权限、生命周期和错误语义。
-  4. 并发调用遵循同一 registry 决策：安全读操作可并行，写操作被串行化或隔离，结果在事件流中可观察。
+  1. 用户可以在已配置的一个真实 provider 下运行 `kiana -p "<task>"` 或 `kiana run [--json] "<task>"`，看到工具调用流和最终结果，而不是只看到编译/测试通过。
+  2. 用户可以用同一仓库、同一 provider 在 `kiana tui` 里完成同等黄金路径（产品 TUI 是 `kiana tui` / `kiana-screens`，不是独立 `kiana-tui` 应用冒充产品 UI）。
+  3. 该任务路径实际调用仓库内的 read、edit 和 shell（或等价受控执行），并且改动落在被信任的项目边界内。
+  4. 缺少 API key、provider、或项目信任时，命令以明确错误退出或在 TUI 显示明确失败，不得假装成功、空转或无限挂起。
 
-**Plans**: TBD
+**Plans**: TBD — 先 `$gsd-discuss-phase 3`，不要预先写 `03-*-PLAN.md`
+**UI hint**: yes
+**Intended slug**: `03-golden-path-runnable-agent`
 
-### Phase 4: 状态权威与投影恢复
+### Phase 4: 会话可恢复、可取消、失败可见
 
-**Goal**: 用户的 session 与 memory 在重启、迁移或投影损坏后仍能从可信事实恢复。
+**Goal**: 黄金路径不是一次性射击：用户可以继续上次工作、停掉正在跑的任务，并读懂失败。
 **Depends on**: Phase 3
-**Requirements**: CORE-02, CORE-08
+**Requirements**: SESS-01, SESS-02, SESS-03
 **Success Criteria** (what must be TRUE):
 
-  1. 用户可以 create、list、resume、fork、compact、import、export 和 delete session，重启后父子 turn、tool lifecycle、附件与 pack 选择保持一致。
-  2. 删除或损坏 rebuildable projection 后，系统可以从 authoritative EventLog 重建相同状态；日志完整性无法验证时任务进入 blocked。
-  3. 旧 session 有可验证的迁移、回滚与 portable export 路径，不会在升级时被静默丢弃。
-  4. 用户可以搜索、编辑、导出和删除带 source、confidence、scope、retention 与 stale 状态的 memory，live evidence 始终优先。
+  1. 用户可以用 `kiana session list`、`kiana -c` 和 `kiana -r <id>` 找到并继续最近一次黄金路径会话，恢复后仍能看到先前任务上下文。
+  2. 用户可以取消一次进行中的 `kiana -p` / `kiana run` / TUI 回合；取消后进程停止继续发起工具调用，界面显示已取消而不是成功完成。
+  3. 认证失败、provider 错误、权限拒绝、工具错误会以可读原因出现在 CLI/TUI/JSON 输出中，不得被截断成空白成功。
 
 **Plans**: TBD
+**Intended slug**: `04-session-resume-cancel-visible-failure`
 
-### Phase 5: 策略、信任、凭据与本地数据边界
+### Phase 5: 信任与权限让 MVP 能用且 fail-closed
 
-**Goal**: 用户可以理解和控制 Kiana 的权限，同时任何自主权档位都服从统一硬边界。
+**Goal**: 黄金路径在已信任仓库上能干活，但未信任或被拒绝的写/执行不会发生。
+**Depends on**: Phase 3
+**Requirements**: TRUST-01, TRUST-02, TRUST-03
+**Success Criteria** (what must be TRUE):
+
+  1. 用户可以对目标仓库建立 ProjectTrust 后跑通黄金路径；未信任仓库在 edit/shell 之前 fail-closed，并告诉用户如何信任。
+  2. 用户可以选择 `--permission-profile`（至少 read-only / workspace / ask 之一）跑同一任务；被拒绝的工具调用可见，read-only 不会写出文件。
+  3. 黄金路径不能通过普通 CLI 开关绕过 ProjectTrust 或硬拒绝；deny 始终优先。
+
+**Plans**: TBD
+**UI hint**: yes
+**Intended slug**: `05-trust-permissions-mvp`
+
+### Phase 6: 任务确实执行过的证据
+
+**Goal**: 用户能证明这次任务真正跑过，而不是只拿到一段模型自称完成的文字。
 **Depends on**: Phase 3, Phase 4
-**Requirements**: CORE-05, CORE-06, DIF-09
+**Requirements**: EVD-01, EVD-02, EVD-03
 **Success Criteria** (what must be TRUE):
 
-  1. 首次启动时用户可以选择安全、平衡或自治档位并按项目覆盖，界面清楚展示实际生效档位与不可绕过的硬策略。
-  2. CLI、MCP、remote、Desktop 和 Web 对同一 path、network、exec、sandbox 或外部副作用请求产出一致、可解释的 PolicyDecision，deny 始终优先。
-  3. API key、OAuth、Cookie、SSH key 和 license key 只进入 Keychain 或 vault；状态与支持输出仅显示脱敏元数据，安全存储不可用时 fail closed。
-  4. 用户可以检查 defaults、user、project、local、env、CLI 与 managed policy 的确定性优先级，并知道某项配置为何生效。
+  1. 一次黄金路径结束后，用户可以列出本次 run 的工具名称、关键参数/路径和终端状态。
+  2. 用户可以列出本次 run 实际改动的文件（含“无文件改动”的明确陈述），从而区分“模型声称已改”和“工作区确实变化”。
+  3. 用户在重启进程后仍能打开同一收据/证据；收据不会被下一次 run 静默覆盖成无法追溯的状态。
 
 **Plans**: TBD
-**UI hint**: yes
-
-### Phase 6: RuntimeHost 与运行时抽取
-
-**Goal**: 用户从任一入口执行任务时都获得同一份预算受控、来源可追溯的上下文。
-**Depends on**: Phase 3, Phase 4, Phase 5
-**Requirements**: CORE-07
-**Success Criteria** (what must be TRUE):
-
-  1. 同一请求经 InProcessHost 或其他 RuntimeHost 入口执行时，客户端可以看到语义一致的 ContextPack 及其 source、time、hash、permission 和 truncation reason。
-  2. 用户可以组合 repo map、symbol/path search、impact/trace、editable/read-only file set 与 artifact graph，并检查遗漏项和预算消耗。
-  3. session 恢复、入口切换或 retry 不会静默改变已冻结的上下文；必要刷新会生成可观察的新 snapshot 和原因。
-
-**Plans**: TBD
-
-### Phase 7: Provider 能力协商与适配闭环
-
-**Goal**: 用户可以可靠选择多 Provider，并在执行前理解真实能力、fallback 和成本影响。
-**Depends on**: Phase 6
-**Requirements**: CORE-03, CORE-14, DIF-07
-**Success Criteria** (what must be TRUE):
-
-  1. 用户可以注册、认证、选择和健康检查 Anthropic、OpenAI、Gemini、OpenRouter、OpenAI-compatible 与本地模型。
-  2. 每次模型选择都会展示 capability source、tool/vision/structured-output/reasoning/streaming/context 支持、选择理由和质量或成本影响。
-  3. Provider 不支持任务所需能力时，系统会在调用前显式 route、degrade、emulate 或 reject，并向所有客户端发送同一 capability event。
-  4. 用户和管理员可以按 session、workflow、provider 或 tenant 查询 usage、token、估算成本、延迟、retry、budget 与 health，而本地遥测默认不外发。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 8: 可靠 Workflow、证据与副作用语义
-
-**Goal**: 用户只在验收证据成立时看到任务完成，并能在故障或未知外部结果后安全继续。
-**Depends on**: Phase 4, Phase 5, Phase 6, Phase 7
-**Requirements**: CORE-09, CORE-10, CORE-11, DIF-01, DIF-02, DIF-03
-**Success Criteria** (what must be TRUE):
-
-  1. 跨步、跨会话、多 Agent 或有外部副作用的请求会创建持久 WorkflowRun DAG；用户可以检查 router 的 pack、风险、权限、副作用与验收理由。
-  2. 每个 complete 状态都可展开 acceptance 与逐条 diff、命令、测试、引用、实验、审批、回执或 artifact evidence；模型自述不能单独完成任务。
-  3. crash、interrupt、超时、provider 断流、worker 失败或 projection 损坏后，任务可以恢复到最后可信节点，partial 或 unknown 不会显示为 Done。
-  4. 外部响应在 dispatch 后丢失时，任务进入 result_unknown 并先查询目标系统或请求人工核对，绝不盲目重放。
-  5. 用户在所有入口看到一致的 complete、rework、blocked、awaiting_approval 与 result_unknown 状态及恢复建议。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 9: 受限多 Agent、扩展与 Pack 契约
-
-**Goal**: 用户可以安全并行执行和扩展 Kiana，并清楚检查每个 worker 与扩展的边界和结果。
-**Depends on**: Phase 5, Phase 8
-**Requirements**: CORE-12, CORE-13, DIF-04
-**Success Criteria** (what must be TRUE):
-
-  1. 用户可以查看每个 worker 的 WorkPacket、允许/禁止路径、tools、预算、依赖、lease、状态、取消、结果和失败；越界或冲突会被阻塞。
-  2. 失联或过期 worker 的 late result 不会自动集成，父 workflow 只在重新验证 packet 和整体 gate 后完成。
-  3. skills、plugins、hooks、MCP、connectors 与 domain packs 显示来源、license、版本、完整性、权限和 receipt，并支持 enable、disable、update、rollback 与冲突诊断。
-  4. 未信任项目资源默认不加载，任何 pack 或扩展都不能建立第二套 session、policy、event 或 completion 模型。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 10: Coding 公开基线与仓库闭环
-
-**Goal**: 开发者可以在真实仓库完成可逆的理解、修改、验证和 review 闭环。
-**Depends on**: Phase 9
-**Requirements**: COD-02, COD-03, COD-04, COD-05, COD-06, COD-07, COD-08, COD-09, COD-16
-**Success Criteria** (what must be TRUE):
-
-  1. 用户 init 或打开仓库后可以发现有作用域和优先级的项目说明、agents、rules、prompts、checks 与 memory；未信任项目不会加载自动化资源。
-  2. 用户可以组合目录浏览、Read/Grep/Glob、symbol/reference、repo map、impact/trace、URL、图片与受控 context，并检查来源、遗漏和预算。
-  3. Write、Edit、Delete 与 NotebookEdit 提供精确 patch、diff、changed-files、mtime 冲突保护、checkpoint 和 undo，且不会覆盖用户后续修改。
-  4. Shell、Git/worktree、format、lint、typecheck、build、test、debug、PR/CI 与受限 repair loop 产生可复现证据和远端回执，不会擅自处理用户未授权 dirty state。
-  5. Ask、Plan、Edit/Execute、commands、快捷键、permission prompt 与 review findings 在切换模式后保持同一 session 和 policy，并提供可定位的严重度、置信度与验证证据。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 11: Coding 生态、自动化与远程闭环
-
-**Goal**: 开发者可以通过扩展、自动化、workbench 和远程执行完成 Coding 公共能力旅程。
-**Depends on**: Phase 9, Phase 10
-**Requirements**: COD-10, COD-11, COD-12, COD-13, COD-14, COD-15
-**Success Criteria** (what must be TRUE):
-
-  1. 用户可以通过完整 MCP transports 和 tools/resources/templates/prompts 使用、验证和调试 MCP、skills、plugins、hooks 与 commands，项目资源仍受 trust gate。
-  2. 用户可以启动、观察、取消和 handoff subagent 或 agent team，并按平台启用 Browser/Chrome、computer-use、screen capture、clipboard、URL handler、Notebook 与 LSP；不可用能力明确降级。
-  3. Headless print/exec、stream-json、SDK/RPC/MCP 与 GitHub Actions 可以创建或恢复 session、订阅 events、响应 approval、取消任务并取得 typed result 与受限凭据回执。
-  4. 本地任务可转为 background 或 remote worker；CLI、IDE、Desktop 和 Web 观察同一进度、diff、日志与 approval，重连不会重复副作用。
-  5. 用户可以开始、暂停、编辑确认并提交 voice prompt，查看音频权限、转写来源和保留策略，并在不可用时安全回退文本。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 12: Research 来源、引用与证据图谱
-
-**Goal**: 研究者可以从明确问题推进到每条综合结论均可回到原始来源的证据图谱。
-**Depends on**: Phase 9
-**Requirements**: RES-01, RES-02, RES-03, RES-04, RES-05, RES-06, DIF-08
-**Success Criteria** (what must be TRUE):
-
-  1. 研究者可以定义 question、scope、纳排标准、假设、变量、伦理/数据限制、里程碑与 acceptance，并查看 decision history。
-  2. 文献、数据集和代码检索显示 query、来源、抓取时间、license/access 状态，并明确区分合法下载与仅记录 DOI、arXiv 或 URL。
-  3. PDF、网页、supplement、表格和扫描件解析后保留页码、section、坐标、hash、版本关系与 parser warning。
-  4. 文献库可以校验 DOI/arXiv/ISBN/URL，处理 BibTeX/RIS/CSL、重复、撤稿与版本，并从正文引用跳回 source record。
-  5. notes、claims、counter-evidence、methods、datasets、experiments 与 artifacts 形成带 extracted/inferred/ambiguous、confidence 和 freshness 的 evidence graph；综合矩阵并列呈现冲突证据和孤立 claim。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 13: Research 实验、论文、复现与领域 Pack
-
-**Goal**: 研究者可以执行可复现实验并交付经过领域 verifier 检查的论文与复现包。
-**Depends on**: Phase 9, Phase 12
-**Requirements**: RES-07, RES-08, RES-09, RES-10, RES-11, RES-12, RES-13, RES-14, DIF-10
-**Success Criteria** (what must be TRUE):
-
-  1. 数据集和代码 intake 保留 version、license、checksum、schema、split、preprocessing、environment 与访问策略，实验固定参数、seed、输入 hash、revision 和预算。
-  2. local/remote experiment 与隔离 notebook 可以 pause/resume，失败 cell 不会成为结果；统计检验、effect size、confidence interval、multiple-comparison 提示与图表均可追溯。
-  3. benchmark、baseline、ablation、error analysis、robustness、negative result 和 metric selection 进入 ledger，论文 workspace 阻塞无来源数字或引用。
-  4. 用户可以审查并导出 environment lock、code/data manifest、run commands、results、licenses、limitations、checksums、submission checklist、supplement 与 response-to-reviewers workspace。
-  5. EDA、硬件和机器人 pack 可以注册领域 objects、tools、rules、eval 与 views；DOI、引用、数据、实验、统计、图表和外部状态 verifier 失败时输出 blocked/rework/unknown，工程签字与下单保持人工审批。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 14: Daily 对象、Connector 与审批控制
-
-**Goal**: 知识工作者可以管理个人信息与办公连接器，并在外部写入前掌握范围和审批。
-**Depends on**: Phase 9
-**Requirements**: DAY-01, DAY-02, DAY-03, DAY-04, DAY-05, DAY-08, DAY-09, DAY-10
-**Success Criteria** (what must be TRUE):
-
-  1. 用户可以 create、read、update、search、link、archive 和 export 本地文件、notes、todos、reminders 与 knowledge objects，并看到来源、时间、状态和冲突。
-  2. Calendar、email、message、office document 与 meeting workflow 支持时区、thread、附件、格式 warning、speaker/time provenance、preview 和服务端 ID，默认不自动发送。
-  3. Connector center 展示 discover、OAuth scopes、health、last sync 与 data access，并支持 revoke、re-auth、least privilege、per-workspace enable 和 audit，凭据不进入模型上下文。
-  4. workspace search 按权限裁剪本地文件、notes、mail、calendar、meeting 与获批 connector，显示来源和 freshness，断开后缓存按 policy 删除或降级。
-  5. approval inbox 汇总待发送、发布、删除、付款、权限变更与 result_unknown 动作，用户可 inspect、edit、approve、deny 或 escalate，决定回写原 workflow。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 15: Daily 自动化、回执与团队 Handoff
-
-**Goal**: 知识工作者可以安全执行跨应用和混合能力包流程，并用目标状态与回执证明结果。
-**Depends on**: Phase 9, Phase 14
-**Requirements**: DAY-06, DAY-07, DAY-11, DAY-12
-**Success Criteria** (what must be TRUE):
-
-  1. browser/desktop automation 在每一步显示目标身份和可视状态，支持 timeout、cancel、checkpoint、compensation 与 receipt，origin 或目标不匹配时停止。
-  2. 用户可以用模板把目标拆成包含 Coding、Research、Daily task 的 DAG、board、owner、deadline、approval、report 与 bounded multi-agent 工作流。
-  3. Daily verifier 会核对目标应用状态、外部 ID、回执、附件 hash、参与者与审批；无法确认时保持 result_unknown 且不自动重放。
-  4. 团队成员可以共享 project、task、artifact、comment、mention 与 handoff，并检查 role visibility 和 audit；个人私有对象不会因加入团队自动共享。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 16: Terminal、Headless 与 MCP 产品闭环
-
-**Goal**: 用户和集成方可以通过 Terminal、Headless 与 MCP 完整使用三个能力包和统一运行状态。
-**Depends on**: Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15
-**Requirements**: SURF-01, SURF-02, SURF-03, SURF-10
-**Success Criteria** (what must be TRUE):
-
-  1. CLI、REPL 与 TUI 支持三个 pack 的 prompt、commands、history/resume、diff、tool cards、approval、background/workflow monitor、settings/doctor 与附件，文本和 JSON/stream 输出不混淆。
-  2. Headless SDK/RPC 提供版本化 API、typed events、cancel、backpressure、reconnect、approval callback、idempotency、auth 与 language-neutral examples，并为 breaking change 提供迁移路径。
-  3. MCP server/client 可在 stdio、HTTP、SSE 与 WS 上互操作 tools、resources、templates、prompts、auth、capability discovery 与 errors，且 policy 与本地工具一致。
-  4. 用户从每个入口都能检查 capability/readiness、provider/connector/plugin health、policy、data location、version/update、release blockers 与脱敏支持诊断并导出结果。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 17: IDE 客户端
-
-**Goal**: 开发者可以在 VS Code 与 JetBrains 中使用同一 session、policy、workflow 和 evidence 完成 Coding 旅程。
-**Depends on**: Phase 3, Phase 9, Phase 10, Phase 11, Phase 16
-**Requirements**: SURF-04
-**Success Criteria** (what must be TRUE):
-
-  1. VS Code 与 JetBrains 用户可以使用项目上下文、chat、inline/patch diff、diagnostics、review、task/workflow state、approval 和 resume。
-  2. IDE 重启或切换入口后显示相同的 session、IDs、events、policy 与 evidence，不建立独立持久化或权限模型。
-  3. workspace 未信任、Core/client 版本不兼容或能力不支持时，IDE 明确显示原因和恢复路径并 fail safe。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 18: Desktop 与 Web/App Server
-
-**Goal**: 用户可以通过本地 Desktop 与统一 Web/App Server 管理完整工作区、团队和运维流程。
-**Depends on**: Phase 12, Phase 13, Phase 14, Phase 15, Phase 16
-**Requirements**: SURF-05, SURF-06, SURF-08
-**Success Criteria** (what must be TRUE):
-
-  1. Desktop 在无账户 local mode 下提供 conversation/workspace、files/sources、artifacts、connector center、models/settings、computer-use、approval inbox、history/search 与三个 pack views。
-  2. Web/App Server 提供 conversations、workflows、events、files、artifacts、team、admin 与 release operations，并支持实时 reconnect、RBAC、pagination 和 bounded history。
-  3. local app server 与 hosted server 使用同一 contract；Desktop 和 Web 只提交 typed commands、消费 snapshots/events，不保存第二套任务事实。
-  4. 所有入口对 loading、empty、error、offline、degraded、permission-denied 与 result-unknown 状态表现一致，并支持长内容、键盘导航、screen reader、reduced motion 与本地化。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 19: 跨入口本地连续性与平台交付
-
-**Goal**: 无账户用户可以在支持平台和多个入口之间连续完成三个能力包的本地工作。
-**Depends on**: Phase 17, Phase 18
-**Requirements**: CORE-15, SURF-07, SURF-09, DIF-05, DIF-06
-**Success Criteria** (what must be TRUE):
-
-  1. 用户可以在 CLI 创建混合 workflow、IDE 查看 diff、Desktop 审批并在 Web 观察执行；所有端看到相同 IDs、events、state 与 evidence，离线冲突有明确解决。
-  2. Local Personal 在无账户、无 Official Cloud 时可运行 Core 与 Coding、Research、Daily，并将 code、session、memory、workflow 与 evidence 默认留在设备。
-  3. 用户可以备份、迁移、导出和彻底删除本地数据；sync 与 telemetry 均需明示 opt-in，云中断不影响本地工作。
-  4. Linux/macOS 原生与 Windows/WSL 的 path、terminal、sandbox、Keychain、browser/native-host 差异经过端到端验证，不支持能力明确显示。
-  5. crash、daemon restart、disconnect 或入口切换后，同一跨 pack workflow 从最后可信节点恢复，不需要导入另一套状态。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 20: Official Cloud 身份、同步与租户数据基础
-
-**Goal**: 用户可以在不削弱 Local Personal 的前提下安全启用账户、同步和云数据生命周期。
-**Depends on**: Phase 9, Phase 16, Phase 19
-**Requirements**: CLOUD-01, CLOUD-02, CLOUD-05, CLOUD-07
-**Success Criteria** (what must be TRUE):
-
-  1. 用户可以选择注册或通过 OAuth 登录，管理 MFA、session/device、recovery、logout 与 account deletion；未登录仍能完整使用 Local Personal。
-  2. 用户可以按范围显式启用 session、workflow、artifact 与 memory 的加密同步，并查看方向、冲突、last sync、设备、恢复状态，支持暂停、export 与删除云副本。
-  3. storage、cache、queue、logs、search index、worker、connector credentials 与 support tooling 均按 tenant/workspace 隔离，并通过跨租户负面测试。
-  4. 用户可以设置 retention/residency、执行 portable export 和数据删除并查看 deletion status；backup restore、tombstone、密钥轮换和同步冲突均有可验证结果。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 21: Official Cloud Worker、团队、计费与运维
-
-**Goal**: 用户和团队可以可靠使用可计费、可观察、可恢复的 Official Cloud 服务。
-**Depends on**: Phase 20
-**Requirements**: CLOUD-03, CLOUD-04, CLOUD-06, CLOUD-08
-**Success Criteria** (what must be TRUE):
-
-  1. remote worker 只接收签名、限权 WorkPacket，在隔离 workspace 执行并 stream typed events；reconnect、cancel、timeout、budget、verifier 回传与 unknown-side-effect 安全可验证。
-  2. 团队可以管理成员和邀请，共享 project、workflow 与 artifact，使用 comments、mentions、handoff、approval 与 activity，同时保持个人和团队数据边界。
-  3. 用户和运营方可以核对 subscription、plan、quota、usage、invoice、payment failure、trial/cancel 与 entitlement ledger；计费失败不删除本地数据或锁死 export。
-  4. 服务公开 status/health、SLO、rate limit、queue visibility、incident/audit、backup restore、abuse control 与脱敏 support diagnostics，云降级时本地工作继续。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 22: Enterprise 部署、身份与集中治理
-
-**Goal**: 企业可以在联网或隔离环境安装 Kiana，并集中控制身份、策略、凭据、网络与许可。
-**Depends on**: Phase 5, Phase 9, Phase 16, Phase 19
-**Requirements**: ENT-01, ENT-02, ENT-03, ENT-04, ENT-06, ENT-09
-**Success Criteria** (what must be TRUE):
-
-  1. 企业 operator 可以使用 online 或 air-gapped bundle 完成 preflight、capacity check、install、upgrade、rollback、uninstall 与 data migration，失败可恢复到已验证版本。
-  2. 组织可以配置 OIDC/SAML SSO、MFA policy、break-glass admin、用户停用与团队映射，认证故障按安全策略降级。
-  3. user、workspace admin、security/policy admin、auditor 与 operator 的 RBAC 在 provider、model、tool、connector、plugin、data、worker 和高风险动作上生效，central deny 不能被下级覆盖。
-  4. vault/HSM/KMS 支持 secret scope、rotation、revocation、audit 与 zero-secret diagnostics，worker 仅获得短期最小凭据。
-  5. 受限网络支持 outbound allowlist、proxy、custom CA、offline provider、private MCP/connectors、artifact quarantine 与 egress review；离线 license 可签发、宽限、续期和审计，许可问题不破坏数据访问、export 或 recovery。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 23: Enterprise 审计、数据生命周期、DR 与支持
-
-**Goal**: 企业 operator、auditor 和客户 owner 可以验证自托管系统的审计、恢复、运维与支持承诺。
-**Depends on**: Phase 22
-**Requirements**: ENT-05, ENT-07, ENT-08, ENT-10
-**Success Criteria** (what must be TRUE):
-
-  1. auditor 可以检索和导出覆盖 login、policy、approval、tool/connector、data access、admin、export 与 release 的 append-only audit，并验证 retention、legal hold 与完整性。
-  2. operator 可以执行 retention/residency、workspace export/delete、backup/restore、DR、schema migration 与 integrity check 演练，恢复后 event/evidence 因果顺序保持一致。
-  3. operator 可以通过 logs、metrics、traces、health/readiness、queue/worker/provider/connector dashboard、alerts 与脱敏 support bundle 定位故障并接入常见 observability stack。
-  4. 目标客户可以审查 support matrix、security/privacy/licensing、漏洞修复 SLA、管理员/用户/API 手册及迁移/破坏性变更策略，并用签字 evidence 验收。
-
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 24: 1.0 全量收敛与发布证明
-
-**Goal**: 用户只能在全部平台、能力包、入口和商业形态具备真实发布证据后获得 Kiana 1.0。
-**Depends on**: Phase 19, Phase 21, Phase 23
-**Requirements**: CORE-16
-**Success Criteria** (what must be TRUE):
-
-  1. Linux/macOS 原生和 Windows/WSL 用户可以安装、升级、回滚、迁移和卸载正式 artifact，并在失败后恢复到已验证版本。
-  2. 每个发布物都有可验证 signature、checksum、SBOM、license/dependency scan、provenance、release notes、doctor 与脱敏 support bundle，所有声明链接到 release proof。
-  3. Coding、Research、Daily、全部入口、Official Cloud 与 Enterprise 的黄金旅程、跨入口/跨租户负面测试、故障注入和 backup restore 均以目标环境证据通过。
-  4. local/external blockers 与 P0/P1 均为零，目标用户、cloud owner 与 enterprise owner 完成验收后，版本才可标记为 1.0、complete 或 production-ready。
-
-**Plans**: TBD
+**Intended slug**: `06-run-evidence-receipt`
 
 ## Milestone Index
 
 | 里程碑 | 名称 | 覆盖阶段 | 性质 |
 |--------|------|----------|------|
-| M0 | Walking Skeleton | Phase 3-6（横切最薄链路） | 内部可演示 |
-| M1 | Coding Alpha | Phase 7-10 | 限定用户 Alpha |
-| M2 | Coding Beta + 生态 | Phase 11 + 16 | 公开 Beta |
-| M3 | Research/Daily Alpha | Phase 12-15 | 能力包 Alpha |
-| M4 | Surfaces Beta | Phase 17-19 | 全入口 Beta |
-| M5 | Cloud/Enterprise RC | Phase 20-23 | 商业 RC |
-| M6 | 1.0 | Phase 24 | 正式发布 |
+| Phase 1 | 证据治理 | 1 | 已完成 |
+| Phase 2 | 可复现工具链 | 2 | 停放在人审门禁，不阻塞 v0.2 |
+| **v0.2** | Runnable Local Agent MVP | 3–6 | **当前执行** |
+| later | Coding 深度 / 其他包 / 入口 / 商业 / 1.0 | parked 原 3–24 | north star |
 
-详细退出门禁见 [MILESTONES.md](MILESTONES.md)。特性账本索引：`.planning/features/NN-FEATURES.md`（01-24）。领域旅程账本：`.planning/journeys/`（core/coding/research/daily/surfaces/cloud/enterprise）。设计文档索引：[DESIGN-INDEX.md](DESIGN-INDEX.md)。
+详细列车说明见 [MILESTONES.md](MILESTONES.md)。当前规划说明见 [`docs/planning-current.md`](../docs/planning-current.md)。
 
 ## Progress
 
 **Execution Order:**
-Phases 1-9 establish shared gates. Phases 10-15 may run as parallel pack workstreams after their listed dependencies. Phases 16-19 converge product surfaces, Phases 20-23 add commercial delivery forms, and Phase 24 authorizes release language.
+Phase 1 is closed. Phase 2 stays open at the human gate and does not block Phase 3. Execute 3 → 4 → 5 → 6 for v0.2. `skip_discuss: false`, so Phase 3 starts with `$gsd-discuss-phase 3`, not a prewritten plan file.
 
-| Phase | Plans Complete | Status | Completed | Milestone | Features |
-|-------|----------------|--------|-----------|-----------|----------|
-| 1. 现状基线与证据治理 | 14/14 | Complete | 2026-07-26 | M0 前置 | [01](features/01-FEATURES.md) |
-| 2. 可复现工具链与依赖收敛 | 2/2 | Implementation landed; verification open | - | M0 前置 | [02](features/02-FEATURES.md) |
-| 3. 契约与 Schema 基线 | 尚未规划 | Not started | - | M0 | [03](features/03-FEATURES.md) |
-| 4. 状态权威与投影恢复 | 尚未规划 | Not started | - | M0 | [04](features/04-FEATURES.md) |
-| 5. 策略、信任、凭据与本地数据边界 | 尚未规划 | Not started | - | M0 | [05](features/05-FEATURES.md) |
-| 6. RuntimeHost 与运行时抽取 | 尚未规划 | Not started | - | M0 | [06](features/06-FEATURES.md) |
-| 7. Provider 能力协商与适配闭环 | 尚未规划 | Not started | - | M1 | [07](features/07-FEATURES.md) |
-| 8. 可靠 Workflow、证据与副作用语义 | 尚未规划 | Not started | - | M1 | [08](features/08-FEATURES.md) |
-| 9. 受限多 Agent、扩展与 Pack 契约 | 尚未规划 | Not started | - | M1 | [09](features/09-FEATURES.md) |
-| 10. Coding 公开基线与仓库闭环 | 尚未规划 | Not started | - | M1 | [10](features/10-FEATURES.md) |
-| 11. Coding 生态、自动化与远程闭环 | 尚未规划 | Not started | - | M2 | [11](features/11-FEATURES.md) |
-| 12. Research 来源、引用与证据图谱 | 尚未规划 | Not started | - | M3 | [12](features/12-FEATURES.md) |
-| 13. Research 实验、论文、复现与领域 Pack | 尚未规划 | Not started | - | M3 | [13](features/13-FEATURES.md) |
-| 14. Daily 对象、Connector 与审批控制 | 尚未规划 | Not started | - | M3 | [14](features/14-FEATURES.md) |
-| 15. Daily 自动化、回执与团队 Handoff | 尚未规划 | Not started | - | M3 | [15](features/15-FEATURES.md) |
-| 16. Terminal、Headless 与 MCP 产品闭环 | 尚未规划 | Not started | - | M2 | [16](features/16-FEATURES.md) |
-| 17. IDE 客户端 | 尚未规划 | Not started | - | M4 | [17](features/17-FEATURES.md) |
-| 18. Desktop 与 Web/App Server | 尚未规划 | Not started | - | M4 | [18](features/18-FEATURES.md) |
-| 19. 跨入口本地连续性与平台交付 | 尚未规划 | Not started | - | M4 | [19](features/19-FEATURES.md) |
-| 20. Official Cloud 身份、同步与租户数据基础 | 尚未规划 | Not started | - | M5 | [20](features/20-FEATURES.md) |
-| 21. Official Cloud Worker、团队、计费与运维 | 尚未规划 | Not started | - | M5 | [21](features/21-FEATURES.md) |
-| 22. Enterprise 部署、身份与集中治理 | 尚未规划 | Not started | - | M5 | [22](features/22-FEATURES.md) |
-| 23. Enterprise 审计、数据生命周期、DR 与支持 | 尚未规划 | Not started | - | M5 | [23](features/23-FEATURES.md) |
-| 24. 1.0 全量收敛与发布证明 | 尚未规划 | Not started | - | M6 | [24](features/24-FEATURES.md) |
+| Phase | Plans Complete | Status | Completed | Milestone |
+|-------|----------------|--------|-----------|-----------|
+| 1. 现状基线与证据治理 | 14/14 | Complete | 2026-07-26 | historical |
+| 2. 可复现工具链与依赖收敛 | 2/2 | Implementation landed; verification open | - | parked human gate |
+| 3. 黄金路径能跑通 | 尚未规划 | Not started | - | v0.2 |
+| 4. 会话可恢复、可取消、失败可见 | 尚未规划 | Not started | - | v0.2 |
+| 5. 信任与权限让 MVP 能用且 fail-closed | 尚未规划 | Not started | - | v0.2 |
+| 6. 任务确实执行过的证据 | 尚未规划 | Not started | - | v0.2 |
+
+## Appendix: Parked v1.0 phases (not current execution)
+
+The following were the remaining phases of the 24-phase horizontal 1.0 train. They remain useful as later-milestone input. Their FEATURES ledgers stay at `.planning/features/NN-FEATURES.md`. Old Phase 3 research lives at `.planning/parked/v1.0-north-star/phases/03-contract-schema-baseline/`.
+
+| Old # | Name | Original intent | Later home |
+|-------|------|-----------------|------------|
+| 3 | 契约与 Schema 基线 | 统一事件/registry 跨入口 | 多入口收敛时再做，不挡 MVP |
+| 4 | 状态权威与投影恢复 | EventLog 重建、session/memory 迁移 | v0.2 Phase 4 只做黄金路径恢复；完整权威延后 |
+| 5 | 策略、信任、凭据与本地数据边界 | 全入口统一 PolicyDecision | v0.2 Phase 5 只覆盖黄金路径 trust/profile |
+| 6 | RuntimeHost 与运行时抽取 | 一致 ContextPack / host | 已有 daemon/core/harness 先跑通，抽取延后 |
+| 7 | Provider 能力协商与适配闭环 | 多 provider 路由/降级/成本 | MVP 一个真实 provider；协商超集延后 |
+| 8 | 可靠 Workflow、证据与副作用语义 | DAG、verifier、result_unknown | v0.2 Phase 6 只做 run 收据 |
+| 9 | 受限多 Agent、扩展与 Pack 契约 | swarm/plugin isolation | 后续 Coding 深度 |
+| 10–11 | Coding 公开基线与生态 | 仓库闭环、MCP、远程、语音 | 后续 Coding 里程碑 |
+| 12–15 | Research / Daily packs | 文献证据、实验、连接器、审批 | 后续能力包里程碑 |
+| 16–19 | Terminal/IDE/Desktop/Web/平台 | 全入口与跨入口连续性 | 后续表面里程碑 |
+| 20–23 | Official Cloud / Enterprise | 同步、租户、RBAC、DR | 后续商业里程碑 |
+| 24 | 1.0 全量收敛与发布证明 | 目标环境 + 用户验收 | 仍是唯一允许“1.0”的门禁 |
+
+Do not resurrect old Phase 3 (`03-contract-schema-baseline`) as the next `$gsd-discuss-phase 3` target.

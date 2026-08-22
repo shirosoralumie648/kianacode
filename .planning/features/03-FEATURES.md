@@ -1,5 +1,8 @@
 # Phase 03 特性账本 — 契约与 Schema 基线
 
+> **PARKED 2026-08-22.** This ledger is the old v1.0 Phase 3 (schema/contract baseline). Current Phase 3 is the runnable golden path in `.planning/ROADMAP.md`. Do not execute this file as `$gsd-discuss-phase 3`.
+
+
 **Created:** 2026-07-26 | **父需求：** CORE-01, CORE-04 | **主旅程：** core.event-replay, core.registry-discovery, core.walking-skeleton
 **规则：** 见 docs/superpowers/specs/2026-07-26-kiana-planning-system-enhancement-design.md §4。`[M0]` 标记 walking-skeleton 最薄子集。
 

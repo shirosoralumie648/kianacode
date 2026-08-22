@@ -43,14 +43,18 @@ JSON 合同变化后必须跑 `bash scripts/schema-contract-smoke.sh`。
 
 ## 规划权威
 
-GSD / 产品规划以这些文件为准，不要用过期的 phase 笔记覆盖它们：
+GSD / 产品规划以这些文件为准，不要用过期的 phase 笔记覆盖它们。
+
+2026-08-22 起当前执行是 **v0.2 纵向 MVP**（Phase 3–6），不是原 24 阶段 1.0 横切链。
 
 | 文档 | 层级 |
 | --- | --- |
+| [planning-current.md](planning-current.md) | 当前里程碑说明（先看这个） |
 | [`.planning/DESIGN-INDEX.md`](../.planning/DESIGN-INDEX.md) | 设计权威索引 |
-| [`.planning/PROJECT.md`](../.planning/PROJECT.md) | 产品定义与约束 |
-| [`.planning/REQUIREMENTS.md`](../.planning/REQUIREMENTS.md) | 需求账本 |
-| [`.planning/ROADMAP.md`](../.planning/ROADMAP.md) | 24 阶段路线图 |
+| [`.planning/PROJECT.md`](../.planning/PROJECT.md) | 产品定义、当前里程碑与约束 |
+| [`.planning/REQUIREMENTS.md`](../.planning/REQUIREMENTS.md) | v0.2 需求；104 项 1.0 账本在附录 |
+| [`.planning/ROADMAP.md`](../.planning/ROADMAP.md) | 当前 Phase 1–6；旧 3–24 在附录 |
+| [`.planning/MILESTONES.md`](../.planning/MILESTONES.md) | 当前 v0.2 列车与停放的 1.0 列车 |
 | [`.planning/STATE.md`](../.planning/STATE.md) | 当前 GSD 执行状态 |
 
 `.planning/STATE.md` 的 YAML 头和正文可能短暂不一致；冲突时以 git 最新提交和实际 phase 目录为准，不要用过期百分比当作完成证明。

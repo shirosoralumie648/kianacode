@@ -1,39 +1,39 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_phase: 2
-current_phase_name: 可复现工具链与依赖收敛
-status: verifying
-stopped_at: Phase 02 plan-summary parity reconstructed; local verification recorded; awaiting human_verify_mode end-of-phase
-last_updated: "2026-08-22T10:56:30.000Z"
+milestone: v0.2
+milestone_name: Runnable Local Agent MVP
+current_phase: 3
+current_phase_name: 黄金路径能跑通
+status: planning
+stopped_at: v0.2 MVP roadmap written; next is $gsd-discuss-phase 3 (skip_discuss: false). Phase 2 stays parked at human_needed.
+last_updated: "2026-08-22T11:22:12.029Z"
 last_activity: 2026-08-22
-last_activity_desc: Reconstructed 02-01/02-02 PLANs, corrected STATE/ROADMAP overclaim, fixed CI build-inputs env wiring, recorded local Phase 2 verification
+last_activity_desc: Recut remaining work from 24-phase horizontal 1.0 train into v0.2 runnable local agent MVP
 progress:
-  total_phases: 24
+  total_phases: 6
   completed_phases: 1
   total_plans: 16
   completed_plans: 16
-  percent: 4
+  percent: 17
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-14)
+See: .planning/PROJECT.md (updated 2026-08-22)
 
 **Core value:** Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地完成真实长任务，并用可验证证据和可恢复状态证明任务确实完成。
-**Current focus:** Phase 02 — reproducible-toolchain-dependency-convergence (verification / human gate)
+**Current focus:** v0.2 Phase 3 — 黄金路径能跑通（planning / discuss next）
 
 ## Current Position
 
-Phase: 2 — 可复现工具链与依赖收敛
-Plan: 02-01 and 02-02 summaries complete; PLANs reconstructed 2026-08-22
-Status: Verifying — not complete
-Last activity: 2026-08-22 — reconstructed plan-summary parity; local verification; CI record-build-inputs env fix; `release-tui.yml` toolchain action aligned to `@master`
+Phase: 3 of 6 — 黄金路径能跑通
+Plan: —
+Status: Planning — requirements and roadmap for v0.2 are written; discuss is next
+Last activity: 2026-08-22 — Recut remaining work into v0.2 Runnable Local Agent MVP
 
-Progress: [█░░░░░░░░░] 4% (1/24 phases closed; Phase 2 implementation landed, verification/human gate open)
+Progress: [██░░░░░░░░] 17% (1/6 phases closed; Phase 2 implementation landed but human gate open; Phases 3–6 unplanned)
 
 ## Performance Metrics
 
@@ -48,7 +48,11 @@ Progress: [█░░░░░░░░░] 4% (1/24 phases closed; Phase 2 imple
 | Phase | Plans | Status | Notes |
 |-------|-------|--------|-------|
 | 1. 现状基线与证据治理 | 14 | Complete | 2026-07-26; `01-VERIFICATION.md` YAML passed / body still records human_needed |
-| 2. 可复现工具链与依赖收敛 | 2 | Verifying | Implementation commits `c0bd383` / `0eaaa9e` / `05cc81a`; no human closeout |
+| 2. 可复现工具链与依赖收敛 | 2 | Verifying / parked | Implementation landed; human_needed; does not block v0.2 |
+| 3. 黄金路径能跑通 | 0 | Planning | Next: `$gsd-discuss-phase 3` |
+| 4. 会话可恢复、可取消、失败可见 | 0 | Pending | v0.2 |
+| 5. 信任与权限让 MVP 能用且 fail-closed | 0 | Pending | v0.2 |
+| 6. 任务确实执行过的证据 | 0 | Pending | v0.2 |
 
 **Plan History (Phase 02):**
 
@@ -63,9 +67,10 @@ Progress: [█░░░░░░░░░] 4% (1/24 phases closed; Phase 2 imple
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-- 采用用户批准的 horizontal foundation 顺序：contract/state/policy/runtime 先于 pack 与 surface 扩张。
-- 采用 research 验证的 24 个 fine-grained sequential phases。
-- Coding、Research、Daily、全部入口、Official Cloud、Enterprise 和 12 项 DIF 要求均保留在 1.0。
+- [2026-08-22] 剩余工作改为纵向 MVP（v0.2 Phase 3–6），不再把原 Phase 3–24 横切地基当作当前执行。1.0 全量范围停为 north star。
+- ⚠ superseded: 采用用户批准的 horizontal foundation 顺序：contract/state/policy/runtime 先于 pack 与 surface 扩张。
+- ⚠ superseded as current execution: 采用 research 验证的 24 个 fine-grained sequential phases。
+- Coding、Research、Daily、全部入口、Official Cloud、Enterprise 和 12 项 DIF 要求仍保留在 1.0 北星，但不计入 v0.2 完成。
 - [2026-07-26]: 规划体系增强——补充特性分解层（features/NN-FEATURES.md）、统一验收词汇（proof levels）、六项横切 NFR（NFR-01..06）、领域旅程账本（journeys/ 七域）、M0-M6 发布列车（MILESTONES.md）与设计文档索引（DESIGN-INDEX.md）。规则：稳定的"是什么+怎么验收"现在全阶段补全；易变的"改哪些文件"仍 JIT。详见 docs/superpowers/specs/2026-07-26-kiana-planning-system-enhancement-design.md。
 - [Phase 01]: Official-source coverage stays inside the public-baseline family through an exclusive capability mapping or reviewed exclusion. — Prevents a fifth completion authority and preserves exhaustive source-entry review.
 - [Phase 01]: Repository domains remain imported classification labels and aliases use one exact seven-key shape. — Prevents compatibility labels or legacy names from becoming proof or repository-wide decisions.
@@ -98,7 +103,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 02]: Lost `02-01-PLAN.md`/`02-02-PLAN.md` were reconstructed on 2026-08-22 from landed summaries and commits `c0bd383`/`0eaaa9e`/`05cc81a`; this is a record, not a re-implementation.
 - [Phase 02]: `dist/` artifacts stay generated and gitignored; toolchain.build-inputs, sbom.present, sbom.signed, and license.compliance-summary remain blocking until a real CI/signing/build run.
 - [Phase 02]: D-11 full Sigstore/`release-signature.json` is outside Phase 2 closeout; Wave 3 only added the SBOM signing hook and user-redacted SBOM.
-- [Phase 02]: ROADMAP Phase 2 stays unchecked until `human_verify_mode: end-of-phase`; do not start Phase 3 planning from this state file.
+- [Phase 02]: ROADMAP Phase 2 stays unchecked until `human_verify_mode: end-of-phase`. That gate does not block v0.2. Current Phase 3 is the golden path, not parked `03-contract-schema-baseline`.
 
 ### Pending Todos
 
@@ -106,18 +111,20 @@ None yet.
 
 ### Blockers/Concerns
 
+- Phase 02 仍缺真实 CI 产生的 `dist/build-inputs.json`、SBOM 签名命令和目标环境/用户验收；local_behavior 不能升级为 target_environment 或 1.0。该门禁并行停放，不阻塞 v0.2 Phase 3。
+- v0.2 黄金路径需要一个真实 provider；缺凭据时必须失败可见，不能用 fake provider 冒充用户价值。
 - 动态 proprietary baseline、live provider、macOS/WSL、cloud 与 enterprise 目标环境证据必须在对应 phase 实时验证，不能用当前本地材料替代。
 - GitNexus、autogen、continue 和 gstack 含超过 production 16 MiB 单文件读取上限的内容；冻结 hash 已受控生成，但 live `check-drift` 仍会 fail closed，需可信大文件观察合同。
-- Phase 02 仍缺真实 CI 产生的 `dist/build-inputs.json`、SBOM 签名命令和目标环境/用户验收；local_behavior 不能升级为 target_environment 或 1.0。
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Post-1.0 | REQUIREMENTS.md 中 POST-01 至 POST-12 | Explicitly deferred | Initialization |
+| Parked 1.0 train | 原 Phase 3–24 横切地基与 104 项 v1.0 需求 | Parked as north star; not v0.2 execution | 2026-08-22 |
 
 ## Session Continuity
 
-Last session: 2026-08-22T10:56:30.000Z
-Stopped at: Phase 02 local verification recorded; `human_verify_mode: end-of-phase` is the next boundary. Do not start `$gsd-discuss-phase 3` / `$gsd-plan-phase 3` until that gate is explicit. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
-Resume file: .planning/phases/02-reproducible-toolchain-dependency-convergence/02-VERIFICATION.md
+Last session: 2026-08-22T11:22:12.029Z
+Stopped at: v0.2 MVP roadmap/requirements written. Next boundary is `$gsd-discuss-phase 3` (`skip_discuss: false`). Do not mark Phase 2 complete. Do not resurrect parked `03-contract-schema-baseline`. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
+Resume file: docs/planning-current.md

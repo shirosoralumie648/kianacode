@@ -1,84 +1,67 @@
 # Kiana 发布列车（MILESTONES）
 
-**Created:** 2026-07-26（规划体系增强）
-**规则：** 发布列车叠加在 24 阶段依赖链之上，不改变阶段编号与依赖。每趟列车的退出门禁只引用具名旅程（`.planning/journeys/`）与 proof level（见 REQUIREMENTS.md 验收词汇表），禁止"基本完成"类自由文本。Alpha/Beta 门禁不降级（产品总纲 §11.1）：每次发布必须写明支持范围、已知限制、迁移风险和数据兼容性。
+**Created:** 2026-07-26（规划体系增强）  
+**Recut:** 2026-08-22 — 当前执行列车改为 v0.2 纵向 MVP，不再把未完成的 24 阶段横切链当作下一趟车。
 
-## 列车总览
+**规则：** 每趟列车的退出门禁必须引用可观察行为或具名旅程 + proof level。禁止“基本完成”类自由文本。Alpha/Beta/1.0 门禁不降级：每次发布必须写明支持范围、已知限制、迁移风险和数据兼容性。
+
+## 当前列车
 
 | 列车 | 名称 | 覆盖阶段 | 性质 |
 |------|------|----------|------|
-| M0 | Walking Skeleton | 3-6（横切最薄链路） | 内部可演示 |
-| M1 | Coding Alpha | 7-10 | 限定用户 Alpha |
-| M2 | Coding Beta + 生态 | 11 + 16 | 公开 Beta |
-| M3 | Research/Daily Alpha | 12-15 | 能力包 Alpha |
-| M4 | Surfaces Beta | 17-19 | 全入口 Beta |
-| M5 | Cloud/Enterprise RC | 20-23 | 商业 RC |
-| M6 | 1.0 | 24 | 正式发布 |
+| **v0.2** | Runnable Local Agent MVP | Phase 3–6 | 当前执行：本地可跑通的 coding agent |
+| Phase 1 | 证据治理 | 1 | 已完成（历史） |
+| Phase 2 | 可复现工具链 | 2 | 实现已落地；人审门禁并行停放，不阻塞 v0.2 |
 
-## M0 — Walking Skeleton（内部可演示地基）
+## v0.2 — Runnable Local Agent MVP（当前）
 
-**目的：** 把第一个纵向可演示成果从 Phase 10 提前到 Phase 6 附近，证明地基贯通，暴露契约错误。
-**形态：** 不是新 phase。Phase 3-6 的特性账本中标记 `[M0]` 的最薄子集 + `core.walking-skeleton` 旅程。
-**退出门禁：**
+**目的：** 先有一个用户能真正跑起来的本地 agent，而不是先铺完契约/状态/RuntimeHost 横切地基。
 
-- `core.walking-skeleton` @ local_behavior：一个真实请求走完 typed event → session 持久化 → policy decision → 单工具执行 → typed result，全程可从 EventLog 重放；CLI 单入口演示。
-- `core.event-replay` @ local_behavior：重启后重放同一事件序列得到一致投影。
+**形态：** 新的可执行阶段 3–6。建立在已经接线的 `kiana -p` / `kiana run` / `kiana tui`、一个真实 provider、read/edit/shell 和 ProjectTrust 之上，把它们收成一条可演示、可恢复、失败可见、有执行证据的黄金路径。
 
-**已知限制声明模板：** 单 provider（fake/Anthropic 任一）、单工具、无 pack 深度、无恢复语义承诺。
+**退出门禁（全部 @ local_behavior，除非另标）：**
 
-## M1 — Coding Alpha（限定用户）
+- `PATH-01`–`PATH-04`：用户在已信任仓库上用 `kiana -p` 或 `kiana run`，以及 `kiana tui`，走完一次真实 provider + read/edit/shell 任务；缺 auth/trust/provider 时失败可见。
+- `SESS-01`–`SESS-03`：用户可以列出/恢复/继续最近会话，取消进行中的 run，并看到明确失败原因。
+- `TRUST-01`–`TRUST-03`：未信任项目在写/执行前 fail-closed；权限档位拒绝可见；黄金路径不能靠 CLI 开关绕过 ProjectTrust。
+- `EVD-01`–`EVD-03`：跑完后能检查工具调用和改动文件，并能区分“模型声称完成”与“工具确实执行过”；重启后收据仍在。
 
-**目的：** 第一个真实用户价值：单仓理解 + 安全编辑 + 验证闭环。
-**前提阶段：** Phase 7（provider）、8（workflow/evidence）、9（受限多 Agent 与扩展）、10（Coding 公开基线）达标。
-**退出门禁：**
+**已知限制（必须写进任何 Alpha 声明）：**
 
-- `coding.repo-onboarding` @ local_behavior、`coding.safe-edit-undo` @ local_behavior、`coding.verify-loop` @ local_behavior、`coding.review-findings` @ local_behavior。
-- governance parity 中 target_phase ≤ 10 的 capability 全部达到其 required_proof_level 或记录显式差异决策。
-- `core.workflow-evidence` @ local_behavior + `core.recovery` @ local_behavior（DIF-01/02 的 Alpha 承诺面）。
-- NFR-01 初始性能预算生效（fresh-process 冷启动 < 25 s 回归门禁）。
+- 单真实 provider，不承诺多 provider 能力协商超集
+- 表面限于 CLI print/run + 产品 TUI（`kiana tui`）+ 可选 REPL
+- 不包含 IDE / Desktop / Web / Cloud / Enterprise
+- 不包含 Research / Daily pack 深度
+- 不包含 38-reference 产品完成或已签名 `dist/`
+- Phase 2 人审/签名/SBOM 缺口保持阻塞，不能用本列车关闭
 
-**已知限制声明模板：** CLI/TUI 单入口、Linux 优先、无 IDE/Desktop、生态（MCP 全传输/Chrome/CI）在 M2。
+**下一步：** Coding 深度（MCP/git/browser、更长任务、workflow）、然后 Research/Daily、其他入口、云/企业、1.0 证明。
 
-## M2 — Coding Beta + 生态（公开 Beta）
+## 后续列车（north star，非当前执行）
 
-**前提阶段：** Phase 11（生态/自动化/远程）、16（Terminal/Headless/MCP 产品闭环）达标。
-**退出门禁：**
+这些曾按原 24 阶段横切链编号。内容仍有效，作为后续里程碑输入，**不是 v0.2 的完成标准**。
 
-- `coding.ecosystem-automation` @ target_environment（MCP 传输互操作、Chrome/CI 回执）。
-- `surfaces.cli-tui` @ local_behavior、`surfaces.headless-sdk` @ local_behavior、`surfaces.mcp-interop` @ local_behavior。
-- governance parity 中 target_phase ≤ 16 的 capability 全部达标或记录显式差异（含解除 `cc.cli.forward-subagent-text` 的版本冲突 block）。
-- NFR-02 可观测性基线 @ local_behavior；NFR-04 竞品导入 @ local_behavior。
+| 列车 | 原名称 | 原覆盖 | 现在的位置 |
+|------|--------|--------|------------|
+| parked-M0 | Walking Skeleton | 原 Phase 3–6 横切最薄链路 | 被 v0.2 纵向黄金路径取代；旧 schema/state/RuntimeHost 工作推迟 |
+| parked-M1 | Coding Alpha | 原 Phase 7–10 | v0.3 候选：更长任务、provider 协商、coding 仓库闭环 |
+| parked-M2 | Coding Beta + 生态 | 原 Phase 11 + 16 | MCP/自动化/远程/Headless 产品化 |
+| parked-M3 | Research/Daily Alpha | 原 Phase 12–15 | 第二、第三能力包 |
+| parked-M4 | Surfaces Beta | 原 Phase 17–19 | IDE / Desktop / Web / 跨入口 |
+| parked-M5 | Cloud/Enterprise RC | 原 Phase 20–23 | 官方云与企业自托管 |
+| parked-M6 | 1.0 | 原 Phase 24 | 仅目标环境 + 用户验收后才允许 1.0 措辞 |
 
-## M3 — Research/Daily Alpha
+旧退出门禁原文见 git 历史中的本文件（`eae099d` / `bc48332` 之前的 24 阶段列车）。特性账本仍在 `.planning/features/03-FEATURES.md`–`24-FEATURES.md`。被停放的 Phase 3 研究在 `.planning/parked/v1.0-north-star/`。
 
-**前提阶段：** Phase 12-15 达标。
-**退出门禁：**
+## 历史记录
 
-- `research.evidence-graph` @ local_behavior、`research.experiment-run` @ local_behavior、`research.verifier` @ local_behavior。
-- `daily.approval-inbox` @ local_behavior、`daily.connector-center` @ target_environment（至少 calendar+email 两类真实 connector）、`daily.verifier-receipts` @ target_environment。
-- DIF-03 result_unknown 语义在 Daily 外部写入路径 @ target_environment。
+### v1.0 横切地基（未完成，2026-07-15 – 2026-08-22）
 
-## M4 — Surfaces Beta（全入口）
+**计划过但未作为执行主线继续：** 24 阶段 horizontal foundation，M0 Walking Skeleton = 原 Phase 3–6。
 
-**前提阶段：** Phase 17-19 达标。
-**退出门禁：**
+**实际落地：**
 
-- `surfaces.ide` @ user_value、`surfaces.desktop` @ user_value、`surfaces.web-appserver` @ local_behavior、`surfaces.cross-surface-continuity` @ target_environment。
-- `surfaces.platform-matrix` @ target_environment（Linux/macOS 原生 + Windows/WSL 生命周期）。
-- NFR-03 i18n、NFR-05 可访问性、NFR-06 打磨质量门 @ 各自要求等级。
-- governance parity 全部 49 capability 达标或显式差异决策（此后 parity 只做 drift 维护）。
+- Phase 1 完成（2026-07-26）：public-baseline 与 38-reference 证据治理
+- Phase 2 实现落地、计划/摘要在 2026-08-22 重建；verification = `human_needed`
 
-## M5 — Cloud/Enterprise RC
-
-**前提阶段：** Phase 20-23 达标。
-**退出门禁：**
-
-- `cloud.encrypted-sync` @ target_environment、`cloud.remote-worker` @ target_environment、`cloud.tenant-isolation` @ target_environment（跨租户负面测试）、`cloud.billing-entitlement` @ target_environment。
-- `enterprise.install-airgap` @ target_environment、`enterprise.rbac-policy` @ target_environment、`enterprise.audit` @ target_environment、`enterprise.data-dr` @ target_environment（演练证据）。
-
-## M6 — 1.0
-
-Phase 24 的成功标准即 M6 门禁（ROADMAP 为准，MILESTONES 仅索引）：全平台发布物生命周期、签名/SBOM/provenance、全域黄金旅程目标环境证据、local/external blockers 与 P0/P1 归零、目标用户/云 owner/企业 owner 验收。
-
----
-*每趟列车发布时，在本文件追加该次发布的：版本号、日期、门禁核对表（逐条旅程+proof 链接到 evidence）、已知限制声明。*
+**为何停：** 用户要求先有能跑通的 MVP agent，再扩展成通用助手。继续横切会推迟第一条可演示黄金路径。
