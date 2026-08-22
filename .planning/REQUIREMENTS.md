@@ -1,9 +1,39 @@
 # Requirements
 
-当前执行集只有 **v0.2**。北星是 Company OS（见 `COMPANY.md`），但 v0.3+ 目录未打开。
-v0.2 必须把工人标成 `role=builder`，即使还只有一个角色。
+当前执行集是 **v0.3**。v0.2 黄金路径仍必须绿，作为回归基线。
+北星是 Company OS（见 `COMPANY.md`）。v0.4+ 目录未打开。
 
-## v0.2 — Current
+## v0.3 — Current
+
+### DEPT — Two departments
+
+- **DEPT-01**: 至少存在 `planning` 与 `executing` 两个 DepartmentSpec；角色至少 `pm`、`architect`、`builder`
+
+### ORCH — Dispatch + rooms
+
+- **ORCH-01**: 确定性编排器按 work packet 派独立上下文的 Builder（Phase 2）
+- **ORCH-02**: PM / Architect 只能写计划工件（`charter/` `plan/` `packet/`），不能 `apply_patch` src。Policy 看 `role_id` + `department_id`
+- **ORCH-03**: 跨部门禁止自由群聊总线（不用 TeamCreate/SendMessage）；交接 = packet + eventlog
+
+### SYMP — One planning meeting (Phase 3)
+
+- **SYMP-01**: 规划部可开一场有界 Symposium（PM+Architect），硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
+- **SYMP-02**: 每个发言者私有 session；共享黑板而非融合 transcript
+- **SYMP-03**: Builder 默认不列席规划会；anti-meeting check 通过则可跳过开会
+
+### WB — Workbench (Phase 4, 可后做)
+
+- **WB-01**: 黄金路径 eval（fixture 仓 + 文件出现 + 收据）
+- **WB-02**: `install.sh` / release smoke 验证 demo 命令
+- **WB-03**: TUI 迁到 harness 或保持 park
+
+### ROLE — Worker is a role (still required)
+
+- **ROLE-01**: 每次 harness run 携带 `role_id` 并写入收据；默认 `builder`
+- **ROLE-02**: 角色提示词与工具白名单来自 RoleSpec，而不是 `runner.rs` 上帝 prompt
+- **ROLE-03**: 收据带 `department_id`；默认 `executing`
+
+## v0.2 — Completed baseline (must not regress)
 
 ### PATH — Golden path
 
@@ -32,28 +62,9 @@ v0.2 必须把工人标成 `role=builder`，即使还只有一个角色。
 
 ### SURF — One spine
 
-- **SURF-01**: TUI 走同一 `DaemonHost`，或书面 park（v0.2 Phase 4）
+- **SURF-01**: TUI 走同一 `DaemonHost`，或书面 park（v0.2 Phase 4 已 park）
 
-### ROLE — Worker is a role (v0.2 最小)
-
-- **ROLE-01**: 每次 harness run 携带 `role_id`（v0.2 固定 `builder`）并写入收据
-- **ROLE-02**: 角色提示词与工具白名单来自 RoleSpec，而不是 `runner.rs` 上帝 prompt
-- **ROLE-03**: 收据可带 `department_id`（v0.2 固定 `executing`）；类型先落地，五部门行为不在本期
-
-## Later catalog（冻结，不进入 v0.2 计划）
-
-### v0.3 WB — Workbench + company kernel
-
-- **WB-01**: 黄金路径 eval（fixture 仓 + 文件出现 + 收据）
-- **WB-02**: `install.sh` / release smoke 验证 demo 命令
-- **WB-03**: TUI 迁到 harness 或保持 park
-- **ORCH-01**: 确定性编排器按 work packet 派独立上下文的 Builder
-- **ORCH-02**: PM / Architect 只能写计划工件，不能 `apply_patch` src
-- **ORCH-03**: 跨部门禁止自由群聊总线（不用 TeamCreate/SendMessage）；交接 = packet + eventlog
-- **DEPT-01**: 至少存在 `planning` 与 `executing` 两个 DepartmentSpec
-- **SYMP-01**: 规划部可开一场有界 Symposium（PM+Architect），硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
-- **SYMP-02**: 每个发言者私有 session；共享黑板而非融合 transcript
-- **SYMP-03**: Builder 默认不列席规划会；anti-meeting check 通过则可跳过开会
+## Later catalog（冻结，不进入 v0.3 计划）
 
 ### v0.4 CODE — Coding pack audit
 

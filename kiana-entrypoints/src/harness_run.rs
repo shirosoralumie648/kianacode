@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RoleSpec,
+    RunId,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -67,6 +68,10 @@ fn local_client(
     metadata.actor_id = Some("local-cli".to_owned());
     metadata.project_trusted = trusted;
     metadata.permission_profile = policy.permission_profile;
+    if let Some(role_id) = string_option(options, "role") {
+        let role = RoleSpec::lookup(&role_id).ok_or_else(|| anyhow!("role_unknown"))?;
+        metadata.assign_role(&role);
+    }
     let client = KianaClient::new(LocalDaemonTransport {
         host: Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?),
     });

@@ -10,7 +10,7 @@ mod model_client;
 use approval_store::MemoryApprovalStore;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
-use kiana_domain::{CommandIntent, RequestContext};
+use kiana_domain::{CommandIntent, RequestContext, RoleSpec};
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
@@ -91,6 +91,14 @@ impl DaemonHost {
             return ResponseEnvelope::rejected(request_id, "actor_identity_required");
         }
 
+        let Some(role) = RoleSpec::lookup(&request.metadata.role_id) else {
+            return ResponseEnvelope::rejected(request_id, "role_unknown");
+        };
+        let department = request.metadata.department_id.trim();
+        if !department.is_empty() && department != role.department_id {
+            return ResponseEnvelope::rejected(request_id, "role_department_mismatch");
+        }
+
         let context = RequestContext {
             request_id,
             session_id: request.metadata.session_id,
@@ -98,6 +106,8 @@ impl DaemonHost {
             actor_id: request.metadata.actor_id,
             project_trusted: request.metadata.project_trusted,
             permission_profile: request.metadata.permission_profile,
+            role_id: role.role_id,
+            department_id: role.department_id,
         };
         let response = match request.body {
             RequestBody::Command(command) => {

@@ -1,7 +1,8 @@
 //! Pure policy decisions for Kiana control-plane requests.
 
 use kiana_domain::{
-    CapabilityKind, CapabilityRequest, PermissionProfile, PolicyDecision, RequestContext, RiskLevel,
+    CapabilityKind, CapabilityRequest, PermissionProfile, PolicyDecision, RequestContext,
+    RiskLevel, RoleSpec,
 };
 
 pub trait PolicyEngine: Send + Sync {
@@ -17,6 +18,10 @@ impl PolicyEngine for DefaultPolicyEngine {
             return PolicyDecision::Deny {
                 reason: "project_untrusted".to_owned(),
             };
+        }
+
+        if let Some(denied) = role_decision(context, request) {
+            return denied;
         }
 
         if request.capability == CapabilityKind::Secret
@@ -50,6 +55,95 @@ impl PolicyEngine for DefaultPolicyEngine {
             },
         }
     }
+}
+
+fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Option<PolicyDecision> {
+    let Some(role) = RoleSpec::lookup(&context.role_id) else {
+        return Some(PolicyDecision::Deny {
+            reason: "role_unknown".to_owned(),
+        });
+    };
+    let department = context.department_id.trim();
+    if !department.is_empty() && department != role.department_id {
+        return Some(PolicyDecision::Deny {
+            reason: "role_department_mismatch".to_owned(),
+        });
+    }
+    if let Some(tool) = harness_tool_name(&request.operation) {
+        if !role.allows_tool(tool) {
+            return Some(PolicyDecision::Deny {
+                reason: "role_tool_denied".to_owned(),
+            });
+        }
+    }
+    if request.operation == "apply_patch"
+        || (request.risk == RiskLevel::LocalWrite
+            && harness_tool_name(&request.operation) == Some("apply_patch"))
+    {
+        let paths = request_paths(request);
+        if paths.is_empty() {
+            if role
+                .path_allow
+                .iter()
+                .any(|allow| allow == "." || allow == "*")
+            {
+                return None;
+            }
+            return Some(PolicyDecision::Deny {
+                reason: "role_path_required".to_owned(),
+            });
+        }
+        if paths.iter().any(|path| !role.allows_path(path)) {
+            return Some(PolicyDecision::Deny {
+                reason: "role_path_denied".to_owned(),
+            });
+        }
+    }
+    None
+}
+
+fn harness_tool_name(operation: &str) -> Option<&'static str> {
+    match operation {
+        "apply_patch" | "file_change" => Some("apply_patch"),
+        "shell.exec" | "shell" | "bash" | "exec" | "command_execution" => Some("shell"),
+        _ => None,
+    }
+}
+
+fn request_paths(request: &CapabilityRequest) -> Vec<String> {
+    let mut paths = Vec::new();
+    if let Some(path) = request
+        .arguments
+        .get("path")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        paths.push(path.to_owned());
+    }
+    if let Some(patch) = request
+        .arguments
+        .get("patch")
+        .and_then(|value| value.as_str())
+    {
+        for line in patch.lines() {
+            let line = line.trim();
+            for prefix in [
+                "*** Add File:",
+                "*** Update File:",
+                "*** Delete File:",
+                "*** Move to:",
+            ] {
+                if let Some(path) = line.strip_prefix(prefix) {
+                    let path = path.trim();
+                    if !path.is_empty() {
+                        paths.push(path.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    paths
 }
 
 fn is_sensitive_operation(operation: &str) -> bool {
@@ -130,6 +224,68 @@ mod tests {
                 DefaultPolicyEngine.evaluate(&context, &request),
                 PolicyDecision::Ask { .. }
             ));
+        }
+    }
+
+    fn apply_patch(path_line: &str) -> CapabilityRequest {
+        CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            serde_json::json!({
+                "patch": format!("*** Begin Patch\n*** Add File: {path_line}\n+hello\n*** End Patch\n")
+            }),
+        )
+        .with_risk(RiskLevel::LocalWrite)
+    }
+
+    #[test]
+    fn planning_pm_cannot_apply_patch_source() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        context.assign_role(&RoleSpec::pm());
+        match DefaultPolicyEngine.evaluate(&context, &apply_patch("GOLDEN_PATH.txt")) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_path_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn planning_pm_can_apply_patch_plan_artifact() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        context.assign_role(&RoleSpec::pm());
+        assert!(matches!(
+            DefaultPolicyEngine.evaluate(&context, &apply_patch("plan/WORK.md")),
+            PolicyDecision::Allow { .. }
+        ));
+    }
+
+    #[test]
+    fn architect_cannot_apply_patch() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        context.assign_role(&RoleSpec::architect());
+        match DefaultPolicyEngine.evaluate(&context, &apply_patch("plan/WORK.md")) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_tool_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_role_is_denied() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.role_id = "ceo".to_owned();
+        match DefaultPolicyEngine.evaluate(
+            &context,
+            &capability(CapabilityKind::Query, RiskLevel::ReadOnly),
+        ) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_unknown"),
+            other => panic!("expected deny, got {other:?}"),
         }
     }
 }

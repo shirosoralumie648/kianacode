@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
+use std::path::{Component, Path};
 use uuid::Uuid;
 
 macro_rules! uuid_id {
@@ -85,6 +86,14 @@ pub enum PermissionProfile {
     Autonomous,
 }
 
+fn default_role_id() -> String {
+    ROLE_BUILDER.to_owned()
+}
+
+fn default_department_id() -> String {
+    DEPARTMENT_EXECUTING.to_owned()
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RequestContext {
     pub request_id: RequestId,
@@ -93,6 +102,10 @@ pub struct RequestContext {
     pub actor_id: Option<String>,
     pub project_trusted: bool,
     pub permission_profile: PermissionProfile,
+    #[serde(default = "default_role_id")]
+    pub role_id: String,
+    #[serde(default = "default_department_id")]
+    pub department_id: String,
 }
 
 impl RequestContext {
@@ -104,30 +117,162 @@ impl RequestContext {
             actor_id: Some("local-user".to_owned()),
             project_trusted: false,
             permission_profile: PermissionProfile::Safe,
+            role_id: default_role_id(),
+            department_id: default_department_id(),
         }
+    }
+
+    pub fn assign_role(&mut self, role: &RoleSpec) {
+        self.role_id = role.role_id.clone();
+        self.department_id = role.department_id.clone();
     }
 }
 
 pub const ROLE_BUILDER: &str = "builder";
+pub const ROLE_PM: &str = "pm";
+pub const ROLE_ARCHITECT: &str = "architect";
 pub const DEPARTMENT_EXECUTING: &str = "executing";
+pub const DEPARTMENT_PLANNING: &str = "planning";
+pub const ROLE_SANDBOX_READ_ONLY: &str = "read-only";
+pub const ROLE_SANDBOX_WORKSPACE_WRITE: &str = "workspace-write";
+pub const PLANNING_PATH_CHARTER: &str = "charter";
+pub const PLANNING_PATH_PLAN: &str = "plan";
+pub const PLANNING_PATH_PACKET: &str = "packet";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RoleSpec {
     pub role_id: String,
     pub department_id: String,
     pub prompt: String,
+    pub prompt_hash: String,
     pub tools: Vec<String>,
+    pub sandbox: String,
+    pub path_allow: Vec<String>,
     pub knowledge_grants: Vec<String>,
+    pub can_convene: bool,
+    pub can_vote: bool,
+    pub model_profile: String,
+    pub max_steps: u32,
 }
 
 impl RoleSpec {
     pub fn builder() -> Self {
+        Self::new(
+            ROLE_BUILDER,
+            DEPARTMENT_EXECUTING,
+            "You are Kiana's executing Builder. Use only the provided tools `shell` and `apply_patch`. Never request danger-full-access.",
+            vec!["shell".to_owned(), "apply_patch".to_owned()],
+            ROLE_SANDBOX_WORKSPACE_WRITE,
+            vec![".".to_owned()],
+            vec!["project".to_owned()],
+            false,
+            false,
+            "executing",
+            32,
+        )
+    }
+
+    pub fn pm() -> Self {
+        Self::new(
+            ROLE_PM,
+            DEPARTMENT_PLANNING,
+            "You are Kiana's planning PM. Write only charter/plan/packet artifacts. Do not patch source files. Do not run shell.",
+            vec!["apply_patch".to_owned()],
+            ROLE_SANDBOX_WORKSPACE_WRITE,
+            vec![
+                PLANNING_PATH_CHARTER.to_owned(),
+                PLANNING_PATH_PLAN.to_owned(),
+                PLANNING_PATH_PACKET.to_owned(),
+            ],
+            vec!["department:planning".to_owned(), "project".to_owned()],
+            true,
+            true,
+            "planning",
+            8,
+        )
+    }
+
+    pub fn architect() -> Self {
+        Self::new(
+            ROLE_ARCHITECT,
+            DEPARTMENT_PLANNING,
+            "You are Kiana's planning Architect. Read and advise. Do not write files or run shell.",
+            Vec::new(),
+            ROLE_SANDBOX_READ_ONLY,
+            Vec::new(),
+            vec!["department:planning".to_owned(), "project".to_owned()],
+            false,
+            true,
+            "planning",
+            8,
+        )
+    }
+
+    pub fn catalog() -> [RoleSpec; 3] {
+        [Self::pm(), Self::architect(), Self::builder()]
+    }
+
+    pub fn lookup(role_id: &str) -> Option<Self> {
+        let role_id = role_id.trim();
+        if role_id.is_empty() {
+            return Some(Self::builder());
+        }
+        Self::catalog()
+            .into_iter()
+            .find(|role| role.role_id == role_id)
+    }
+
+    pub fn allows_tool(&self, tool: &str) -> bool {
+        self.tools.iter().any(|allowed| allowed == tool)
+    }
+
+    pub fn allows_path(&self, path: &str) -> bool {
+        let Some(path) = normalize_role_path(path) else {
+            return false;
+        };
+        if self
+            .path_allow
+            .iter()
+            .any(|allow| allow == "." || allow == "*")
+        {
+            return true;
+        }
+        self.path_allow.iter().any(|allow| {
+            let allow = allow.trim().trim_matches('/');
+            !allow.is_empty() && (path == allow || path.starts_with(&format!("{allow}/")))
+        })
+    }
+
+    pub fn workspace_write_allowed(&self) -> bool {
+        self.sandbox == ROLE_SANDBOX_WORKSPACE_WRITE
+    }
+
+    fn new(
+        role_id: &str,
+        department_id: &str,
+        prompt: &str,
+        tools: Vec<String>,
+        sandbox: &str,
+        path_allow: Vec<String>,
+        knowledge_grants: Vec<String>,
+        can_convene: bool,
+        can_vote: bool,
+        model_profile: &str,
+        max_steps: u32,
+    ) -> Self {
         Self {
-            role_id: ROLE_BUILDER.to_owned(),
-            department_id: DEPARTMENT_EXECUTING.to_owned(),
-            prompt: "You are Kiana's executing Builder. Use only the provided tools `shell` and `apply_patch`. Never request danger-full-access.".to_owned(),
-            tools: vec!["shell".to_owned(), "apply_patch".to_owned()],
-            knowledge_grants: Vec::new(),
+            role_id: role_id.to_owned(),
+            department_id: department_id.to_owned(),
+            prompt_hash: prompt_hash(prompt),
+            prompt: prompt.to_owned(),
+            tools,
+            sandbox: sandbox.to_owned(),
+            path_allow,
+            knowledge_grants,
+            can_convene,
+            can_vote,
+            model_profile: model_profile.to_owned(),
+            max_steps,
         }
     }
 }
@@ -136,6 +281,7 @@ impl RoleSpec {
 pub struct DepartmentSpec {
     pub department_id: String,
     pub roles: Vec<String>,
+    pub can_convene: bool,
 }
 
 impl DepartmentSpec {
@@ -143,8 +289,67 @@ impl DepartmentSpec {
         Self {
             department_id: DEPARTMENT_EXECUTING.to_owned(),
             roles: vec![ROLE_BUILDER.to_owned()],
+            can_convene: false,
         }
     }
+
+    pub fn planning() -> Self {
+        Self {
+            department_id: DEPARTMENT_PLANNING.to_owned(),
+            roles: vec![ROLE_PM.to_owned(), ROLE_ARCHITECT.to_owned()],
+            can_convene: true,
+        }
+    }
+
+    pub fn catalog() -> [DepartmentSpec; 2] {
+        [Self::planning(), Self::executing()]
+    }
+
+    pub fn lookup(department_id: &str) -> Option<Self> {
+        let department_id = department_id.trim();
+        if department_id.is_empty() {
+            return Some(Self::executing());
+        }
+        Self::catalog()
+            .into_iter()
+            .find(|department| department.department_id == department_id)
+    }
+}
+
+pub fn normalize_role_path(path: &str) -> Option<String> {
+    let path = path.trim().replace('\\', "/");
+    if path.is_empty() {
+        return None;
+    }
+    if Path::new(&path).is_absolute() {
+        return None;
+    }
+    let mut parts = Vec::new();
+    for component in Path::new(&path).components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(part) => parts.push(part.to_string_lossy().into_owned()),
+            _ => return None,
+        }
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("/"))
+    }
+}
+
+pub fn prompt_hash(prompt: &str) -> String {
+    format!("fnv1a64:{:016x}", fnv1a64(prompt.as_bytes()))
+}
+
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -404,8 +609,54 @@ mod tests {
         assert_eq!(role.role_id, ROLE_BUILDER);
         assert_eq!(role.department_id, DEPARTMENT_EXECUTING);
         assert_eq!(role.tools, ["shell", "apply_patch"]);
+        assert_eq!(role.sandbox, ROLE_SANDBOX_WORKSPACE_WRITE);
+        assert_eq!(role.path_allow, ["."]);
+        assert!(!role.prompt_hash.is_empty());
         assert_eq!(department.department_id, DEPARTMENT_EXECUTING);
         assert_eq!(department.roles, [ROLE_BUILDER]);
+        assert!(!department.can_convene);
+    }
+
+    #[test]
+    fn v0_3_catalog_has_planning_and_executing_roles() {
+        let planning = DepartmentSpec::planning();
+        assert_eq!(planning.department_id, DEPARTMENT_PLANNING);
+        assert_eq!(planning.roles, [ROLE_PM, ROLE_ARCHITECT]);
+        assert!(planning.can_convene);
+
+        let pm = RoleSpec::pm();
+        assert_eq!(pm.department_id, DEPARTMENT_PLANNING);
+        assert_eq!(pm.tools, ["apply_patch"]);
+        assert!(pm.can_convene);
+        assert!(pm.allows_path("plan/WORK.md"));
+        assert!(pm.allows_path("charter/GOAL.md"));
+        assert!(pm.allows_path("packet/task.json"));
+        assert!(!pm.allows_path("GOLDEN_PATH.txt"));
+        assert!(!pm.allows_path("src/lib.rs"));
+        assert!(!pm.allows_tool("shell"));
+
+        let architect = RoleSpec::architect();
+        assert_eq!(architect.department_id, DEPARTMENT_PLANNING);
+        assert!(architect.tools.is_empty());
+        assert!(!architect.workspace_write_allowed());
+        assert!(!architect.allows_path("plan/WORK.md"));
+        assert!(!architect.can_convene);
+        assert!(architect.can_vote);
+
+        assert_eq!(RoleSpec::lookup("pm").unwrap().role_id, ROLE_PM);
+        assert_eq!(RoleSpec::lookup("").unwrap().role_id, ROLE_BUILDER);
+        assert!(RoleSpec::lookup("ceo").is_none());
+        assert_eq!(
+            DepartmentSpec::lookup("planning").unwrap().department_id,
+            DEPARTMENT_PLANNING
+        );
+    }
+
+    #[test]
+    fn request_context_defaults_to_executing_builder() {
+        let context = RequestContext::local("session-1", "/repo");
+        assert_eq!(context.role_id, ROLE_BUILDER);
+        assert_eq!(context.department_id, DEPARTMENT_EXECUTING);
     }
 
     #[test]

@@ -383,6 +383,17 @@ impl ControlPlane {
             return Ok(CoreResponse::blocked(request_id, "prompt_required"));
         }
 
+        if RoleSpec::lookup(&context.role_id).is_none() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "role_unknown" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "role_unknown"));
+        }
+
         let sandbox = match authorized_harness_sandbox(&context, sandbox.as_deref()) {
             Ok(sandbox) => sandbox,
             Err(reason) => {
@@ -922,6 +933,16 @@ impl ControlPlane {
                     }
                 }
             }
+            GateDecision::Denied { reason } if reason.starts_with("role_") => {
+                self.record_event(
+                    request_id,
+                    sequence,
+                    "run.capability_blocked",
+                    json!({ "reason": &reason }),
+                )
+                .await?;
+                return Ok(Err(reason));
+            }
             GateDecision::AwaitingApproval { reason } | GateDecision::Denied { reason } => {
                 self.record_event(
                     request_id,
@@ -1057,12 +1078,16 @@ impl ControlPlane {
 }
 
 fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value {
+    let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
     json!({
         "schema": RUN_RESULT_SCHEMA,
         "run_id": run_id,
         "session_id": context.session_id,
         "harness": HARNESS_ID,
         "sandbox": sandbox,
+        "role_id": worker.role_id,
+        "department_id": worker.department_id,
+        "prompt_hash": worker.prompt_hash,
     })
 }
 
@@ -1073,7 +1098,7 @@ fn receipt_from_events(
     output: Value,
     events: &[RuntimeEvent],
 ) -> Value {
-    let worker = RoleSpec::builder();
+    let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
     json!({
         "schema": RUN_RESULT_SCHEMA,
         "run_id": run_id,
@@ -1082,6 +1107,7 @@ fn receipt_from_events(
         "sandbox": sandbox,
         "role_id": worker.role_id,
         "department_id": worker.department_id,
+        "prompt_hash": worker.prompt_hash,
         "files_changed": files_changed_from_events(events),
         "capabilities": capabilities_from_events(events),
         "output": output,
@@ -1172,7 +1198,12 @@ fn authorized_harness_sandbox(
             if context.project_trusted
                 && !matches!(context.permission_profile, PermissionProfile::Safe)
             {
-                Ok("workspace-write")
+                let role = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
+                if role.workspace_write_allowed() {
+                    Ok("workspace-write")
+                } else {
+                    Err("role_sandbox_read_only")
+                }
             } else {
                 Err("workspace_write_requires_trusted_non_safe_profile")
             }

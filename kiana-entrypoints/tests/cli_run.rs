@@ -20,6 +20,12 @@ fn apply_patch_cassette() -> &'static str {
     r#"[{"text":"writing","tool_calls":[{"id":"c1","name":"apply_patch","arguments":{"patch":"*** Begin Patch\n*** Add File: GOLDEN_PATH.txt\n+hello\n*** End Patch\n"}}]},{"text":"created GOLDEN_PATH.txt"}]"#
 }
 
+fn apply_patch_cassette_for(path: &str) -> String {
+    format!(
+        r#"[{{"text":"writing","tool_calls":[{{"id":"c1","name":"apply_patch","arguments":{{"patch":"*** Begin Patch\n*** Add File: {path}\n+hello\n*** End Patch\n"}}}}]}},{{"text":"created {path}"}}]"#
+    )
+}
+
 fn unique_dir(label: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -207,6 +213,104 @@ fn trusted_workspace_write_cassette_creates_golden_path_file() {
         "{receipt:?}"
     );
     assert!(home.join("sessions").join("events.jsonl").exists());
+}
+
+#[test]
+fn planning_pm_cannot_apply_patch_source() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--role",
+            "pm",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "create a file named GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["status"], "failed");
+    assert_eq!(response["error"], "role_path_denied");
+    assert_eq!(response["output"]["role_id"], "pm");
+    assert_eq!(response["output"]["department_id"], "planning");
+    assert!(!fixture.join("GOLDEN_PATH.txt").exists());
+}
+
+#[test]
+fn planning_pm_can_apply_patch_plan_artifact() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let script = harness_script(&apply_patch_cassette_for("plan/WORK.md"));
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--role",
+            "pm",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "write plan/WORK.md",
+        ],
+    );
+    assert!(output.status.success(), "{}", combined(&output));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["status"], "completed");
+    assert_eq!(response["output"]["role_id"], "pm");
+    assert_eq!(response["output"]["department_id"], "planning");
+    assert_eq!(response["output"]["files_changed"][0], "plan/WORK.md");
+    assert_eq!(
+        fs::read_to_string(fixture.join("plan").join("WORK.md")).unwrap(),
+        "hello\n"
+    );
+}
+
+#[test]
+fn unknown_role_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--role",
+            "ceo",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "create GOLDEN_PATH.txt",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("role_unknown"),
+        "{}",
+        combined(&output)
+    );
+    assert!(!fixture.join("GOLDEN_PATH.txt").exists());
 }
 
 #[test]

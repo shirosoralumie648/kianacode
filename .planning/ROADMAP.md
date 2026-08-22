@@ -5,75 +5,77 @@
 
 ## 版本阶梯（后版本未打开）
 
-- [x] **v0.2 Runnable Local Agent** ← 本地四期已绿；下一打开 v0.3
-- [ ] **v0.3 Trusted Workbench + planning/executing + one symposium**
+- [x] **v0.2 Runnable Local Agent**
+- [ ] **v0.3 Trusted Workbench + planning/executing + one symposium** ← 当前
 - [ ] **v0.4 Coding pack baseline**
 - [ ] **v0.5 Five departments + six-layer RAG**
 - [ ] **v0.6 Extra surfaces, same core**
 - [ ] **v1.0 Personal complete product**
 - [ ] **v1.x Team / enterprise**
 
-## 当前里程碑：v0.2
+## 当前里程碑：v0.3
 
-- [x] **Phase 1: CLI golden path** — `kiana run` / print 经 `DaemonHost` 完成受信真 provider 一回合
-- [x] **Phase 2: Session continue / cancel / visible failure**
-- [x] **Phase 3: Durable receipts**
-- [x] **Phase 4: TUI parked**
+- [x] **Phase 1: Role catalog + policy** — `planning/pm`、`planning/architect`、`executing/builder`；policy 认 role
+- [ ] **Phase 2: Independent Builder spawn** — packet 是唯一输入；新 session，不复制编排器 transcript
+- [ ] **Phase 3: One bounded symposium** — PM+Architect，硬顶轮次，产出 DecisionRecord + 一个 WorkPacket
+- [ ] **Phase 4: Eval + install** — 黄金路径 eval 与安装/升级/回滚跑 demo（可后做，不阻塞 Phase 1–3）
 
-### Phase 1: CLI golden path
+### Phase 1: Role catalog + policy
 
-**Goal:** 受信本地仓库能用受限 `shell` / `apply_patch` 跑完一回合。
-**Requirements:** PATH-01, PATH-02, PATH-03, PATH-04, TRUST-01, TRUST-02
+**Goal:** RoleSpec/DepartmentSpec 成为派工单位。PM/Architect 不能 `apply_patch` src。默认 `kiana run` 仍是 Builder。
+**Requirements:** DEPT-01, ORCH-02, ROLE-01..03
 **Success Criteria:**
 
-1. `kiana run` 对受信 fixture 仓创建或 patch 文件，走 live 或录制自真 provider 的路径，不只 fake-script。
-2. 未信任 / 无模型 / 空 prompt fail-closed。
-3. Print 模式报告 `harness: kiana-harness`，不 dispatch `kiana-tools`。
+1. 目录至少有 `planning/pm`、`planning/architect`、`executing/builder`；字段含 tools、sandbox、path_allow、prompt_hash、can_convene。
+2. 默认 `kiana run` 收据仍是 `role_id=builder`、`department_id=executing`，且仍能写盘。
+3. `--role pm` 对 src `apply_patch` fail-closed，文件不出现。
+4. PM 对 `plan/`（或 `charter/` / `packet/`）的 `apply_patch` 可以写盘。
+5. 未知 role → `role_unknown`。证明级别 `local_behavior`。
 
-**Plans:** 已执行。验证：trusted fixture + `--sandbox workspace-write` cassette `apply_patch` 写出 `GOLDEN_PATH.txt`；收据含 `harness: kiana-harness`、`role_id=builder`、`department_id=executing`。证明级别 `local_behavior`。
+**Plans:** 已执行。验证：`.planning/phases/5-VERIFICATION.md`。证明级别 `local_behavior`。CLI 仍是 `kiana run`；`--role` 可选；部门从目录推断。PM `apply_patch` 只能写 `charter/` `plan/` `packet/`。
 
-### Phase 2: Session continue / cancel / visible failure
+### Phase 2: Independent Builder spawn
 
 **Depends on:** Phase 1
-**Requirements:** SESS-01, SESS-02, SESS-03, TRUST-03
+**Requirements:** ORCH-01, ORCH-03
 **Success Criteria:**
 
-1. 同一 `DaemonHost` 上 `--continue` 接到原 harness `ActiveRun`，不静默新开。
-2. `--cancel` 打断进行中的 `shell.exec`，完成后无新文件。
-3. 找不到 session / 空 prompt / 无模型：`status != completed`，错误码稳定。
+1. 派 Builder = 新 session；不复制编排器 transcript。
+2. Work packet 是工人唯一输入。
+3. 不把 TeamCreate/SendMessage 接成产品总线。
 
-**Plans:** 已执行。验证：`.planning/phases/2-VERIFICATION.md`。证明级别 `local_behavior`。跨进程 continue 按设计 fail-closed。
-
-### Phase 3: Durable receipts
+### Phase 3: One bounded symposium
 
 **Depends on:** Phase 2
-**Requirements:** EVD-01, EVD-02, EVD-03
+**Requirements:** SYMP-01, SYMP-02, SYMP-03
 **Success Criteria:**
 
-1. 工具调用与 `apply_patch` 文件变更写入 `$KIANA_HOME/sessions/events.jsonl`。
-2. `kiana run --json` 与 `kiana run --receipt <id> --json` 能列出本次 `files_changed` / `capabilities`。
-3. 杀进程再开，第一次收据仍在；第二次 run 只 append。
+1. 一场规划会：PM+Architect，硬顶轮次，私有 session + 黑板。
+2. 产出 DecisionRecord + 一个 WorkPacket；Builder 默认不列席。
+3. anti-meeting 可跳过开会、直接异步包。
 
-**Plans:** 已执行。验证：`.planning/phases/3-VERIFICATION.md`。证明级别 `local_behavior`。`DaemonHost::local()` 走 `JsonlEventLog`；测试可留 `MemoryEventLog`。Legacy `--resume` 不是 harness 收据。
+### Phase 4: Eval + install
 
-### Phase 4: TUI parked
-
-**Depends on:** Phase 1（可与 Phase 3 并行决策）
-**Requirements:** SURF-01
+**Depends on:** Phase 1（可与 2–3 并行准备，但不替代公司内核）
+**Requirements:** WB-01, WB-02, WB-03
 **Success Criteria:**
 
-1. 书面声明 `kiana tui` 不是 v0.2 产品路径。
-2. 测试锁定 TUI 不能当作 PATH 证明。
-3. 不往 `kiana-tui` 堆功能冒充进度。
+1. fixture + cassette：文件出现且收据可指。
+2. `install.sh` / release smoke 跑 v0.2/v0.3 demo。
+3. TUI 保持 park 或书面再迁。
 
-**Plans:** 已执行（park，不是迁移）。验证：`.planning/phases/4-VERIFICATION.md`。证明级别 `local_behavior`。TUI 仍可在真终端启动，但走 legacy SDK/stream。
+## 已完成：v0.2
+
+- [x] Phase 1: CLI golden path
+- [x] Phase 2: Session continue / cancel / visible failure
+- [x] Phase 3: Durable receipts
+- [x] Phase 4: TUI parked
 
 ## 后版本（不要现在 plan/execute）
 
 | 版本 | 打开条件 | 需求前缀 |
 |---|---|---|
-| v0.3 | v0.2 成功标准全绿 | WB |
-| v0.4 | v0.3 绿；公开行为矩阵草稿签字 | CODE |
+| v0.4 | v0.3 绿；公开行为矩阵草稿签字 | CODE / REV |
 | v0.5 | v0.4 核心路径可用 | LONG / DEPT / SYMP / MEM |
 | v0.6 | v0.5 resume 真能用 | SURF2 |
 | v1.0 | v0.6 至少 SDK 同核；安装升级过关 | REL |

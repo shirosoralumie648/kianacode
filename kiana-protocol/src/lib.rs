@@ -3,12 +3,20 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, PermissionProfile, RequestId,
-    RunId, SessionId,
+    RoleSpec, RunId, SessionId, DEPARTMENT_EXECUTING, ROLE_BUILDER,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
+
+fn default_role_id() -> String {
+    ROLE_BUILDER.to_owned()
+}
+
+fn default_department_id() -> String {
+    DEPARTMENT_EXECUTING.to_owned()
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RequestMetadata {
@@ -18,6 +26,10 @@ pub struct RequestMetadata {
     pub actor_id: Option<String>,
     pub project_trusted: bool,
     pub permission_profile: PermissionProfile,
+    #[serde(default = "default_role_id")]
+    pub role_id: String,
+    #[serde(default = "default_department_id")]
+    pub department_id: String,
 }
 
 impl RequestMetadata {
@@ -29,7 +41,14 @@ impl RequestMetadata {
             actor_id: Some("local-user".to_owned()),
             project_trusted: false,
             permission_profile: PermissionProfile::Safe,
+            role_id: default_role_id(),
+            department_id: default_department_id(),
         }
+    }
+
+    pub fn assign_role(&mut self, role: &RoleSpec) {
+        self.role_id = role.role_id.clone();
+        self.department_id = role.department_id.clone();
     }
 }
 
@@ -225,6 +244,30 @@ mod tests {
         let decoded: RequestEnvelope = serde_json::from_slice(&encoded).unwrap();
         assert_eq!(decoded, request);
         assert_eq!(decoded.schema, PROTOCOL_SCHEMA);
+        assert_eq!(decoded.metadata.role_id, ROLE_BUILDER);
+        assert_eq!(decoded.metadata.department_id, DEPARTMENT_EXECUTING);
+    }
+
+    #[test]
+    fn missing_role_fields_default_to_executing_builder() {
+        let json = serde_json::json!({
+            "schema": PROTOCOL_SCHEMA,
+            "metadata": {
+                "request_id": RequestId::new(),
+                "session_id": "session-1",
+                "project_root": "/repo",
+                "actor_id": "local-user",
+                "project_trusted": true,
+                "permission_profile": "safe"
+            },
+            "body": {
+                "type": "run",
+                "request": { "prompt": "hello" }
+            }
+        });
+        let decoded: RequestEnvelope = serde_json::from_value(json).unwrap();
+        assert_eq!(decoded.metadata.role_id, ROLE_BUILDER);
+        assert_eq!(decoded.metadata.department_id, DEPARTMENT_EXECUTING);
     }
 
     #[test]

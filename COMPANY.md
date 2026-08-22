@@ -522,7 +522,7 @@ kiana company run -- "给这个仓库加一个健康检查接口"
 
 不另起 24-phase。执行集一次只打开一个版本。下表是**部门能力**叠在原产品阶梯上。
 
-### v0.2 — Runnable Local Agent（当前）
+### v0.2 — Runnable Local Agent（已本地绿）
 
 **部门现实：** 只有执行部的一个 Builder；收据带 `role=builder`（推荐同时带 `department=executing`）。  
 **必须先真的：** 受信写盘、session continue/cancel、磁盘收据。  
@@ -530,7 +530,7 @@ kiana company run -- "给这个仓库加一个健康检查接口"
 **参考：** Codex/deepseek/pi harness；12-factor 2/5/6/9/12。  
 **明确不做：** 招满编制、Symposium、RAG、MCP、拆 `cli.rs`。
 
-### v0.3 — 公司内核（两部门 + 一次有界会）
+### v0.3 — 公司内核（两部门 + 一次有界会）（当前）
 
 **部门现实：** 规划部 + 执行部。一次 Symposium（PM+Architect）产出一个 packet，Builder 独立消费。  
 **必须先真的：** 第一入口好用、eval、安装/升级/回滚。  

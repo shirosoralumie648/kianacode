@@ -143,16 +143,16 @@ Codex 到 2025-07-11 才有 `codex apply` 远程 patch；cline hub drain/upgrade
 
 ---
 
-## 4. 当前里程碑：v0.2 四期
+## 4. 当前里程碑：v0.3（v0.2 已本地绿）
 
-历史 GSD Phase 1–24 计数作废。本里程碑四期，全部打在 owned harness 上。
+历史 GSD Phase 1–24 计数作废。v0.2 四期已本地绿。v0.3 打开规划部 + 执行部：Phase 1 RoleSpec/按角色 policy 已本地绿；下一期是独立 spawn，然后一场有界会。
 
 | Phase | 目标 | 需求 | 成功标准 |
 |---|---|---|---|
-| 1 CLI golden path | 受信仓库里，真 provider 走 `DaemonHost` 完成一回合 | PATH-01..04, TRUST-01..02 | 创建/修改文件；未信任/无模型/空 prompt fail-closed；print 报 `harness: kiana-harness` 且不调 `kiana-tools` |
-| 2 Session | continue / cancel / 可见失败 | SESS-01..03, TRUST-03 | resume 找到 harness run；cancel 停掉 capability；错误在 text 和 JSON 可见 |
-| 3 Durable receipts | 磁盘 eventlog | EVD-01..03 | 重启后还在；列出 brokered ops 与变更文件；第二次 run 不覆盖第一次 |
-| 4 TUI 同 spine 或 park | 一条产品路径 | SURF-01 | **已 park：** 书面 + 测试锁定 `kiana tui` 非 PATH 证明；禁止往 `kiana-tui` 堆功能 |
+| 1 Role catalog + policy | 三个 RoleSpec 成为派工单位；policy 认 role | DEPT-01, ORCH-02, ROLE-01..03 | **已本地绿：** 默认 `kiana run` 仍是 Builder；PM 不能写 src；PM 可写 `plan/`；未知 role → `role_unknown` |
+| 2 Independent Builder spawn | packet 是唯一输入；新 session | ORCH-01, ORCH-03 | 不复制编排器 transcript；不解冻 TeamCreate/SendMessage |
+| 3 One bounded symposium | PM+Architect 硬顶轮次 | SYMP-01..03 | DecisionRecord + 一个 WorkPacket；Builder 默认不列席 |
+| 4 Eval + install | 黄金路径可回归、可安装 | WB-01..03 | 可后做；不替代公司内核 |
 
 主文件：`harness_run.rs`、`cli.rs`（`run_main`/`print_main`）、`kiana-daemon/`、`kiana-core/`、`kiana-runner/`、`kiana-services/src/api/provider.rs`、`kiana-eventlog/`。
 

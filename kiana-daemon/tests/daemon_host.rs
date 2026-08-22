@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    RoleSpec, RunId,
 };
 use kiana_runner::{
     KianaHarness, ModelClient, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
@@ -123,6 +124,110 @@ async fn trusted_workspace_write_apply_patch_creates_file() {
         fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
         "hello\n"
     );
+}
+
+fn apply_patch_cassette_for(path: &str) -> serde_json::Value {
+    json!([
+        {
+            "text": "writing",
+            "tool_calls": [{
+                "id": "c1",
+                "name": "apply_patch",
+                "arguments": {
+                    "patch": format!("*** Begin Patch\n*** Add File: {path}\n+hello\n*** End Patch\n")
+                }
+            }]
+        },
+        {"text": format!("created {path}")}
+    ])
+}
+
+#[tokio::test]
+async fn planning_pm_cannot_apply_patch_source() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette_for("GOLDEN_PATH.txt"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::pm());
+    let response = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_path_denied"));
+    assert_eq!(response.output["role_id"], "pm");
+    assert_eq!(response.output["department_id"], "planning");
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn planning_pm_can_apply_patch_plan_artifact() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette_for("plan/WORK.md"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::pm());
+    let response = client
+        .run(
+            metadata,
+            "write plan/WORK.md",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["role_id"], "pm");
+    assert_eq!(response.output["department_id"], "planning");
+    assert_eq!(response.output["files_changed"][0], "plan/WORK.md");
+    assert_eq!(
+        fs::read_to_string(root.join("plan").join("WORK.md")).unwrap(),
+        "hello\n"
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn architect_workspace_write_is_role_sandbox_read_only() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette_for("plan/WORK.md"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::architect());
+    let response = client
+        .run(
+            metadata,
+            "write plan/WORK.md",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_sandbox_read_only"));
+    assert!(!root.join("plan").join("WORK.md").exists());
+}
+
+#[tokio::test]
+async fn unknown_role_is_rejected() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.role_id = "ceo".to_owned();
+    let response = client
+        .run(
+            metadata,
+            "create GOLDEN_PATH.txt",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_unknown"));
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
 #[tokio::test]

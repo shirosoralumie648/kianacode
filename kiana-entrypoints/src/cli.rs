@@ -325,12 +325,13 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
     let mut json_output = false;
     let mut sandbox: Option<String> = None;
+    let mut role: Option<String> = None;
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
     let mut receipt_id: Option<String> = None;
@@ -350,6 +351,17 @@ async fn run_main(args: &[String]) -> Result<()> {
             }
             value if value.starts_with("--sandbox=") => {
                 sandbox = Some(value.trim_start_matches("--sandbox=").to_owned());
+            }
+            "--role" => {
+                index += 1;
+                role = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("run_role_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--role=") => {
+                role = Some(value.trim_start_matches("--role=").to_owned());
             }
             "--continue" => {
                 index += 1;
@@ -413,6 +425,9 @@ async fn run_main(args: &[String]) -> Result<()> {
     let mut options = HashMap::new();
     if let Some(sandbox) = sandbox {
         options.insert("sandbox".to_string(), Value::String(sandbox));
+    }
+    if let Some(role) = role {
+        options.insert("role".to_string(), Value::String(role));
     }
     let response = if let Some(id) = cancel_id {
         let id = id.trim().to_owned();
@@ -13946,7 +13961,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
-    println!("  kiana run [--json] <prompt>  Execute a prompt through the Kiana harness");
+    println!("  kiana run [--json] [--role builder|pm|architect] <prompt>  Execute a prompt through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");

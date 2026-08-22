@@ -10,9 +10,9 @@
 
 ## Current Milestone
 
-**v0.2 Runnable Local Agent** — CLI 黄金路径打在 owned harness 上（trust + 真 provider + `shell`/`apply_patch` + session + 磁盘收据）。工人标成 `role=builder` / `department=executing`。
+**v0.3 Trusted Workbench + company kernel** — 规划部 + 执行部。Phase 1 已本地绿：RoleSpec 是派工单位，policy 认 `role_id` + `department_id`。默认工人仍是 `role=builder` / `department=executing`。下一期：独立 Builder spawn。
 
-后续版本（未打开）：v0.3 规划+执行+一次有界会 → v0.4 Coding pack + 监控部 Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品 → v1.x 团队/企业。
+后续：Phase 2 独立 Builder spawn → Phase 3 一次有界 Symposium → Phase 4 eval/安装 → v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
 
 ## Core Value
 
@@ -23,5 +23,5 @@
 - 双运行时中，只有 owned harness 是产品；legacy `runner.rs` / `kiana-tools` 冻结
 - 证明级别本里程碑上限：`local_behavior`
 - 专有 reference 只许 clean-room 行为审计
-- fail-closed：未信任 deny，默认 sandbox read-only
+- fail-closed：未信任 deny，默认 sandbox read-only；规划角色不能写 src
 - 不把 crate 数、reference 打勾、旧 24-phase、招满角色但不会写盘当完成
