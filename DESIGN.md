@@ -89,7 +89,7 @@ kiana run --sandbox workspace-write -- "create a file named GOLDEN_PATH.txt cont
 
 必须为真：信任、真 provider、受限 shell/patch、失败可见、continue/cancel、重启后收据还在、收据含 `role=builder`。
 
-TUI 若不能接到同一 `DaemonHost`，就显式 park，不假装完成。
+TUI 若不能接到同一 `DaemonHost`，就显式 park，不假装完成。**v0.2 Phase 4 已 park：** `kiana tui` 仍走 legacy SDK/stream；产品路径只有 `kiana run` / print。
 
 ### v0.3 — Trusted Workbench + 公司内核（站 6–8）
 
@@ -152,7 +152,7 @@ Codex 到 2025-07-11 才有 `codex apply` 远程 patch；cline hub drain/upgrade
 | 1 CLI golden path | 受信仓库里，真 provider 走 `DaemonHost` 完成一回合 | PATH-01..04, TRUST-01..02 | 创建/修改文件；未信任/无模型/空 prompt fail-closed；print 报 `harness: kiana-harness` 且不调 `kiana-tools` |
 | 2 Session | continue / cancel / 可见失败 | SESS-01..03, TRUST-03 | resume 找到 harness run；cancel 停掉 capability；错误在 text 和 JSON 可见 |
 | 3 Durable receipts | 磁盘 eventlog | EVD-01..03 | 重启后还在；列出 brokered ops 与变更文件；第二次 run 不覆盖第一次 |
-| 4 TUI 同 spine 或 park | 一条产品路径 | SURF-01 | `kiana tui` 走 `DaemonHost`，或书面 + 测试冻结 TUI |
+| 4 TUI 同 spine 或 park | 一条产品路径 | SURF-01 | **已 park：** 书面 + 测试锁定 `kiana tui` 非 PATH 证明；禁止往 `kiana-tui` 堆功能 |
 
 主文件：`harness_run.rs`、`cli.rs`（`run_main`/`print_main`）、`kiana-daemon/`、`kiana-core/`、`kiana-runner/`、`kiana-services/src/api/provider.rs`、`kiana-eventlog/`。
 

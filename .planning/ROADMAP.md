@@ -5,7 +5,7 @@
 
 ## 版本阶梯（后版本未打开）
 
-- [ ] **v0.2 Runnable Local Agent** ← 当前
+- [x] **v0.2 Runnable Local Agent** ← 本地四期已绿；下一打开 v0.3
 - [ ] **v0.3 Trusted Workbench + planning/executing + one symposium**
 - [ ] **v0.4 Coding pack baseline**
 - [ ] **v0.5 Five departments + six-layer RAG**
@@ -18,7 +18,7 @@
 - [x] **Phase 1: CLI golden path** — `kiana run` / print 经 `DaemonHost` 完成受信真 provider 一回合
 - [x] **Phase 2: Session continue / cancel / visible failure**
 - [x] **Phase 3: Durable receipts**
-- [ ] **Phase 4: TUI on harness, or park**
+- [x] **Phase 4: TUI parked**
 
 ### Phase 1: CLI golden path
 
@@ -56,10 +56,17 @@
 
 **Plans:** 已执行。验证：`.planning/phases/3-VERIFICATION.md`。证明级别 `local_behavior`。`DaemonHost::local()` 走 `JsonlEventLog`；测试可留 `MemoryEventLog`。Legacy `--resume` 不是 harness 收据。
 
-### Phase 4: TUI on harness, or park
+### Phase 4: TUI parked
 
 **Depends on:** Phase 1（可与 Phase 3 并行决策）
 **Requirements:** SURF-01
+**Success Criteria:**
+
+1. 书面声明 `kiana tui` 不是 v0.2 产品路径。
+2. 测试锁定 TUI 不能当作 PATH 证明。
+3. 不往 `kiana-tui` 堆功能冒充进度。
+
+**Plans:** 已执行（park，不是迁移）。验证：`.planning/phases/4-VERIFICATION.md`。证明级别 `local_behavior`。TUI 仍可在真终端启动，但走 legacy SDK/stream。
 
 ## 后版本（不要现在 plan/execute）
 

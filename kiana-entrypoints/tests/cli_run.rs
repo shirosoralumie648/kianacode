@@ -298,6 +298,29 @@ fn receipt_unknown_session_fails_closed() {
 }
 
 #[test]
+fn tui_help_is_parked_off_the_v0_2_product_path() {
+    let output = kiana_in(&unique_dir("cwd"), &isolated_home(), &["--help"]);
+    assert!(output.status.success(), "{}", combined(&output));
+    let text = combined(&output);
+    assert!(text.contains("kiana tui"), "{text}");
+    assert!(text.contains("Parked in v0.2"), "{text}");
+    assert!(text.contains("not DaemonHost"), "{text}");
+}
+
+#[test]
+fn tui_without_tty_is_not_the_product_path() {
+    let output = kiana_in(&unique_dir("cwd"), &isolated_home(), &["tui"]);
+    assert!(!output.status.success(), "{}", combined(&output));
+    let text = combined(&output);
+    assert!(
+        text.contains("interactive") || text.contains("terminal"),
+        "{text}"
+    );
+    assert!(!text.contains("harness: kiana-harness"), "{text}");
+    assert!(!text.contains("kiana-harness"), "{text}");
+}
+
+#[test]
 fn cancel_unknown_session_fails_closed() {
     let output = kiana_in(
         &unique_dir("cwd"),

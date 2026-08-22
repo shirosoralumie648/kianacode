@@ -1,3 +1,7 @@
+//! v0.2 parked TUI. This module still talks to the legacy SDK/stream spine.
+//! It is not the product path and must not be used as PATH/SESS/EVD evidence.
+//! See `.planning/phases/4-CONTEXT.md`.
+
 use anyhow::{anyhow, Result};
 use kiana_commands::{
     create_default_command_registry, Command, CommandContext, CommandRegistry, CommandResult,

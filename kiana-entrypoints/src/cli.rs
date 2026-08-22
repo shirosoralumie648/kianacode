@@ -13959,7 +13959,7 @@ fn print_help() {
     println!("  kiana reply <id> ...  Run a prompt in a local SDK session");
     println!("  kiana reply <id> --record-only ...  Append without model execution");
     println!("  kiana reply <id> --json-schema '{{...}}' ...  Request structured output");
-    println!("  kiana tui             Start the ratatui app backed by SDK sessions");
+    println!("  kiana tui             Parked in v0.2 (legacy SDK stream, not DaemonHost)");
     println!("  kiana --bg <prompt>   Run a prompt through the local background worker");
     println!("  kiana ps              List local background tasks");
     println!("  kiana daemon start    Start the resident background task supervisor");
