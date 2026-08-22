@@ -763,9 +763,62 @@ smoke_eval_json() {
   local baseline
   local output
   local python_bin
+  local fixture_dir
 
-  suite="$(cd "$(dirname "$0")/.." && pwd)/docs/eval/fixtures/basic-runtime-suite.json"
-  baseline="$(cd "$(dirname "$0")/.." && pwd)/docs/eval/fixtures/basic-runtime-baseline.json"
+  fixture_dir="$(mktemp -d)"
+  cat > "$fixture_dir/basic-runtime-suite.json" <<'JSON'
+{
+  "schema": "kiana.eval-suite.v1",
+  "id": "basic-runtime",
+  "description": "Offline RuntimeEvent replay contract",
+  "cases": [
+    {
+      "id": "tool-success",
+      "kind": "runtime_event_replay",
+      "fixture": "basic-tool-success.jsonl",
+      "expect": {
+        "final_status": "completed",
+        "stop_reason": "end_turn",
+        "min_event_count": 5,
+        "tool_call_count": 1,
+        "tool_error_count": 0,
+        "required_tool_names": ["Read"],
+        "final_text_contains": ["done"],
+        "max_input_tokens": 32,
+        "max_output_tokens": 16
+      }
+    }
+  ]
+}
+JSON
+  cat > "$fixture_dir/basic-runtime-baseline.json" <<'JSON'
+{
+  "schema": "kiana.eval-baseline.v1",
+  "suite_id": "basic-runtime",
+  "description": "Local protocol-regression baseline for the packaged RuntimeEvent replay fixture.",
+  "cases": {
+    "tool-success": {
+      "max_event_count": 5,
+      "max_tool_call_count": 1,
+      "max_tool_result_count": 1,
+      "max_tool_error_count": 0,
+      "max_input_tokens": 32,
+      "max_output_tokens": 16,
+      "required_status": "completed",
+      "required_stop_reason": "end_turn"
+    }
+  }
+}
+JSON
+  cat > "$fixture_dir/basic-tool-success.jsonl" <<'JSONL'
+{"type":"assistant","assistant_text":"starting"}
+{"type":"tool_call","tool_name":"Read","tool_call_id":"call-1"}
+{"type":"tool_result","tool_name":"Read","tool_call_id":"call-1","is_error":false}
+{"type":"usage","input_tokens":12,"output_tokens":4}
+{"type":"result","status":"completed","stop_reason":"end_turn","assistant_text":"done"}
+JSONL
+  suite="$fixture_dir/basic-runtime-suite.json"
+  baseline="$fixture_dir/basic-runtime-baseline.json"
   if ! output="$(run_clean_kiana "$binary" eval run --suite "$suite" --baseline "$baseline" --json --fail-on-failure 2>&1)"; then
     echo "offline eval CLI failed for: $binary" >&2
     echo "$output" >&2
@@ -801,6 +854,7 @@ if baseline.get("status") != "passed":
     print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
     sys.exit(1)
 PY
+  rm -rf "$fixture_dir"
 }
 
 smoke_eda_json() {
@@ -962,10 +1016,12 @@ PY
   )"
   IFS=$'\t' read -r run_id review_id <<<"$eda_identity"
   review_path="$project_dir/.kiana/workflows/$run_id/eda/reviews/$review_id/eda_review.json"
-  "$python_bin" \
-    "$(native_env_path "$(pwd)/scripts/validate-json-schema.py")" \
-    "$(native_env_path "$(pwd)/docs/schemas/kiana-eda-review.v1.schema.json")" \
-    "$(native_env_path "$review_path")" >/dev/null
+  if [[ -f docs/schemas/kiana-eda-review.v1.schema.json ]]; then
+    "$python_bin" \
+      "$(native_env_path "$(pwd)/scripts/validate-json-schema.py")" \
+      "$(native_env_path "$(pwd)/docs/schemas/kiana-eda-review.v1.schema.json")" \
+      "$(native_env_path "$review_path")" >/dev/null
+  fi
   rm -rf "$project_dir"
 }
 

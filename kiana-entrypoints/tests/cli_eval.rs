@@ -1,9 +1,9 @@
 use serde_json::Value;
-use std::path::PathBuf;
+use std::fs;
 use std::process::Command;
 
 #[test]
-fn eval_help_and_packaged_fixture_route_through_the_real_binary() {
+fn eval_help_and_inline_fixture_route_through_the_real_binary() {
     let help = Command::new(env!("CARGO_BIN_EXE_kiana"))
         .args(["eval", "--help"])
         .output()
@@ -15,8 +15,53 @@ fn eval_help_and_packaged_fixture_route_through_the_real_binary() {
         "{help_stdout}"
     );
 
-    let suite = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../docs/eval/fixtures/basic-runtime-suite.json");
+    let tmp = std::env::temp_dir().join(format!("kiana-cli-eval-{}", std::process::id()));
+    fs::create_dir_all(&tmp).unwrap();
+    fs::write(
+        tmp.join("basic-tool-success.jsonl"),
+        concat!(
+            r#"{"type":"assistant","assistant_text":"starting"}"#,
+            "\n",
+            r#"{"type":"tool_call","tool_name":"Read","tool_call_id":"call-1"}"#,
+            "\n",
+            r#"{"type":"tool_result","tool_name":"Read","tool_call_id":"call-1","is_error":false}"#,
+            "\n",
+            r#"{"type":"usage","input_tokens":12,"output_tokens":4}"#,
+            "\n",
+            r#"{"type":"result","status":"completed","stop_reason":"end_turn","assistant_text":"done"}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        tmp.join("basic-runtime-suite.json"),
+        r#"{
+  "schema": "kiana.eval-suite.v1",
+  "id": "basic-runtime",
+  "description": "Offline RuntimeEvent replay contract",
+  "cases": [
+    {
+      "id": "tool-success",
+      "kind": "runtime_event_replay",
+      "fixture": "basic-tool-success.jsonl",
+      "expect": {
+        "final_status": "completed",
+        "stop_reason": "end_turn",
+        "min_event_count": 5,
+        "tool_call_count": 1,
+        "tool_error_count": 0,
+        "required_tool_names": ["Read"],
+        "final_text_contains": ["done"],
+        "max_input_tokens": 32,
+        "max_output_tokens": 16
+      }
+    }
+  ]
+}
+"#,
+    )
+    .unwrap();
+    let suite = tmp.join("basic-runtime-suite.json");
     let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
         .args([
             "eval",

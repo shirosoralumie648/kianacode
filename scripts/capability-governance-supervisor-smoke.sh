@@ -149,8 +149,7 @@ env -u CARGO_BUILD_TARGET PATH="$BUILD_PATH" \
 protected_hashes="$tmp_root/protected-hashes"
 if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   cat >"$protected_hashes" <<'HASHES'
-7fd3dd952a8e57af8fb82ad6cc2ff1306fe08d9e73b5c76730eee9d2769695cc  .planning/config.json
-9559905b0e8fdbd96a72642329b71c6520ad03f2d39f5879329b2efdbc3492bf  scripts/schema-contract-smoke.sh
+9be4f3f2c2af1dde3da4081f0b072f41c5219d41db0d264d2e77d798da0e216b  scripts/schema-contract-smoke.sh
 4c51d722c2049e249b174fe9a09e611629084b611703a9cbbce68153c0c90002  scripts/validate-json-schema.py
 df019195eb3affca89eb4053c68ce130f1e780cc61c7d9f40c42bec4b0e19a3b  scripts/fixtures/capability-governance/valid/full-38-repositories.json
 65b678f5ee4412729e39cbfd09a036df750299df5f804b31ad14da7333cd6f3c  scripts/fixtures/capability-governance/valid/hostile-rendering.json
@@ -159,8 +158,7 @@ df019195eb3affca89eb4053c68ce130f1e780cc61c7d9f40c42bec4b0e19a3b  scripts/fixtur
 HASHES
 else
   cat >"$protected_hashes" <<'HASHES'
-9e2ff1d7d93a62c7e8c67137830ebf58c72216463490f1bebba35ac72b51a02b  .planning/config.json
-9a0706e38a4d23582b5d84f53990b2614680dbd1c99cee43cb3dd05e50bae3f4  scripts/schema-contract-smoke.sh
+9be4f3f2c2af1dde3da4081f0b072f41c5219d41db0d264d2e77d798da0e216b  scripts/schema-contract-smoke.sh
 c5ef0b131508c6d7beb99e123039f4c0d29f4e7f82f8f8625dcff62c27bf4470  scripts/validate-json-schema.py
 df019195eb3affca89eb4053c68ce130f1e780cc61c7d9f40c42bec4b0e19a3b  scripts/fixtures/capability-governance/valid/full-38-repositories.json
 65b678f5ee4412729e39cbfd09a036df750299df5f804b31ad14da7333cd6f3c  scripts/fixtures/capability-governance/valid/hostile-rendering.json

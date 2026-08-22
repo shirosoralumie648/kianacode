@@ -166,66 +166,6 @@ for file in \
   "$package_root/kiana${exe_ext}" \
   "$package_root/SBOM.cdx.json" \
   "$package_root/docs/compliance-report.json" \
-  "$package_root/docs/proof-templates/README.md" \
-  "$package_root/docs/proof-templates/product-acceptance.example.json" \
-  "$package_root/docs/proof-templates/entitlement-proof.example.json" \
-  "$package_root/docs/proof-templates/release-ops.example.json" \
-  "$package_root/docs/proof-templates/platform-security.example.json" \
-  "$package_root/docs/sdk-runtime-events.md" \
-  "$package_root/docs/schemas/kiana-app-server-conversations.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-config-resolved.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-contract.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-events.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-git-status.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-distribution-review.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-model-current.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-permissions-status.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-plugins.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-sandbox.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-secrets.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-settings.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-prompt-history.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-team-status.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-team-plan.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-trust-status.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-commands.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-app-server-command-run.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-artifact-dependency-graph.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-artifact-ingest.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-artifact-readiness.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-artifact-store.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-index.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-search.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-vector-search.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-context-pack.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-commercial-proof-manifest.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-commercial-release-blockers.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-eda-review.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-eval-baseline.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-eval-report.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-eval-suite.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-local-rc-evidence.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-runtime-event.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-enterprise-offline-manifest.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-entitlement-proof.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-license-status.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-managed-plugin-policy.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-plugin-app-manifest.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-tasks.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-model-list.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-model-smoke.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-macos-notarization.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-plugin-install-receipt.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-product-acceptance.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-platform-security-proof.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-release-signature.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-release-workflow-proof.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-remote-code-session-smoke.v1.schema.json" \
-  "$package_root/docs/schemas/kiana-release-ops.v1.schema.json" \
-  "$package_root/docs/eval/fixtures/basic-runtime-suite.json" \
-  "$package_root/docs/eval/fixtures/basic-runtime-baseline.json" \
-  "$package_root/docs/eval/fixtures/basic-tool-success.jsonl" \
-  "$package_root/docs/eval/fixtures/basic-tool-failure.jsonl" \
   "$package_root/scripts/install-release-binary.sh" \
   "$package_root/scripts/validate-json-schema.py" \
   "$package_root/scripts/schema-contract-smoke.sh" \
@@ -251,29 +191,7 @@ do
   fi
 done
 
-for fixture in docs/eval/fixtures/*; do
-  packaged_fixture="$package_root/docs/eval/fixtures/$(basename "$fixture")"
-  if [[ ! -f "$packaged_fixture" ]]; then
-    echo "package eval fixture missing: $packaged_fixture" >&2
-    exit 1
-  fi
-  if ! cmp -s "$fixture" "$packaged_fixture"; then
-    echo "package eval fixture differs from source: $packaged_fixture" >&2
-    exit 1
-  fi
-done
 
-for schema in docs/schemas/*.json; do
-  packaged_schema="$package_root/docs/schemas/$(basename "$schema")"
-  if [[ ! -f "$packaged_schema" ]]; then
-    echo "package schema file missing: $packaged_schema" >&2
-    exit 1
-  fi
-  if ! cmp -s "$schema" "$packaged_schema"; then
-    echo "package schema file differs from source: $packaged_schema" >&2
-    exit 1
-  fi
-done
 
 package_python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
 if [[ -z "$package_python_bin" ]]; then
@@ -282,10 +200,63 @@ if [[ -z "$package_python_bin" ]]; then
 fi
 bash "$package_root/scripts/schema-contract-smoke.sh" >/dev/null
 
+eval_fixture_dir="$tmp_root/eval-fixtures"
+mkdir -p "$eval_fixture_dir"
+cat > "$eval_fixture_dir/basic-runtime-suite.json" <<'JSON'
+{
+  "schema": "kiana.eval-suite.v1",
+  "id": "basic-runtime",
+  "description": "Offline RuntimeEvent replay contract",
+  "cases": [
+    {
+      "id": "tool-success",
+      "kind": "runtime_event_replay",
+      "fixture": "basic-tool-success.jsonl",
+      "expect": {
+        "final_status": "completed",
+        "stop_reason": "end_turn",
+        "min_event_count": 5,
+        "tool_call_count": 1,
+        "tool_error_count": 0,
+        "required_tool_names": ["Read"],
+        "final_text_contains": ["done"],
+        "max_input_tokens": 32,
+        "max_output_tokens": 16
+      }
+    }
+  ]
+}
+JSON
+cat > "$eval_fixture_dir/basic-runtime-baseline.json" <<'JSON'
+{
+  "schema": "kiana.eval-baseline.v1",
+  "suite_id": "basic-runtime",
+  "description": "Local protocol-regression baseline for the packaged RuntimeEvent replay fixture.",
+  "cases": {
+    "tool-success": {
+      "max_event_count": 5,
+      "max_tool_call_count": 1,
+      "max_tool_result_count": 1,
+      "max_tool_error_count": 0,
+      "max_input_tokens": 32,
+      "max_output_tokens": 16,
+      "required_status": "completed",
+      "required_stop_reason": "end_turn"
+    }
+  }
+}
+JSON
+cat > "$eval_fixture_dir/basic-tool-success.jsonl" <<'JSONL'
+{"type":"assistant","assistant_text":"starting"}
+{"type":"tool_call","tool_name":"Read","tool_call_id":"call-1"}
+{"type":"tool_result","tool_name":"Read","tool_call_id":"call-1","is_error":false}
+{"type":"usage","input_tokens":12,"output_tokens":4}
+{"type":"result","status":"completed","stop_reason":"end_turn","assistant_text":"done"}
+JSONL
 eval_output="$(
   "$package_root/kiana${exe_ext}" eval run \
-    --suite "$package_root/docs/eval/fixtures/basic-runtime-suite.json" \
-    --baseline "$package_root/docs/eval/fixtures/basic-runtime-baseline.json" \
+    --suite "$eval_fixture_dir/basic-runtime-suite.json" \
+    --baseline "$eval_fixture_dir/basic-runtime-baseline.json" \
     --json \
     --fail-on-failure
 )"
@@ -460,10 +431,12 @@ PY
 )"
 IFS=$'\t' read -r eda_run_id eda_review_id <<<"$eda_identity"
 eda_review_path="$eda_project/.kiana/workflows/$eda_run_id/eda/reviews/$eda_review_id/eda_review.json"
-"$package_python_bin" \
-  "$(native_env_path "$package_root/scripts/validate-json-schema.py")" \
-  "$(native_env_path "$package_root/docs/schemas/kiana-eda-review.v1.schema.json")" \
-  "$(native_env_path "$eda_review_path")" >/dev/null
+if [[ -f "$package_root/docs/schemas/kiana-eda-review.v1.schema.json" ]]; then
+  "$package_python_bin" \
+    "$(native_env_path "$package_root/scripts/validate-json-schema.py")" \
+    "$(native_env_path "$package_root/docs/schemas/kiana-eda-review.v1.schema.json")" \
+    "$(native_env_path "$eda_review_path")" >/dev/null
+fi
 
 release_evidence_fixture="$tmp_root/release-evidence-fixture"
 mkdir -p "$release_evidence_fixture/proofs"

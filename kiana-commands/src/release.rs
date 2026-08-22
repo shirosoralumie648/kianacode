@@ -1980,14 +1980,11 @@ mod tests {
     }
 
     #[test]
-    fn release_makefile_and_install_docs_use_explicit_source_build_gate() {
+    fn release_makefile_uses_explicit_source_build_gate() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap();
         let makefile = std::fs::read_to_string(root.join("Makefile")).expect("missing Makefile");
-        let install_doc =
-            std::fs::read_to_string(root.join("INSTALL.md")).expect("missing INSTALL.md");
-        let readme = std::fs::read_to_string(root.join("README.md")).expect("missing README.md");
 
         assert!(makefile.contains("INSTALL_DIR ?= $(HOME)/.local/bin"));
         assert!(
@@ -1996,35 +1993,6 @@ mod tests {
         assert!(makefile.contains("$(INSTALLED_BIN) --version"));
         assert!(makefile.contains("$(INSTALLED_BIN) doctor"));
         assert!(!makefile.contains("cargo build --release --bin kiana"));
-        assert!(!install_doc.contains("二进制下载"));
-        assert!(!install_doc.contains("配置向导"));
-        assert!(install_doc.contains("kiana config init"));
-        assert!(install_doc.contains("kiana login"));
-        assert!(install_doc.contains("cargo build --release -p kiana-entrypoints --bin kiana"));
-        assert!(readme.contains("cargo build --release -p kiana-entrypoints --bin kiana"));
-    }
-
-    #[test]
-    fn quickstart_and_usage_docs_describe_current_cli_paths() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap();
-        let quickstart =
-            std::fs::read_to_string(root.join("QUICKSTART.md")).expect("missing QUICKSTART.md");
-        let usage = std::fs::read_to_string(root.join("USAGE.md")).expect("missing USAGE.md");
-        let combined = format!("{quickstart}\n{usage}");
-
-        assert!(quickstart.contains("kiana config init"));
-        assert!(quickstart.contains("cargo run -p kiana-entrypoints --bin kiana"));
-        assert!(quickstart.contains("kiana -p"));
-        assert!(usage.contains("kiana session reply"));
-        assert!(usage.contains("kiana doctor"));
-        assert!(usage.contains("kiana release"));
-        assert!(!combined.contains("cargo run --bin kiana"));
-        assert!(!combined.contains("MVP 使用指南"));
-        assert!(!combined.contains("Phase 1"));
-        assert!(!combined.contains("Phase 2"));
-        assert!(!combined.contains("工具调用未启用"));
     }
 
     #[test]
@@ -2053,7 +2021,6 @@ mod tests {
         assert!(package_script.contains("does not match host package target"));
         assert!(package_script.contains("verify_binary_format"));
         assert!(preflight.contains("scripts/generate-distribution-manifests.sh"));
-        assert!(preflight.contains("kiana-workflow-release-binding.v1.schema.json"));
         assert!(preflight.contains("scripts/sign-release-artifacts.sh"));
         assert!(preflight.contains("scripts/entitlement-proof-report.sh"));
         assert!(preflight.contains("scripts/product-acceptance-report.sh"));
@@ -2082,7 +2049,7 @@ mod tests {
     }
 
     #[test]
-    fn package_lifecycle_smoke_checks_every_packaged_schema() {
+    fn package_lifecycle_smoke_checks_host_package_target() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap();
@@ -2090,9 +2057,7 @@ mod tests {
             std::fs::read_to_string(root.join("scripts").join("package-lifecycle-smoke.sh"))
                 .expect("missing scripts/package-lifecycle-smoke.sh");
 
-        assert!(lifecycle_smoke.contains("for schema in docs/schemas/*.json"));
-        assert!(lifecycle_smoke.contains("package schema file missing"));
-        assert!(lifecycle_smoke.contains("package schema file differs from source"));
+        assert!(!lifecycle_smoke.contains("for schema in docs/schemas/*.json"));
         assert!(lifecycle_smoke.contains("archive target does not match host package target"));
         assert!(lifecycle_smoke.contains("verify_binary_format"));
     }

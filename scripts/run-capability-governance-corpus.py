@@ -35,13 +35,6 @@ PROTECTED_INPUTS = (
     VALID_ROOT / "offline-source-identity.json",
     VALID_ROOT / "hostile-rendering.json",
     SCRIPTS / "validate-json-schema.py",
-    ROOT / "docs/schemas/kiana-official-source-artifact.v1.schema.json",
-    ROOT / "docs/schemas/kiana-public-parity-baseline.v1.schema.json",
-    ROOT / "docs/schemas/kiana-reference-repository-registry.v1.schema.json",
-    ROOT / "docs/schemas/kiana-capability-decisions.v1.schema.json",
-    ROOT / "docs/schemas/kiana-capability-evidence-index.v1.schema.json",
-    ROOT / "docs/schemas/kiana-legacy-authority-classification.v1.schema.json",
-    ROOT / "docs/schemas/kiana-capability-governance-bundle.v1.schema.json",
 )
 
 

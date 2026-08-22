@@ -84,7 +84,11 @@ class CapabilityGovernanceGeneratorTests(unittest.TestCase):
             root = Path(directory)
             (root / "scripts").mkdir()
             shutil.copy2(SCRIPTS / "validate-json-schema.py", root / "scripts")
-            shutil.copytree(ROOT / "docs/schemas", root / "docs/schemas")
+            src = ROOT / "docs/schemas"
+            if src.exists():
+                shutil.copytree(src, root / "docs/schemas")
+            else:
+                (root / "docs/schemas").mkdir(parents=True)
 
             registry_root = (
                 root

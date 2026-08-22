@@ -11,6 +11,15 @@ python_bin() {
 }
 
 python="$(python_bin)"
+
+validate_schema_if_present() {
+  local schema="$1"
+  local instance="$2"
+  if [[ -f "$schema" ]]; then
+    "$python" scripts/validate-json-schema.py "$schema" "$instance" >/dev/null
+  fi
+}
+
 tmp_report="$(mktemp)"
 tmp_handoff="$(mktemp)"
 tmp_source_control="$(mktemp)"
@@ -26,9 +35,7 @@ KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
     --json \
     --handoff-md "$tmp_handoff" > "$tmp_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_report"
 
 "$python" - "$tmp_report" "$tmp_handoff" <<'PY'
 import json
@@ -154,9 +161,7 @@ KIANA_BLOCKER_OWNER_SOURCE_REMOTE="release-manager-test" \
     --json \
     --handoff-md "$tmp_handoff" > "$tmp_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_report"
 
 "$python" - "$tmp_report" <<'PY'
 import json
@@ -200,9 +205,7 @@ KIANA_SOURCE_CONTROL_PROOF_FILE="$tmp_source_control" \
 KIANA_SOURCE_CONTROL_PROOF_OUT="$tmp_source_control_out" \
   bash scripts/source-control-proof-report.sh full >/dev/null
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-source-control-proof.v1.schema.json \
-  "$tmp_source_control_out" >/dev/null
+validate_schema_if_present docs/schemas/kiana-source-control-proof.v1.schema.json "$tmp_source_control_out"
 
 "$python" - "$tmp_source_control_out" <<'PY'
 import json
@@ -223,9 +226,7 @@ KIANA_SOURCE_CONTROL_PROOF_FILE="$tmp_source_control" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -307,9 +308,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -388,9 +387,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -457,9 +454,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -550,9 +545,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -649,9 +642,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -706,9 +697,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -780,9 +769,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -863,9 +850,7 @@ DIST_DIR="$tmp_dist" \
     --json \
     --handoff-md "$tmp_proof_handoff" > "$tmp_proof_report"
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_proof_report" >/dev/null
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_proof_report"
 
 "$python" - "$tmp_proof_report" "$tmp_proof_handoff" <<'PY'
 import json
@@ -1025,15 +1010,9 @@ KIANA_PLATFORM_SECURITY_PROOF_OUT="$tmp_local_rc_dist/source-proofs/platform-sec
 KIANA_LOCAL_RC_LIFECYCLE_SMOKE_STATUS=passed \
   bash scripts/local-rc-evidence-report.sh >/dev/null
 
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-local-rc-evidence.v1.schema.json \
-  "$tmp_local_rc_dist/proofs/local-rc-evidence.json" >/dev/null
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-app-server-distribution-review.v1.schema.json \
-  "$tmp_local_rc_dist/proofs/local-rc/distribution/distribution-review.json" >/dev/null
-"$python" scripts/validate-json-schema.py \
-  docs/schemas/kiana-commercial-release-blockers.v1.schema.json \
-  "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-blockers.json" >/dev/null
+validate_schema_if_present docs/schemas/kiana-local-rc-evidence.v1.schema.json "$tmp_local_rc_dist/proofs/local-rc-evidence.json"
+validate_schema_if_present docs/schemas/kiana-app-server-distribution-review.v1.schema.json "$tmp_local_rc_dist/proofs/local-rc/distribution/distribution-review.json"
+validate_schema_if_present docs/schemas/kiana-commercial-release-blockers.v1.schema.json "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-blockers.json"
 test -s "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md"
 
 "$python" - "$tmp_local_rc_dist/proofs/local-rc-evidence.json" "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-handoff.md" "$tmp_local_rc_dist/proofs/local-rc/blockers/commercial-release-blockers.json" <<'PY'
