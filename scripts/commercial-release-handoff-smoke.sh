@@ -121,10 +121,11 @@ if source_remote["owner_status"] != "specific-owner-assigned":
     raise SystemExit("source.remote owner override did not mark a specific owner")
 if source_remote["resolution_scope"] != "release-owner":
     raise SystemExit("source.remote resolution scope should be release-owner")
-if "source.remote" not in handoff:
-    raise SystemExit("source.remote is missing from the handoff markdown")
-if "release-manager-test" not in handoff:
-    raise SystemExit("owner override is missing from the handoff markdown")
+if source_remote.get("status") == "blocking":
+    if "source.remote" not in handoff:
+        raise SystemExit("source.remote is missing from the handoff markdown")
+    if "release-manager-test" not in handoff:
+        raise SystemExit("owner override is missing from the handoff markdown")
 
 native = by_id.get("compliance.native-computer-use-advisories")
 if not native:

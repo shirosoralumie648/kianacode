@@ -18,10 +18,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          toolchain_version=$(rustc --version | awk '{print $2}')
-          cargo_lock_hash=$(sha256sum Cargo.lock | awk '{print $1}')
-          source_hash=$(git rev-parse HEAD)
-          python3 - <<PY
+          export TOOLCHAIN_VERSION=$(rustc --version | awk '{print $2}')
+          export CARGO_LOCK_HASH=$(sha256sum Cargo.lock | awk '{print $1}')
+          export SOURCE_HASH=$(git rev-parse HEAD)
+          python3 - <<'PY'
 import json, os, datetime
 record = {
     "schema": "kiana.build-inputs.v1",
@@ -35,9 +35,5 @@ record = {
 open("dist/build-inputs.json", "w").write(json.dumps(record, indent=2, sort_keys=True) + "\n")
 print(f"build-inputs recorded: toolchain={record['toolchain_version']} source={record['source_hash'][:8]}")
 PY
-        env:
-          TOOLCHAIN_VERSION: ${{ env.toolchain_version }}
-          CARGO_LOCK_HASH: ${{ env.cargo_lock_hash }}
-          SOURCE_HASH: ${{ env.source_hash }}
       - run: bash scripts/release-preflight.sh --local-rc
       - run: bash scripts/release-smoke.sh

@@ -104,7 +104,12 @@ Kiana 1.0 沿着“证据治理 -> 契约、状态、策略与运行时 -> 可�
   2. 用户和管理员可以查看并导出 local/external blockers、平台、签名、SBOM、license 与 acceptance readiness，敏感信息保持脱敏。
   3. 缺少目标环境或用户证据的能力会保持阻塞状态，不能被标记为 complete、production-ready 或 1.0。
 
-**Plans**: TBD
+**Plans**:
+
+- [x] `02-01-PLAN.md` — Wave 1 toolchain file, build-inputs schema, CI `@master` (reconstructed 2026-08-22 from `c0bd383` / `02-01-SUMMARY.md`)
+- [x] `02-02-PLAN.md` — Waves 2-3 CI build-inputs, dual-audience blockers, SBOM user export, license summary (reconstructed 2026-08-22 from `0eaaa9e`+`05cc81a` / `02-02-SUMMARY.md`)
+
+Verification: `02-VERIFICATION.md` separates local_behavior from CI/signing evidence. The Phase 2 checkbox stays unchecked until `human_verify_mode: end-of-phase`.
 
 ### Phase 3: 契约与 Schema 基线
 
@@ -460,7 +465,7 @@ Phases 1-9 establish shared gates. Phases 10-15 may run as parallel pack workstr
 | Phase | Plans Complete | Status | Completed | Milestone | Features |
 |-------|----------------|--------|-----------|-----------|----------|
 | 1. 现状基线与证据治理 | 14/14 | Complete | 2026-07-26 | M0 前置 | [01](features/01-FEATURES.md) |
-| 2. 可复现工具链与依赖收敛 | 2/2 | Complete | 2026-07-27 | M0 前置 | [02](features/02-FEATURES.md) |
+| 2. 可复现工具链与依赖收敛 | 2/2 | Implementation landed; verification open | - | M0 前置 | [02](features/02-FEATURES.md) |
 | 3. 契约与 Schema 基线 | 尚未规划 | Not started | - | M0 | [03](features/03-FEATURES.md) |
 | 4. 状态权威与投影恢复 | 尚未规划 | Not started | - | M0 | [04](features/04-FEATURES.md) |
 | 5. 策略、信任、凭据与本地数据边界 | 尚未规划 | Not started | - | M0 | [05](features/05-FEATURES.md) |

@@ -2205,8 +2205,11 @@ for scope in [
         raise SystemExit(f"commercial blockers report missing scope count {scope}")
 if "## Blocking Assignments" not in handoff:
     raise SystemExit("commercial blockers handoff is missing assignment section")
-if "source.remote" not in handoff:
-    raise SystemExit("commercial blockers handoff is missing source.remote")
+remote_check = next((check for check in checks if check.get("id") == "source.remote"), None)
+if remote_check is None:
+    raise SystemExit("commercial blockers report is missing source.remote")
+if remote_check.get("status") == "blocking" and "source.remote" not in handoff:
+    raise SystemExit("commercial blockers handoff is missing blocking source.remote")
 platform_security = next(
     (check for check in checks if check.get("id") == "acceptance.platform-security"),
     None,

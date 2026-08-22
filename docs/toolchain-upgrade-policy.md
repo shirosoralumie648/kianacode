@@ -42,4 +42,4 @@ Do not remove components without updating the CI lint gates.
 
 ## CI Workflow Note
 
-Both `.github/workflows/release-smoke.yml` and `.github/workflows/release.yml` use `dtolnay/rust-toolchain@master`. The `@master` variant reads `rust-toolchain.toml` automatically. Do **not** revert to `@stable` — it silently ignores the toolchain file.
+`.github/workflows/release-smoke.yml`, `.github/workflows/release.yml`, and `.github/workflows/release-tui.yml` use `dtolnay/rust-toolchain@master`. The `@master` variant reads `rust-toolchain.toml` automatically. Do **not** revert to `@stable` — it silently ignores the toolchain file.

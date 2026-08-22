@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
-current_phase_name: 契约与 Schema 基线
-status: executing
-stopped_at: Phase 02 complete; ready for Phase 3 planning
-last_updated: "2026-07-27T06:18:26.000Z"
-last_activity: 2026-07-27
-last_activity_desc: Phase 02 complete (toolchain + build-inputs + blocker report extensions), transitioned to Phase 3
+current_phase: 2
+current_phase_name: 可复现工具链与依赖收敛
+status: verifying
+stopped_at: Phase 02 plan-summary parity reconstructed; local verification recorded; awaiting human_verify_mode end-of-phase
+last_updated: "2026-08-22T10:56:30.000Z"
+last_activity: 2026-08-22
+last_activity_desc: Reconstructed 02-01/02-02 PLANs, corrected STATE/ROADMAP overclaim, fixed CI build-inputs env wiring, recorded local Phase 2 verification
 progress:
   total_phases: 24
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 8
+  completed_phases: 1
+  total_plans: 16
+  completed_plans: 16
+  percent: 4
 ---
 
 # Project State
@@ -24,55 +24,38 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-14)
 
 **Core value:** Kiana 必须在覆盖 Claude Code 公开核心能力的基础上，更可靠地完成真实长任务，并用可验证证据和可恢复状态证明任务确实完成。
-**Current focus:** Phase 01 — baseline-evidence-governance
+**Current focus:** Phase 02 — reproducible-toolchain-dependency-convergence (verification / human gate)
 
 ## Current Position
 
 Phase: 2 — 可复现工具链与依赖收敛
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-26 — Phase 01 complete, transitioned to Phase 2
+Plan: 02-01 and 02-02 summaries complete; PLANs reconstructed 2026-08-22
+Status: Verifying — not complete
+Last activity: 2026-08-22 — reconstructed plan-summary parity; local verification; CI record-build-inputs env fix; `release-tui.yml` toolchain action aligned to `@master`
 
-Progress: [██████████] 100%
+Progress: [█░░░░░░░░░] 4% (1/24 phases closed; Phase 2 implementation landed, verification/human gate open)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 24
-- Average duration: 41 min
-- Total execution time: 410 min
+- Phase 01 plans completed: 14
+- Phase 02 plans completed: 2 (implementation summaries 2026-07-27; PLANs reconstructed 2026-08-22)
+- Do not treat reconstructed PLANs as a new execution cycle.
 
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1. 现状基线与证据治理 | 10 | 410 min | 41 min |
-| 01 | 14 | - | - |
+| Phase | Plans | Status | Notes |
+|-------|-------|--------|-------|
+| 1. 现状基线与证据治理 | 14 | Complete | 2026-07-26; `01-VERIFICATION.md` YAML passed / body still records human_needed |
+| 2. 可复现工具链与依赖收敛 | 2 | Verifying | Implementation commits `c0bd383` / `0eaaa9e` / `05cc81a`; no human closeout |
 
-**Recent Trend:**
+**Plan History (Phase 02):**
 
-- Last 5 plans: 164 min, 64 min, 16 min, 14 min, 18 min
-- Trend: 01-10 比 01-09 增加 4 min
-
-**Plan History:**
-
-| Plan | Duration | Tasks | Files |
-|------|----------|-------|-------|
-| Phase 01 P01 | 22 min | 2 | 4 |
-| Phase 01 P02 | 39 min | 2 | 4 |
-| Phase 01 P03 | 28 min | 3 | 5 |
-
-*Updated after each plan completion*
-| Phase 01 P04 | 35 min | 2 tasks | 6 files |
-| Phase 01 P05 | 10 min | 2 tasks | 5 files |
-| Phase 01 P06 | 2h 44m | 4 tasks | 37 files |
-| Phase 01 P07 | 1h 4m | 2 tasks | 8 files |
-| Phase 01 P08 | 16 min | 2 tasks | 4 files |
-| Phase 01 P09 | 14 min | 1 task | 4 files |
-| Phase 01 P10 | 18 min | 2 tasks | 9 files |
-| Phase 01 P11 | 5d 4h 55m | 3 tasks | 27 files |
-| Phase 01 P12 | 9 min | 1 tasks | 1 files |
+| Plan | Duration | Tasks | Files | Source |
+|------|----------|-------|-------|--------|
+| 02-01 | ~20 min | 3 | 8 | `02-01-SUMMARY.md` / `c0bd383` |
+| 02-02 | ~40 min | 6 | 7 | `02-02-SUMMARY.md` / `0eaaa9e`+`05cc81a` |
 
 ## Accumulated Context
 
@@ -112,6 +95,11 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 01]: Production evidence remains source-only and does not fabricate expiry, failure, target-environment, or user-value observations. — Keeps the evidence ledger honest while preserving every referenced governance record.
 - [Phase 01]: current.json selects six exact canonical heads and a checked-in evaluation_time. — Eliminates newest-file guessing and process-clock expiry drift.
 
+- [Phase 02]: Lost `02-01-PLAN.md`/`02-02-PLAN.md` were reconstructed on 2026-08-22 from landed summaries and commits `c0bd383`/`0eaaa9e`/`05cc81a`; this is a record, not a re-implementation.
+- [Phase 02]: `dist/` artifacts stay generated and gitignored; toolchain.build-inputs, sbom.present, sbom.signed, and license.compliance-summary remain blocking until a real CI/signing/build run.
+- [Phase 02]: D-11 full Sigstore/`release-signature.json` is outside Phase 2 closeout; Wave 3 only added the SBOM signing hook and user-redacted SBOM.
+- [Phase 02]: ROADMAP Phase 2 stays unchecked until `human_verify_mode: end-of-phase`; do not start Phase 3 planning from this state file.
+
 ### Pending Todos
 
 None yet.
@@ -120,6 +108,7 @@ None yet.
 
 - 动态 proprietary baseline、live provider、macOS/WSL、cloud 与 enterprise 目标环境证据必须在对应 phase 实时验证，不能用当前本地材料替代。
 - GitNexus、autogen、continue 和 gstack 含超过 production 16 MiB 单文件读取上限的内容；冻结 hash 已受控生成，但 live `check-drift` 仍会 fail closed，需可信大文件观察合同。
+- Phase 02 仍缺真实 CI 产生的 `dist/build-inputs.json`、SBOM 签名命令和目标环境/用户验收；local_behavior 不能升级为 target_environment 或 1.0。
 
 ## Deferred Items
 
@@ -129,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-26T03:26:33.787Z
-Stopped at: Completed 01-12-PLAN.md; awaiting Phase 01 verification
-Resume file: None
+Last session: 2026-08-22T10:56:30.000Z
+Stopped at: Phase 02 local verification recorded; `human_verify_mode: end-of-phase` is the next boundary. Do not start `$gsd-discuss-phase 3` / `$gsd-plan-phase 3` until that gate is explicit. Keep `wip/unlanded-extensions` and `wip/stash-before-ctrl-r-merge`.
+Resume file: .planning/phases/02-reproducible-toolchain-dependency-convergence/02-VERIFICATION.md
