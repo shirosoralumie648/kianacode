@@ -7,6 +7,7 @@ pub mod diff_view;
 pub mod filter;
 pub mod folding;
 pub mod help;
+pub mod macro_editor;
 pub mod notifications;
 pub mod progress;
 pub mod spinner;
@@ -29,6 +30,7 @@ pub use folding::{
     FoldingManager, GenericFoldDetector, RustFoldDetector,
 };
 pub use help::HelpOverlay;
+pub use macro_editor::{MacroEditor, MacroEditorAction};
 pub use progress::{ProgressBar, ProgressState, ProgressStyle};
 pub use spinner::{Spinner, SpinnerStyle};
 pub use status_bar::{AppMode, HintCategory, HintPriority, KeyHint, StatusBar};

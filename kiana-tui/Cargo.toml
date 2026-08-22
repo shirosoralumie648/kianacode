@@ -31,9 +31,11 @@ uuid = { workspace = true, features = ["v4"] }
 syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
 regex = { workspace = true }
 async-trait = "0.1"
+thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.5"
+tempfile = "3.8"
 
 [[bench]]
 name = "fuzzy_search"

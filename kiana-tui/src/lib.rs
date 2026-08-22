@@ -1,8 +1,14 @@
+pub mod background;
+pub mod cancellation;
 pub mod components;
 pub mod filter;
 pub mod layout;
+pub mod live_update;
+pub mod macro_system;
 pub mod markdown;
 pub mod overlay;
 pub mod performance;
+pub mod queue;
 pub mod search;
+pub mod state_machine;
 pub mod syntax;
