@@ -13,6 +13,26 @@
 - [ ] **v1.0 Personal complete product**
 - [ ] **v1.x Team / enterprise**
 
+## 当前里程碑：v0.4
+
+- [x] **Phase 1: Reviewer ≠ author** — `monitoring/reviewer` 新 session；写 `gate/REVIEW.json`
+- [ ] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
+- [ ] **Later: MCP / skills / provider / readonly tools** — 矩阵签字后再开
+
+### Phase 1: Reviewer ≠ author
+
+**Goal:** Reviewer 与 Builder 不得同一 `session_id`。监控部最小编制出现；门是确定性收据对照，不跑模型。
+**Requirements:** REV-01
+**Success Criteria:**
+
+1. CLI 是 `kiana run --review <author_session_id>`；不能和 `--symposium` / `--packet` / `--continue` / `--cancel` / `--receipt` 混用；带 prompt → `review_prompt_conflict`。
+2. 目录增加 `monitoring/reviewer`；tools 空；sandbox `read-only`；不能 `apply_patch` src。
+3. Reviewer 是新 session；与作者相同 → `review_author_session_denied`；作者必须是 Builder；找不到收据 → `review_author_not_found`。
+4. 编排器读作者收据，写 `gate/REVIEW.json`（`kiana.review-packet.v1`）；不复制 Builder transcript；不调模型。
+5. 证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/9-VERIFICATION.md`。证明级别 `local_behavior`。CLI 是 `kiana run --review`；省略 `--role` 即 reviewer。同核证明在 in-process DaemonHost；跨进程 CLI 靠持久 `session_id` / `run.receipt`。
+
 ## 已完成：v0.3
 
 - [x] **Phase 1: Role catalog + policy** — `planning/pm`、`planning/architect`、`executing/builder`；policy 认 role

@@ -864,3 +864,79 @@ async fn convene_then_spawn_keeps_architect_on_blackboard_not_pm_transcript() {
         "hello\n"
     );
 }
+
+#[tokio::test]
+async fn review_after_builder_uses_new_session_without_model() {
+    let root = temp_project();
+    let model = CapturingModel::from_json(apply_patch_cassette());
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-1");
+    let built = client
+        .run(
+            builder,
+            "create GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+    assert_eq!(built.output["role_id"], "builder");
+    assert_eq!(
+        fs::read_to_string(root.join("GOLDEN_PATH.txt")).unwrap(),
+        "hello\n"
+    );
+    let seen_after_build = model.seen.lock().unwrap().len();
+    assert!(seen_after_build >= 1, "{seen_after_build}");
+
+    let mut reviewer = trusted_write_metadata_in(&root);
+    reviewer.session_id = SessionId::new("reviewer-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = client.review(reviewer, "builder-1", None).await.unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Completed, "{reviewed:?}");
+    assert_eq!(reviewed.output["schema"], "kiana.review-result.v1");
+    assert_eq!(reviewed.output["role_id"], "reviewer");
+    assert_eq!(reviewed.output["department_id"], "monitoring");
+    assert_eq!(reviewed.output["session_id"], "reviewer-1");
+    assert_eq!(reviewed.output["author_session_id"], "builder-1");
+    assert_ne!(reviewed.output["session_id"], built.output["session_id"]);
+    assert_eq!(reviewed.output["verdict"], "pass");
+    assert_eq!(reviewed.output["files_reviewed"][0], "GOLDEN_PATH.txt");
+    let packet = fs::read_to_string(root.join("gate").join("REVIEW.json")).unwrap();
+    assert!(packet.contains("kiana.review-packet.v1"), "{packet}");
+    assert!(packet.contains("\"verdict\": \"pass\""), "{packet}");
+    let seen_after_review = model.seen.lock().unwrap().len();
+    assert_eq!(seen_after_review, seen_after_build);
+}
+
+#[tokio::test]
+async fn review_same_session_as_author_fails_closed() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-1");
+    let built = client
+        .run(
+            builder,
+            "create GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+
+    let mut reviewer = trusted_write_metadata_in(&root);
+    reviewer.session_id = SessionId::new("builder-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = client.review(reviewer, "builder-1", None).await.unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(
+        reviewed.error.as_deref(),
+        Some("review_author_session_denied")
+    );
+}

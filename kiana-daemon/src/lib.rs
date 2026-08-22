@@ -145,6 +145,11 @@ impl DaemonHost {
                     )
                     .await
             }
+            RequestBody::Review(review) => {
+                self.core
+                    .review_author_run(context, review.author_session_id, review.author_run_id)
+                    .await
+            }
         };
         match response {
             Ok(response) => {

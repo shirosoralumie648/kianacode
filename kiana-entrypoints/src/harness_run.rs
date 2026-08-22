@@ -9,7 +9,7 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
     normalize_role_path, ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata,
-    ResponseEnvelope, RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM,
+    ResponseEnvelope, RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -167,9 +167,27 @@ pub async fn symposium_envelope(
         .map_err(anyhow::Error::msg)
 }
 
+pub async fn review_envelope(
+    session_id: impl Into<String>,
+    author_session_id: impl AsRef<str>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    if let Some(role_id) = string_option(options, "role") {
+        let reviewer = RoleSpec::lookup(&role_id).is_some_and(|role| role.role_id == ROLE_REVIEWER);
+        if !reviewer {
+            return Err(anyhow!("review_role_must_be_reviewer"));
+        }
+    }
+    let (client, mut metadata) = local_client(session_id, options)?;
+    metadata.assign_role(&RoleSpec::reviewer());
+    client
+        .review(metadata, author_session_id.as_ref().to_owned(), None)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
 fn load_work_packet(project_root: &str, packet_path: &str) -> Result<WorkPacket> {
-    let relative =
-        normalize_role_path(packet_path).ok_or_else(|| anyhow!("packet_path_denied"))?;
+    let relative = normalize_role_path(packet_path).ok_or_else(|| anyhow!("packet_path_denied"))?;
     let path = Path::new(project_root).join(relative);
     let raw = std::fs::read_to_string(&path).map_err(|_| anyhow!("packet_not_found"))?;
     let packet: WorkPacket = serde_json::from_str(&raw).map_err(|_| anyhow!("packet_invalid"))?;

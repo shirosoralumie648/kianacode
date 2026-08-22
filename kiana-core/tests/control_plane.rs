@@ -4,7 +4,7 @@ use kiana_core::ControlPlane;
 use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
     CapabilityRequest, CapabilityResult, CommandIntent, ExecutionStatus, PendingApproval,
-    PermissionProfile, RequestContext, RequestId, RuntimeEvent, WorkPacket,
+    PermissionProfile, RequestContext, RequestId, RoleSpec, RuntimeEvent, WorkPacket,
     APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
@@ -14,7 +14,10 @@ use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortE
 use kiana_runner::{KianaHarness, ScriptedModel};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
 struct UnavailableRunner;
@@ -194,6 +197,23 @@ impl CoreHarness {
 fn trusted_context() -> RequestContext {
     let mut context = RequestContext::local("session-1", "/repo");
     context.project_trusted = true;
+    context
+}
+
+fn temp_project() -> PathBuf {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("kiana-core-{stamp}"));
+    fs::create_dir_all(&root).unwrap();
+    root
+}
+
+fn trusted_context_in(root: &PathBuf, session: &str) -> RequestContext {
+    let mut context = RequestContext::local(session, root.to_string_lossy());
+    context.project_trusted = true;
+    context.permission_profile = PermissionProfile::Balanced;
     context
 }
 
@@ -719,16 +739,6 @@ async fn cancel_unknown_run_fails_closed() {
     assert_eq!(cancelled.error.as_deref(), Some("session_not_found"));
 }
 
-fn temp_project() -> std::path::PathBuf {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("time")
-        .as_nanos();
-    let root = std::env::temp_dir().join(format!("kiana-core-symposium-{stamp}"));
-    std::fs::create_dir_all(&root).unwrap();
-    root
-}
-
 fn trusted_write_pm(root: &std::path::Path) -> RequestContext {
     let mut context = RequestContext::local("chair-1", root.to_string_lossy());
     context.project_trusted = true;
@@ -881,4 +891,111 @@ async fn symposium_max_rounds_zero_fails_closed() {
         convened.error.as_deref(),
         Some("symposium_max_rounds_invalid")
     );
+}
+
+#[tokio::test]
+async fn review_author_run_uses_a_fresh_reviewer_session() {
+    let root = temp_project();
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "created GOLDEN_PATH.txt"}
+    ])));
+    let builder = trusted_context_in(&root, "builder-1");
+    let built = harness
+        .core
+        .start_run(builder, "create GOLDEN_PATH.txt".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+    assert_eq!(built.output["role_id"], "builder");
+
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.request_id = RequestId::new();
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = harness
+        .core
+        .review_author_run(reviewer, "builder-1".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Completed, "{reviewed:?}");
+    assert_eq!(reviewed.output["schema"], "kiana.review-result.v1");
+    assert_eq!(reviewed.output["role_id"], "reviewer");
+    assert_eq!(reviewed.output["department_id"], "monitoring");
+    assert_eq!(reviewed.output["session_id"], "reviewer-1");
+    assert_eq!(reviewed.output["author_session_id"], "builder-1");
+    assert_ne!(reviewed.output["session_id"], built.output["session_id"]);
+    assert_eq!(reviewed.output["input"], "review");
+    let packet = fs::read_to_string(root.join("gate").join("REVIEW.json")).unwrap();
+    assert!(packet.contains("kiana.review-packet.v1"), "{packet}");
+    assert!(packet.contains("builder-1"), "{packet}");
+    assert!(packet.contains("reviewer-1"), "{packet}");
+}
+
+#[tokio::test]
+async fn review_reuses_of_author_session_fail_closed() {
+    let root = temp_project();
+    let harness = CoreHarness::with_runner(scripted_runner(json!([{"text": "done"}])));
+    let builder = trusted_context_in(&root, "builder-1");
+    let built = harness
+        .core
+        .start_run(builder, "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed);
+
+    let mut reviewer = trusted_context_in(&root, "builder-1");
+    reviewer.request_id = RequestId::new();
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = harness
+        .core
+        .review_author_run(reviewer, "builder-1".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(
+        reviewed.error.as_deref(),
+        Some("review_author_session_denied")
+    );
+    assert!(!root.join("gate").join("REVIEW.json").exists());
+}
+
+#[tokio::test]
+async fn review_builder_chair_fails_closed() {
+    let root = temp_project();
+    let harness = CoreHarness::with_runner(scripted_runner(json!([{"text": "done"}])));
+    let builder = trusted_context_in(&root, "builder-1");
+    let built = harness
+        .core
+        .start_run(builder, "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed);
+
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.request_id = RequestId::new();
+    reviewer.assign_role(&RoleSpec::builder());
+    let reviewed = harness
+        .core
+        .review_author_run(reviewer, "builder-1".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(
+        reviewed.error.as_deref(),
+        Some("review_role_must_be_reviewer")
+    );
+}
+
+#[tokio::test]
+async fn review_unknown_author_fails_closed() {
+    let root = temp_project();
+    let harness = CoreHarness::new();
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = harness
+        .core
+        .review_author_run(reviewer, "missing-author".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(reviewed.error.as_deref(), Some("review_author_not_found"));
 }

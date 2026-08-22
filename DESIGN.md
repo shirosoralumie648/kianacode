@@ -143,16 +143,15 @@ Codex 到 2025-07-11 才有 `codex apply` 远程 patch；cline hub drain/upgrade
 
 ---
 
-## 4. 当前里程碑：v0.3 已本地绿（下一站 v0.4）
+## 4. 当前里程碑：v0.4（Phase 1 已本地绿）
 
-历史 GSD Phase 1–24 计数作废。v0.2 与 v0.3 均已本地绿。下一产品站是 v0.4 Reviewer≠作者，不是五部门。
+历史 GSD Phase 1–24 计数作废。v0.2 与 v0.3 均已本地绿。v0.4 Phase 1 Reviewer≠作者已本地绿。下一站是公开行为矩阵草稿，不是五部门。
 
 | Phase | 目标 | 需求 | 成功标准 |
 |---|---|---|---|
-| 1 Role catalog + policy | 三个 RoleSpec 成为派工单位；policy 认 role | DEPT-01, ORCH-02, ROLE-01..03 | **已本地绿：** 默认 `kiana run` 仍是 Builder；PM 不能写 src；PM 可写 `plan/`；未知 role → `role_unknown` |
-| 2 Independent Builder spawn | packet 是唯一输入；新 session | ORCH-01, ORCH-03 | **已本地绿：** 不复制编排器 transcript；不解冻 TeamCreate/SendMessage |
-| 3 One bounded symposium | PM+Architect 硬顶轮次 | SYMP-01..03 | **已本地绿：** DecisionRecord + 一个 WorkPacket；Builder 默认不列席 |
-| 4 Eval + install | 黄金路径可回归、可安装 | WB-01..03 | **已本地绿：** cassette fixture + 临时 install demo；TUI 保持 park；不是 live / 不是 `release-smoke.sh` |
+| 1 Reviewer ≠ author | 监控部 Reviewer 新 session；确定性门 | REV-01 | **已本地绿：** `kiana run --review`；`gate/REVIEW.json`；不跑模型；不能 `apply_patch` src |
+| 2 Coding pack matrix | 先文档后代码 | CODE-01 | `docs/coding-pack-matrix.md`；每项 owner/测试/证据/许可证/是否本期 |
+| 3+ MCP / skills / provider | 矩阵要才做 | CODE-02..04 | 未打开 |
 
 主文件：`harness_run.rs`、`cli.rs`（`run_main`/`print_main`）、`kiana-daemon/`、`kiana-core/`、`kiana-runner/`、`kiana-services/src/api/provider.rs`、`kiana-eventlog/`。
 
@@ -186,4 +185,4 @@ Codex 到 2025-07-11 才有 `codex apply` 远程 patch；cline hub drain/upgrade
 
 阶梯在本文件，git 证据在 PROCESS.md，**逐期剧本在 PHASES.md**。
 
-**v0.3 已本地绿。执行下一站只打开 v0.4**：Reviewer≠作者（`REV-01`）+ Coding pack 公开行为矩阵草稿。不要同时开工五部门 / 六层 RAG / JointSymposium / 解冻 TeamCreate/SendMessage。
+**v0.4 Phase 1 已本地绿。执行下一站只打开 v0.4 Phase 2**：Coding pack 公开行为矩阵草稿（`docs/coding-pack-matrix.md`）。不要同时开工五部门 / 六层 RAG / JointSymposium / MCP / skills-on-harness / 解冻 TeamCreate/SendMessage。

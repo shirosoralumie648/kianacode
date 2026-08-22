@@ -134,8 +134,10 @@ impl RequestContext {
 pub const ROLE_BUILDER: &str = "builder";
 pub const ROLE_PM: &str = "pm";
 pub const ROLE_ARCHITECT: &str = "architect";
+pub const ROLE_REVIEWER: &str = "reviewer";
 pub const DEPARTMENT_EXECUTING: &str = "executing";
 pub const DEPARTMENT_PLANNING: &str = "planning";
+pub const DEPARTMENT_MONITORING: &str = "monitoring";
 pub const ROLE_SANDBOX_READ_ONLY: &str = "read-only";
 pub const ROLE_SANDBOX_WORKSPACE_WRITE: &str = "workspace-write";
 pub const PLANNING_PATH_CHARTER: &str = "charter";
@@ -150,6 +152,10 @@ pub const SYMPOSIUM_STATUS_CLOSED: &str = "closed";
 pub const SYMPOSIUM_STATUS_SKIPPED: &str = "skipped";
 pub const DECISION_RECORD_PATH: &str = "plan/DECISION.json";
 pub const WORK_PACKET_PATH: &str = "packet/TASK.json";
+pub const REVIEW_PACKET_SCHEMA: &str = "kiana.review-packet.v1";
+pub const REVIEW_RESULT_SCHEMA: &str = "kiana.review-result.v1";
+pub const REVIEW_PACKET_PATH: &str = "gate/REVIEW.json";
+pub const MONITORING_PATH_GATE: &str = "gate";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RoleSpec {
@@ -220,8 +226,29 @@ impl RoleSpec {
         )
     }
 
-    pub fn catalog() -> [RoleSpec; 3] {
-        [Self::pm(), Self::architect(), Self::builder()]
+    pub fn reviewer() -> Self {
+        Self::new(
+            ROLE_REVIEWER,
+            DEPARTMENT_MONITORING,
+            "You are Kiana's monitoring Reviewer. Compare the author receipt to acceptance. Do not patch source or run shell. You are never the author.",
+            Vec::new(),
+            ROLE_SANDBOX_READ_ONLY,
+            Vec::new(),
+            vec!["department:monitoring".to_owned(), "project:events".to_owned()],
+            false,
+            false,
+            "monitoring",
+            8,
+        )
+    }
+
+    pub fn catalog() -> [RoleSpec; 4] {
+        [
+            Self::pm(),
+            Self::architect(),
+            Self::builder(),
+            Self::reviewer(),
+        ]
     }
 
     pub fn lookup(role_id: &str) -> Option<Self> {
@@ -313,8 +340,16 @@ impl DepartmentSpec {
         }
     }
 
-    pub fn catalog() -> [DepartmentSpec; 2] {
-        [Self::planning(), Self::executing()]
+    pub fn monitoring() -> Self {
+        Self {
+            department_id: DEPARTMENT_MONITORING.to_owned(),
+            roles: vec![ROLE_REVIEWER.to_owned()],
+            can_convene: false,
+        }
+    }
+
+    pub fn catalog() -> [DepartmentSpec; 3] {
+        [Self::planning(), Self::executing(), Self::monitoring()]
     }
 
     pub fn lookup(department_id: &str) -> Option<Self> {
@@ -418,6 +453,67 @@ fn push_packet_list(lines: &mut Vec<String>, label: &str, values: &[String]) {
         return;
     }
     lines.push(format!("{label}: {}", values.join(", ")));
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ReviewPacket {
+    pub schema: String,
+    pub id: String,
+    pub author_session_id: String,
+    pub author_role_id: String,
+    pub reviewer_session_id: String,
+    pub verdict: String,
+    pub summary: String,
+    #[serde(default)]
+    pub files_reviewed: Vec<String>,
+}
+
+impl ReviewPacket {
+    pub fn closed(
+        id: impl Into<String>,
+        author_session_id: impl Into<String>,
+        author_role_id: impl Into<String>,
+        reviewer_session_id: impl Into<String>,
+        verdict: impl Into<String>,
+        summary: impl Into<String>,
+        files_reviewed: Vec<String>,
+    ) -> Self {
+        Self {
+            schema: REVIEW_PACKET_SCHEMA.to_owned(),
+            id: id.into(),
+            author_session_id: author_session_id.into(),
+            author_role_id: author_role_id.into(),
+            reviewer_session_id: reviewer_session_id.into(),
+            verdict: verdict.into(),
+            summary: summary.into(),
+            files_reviewed,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != REVIEW_PACKET_SCHEMA {
+            return Err("review_packet_invalid");
+        }
+        if self.id.trim().is_empty() {
+            return Err("review_id_required");
+        }
+        if self.author_session_id.trim().is_empty() {
+            return Err("review_author_required");
+        }
+        if self.reviewer_session_id.trim().is_empty() {
+            return Err("review_session_required");
+        }
+        if self.author_session_id.trim() == self.reviewer_session_id.trim() {
+            return Err("review_author_session_denied");
+        }
+        if self.author_role_id.trim() != ROLE_BUILDER {
+            return Err("review_author_must_be_builder");
+        }
+        match self.verdict.trim() {
+            "pass" | "fail" | "needs_change" => Ok(()),
+            _ => Err("review_verdict_invalid"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -987,6 +1083,18 @@ mod tests {
         assert_eq!(RoleSpec::lookup("pm").unwrap().role_id, ROLE_PM);
         assert_eq!(RoleSpec::lookup("").unwrap().role_id, ROLE_BUILDER);
         assert!(RoleSpec::lookup("ceo").is_none());
+
+        let monitoring = DepartmentSpec::monitoring();
+        assert_eq!(monitoring.department_id, DEPARTMENT_MONITORING);
+        assert_eq!(monitoring.roles, [ROLE_REVIEWER]);
+        assert!(!monitoring.can_convene);
+        let reviewer = RoleSpec::reviewer();
+        assert_eq!(reviewer.department_id, DEPARTMENT_MONITORING);
+        assert!(reviewer.tools.is_empty());
+        assert!(!reviewer.workspace_write_allowed());
+        assert!(!reviewer.allows_tool("apply_patch"));
+        assert!(!reviewer.allows_path("GOLDEN_PATH.txt"));
+        assert_eq!(RoleSpec::lookup("reviewer").unwrap().role_id, ROLE_REVIEWER);
         assert_eq!(
             DepartmentSpec::lookup("planning").unwrap().department_id,
             DEPARTMENT_PLANNING
@@ -1090,5 +1198,33 @@ mod tests {
             RuntimeEvent::new(RequestId::new(), 0, "invalid", Value::Null).unwrap_err(),
             DomainError::InvalidEventSequence
         );
+    }
+
+    #[test]
+    fn review_packet_rejects_author_session() {
+        let packet = ReviewPacket::closed(
+            "rv-1",
+            "builder-1",
+            ROLE_BUILDER,
+            "builder-1",
+            "pass",
+            "same session",
+            vec!["GOLDEN_PATH.txt".to_owned()],
+        );
+        assert_eq!(packet.validate(), Err("review_author_session_denied"));
+    }
+
+    #[test]
+    fn review_packet_requires_builder_author() {
+        let packet = ReviewPacket::closed(
+            "rv-1",
+            "builder-1",
+            ROLE_PM,
+            "reviewer-1",
+            "pass",
+            "pm authored",
+            Vec::new(),
+        );
+        assert_eq!(packet.validate(), Err("review_author_must_be_builder"));
     }
 }

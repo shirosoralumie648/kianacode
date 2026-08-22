@@ -626,7 +626,10 @@ fn symposium_anti_meeting_writes_decision_and_packet() {
     assert_eq!(response["output"]["schema"], "kiana.symposium-result.v1");
     assert_eq!(response["output"]["builder_present"], false);
     assert_eq!(response["output"]["skipped_meeting"], true);
-    assert_eq!(response["output"]["decision"]["schema"], "kiana.decision-record.v1");
+    assert_eq!(
+        response["output"]["decision"]["schema"],
+        "kiana.decision-record.v1"
+    );
     assert_eq!(response["output"]["packet"]["assignee_role"], "builder");
     let decision = fs::read_to_string(fixture.join("plan").join("DECISION.json")).unwrap();
     let packet = fs::read_to_string(fixture.join("packet").join("TASK.json")).unwrap();
@@ -730,3 +733,161 @@ fn symposium_with_packet_fails_closed() {
     );
 }
 
+#[test]
+fn review_after_builder_writes_gate_packet() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let built = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "create GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(built.status.success(), "{}", combined(&built));
+    let built_json: Value = serde_json::from_slice(&built.stdout).unwrap();
+    assert_eq!(built_json["status"], "completed");
+    let author = built_json["output"]["session_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(built_json["output"]["role_id"], "builder");
+
+    let reviewed = kiana_in(&fixture, &home, &["run", "--json", "--review", &author]);
+    assert!(reviewed.status.success(), "{}", combined(&reviewed));
+    let response: Value = serde_json::from_slice(&reviewed.stdout).unwrap();
+    assert_eq!(response["status"], "completed");
+    assert_eq!(response["output"]["schema"], "kiana.review-result.v1");
+    assert_eq!(response["output"]["role_id"], "reviewer");
+    assert_eq!(response["output"]["department_id"], "monitoring");
+    assert_eq!(response["output"]["author_session_id"], author);
+    assert_ne!(response["output"]["session_id"], author);
+    assert_eq!(response["output"]["verdict"], "pass");
+    assert_eq!(response["output"]["files_reviewed"][0], "GOLDEN_PATH.txt");
+    let packet = fs::read_to_string(fixture.join("gate").join("REVIEW.json")).unwrap();
+    assert!(packet.contains("kiana.review-packet.v1"), "{packet}");
+    assert!(packet.contains(&author), "{packet}");
+}
+
+#[test]
+fn review_role_builder_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &[
+            "run",
+            "--json",
+            "--role",
+            "builder",
+            "--review",
+            "00000000-0000-4000-8000-000000000009",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("review_role_must_be_reviewer"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn review_with_prompt_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &[
+            "run",
+            "--json",
+            "--review",
+            "00000000-0000-4000-8000-000000000009",
+            "--",
+            "also a prompt",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("review_prompt_conflict"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn review_without_author_fails_closed() {
+    let output = kiana_in(
+        &unique_dir("cwd"),
+        &isolated_home(),
+        &["run", "--json", "--review"],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("review_author_required"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn review_unknown_author_fails_closed() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_in(
+        &fixture,
+        &home,
+        &[
+            "run",
+            "--json",
+            "--review",
+            "00000000-0000-4000-8000-000000000009",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    assert!(
+        combined(&output).contains("review_author_not_found"),
+        "{}",
+        combined(&output)
+    );
+}
+
+#[test]
+fn planning_reviewer_cannot_apply_patch_source() {
+    let fixture = git_fixture();
+    let home = isolated_home();
+    let script = harness_script(apply_patch_cassette());
+    let trust = kiana_in(&fixture, &home, &["trust", "."]);
+    assert!(trust.status.success(), "trust failed: {}", combined(&trust));
+    let output = kiana_with_script(
+        &fixture,
+        &home,
+        &script,
+        &[
+            "run",
+            "--json",
+            "--role",
+            "reviewer",
+            "--sandbox",
+            "workspace-write",
+            "--",
+            "create a file named GOLDEN_PATH.txt containing hello",
+        ],
+    );
+    assert!(!output.status.success(), "{}", combined(&output));
+    let text = combined(&output);
+    assert!(
+        text.contains("role_tool_denied") || text.contains("role_sandbox_read_only"),
+        "{text}"
+    );
+    assert!(!fixture.join("GOLDEN_PATH.txt").exists());
+}

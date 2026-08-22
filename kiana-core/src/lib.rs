@@ -3,9 +3,11 @@
 use kiana_domain::{
     ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
     CapabilityResult, CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision,
-    PermissionProfile, RequestContext, RequestId, RiskLevel, RoleSpec, RunId, RuntimeEvent,
-    Symposium, SymposiumClaim, WorkPacket, DECISION_RECORD_PATH, PLANNING_PATH_PACKET,
-    PLANNING_PATH_PLAN, ROLE_ARCHITECT, ROLE_PM, SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
+    PermissionProfile, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
+    RuntimeEvent, Symposium, SymposiumClaim, WorkPacket, DECISION_RECORD_PATH,
+    MONITORING_PATH_GATE, PLANNING_PATH_PACKET, PLANNING_PATH_PLAN, REVIEW_PACKET_PATH,
+    REVIEW_RESULT_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+    SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -389,6 +391,203 @@ impl ControlPlane {
         self.start_run(context, packet.as_prompt(), sandbox).await
     }
 
+    pub async fn review_author_run(
+        &self,
+        mut context: RequestContext,
+        author_session_id: String,
+        author_run_id: Option<RunId>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let mut sequence = 1u64;
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "request.accepted",
+            json!({ "command": "run.review" }),
+        )
+        .await?;
+
+        let author_session_id = author_session_id.trim().to_owned();
+        if author_session_id.is_empty() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "review_author_required" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "review_author_required"));
+        }
+
+        let Some(reviewer) = RoleSpec::lookup(&context.role_id) else {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "role_unknown" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "role_unknown"));
+        };
+        if reviewer.role_id != ROLE_REVIEWER {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "review_role_must_be_reviewer" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "review_role_must_be_reviewer",
+            ));
+        }
+        context.assign_role(&RoleSpec::reviewer());
+
+        if context.session_id.as_str() == author_session_id {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({
+                    "reason": "review_author_session_denied",
+                    "author_session_id": author_session_id,
+                    "reviewer_session_id": context.session_id,
+                }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "review_author_session_denied",
+            ));
+        }
+        if self.session_known(context.session_id.as_str()) {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "review_session_not_fresh" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "review_session_not_fresh",
+            ));
+        }
+
+        let events = self
+            .events_for_author(&author_session_id, author_run_id)
+            .await?;
+        if events.is_empty() || !events.iter().any(|event| event.kind == "run.completed") {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "review_author_not_found" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "review_author_not_found"));
+        }
+
+        let author_role = events
+            .iter()
+            .rev()
+            .find_map(|event| event.data.get("role_id").and_then(Value::as_str))
+            .unwrap_or_default()
+            .to_owned();
+        if author_role != ROLE_BUILDER {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({
+                    "reason": "review_author_must_be_builder",
+                    "author_role_id": author_role,
+                }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "review_author_must_be_builder",
+            ));
+        }
+
+        let files = files_changed_from_events(&events);
+        let verdict = if files.is_empty() {
+            "needs_change"
+        } else {
+            "pass"
+        };
+        let summary = if files.is_empty() {
+            "author produced no files_changed"
+        } else {
+            "author files reviewed against builder receipt"
+        };
+        let packet = ReviewPacket::closed(
+            format!("rv-{}", context.session_id),
+            author_session_id.clone(),
+            ROLE_BUILDER,
+            context.session_id.to_string(),
+            verdict,
+            summary,
+            files.clone(),
+        );
+        if let Err(reason) = packet.validate() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+        if let Err(reason) = write_review_artifact(&context.project_root, &packet) {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+
+        let run_id = RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new);
+        self.remember_session(context.session_id.as_str(), run_id);
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "review.closed",
+            json!({
+                "author_session_id": author_session_id,
+                "reviewer_session_id": context.session_id,
+                "verdict": verdict,
+                "builder_present": false,
+            }),
+        )
+        .await?;
+
+        Ok(CoreResponse::completed(
+            request_id,
+            json!({
+                "schema": REVIEW_RESULT_SCHEMA,
+                "harness": HARNESS_ID,
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "role_id": ROLE_REVIEWER,
+                "department_id": reviewer.department_id,
+                "author_session_id": author_session_id,
+                "author_role_id": ROLE_BUILDER,
+                "input": "review",
+                "verdict": verdict,
+                "files_reviewed": files,
+                "review_path": REVIEW_PACKET_PATH,
+                "packet": packet,
+            }),
+        ))
+    }
+
     pub async fn convene_symposium(
         &self,
         mut context: RequestContext,
@@ -621,6 +820,8 @@ impl ControlPlane {
             json!({
                 "command": "run.start",
                 "run_id": run_id,
+                "session_id": context.session_id,
+                "role_id": context.role_id,
                 "harness": HARNESS_ID,
             }),
         )
@@ -668,6 +869,8 @@ impl ControlPlane {
             "run.authorized",
             json!({
                 "run_id": run_id,
+                "session_id": context.session_id,
+                "role_id": context.role_id,
                 "harness": HARNESS_ID,
                 "sandbox": sandbox,
                 "capability_mode": "brokered",
@@ -1028,6 +1231,8 @@ impl ControlPlane {
         let receipt = self
             .run_receipt_from_store(context, run_id, sandbox, output)
             .await?;
+        self.record_event(request_id, sequence, "run.receipt", receipt.clone())
+            .await?;
         Ok(CoreResponse::completed(request_id, receipt))
     }
 
@@ -1105,6 +1310,20 @@ impl ControlPlane {
         match self.events.read_all().await {
             Ok(all) => Ok(filter_run_events(&all, run_id, context.session_id.as_str())),
             Err(_) => Ok(self.events.read_request(&context.request_id).await?),
+        }
+    }
+
+    async fn events_for_author(
+        &self,
+        author_session_id: &str,
+        author_run_id: Option<RunId>,
+    ) -> Result<Vec<RuntimeEvent>, CoreError> {
+        let run_id = author_run_id
+            .or_else(|| RunId::parse_str(author_session_id))
+            .or_else(|| self.session_run_id(author_session_id));
+        match self.events.read_all().await {
+            Ok(all) => Ok(filter_session_events(&all, run_id, author_session_id)),
+            Err(_) => Ok(Vec::new()),
         }
     }
 
@@ -1256,10 +1475,15 @@ impl ControlPlane {
     }
 
     fn session_known(&self, session_id: &str) -> bool {
+        self.session_run_id(session_id).is_some()
+    }
+
+    fn session_run_id(&self, session_id: &str) -> Option<RunId> {
         self.sessions
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .contains_key(session_id)
+            .get(session_id)
+            .copied()
     }
 
     fn remember_session(&self, session_id: &str, run_id: RunId) {
@@ -1418,6 +1642,30 @@ fn filter_run_events(
         .collect()
 }
 
+fn filter_session_events(
+    events: &[RuntimeEvent],
+    run_id: Option<RunId>,
+    session_id: &str,
+) -> Vec<RuntimeEvent> {
+    if let Some(run_id) = run_id {
+        return filter_run_events(events, run_id, session_id);
+    }
+    let request_ids: HashSet<_> = events
+        .iter()
+        .filter(|event| {
+            let run = event.data.get("run_id").and_then(Value::as_str);
+            let session = event.data.get("session_id").and_then(Value::as_str);
+            run == Some(session_id) || session == Some(session_id)
+        })
+        .map(|event| event.request_id)
+        .collect();
+    events
+        .iter()
+        .filter(|event| request_ids.contains(&event.request_id))
+        .cloned()
+        .collect()
+}
+
 fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> {
     let mut files = Vec::new();
     for event in events {
@@ -1485,6 +1733,20 @@ fn write_planning_artifacts(
         .map_err(|_| "symposium_artifact_write_failed")?;
     std::fs::write(root.join(WORK_PACKET_PATH), packet_json)
         .map_err(|_| "symposium_artifact_write_failed")?;
+    Ok(())
+}
+
+fn write_review_artifact(project_root: &str, packet: &ReviewPacket) -> Result<(), &'static str> {
+    let root = Path::new(project_root);
+    if project_root.trim().is_empty() || !root.is_dir() {
+        return Err("review_artifact_write_failed");
+    }
+    std::fs::create_dir_all(root.join(MONITORING_PATH_GATE))
+        .map_err(|_| "review_artifact_write_failed")?;
+    let packet_json =
+        serde_json::to_string_pretty(packet).map_err(|_| "review_artifact_write_failed")?;
+    std::fs::write(root.join(REVIEW_PACKET_PATH), packet_json)
+        .map_err(|_| "review_artifact_write_failed")?;
     Ok(())
 }
 

@@ -325,7 +325,7 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect] [--symposium [--anti-meeting]] [--packet <path>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
@@ -335,6 +335,7 @@ async fn run_main(args: &[String]) -> Result<()> {
     let mut symposium = false;
     let mut anti_meeting = false;
     let mut packet_path: Option<String> = None;
+    let mut review_id: Option<String> = None;
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
     let mut receipt_id: Option<String> = None;
@@ -378,6 +379,17 @@ async fn run_main(args: &[String]) -> Result<()> {
             }
             value if value.starts_with("--packet=") => {
                 packet_path = Some(value.trim_start_matches("--packet=").to_owned());
+            }
+            "--review" => {
+                index += 1;
+                review_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("review_author_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--review=") => {
+                review_id = Some(value.trim_start_matches("--review=").to_owned());
             }
             "--continue" => {
                 index += 1;
@@ -426,12 +438,13 @@ async fn run_main(args: &[String]) -> Result<()> {
 
     let exclusive = u8::from(symposium)
         + u8::from(packet_path.is_some())
+        + u8::from(review_id.is_some())
         + u8::from(continue_id.is_some())
         + u8::from(cancel_id.is_some())
         + u8::from(receipt_id.is_some());
     if exclusive > 1 {
         return Err(anyhow!(
-            "use only one of --symposium, --packet, --continue, --cancel, or --receipt"
+            "use only one of --symposium, --packet, --review, --continue, --cancel, or --receipt"
         ));
     }
     if anti_meeting && !symposium {
@@ -456,9 +469,25 @@ async fn run_main(args: &[String]) -> Result<()> {
             return Err(anyhow!("packet_prompt_conflict"));
         }
     }
+    if let Some(id) = review_id.as_deref().map(str::trim) {
+        if id.is_empty() {
+            return Err(anyhow!("review_author_required"));
+        }
+        if !prompt.trim().is_empty() {
+            return Err(anyhow!("review_prompt_conflict"));
+        }
+        if let Some(role_id) = role.as_deref() {
+            let reviewer = kiana_protocol::RoleSpec::lookup(role_id)
+                .is_some_and(|role| role.role_id == kiana_protocol::ROLE_REVIEWER);
+            if !reviewer {
+                return Err(anyhow!("review_role_must_be_reviewer"));
+            }
+        }
+    }
     if cancel_id.is_none()
         && receipt_id.is_none()
         && packet_path.is_none()
+        && review_id.is_none()
         && prompt.trim().is_empty()
     {
         if symposium {
@@ -501,6 +530,9 @@ async fn run_main(args: &[String]) -> Result<()> {
     } else if let Some(packet_path) = packet_path {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::spawn_envelope(session_id, packet_path, &options).await?
+    } else if let Some(author_session_id) = review_id {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        crate::harness_run::review_envelope(session_id, author_session_id, &options).await?
     } else {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::run_envelope(session_id, prompt, &options).await?
@@ -14012,7 +14044,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
-    println!("  kiana run [--json] [--role builder|pm|architect] [--symposium [--anti-meeting]] [--packet <path>] <prompt>  Execute a prompt, symposium, or work packet through the Kiana harness");
+    println!("  kiana run [--json] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] <prompt>  Execute a prompt, symposium, work packet, or review through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");

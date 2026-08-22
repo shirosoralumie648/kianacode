@@ -3,9 +3,9 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus,
-    PermissionProfile, RequestId, RoleSpec, RunId, SessionId, Symposium, WorkPacket,
-    DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM,
-    WORK_PACKET_SCHEMA,
+    PermissionProfile, RequestId, ReviewPacket, RoleSpec, RunId, SessionId, Symposium, WorkPacket,
+    DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, DEPARTMENT_PLANNING, REVIEW_PACKET_SCHEMA,
+    ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -162,6 +162,21 @@ impl RequestEnvelope {
         }
     }
 
+    pub fn review(
+        metadata: RequestMetadata,
+        author_session_id: impl Into<String>,
+        author_run_id: Option<RunId>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Review(ReviewRequest {
+                author_session_id: author_session_id.into(),
+                author_run_id,
+            }),
+        }
+    }
+
     pub fn receipt(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
@@ -182,6 +197,7 @@ pub enum RequestBody {
     Receipt(ReceiptRequest),
     Spawn(SpawnRequest),
     Symposium(SymposiumRequest),
+    Review(ReviewRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -246,6 +262,13 @@ pub struct SymposiumRequest {
     pub max_rounds: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sandbox: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ReviewRequest {
+    pub author_session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_run_id: Option<RunId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -434,6 +457,28 @@ mod tests {
         assert_eq!(encoded["body"]["request"]["anti_meeting"], true);
         assert_eq!(encoded["metadata"]["role_id"], ROLE_PM);
         assert!(encoded["body"]["request"].get("prompt").is_none());
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn review_envelope_round_trips_author_session_without_transcript() {
+        let mut metadata = RequestMetadata::local("reviewer-1", "/repo");
+        metadata.project_trusted = true;
+        metadata.assign_role(&RoleSpec::reviewer());
+        let request = RequestEnvelope::review(metadata, "builder-session", None);
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["type"], "review");
+        assert_eq!(
+            encoded["body"]["request"]["author_session_id"],
+            "builder-session"
+        );
+        assert!(encoded["body"]["request"].get("prompt").is_none());
+        assert!(encoded["body"]["request"].get("transcript").is_none());
+        assert_eq!(encoded["metadata"]["role_id"], ROLE_REVIEWER);
+        assert_eq!(encoded["metadata"]["department_id"], DEPARTMENT_MONITORING);
         assert_eq!(
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             request

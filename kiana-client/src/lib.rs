@@ -125,6 +125,21 @@ where
             ))
             .await
     }
+
+    pub async fn review(
+        &self,
+        metadata: RequestMetadata,
+        author_session_id: impl Into<String> + Send,
+        author_run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::review(
+                metadata,
+                author_session_id,
+                author_run_id,
+            ))
+            .await
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -192,6 +207,19 @@ mod tests {
                 4,
                 Some("workspace-write".to_owned()),
             )
+            .await
+            .unwrap();
+        assert_eq!(response.request_id, request_id);
+        assert_eq!(response.status, ExecutionStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn client_constructs_review_request_without_core_access() {
+        let client = KianaClient::new(EchoTransport);
+        let metadata = RequestMetadata::local("reviewer-1", "/repo");
+        let request_id = metadata.request_id;
+        let response = client
+            .review(metadata, "builder-session", None)
             .await
             .unwrap();
         assert_eq!(response.request_id, request_id);

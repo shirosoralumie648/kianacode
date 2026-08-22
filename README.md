@@ -2,7 +2,7 @@
 
 Local-first agent **company OS**: PMP process groups are departments, roles have independent context/prompts/ACL, departments may hold bounded symposiums, memory is layered RAG.
 
-v0.3（规划部 + 执行部 + 一场有界会 + cassette eval/install demo）已本地绿。v0.2 黄金路径仍必须绿（`kiana run` / print → daemon → `KianaHarness`，默认工人是执行部 Builder）。`kiana tui` **park**：仍走 legacy SDK/stream，不是产品路径。下一站是 v0.4 Reviewer≠作者。
+v0.4 Phase 1（Reviewer≠作者）已本地绿。v0.3 规划部/执行部/有界会 + cassette eval/install 仍必须绿。v0.2 黄金路径仍必须绿（`kiana run` / print → daemon → `KianaHarness`，默认工人是执行部 Builder）。`kiana tui` **park**：仍走 legacy SDK/stream，不是产品路径。下一站是 v0.4 Phase 2 公开行为矩阵草稿。
 
 从 0 到完整产品的方案（按 `reference/` 中 coding agent 的 git 顺序 + 公司编制）在：
 
