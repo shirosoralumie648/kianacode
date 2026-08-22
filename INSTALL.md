@@ -1,5 +1,7 @@
 # Kiana Code 安装指南
 
+发布文档里的 clone URL 指向产品仓库 `https://github.com/kiana-project/kiana`（与 `Cargo.toml` `repository` 字段一致）。当前这个 checkout 的 origin 是 `https://github.com/shirosoralumie648/kianacode`；在本机开发时用实际 origin，不要把 fork URL 写进发布安装脚本。
+
 ## 快速安装
 
 ### 方式 1: 源码安装脚本（推荐）

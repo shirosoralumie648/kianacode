@@ -98,3 +98,15 @@ flamegraph.svg
 # Logs
 *.log
 .worktrees/
+
+# Generated code-intelligence dumps (do not commit)
+graphify-out/
+
+# Local Superpowers/session notes. Canonical plans live in docs/superpowers/.
+.superpowers/
+
+# Optional VS Code extension build artifacts (not a master workspace member)
+extensions/vscode/node_modules/
+extensions/vscode/out/
+*.vsix
+

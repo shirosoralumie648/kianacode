@@ -1,6 +1,22 @@
 # Kiana Code 使用指南
 
-本文只描述当前 Rust workspace 已接上的真实入口。产品边界以 `.planning/PROJECT.md` 为准，当前阶段以 `.planning/ROADMAP.md` 为准，控制平面迁移以 `docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md` 为准。
+本文只描述当前 Rust workspace 已接上的真实入口。产品边界以 `.planning/PROJECT.md` 为准，当前阶段以 `.planning/ROADMAP.md` 为准，控制平面迁移以 `docs/superpowers/specs/2026-07-17-kiana-control-plane-architecture-design.md` 为准。更短的入口见 [QUICKSTART.md](QUICKSTART.md)，文档地图见 [docs/README.md](docs/README.md)。
+
+## 目录
+
+- [启动方式](#启动方式)
+- [配置](#配置)
+- [基础对话](#基础对话)
+- [权限](#权限)
+- [Project Trust](#project-trust)
+- [Session 管理](#session-管理)
+- [WorkflowRun](#workflowrun)
+- [Project Board](#project-board)
+- [Bounded Swarm](#bounded-swarm-预派发)
+- [Evidence Ledger](#evidence-ledger)
+- [Doctor 和 Release](#doctor-和-release)
+- [TUI](#tui)
+- [当前边界](#当前边界)
 
 ## 启动方式
 
@@ -19,10 +35,6 @@ cargo build --release -p kiana-entrypoints --bin kiana
 ```
 
 开发模式：
-
-Inside the TUI, `/history` opens the persisted prompt history picker. History is
-stored under `KIANA_HOME/tui-history.jsonl`, deduped newest-first, searchable, and
-restores the selected prompt as a draft.
 
 ```bash
 cargo run -p kiana-entrypoints --bin kiana -- -p "hello"
@@ -574,7 +586,14 @@ KIANA_REMOTE_ACCESS_TOKEN=<token> bash scripts/remote-live-smoke.sh --required
 kiana tui
 ```
 
-TUI 当前能走本地 slash command、doctor、session resume、record-only reply、compact、fork 等路径。它仍是重构中的骨架，目标是继续向 reference 的完整交互体验靠齐。
+产品 TUI 由 `kiana-entrypoints` 驱动 `kiana-screens`，需要交互式终端：
+
+- 本地 slash command、doctor、session resume、record-only reply、compact、fork
+- `/history` 打开 prompt 历史选择器
+- 历史保存在 `KIANA_HOME/tui-history.jsonl`，去重、最新优先；选中后恢复为输入草稿
+- 历史界面内 `/` 搜索，`Ctrl+R` 打开搜索历史
+
+独立 crate `kiana-tui` 是组件库和实验二进制，不是 `kiana tui` 的默认实现。完整边界见 [docs/tui.md](docs/tui.md)。
 
 ## Reference Repair Agent
 
