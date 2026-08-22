@@ -2553,6 +2553,7 @@ dependencies = [
  "kiana-gates",
  "kiana-policy",
  "kiana-ports",
+ "kiana-runner",
  "kiana-runner-protocol",
  "kiana-workflow",
  "serde_json",
@@ -2577,6 +2578,7 @@ dependencies = [
  "kiana-query",
  "kiana-runner",
  "kiana-runner-protocol",
+ "kiana-services",
  "serde",
  "serde_json",
  "sha2",
@@ -2735,8 +2737,13 @@ dependencies = [
 name = "kiana-runner"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "kiana-domain",
+ "kiana-ports",
  "kiana-runner-protocol",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -2862,14 +2869,6 @@ dependencies = [
  "urlencoding",
  "uuid",
  "walkdir",
-]
-
-[[package]]
-name = "kiana-tui"
-version = "0.1.0"
-dependencies = [
- "crossterm 0.28.1",
- "ratatui 0.29.0",
 ]
 
 [[package]]

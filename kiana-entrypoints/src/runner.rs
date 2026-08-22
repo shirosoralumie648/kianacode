@@ -1,27 +1,11 @@
 use anyhow::{anyhow, Result};
-use futures::StreamExt;
 use kiana_services::api::{
-    errors::{ApiError, ApiErrorKind},
-    messages::{Message, MessagesRequest},
-    provider::{
-        provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
-        OpenAiCompatibleProvider, Provider, ProviderError, ProviderProtocol, ProviderStream,
-        ANTHROPIC_PROVIDER_ID,
-    },
-    streaming::{ContentBlock as StreamContentBlock, Delta, StreamEvent},
+    messages::Message,
+    streaming::{ContentBlock as StreamContentBlock, StreamEvent},
 };
-use kiana_services::compact::{compact_context_report, CompactionConfig, CompactionReport};
 use kiana_tools::{
     create_default_registry,
-    mcp_tool::{MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV},
     task_create::{TaskListTool, TaskUpdateTool},
-    tool::{
-        ACCESS_ROOTS_APP_STATE_KEY, EDITABLE_FILES_APP_STATE_KEY, READ_ONLY_FILES_APP_STATE_KEY,
-    },
-    tool_execution::{
-        execute_tool_calls_with_permission_handler, PermissionPromptHandler, ToolCallRequest,
-        ToolExecutionResult, PERMISSION_PROMPT_TOOL_APP_STATE_KEY, PERMISSION_PROMPT_TOOL_ENV,
-    },
     Tool, ToolContext,
 };
 use kiana_types::{
@@ -32,10 +16,41 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(test)]
+use futures::StreamExt;
+#[cfg(test)]
+use kiana_services::api::{
+    errors::{ApiError, ApiErrorKind},
+    messages::MessagesRequest,
+    provider::{
+        provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
+        OpenAiCompatibleProvider, Provider, ProviderError, ProviderProtocol, ProviderStream,
+        ANTHROPIC_PROVIDER_ID,
+    },
+    streaming::Delta,
+};
+#[cfg(test)]
+use kiana_services::compact::{compact_context_report, CompactionConfig, CompactionReport};
+#[cfg(test)]
+use kiana_tools::{
+    mcp_tool::{MCP_SERVERS_APP_STATE_KEY, MCP_SERVERS_ENV},
+    tool::{
+        ACCESS_ROOTS_APP_STATE_KEY, EDITABLE_FILES_APP_STATE_KEY, READ_ONLY_FILES_APP_STATE_KEY,
+    },
+    tool_execution::{
+        execute_tool_calls_with_permission_handler, PermissionPromptHandler, ToolCallRequest,
+        ToolExecutionResult, PERMISSION_PROMPT_TOOL_APP_STATE_KEY, PERMISSION_PROMPT_TOOL_ENV,
+    },
+};
+#[cfg(test)]
+use std::path::Path;
+
+#[cfg(test)]
 const DEFAULT_MAX_TOKENS: u32 = 4096;
+#[cfg(test)]
 const THINKING_RESPONSE_TOKEN_RESERVE: u64 = 1024;
 
 #[derive(Debug, Clone)]
@@ -159,6 +174,7 @@ pub fn runtime_event_from_assistant_run_result(
     )
 }
 
+#[cfg(test)]
 fn normalized_model_stop_reason(stop_reason: Option<&str>) -> String {
     match stop_reason {
         Some("end_turn") | Some("stop") => "model_stop".to_string(),
@@ -408,6 +424,7 @@ where
     }
 }
 
+#[cfg(test)]
 pub async fn run_assistant_turn(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -415,6 +432,7 @@ pub async fn run_assistant_turn(
     run_assistant_turn_with_permission_handler(messages, options, None).await
 }
 
+#[cfg(test)]
 pub async fn run_assistant_turn_with_permission_handler(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -659,6 +677,7 @@ pub async fn run_assistant_turn_with_permission_handler(
     ))
 }
 
+#[cfg(test)]
 async fn repair_feedback_if_checks_failed(
     cwd: &str,
     repair_attempt: u32,
@@ -693,6 +712,7 @@ async fn repair_feedback_if_checks_failed(
     )))
 }
 
+#[cfg(test)]
 fn format_repair_feedback(report: &Value, repair_attempt: u32, max_repair_attempts: u32) -> String {
     let summary = report.pointer("/checks/summary").unwrap_or(&Value::Null);
     let failed = summary.get("failed").and_then(Value::as_u64).unwrap_or(0);
@@ -777,10 +797,12 @@ fn format_repair_feedback(report: &Value, repair_attempt: u32, max_repair_attemp
     lines.join("\n")
 }
 
+#[cfg(test)]
 fn compact_json(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "null".to_string())
 }
 
+#[cfg(test)]
 fn truncate_for_repair_feedback(value: &str) -> String {
     const MAX_CHARS: usize = 2_000;
     let mut output = String::new();
@@ -794,6 +816,7 @@ fn truncate_for_repair_feedback(value: &str) -> String {
     output
 }
 
+#[cfg(test)]
 pub async fn run_assistant_turn_streaming<F>(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -806,6 +829,7 @@ where
         .await
 }
 
+#[cfg(test)]
 pub async fn run_assistant_turn_streaming_with_permission_handler<F>(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -826,6 +850,7 @@ where
     .await
 }
 
+#[cfg(test)]
 pub async fn run_assistant_turn_streaming_with_permission_handler_and_abort_signal<F>(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -851,6 +876,7 @@ where
     .await
 }
 
+#[cfg(test)]
 pub async fn run_assistant_turn_streaming_with_runner_events_and_abort_signal<F>(
     messages: Vec<Value>,
     options: &HashMap<String, Value>,
@@ -1122,6 +1148,7 @@ where
     ))
 }
 
+#[cfg(test)]
 async fn abortable_runner_result<T, Fut>(
     abort_signal: &mut tokio::sync::watch::Receiver<bool>,
     future: Fut,
@@ -1148,6 +1175,7 @@ where
     }
 }
 
+#[cfg(test)]
 async fn abortable_provider_stream(
     abort_signal: &mut tokio::sync::watch::Receiver<bool>,
     provider: &dyn Provider,
@@ -1162,6 +1190,7 @@ async fn abortable_provider_stream(
     .await
 }
 
+#[cfg(test)]
 async fn abortable_runner_value<T, Fut>(
     abort_signal: &mut tokio::sync::watch::Receiver<bool>,
     future: Fut,
@@ -1188,6 +1217,7 @@ where
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 struct ToolUseBlock {
     id: String,
@@ -1232,6 +1262,7 @@ async fn call_tool(
     }
 }
 
+#[cfg(test)]
 fn normalize_messages(messages: Vec<Value>) -> Result<Vec<Message>> {
     messages
         .into_iter()
@@ -1252,6 +1283,7 @@ fn normalize_messages(messages: Vec<Value>) -> Result<Vec<Message>> {
         .collect()
 }
 
+#[cfg(test)]
 async fn compact_messages_for_request(
     messages: Vec<Message>,
     config: &CompactionConfig,
@@ -1264,6 +1296,7 @@ async fn compact_messages_for_request(
     apply_compaction_report(messages, &report)
 }
 
+#[cfg(test)]
 fn apply_compaction_report(
     messages: Vec<Message>,
     report: &CompactionReport,
@@ -1285,6 +1318,7 @@ fn apply_compaction_report(
     Ok(compacted)
 }
 
+#[cfg(test)]
 fn compaction_summary_message(report: &CompactionReport) -> Result<Message> {
     let summary = report
         .summary
@@ -1299,6 +1333,7 @@ fn compaction_summary_message(report: &CompactionReport) -> Result<Message> {
     })
 }
 
+#[cfg(test)]
 fn render_compaction_message(message: &Message) -> String {
     format!(
         "{}: {}",
@@ -1307,6 +1342,7 @@ fn render_compaction_message(message: &Message) -> String {
     )
 }
 
+#[cfg(test)]
 fn content_text_for_compaction(content: &Value) -> String {
     match content {
         Value::String(text) => text.trim().to_string(),
@@ -1323,6 +1359,7 @@ fn content_text_for_compaction(content: &Value) -> String {
     }
 }
 
+#[cfg(test)]
 fn block_text_for_compaction(block: &Value) -> Option<String> {
     if let Some(text) = block.get("text").and_then(Value::as_str) {
         return Some(text.trim().to_string());
@@ -1336,6 +1373,7 @@ fn block_text_for_compaction(block: &Value) -> Option<String> {
     None
 }
 
+#[cfg(test)]
 fn message_contains_tool_result(message: &Message) -> bool {
     message.content.as_array().is_some_and(|blocks| {
         blocks
@@ -1344,6 +1382,7 @@ fn message_contains_tool_result(message: &Message) -> bool {
     })
 }
 
+#[cfg(test)]
 fn seed_team_app_state_from_env(app_state: &mut HashMap<String, Value>) {
     let agent_id = env_string("KIANA_AGENT_ID").or_else(|| env_string("CLAUDE_CODE_AGENT_ID"));
     let agent_name =
@@ -1460,6 +1499,7 @@ fn seed_team_app_state_from_env(app_state: &mut HashMap<String, Value>) {
     insert_if_absent(app_state, "teamContext", Some(team_context));
 }
 
+#[cfg(test)]
 fn insert_if_absent(app_state: &mut HashMap<String, Value>, key: &str, value: Option<Value>) {
     let Some(value) = value else {
         return;
@@ -1467,6 +1507,7 @@ fn insert_if_absent(app_state: &mut HashMap<String, Value>, key: &str, value: Op
     app_state.entry(key.to_string()).or_insert(value);
 }
 
+#[cfg(test)]
 fn seed_mailbox_options_from_run_options(
     app_state: &mut HashMap<String, Value>,
     options: &HashMap<String, Value>,
@@ -1516,6 +1557,7 @@ fn sanitize_agent_part(value: &str) -> String {
     }
 }
 
+#[cfg(test)]
 fn consume_initial_mailbox_messages(
     app_state: &mut HashMap<String, Value>,
 ) -> Result<Option<String>> {
@@ -1773,6 +1815,7 @@ fn seed_tool_context_cwd(app_state: &mut HashMap<String, Value>, cwd: &str) {
     app_state.insert("cwd".to_string(), json!(cwd));
 }
 
+#[cfg(test)]
 fn seed_project_trust_options(
     app_state: &mut HashMap<String, Value>,
     options: &HashMap<String, Value>,
@@ -1866,6 +1909,7 @@ fn sanitize_team_name(value: &str) -> String {
     }
 }
 
+#[cfg(test)]
 struct TeammateMailboxMessage {
     from: String,
     text: String,
@@ -1873,6 +1917,7 @@ struct TeammateMailboxMessage {
     color: Option<String>,
 }
 
+#[cfg(test)]
 struct ShutdownRequestMailboxMessage {
     from: String,
     request_id: Option<String>,
@@ -1881,6 +1926,7 @@ struct ShutdownRequestMailboxMessage {
     original_text: String,
 }
 
+#[cfg(test)]
 enum PlanApprovalMailboxMessage {
     Request {
         from: String,
@@ -1901,6 +1947,7 @@ enum PlanApprovalMailboxMessage {
     },
 }
 
+#[cfg(test)]
 enum PermissionMailboxMessage {
     Request {
         from: String,
@@ -1925,6 +1972,7 @@ enum PermissionMailboxMessage {
     },
 }
 
+#[cfg(test)]
 enum SandboxPermissionMailboxMessage {
     Request {
         from: String,
@@ -1946,6 +1994,7 @@ enum SandboxPermissionMailboxMessage {
     },
 }
 
+#[cfg(test)]
 enum StateUpdateMailboxMessage {
     TeamPermissionUpdate {
         from: String,
@@ -1963,6 +2012,7 @@ enum StateUpdateMailboxMessage {
     },
 }
 
+#[cfg(test)]
 fn take_first_unread_shutdown_request(
     messages: &mut [Value],
     changed: &mut bool,
@@ -1998,6 +2048,7 @@ fn take_first_unread_shutdown_request(
     None
 }
 
+#[cfg(test)]
 fn parse_shutdown_request(
     text: &str,
     fallback_from: &str,
@@ -2034,6 +2085,7 @@ fn parse_shutdown_request(
     })
 }
 
+#[cfg(test)]
 fn take_first_unread_permission_message(
     messages: &mut [Value],
     changed: &mut bool,
@@ -2069,6 +2121,7 @@ fn take_first_unread_permission_message(
     None
 }
 
+#[cfg(test)]
 fn parse_permission_message(text: &str, fallback_from: &str) -> Option<PermissionMailboxMessage> {
     let value = serde_json::from_str::<Value>(text).ok()?;
     let message_type = value.get("type").and_then(Value::as_str)?;
@@ -2148,6 +2201,7 @@ fn parse_permission_message(text: &str, fallback_from: &str) -> Option<Permissio
     }
 }
 
+#[cfg(test)]
 fn remove_request_from_state_map(
     app_state: &mut HashMap<String, Value>,
     key: &str,
@@ -2161,6 +2215,7 @@ fn remove_request_from_state_map(
     }
 }
 
+#[cfg(test)]
 fn record_permission_message(
     app_state: &mut HashMap<String, Value>,
     message: &PermissionMailboxMessage,
@@ -2259,6 +2314,7 @@ fn record_permission_message(
     }
 }
 
+#[cfg(test)]
 fn format_permission_context(message: &PermissionMailboxMessage) -> String {
     match message {
         PermissionMailboxMessage::Request {
@@ -2349,6 +2405,7 @@ fn format_permission_context(message: &PermissionMailboxMessage) -> String {
     }
 }
 
+#[cfg(test)]
 fn take_first_unread_sandbox_permission_message(
     messages: &mut [Value],
     changed: &mut bool,
@@ -2384,6 +2441,7 @@ fn take_first_unread_sandbox_permission_message(
     None
 }
 
+#[cfg(test)]
 fn parse_sandbox_permission_message(
     text: &str,
     fallback_from: &str,
@@ -2465,6 +2523,7 @@ fn parse_sandbox_permission_message(
     }
 }
 
+#[cfg(test)]
 fn record_sandbox_permission_message(
     app_state: &mut HashMap<String, Value>,
     message: &SandboxPermissionMailboxMessage,
@@ -2540,6 +2599,7 @@ fn record_sandbox_permission_message(
     }
 }
 
+#[cfg(test)]
 fn format_sandbox_permission_context(message: &SandboxPermissionMailboxMessage) -> String {
     match message {
         SandboxPermissionMailboxMessage::Request {
@@ -2602,6 +2662,7 @@ fn format_sandbox_permission_context(message: &SandboxPermissionMailboxMessage) 
     }
 }
 
+#[cfg(test)]
 fn take_first_unread_plan_approval_message(
     messages: &mut [Value],
     changed: &mut bool,
@@ -2637,6 +2698,7 @@ fn take_first_unread_plan_approval_message(
     None
 }
 
+#[cfg(test)]
 fn parse_plan_approval_message(
     text: &str,
     fallback_from: &str,
@@ -2705,6 +2767,7 @@ fn parse_plan_approval_message(
     }
 }
 
+#[cfg(test)]
 fn is_current_team_lead(
     app_state: &HashMap<String, Value>,
     mailbox_path: &std::path::Path,
@@ -2718,6 +2781,7 @@ fn is_current_team_lead(
             .is_some_and(|name| name.eq_ignore_ascii_case("team-lead"))
 }
 
+#[cfg(test)]
 fn current_permission_mode_for_plan_approval(app_state: &HashMap<String, Value>) -> String {
     let mode = app_state
         .get("permission_mode")
@@ -2744,6 +2808,7 @@ fn current_permission_mode_for_plan_approval(app_state: &HashMap<String, Value>)
     }
 }
 
+#[cfg(test)]
 fn append_mailbox_entry(path: &std::path::Path, entry: Value) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -2762,6 +2827,7 @@ fn append_mailbox_entry(path: &std::path::Path, entry: Value) -> Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
 fn auto_approve_plan_approval_request(
     app_state: &HashMap<String, Value>,
     mailbox_path: &std::path::Path,
@@ -2832,6 +2898,7 @@ fn auto_approve_plan_approval_request(
     Ok(Some(context))
 }
 
+#[cfg(test)]
 fn format_shutdown_request_context(request: &ShutdownRequestMailboxMessage) -> String {
     let request_id = request
         .request_id
@@ -2853,6 +2920,7 @@ fn format_shutdown_request_context(request: &ShutdownRequestMailboxMessage) -> S
     context
 }
 
+#[cfg(test)]
 fn format_plan_approval_context(message: &PlanApprovalMailboxMessage) -> String {
     match message {
         PlanApprovalMailboxMessage::Request {
@@ -2922,6 +2990,7 @@ fn format_plan_approval_context(message: &PlanApprovalMailboxMessage) -> String 
     }
 }
 
+#[cfg(test)]
 fn record_plan_approval_message(
     app_state: &mut HashMap<String, Value>,
     message: &PlanApprovalMailboxMessage,
@@ -2942,6 +3011,7 @@ fn record_plan_approval_message(
     apply_permission_mode(app_state, mode);
 }
 
+#[cfg(test)]
 fn apply_unread_state_update_messages(
     messages: &mut [Value],
     app_state: &mut HashMap<String, Value>,
@@ -2980,6 +3050,7 @@ fn apply_unread_state_update_messages(
     updates
 }
 
+#[cfg(test)]
 fn parse_state_update_message(
     text: &str,
     fallback_from: &str,
@@ -3049,6 +3120,7 @@ fn parse_state_update_message(
     }
 }
 
+#[cfg(test)]
 fn permission_rule_string(rule: &Value) -> Option<String> {
     if let Some(rule) = rule.as_str().map(str::trim).filter(|rule| !rule.is_empty()) {
         return Some(rule.to_string());
@@ -3072,6 +3144,7 @@ fn permission_rule_string(rule: &Value) -> Option<String> {
     })
 }
 
+#[cfg(test)]
 fn apply_state_update_message(
     app_state: &mut HashMap<String, Value>,
     update: &StateUpdateMailboxMessage,
@@ -3090,6 +3163,7 @@ fn apply_state_update_message(
     }
 }
 
+#[cfg(test)]
 fn apply_permission_mode(app_state: &mut HashMap<String, Value>, mode: &str) {
     let Some(mode) = normalize_permission_mode(mode) else {
         return;
@@ -3106,6 +3180,7 @@ fn apply_permission_mode(app_state: &mut HashMap<String, Value>, mode: &str) {
     app_state.insert("permissions".to_string(), Value::Object(permissions));
 }
 
+#[cfg(test)]
 fn permission_mode_option(options: &HashMap<String, Value>) -> Result<Option<String>> {
     let Some(mode) = string_option(options, "permission_mode")
         .or_else(|| string_option(options, "permissionMode"))
@@ -3117,6 +3192,7 @@ fn permission_mode_option(options: &HashMap<String, Value>) -> Result<Option<Str
         .ok_or_else(|| anyhow!("invalid permission_mode '{mode}'"))
 }
 
+#[cfg(test)]
 fn apply_permission_rule_options(
     app_state: &mut HashMap<String, Value>,
     options: &HashMap<String, Value>,
@@ -3133,6 +3209,7 @@ fn apply_permission_rule_options(
     }
 }
 
+#[cfg(test)]
 fn permission_rule_option(
     options: &HashMap<String, Value>,
     snake_key: &str,
@@ -3145,6 +3222,7 @@ fn permission_rule_option(
         .unwrap_or_default()
 }
 
+#[cfg(test)]
 fn permission_rule_values(value: &Value) -> Vec<String> {
     let mut rules = Vec::new();
     match value {
@@ -3166,6 +3244,7 @@ fn permission_rule_values(value: &Value) -> Vec<String> {
     rules
 }
 
+#[cfg(test)]
 fn extend_permission_rule_tokens(target: &mut Vec<String>, value: &str) {
     for token in value
         .split(|ch: char| ch == ',' || ch.is_ascii_whitespace())
@@ -3181,6 +3260,7 @@ fn extend_permission_rule_tokens(target: &mut Vec<String>, value: &str) {
     }
 }
 
+#[cfg(test)]
 fn apply_permission_rules(
     app_state: &mut HashMap<String, Value>,
     behavior: &str,
@@ -3204,6 +3284,7 @@ fn apply_permission_rules(
     app_state.insert("permissions".to_string(), Value::Object(permissions));
 }
 
+#[cfg(test)]
 fn append_unique_string_values(
     app_state: &mut HashMap<String, Value>,
     key: &str,
@@ -3218,6 +3299,7 @@ fn append_unique_string_values(
     app_state.insert(key.to_string(), Value::Array(current));
 }
 
+#[cfg(test)]
 fn append_unique_string_values_to_object(
     object: &mut serde_json::Map<String, Value>,
     key: &str,
@@ -3232,6 +3314,7 @@ fn append_unique_string_values_to_object(
     object.insert(key.to_string(), Value::Array(current));
 }
 
+#[cfg(test)]
 fn append_unique_json_strings(current: &mut Vec<Value>, values: &[String]) {
     for value in values {
         if !current
@@ -3244,6 +3327,7 @@ fn append_unique_json_strings(current: &mut Vec<Value>, values: &[String]) {
     }
 }
 
+#[cfg(test)]
 fn normalize_permission_mode(mode: &str) -> Option<String> {
     let mode = mode.trim();
     if mode.is_empty() {
@@ -3266,6 +3350,7 @@ fn normalize_permission_mode(mode: &str) -> Option<String> {
     )
 }
 
+#[cfg(test)]
 fn sync_current_member_mode(app_state: &HashMap<String, Value>, mode: &str) -> Result<()> {
     let Some(team_file_path) = current_team_file_path(app_state) else {
         return Ok(());
@@ -3446,6 +3531,7 @@ fn current_agent_id(app_state: &HashMap<String, Value>) -> Option<String> {
         })
 }
 
+#[cfg(test)]
 fn format_state_update_context(updates: &[StateUpdateMailboxMessage]) -> String {
     let mut context = "# Mailbox State Updates\n\n".to_string();
     for update in updates {
@@ -3498,6 +3584,7 @@ fn format_state_update_context(updates: &[StateUpdateMailboxMessage]) -> String 
     context.trim_end().to_string()
 }
 
+#[cfg(test)]
 fn pretty_json_text(text: &str) -> String {
     serde_json::from_str::<Value>(text)
         .ok()
@@ -3505,6 +3592,7 @@ fn pretty_json_text(text: &str) -> String {
         .unwrap_or_else(|| text.to_string())
 }
 
+#[cfg(test)]
 fn format_teammate_messages(messages: &[TeammateMailboxMessage]) -> String {
     messages
         .iter()
@@ -3525,6 +3613,7 @@ fn format_teammate_messages(messages: &[TeammateMailboxMessage]) -> String {
         .join("\n\n")
 }
 
+#[cfg(test)]
 fn should_skip_initial_mailbox_prompt(
     app_state: &HashMap<String, Value>,
     message: &Value,
@@ -3551,6 +3640,7 @@ fn should_skip_initial_mailbox_prompt(
     is_initial_prompt && from_lead && text.trim() == initial_prompt
 }
 
+#[cfg(test)]
 fn escape_xml_attr(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -3559,6 +3649,7 @@ fn escape_xml_attr(value: &str) -> String {
         .replace('>', "&gt;")
 }
 
+#[cfg(test)]
 fn is_structured_protocol_message(text: &str) -> bool {
     let Ok(value) = serde_json::from_str::<Value>(text) else {
         return false;
@@ -3582,6 +3673,7 @@ fn is_structured_protocol_message(text: &str) -> bool {
     )
 }
 
+#[cfg(test)]
 fn append_mailbox_context_to_messages(messages: &mut Vec<Message>, mailbox_context: String) {
     if let Some(last_user) = messages
         .iter_mut()
@@ -3597,6 +3689,7 @@ fn append_mailbox_context_to_messages(messages: &mut Vec<Message>, mailbox_conte
     });
 }
 
+#[cfg(test)]
 async fn session_start_contexts(
     tool_context: &ToolContext,
     query_source: &str,
@@ -3622,6 +3715,7 @@ async fn session_start_contexts(
     .map_err(|error| anyhow!("SessionStart hook failed: {error}"))
 }
 
+#[cfg(test)]
 async fn user_prompt_submit_hook_result(
     tool_context: &ToolContext,
     query_source: &str,
@@ -3649,6 +3743,7 @@ async fn user_prompt_submit_hook_result(
     .map_err(|error| anyhow!("UserPromptSubmit hook failed: {error}"))
 }
 
+#[cfg(test)]
 fn apply_user_prompt_submit_update(
     messages: &mut [Message],
     result: &kiana_query::UserPromptSubmitHookResult,
@@ -3665,6 +3760,7 @@ fn apply_user_prompt_submit_update(
     }
 }
 
+#[cfg(test)]
 fn append_session_start_contexts_to_system_prompt(
     system_prompt: Option<Value>,
     contexts: Vec<String>,
@@ -3688,6 +3784,7 @@ fn append_session_start_contexts_to_system_prompt(
     }
 }
 
+#[cfg(test)]
 fn append_user_prompt_submit_contexts_to_system_prompt(
     system_prompt: Option<Value>,
     contexts: Vec<String>,
@@ -3711,6 +3808,7 @@ fn append_user_prompt_submit_contexts_to_system_prompt(
     }
 }
 
+#[cfg(test)]
 fn submitted_user_prompt_text(messages: &[Message]) -> String {
     messages
         .iter()
@@ -3720,6 +3818,7 @@ fn submitted_user_prompt_text(messages: &[Message]) -> String {
         .unwrap_or_default()
 }
 
+#[cfg(test)]
 fn append_text_to_message_content(content: &mut Value, text: &str) {
     match content {
         Value::String(existing) => {
@@ -3748,6 +3847,7 @@ fn append_text_to_message_content(content: &mut Value, text: &str) {
     }
 }
 
+#[cfg(test)]
 fn text_from_content(content: &[Value]) -> String {
     content
         .iter()
@@ -3757,6 +3857,7 @@ fn text_from_content(content: &[Value]) -> String {
         .join("")
 }
 
+#[cfg(test)]
 fn tool_uses_from_content(content: &[Value]) -> Vec<ToolUseBlock> {
     content
         .iter()
@@ -3771,11 +3872,13 @@ fn tool_uses_from_content(content: &[Value]) -> Vec<ToolUseBlock> {
         .collect()
 }
 
+#[cfg(test)]
 fn tool_result_event_content(result: &ToolExecutionResult) -> String {
     let content = result.api_result.get("content").unwrap_or(&result.content);
     tool_result_value_text(content)
 }
 
+#[cfg(test)]
 fn tool_result_value_text(value: &Value) -> String {
     if let Some(text) = value.as_str() {
         return text.to_string();
@@ -3793,6 +3896,7 @@ fn tool_result_value_text(value: &Value) -> String {
     serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }
 
+#[cfg(test)]
 async fn collect_streaming_content<F>(
     stream: &mut ProviderStream,
     on_stream_event: &mut F,
@@ -3923,12 +4027,14 @@ where
     Ok(blocks.into_iter().flatten().collect())
 }
 
+#[cfg(test)]
 fn ensure_stream_block_slot(blocks: &mut Vec<Option<Value>>, index: usize) {
     if blocks.len() <= index {
         blocks.resize_with(index + 1, || None);
     }
 }
 
+#[cfg(test)]
 fn stream_block_mut(blocks: &mut [Option<Value>], index: usize) -> Result<&mut Value> {
     blocks
         .get_mut(index)
@@ -3944,6 +4050,7 @@ fn string_option(options: &HashMap<String, Value>, key: &str) -> Option<String> 
         .filter(|value| !value.trim().is_empty())
 }
 
+#[cfg(test)]
 fn first_string_option(options: &HashMap<String, Value>, keys: &[String]) -> Option<String> {
     keys.iter().find_map(|key| {
         string_option(options, key)
@@ -3952,6 +4059,7 @@ fn first_string_option(options: &HashMap<String, Value>, keys: &[String]) -> Opt
     })
 }
 
+#[cfg(test)]
 fn first_env_string(keys: &[String]) -> Option<String> {
     keys.iter().find_map(|key| {
         std::env::var(key)
@@ -3961,6 +4069,7 @@ fn first_env_string(keys: &[String]) -> Option<String> {
     })
 }
 
+#[cfg(test)]
 fn provider_id_option(options: &HashMap<String, Value>) -> String {
     string_option(options, "provider")
         .or_else(|| string_option(options, "provider_id"))
@@ -3971,6 +4080,7 @@ fn provider_id_option(options: &HashMap<String, Value>) -> String {
         .unwrap_or_else(|| ANTHROPIC_PROVIDER_ID.to_string())
 }
 
+#[cfg(test)]
 fn model_option(
     options: &HashMap<String, Value>,
     config: &kiana_bootstrap::config::Config,
@@ -3990,6 +4100,7 @@ fn model_option(
         })
 }
 
+#[cfg(test)]
 fn build_provider(
     provider_id: &str,
     model: &str,
@@ -4060,6 +4171,7 @@ fn build_provider(
     }
 }
 
+#[cfg(test)]
 fn create_assistant_turn_checkpoint_if_requested(
     options: &HashMap<String, Value>,
     cwd: &str,
@@ -4078,6 +4190,7 @@ fn create_assistant_turn_checkpoint_if_requested(
     .ok()
 }
 
+#[cfg(test)]
 fn record_assistant_turn_final_state_if_requested(checkpoint_manifest: Option<&Path>, cwd: &str) {
     let Some(checkpoint_manifest) = checkpoint_manifest else {
         return;
@@ -4092,10 +4205,12 @@ fn result_bool(value: &Value, key: &str) -> bool {
     value.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 
+#[cfg(test)]
 fn app_state_bool(app_state: &HashMap<String, Value>, key: &str) -> bool {
     app_state.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 
+#[cfg(test)]
 fn fallback_model_option(options: &HashMap<String, Value>) -> Option<String> {
     string_option(options, "fallback_model")
         .or_else(|| string_option(options, "fallbackModel"))
@@ -4104,6 +4219,7 @@ fn fallback_model_option(options: &HashMap<String, Value>) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+#[cfg(test)]
 fn permission_prompt_tool_option(options: &HashMap<String, Value>) -> Option<String> {
     string_option(options, "permission_prompt_tool")
         .or_else(|| string_option(options, "permissionPromptTool"))
@@ -4112,6 +4228,7 @@ fn permission_prompt_tool_option(options: &HashMap<String, Value>) -> Option<Str
         .filter(|value| !value.is_empty())
 }
 
+#[cfg(test)]
 fn should_retry_with_fallback(
     error: &anyhow::Error,
     fallback_model: Option<&str>,
@@ -4131,6 +4248,7 @@ fn should_retry_with_fallback(
         .is_some_and(|error| matches!(error, ProviderError::Api(api) if matches!(&api.kind, ApiErrorKind::ServerOverload)))
 }
 
+#[cfg(test)]
 fn structured_output_schema_option(options: &HashMap<String, Value>) -> Result<Option<Value>> {
     let Some(schema) = options
         .get("structured_output_schema")
@@ -4148,6 +4266,7 @@ fn structured_output_schema_option(options: &HashMap<String, Value>) -> Result<O
     Ok(Some(schema.clone()))
 }
 
+#[cfg(test)]
 fn max_iterations_option(options: &HashMap<String, Value>) -> usize {
     options
         .get("max_iterations")
@@ -4164,12 +4283,14 @@ fn max_iterations_option(options: &HashMap<String, Value>) -> usize {
         .unwrap_or(8)
 }
 
+#[cfg(test)]
 fn repair_checks_option(options: &HashMap<String, Value>) -> bool {
     bool_option(options, "repair_checks")
         .or_else(|| bool_option(options, "repairChecks"))
         .unwrap_or(false)
 }
 
+#[cfg(test)]
 fn repair_check_attempts_option(options: &HashMap<String, Value>) -> Result<u32> {
     Ok(first_u32_option(
         options,
@@ -4183,6 +4304,7 @@ fn repair_check_attempts_option(options: &HashMap<String, Value>) -> Result<u32>
     .unwrap_or(1))
 }
 
+#[cfg(test)]
 fn thinking_option(options: &HashMap<String, Value>) -> Result<Option<Value>> {
     let budget = first_nonnegative_u64_option(
         options,
@@ -4204,6 +4326,7 @@ fn thinking_option(options: &HashMap<String, Value>) -> Result<Option<Value>> {
         .map(|budget| json!({ "type": "enabled", "budget_tokens": budget })))
 }
 
+#[cfg(test)]
 fn max_tokens_option(options: &HashMap<String, Value>, thinking: Option<&Value>) -> Result<u32> {
     let configured = first_u32_option(options, &["max_tokens", "maxTokens"])?;
     let configured_from_env = configured.is_none()
@@ -4241,6 +4364,7 @@ fn max_tokens_option(options: &HashMap<String, Value>, thinking: Option<&Value>)
     Ok(max_tokens)
 }
 
+#[cfg(test)]
 fn thinking_budget_tokens(thinking: Option<&Value>) -> Option<u64> {
     thinking?
         .get("budget_tokens")
@@ -4248,6 +4372,7 @@ fn thinking_budget_tokens(thinking: Option<&Value>) -> Option<u64> {
         .filter(|budget| *budget > 0)
 }
 
+#[cfg(test)]
 fn first_present_env(names: &[&str]) -> bool {
     names.iter().any(|name| {
         std::env::var(name)
@@ -4256,6 +4381,7 @@ fn first_present_env(names: &[&str]) -> bool {
     })
 }
 
+#[cfg(test)]
 fn api_timeout_option(
     options: &HashMap<String, Value>,
     config_timeout_ms: Option<u64>,
@@ -4295,6 +4421,7 @@ fn api_timeout_option(
     Ok(Duration::from_secs(600))
 }
 
+#[cfg(test)]
 fn compaction_config_option(options: &HashMap<String, Value>) -> Result<CompactionConfig> {
     let mut config = CompactionConfig::default();
 
@@ -4347,6 +4474,7 @@ fn compaction_config_option(options: &HashMap<String, Value>) -> Result<Compacti
     Ok(config)
 }
 
+#[cfg(test)]
 fn first_u32_option(options: &HashMap<String, Value>, keys: &[&str]) -> Result<Option<u32>> {
     for key in keys {
         if let Some(value) = options.get(*key) {
@@ -4356,6 +4484,7 @@ fn first_u32_option(options: &HashMap<String, Value>, keys: &[&str]) -> Result<O
     Ok(None)
 }
 
+#[cfg(test)]
 fn first_u64_option(options: &HashMap<String, Value>, keys: &[&str]) -> Result<Option<u64>> {
     for key in keys {
         if let Some(value) = options.get(*key) {
@@ -4365,6 +4494,7 @@ fn first_u64_option(options: &HashMap<String, Value>, keys: &[&str]) -> Result<O
     Ok(None)
 }
 
+#[cfg(test)]
 fn first_nonnegative_u64_option(
     options: &HashMap<String, Value>,
     keys: &[&str],
@@ -4380,6 +4510,7 @@ fn first_nonnegative_u64_option(
     Ok(None)
 }
 
+#[cfg(test)]
 fn first_env_u32(names: &[&str]) -> Result<Option<u32>> {
     for name in names {
         let Ok(value) = std::env::var(name) else {
@@ -4399,6 +4530,7 @@ fn first_env_u32(names: &[&str]) -> Result<Option<u32>> {
     Ok(None)
 }
 
+#[cfg(test)]
 fn first_nonnegative_env_u64(names: &[&str]) -> Result<Option<Option<u64>>> {
     for name in names {
         let Ok(value) = std::env::var(name) else {
@@ -4417,6 +4549,7 @@ fn first_nonnegative_env_u64(names: &[&str]) -> Result<Option<Option<u64>>> {
     Ok(None)
 }
 
+#[cfg(test)]
 fn first_env_u64(names: &[&str]) -> Result<Option<u64>> {
     for name in names {
         let Ok(value) = std::env::var(name) else {
@@ -4436,6 +4569,7 @@ fn first_env_u64(names: &[&str]) -> Result<Option<u64>> {
     Ok(None)
 }
 
+#[cfg(test)]
 fn parse_positive_u32_value(key: &str, value: &Value) -> Result<u32> {
     match value {
         Value::Number(number) => number
@@ -4453,6 +4587,7 @@ fn parse_positive_u32_value(key: &str, value: &Value) -> Result<u32> {
     }
 }
 
+#[cfg(test)]
 fn parse_nonnegative_u64_value(key: &str, value: &Value) -> Result<u64> {
     match value {
         Value::Number(number) => number
@@ -4467,6 +4602,7 @@ fn parse_nonnegative_u64_value(key: &str, value: &Value) -> Result<u64> {
     }
 }
 
+#[cfg(test)]
 fn parse_positive_u64_value(key: &str, value: &Value) -> Result<u64> {
     match value {
         Value::Number(number) => number
@@ -4483,6 +4619,7 @@ fn parse_positive_u64_value(key: &str, value: &Value) -> Result<u64> {
     }
 }
 
+#[cfg(test)]
 fn system_prompt_option(options: &HashMap<String, Value>) -> Option<Value> {
     let base = string_option(options, "system_prompt")
         .or_else(|| string_option(options, "systemPrompt"))
@@ -4503,6 +4640,7 @@ fn system_prompt_option(options: &HashMap<String, Value>) -> Option<Value> {
     }
 }
 
+#[cfg(test)]
 fn tool_filter_option(
     options: &HashMap<String, Value>,
     registry: &kiana_tools::ToolRegistry,
@@ -4542,6 +4680,7 @@ fn tool_filter_option(
     Ok(Some(enabled))
 }
 
+#[cfg(test)]
 fn provider_default_tool_filter(
     enabled_tools: Option<HashSet<String>>,
     options: &HashMap<String, Value>,
@@ -4557,10 +4696,12 @@ fn provider_default_tool_filter(
     enabled_tools
 }
 
+#[cfg(test)]
 fn tools_are_explicitly_configured(options: &HashMap<String, Value>) -> bool {
     tools_option_value(options).is_some() || std::env::var("KIANA_TOOLS").is_ok()
 }
 
+#[cfg(test)]
 fn core_model_tool_filter(available: &HashMap<String, String>) -> HashSet<String> {
     [
         "Read",
@@ -4579,6 +4720,7 @@ fn core_model_tool_filter(available: &HashMap<String, String>) -> HashSet<String
     .collect()
 }
 
+#[cfg(test)]
 fn tools_option_value(options: &HashMap<String, Value>) -> Option<String> {
     let value = options
         .get("tools")
@@ -4598,6 +4740,7 @@ fn tools_option_value(options: &HashMap<String, Value>) -> Option<String> {
     None
 }
 
+#[cfg(test)]
 fn access_roots_option(options: &HashMap<String, Value>) -> Option<Vec<String>> {
     string_list_option(
         options,
@@ -4609,6 +4752,7 @@ fn access_roots_option(options: &HashMap<String, Value>) -> Option<Vec<String>> 
     )
 }
 
+#[cfg(test)]
 fn seed_file_set_options(app_state: &mut HashMap<String, Value>, options: &HashMap<String, Value>) {
     if let Some(files) = string_list_option(options, &["editable_files", "editableFiles"]) {
         app_state.insert(EDITABLE_FILES_APP_STATE_KEY.to_string(), json!(files));
@@ -4626,6 +4770,7 @@ fn seed_file_set_options(app_state: &mut HashMap<String, Value>, options: &HashM
     }
 }
 
+#[cfg(test)]
 fn string_list_option(options: &HashMap<String, Value>, keys: &[&str]) -> Option<Vec<String>> {
     let value = keys.iter().find_map(|key| options.get(*key))?;
     let values = match value {
@@ -4651,6 +4796,7 @@ fn string_list_option(options: &HashMap<String, Value>, keys: &[&str]) -> Option
     }
 }
 
+#[cfg(test)]
 fn mcp_servers_option(options: &HashMap<String, Value>) -> Result<Option<Value>> {
     if let Some(value) = options
         .get(MCP_SERVERS_APP_STATE_KEY)
@@ -4680,6 +4826,7 @@ fn mcp_servers_option(options: &HashMap<String, Value>) -> Result<Option<Value>>
     normalize_mcp_servers_value(value).map(Some)
 }
 
+#[cfg(test)]
 fn sandbox_option(
     options: &HashMap<String, Value>,
     config_sandbox: Option<Value>,
@@ -4697,6 +4844,7 @@ fn sandbox_option(
     Ok(None)
 }
 
+#[cfg(test)]
 fn normalize_sandbox_value(value: Value) -> Result<Value> {
     match value {
         Value::Object(_) => Ok(value),
@@ -4705,6 +4853,7 @@ fn normalize_sandbox_value(value: Value) -> Result<Value> {
     }
 }
 
+#[cfg(test)]
 fn normalize_mcp_config_value(value: Value) -> Result<Value> {
     let Some(object) = value.as_object() else {
         return Err(anyhow!("mcp_config must be a JSON object"));
@@ -4718,6 +4867,7 @@ fn normalize_mcp_config_value(value: Value) -> Result<Value> {
     normalize_mcp_servers_value(value)
 }
 
+#[cfg(test)]
 fn normalize_mcp_servers_value(value: Value) -> Result<Value> {
     match value {
         Value::Object(object) => Ok(Value::Object(object)),
@@ -4727,6 +4877,7 @@ fn normalize_mcp_servers_value(value: Value) -> Result<Value> {
     }
 }
 
+#[cfg(test)]
 fn bool_option(options: &HashMap<String, Value>, key: &str) -> Option<bool> {
     match options.get(key)? {
         Value::Bool(value) => Some(*value),
@@ -4735,12 +4886,14 @@ fn bool_option(options: &HashMap<String, Value>, key: &str) -> Option<bool> {
     }
 }
 
+#[cfg(test)]
 fn env_bool(name: &str) -> Option<bool> {
     std::env::var(name)
         .ok()
         .and_then(|value| parse_bool(&value))
 }
 
+#[cfg(test)]
 fn simple_mode_option(options: &HashMap<String, Value>) -> bool {
     bool_option(options, "bare")
         .or_else(|| bool_option(options, "simple"))
@@ -4751,6 +4904,7 @@ fn simple_mode_option(options: &HashMap<String, Value>) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(test)]
 fn parse_bool(value: &str) -> Option<bool> {
     match value.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Some(true),
@@ -4759,6 +4913,7 @@ fn parse_bool(value: &str) -> Option<bool> {
     }
 }
 
+#[cfg(test)]
 fn filtered_tool_schemas(
     registry: &kiana_tools::ToolRegistry,
     enabled_tools: Option<&HashSet<String>>,

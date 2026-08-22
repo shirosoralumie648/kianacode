@@ -1,10 +1,13 @@
 //! Composition root for Kiana control-plane adapters.
 
+mod apply_patch;
 mod approval_store;
 mod context_query;
+mod harness_capabilities;
+mod harness_sandbox;
+mod model_client;
 
 use approval_store::MemoryApprovalStore;
-use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
 use kiana_domain::{CommandIntent, RequestContext};
@@ -13,8 +16,7 @@ use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{PortError, RunnerPort};
 use kiana_protocol::{RequestBody, RequestEnvelope, ResponseEnvelope, PROTOCOL_SCHEMA};
-use kiana_runner::ProtocolRunner;
-use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
+use kiana_runner::KianaHarness;
 use std::sync::Arc;
 
 pub struct DaemonHost {
@@ -27,15 +29,24 @@ impl DaemonHost {
     }
 
     pub fn local() -> Result<Self, PortError> {
+        Self::with_harness(KianaHarness::new(model_client::from_env()))
+    }
+
+    pub fn with_harness(harness: KianaHarness) -> Result<Self, PortError> {
+        Self::with_runner(Arc::new(harness))
+    }
+
+    pub fn with_runner(runner: Arc<dyn RunnerPort>) -> Result<Self, PortError> {
         let mut capabilities = CapabilityBroker::new();
         context_query::register(&mut capabilities)?;
+        harness_capabilities::register(&mut capabilities)?;
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
             Arc::new(MemoryEventLog::new()),
             Arc::new(capabilities),
             Arc::new(MemoryApprovalStore::new()),
-            Arc::new(RunnerAdapter(ProtocolRunner)),
+            runner,
         );
         Ok(Self::new(Arc::new(core)))
     }
@@ -79,6 +90,7 @@ impl DaemonHost {
                     .decide_approval(&context, decision.approval_id, decision.decision)
                     .await
             }
+            RequestBody::Run(run) => self.core.start_run(context, run.prompt, run.sandbox).await,
         };
         match response {
             Ok(response) => {
@@ -94,14 +106,5 @@ impl DaemonHost {
                 error: Some(error.to_string()),
             },
         }
-    }
-}
-
-struct RunnerAdapter(ProtocolRunner);
-
-#[async_trait]
-impl RunnerPort for RunnerAdapter {
-    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
-        Ok(self.0.send(command).await)
     }
 }

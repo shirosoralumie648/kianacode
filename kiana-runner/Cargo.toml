@@ -13,7 +13,13 @@ publish = false
 
 [dependencies]
 kiana-domain.workspace = true
+kiana-ports.workspace = true
 kiana-runner-protocol.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

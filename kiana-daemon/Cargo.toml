@@ -23,6 +23,7 @@ kiana-protocol.workspace = true
 kiana-query.workspace = true
 kiana-runner.workspace = true
 kiana-runner-protocol.workspace = true
+kiana-services = { path = "../kiana-services", version = "0.1.0" }
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true

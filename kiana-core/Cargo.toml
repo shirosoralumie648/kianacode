@@ -24,5 +24,6 @@ thiserror.workspace = true
 [dev-dependencies]
 kiana-capability-broker.workspace = true
 kiana-eventlog.workspace = true
+kiana-runner.workspace = true
 async-trait.workspace = true
 tokio.workspace = true

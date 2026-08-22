@@ -66,6 +66,21 @@ impl RequestEnvelope {
             }),
         }
     }
+
+    pub fn run(
+        metadata: RequestMetadata,
+        prompt: impl Into<String>,
+        sandbox: Option<String>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Run(RunRequest {
+                prompt: prompt.into(),
+                sandbox,
+            }),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,6 +88,7 @@ impl RequestEnvelope {
 pub enum RequestBody {
     Command(CommandRequest),
     ApprovalDecision(ApprovalDecisionRequest),
+    Run(RunRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -85,6 +101,13 @@ pub struct CommandRequest {
 pub struct ApprovalDecisionRequest {
     pub approval_id: ApprovalId,
     pub decision: ApprovalDecision,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RunRequest {
+    pub prompt: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -151,6 +174,21 @@ mod tests {
         assert_eq!(encoded["body"]["request"]["decision"], "approve");
         assert!(encoded["body"]["request"].get("arguments").is_none());
         assert!(encoded["body"]["request"].get("request_hash").is_none());
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn run_envelope_round_trips_prompt_without_capability_payload() {
+        let mut metadata = RequestMetadata::local("session-1", "/repo");
+        metadata.project_trusted = true;
+        let request = RequestEnvelope::run(metadata, "map the architecture", None);
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["type"], "run");
+        assert_eq!(encoded["body"]["request"]["prompt"], "map the architecture");
+        assert!(encoded["body"]["request"].get("tools").is_none());
         assert_eq!(
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             request

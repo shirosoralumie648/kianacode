@@ -2,8 +2,8 @@
 
 use kiana_domain::{
     ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
-    CommandIntent, CoreResponse, ExecutionStatus, GateDecision, RequestContext, RiskLevel,
-    RuntimeEvent,
+    CapabilityResult, CommandIntent, CoreResponse, ExecutionStatus, GateDecision,
+    PermissionProfile, RequestContext, RiskLevel, RunId, RuntimeEvent,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -14,6 +14,8 @@ use std::path::{Component, Path};
 use std::sync::Arc;
 
 pub const LEGACY_EDGES_REMAINING: usize = 9;
+pub const HARNESS_ID: &str = "kiana-harness";
+pub const RUN_RESULT_SCHEMA: &str = "kiana.run-result.v1";
 const CONTEXT_QUERY_COMMAND: &str = "context.query.v1";
 const CONTEXT_REPO_MAP_OPERATION: &str = "context.repo_map";
 const CONTEXT_INDEX_OPERATION: &str = "context.index.read";
@@ -107,6 +109,10 @@ impl ControlPlane {
             "schema": "kiana.architecture-status.v1",
             "control_plane": "kiana-core",
             "composition_root": "kiana-daemon",
+            "runner": "kiana-runner",
+            "harness": HARNESS_ID,
+            "capability_mode": "brokered",
+            "legacy_prompt_loop": false,
             "legacy_edges_remaining": LEGACY_EDGES_REMAINING,
         });
         self.append_event(request_id, 2, "command.completed", output.clone())
@@ -338,8 +344,311 @@ impl ControlPlane {
         }
     }
 
+    pub async fn start_run(
+        &self,
+        context: RequestContext,
+        prompt: String,
+        sandbox: Option<String>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let run_id = RunId::new();
+        let mut sequence = 1u64;
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "request.accepted",
+            json!({
+                "command": "run.start",
+                "run_id": run_id,
+                "harness": HARNESS_ID,
+            }),
+        )
+        .await?;
+
+        if prompt.trim().is_empty() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "prompt_required" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "prompt_required"));
+        }
+
+        let sandbox = match authorized_harness_sandbox(&context, sandbox.as_deref()) {
+            Ok(sandbox) => sandbox,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "harness": HARNESS_ID,
+                "sandbox": sandbox,
+                "capability_mode": "brokered",
+            }),
+        )
+        .await?;
+
+        let mut pending_events = match self
+            .runner
+            .send(RunnerCommand::start_in(
+                run_id,
+                prompt,
+                context.project_root.clone(),
+                sandbox.to_owned(),
+            ))
+            .await
+        {
+            Ok(events) => events,
+            Err(error) => {
+                let reason = error.to_string();
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.failed",
+                    json!({ "error": &reason }),
+                )
+                .await?;
+                return Ok(CoreResponse {
+                    request_id,
+                    status: ExecutionStatus::Failed,
+                    output: Value::Null,
+                    error: Some(reason),
+                });
+            }
+        };
+
+        let mut output = Value::Null;
+        let mut failed = None;
+        let mut completed = false;
+        while !pending_events.is_empty() {
+            let event = pending_events.remove(0);
+            match event {
+                RunnerEvent::Started { run_id } => {
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.started",
+                        json!({ "run_id": run_id }),
+                    )
+                    .await?;
+                }
+                RunnerEvent::Delta { text, .. } => {
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.delta",
+                        json!({ "text": text }),
+                    )
+                    .await?;
+                }
+                RunnerEvent::CapabilityRequested { run_id, request } => {
+                    match self
+                        .broker_harness_capability(
+                            &context,
+                            request_id,
+                            run_id,
+                            &mut sequence,
+                            request,
+                        )
+                        .await?
+                    {
+                        Ok(events) => pending_events.extend(events),
+                        Err(reason) => {
+                            failed = Some(reason);
+                            break;
+                        }
+                    }
+                }
+                RunnerEvent::Completed {
+                    output: harness_output,
+                    ..
+                } => {
+                    output = harness_output;
+                    completed = true;
+                    self.record_event(request_id, &mut sequence, "run.completed", output.clone())
+                        .await?;
+                }
+                RunnerEvent::Failed { error, .. } => {
+                    failed = Some(error.clone());
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.failed",
+                        json!({ "error": error }),
+                    )
+                    .await?;
+                }
+            }
+            if completed || failed.is_some() {
+                break;
+            }
+        }
+
+        if let Some(error) = failed {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Failed,
+                output,
+                error: Some(error),
+            });
+        }
+        if !completed {
+            let reason = "run_result_missing";
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.failed",
+                json!({ "error": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Failed,
+                output,
+                error: Some(reason.to_owned()),
+            });
+        }
+
+        Ok(CoreResponse::completed(
+            request_id,
+            json!({
+                "schema": RUN_RESULT_SCHEMA,
+                "run_id": run_id,
+                "harness": HARNESS_ID,
+                "sandbox": sandbox,
+                "output": output,
+            }),
+        ))
+    }
+
+    async fn broker_harness_capability(
+        &self,
+        context: &RequestContext,
+        request_id: kiana_domain::RequestId,
+        run_id: RunId,
+        sequence: &mut u64,
+        request: CapabilityRequest,
+    ) -> Result<Result<Vec<RunnerEvent>, String>, CoreError> {
+        self.record_event(
+            request_id,
+            sequence,
+            "run.capability_requested",
+            json!({
+                "request_id": request.request_id,
+                "capability": request.capability,
+                "operation": request.operation,
+                "risk": request.risk,
+                "arguments": request.arguments,
+            }),
+        )
+        .await?;
+
+        let policy = self.policy.evaluate(context, &request);
+        let gate = self.gates.evaluate(&policy);
+        self.record_event(
+            request_id,
+            sequence,
+            "capability.decision",
+            json!({ "policy": &policy, "gate": &gate }),
+        )
+        .await?;
+
+        let result = match gate {
+            GateDecision::Allowed { authorization_id } => {
+                let authorized =
+                    AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
+                match self.capabilities.execute(authorized).await {
+                    Ok(result) => {
+                        self.record_event(
+                            request_id,
+                            sequence,
+                            if result.success {
+                                "capability.completed"
+                            } else {
+                                "capability.failed"
+                            },
+                            result.output.clone(),
+                        )
+                        .await?;
+                        result
+                    }
+                    Err(error) => {
+                        let reason = error.to_string();
+                        self.record_event(
+                            request_id,
+                            sequence,
+                            "capability.failed",
+                            json!({ "error": &reason }),
+                        )
+                        .await?;
+                        CapabilityResult::failure(request.request_id, reason)
+                    }
+                }
+            }
+            GateDecision::AwaitingApproval { reason } | GateDecision::Denied { reason } => {
+                self.record_event(
+                    request_id,
+                    sequence,
+                    "run.capability_blocked",
+                    json!({ "reason": &reason }),
+                )
+                .await?;
+                CapabilityResult::failure(
+                    request.request_id,
+                    format!("capability_blocked:{reason}"),
+                )
+            }
+        };
+
+        match self
+            .runner
+            .send(RunnerCommand::CapabilityResult { run_id, result })
+            .await
+        {
+            Ok(events) => Ok(Ok(events)),
+            Err(error) => {
+                let reason = error.to_string();
+                self.record_event(
+                    request_id,
+                    sequence,
+                    "run.failed",
+                    json!({ "error": &reason }),
+                )
+                .await?;
+                Ok(Err(reason))
+            }
+        }
+    }
+
     pub async fn send_runner(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, CoreError> {
         Ok(self.runner.send(command).await?)
+    }
+
+    async fn record_event(
+        &self,
+        request_id: kiana_domain::RequestId,
+        sequence: &mut u64,
+        kind: &str,
+        data: Value,
+    ) -> Result<(), CoreError> {
+        self.append_event(request_id, *sequence, kind, data).await?;
+        *sequence += 1;
+        Ok(())
     }
 
     async fn append_event(
@@ -353,6 +662,29 @@ impl ControlPlane {
             .append(RuntimeEvent::new(request_id, sequence, kind, data)?)
             .await?;
         Ok(())
+    }
+}
+
+fn authorized_harness_sandbox(
+    context: &RequestContext,
+    requested: Option<&str>,
+) -> Result<&'static str, &'static str> {
+    let requested = requested
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("read-only");
+    match requested {
+        "read-only" => Ok("read-only"),
+        "workspace-write" => {
+            if context.project_trusted
+                && !matches!(context.permission_profile, PermissionProfile::Safe)
+            {
+                Ok("workspace-write")
+            } else {
+                Err("workspace_write_requires_trusted_non_safe_profile")
+            }
+        }
+        _ => Err("sandbox_unsupported"),
     }
 }
 

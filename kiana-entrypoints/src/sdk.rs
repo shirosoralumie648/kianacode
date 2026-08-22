@@ -202,15 +202,13 @@ async fn prompt_with_persistence_at(
     permission_handler: Option<&dyn kiana_tools::tool_execution::PermissionPromptHandler>,
 ) -> Result<SdkResultMessage> {
     if should_execute_model(&options) {
+        let _ = permission_handler;
         let session = build_user_prompt_session(&root, message, &options)?;
         let options = prompt_options_with_session_file_sets(&session, options);
-        let run = crate::runner::run_assistant_turn_with_permission_handler(
-            session.messages.clone(),
-            &options,
-            permission_handler,
-        )
-        .await?;
-        return persist_completed_model_prompt(&root, session, run);
+        let run =
+            execute_owned_harness_turn(&session.session_id, &session.messages, &options, None)
+                .await?;
+        return persist_completed_harness_prompt(&root, session, run);
     }
 
     let session = append_user_prompt(root, message, options)?;
@@ -465,7 +463,7 @@ async fn prompt_streaming_with_persistence_with_local_events_at<F>(
     root: PathBuf,
     message: String,
     options: HashMap<String, Value>,
-    on_stream_event: F,
+    mut on_stream_event: F,
     permission_handler: Option<&dyn kiana_tools::tool_execution::PermissionPromptHandler>,
     abort_signal: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<SdkResultMessage>
@@ -475,27 +473,16 @@ where
     if should_execute_model(&options) {
         let session = build_user_prompt_session(&root, message, &options)?;
         let options = prompt_options_with_session_file_sets(&session, options);
-        let run = if let Some(abort_signal) = abort_signal {
-            crate::runner::run_assistant_turn_streaming_with_runner_events_and_abort_signal(
-                session.messages.clone(),
-                &options,
-                on_stream_event,
-                permission_handler,
-                abort_signal,
-            )
-            .await?
-        } else {
-            let (_abort_tx, abort_signal) = tokio::sync::watch::channel(false);
-            crate::runner::run_assistant_turn_streaming_with_runner_events_and_abort_signal(
-                session.messages.clone(),
-                &options,
-                on_stream_event,
-                permission_handler,
-                abort_signal,
-            )
-            .await?
-        };
-        return persist_completed_model_prompt(&root, session, run);
+        let _ = permission_handler;
+        let run = execute_owned_harness_turn(
+            &session.session_id,
+            &session.messages,
+            &options,
+            abort_signal,
+        )
+        .await?;
+        emit_harness_stream_text(&mut on_stream_event, &run.text)?;
+        return persist_completed_harness_prompt(&root, session, run);
     }
 
     let session = append_user_prompt(root, message, options)?;
@@ -528,26 +515,14 @@ async fn prompt_without_persistence(
     }));
 
     if should_execute_model(&options) {
-        let run = crate::runner::run_assistant_turn_with_permission_handler(
-            messages,
-            &options,
-            permission_handler,
-        )
-        .await?;
-        let mut result = serde_json::json!({
-            "type": "sdk_prompt_completed",
-            "session_id": session_id,
-            "message_count": run.messages.len(),
-            "status": "completed",
-            "execution": "model",
-            "persistence": "disabled",
-            "assistant_text": run.text,
-            "iterations": run.iterations,
-        });
-        if let Some(structured_output) = run.structured_output {
-            result["structured_output"] = structured_output;
-        }
-        return Ok(result);
+        let _ = permission_handler;
+        let run = execute_owned_harness_turn(&session_id, &messages, &options, None).await?;
+        return Ok(sdk_completed_result(
+            &session_id,
+            messages.len() + 1,
+            &run,
+            false,
+        ));
     }
 
     Ok(serde_json::json!({
@@ -563,7 +538,7 @@ async fn prompt_without_persistence(
 async fn prompt_without_persistence_streaming_with_local_events<F>(
     message: String,
     options: HashMap<String, Value>,
-    on_stream_event: F,
+    mut on_stream_event: F,
     permission_handler: Option<&dyn kiana_tools::tool_execution::PermissionPromptHandler>,
     abort_signal: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<SdkResultMessage>
@@ -585,40 +560,16 @@ where
     }));
 
     if should_execute_model(&options) {
-        let run = if let Some(abort_signal) = abort_signal {
-            crate::runner::run_assistant_turn_streaming_with_runner_events_and_abort_signal(
-                messages,
-                &options,
-                on_stream_event,
-                permission_handler,
-                abort_signal,
-            )
-            .await?
-        } else {
-            let (_abort_tx, abort_signal) = tokio::sync::watch::channel(false);
-            crate::runner::run_assistant_turn_streaming_with_runner_events_and_abort_signal(
-                messages,
-                &options,
-                on_stream_event,
-                permission_handler,
-                abort_signal,
-            )
-            .await?
-        };
-        let mut result = serde_json::json!({
-            "type": "sdk_prompt_completed",
-            "session_id": session_id,
-            "message_count": run.messages.len(),
-            "status": "completed",
-            "execution": "model",
-            "persistence": "disabled",
-            "assistant_text": run.text,
-            "iterations": run.iterations,
-        });
-        if let Some(structured_output) = run.structured_output {
-            result["structured_output"] = structured_output;
-        }
-        return Ok(result);
+        let _ = permission_handler;
+        let run =
+            execute_owned_harness_turn(&session_id, &messages, &options, abort_signal).await?;
+        emit_harness_stream_text(&mut on_stream_event, &run.text)?;
+        return Ok(sdk_completed_result(
+            &session_id,
+            messages.len() + 1,
+            &run,
+            false,
+        ));
     }
 
     Ok(serde_json::json!({
@@ -1114,35 +1065,83 @@ fn message_content_as_text(content: &Value) -> Option<String> {
     .filter(|text| !text.is_empty())
 }
 
-fn persist_completed_model_prompt(
+async fn execute_owned_harness_turn(
+    session_id: &str,
+    messages: &[Value],
+    options: &HashMap<String, Value>,
+    abort_signal: Option<tokio::sync::watch::Receiver<bool>>,
+) -> Result<crate::harness_run::HarnessRunResult> {
+    if abort_signal.as_ref().is_some_and(|signal| *signal.borrow()) {
+        return Err(anyhow!(AbortError));
+    }
+    let prompt =
+        crate::harness_run::prompt_from_session_messages(messages, options.get("json_schema"));
+    crate::harness_run::run_owned_harness(session_id, prompt, options).await
+}
+
+fn emit_harness_stream_text<F>(on_stream_event: &mut F, text: &str) -> Result<()>
+where
+    F: FnMut(SdkPromptStreamEvent) -> Result<()>,
+{
+    if text.is_empty() {
+        return Ok(());
+    }
+    on_stream_event(SdkPromptStreamEvent::Model(
+        kiana_services::api::streaming::StreamEvent::ContentBlockDelta {
+            index: 0,
+            delta: kiana_services::api::streaming::Delta::TextDelta {
+                text: text.to_string(),
+            },
+        },
+    ))
+}
+
+fn persist_completed_harness_prompt(
     root: &Path,
     session: PersistedSession,
-    run: crate::runner::AssistantRunResult,
+    run: crate::harness_run::HarnessRunResult,
 ) -> Result<SdkResultMessage> {
-    let crate::runner::AssistantRunResult {
-        text,
-        messages,
-        iterations,
-        stop_reason,
-        structured_output,
-        teammate_shutdown_approved,
-    } = run;
-    let session = replace_session_messages(root, session, runner_messages_to_values(messages))?;
+    let mut messages = session.messages.clone();
+    messages.push(serde_json::json!({
+        "role": "assistant",
+        "content": [{
+            "type": "text",
+            "text": run.text,
+        }],
+        "created_at": now_unix_seconds()
+    }));
+    let session = replace_session_messages(root, session, messages)?;
+    Ok(sdk_completed_result(
+        &session.session_id,
+        session.messages.len(),
+        &run,
+        true,
+    ))
+}
+
+fn sdk_completed_result(
+    session_id: &str,
+    message_count: usize,
+    run: &crate::harness_run::HarnessRunResult,
+    persisted: bool,
+) -> SdkResultMessage {
     let mut result = serde_json::json!({
         "type": "sdk_prompt_completed",
-        "session_id": session.session_id,
-        "message_count": session.messages.len(),
+        "session_id": session_id,
+        "message_count": message_count,
         "status": "completed",
         "execution": "model",
-        "assistant_text": text,
-        "iterations": iterations,
-        "stop_reason": stop_reason,
-        "teammate_shutdown_approved": teammate_shutdown_approved,
+        "harness": crate::harness_run::HARNESS_ID,
+        "assistant_text": run.text,
+        "iterations": run.steps,
+        "stop_reason": "end_turn",
+        "teammate_shutdown_approved": false,
+        "sandbox": run.sandbox,
     });
-    if let Some(structured_output) = structured_output {
-        result["structured_output"] = structured_output;
+    if !persisted {
+        result["persistence"] = serde_json::json!("disabled");
     }
-    Ok(result)
+    result
 }
 
 fn list_sessions_at(root: &Path) -> Result<Vec<SdkSessionInfo>> {
@@ -1583,18 +1582,6 @@ fn parse_bool(value: &str) -> Option<bool> {
     }
 }
 
-fn runner_messages_to_values(messages: Vec<kiana_services::api::messages::Message>) -> Vec<Value> {
-    messages
-        .into_iter()
-        .map(|message| {
-            serde_json::json!({
-                "role": message.role,
-                "content": message.content,
-            })
-        })
-        .collect()
-}
-
 fn message_role(message: &Value) -> Option<&str> {
     message.get("role").and_then(Value::as_str)
 }
@@ -1613,10 +1600,6 @@ fn infer_title(prompt: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{
-        extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router,
-    };
-    use tokio::task::JoinHandle;
 
     fn test_root(name: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!("kiana-sdk-test-{}-{}", name, Uuid::new_v4()));
@@ -2379,11 +2362,7 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_failure_does_not_persist_missing_session_prompt() {
-        let _env = crate::test_support::scoped_env(&[
-            "KIANA_HOOKS_FILE",
-            "KIANA_HOOKS",
-            "KIANA_SESSION_START_HOOKS",
-        ]);
+        let _guard = unavailable_harness_env();
         let root = test_root("execute-failure-new");
 
         let error = prompt_with_persistence_at(
@@ -2396,7 +2375,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(error.contains("Fallback model cannot be the same"));
+        assert!(error.contains("model_unavailable") || error.contains("kiana_harness"));
         assert!(!session_file(&root, "failed-session").unwrap().exists());
         assert!(list_sessions_at(&root).unwrap().is_empty());
 
@@ -2405,11 +2384,7 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_failure_preserves_existing_session_history() {
-        let _env = crate::test_support::scoped_env(&[
-            "KIANA_HOOKS_FILE",
-            "KIANA_HOOKS",
-            "KIANA_SESSION_START_HOOKS",
-        ]);
+        let _guard = unavailable_harness_env();
         let root = test_root("execute-failure-existing");
         let session = create_session_at(
             root.clone(),
@@ -2439,7 +2414,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(error.contains("Fallback model cannot be the same"));
+        assert!(error.contains("model_unavailable") || error.contains("kiana_harness"));
         let persisted = read_session(&root, &session.session_id).unwrap();
         assert_eq!(persisted.messages.len(), 1);
         assert_eq!(
@@ -2452,11 +2427,7 @@ mod tests {
 
     #[tokio::test]
     async fn streaming_model_execution_failure_does_not_persist_missing_session_prompt() {
-        let _env = crate::test_support::scoped_env(&[
-            "KIANA_HOOKS_FILE",
-            "KIANA_HOOKS",
-            "KIANA_SESSION_START_HOOKS",
-        ]);
+        let _guard = unavailable_harness_env();
         let root = test_root("streaming-execute-failure-new");
 
         let error = prompt_streaming_with_persistence_at(
@@ -2471,7 +2442,7 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(error.contains("Fallback model cannot be the same"));
+        assert!(error.contains("model_unavailable") || error.contains("kiana_harness"));
         assert!(!session_file(&root, "failed-streaming-session")
             .unwrap()
             .exists());
@@ -2482,30 +2453,20 @@ mod tests {
 
     #[tokio::test]
     async fn model_execution_success_persists_completed_messages() {
-        let _env = crate::test_support::scoped_env(&[
-            "KIANA_HOOKS_FILE",
-            "KIANA_HOOKS",
-            "KIANA_SESSION_START_HOOKS",
-        ]);
+        let (_env, script_dir) = harness_script_env("model ok");
         let root = test_root("execute-success");
-        let (base_url, server) = start_sdk_mock_messages_server("model ok").await;
 
         let result = prompt_with_persistence_at(
             root.clone(),
             "hello model".to_string(),
-            HashMap::from([
-                ("execute".to_string(), Value::Bool(true)),
-                ("api_key".to_string(), Value::String("test-key".to_string())),
-                ("base_url".to_string(), Value::String(base_url)),
-                ("model".to_string(), Value::String("mock-model".to_string())),
-                ("tools".to_string(), Value::String("".to_string())),
-            ]),
+            HashMap::from([("execute".to_string(), Value::Bool(true))]),
             None,
         )
         .await
         .unwrap();
 
         assert_eq!(result["type"], "sdk_prompt_completed");
+        assert_eq!(result["harness"], "kiana-harness");
         assert_eq!(result["assistant_text"], "model ok");
         let session_id = result["session_id"].as_str().unwrap();
         let persisted = read_session(&root, session_id).unwrap();
@@ -2515,29 +2476,20 @@ mod tests {
         assert_eq!(persisted.messages[1]["role"], "assistant");
         assert_eq!(persisted.messages[1]["content"][0]["text"], "model ok");
 
-        server.abort();
         let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&script_dir);
     }
 
     #[tokio::test]
     async fn model_execution_preserves_stream_json_history_messages() {
-        let _env = crate::test_support::scoped_env(&[
-            "KIANA_HOOKS_FILE",
-            "KIANA_HOOKS",
-            "KIANA_SESSION_START_HOOKS",
-        ]);
+        let (_env, script_dir) = harness_script_env("model ok");
         let root = test_root("execute-stream-json-history");
-        let (base_url, server) = start_sdk_mock_messages_server("model ok").await;
 
         let result = prompt_with_persistence_at(
             root.clone(),
             "follow up".to_string(),
             HashMap::from([
                 ("execute".to_string(), Value::Bool(true)),
-                ("api_key".to_string(), Value::String("test-key".to_string())),
-                ("base_url".to_string(), Value::String(base_url)),
-                ("model".to_string(), Value::String("mock-model".to_string())),
-                ("tools".to_string(), Value::String("".to_string())),
                 (
                     STREAM_JSON_HISTORY_MESSAGES_OPTION.to_string(),
                     serde_json::json!([{
@@ -2567,8 +2519,41 @@ mod tests {
         assert_eq!(persisted.messages[2]["role"], "assistant");
         assert_eq!(persisted.messages[2]["content"][0]["text"], "model ok");
 
-        server.abort();
         let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&script_dir);
+    }
+
+    #[tokio::test]
+    async fn streaming_model_execution_emits_harness_text_delta() {
+        let (_env, script_dir) = harness_script_env("streamed ok");
+        let root = test_root("execute-stream-success");
+        let mut chunks = Vec::new();
+
+        let result = prompt_streaming_with_persistence_at(
+            root.clone(),
+            "stream please".to_string(),
+            HashMap::from([("execute".to_string(), Value::Bool(true))]),
+            |event| {
+                if let kiana_services::api::streaming::StreamEvent::ContentBlockDelta {
+                    delta: kiana_services::api::streaming::Delta::TextDelta { text },
+                    ..
+                } = event
+                {
+                    chunks.push(text);
+                }
+                Ok(())
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["assistant_text"], "streamed ok");
+        assert_eq!(chunks, vec!["streamed ok".to_string()]);
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&script_dir);
     }
 
     #[tokio::test]
@@ -2657,19 +2642,48 @@ mod tests {
     fn failing_execution_options(session_id: &str) -> HashMap<String, Value> {
         HashMap::from([
             ("execute".to_string(), Value::Bool(true)),
-            ("api_key".to_string(), Value::String("test-key".to_string())),
-            ("model".to_string(), Value::String("same-model".to_string())),
-            (
-                "fallback_model".to_string(),
-                Value::String("same-model".to_string()),
-            ),
             (
                 "session_id".to_string(),
                 Value::String(session_id.to_string()),
             ),
             ("create_session_if_missing".to_string(), Value::Bool(true)),
-            ("tools".to_string(), Value::String("".to_string())),
         ])
+    }
+
+    fn unavailable_harness_env() -> crate::test_support::ScopedEnv<'static> {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        std::env::remove_var("KIANA_HARNESS_SCRIPT");
+        std::env::remove_var("KIANA_PROVIDER");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        env
+    }
+
+    fn harness_script_env(text: &str) -> (crate::test_support::ScopedEnv<'static>, PathBuf) {
+        let dir = test_root("harness-script");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("script.json");
+        fs::write(&path, serde_json::json!([{"text": text}]).to_string()).unwrap();
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOOKS_FILE",
+            "KIANA_HOOKS",
+            "KIANA_SESSION_START_HOOKS",
+            "KIANA_HARNESS_SCRIPT",
+        ]);
+        env.set_var("KIANA_HARNESS_SCRIPT", &path);
+        (env, dir)
     }
 
     fn ccr_v2_internal_event(
@@ -2687,45 +2701,5 @@ mod tests {
             created_at: "2026-06-16T00:00:00Z".to_string(),
             agent_id: agent_id.map(str::to_string),
         }
-    }
-
-    async fn start_sdk_mock_messages_server(text: &'static str) -> (String, JoinHandle<()>) {
-        let app = Router::new()
-            .route("/v1/messages", post(handle_sdk_mock_messages_request))
-            .with_state(text.to_string());
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
-        });
-        (format!("http://{}", addr), server)
-    }
-
-    async fn handle_sdk_mock_messages_request(
-        State(text): State<String>,
-        Json(body): Json<Value>,
-    ) -> impl IntoResponse {
-        let model = body
-            .get("model")
-            .and_then(Value::as_str)
-            .unwrap_or("mock-model");
-        (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "id": "msg_sdk_mock",
-                "model": model,
-                "role": "assistant",
-                "content": [{
-                    "type": "text",
-                    "text": text
-                }],
-                "stop_reason": "end_turn",
-                "usage": {
-                    "input_tokens": 1,
-                    "output_tokens": 1
-                }
-            })),
-        )
-            .into_response()
     }
 }

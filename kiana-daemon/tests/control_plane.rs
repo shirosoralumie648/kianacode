@@ -39,6 +39,8 @@ async fn in_process_client_reaches_core_through_daemon() {
     assert_eq!(response.status, ExecutionStatus::Completed);
     assert_eq!(response.output["control_plane"], "kiana-core");
     assert_eq!(response.output["composition_root"], "kiana-daemon");
+    assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(response.output["capability_mode"], "brokered");
 }
 
 #[tokio::test]

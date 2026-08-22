@@ -1,6 +1,7 @@
 pub mod bg;
 pub mod cli;
 pub mod command_dispatch;
+pub mod harness_run;
 pub mod init;
 pub mod mcp;
 pub mod repl;

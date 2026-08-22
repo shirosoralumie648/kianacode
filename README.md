@@ -31,6 +31,7 @@ flowchart TD
 
   CORE --> RP[kiana-runner-protocol]
   RP --> RUNNER[kiana-runner]
+  RUNNER --> HARNESS[Kiana owned harness]
   RUNNER --> RP
 
   UI[kiana-screens / kiana-components] --> ENTRY
@@ -42,6 +43,7 @@ flowchart TD
 - `kiana-core` 独立确定 capability、operation 和 risk，不接受客户端自签权限。
 - `kiana-daemon` 是 concrete adapter、EventLog 和 broker 的组合根。
 - 外部副作用必须经过 ProjectTrust、policy、gate、approval 和可恢复事件合同。
+- 生产 agent harness 是 `kiana-runner::KianaHarness`。循环/inbox 抄 DeepSeek Harness，模型可见工具名抄 Codex `shell` / `apply_patch`；工具执行必须经过 capability broker，而不是 spawn `codex exec`。
 - `reference/**` 只作为审计输入，不参与 workspace 构建，也不能绕过许可证和安全治理。
 
 当前 `kiana architecture status --json` 报告：
@@ -51,6 +53,9 @@ flowchart TD
   "schema": "kiana.architecture-status.v1",
   "control_plane": "kiana-core",
   "composition_root": "kiana-daemon",
+  "runner": "kiana-runner",
+  "harness": "kiana-harness",
+  "capability_mode": "brokered",
   "legacy_edges_remaining": 9
 }
 ```
@@ -151,7 +156,7 @@ Control plane
   kiana-capability-broker / kiana-eventlog
 
 Execution
-  kiana-runner-protocol / kiana-runner / kiana-workflow
+  kiana-runner-protocol / kiana-runner (owned Kiana harness) / kiana-workflow
   kiana-commands / kiana-tasks / kiana-tools / kiana-query
   kiana-services / kiana-skills
 

@@ -18,7 +18,10 @@ const STRICT_ALLOWED: &[(&str, &[&str])] = &[
             "kiana-workflow",
         ],
     ),
-    ("kiana-runner", &["kiana-domain", "kiana-runner-protocol"]),
+    (
+        "kiana-runner",
+        &["kiana-domain", "kiana-ports", "kiana-runner-protocol"],
+    ),
     ("kiana-runner-protocol", &["kiana-domain"]),
     ("kiana-policy", &["kiana-domain"]),
     ("kiana-gates", &["kiana-domain"]),
@@ -40,6 +43,7 @@ const STRICT_ALLOWED: &[(&str, &[&str])] = &[
             "kiana-query",
             "kiana-runner",
             "kiana-runner-protocol",
+            "kiana-services",
         ],
     ),
 ];

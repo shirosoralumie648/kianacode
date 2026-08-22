@@ -73,6 +73,10 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return architecture_main(&args).await;
     }
 
+    if args.first().map(String::as_str) == Some("run") {
+        return run_main(&args).await;
+    }
+
     if is_print_mode_help(&args) {
         print_print_help();
         return Ok(());
@@ -302,6 +306,92 @@ async fn architecture_main(args: &[String]) -> Result<()> {
                 .as_u64()
                 .unwrap_or_default()
         );
+        println!(
+            "Harness: {}",
+            response.output["harness"].as_str().unwrap_or("unknown")
+        );
+        println!(
+            "Capability mode: {}",
+            response.output["capability_mode"]
+                .as_str()
+                .unwrap_or("unknown")
+        );
+    }
+    Ok(())
+}
+
+async fn run_main(args: &[String]) -> Result<()> {
+    if args
+        .iter()
+        .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
+    {
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--] <prompt>");
+        return Ok(());
+    }
+
+    let mut json_output = false;
+    let mut sandbox: Option<String> = None;
+    let mut prompt_parts = Vec::new();
+    let mut index = 1;
+    while index < args.len() {
+        let argument = &args[index];
+        match argument.as_str() {
+            "--json" => json_output = true,
+            "--sandbox" => {
+                index += 1;
+                sandbox = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("run_sandbox_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--sandbox=") => {
+                sandbox = Some(value.trim_start_matches("--sandbox=").to_owned());
+            }
+            "--" => {
+                prompt_parts.extend(args[index + 1..].iter().cloned());
+                break;
+            }
+            value if value.starts_with('-') => {
+                return Err(anyhow!("unknown run option: {value}"));
+            }
+            value => prompt_parts.push(value.to_owned()),
+        }
+        index += 1;
+    }
+
+    let prompt = prompt_parts.join(" ");
+    if prompt.trim().is_empty() {
+        return Err(anyhow!(
+            "usage: kiana run [--json] [--sandbox read-only|workspace-write] [--] <prompt>"
+        ));
+    }
+
+    let mut options = HashMap::new();
+    if let Some(sandbox) = sandbox {
+        options.insert("sandbox".to_string(), Value::String(sandbox));
+    }
+    let response = crate::harness_run::run_envelope("kiana-harness-run", prompt, &options).await?;
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&response)?);
+        if response.status != ControlPlaneStatus::Completed {
+            return Err(anyhow!(
+                "run failed: {}",
+                response.error.as_deref().unwrap_or("unknown")
+            ));
+        }
+        return Ok(());
+    }
+    if response.status != ControlPlaneStatus::Completed {
+        return Err(anyhow!(
+            "run blocked: {}",
+            response.error.as_deref().unwrap_or("unknown")
+        ));
+    }
+    if let Some(text) = response.output["output"]["text"].as_str() {
+        println!("{text}");
+    } else {
+        println!("{}", serde_json::to_string_pretty(&response.output)?);
     }
     Ok(())
 }
@@ -13783,6 +13873,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
+    println!("  kiana run [--json] <prompt>  Execute a prompt through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");

@@ -4,12 +4,13 @@ use kiana_core::ControlPlane;
 use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
     CapabilityRequest, CapabilityResult, CommandIntent, ExecutionStatus, PendingApproval,
-    RequestContext, RequestId, RuntimeEvent, APPROVAL_CHALLENGE_SCHEMA,
+    PermissionProfile, RequestContext, RequestId, RuntimeEvent, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
+use kiana_runner::{KianaHarness, ScriptedModel};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -22,6 +23,30 @@ impl RunnerPort for UnavailableRunner {
     async fn send(&self, _command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
         Err(PortError::Unavailable("runner_unavailable".to_owned()))
     }
+}
+
+struct CountingBroker {
+    calls: Mutex<usize>,
+}
+
+#[async_trait]
+impl CapabilityBrokerPort for CountingBroker {
+    async fn execute(
+        &self,
+        request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        *self.calls.lock().await += 1;
+        Ok(CapabilityResult::success(
+            request.request.request_id,
+            json!({ "stdout": "listed" }),
+        ))
+    }
+}
+
+fn scripted_runner(outputs: Value) -> Arc<KianaHarness> {
+    Arc::new(KianaHarness::new(Arc::new(
+        ScriptedModel::from_json(&outputs).unwrap(),
+    )))
 }
 
 struct SuccessfulBroker;
@@ -132,6 +157,10 @@ struct CoreHarness {
 
 impl CoreHarness {
     fn new() -> Self {
+        Self::with_runner(Arc::new(UnavailableRunner))
+    }
+
+    fn with_runner(runner: Arc<dyn RunnerPort>) -> Self {
         let events = Arc::new(MemoryEventLog::new());
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
@@ -139,7 +168,23 @@ impl CoreHarness {
             events.clone(),
             Arc::new(CapabilityBroker::new()),
             Arc::new(TestApprovalStore::default()),
-            Arc::new(UnavailableRunner),
+            runner,
+        );
+        Self { core, events }
+    }
+
+    fn with_runner_and_broker(
+        runner: Arc<dyn RunnerPort>,
+        broker: Arc<dyn CapabilityBrokerPort>,
+    ) -> Self {
+        let events = Arc::new(MemoryEventLog::new());
+        let core = ControlPlane::new(
+            Arc::new(DefaultPolicyEngine),
+            Arc::new(DefaultGateEngine),
+            events.clone(),
+            broker,
+            Arc::new(TestApprovalStore::default()),
+            runner,
         );
         Self { core, events }
     }
@@ -167,6 +212,8 @@ async fn architecture_command_records_accepted_and_completed_events() {
 
     assert_eq!(response.status, ExecutionStatus::Completed);
     assert_eq!(response.output["control_plane"], "kiana-core");
+    assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(response.output["capability_mode"], "brokered");
     let events = harness.events.read_request(&request_id).await.unwrap();
     assert_eq!(
         events
@@ -405,4 +452,103 @@ async fn completed_side_effect_with_missing_result_event_is_result_unknown() {
         response.error.as_deref(),
         Some("result_event_persistence_failed")
     );
+}
+
+#[tokio::test]
+async fn start_run_brokers_harness_tools() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        scripted_runner(json!([
+            {"text": "running ls", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "architecture mapped"}
+        ])),
+        broker.clone(),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = harness
+        .core
+        .start_run(context, "map the architecture".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    assert_eq!(response.output["schema"], "kiana.run-result.v1");
+    assert_eq!(response.output["harness"], "kiana-harness");
+    assert_eq!(
+        response.output["output"]["schema"],
+        "kiana.harness-result.v1"
+    );
+    assert_eq!(*broker.calls.lock().await, 1);
+    let kinds = harness
+        .events
+        .read_request(&request_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|event| event.kind)
+        .collect::<Vec<_>>();
+    assert!(kinds.contains(&"run.authorized".to_owned()));
+    assert!(kinds.contains(&"run.capability_requested".to_owned()));
+    assert!(kinds.contains(&"capability.completed".to_owned()));
+    assert!(kinds.contains(&"run.completed".to_owned()));
+    assert!(!kinds.iter().any(|kind| kind == "run.capability_observed"));
+}
+
+#[tokio::test]
+async fn untrusted_read_only_run_is_allowed_but_workspace_write_is_blocked() {
+    let harness =
+        CoreHarness::with_runner(scripted_runner(json!([{"text": "architecture mapped"}])));
+    let untrusted = RequestContext::local("session-1", "/repo");
+    let allowed = harness
+        .core
+        .start_run(untrusted, "map the architecture".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(allowed.status, ExecutionStatus::Completed);
+
+    let mut write_context = RequestContext::local("session-2", "/repo");
+    write_context.permission_profile = PermissionProfile::Balanced;
+    let blocked = harness
+        .core
+        .start_run(
+            write_context,
+            "edit the architecture".to_owned(),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(blocked.status, ExecutionStatus::Blocked);
+    assert_eq!(
+        blocked.error.as_deref(),
+        Some("workspace_write_requires_trusted_non_safe_profile")
+    );
+}
+
+#[tokio::test]
+async fn unavailable_harness_fails_without_completed_run() {
+    let harness = CoreHarness::new();
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = harness
+        .core
+        .start_run(context, "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed);
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_unavailable:runner_unavailable")
+    );
+    let kinds = harness
+        .events
+        .read_request(&request_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|event| event.kind)
+        .collect::<Vec<_>>();
+    assert!(kinds.contains(&"run.failed".to_owned()));
+    assert!(!kinds.iter().any(|kind| kind == "run.completed"));
 }

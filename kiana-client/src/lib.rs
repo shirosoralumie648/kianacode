@@ -48,6 +48,17 @@ where
             ))
             .await
     }
+
+    pub async fn run(
+        &self,
+        metadata: RequestMetadata,
+        prompt: impl Into<String> + Send,
+        sandbox: Option<String>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::run(metadata, prompt, sandbox))
+            .await
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -83,6 +94,19 @@ mod tests {
         let request_id = metadata.request_id;
         let response = client
             .command(metadata, "system.architecture", Value::Null)
+            .await
+            .unwrap();
+        assert_eq!(response.request_id, request_id);
+        assert_eq!(response.status, ExecutionStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn client_constructs_run_request_without_core_access() {
+        let client = KianaClient::new(EchoTransport);
+        let metadata = RequestMetadata::local("session-1", "/repo");
+        let request_id = metadata.request_id;
+        let response = client
+            .run(metadata, "map the architecture", None)
             .await
             .unwrap();
         assert_eq!(response.request_id, request_id);
