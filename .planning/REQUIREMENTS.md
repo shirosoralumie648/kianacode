@@ -1,7 +1,7 @@
 # Requirements
 
 v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
-北星是 Company OS（见 `COMPANY.md`）。v0.5 Phase 1（`DEPT-02` 五个部门对象）已本地绿。下一执行集是 **v0.5.2 六层 RAG ACL**（`MEM-01`..`MEM-04`）。JointSymposium 仍冻结。
+北星是 Company OS（见 `COMPANY.md`）。v0.5 Phase 1–2（`DEPT-02` 五个部门对象 + `MEM-01`..`MEM-04` 六层 RAG ACL）已本地绿。下一执行集是 **v0.5 later compact/resume 或部门会**。JointSymposium 仍冻结。
 
 ## v0.3 — Current
 
@@ -39,7 +39,7 @@ v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
 
 - **PATH-01**: `kiana run` 在受信仓库中走 `DaemonHost` → `KianaHarness` 完成一回合
 - **PATH-02**: print / `-p` 同一 spine，输出含 `harness: kiana-harness`
-- **PATH-03**: 模型可见工具是 `shell`、`apply_patch` 与 `mcp`；由 daemon broker，不经 `kiana-tools` 注册表
+- **PATH-03**: 模型可见工具是 `shell`、`apply_patch`、`mcp`、`memory.search` 与 `memory.write`；由 daemon broker，不经 `kiana-tools` 注册表
 - **PATH-04**: 真 provider 或「录制自真 provider」的回放；fake-script 只算路由回归
 
 ### TRUST — Fail-closed
@@ -82,10 +82,10 @@ v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
 - **LONG-04**: 五个部门都有磁盘工件（charter/plan/packet/gate/receipt）
 - **DEPT-02**: Initiating / Planning / Executing / Monitoring / Closing 均为控制面对象，可并行存在 — **已本地绿（catalog + sponsor/closer 路径 ACL）**；不是招满角色，不是 RAG
 - **SYMP-04**: 各部门可开会；跨部门联席必须点名、限时、有议程
-- **MEM-01**: 六层分库：company / department / role / project / user / instance-scratch
-- **MEM-02**: `memory.search`/`write` 带 `role_id` + `department_id`，按 knowledge_grants 过滤
-- **MEM-03**: 检索命中写入收据；无来源不得当已验证结论
-- **MEM-04**: instance scratch 默认不晋升；写入更高层必须显式
+- **MEM-01**: 六层分库：company / department / role / project / user / instance-scratch — **已本地绿（JSONL 分库，不混库）**
+- **MEM-02**: `memory.search`/`write` 带 `role_id` + `department_id`，按 knowledge_grants 过滤 — **已本地绿（daemon broker）**
+- **MEM-03**: 检索命中写入收据；无来源不得当已验证结论 — **已本地绿（`memory_hits` + `verified`）**
+- **MEM-04**: instance scratch 默认不晋升；写入更高层必须显式 — **已本地绿（scratch 不进 project；promote 失败）**
 
 ### v0.6 SURF2 — Extra surfaces
 

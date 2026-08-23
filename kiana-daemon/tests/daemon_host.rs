@@ -1351,6 +1351,224 @@ async fn closing_closer_can_write_lessons_but_not_source() {
     assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
+fn memory_search_cassette(collection: &str, query: &str) -> serde_json::Value {
+    json!([
+        {
+            "text": "searching",
+            "tool_calls": [{
+                "id": "c-mem",
+                "name": "memory.search",
+                "arguments": { "query": query, "collection": collection }
+            }]
+        },
+        { "text": "searched" }
+    ])
+}
+
+fn memory_write_cassette(collection: &str, text: &str, source: &str) -> serde_json::Value {
+    json!([
+        {
+            "text": "writing memory",
+            "tool_calls": [{
+                "id": "c-mem-w",
+                "name": "memory.write",
+                "arguments": {
+                    "collection": collection,
+                    "text": text,
+                    "source": source
+                }
+            }]
+        },
+        { "text": "wrote" }
+    ])
+}
+
+fn seed_memory_record(path: &Path, collection: &str, layer: &str, text: &str, source: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let record = json!({
+        "schema": "kiana.memory-record.v1",
+        "id": "seed-1",
+        "layer": layer,
+        "collection": collection,
+        "text": text,
+        "source": source,
+        "role_id": "builder",
+        "department_id": "executing",
+        "session_id": "seed",
+        "created_at_ms": 1
+    });
+    fs::write(path, format!("{record}\n")).unwrap();
+}
+
+fn project_memory_path(root: &Path) -> PathBuf {
+    root.join(".kiana")
+        .join("memory")
+        .join("project")
+        .join("project.jsonl")
+}
+
+#[tokio::test]
+async fn builder_project_search_hits_land_on_receipt() {
+    let root = temp_project();
+    seed_memory_record(
+        &project_memory_path(&root),
+        "project",
+        "project",
+        "acceptance is GOLDEN_PATH.txt contains hello",
+        "docs/acceptance.md",
+    );
+    let host = scripted_host(memory_search_cassette("project", "acceptance"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "search project memory for acceptance",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["role_id"], "builder");
+    assert_eq!(response.output["department_id"], "executing");
+    let hits = response.output["memory_hits"].as_array().cloned().unwrap();
+    assert_eq!(hits.len(), 1, "{response:?}");
+    assert_eq!(hits[0]["layer"], "project");
+    assert_eq!(hits[0]["collection"], "project");
+    assert_eq!(hits[0]["source"], "docs/acceptance.md");
+    assert_eq!(hits[0]["verified"], true);
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn builder_cannot_search_user_private_memory() {
+    let root = temp_project();
+    let host = scripted_host(memory_search_cassette("user-private", "secret"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "search private user memory",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_knowledge_denied"));
+}
+
+#[tokio::test]
+async fn builder_cannot_search_unreleased_planning_debate() {
+    let root = temp_project();
+    let host = scripted_host(memory_search_cassette(
+        "planning:unreleased-debate",
+        "secret plan",
+    ));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "search unpublished planning debate",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_knowledge_denied"));
+}
+
+#[tokio::test]
+async fn builder_scratch_write_does_not_promote_to_project() {
+    let root = temp_project();
+    let host = scripted_host(memory_write_cassette(
+        "instance-scratch",
+        "secret draft stays scratch",
+        "explicit:test",
+    ));
+    let client = KianaClient::new(InProcessTransport { host });
+    let written = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "remember this draft",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(written.status, ExecutionStatus::Completed, "{written:?}");
+    assert_eq!(written.output["role_id"], "builder");
+    let scratch = root
+        .join(".kiana")
+        .join("memory")
+        .join("instance")
+        .join("session-1.jsonl");
+    assert!(scratch.exists(), "scratch file missing");
+    assert!(!project_memory_path(&root).exists());
+
+    let host = scripted_host(memory_search_cassette("project", "secret draft"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let searched = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "search project memory for the draft",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(searched.status, ExecutionStatus::Completed, "{searched:?}");
+    let hits = searched.output["memory_hits"].as_array().cloned().unwrap();
+    assert!(hits.is_empty(), "{searched:?}");
+}
+
+#[tokio::test]
+async fn builder_cannot_write_project_memory() {
+    let root = temp_project();
+    let host = scripted_host(memory_write_cassette(
+        "project",
+        "should not land",
+        "explicit:test",
+    ));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "write project memory",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_memory_write_denied"));
+    assert!(!project_memory_path(&root).exists());
+}
+
+#[tokio::test]
+async fn unsourced_memory_hit_is_not_verified() {
+    let root = temp_project();
+    seed_memory_record(
+        &project_memory_path(&root),
+        "project",
+        "project",
+        "acceptance without a source",
+        "",
+    );
+    let host = scripted_host(memory_search_cassette("project", "acceptance"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "search unsourced memory",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let hits = response.output["memory_hits"].as_array().cloned().unwrap();
+    assert_eq!(hits.len(), 1, "{response:?}");
+    assert_eq!(hits[0]["verified"], false);
+    assert_eq!(hits[0]["source"], "");
+}
+
 #[tokio::test]
 async fn fake_text_only_provider_fails_closed_with_unsupported_tools() {
     let _provider = EnvGuard::set("KIANA_PROVIDER", "fake");

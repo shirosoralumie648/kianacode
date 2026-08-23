@@ -5,8 +5,8 @@ use kiana_domain::{
     CapabilityResult, CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision,
     PermissionProfile, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
     RuntimeEvent, Symposium, SymposiumClaim, WorkPacket, DECISION_RECORD_PATH,
-    MONITORING_PATH_GATE, PLANNING_PATH_PACKET, PLANNING_PATH_PLAN, REVIEW_PACKET_PATH,
-    REVIEW_RESULT_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+    MEMORY_SEARCH_SCHEMA, MONITORING_PATH_GATE, PLANNING_PATH_PACKET, PLANNING_PATH_PLAN,
+    REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
     SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
@@ -1337,9 +1337,10 @@ impl ControlPlane {
         request_id: kiana_domain::RequestId,
         run_id: RunId,
         sequence: &mut u64,
-        request: CapabilityRequest,
+        mut request: CapabilityRequest,
         cancel_rx: &watch::Receiver<bool>,
     ) -> Result<Result<Vec<RunnerEvent>, String>, CoreError> {
+        stamp_request_identity(&mut request, context);
         self.record_event(
             request_id,
             sequence,
@@ -1613,6 +1614,7 @@ fn receipt_from_events(
             "department_id": worker.department_id,
             "prompt_hash": worker.prompt_hash,
             "files_changed": files_changed_from_events(events),
+            "memory_hits": memory_hits_from_events(events),
             "capabilities": capabilities_from_events(events),
             "output": output,
         }),
@@ -1681,6 +1683,24 @@ fn filter_session_events(
         .collect()
 }
 
+fn stamp_request_identity(request: &mut CapabilityRequest, context: &RequestContext) {
+    let Some(arguments) = request.arguments.as_object_mut() else {
+        return;
+    };
+    arguments
+        .entry("role_id")
+        .or_insert_with(|| json!(context.role_id));
+    arguments
+        .entry("department_id")
+        .or_insert_with(|| json!(context.department_id));
+    arguments
+        .entry("session_id")
+        .or_insert_with(|| json!(context.session_id.as_str()));
+    arguments
+        .entry("project_root")
+        .or_insert_with(|| json!(context.project_root));
+}
+
 fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> {
     let mut files = Vec::new();
     for event in events {
@@ -1700,6 +1720,25 @@ fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> {
         }
     }
     files
+}
+
+fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
+    let mut hits = Vec::new();
+    for event in events {
+        if event.kind != "capability.completed" {
+            continue;
+        }
+        if event.data.get("schema").and_then(Value::as_str) != Some(MEMORY_SEARCH_SCHEMA) {
+            continue;
+        }
+        let Some(items) = event.data.get("hits").and_then(Value::as_array) else {
+            continue;
+        };
+        for item in items {
+            hits.push(item.clone());
+        }
+    }
+    hits
 }
 
 fn capabilities_from_events(events: &[RuntimeEvent]) -> Vec<Value> {

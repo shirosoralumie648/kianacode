@@ -16,8 +16,8 @@
 ## 当前里程碑：v0.5
 
 - [x] **Phase 1: Five department objects** — initiating/planning/executing/monitoring/closing
-- [ ] **Later: six-layer RAG ACL** — 下一刀 MEM
-- [ ] **Later: department symposiums / compact / resume** — 矩阵要才做
+- [x] **Phase 2: Six-layer RAG ACL** — JSONL 分库 + `memory.search`/`write`
+- [ ] **Later: department symposiums / compact / resume** — 下一刀
 
 ### Phase 1: Five department objects
 
@@ -31,7 +31,21 @@
 4. 不招满 COMPANY.md 每部门全部角色。不实现 `memory.search`。不格式化 `cli.rs`。
 5. 证明级别 `local_behavior`。P1-READ skipped。
 
-**Plans:** 已执行。验证：`.planning/phases/14-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 MEM。
+**Plans:** 已执行。验证：`.planning/phases/14-VERIFICATION.md`。同核证明在 in-process DaemonHost。
+
+### Phase 2: Six-layer RAG ACL
+
+**Goal:** Company/Department/Role/Project/User/Instance scratch 分库存在；`memory.search`/`write` 走 daemon broker，按 knowledge_grants 过滤；命中进收据。
+**Requirements:** MEM-01, MEM-02, MEM-03, MEM-04
+**Success Criteria:**
+
+1. 六层 JSONL 分库，不混库。project/department/role/scratch 在项目内；company/user 在 `$KIANA_HOME`。
+2. 模型工具是 `memory.search` / `memory.write`；执行在 daemon broker。请求带 `role_id` + `department_id`。
+3. 命中写入收据 `memory_hits`；无来源 `verified=false`。instance scratch 默认不晋升。
+4. Builder 不能读 `user-private` 或 `planning:unreleased-debate`；不能写 project 记忆。
+5. 不把 `kiana memory` CLI / 向量库 / `rag_collection` 名当成完成。不格式化 `cli.rs`。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/15-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 compact/resume 或部门会。
 
 ## 已完成：v0.4
 

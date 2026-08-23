@@ -419,23 +419,26 @@ Desktop/Web 产品循环、企业 RBAC、computer-use、chrome MCP、把 `kiana-
 `DepartmentSpec`：mission、default_roles、artifacts glob、symposium_policy、gates。立项/规划/执行/监控/收尾同时存在，不是线性五步。跨部门只交 WorkPacket；联席会是显式 `Symposium.joint`。验证：`.planning/phases/14-VERIFICATION.md`。  
 参考：`COMPANY.md` §3；pm-skills `_workflows/`；coleam00/Archon DAG（过程软件化，不当编制）。不是招满角色，不是 RAG。
 
-**MEM-WP1 六层集合**  
+**MEM-WP1 六层集合** — **已本地绿（JSONL 分库，不混库）**  
 - Company：剧本、组织图、过程模板  
 - Department：该部门决议与教训  
 - Role：工艺（pm vs builder vs reviewer）  
-- Project：repo map（先接 `kiana-query`）、事件、ADR、任务  
-- User：偏好、跨项目约束（MemPalace 形）  
+- Project：事件、ADR、任务（本刀是 JSONL，不是 `kiana-query` 向量库）  
+- User：偏好、跨项目约束（MemPalace 形：用户记忆另屋）  
 - Instance scratch：随 session 死，默认不晋升  
 禁止混库。聊天不得自动入库；晋升必须显式 `memory.write`。  
+project/department/role/scratch 在 `{project}/.kiana/memory/`；company/user 在 `$KIANA_HOME/memory/`。  
+验证：`.planning/phases/15-VERIFICATION.md`。不是向量库，不是 `kiana memory` CLI，不是 letta 落地页。  
 参考：`reference/memorix/README.md`；`reference/MemPalace/README.md`；后期 graphify / GitNexus；coleam00/Archon `archive/v1-task-management-rag` 只作知识引擎形状。`reference/letta` 当前是落地页，勿当源码。
 
-**MEM-WP2 检索是工具**  
-`memory.search` / `memory.write` 走 daemon broker，请求带 `role_id` + `department_id`。命中写入收据。无来源不得当 Reviewer 的已验证结论。  
+**MEM-WP2 检索是工具** — **已本地绿（daemon broker）**  
+`memory.search` / `memory.write` 走 daemon broker，请求带 `role_id` + `department_id`。命中写入收据 `memory_hits`。无来源 `verified=false`。  
+PATH-03 现为 `shell` + `apply_patch` + `mcp` + `memory.search` + `memory.write`。  
 12-factor #4/#7。不要静默灌进系统提示。
 
-**MEM-WP3 ACL**  
-密级：public / company / department:* / role:* / project / packet / user-private / scratch。Builder 默认无 user-private、无 planning 未发布辩论。PM 可读 user:prefs。Librarian 是默认跨层写入者。  
-Policy 扩 `RequestContext.{role_id,department_id}`。
+**MEM-WP3 ACL** — **已本地绿（knowledge_grants fail-closed）**  
+密级：public / company / department:* / role:* / project / packet / user-private / scratch。Builder 默认可搜 company/project/role:builder/scratch；无 user-private、无 planning 未发布辩论；只能写 scratch；写 project → `role_memory_write_denied`。PM 可读 user:prefs。Librarian 仍未招。  
+Policy 用 `RequestContext.{role_id,department_id}`，core 在 broker 前 stamp。
 
 **PMP-WP1 部门工件**  
 立项 charter → 规划 packets → 执行 builder → 监控 gates/reviewer → 收尾 lessons 入库。小任务允许软件跳过开会，但留下短 charter。  
@@ -450,12 +453,14 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
 
 ### 建议切分
 
-**v0.5.1 Compact 与上下文所有权**
+产品编号以 ROADMAP / 附录 C 为准：v0.5.1 = DEPT-02（已绿）；v0.5.2 = MEM JSONL ACL（已绿）；v0.5 later = compact/resume 或部门会。下面旧草稿名不要当打开顺序。
+
+**v0.5 later Compact 与上下文所有权**（旧草稿曾叫 v0.5.1；下一刀候选）
 
 - `kiana-runner/src/compact.rs` 做真；预算可见。
 - 参考：12-factor #3；Codex `core/src/compact.rs` 一族；deepseek `packages/compaction`、`packages/context`；grok `xai-grok-compaction`；continue `core/context`。
 
-**v0.5.2 工作流 / 计划落盘（产品功能）**
+**后开：工作流 / 计划落盘（产品功能）**（旧草稿曾叫 v0.5.2；不是已绿的 MEM）
 
 - 让 `kiana-workflow` 不再是空名：用户可见的计划、关卡、恢复。
 - 参考（方法 → 产品）：
@@ -467,9 +472,9 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
   - deepseek `packages/plan`、`packages/todo`、`packages/workflow`、`packages/goal`
 - **不要**恢复 24-phase / Project OS 语料。用现在的 harness 收据做事实源。
 
-**v0.5.3 六层记忆 / 仓库图**
+**六层记忆 / 仓库图**（JSONL 分区已由当前 v0.5.2 落地；向量/图数据库仍后开）
 
-- Company/Department/Role 集合先于向量炫技：先文件/JSONL 分区，图数据库后期。
+- Company/Department/Role 集合先于向量炫技：JSONL 分区已绿；图数据库后期。
 - 仅当上下文反复炸：MemPalace / graphify / GitNexus / memorix。
 - `reference/MemPalace`、`graphify`、`GitNexus`、`memorix` 都是后期乘法。浅克隆的不要编造历史。
 - Schr0d/Archon 冲击半径 JSON 写入 Project RAG，不是另起记忆产品。
@@ -584,9 +589,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.5.2 只打开 MEM。P1-READ skipped。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.5 later 只打开 compact/resume **或** 部门会（二选一）。不解冻 JointSymposium。P1-READ skipped。不把向量库 / `kiana-query` / letta 落地页当完成。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.5.1 / DEPT-02 五个部门对象已本地绿。  
-下一命令：打开 **v0.5.2 MEM**（六层 RAG ACL）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider。
+当前计数：v0.5.2 / MEM-01..04 六层 JSONL + brokered `memory.search`/`write` 已本地绿。  
+下一命令：打开 **v0.5 later**（LONG-02 compact/resume 或 SYMP-04 部门会）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。

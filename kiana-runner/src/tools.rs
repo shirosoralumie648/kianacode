@@ -11,6 +11,8 @@ use serde_json::{json, Value};
 pub const TOOL_SHELL: &str = "shell";
 pub const TOOL_APPLY_PATCH: &str = "apply_patch";
 pub const TOOL_MCP: &str = "mcp";
+pub const TOOL_MEMORY_SEARCH: &str = "memory.search";
+pub const TOOL_MEMORY_WRITE: &str = "memory.write";
 pub const MAX_STEPS_PER_TURN: u32 = 32;
 
 pub fn tool_schemas() -> Vec<Value> {
@@ -57,6 +59,33 @@ pub fn tool_schemas() -> Vec<Value> {
                     "arguments": { "type": "object" }
                 },
                 "required": ["tool"]
+            }
+        }),
+        json!({
+            "name": TOOL_MEMORY_SEARCH,
+            "description": "Search a Kiana memory collection through the daemon broker. Hits include layer, collection, and source. Unsourced hits are not verified conclusions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "collection": { "type": "string" },
+                    "limit": { "type": "integer", "minimum": 1 }
+                },
+                "required": ["query"]
+            }
+        }),
+        json!({
+            "name": TOOL_MEMORY_WRITE,
+            "description": "Write an explicit memory record to one collection. Instance scratch does not promote. Chat is never auto-ingested.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "collection": { "type": "string" },
+                    "text": { "type": "string" },
+                    "source": { "type": "string" },
+                    "promote_to": { "type": "string" }
+                },
+                "required": ["collection", "text", "source"]
             }
         }),
     ]
@@ -111,6 +140,35 @@ pub fn capability_for_tool(
             }),
         )
         .with_risk(RiskLevel::ExternalSideEffect)),
+        TOOL_MEMORY_SEARCH => Ok(CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            TOOL_MEMORY_SEARCH,
+            json!({
+                "query": call.arguments.get("query").cloned().unwrap_or(Value::Null),
+                "collection": call.arguments.get("collection").cloned().unwrap_or(Value::Null),
+                "limit": call.arguments.get("limit").cloned().unwrap_or(Value::Null),
+                "call_id": call.id,
+                "sandbox": sandbox,
+                "project_root": project_root,
+            }),
+        )
+        .with_risk(RiskLevel::ReadOnly)),
+        TOOL_MEMORY_WRITE => Ok(CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            TOOL_MEMORY_WRITE,
+            json!({
+                "collection": call.arguments.get("collection").cloned().unwrap_or(Value::Null),
+                "text": call.arguments.get("text").cloned().unwrap_or(Value::Null),
+                "source": call.arguments.get("source").cloned().unwrap_or(Value::Null),
+                "promote_to": call.arguments.get("promote_to").cloned().unwrap_or(Value::Null),
+                "call_id": call.id,
+                "sandbox": sandbox,
+                "project_root": project_root,
+            }),
+        )
+        .with_risk(RiskLevel::LocalWrite)),
         other => Err(format!("tool_unsupported:{other}")),
     }
 }
@@ -200,5 +258,45 @@ mod tests {
         assert_eq!(request.arguments["server"], "mock");
         assert_eq!(request.arguments["tool"], "echo");
         assert_eq!(request.arguments["arguments"]["message"], "hello");
+    }
+
+    #[test]
+    fn memory_search_is_a_readonly_query() {
+        let request = capability_for_tool(
+            &ModelToolCall {
+                id: "c-mem".to_owned(),
+                name: TOOL_MEMORY_SEARCH.to_owned(),
+                arguments: json!({ "query": "acceptance", "collection": "project" }),
+            },
+            "workspace-write",
+            "/repo",
+        )
+        .unwrap();
+        assert_eq!(request.capability, CapabilityKind::Query);
+        assert_eq!(request.operation, TOOL_MEMORY_SEARCH);
+        assert_eq!(request.risk, RiskLevel::ReadOnly);
+        assert_eq!(request.arguments["query"], "acceptance");
+        assert_eq!(request.arguments["collection"], "project");
+    }
+
+    #[test]
+    fn memory_write_is_a_local_write() {
+        let request = capability_for_tool(
+            &ModelToolCall {
+                id: "c-mem-w".to_owned(),
+                name: TOOL_MEMORY_WRITE.to_owned(),
+                arguments: json!({
+                    "collection": "instance-scratch",
+                    "text": "draft",
+                    "source": "explicit:test"
+                }),
+            },
+            "workspace-write",
+            "/repo",
+        )
+        .unwrap();
+        assert_eq!(request.capability, CapabilityKind::Filesystem);
+        assert_eq!(request.operation, TOOL_MEMORY_WRITE);
+        assert_eq!(request.risk, RiskLevel::LocalWrite);
     }
 }

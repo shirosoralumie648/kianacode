@@ -86,6 +86,9 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
             });
         }
     }
+    if let Some(denied) = memory_decision(&role, request) {
+        return Some(denied);
+    }
     if request.operation == "apply_patch"
         || (request.risk == RiskLevel::LocalWrite
             && harness_tool_name(&request.operation) == Some("apply_patch"))
@@ -117,8 +120,56 @@ fn harness_tool_name(operation: &str) -> Option<&'static str> {
         "apply_patch" | "file_change" => Some("apply_patch"),
         "shell.exec" | "shell" | "bash" | "exec" | "command_execution" => Some("shell"),
         "mcp.call" | "mcp" => Some("mcp"),
+        "memory.search" => Some("memory.search"),
+        "memory.write" => Some("memory.write"),
         _ => None,
     }
+}
+
+fn memory_decision(role: &RoleSpec, request: &CapabilityRequest) -> Option<PolicyDecision> {
+    match request.operation.as_str() {
+        "memory.search" => {
+            let collection = optional_argument(request, "collection")?;
+            if role.allows_knowledge(&collection) {
+                None
+            } else {
+                Some(PolicyDecision::Deny {
+                    reason: "role_knowledge_denied".to_owned(),
+                })
+            }
+        }
+        "memory.write" => {
+            let Some(collection) = optional_argument(request, "collection") else {
+                return Some(PolicyDecision::Deny {
+                    reason: "role_memory_write_denied".to_owned(),
+                });
+            };
+            if !role.allows_memory_write(&collection) {
+                return Some(PolicyDecision::Deny {
+                    reason: "role_memory_write_denied".to_owned(),
+                });
+            }
+            if let Some(promote_to) = optional_argument(request, "promote_to") {
+                if promote_to != collection {
+                    return Some(PolicyDecision::Deny {
+                        reason: "role_memory_promote_denied".to_owned(),
+                    });
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn optional_argument(request: &CapabilityRequest, key: &str) -> Option<String> {
+    request
+        .arguments
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
 }
 
 fn request_paths(request: &CapabilityRequest) -> Vec<String> {
@@ -352,5 +403,68 @@ mod tests {
             }
             other => panic!("expected ask, got {other:?}"),
         }
+    }
+
+    fn memory_search(collection: &str) -> CapabilityRequest {
+        CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            "memory.search",
+            serde_json::json!({ "query": "acceptance", "collection": collection }),
+        )
+    }
+
+    fn memory_write(collection: &str) -> CapabilityRequest {
+        CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            "memory.write",
+            serde_json::json!({
+                "collection": collection,
+                "text": "draft",
+                "source": "explicit:test"
+            }),
+        )
+        .with_risk(RiskLevel::LocalWrite)
+    }
+
+    #[test]
+    fn builder_cannot_search_user_private_or_unreleased_debate() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        match DefaultPolicyEngine.evaluate(&context, &memory_search("user-private")) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_knowledge_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+        match DefaultPolicyEngine.evaluate(&context, &memory_search("planning:unreleased-debate")) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_knowledge_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+        assert!(matches!(
+            DefaultPolicyEngine.evaluate(&context, &memory_search("project")),
+            PolicyDecision::Allow { .. }
+        ));
+    }
+
+    #[test]
+    fn builder_cannot_write_or_promote_project_memory() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        match DefaultPolicyEngine.evaluate(&context, &memory_write("project")) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_memory_write_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+        let mut promote = memory_write("instance-scratch");
+        promote.arguments["promote_to"] = serde_json::json!("project");
+        match DefaultPolicyEngine.evaluate(&context, &promote) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "role_memory_promote_denied"),
+            other => panic!("expected deny, got {other:?}"),
+        }
+        assert!(matches!(
+            DefaultPolicyEngine.evaluate(&context, &memory_write("instance-scratch")),
+            PolicyDecision::Allow { .. }
+        ));
     }
 }

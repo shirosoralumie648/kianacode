@@ -172,12 +172,12 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | 已完成 | v0.4.4 | CODE-04 | 不支持 tools 的 provider profile → 机器可读失败，不写盘、不假成功 | live 矩阵当完成；`unsupported_streaming` |
 | skipped | v0.4.5 | P1-READ | 结构化 Grep/Glob/Read 走 broker + 同一 sandbox | 已跳过：P0 搜索策略锁死为 `shell` 跑 `rg`/`ls`/`cat` |
 | 已完成 | v0.5.1 | DEPT-02 | 五个部门对象同时存在；sponsor 写 charter；closer 写 lessons；默认 Builder 仍写盘 | 招满角色；memory 工具 |
-| 下一刀 | v0.5.2 | MEM | 六层分库 + `memory.search`/`write` 带 role/department ACL；命中进收据 | 把聊天自动入库；混库 |
-| 再然后 | v0.5 later | LONG/SYMP | compact/resume；部门可开会 | 用 MCP 代替部门 |
+| 已完成 | v0.5.2 | MEM | 六层分库 + `memory.search`/`write` 带 role/department ACL；命中进收据 | 把聊天自动入库；混库；向量库；`kiana memory` CLI |
+| 下一刀 | v0.5 later | LONG/SYMP | compact/resume；部门可开会 | 用 MCP 代替部门；JointSymposium；招满角色 |
 | 再然后 | v0.6 | SURF2 | SDK/print 100% harness；下一入口 IDE 优先于 Desktop | 为 Desktop 复制 runner |
 | 再然后 | v1.0 | REL | 安装升级回滚 + 文档 + **本表 P0 全绿** | 工具数 100%、企业、TUI 像素对等 |
 
-`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.4 CODE-04 fake text-only / `unsupported_tools` 已绿。下一独立 Phase 仅当需要才是 v0.4.5 P1-READ，否则 v0.5。
+`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.4 CODE-04 fake text-only / `unsupported_tools` 已绿。v0.5.1 DEPT-02 与 v0.5.2 MEM 已绿。下一独立 Phase 是 v0.5 later（compact/resume 或部门会）。P1-READ skipped。
 
 ---
 

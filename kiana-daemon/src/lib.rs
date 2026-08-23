@@ -5,6 +5,7 @@ mod approval_store;
 mod context_query;
 mod harness_capabilities;
 mod harness_mcp;
+mod harness_memory;
 mod harness_sandbox;
 mod harness_skills;
 mod model_client;
@@ -68,6 +69,7 @@ impl DaemonHost {
         context_query::register(&mut capabilities)?;
         harness_capabilities::register(&mut capabilities)?;
         harness_mcp::register(&mut capabilities)?;
+        harness_memory::register(&mut capabilities)?;
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),

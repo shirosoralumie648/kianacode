@@ -161,6 +161,26 @@ pub const REVIEW_PACKET_SCHEMA: &str = "kiana.review-packet.v1";
 pub const REVIEW_RESULT_SCHEMA: &str = "kiana.review-result.v1";
 pub const REVIEW_PACKET_PATH: &str = "gate/REVIEW.json";
 pub const MONITORING_PATH_GATE: &str = "gate";
+pub const MEMORY_LAYER_COMPANY: &str = "company";
+pub const MEMORY_LAYER_DEPARTMENT: &str = "department";
+pub const MEMORY_LAYER_ROLE: &str = "role";
+pub const MEMORY_LAYER_PROJECT: &str = "project";
+pub const MEMORY_LAYER_USER: &str = "user";
+pub const MEMORY_LAYER_INSTANCE_SCRATCH: &str = "instance-scratch";
+pub const MEMORY_COLLECTION_USER_PRIVATE: &str = "user-private";
+pub const MEMORY_COLLECTION_USER_PREFS: &str = "user:prefs";
+pub const MEMORY_COLLECTION_PLANNING_UNRELEASED: &str = "planning:unreleased-debate";
+pub const MEMORY_SEARCH_SCHEMA: &str = "kiana.memory-search.v1";
+pub const MEMORY_WRITE_SCHEMA: &str = "kiana.memory-write.v1";
+pub const MEMORY_RECORD_SCHEMA: &str = "kiana.memory-record.v1";
+pub const MEMORY_LAYERS: [&str; 6] = [
+    MEMORY_LAYER_COMPANY,
+    MEMORY_LAYER_DEPARTMENT,
+    MEMORY_LAYER_ROLE,
+    MEMORY_LAYER_PROJECT,
+    MEMORY_LAYER_USER,
+    MEMORY_LAYER_INSTANCE_SCRATCH,
+];
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RoleSpec {
@@ -183,11 +203,22 @@ impl RoleSpec {
         Self::new(
             ROLE_BUILDER,
             DEPARTMENT_EXECUTING,
-            "You are Kiana's executing Builder. Use only the provided tools `shell`, `apply_patch`, and `mcp`. Never request danger-full-access.",
-            vec!["shell".to_owned(), "apply_patch".to_owned(), "mcp".to_owned()],
+            "You are Kiana's executing Builder. Use only the provided tools `shell`, `apply_patch`, `mcp`, `memory.search`, and `memory.write`. Never request danger-full-access.",
+            vec![
+                "shell".to_owned(),
+                "apply_patch".to_owned(),
+                "mcp".to_owned(),
+                "memory.search".to_owned(),
+                "memory.write".to_owned(),
+            ],
             ROLE_SANDBOX_WORKSPACE_WRITE,
             vec![".".to_owned()],
-            vec!["project".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                MEMORY_LAYER_PROJECT.to_owned(),
+                "role:builder".to_owned(),
+                "scratch".to_owned(),
+            ],
             false,
             false,
             "executing",
@@ -200,14 +231,23 @@ impl RoleSpec {
             ROLE_PM,
             DEPARTMENT_PLANNING,
             "You are Kiana's planning PM. Write only charter/plan/packet artifacts. Do not patch source files. Do not run shell.",
-            vec!["apply_patch".to_owned()],
+            vec![
+                "apply_patch".to_owned(),
+                "memory.search".to_owned(),
+                "memory.write".to_owned(),
+            ],
             ROLE_SANDBOX_WORKSPACE_WRITE,
             vec![
                 PLANNING_PATH_CHARTER.to_owned(),
                 PLANNING_PATH_PLAN.to_owned(),
                 PLANNING_PATH_PACKET.to_owned(),
             ],
-            vec!["department:planning".to_owned(), "project".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:planning".to_owned(),
+                MEMORY_LAYER_PROJECT.to_owned(),
+                MEMORY_COLLECTION_USER_PREFS.to_owned(),
+            ],
             true,
             true,
             "planning",
@@ -220,10 +260,14 @@ impl RoleSpec {
             ROLE_ARCHITECT,
             DEPARTMENT_PLANNING,
             "You are Kiana's planning Architect. Read and advise. Do not write files or run shell.",
-            Vec::new(),
+            vec!["memory.search".to_owned()],
             ROLE_SANDBOX_READ_ONLY,
             Vec::new(),
-            vec!["department:planning".to_owned(), "project".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:planning".to_owned(),
+                MEMORY_LAYER_PROJECT.to_owned(),
+            ],
             false,
             true,
             "planning",
@@ -236,10 +280,14 @@ impl RoleSpec {
             ROLE_REVIEWER,
             DEPARTMENT_MONITORING,
             "You are Kiana's monitoring Reviewer. Compare the author receipt to acceptance. Do not patch source or run shell. You are never the author.",
-            Vec::new(),
+            vec!["memory.search".to_owned()],
             ROLE_SANDBOX_READ_ONLY,
             Vec::new(),
-            vec!["department:monitoring".to_owned(), "project:events".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:monitoring".to_owned(),
+                "project:events".to_owned(),
+            ],
             false,
             false,
             "monitoring",
@@ -252,10 +300,18 @@ impl RoleSpec {
             ROLE_SPONSOR,
             DEPARTMENT_INITIATING,
             "You are Kiana's initiating Sponsor. Write only charter artifacts. Do not patch source files. Do not run shell.",
-            vec!["apply_patch".to_owned()],
+            vec![
+                "apply_patch".to_owned(),
+                "memory.search".to_owned(),
+                "memory.write".to_owned(),
+            ],
             ROLE_SANDBOX_WORKSPACE_WRITE,
             vec![PLANNING_PATH_CHARTER.to_owned()],
-            vec!["department:initiating".to_owned(), "user:prefs".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:initiating".to_owned(),
+                MEMORY_COLLECTION_USER_PREFS.to_owned(),
+            ],
             true,
             true,
             "initiating",
@@ -268,10 +324,18 @@ impl RoleSpec {
             ROLE_CLOSER,
             DEPARTMENT_CLOSING,
             "You are Kiana's closing Closer. Write only lessons artifacts. Do not patch source files. Do not run shell.",
-            vec!["apply_patch".to_owned()],
+            vec![
+                "apply_patch".to_owned(),
+                "memory.search".to_owned(),
+                "memory.write".to_owned(),
+            ],
             ROLE_SANDBOX_WORKSPACE_WRITE,
             vec![CLOSING_PATH_LESSONS.to_owned()],
-            vec!["department:closing".to_owned(), "project:events".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:closing".to_owned(),
+                "project:events".to_owned(),
+            ],
             false,
             false,
             "closing",
@@ -325,6 +389,38 @@ impl RoleSpec {
         self.sandbox == ROLE_SANDBOX_WORKSPACE_WRITE
     }
 
+    pub fn allows_knowledge(&self, collection: &str) -> bool {
+        let Some(parsed) = MemoryCollection::parse(collection) else {
+            return false;
+        };
+        self.knowledge_grants
+            .iter()
+            .any(|grant| MemoryCollection::parse(grant).is_some_and(|grant| grant.covers(&parsed)))
+    }
+
+    pub fn granted_collections(&self) -> Vec<MemoryCollection> {
+        self.knowledge_grants
+            .iter()
+            .filter_map(|grant| MemoryCollection::parse(grant))
+            .collect()
+    }
+
+    pub fn allows_memory_write(&self, collection: &str) -> bool {
+        let Some(parsed) = MemoryCollection::parse(collection) else {
+            return false;
+        };
+        match self.role_id.as_str() {
+            ROLE_BUILDER => parsed.collection == MEMORY_LAYER_INSTANCE_SCRATCH,
+            ROLE_PM => {
+                parsed.collection == "department:planning"
+                    || parsed.collection == MEMORY_COLLECTION_PLANNING_UNRELEASED
+            }
+            ROLE_SPONSOR => parsed.collection == "department:initiating",
+            ROLE_CLOSER => parsed.collection == "department:closing",
+            _ => false,
+        }
+    }
+
     fn new(
         role_id: &str,
         department_id: &str,
@@ -352,6 +448,76 @@ impl RoleSpec {
             model_profile: model_profile.to_owned(),
             max_steps,
         }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MemoryCollection {
+    pub layer: String,
+    pub collection: String,
+}
+
+impl MemoryCollection {
+    pub fn parse(raw: &str) -> Option<Self> {
+        let raw = raw.trim().trim_matches('/');
+        if raw.is_empty() {
+            return None;
+        }
+        let (layer, collection) = match raw {
+            MEMORY_LAYER_COMPANY => (MEMORY_LAYER_COMPANY, MEMORY_LAYER_COMPANY),
+            MEMORY_LAYER_DEPARTMENT => (MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_DEPARTMENT),
+            MEMORY_LAYER_ROLE => (MEMORY_LAYER_ROLE, MEMORY_LAYER_ROLE),
+            MEMORY_LAYER_PROJECT | "project:code" | "project:docs" | "project:events" => {
+                (MEMORY_LAYER_PROJECT, raw)
+            }
+            MEMORY_LAYER_USER | MEMORY_COLLECTION_USER_PREFS | MEMORY_COLLECTION_USER_PRIVATE => {
+                (MEMORY_LAYER_USER, raw)
+            }
+            MEMORY_LAYER_INSTANCE_SCRATCH | "scratch" => {
+                (MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_INSTANCE_SCRATCH)
+            }
+            MEMORY_COLLECTION_PLANNING_UNRELEASED => (
+                MEMORY_LAYER_DEPARTMENT,
+                MEMORY_COLLECTION_PLANNING_UNRELEASED,
+            ),
+            other if other.starts_with("department:") => (MEMORY_LAYER_DEPARTMENT, other),
+            other if other.starts_with("role:") => (MEMORY_LAYER_ROLE, other),
+            _ => return None,
+        };
+        Some(Self {
+            layer: layer.to_owned(),
+            collection: collection.to_owned(),
+        })
+    }
+
+    pub fn covers(&self, requested: &MemoryCollection) -> bool {
+        if self.collection == requested.collection {
+            return true;
+        }
+        if self.collection == MEMORY_LAYER_PROJECT
+            && matches!(
+                requested.collection.as_str(),
+                MEMORY_LAYER_PROJECT | "project:code" | "project:docs"
+            )
+        {
+            return true;
+        }
+        if self.collection == "scratch" && requested.collection == MEMORY_LAYER_INSTANCE_SCRATCH {
+            return true;
+        }
+        if self.collection == "department:planning"
+            && requested.collection == MEMORY_COLLECTION_PLANNING_UNRELEASED
+        {
+            return true;
+        }
+        false
+    }
+
+    pub fn home_scoped(&self) -> bool {
+        matches!(
+            self.layer.as_str(),
+            MEMORY_LAYER_COMPANY | MEMORY_LAYER_USER
+        )
     }
 }
 
@@ -1150,7 +1316,16 @@ mod tests {
         let department = DepartmentSpec::executing();
         assert_eq!(role.role_id, ROLE_BUILDER);
         assert_eq!(role.department_id, DEPARTMENT_EXECUTING);
-        assert_eq!(role.tools, ["shell", "apply_patch", "mcp"]);
+        assert_eq!(
+            role.tools,
+            [
+                "shell",
+                "apply_patch",
+                "mcp",
+                "memory.search",
+                "memory.write"
+            ]
+        );
         assert_eq!(role.sandbox, ROLE_SANDBOX_WORKSPACE_WRITE);
         assert_eq!(role.path_allow, ["."]);
         assert!(!role.prompt_hash.is_empty());
@@ -1168,7 +1343,7 @@ mod tests {
 
         let pm = RoleSpec::pm();
         assert_eq!(pm.department_id, DEPARTMENT_PLANNING);
-        assert_eq!(pm.tools, ["apply_patch"]);
+        assert_eq!(pm.tools, ["apply_patch", "memory.search", "memory.write"]);
         assert!(pm.can_convene);
         assert!(pm.allows_path("plan/WORK.md"));
         assert!(pm.allows_path("charter/GOAL.md"));
@@ -1179,7 +1354,7 @@ mod tests {
 
         let architect = RoleSpec::architect();
         assert_eq!(architect.department_id, DEPARTMENT_PLANNING);
-        assert!(architect.tools.is_empty());
+        assert_eq!(architect.tools, ["memory.search"]);
         assert!(!architect.workspace_write_allowed());
         assert!(!architect.allows_path("plan/WORK.md"));
         assert!(!architect.can_convene);
@@ -1195,7 +1370,7 @@ mod tests {
         assert!(!monitoring.can_convene);
         let reviewer = RoleSpec::reviewer();
         assert_eq!(reviewer.department_id, DEPARTMENT_MONITORING);
-        assert!(reviewer.tools.is_empty());
+        assert_eq!(reviewer.tools, ["memory.search"]);
         assert!(!reviewer.workspace_write_allowed());
         assert!(!reviewer.allows_tool("apply_patch"));
         assert!(!reviewer.allows_path("GOLDEN_PATH.txt"));
@@ -1258,6 +1433,37 @@ mod tests {
             DEPARTMENT_EXECUTING
         );
         assert!(RoleSpec::lookup("ceo").is_none());
+    }
+
+    #[test]
+    fn v0_5_memory_grants_keep_builder_off_private_and_unreleased() {
+        assert_eq!(MEMORY_LAYERS.len(), 6);
+        let builder = RoleSpec::builder();
+        assert!(builder.allows_knowledge(MEMORY_LAYER_COMPANY));
+        assert!(builder.allows_knowledge(MEMORY_LAYER_PROJECT));
+        assert!(builder.allows_knowledge("project:code"));
+        assert!(builder.allows_knowledge("role:builder"));
+        assert!(builder.allows_knowledge(MEMORY_LAYER_INSTANCE_SCRATCH));
+        assert!(!builder.allows_knowledge(MEMORY_COLLECTION_USER_PRIVATE));
+        assert!(!builder.allows_knowledge(MEMORY_COLLECTION_USER_PREFS));
+        assert!(!builder.allows_knowledge(MEMORY_COLLECTION_PLANNING_UNRELEASED));
+        assert!(!builder.allows_knowledge("project:events"));
+        assert!(builder.allows_memory_write(MEMORY_LAYER_INSTANCE_SCRATCH));
+        assert!(!builder.allows_memory_write(MEMORY_LAYER_PROJECT));
+        assert!(!builder.allows_memory_write(MEMORY_COLLECTION_USER_PRIVATE));
+
+        let pm = RoleSpec::pm();
+        assert!(pm.allows_knowledge(MEMORY_COLLECTION_USER_PREFS));
+        assert!(pm.allows_knowledge(MEMORY_COLLECTION_PLANNING_UNRELEASED));
+        assert!(!pm.allows_knowledge(MEMORY_COLLECTION_USER_PRIVATE));
+        assert!(pm.allows_memory_write("department:planning"));
+        assert!(!pm.allows_memory_write(MEMORY_LAYER_INSTANCE_SCRATCH));
+
+        let reviewer = RoleSpec::reviewer();
+        assert!(reviewer.allows_knowledge("project:events"));
+        assert!(!reviewer.allows_knowledge("project:code"));
+        assert!(!reviewer.allows_memory_write(MEMORY_LAYER_INSTANCE_SCRATCH));
+        assert!(MemoryCollection::parse("not-a-layer").is_none());
     }
 
     #[test]
