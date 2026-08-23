@@ -9,6 +9,7 @@ pub mod runner;
 pub mod sandbox;
 pub mod sdk;
 pub mod tui;
+pub mod workbench;
 
 #[cfg(test)]
 pub(crate) mod test_support {

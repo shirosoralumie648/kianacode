@@ -21,7 +21,7 @@ Kiana 是带 **两条 agent 运行时** 的 brownfield Rust workspace。
 
 | Spine | 路径 | 模型可见工具 | 谁在用 |
 |---|---|---|---|
-| **Owned harness（产品）** | `kiana-entrypoints/src/harness_run.rs` → `kiana-daemon::DaemonHost` → `kiana-core::ControlPlane` → `kiana-runner::KianaHarness` | 只有 `shell` + `apply_patch`（broker 成 `shell.exec` / `apply_patch`） | `kiana run`；print/SDK 经 `execute_owned_harness_turn` |
+| **Owned harness（产品）** | `kiana-entrypoints/src/harness_run.rs` → `kiana-daemon::DaemonHost` → `kiana-core::ControlPlane` → `kiana-runner::KianaHarness` | 只有 `shell` + `apply_patch`（broker 成 `shell.exec` / `apply_patch`） | `kiana run`；`kiana` / `--workdir` / `--pick-folder` 工作台；print/SDK 经 `execute_owned_harness_turn` |
 | **Legacy runner（冻结）** | `cli.rs`（~25k）+ `runner.rs`（~11k）+ `kiana-tools`（50+ tools） | Read/Edit/Grep/Bash/MCP/Team/Cron… | **TUI 仍走这条**（`tui.rs` → legacy SDK/stream） |
 
 Owned harness 是 Codex 形：模型不下发工具执行，副作用由 daemon broker。把 `kiana-tools` 做成 Claude Code 50-tool 对等 **不是** 完成路径。
@@ -89,7 +89,7 @@ kiana run --sandbox workspace-write -- "create a file named GOLDEN_PATH.txt cont
 
 必须为真：信任、真 provider、受限 shell/patch、失败可见、continue/cancel、重启后收据还在、收据含 `role=builder`。
 
-TUI 若不能接到同一 `DaemonHost`，就显式 park，不假装完成。**v0.2 Phase 4 已 park：** `kiana tui` 仍走 legacy SDK/stream；产品路径只有 `kiana run` / print。
+TUI 若不能接到同一 `DaemonHost`，就显式 park，不假装完成。**v0.2 Phase 4 已 park：** `kiana tui` 仍走 legacy SDK/stream。**v1.0.3 工作台已绿：** 空参数 / `--workdir` / `--pick-folder` 走 `workbench.rs` + 同一 `DaemonHost`，不是 dsh Web UI，也不是迁 `tui.rs`。
 
 ### v0.3 — Trusted Workbench + 公司内核（站 6–8）
 

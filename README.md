@@ -2,7 +2,7 @@
 
 Local-first agent **company OS**: PMP process groups are departments, roles have independent context/prompts/ACL, departments may hold bounded symposiums, memory is layered RAG.
 
-v1.0 已在 `local_behavior` 上限下勾选：temp `INSTALL_DIR` 生命周期 + [USER.md](USER.md) + P0 审计 + [NOTICE](NOTICE)。这不是 live provider、不是 `~/.local/bin` 生产安装、不是签名包、不是企业。v0.6.1 ORCH-04（同核两个 packet Builder + 路径锁；越权 `packet_path_denied`）仍必须绿。v0.5 later SYMP-04（五部门有界会；规划会回归不破；联席冻结）仍必须绿。v0.5 later LONG-02（超预算 compact 进收据；同核 continue 之后仍能写盘；pause 仍是 cancel）仍必须绿。v0.5.2 六层记忆 ACL 与 v0.5.1 五个部门对象仍必须绿。v0.4 Coding pack 仍必须绿（P1-READ skipped：搜索走 `shell`）。v0.3 规划部/执行部/有界会 + cassette eval/install 仍必须绿。v0.2 黄金路径仍必须绿（`kiana run` / print → daemon → `KianaHarness`，默认工人是执行部 Builder）。`kiana tui` **park**：仍走 legacy SDK/stream，不是产品路径。Daily/Research 仍草案。不要打开 v1.x / worktree / SDK/IDE / JointSymposium。
+v1.0 已在 `local_behavior` 上限下勾选：temp `INSTALL_DIR` 生命周期 + [USER.md](USER.md) + P0 审计 + [NOTICE](NOTICE)。v1.0.3 文件夹工作台（`kiana` / `--workdir` / `--pick-folder`）已绿，走同一 `DaemonHost`；`kiana tui` 仍 park。这不是 live provider、不是 `~/.local/bin` 生产安装、不是签名包、不是企业、不是 dsh Web UI 克隆。v0.6.1 ORCH-04（同核两个 packet Builder + 路径锁；越权 `packet_path_denied`）仍必须绿。v0.5 later SYMP-04（五部门有界会；规划会回归不破；联席冻结）仍必须绿。v0.5 later LONG-02（超预算 compact 进收据；同核 continue 之后仍能写盘；pause 仍是 cancel）仍必须绿。v0.5.2 六层记忆 ACL 与 v0.5.1 五个部门对象仍必须绿。v0.4 Coding pack 仍必须绿（P1-READ skipped：搜索走 `shell`）。v0.3 规划部/执行部/有界会 + cassette eval/install 仍必须绿。v0.2 黄金路径仍必须绿（`kiana run` / print → daemon → `KianaHarness`，默认工人是执行部 Builder）。`kiana tui` **park**：仍走 legacy SDK/stream，不是产品路径。Daily/Research 仍草案。不要打开 v1.x / worktree / SDK/IDE / JointSymposium。
 
 从 0 到完整产品的方案（按 `reference/` 中 coding agent 的 git 顺序 + 公司编制）在：
 
@@ -14,8 +14,15 @@ v1.0 已在 `local_behavior` 上限下勾选：temp `INSTALL_DIR` 生命周期 +
 v1.0 声明停在 `local_behavior`。真实可跑命令见 [USER.md](USER.md)。Claude Code / Desktop / 企业仍是北星，不是本版本完成。
 
 ```bash
-# after the repo is trusted
+# in a project folder (Codex/pi-style)
 kiana trust .
+kiana
+
+# file manager / GUI target
+kiana --workdir /path/to/project
+kiana --pick-folder
+
+# after the repo is trusted, one-shot still works
 
 # v0.3 planning symposium (anti-meeting skips debate, still writes artifacts)
 kiana run --symposium --anti-meeting --sandbox workspace-write --json -- \
@@ -36,6 +43,7 @@ bash scripts/harness-golden-smoke.sh
 bash scripts/v03-workbench-smoke.sh
 bash scripts/v10-personal-lifecycle-smoke.sh
 bash scripts/v10-p0-closeout-smoke.sh
+bash scripts/v10-workbench-smoke.sh
 ```
 
 Install demo (temp dir; does not claim `~/.local/bin` production-ready):

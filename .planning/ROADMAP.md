@@ -15,12 +15,13 @@
 
 ## 当前里程碑：v1.x
 
-未打开。打开条件「v1.0 个人产品已发布」已满足（诚实：temp install + USER.md + P0 审计）。不要现在 plan/execute。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
+未打开。打开条件「v1.0 个人产品已发布」已满足（诚实：temp install + USER.md + P0 审计 + 文件夹工作台）。不要现在 plan/execute。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
 
 ## 已完成：v1.0
 
 - [x] **Phase 1: Personal install lifecycle + USER.md** — REL-01, REL-02
 - [x] **Phase 2: P0 closeout + NOTICE** — REL-03
+- [x] **Phase 3: Personal folder workbench** — cwd / `--workdir` / `--pick-folder` on DaemonHost; `kiana tui` stays parked
 
 ### Phase 1: Personal install lifecycle + USER.md
 
@@ -50,6 +51,21 @@
 4. REL-04 Daily/Research 仍草案。不新做工具。不跑 `release-smoke.sh`。证明级别 `local_behavior`。
 
 **Plans:** 已执行。验证：`.planning/phases/20-VERIFICATION.md`。
+
+### Phase 3: Personal folder workbench
+
+**Goal:** 用户在文件夹里启动、或 GUI 选工作目录，输入需求就能干活。产品核仍是 `DaemonHost`。
+**Requirements:** 个人入口（Codex/pi/dsh 启动 UX）；不是 v1.x，不是迁 `kiana tui`，不是 dsh Web UI
+**Success Criteria:**
+
+1. `kiana` 空参数 TTY 走 cwd 工作台；`--help` 列出 `--workdir` / `--pick-folder`。
+2. `kiana --workdir DIR -- <prompt>` cassette 在受信仓写出 `GOLDEN_PATH.txt`。
+3. 未信任 workspace-write fail-closed：`workspace_write_requires_trusted_non_safe_profile`，不写盘。
+4. `--pick-folder` 无 DISPLAY → `pick_folder_unavailable`；`KIANA_FOLDER_PICKER_CMD` 可选目录后写盘。
+5. `contrib/kiana.desktop` 的 `Exec=kiana --workdir %f`。
+6. `kiana tui` 仍 park。不是 dsh web、不是 live provider、不打开 v1.x。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/21-VERIFICATION.md`。闸门：`scripts/v10-workbench-smoke.sh` + `kiana-entrypoints/tests/cli_workbench.rs`。
 
 ## 已完成：v0.6
 

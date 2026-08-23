@@ -42,8 +42,17 @@ pub async fn run_envelope(
     prompt: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
+    run_envelope_on_host(new_local_host()?, session_id, prompt, options).await
+}
+
+pub async fn run_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
     let policy = sandbox_policy_from_options(options)?;
-    let (client, metadata) = local_client(session_id, options)?;
+    let (client, metadata) = client_on_host(host, session_id, options)?;
     client
         .run(metadata, prompt.into(), policy.sandbox)
         .await
@@ -58,7 +67,19 @@ pub async fn run_owned_harness(
     completed_harness_result(run_envelope(session_id, prompt, options).await?)
 }
 
+fn new_local_host() -> Result<Arc<DaemonHost>> {
+    Ok(Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?))
+}
+
 fn local_client(
+    session_id: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<(KianaClient<LocalDaemonTransport>, RequestMetadata)> {
+    client_on_host(new_local_host()?, session_id, options)
+}
+
+pub fn client_on_host(
+    host: Arc<DaemonHost>,
     session_id: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<(KianaClient<LocalDaemonTransport>, RequestMetadata)> {
@@ -73,10 +94,7 @@ fn local_client(
         let role = RoleSpec::lookup(&role_id).ok_or_else(|| anyhow!("role_unknown"))?;
         metadata.assign_role(&role);
     }
-    let client = KianaClient::new(LocalDaemonTransport {
-        host: Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?),
-    });
-    Ok((client, metadata))
+    Ok((KianaClient::new(LocalDaemonTransport { host }), metadata))
 }
 
 pub async fn continue_envelope(
@@ -85,9 +103,19 @@ pub async fn continue_envelope(
     run_id: Option<RunId>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
+    continue_envelope_on_host(new_local_host()?, session_id, prompt, run_id, options).await
+}
+
+pub async fn continue_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
     let session_id = session_id.into();
     let policy = sandbox_policy_from_options(options)?;
-    let (client, metadata) = local_client(session_id, options)?;
+    let (client, metadata) = client_on_host(host, session_id, options)?;
     client
         .continue_run(metadata, prompt.into(), policy.sandbox, run_id)
         .await
@@ -112,7 +140,16 @@ pub async fn receipt_envelope(
     run_id: Option<RunId>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    let (client, metadata) = local_client(session_id, options)?;
+    receipt_envelope_on_host(new_local_host()?, session_id, run_id, options).await
+}
+
+pub async fn receipt_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let (client, metadata) = client_on_host(host, session_id, options)?;
     client
         .receipt(metadata, run_id)
         .await

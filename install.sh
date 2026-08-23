@@ -3,6 +3,7 @@ set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 REPO_URL="https://github.com/kiana-project/kiana"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🎉 Kiana Code 安装脚本"
 echo "========================="
@@ -45,6 +46,13 @@ if [[ "${1:-}" == "--uninstall" || "${1:-}" == "uninstall" ]]; then
         echo "Uninstalled $installed"
     else
         echo "Already absent $installed"
+    fi
+    desktop_dir="${KIANA_DESKTOP_DIR:-}"
+    if [[ -z "$desktop_dir" && "${KIANA_SKIP_PATH_SETUP:-0}" != "1" ]]; then
+        desktop_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    fi
+    if [[ -n "$desktop_dir" ]]; then
+        rm -f "$desktop_dir/kiana.desktop"
     fi
     exit 0
 fi
@@ -144,6 +152,35 @@ if [[ "${KIANA_SKIP_PATH_SETUP:-0}" == "1" ]]; then
 else
     setup_path
 fi
+
+install_desktop() {
+    local template="$SCRIPT_DIR/contrib/kiana.desktop"
+    local dest_dir="${KIANA_DESKTOP_DIR:-}"
+    local dest
+    if [[ ! -f "$template" ]]; then
+        echo "⚠️  没有 contrib/kiana.desktop，跳过文件管理器入口"
+        return 0
+    fi
+    if [[ -z "$dest_dir" ]]; then
+        if [[ "${KIANA_SKIP_PATH_SETUP:-0}" == "1" ]]; then
+            echo "✅ 跳过 desktop 入口（KIANA_SKIP_PATH_SETUP=1）"
+            return 0
+        fi
+        dest_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    fi
+    mkdir -p "$dest_dir"
+    dest="$dest_dir/kiana.desktop"
+    python3 - "$template" "$dest" "$INSTALL_DIR/kiana${EXE_EXT}" <<'PY'
+from pathlib import Path
+import sys
+src, dest, binary = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+text = src.read_text(encoding="utf8").replace("Exec=kiana --workdir %f", f"Exec={binary} --workdir %f")
+text = text.replace("TryExec=kiana", f"TryExec={binary}")
+dest.write_text(text, encoding="utf8")
+PY
+    echo "✅ 文件管理器入口: $dest"
+}
+install_desktop
 
 installed="$INSTALL_DIR/kiana${EXE_EXT}"
 doctor_output="$("$installed" doctor 2>&1 || true)"

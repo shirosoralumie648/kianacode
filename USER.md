@@ -33,9 +33,32 @@ INSTALL_DIR=/tmp/kiana-bin bash install.sh --uninstall
 
 闸门：`bash scripts/v10-personal-lifecycle-smoke.sh`
 
+## 文件夹工作台（Codex / pi / dsh 那种入口）
+
+产品路径是 `DaemonHost`，不是 parked 的 `kiana tui`。进目录就能干活；GUI 只负责选文件夹。
+
+```bash
+# 文件管理器：在项目目录打开终端，然后
+kiana trust .
+kiana
+# 输入需求。默认 sandbox 是 workspace-write。TTY 未信任会先问；one-shot 失败码与 kiana run 相同：
+# workspace_write_requires_trusted_non_safe_profile
+
+# 指定文件夹（.desktop 的 Exec 就是这个）
+kiana --workdir /path/to/project -- "create GOLDEN_PATH.txt containing hello"
+
+# GUI 选文件夹：zenity / kdialog / tkinter，或测试用 KIANA_FOLDER_PICKER_CMD
+kiana --pick-folder
+kiana gui
+```
+
+`contrib/kiana.desktop` 把「用 Kiana 打开文件夹」接到 `--workdir %f`。
+
+闸门：`bash scripts/v10-workbench-smoke.sh`
+
 ## 受信仓库里干活
 
-仓库先 `kiana trust .`。默认 sandbox 只读；写盘必须 `--sandbox workspace-write`。
+仓库先 `kiana trust .`。`kiana run` 默认 sandbox 只读；写盘必须 `--sandbox workspace-write`。工作台默认已经是 workspace-write。
 
 ```bash
 kiana trust .
@@ -64,7 +87,7 @@ bash scripts/v03-workbench-smoke.sh
 ## 诚实边界
 
 - 并行 Builder 是同一 `DaemonHost` 上的 `spawn`，**没有**新 CLI。路径锁在 ControlPlane；越权是 `packet_path_denied`。
-- `kiana tui` 保持 park：legacy SDK/stream，不是 DaemonHost。
+- 文件夹工作台是 `kiana` / `--workdir` / `--pick-folder`。`kiana tui` 保持 park：legacy SDK/stream，不是 DaemonHost。
 - HTTP MCP 是 `mcp_transport_unsupported`。stdio MCP 才是产品路径。
 - live Anthropic / OpenAI / Ollama 不是完成。缺 tools 的 fake profile 必须 `unsupported_tools`，禁止假成功。
 - JointSymposium、招满 COMPANY.md 角色、Librarian、TeamCreate/SendMessage 仍冻结。

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Kiana
+Comment=Open this folder and let Kiana work
+Exec=kiana --workdir %f
+TryExec=kiana
+Terminal=true
+MimeType=inode/directory;
+Icon=utilities-terminal
+Categories=Development;Utility;
+StartupNotify=true
+Keywords=agent;codex;pi;dsh;

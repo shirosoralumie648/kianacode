@@ -604,5 +604,5 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 C — 下一动作
 
-当前计数：v1.0 已在 `local_behavior` 上限下勾选（REL-01/02 生命周期 + USER.md；REL-03 P0 审计 + NOTICE；REL-04 仍草案）。  
-下一命令：**不要打开 v1.x**，除非用户显式要求。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库、`release-smoke.sh`。
+当前计数：v1.0 已勾；v1.0.3 文件夹工作台已绿（`kiana` / `--workdir` / `--pick-folder`，同一 `DaemonHost`）。`kiana tui` 仍 park。REL-04 仍草案。这不是 v1.x。  
+下一命令：**不要打开 v1.x**，除非用户显式要求。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、迁 `kiana tui`、SkillTool、live provider、向量库、`release-smoke.sh`、dsh Web UI 克隆。

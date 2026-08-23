@@ -77,6 +77,10 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return run_main(&args).await;
     }
 
+    if crate::workbench::is_workbench_invocation(&args) {
+        return crate::workbench::main_from_args(&args).await;
+    }
+
     if is_print_mode_help(&args) {
         print_print_help();
         return Ok(());
@@ -13934,7 +13938,7 @@ async fn cli_main_with_terminal(stdin_is_terminal: bool, stdout_is_terminal: boo
 
 fn ensure_repl_terminal(stdin_is_terminal: bool, stdout_is_terminal: bool) -> Result<()> {
     let guidance =
-        "Use `kiana -p <prompt>` for scripts or `kiana tui` from a real terminal for the TUI.";
+        "Use `kiana workbench --workdir DIR -- <prompt>` or `kiana -p <prompt>` for scripts. `kiana tui` stays parked.";
     match (stdin_is_terminal, stdout_is_terminal) {
         (true, true) => Ok(()),
         (false, false) => Err(anyhow!(
@@ -13950,7 +13954,7 @@ fn ensure_repl_terminal(stdin_is_terminal: bool, stdout_is_terminal: bool) -> Re
 }
 
 async fn cli_main() -> Result<()> {
-    crate::repl::run_repl().await
+    crate::workbench::run_cwd_interactive().await
 }
 
 async fn run_local_command(
@@ -14011,7 +14015,10 @@ fn print_help() {
     println!("Kiana Code {}", env!("CARGO_PKG_VERSION"));
     println!();
     println!("USAGE:");
-    println!("  kiana                 Start the interactive REPL (requires a terminal)");
+    println!("  kiana                 Start the folder workbench in cwd (requires a terminal)");
+    println!("  kiana --workdir DIR   Work in DIR (file manager / GUI target)");
+    println!("  kiana --pick-folder   GUI folder picker, then workbench");
+    println!("  kiana workbench [--workdir DIR] [--] <prompt>  Same DaemonHost spine as kiana run");
     println!("  kiana -p <prompt>     Run a non-interactive prompt and print the result");
     println!("  kiana -c [prompt]     Continue the most recent local SDK session");
     println!("  kiana -r <id> [prompt]  Resume a local SDK session");
@@ -14057,7 +14064,7 @@ fn print_help() {
     println!("  kiana reply <id> ...  Run a prompt in a local SDK session");
     println!("  kiana reply <id> --record-only ...  Append without model execution");
     println!("  kiana reply <id> --json-schema '{{...}}' ...  Request structured output");
-    println!("  kiana tui             Parked in v0.2 (legacy SDK stream, not DaemonHost)");
+    println!("  kiana tui             Parked (legacy SDK stream, not DaemonHost)");
     println!("  kiana --bg <prompt>   Run a prompt through the local background worker");
     println!("  kiana ps              List local background tasks");
     println!("  kiana daemon start    Start the resident background task supervisor");
