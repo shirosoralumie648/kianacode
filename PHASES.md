@@ -415,9 +415,9 @@ Desktop/Web 产品循环、企业 RBAC、computer-use、chrome MCP、把 `kiana-
 **打开条件：** v0.4 核心路径（含 MCP 或明确延期 MCP）可用；用户已经能在 v0.2 意义上完成任务；v0.3 编排器能派独立 Builder 且规划会能出包。  
 **目标：** 五个部门都是控制面对象（不是 prompt 章节）；Company/Department/Role/Project/User/Instance 六层记忆带 ACL；作者 ≠ 评审；长任务可停可续可证。组织细节见 `COMPANY.md` §3 与 §7。
 
-**DEPT-WP1 五部门对象**  
-`DepartmentSpec`：mission、default_roles、artifacts glob、symposium_policy、gates。立项/规划/执行/监控/收尾同时存在，不是线性五步。跨部门只交 WorkPacket；联席会是显式 `Symposium.joint`。  
-参考：`COMPANY.md` §3；pm-skills `_workflows/`；coleam00/Archon DAG（过程软件化，不当编制）。
+**DEPT-WP1 五部门对象** — **已本地绿（catalog + sponsor/closer）**  
+`DepartmentSpec`：mission、default_roles、artifacts glob、symposium_policy、gates。立项/规划/执行/监控/收尾同时存在，不是线性五步。跨部门只交 WorkPacket；联席会是显式 `Symposium.joint`。验证：`.planning/phases/14-VERIFICATION.md`。  
+参考：`COMPANY.md` §3；pm-skills `_workflows/`；coleam00/Archon DAG（过程软件化，不当编制）。不是招满角色，不是 RAG。
 
 **MEM-WP1 六层集合**  
 - Company：剧本、组织图、过程模板  
@@ -584,9 +584,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.4.5 仅当矩阵仍需要 P1-READ 才打开；否则下一站是 v0.5。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.5.2 只打开 MEM。P1-READ skipped。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.4.4 / CODE-04 fake text-only `unsupported_tools` 已本地绿。  
-下一命令：按矩阵 §6，**仅当需要**才打开 v0.4.5 P1-READ；否则打开 **v0.5**。不要同时开五部门、TUI、SkillTool、live provider。
+当前计数：v0.5.1 / DEPT-02 五个部门对象已本地绿。  
+下一命令：打开 **v0.5.2 MEM**（六层 RAG ACL）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider。

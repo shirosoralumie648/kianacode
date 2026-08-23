@@ -135,14 +135,19 @@ pub const ROLE_BUILDER: &str = "builder";
 pub const ROLE_PM: &str = "pm";
 pub const ROLE_ARCHITECT: &str = "architect";
 pub const ROLE_REVIEWER: &str = "reviewer";
+pub const ROLE_SPONSOR: &str = "sponsor";
+pub const ROLE_CLOSER: &str = "closer";
 pub const DEPARTMENT_EXECUTING: &str = "executing";
 pub const DEPARTMENT_PLANNING: &str = "planning";
 pub const DEPARTMENT_MONITORING: &str = "monitoring";
+pub const DEPARTMENT_INITIATING: &str = "initiating";
+pub const DEPARTMENT_CLOSING: &str = "closing";
 pub const ROLE_SANDBOX_READ_ONLY: &str = "read-only";
 pub const ROLE_SANDBOX_WORKSPACE_WRITE: &str = "workspace-write";
 pub const PLANNING_PATH_CHARTER: &str = "charter";
 pub const PLANNING_PATH_PLAN: &str = "plan";
 pub const PLANNING_PATH_PACKET: &str = "packet";
+pub const CLOSING_PATH_LESSONS: &str = "lessons";
 pub const WORK_PACKET_SCHEMA: &str = "kiana.work-packet.v1";
 pub const DECISION_RECORD_SCHEMA: &str = "kiana.decision-record.v1";
 pub const SYMPOSIUM_SCHEMA: &str = "kiana.symposium.v1";
@@ -242,12 +247,46 @@ impl RoleSpec {
         )
     }
 
-    pub fn catalog() -> [RoleSpec; 4] {
+    pub fn sponsor() -> Self {
+        Self::new(
+            ROLE_SPONSOR,
+            DEPARTMENT_INITIATING,
+            "You are Kiana's initiating Sponsor. Write only charter artifacts. Do not patch source files. Do not run shell.",
+            vec!["apply_patch".to_owned()],
+            ROLE_SANDBOX_WORKSPACE_WRITE,
+            vec![PLANNING_PATH_CHARTER.to_owned()],
+            vec!["department:initiating".to_owned(), "user:prefs".to_owned()],
+            true,
+            true,
+            "initiating",
+            8,
+        )
+    }
+
+    pub fn closer() -> Self {
+        Self::new(
+            ROLE_CLOSER,
+            DEPARTMENT_CLOSING,
+            "You are Kiana's closing Closer. Write only lessons artifacts. Do not patch source files. Do not run shell.",
+            vec!["apply_patch".to_owned()],
+            ROLE_SANDBOX_WORKSPACE_WRITE,
+            vec![CLOSING_PATH_LESSONS.to_owned()],
+            vec!["department:closing".to_owned(), "project:events".to_owned()],
+            false,
+            false,
+            "closing",
+            8,
+        )
+    }
+
+    pub fn catalog() -> [RoleSpec; 6] {
         [
+            Self::sponsor(),
             Self::pm(),
             Self::architect(),
             Self::builder(),
             Self::reviewer(),
+            Self::closer(),
         ]
     }
 
@@ -319,37 +358,103 @@ impl RoleSpec {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DepartmentSpec {
     pub department_id: String,
+    pub pmp_group: String,
+    pub mission: String,
     pub roles: Vec<String>,
+    pub artifacts: Vec<String>,
+    pub rag_collection: String,
     pub can_convene: bool,
+    pub gates: Vec<String>,
 }
 
 impl DepartmentSpec {
-    pub fn executing() -> Self {
+    fn new(
+        department_id: &str,
+        mission: &str,
+        roles: Vec<String>,
+        artifacts: Vec<String>,
+        can_convene: bool,
+        gates: Vec<String>,
+    ) -> Self {
         Self {
-            department_id: DEPARTMENT_EXECUTING.to_owned(),
-            roles: vec![ROLE_BUILDER.to_owned()],
-            can_convene: false,
+            department_id: department_id.to_owned(),
+            pmp_group: department_id.to_owned(),
+            mission: mission.to_owned(),
+            roles,
+            artifacts,
+            rag_collection: format!("department:{department_id}"),
+            can_convene,
+            gates,
         }
+    }
+
+    pub fn executing() -> Self {
+        Self::new(
+            DEPARTMENT_EXECUTING,
+            "Execute work packets. Write files and run allowed verification. Do not change acceptance.",
+            vec![ROLE_BUILDER.to_owned()],
+            vec![".".to_owned()],
+            false,
+            vec!["receipt".to_owned()],
+        )
     }
 
     pub fn planning() -> Self {
-        Self {
-            department_id: DEPARTMENT_PLANNING.to_owned(),
-            roles: vec![ROLE_PM.to_owned(), ROLE_ARCHITECT.to_owned()],
-            can_convene: true,
-        }
+        Self::new(
+            DEPARTMENT_PLANNING,
+            "Turn a charter into work packets with frozen acceptance. Do not implement source.",
+            vec![ROLE_PM.to_owned(), ROLE_ARCHITECT.to_owned()],
+            vec![
+                PLANNING_PATH_CHARTER.to_owned(),
+                PLANNING_PATH_PLAN.to_owned(),
+                PLANNING_PATH_PACKET.to_owned(),
+            ],
+            true,
+            vec!["packet_has_acceptance".to_owned()],
+        )
     }
 
     pub fn monitoring() -> Self {
-        Self {
-            department_id: DEPARTMENT_MONITORING.to_owned(),
-            roles: vec![ROLE_REVIEWER.to_owned()],
-            can_convene: false,
-        }
+        Self::new(
+            DEPARTMENT_MONITORING,
+            "Review author receipts against acceptance. The reviewer is never the author.",
+            vec![ROLE_REVIEWER.to_owned()],
+            vec![MONITORING_PATH_GATE.to_owned()],
+            false,
+            vec!["review_packet".to_owned()],
+        )
     }
 
-    pub fn catalog() -> [DepartmentSpec; 3] {
-        [Self::planning(), Self::executing(), Self::monitoring()]
+    pub fn initiating() -> Self {
+        Self::new(
+            DEPARTMENT_INITIATING,
+            "Decide whether the work should exist and what success looks like. Do not write source.",
+            vec![ROLE_SPONSOR.to_owned()],
+            vec![PLANNING_PATH_CHARTER.to_owned()],
+            true,
+            vec!["charter_has_success_criteria".to_owned()],
+        )
+    }
+
+    pub fn closing() -> Self {
+        Self::new(
+            DEPARTMENT_CLOSING,
+            "Record lessons and close the receipt. Do not write source.",
+            vec![ROLE_CLOSER.to_owned()],
+            vec![CLOSING_PATH_LESSONS.to_owned()],
+            false,
+            vec!["lessons_logged".to_owned()],
+        )
+    }
+
+    pub fn catalog() -> [DepartmentSpec; 5] {
+        [
+            Self::initiating(),
+            Self::planning(),
+            Self::executing(),
+            Self::monitoring(),
+            Self::closing(),
+        ]
     }
 
     pub fn lookup(department_id: &str) -> Option<Self> {
@@ -1099,6 +1204,60 @@ mod tests {
             DepartmentSpec::lookup("planning").unwrap().department_id,
             DEPARTMENT_PLANNING
         );
+    }
+
+    #[test]
+    fn v0_5_catalog_has_five_departments_without_changing_default_worker() {
+        let ids: Vec<_> = DepartmentSpec::catalog()
+            .into_iter()
+            .map(|department| department.department_id)
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                DEPARTMENT_INITIATING,
+                DEPARTMENT_PLANNING,
+                DEPARTMENT_EXECUTING,
+                DEPARTMENT_MONITORING,
+                DEPARTMENT_CLOSING,
+            ]
+        );
+
+        let initiating = DepartmentSpec::initiating();
+        assert_eq!(initiating.pmp_group, DEPARTMENT_INITIATING);
+        assert_eq!(initiating.roles, [ROLE_SPONSOR]);
+        assert_eq!(initiating.artifacts, [PLANNING_PATH_CHARTER]);
+        assert_eq!(initiating.rag_collection, "department:initiating");
+        assert!(initiating.can_convene);
+        assert!(!initiating.mission.is_empty());
+        assert!(!initiating.gates.is_empty());
+
+        let sponsor = RoleSpec::sponsor();
+        assert_eq!(sponsor.department_id, DEPARTMENT_INITIATING);
+        assert!(sponsor.allows_path("charter/GOAL.md"));
+        assert!(!sponsor.allows_path("GOLDEN_PATH.txt"));
+        assert!(!sponsor.allows_path("src/lib.rs"));
+        assert!(!sponsor.allows_tool("shell"));
+        assert_eq!(RoleSpec::lookup("sponsor").unwrap().role_id, ROLE_SPONSOR);
+
+        let closing = DepartmentSpec::closing();
+        assert_eq!(closing.roles, [ROLE_CLOSER]);
+        assert_eq!(closing.artifacts, [CLOSING_PATH_LESSONS]);
+        assert!(!closing.can_convene);
+
+        let closer = RoleSpec::closer();
+        assert_eq!(closer.department_id, DEPARTMENT_CLOSING);
+        assert!(closer.allows_path("lessons/LEARNED.md"));
+        assert!(!closer.allows_path("GOLDEN_PATH.txt"));
+        assert!(!closer.allows_tool("shell"));
+        assert_eq!(RoleSpec::lookup("closer").unwrap().role_id, ROLE_CLOSER);
+
+        assert_eq!(RoleSpec::lookup("").unwrap().role_id, ROLE_BUILDER);
+        assert_eq!(
+            DepartmentSpec::lookup("").unwrap().department_id,
+            DEPARTMENT_EXECUTING
+        );
+        assert!(RoleSpec::lookup("ceo").is_none());
     }
 
     #[test]

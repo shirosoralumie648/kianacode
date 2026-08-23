@@ -188,4 +188,4 @@ Codex 到 2025-07-11 才有 `codex apply` 远程 patch；cline hub drain/upgrade
 
 阶梯在本文件，git 证据在 PROCESS.md，**逐期剧本在 PHASES.md**。
 
-**v0.4.4 CODE-04 已本地绿（fake text-only / unsupported_tools）。执行下一站按矩阵 §6**：仅当需要才开 v0.4.5 P1-READ，否则打开 v0.5。不要同时开工五部门 / 六层 RAG / JointSymposium / 解冻 TeamCreate/SendMessage。不要把 live provider 或 `unsupported_streaming` 标成完成。HTTP MCP 仍是 `mcp_transport_unsupported`。
+**v0.5.1 DEPT-02 已本地绿（五个部门对象 + sponsor/closer 路径 ACL）。执行下一站只打开 v0.5.2 MEM**：六层 RAG ACL。不要同时开工 JointSymposium / 解冻 TeamCreate/SendMessage / P1-READ。`rag_collection` 名不是 memory 工具。HTTP MCP 仍是 `mcp_transport_unsupported`。

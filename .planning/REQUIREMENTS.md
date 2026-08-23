@@ -1,7 +1,7 @@
 # Requirements
 
-v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
-北星是 Company OS（见 `COMPANY.md`）。v0.4 Phase 1–5（`REV-01`、`CODE-01` 矩阵草稿、`CODE-02` stdio MCP、`CODE-03` skills/PreToolUse、`CODE-04` fake text-only `unsupported_tools`）已本地绿。下一执行集按矩阵 §6：仅当需要才做 **v0.4.5 P1-READ**，否则打开 v0.5。五部门与六层 RAG 仍冻结到 v0.5。
+v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
+北星是 Company OS（见 `COMPANY.md`）。v0.5 Phase 1（`DEPT-02` 五个部门对象）已本地绿。下一执行集是 **v0.5.2 六层 RAG ACL**（`MEM-01`..`MEM-04`）。JointSymposium 仍冻结。
 
 ## v0.3 — Current
 
@@ -80,7 +80,7 @@ v0.3 已本地绿。v0.2 黄金路径仍必须绿，作为回归基线。
 - **LONG-02**: compact / pause / resume 用户可感知
 - **LONG-03**: 产品拥有 prompt、context、control flow
 - **LONG-04**: 五个部门都有磁盘工件（charter/plan/packet/gate/receipt）
-- **DEPT-02**: Initiating / Planning / Executing / Monitoring / Closing 均为控制面对象，可并行存在
+- **DEPT-02**: Initiating / Planning / Executing / Monitoring / Closing 均为控制面对象，可并行存在 — **已本地绿（catalog + sponsor/closer 路径 ACL）**；不是招满角色，不是 RAG
 - **SYMP-04**: 各部门可开会；跨部门联席必须点名、限时、有议程
 - **MEM-01**: 六层分库：company / department / role / project / user / instance-scratch
 - **MEM-02**: `memory.search`/`write` 带 `role_id` + `department_id`，按 knowledge_grants 过滤

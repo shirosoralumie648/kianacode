@@ -170,9 +170,10 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | 已完成 | v0.4.2 | CODE-02 | `kiana run` 的工人能经 daemon 调一个本地 stdio MCP；未信任 deny；JSON 标明 harness + mcp | 市场、SSO、把 legacy mcp_tool 打勾 |
 | 已完成 | v0.4.3 | CODE-03 | 受信项目的一条 Skill 出现在 harness System 上下文；未信任项目 Skill 不出现；PreToolUse 可拦 apply_patch | 把 awesome-agent-skills 当运行时；SkillTool |
 | 已完成 | v0.4.4 | CODE-04 | 不支持 tools 的 provider profile → 机器可读失败，不写盘、不假成功 | live 矩阵当完成；`unsupported_streaming` |
-| 下一刀 | v0.4.5 或 v0.5 | P1-READ / DEPT | 仅当沙箱里仍无法可靠搜索才做结构化 Read/Grep/Glob；否则打开五部门 | 50-tool 注册表；用 MCP 代替部门 |
-| 仅当需要 | v0.4.5 | P1-READ | 结构化 Grep/Glob/Read 走 broker + 同一 sandbox | 50-tool 注册表 |
-| 再然后 | v0.5 | LONG/DEPT/MEM | 五部门对象 + 六层 RAG ACL | 用 MCP 代替部门 |
+| skipped | v0.4.5 | P1-READ | 结构化 Grep/Glob/Read 走 broker + 同一 sandbox | 已跳过：P0 搜索策略锁死为 `shell` 跑 `rg`/`ls`/`cat` |
+| 已完成 | v0.5.1 | DEPT-02 | 五个部门对象同时存在；sponsor 写 charter；closer 写 lessons；默认 Builder 仍写盘 | 招满角色；memory 工具 |
+| 下一刀 | v0.5.2 | MEM | 六层分库 + `memory.search`/`write` 带 role/department ACL；命中进收据 | 把聊天自动入库；混库 |
+| 再然后 | v0.5 later | LONG/SYMP | compact/resume；部门可开会 | 用 MCP 代替部门 |
 | 再然后 | v0.6 | SURF2 | SDK/print 100% harness；下一入口 IDE 优先于 Desktop | 为 Desktop 复制 runner |
 | 再然后 | v1.0 | REL | 安装升级回滚 + 文档 + **本表 P0 全绿** | 工具数 100%、企业、TUI 像素对等 |
 

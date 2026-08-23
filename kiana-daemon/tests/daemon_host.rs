@@ -1268,6 +1268,90 @@ async fn pre_tool_use_hook_blocks_apply_patch_before_broker_execute() {
 }
 
 #[tokio::test]
+async fn initiating_sponsor_can_write_charter_but_not_source() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette_for("charter/GOAL.md"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::sponsor());
+    let response = client
+        .run(
+            metadata,
+            "write charter/GOAL.md",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["role_id"], "sponsor");
+    assert_eq!(response.output["department_id"], "initiating");
+    assert_eq!(response.output["files_changed"][0], "charter/GOAL.md");
+    assert_eq!(
+        fs::read_to_string(root.join("charter").join("GOAL.md")).unwrap(),
+        "hello\n"
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+
+    let host = scripted_host(apply_patch_cassette_for("GOLDEN_PATH.txt"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::sponsor());
+    let denied = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status, ExecutionStatus::Failed, "{denied:?}");
+    assert_eq!(denied.error.as_deref(), Some("role_path_denied"));
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn closing_closer_can_write_lessons_but_not_source() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette_for("lessons/LEARNED.md"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::closer());
+    let response = client
+        .run(
+            metadata,
+            "write lessons/LEARNED.md",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["role_id"], "closer");
+    assert_eq!(response.output["department_id"], "closing");
+    assert_eq!(response.output["files_changed"][0], "lessons/LEARNED.md");
+    assert_eq!(
+        fs::read_to_string(root.join("lessons").join("LEARNED.md")).unwrap(),
+        "hello\n"
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+
+    let host = scripted_host(apply_patch_cassette_for("GOLDEN_PATH.txt"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_write_metadata_in(&root);
+    metadata.assign_role(&RoleSpec::closer());
+    let denied = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status, ExecutionStatus::Failed, "{denied:?}");
+    assert_eq!(denied.error.as_deref(), Some("role_path_denied"));
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
 async fn fake_text_only_provider_fails_closed_with_unsupported_tools() {
     let _provider = EnvGuard::set("KIANA_PROVIDER", "fake");
     let _model = EnvGuard::set("KIANA_FAKE_MODEL", "fake-text-only");

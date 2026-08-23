@@ -7,20 +7,33 @@
 
 - [x] **v0.2 Runnable Local Agent**
 - [x] **v0.3 Trusted Workbench + planning/executing + one symposium**
-- [ ] **v0.4 Coding pack baseline** ← 当前
-- [ ] **v0.5 Five departments + six-layer RAG**
+- [x] **v0.4 Coding pack baseline** — P1-READ skipped (shell search)
+- [ ] **v0.5 Five departments + six-layer RAG** ← 当前
 - [ ] **v0.6 Extra surfaces, same core**
 - [ ] **v1.0 Personal complete product**
 - [ ] **v1.x Team / enterprise**
 
-## 当前里程碑：v0.4
+## 当前里程碑：v0.5
 
-- [x] **Phase 1: Reviewer ≠ author** — `monitoring/reviewer` 新 session；写 `gate/REVIEW.json`
-- [x] **Phase 2: Coding pack matrix draft** — `docs/coding-pack-matrix.md`（先文档）
-- [x] **Phase 3: MCP client through daemon** — 模型工具 `mcp` → broker `mcp.call`；stdio only
-- [x] **Phase 4: Skills / hooks on harness** — Skill 是 System 上下文；PreToolUse 可拦 brokered 工具
-- [x] **Phase 5: Provider degrade** — fake text-only → `unsupported_tools`；不写盘、不假成功
-- [ ] **Later: readonly tools** — 仅当矩阵仍需要 P1-READ
+- [x] **Phase 1: Five department objects** — initiating/planning/executing/monitoring/closing
+- [ ] **Later: six-layer RAG ACL** — 下一刀 MEM
+- [ ] **Later: department symposiums / compact / resume** — 矩阵要才做
+
+### Phase 1: Five department objects
+
+**Goal:** 五个 PMP 过程组同时作为 `DepartmentSpec` 控制面对象存在。默认工人仍是执行部 Builder。
+**Requirements:** DEPT-02
+**Success Criteria:**
+
+1. Catalog 含 `initiating` / `planning` / `executing` / `monitoring` / `closing`；字段含 mission、artifacts、gates、rag_collection 名。
+2. 默认 run 仍是 `role_id=builder`、`department_id=executing`，仍能写 `GOLDEN_PATH.txt`。
+3. `sponsor` 只能写 `charter/`；`closer` 只能写 `lessons/`；src 都 `role_path_denied`。
+4. 不招满 COMPANY.md 每部门全部角色。不实现 `memory.search`。不格式化 `cli.rs`。
+5. 证明级别 `local_behavior`。P1-READ skipped。
+
+**Plans:** 已执行。验证：`.planning/phases/14-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 MEM。
+
+## 已完成：v0.4
 
 ### Phase 1: Reviewer ≠ author
 
