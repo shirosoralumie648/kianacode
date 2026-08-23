@@ -10,12 +10,30 @@
 - [x] **v0.4 Coding pack baseline** — P1-READ skipped (shell search)
 - [x] **v0.5 Five departments + six-layer RAG**
 - [x] **v0.6 Parallel builders, same core** — path locks; SDK/IDE/worktree remain later
-- [ ] **v1.0 Personal complete product** ← 当前（未打开）
+- [ ] **v1.0 Personal complete product** ← 当前（Phase 1 已绿；REL-03 closeout 未开）
 - [ ] **v1.x Team / enterprise**
 
 ## 当前里程碑：v1.0
 
-未打开。打开条件「v0.6 并行 Builder 同核」已满足（ORCH-04）。v1.0 是安装/文档/P0 核心路径，不是企业、不是 TUI 像素对等、不是 SDK/IDE 新入口。JointSymposium 仍冻结。
+v0.6 打开条件已满足（ORCH-04）。v1.0 是安装/文档/P0 核心路径，不是企业、不是 TUI 像素对等、不是 SDK/IDE 新入口。JointSymposium 仍冻结。
+
+- [x] **Phase 1: Personal install lifecycle + USER.md** — REL-01, REL-02
+
+### Phase 1: Personal install lifecycle + USER.md
+
+**Goal:** 临时 `INSTALL_DIR` 能安装/升级/回滚/恢复/卸载；`USER.md` 写真实可跑命令。
+**Requirements:** REL-01, REL-02 (thin)
+**Success Criteria:**
+
+1. install → `--version` 可用。
+2. 再装同一二进制 → checksum 不变。
+3. 拷回备份 → checksum 回到安装时。
+4. 删掉再装 → 又可用。
+5. uninstall 二进制不在；再 uninstall 幂等。
+6. `USER.md` 写 trust / run / symposium / packet / review。
+7. 不是 packaged tarball / `~/.local/bin` / REL-03 再做工具。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/19-VERIFICATION.md`。闸门：`scripts/v10-personal-lifecycle-smoke.sh`。
 
 ## 已完成：v0.6
 

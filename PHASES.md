@@ -600,9 +600,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.6.1 并行 Builder 已绿。下一刀打开 v1.0。不解冻 JointSymposium。不把 worktree / SDK/IDE / 向量库 / `kiana-query` / letta 落地页当完成。P1-READ skipped。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v1.0.1 安装生命周期已绿。下一刀 REL-03 closeout。不解冻 JointSymposium。不把 worktree / SDK/IDE / 向量库 / `kiana-query` / letta 落地页当完成。P1-READ skipped。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.6.1 ORCH-04 同核并行 Builder + 路径锁已本地绿。  
-下一命令：打开 **v1.0**（安装/文档/P0 核心路径）。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。
+当前计数：v1.0.1 REL-01/REL-02 temp install lifecycle + USER.md 已本地绿。  
+下一命令：打开 **v1.0 REL-03 closeout**（P0 审计收口，不是再做工具）。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库、`release-smoke.sh`。

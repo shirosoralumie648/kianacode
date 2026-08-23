@@ -38,6 +38,17 @@ if [[ "$OS" == "unknown" ]] || [[ "$ARCH" == "unknown" ]]; then
     exit 1
 fi
 
+if [[ "${1:-}" == "--uninstall" || "${1:-}" == "uninstall" ]]; then
+    installed="$INSTALL_DIR/kiana${EXE_EXT}"
+    if [[ -e "$installed" ]]; then
+        rm -f "$installed"
+        echo "Uninstalled $installed"
+    else
+        echo "Already absent $installed"
+    fi
+    exit 0
+fi
+
 echo "📦 检测到系统: $OS ($ARCH)"
 
 find_source_dir() {
@@ -158,18 +169,9 @@ fi
 echo ""
 echo "🎉 安装成功！"
 echo ""
-echo "📝 下一步（v0.3 demo，受信仓库）:"
-echo "   1. kiana trust ."
-echo ""
-echo "   2. 规划会（anti-meeting 可跳过辩论，仍写出决议和包）:"
-echo "      kiana run --symposium --anti-meeting --sandbox workspace-write --json -- \"create GOLDEN_PATH.txt containing hello\""
-echo ""
-echo "   3. 独立 Builder 消费 packet:"
-echo "      kiana run --packet packet/TASK.json --sandbox workspace-write --json"
-echo ""
-echo "   4. v0.2 回归仍可用:"
-echo "      kiana run --sandbox workspace-write -- \"create GOLDEN_PATH.txt containing hello\""
-echo ""
-echo "💡 cassette 黄金路径: bash scripts/harness-golden-smoke.sh"
-echo "   kiana tui 在 v0.2 已 park，不是产品路径。"
+echo "📝 真实可跑命令见 USER.md（trust / run / symposium / packet / review）。"
+echo "   临时目录生命周期: bash scripts/v10-personal-lifecycle-smoke.sh"
+echo "   cassette 黄金路径: bash scripts/harness-golden-smoke.sh"
+echo "   卸载（幂等）: INSTALL_DIR=\"$INSTALL_DIR\" bash install.sh --uninstall"
+echo "   kiana tui 保持 park，不是产品路径。"
 echo "   证明上限 local_behavior；live provider 不是安装完成条件。"

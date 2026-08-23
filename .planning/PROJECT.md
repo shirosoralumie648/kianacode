@@ -10,9 +10,9 @@
 
 ## Current Milestone
 
-**v0.6 Parallel builders, same core** — Phase 1 已本地绿：同一 `DaemonHost` 两个 packet Builder + 路径锁；packet `path_allow` 交集 apply_patch。v0.5 五部门/六层 RAG/compact/部门会仍必须绿。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。SDK/IDE/worktree 后开。下一站：v1.0 安装/文档/P0 核心路径。
+**v1.0 Personal complete product** — Phase 1 已本地绿：temp `INSTALL_DIR` 安装/升级/回滚/恢复/卸载 + `USER.md`。v0.6 并行 Builder 仍必须绿。v0.5 五部门/六层 RAG/compact/部门会仍必须绿。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。SDK/IDE/worktree 后开。下一站：v1.0 REL-03 closeout（P0 审计，不是再做工具）。
 
-后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 并行 Builder 同核 → v1.0 个人完整产品。SDK/IDE/worktree 后开。
+后续：v1.0 REL-03 closeout → v1.x 团队/企业。SDK/IDE/worktree 后开。
 
 ## Core Value
 
