@@ -95,7 +95,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 |---|---|---|---|---|---|---|---|---|
 | P1-READ | 结构化 Read / Grep / Glob（模型可见，sandbox 复用） | 教程 5 类工具「搜索」「文件操作」；dump `FileReadTool` `GrepTool` `GlobTool` 仅作名字 | harness 无这些工具。`kiana-query` repo_map / search 是上下文能力，不是模型工具。legacy `kiana-tools` 有对应实现，**不是产品路径** | 若打开：daemon broker 新能力，不扩 `kiana-tools` 产品面 | 缺 | 行为对照；形状可看 continue `core/tools`、aider `repomap.py` | P1 | 矩阵后开（v0.4.5，且仅当 shell 搜索不够） |
 | P1-INSTR | 项目说明书每次会话注入（AGENTS.md / CLAUDE.md 类） | Codex `11-agents-md.md`；教程 `18-claude-md-guide.md` | 仓库有 `AGENTS.md` 给人看。harness **未**把项目说明书当工人输入证明 | `kiana-runner` context assembly | 缺 | 行为对照 | P1 | 文档本期 |
-| P1-COMPACT | 长对话可压缩后续聊，用户可感知 | 教程 `/compact` `19-context-management.md` | `kiana-query` token budget / 状态机存在；用户不可感知 compact | `kiana-query`；harness | query 单测 | 行为对照 | P1 | 文档本期（产品化跟 v0.5 LONG） |
+| P1-COMPACT | 长对话可压缩后续聊，用户可感知 | 教程 `/compact` `19-context-management.md` | **已绿（诚实）：** 收据 `compact.applied`；continue after compact 仍写盘。不是 `/compact` slash，不是 `kiana-query` 引擎 | `kiana-runner` compact；`kiana-core` receipt | `.planning/phases/16-VERIFICATION.md` | Codex Apache-2.0 形状 | P1 | 已绿（收据 compact） |
 | P1-PLAN | 只读规划模式，出方案不改 src | 教程 Plan mode；dump `EnterPlanModeTool` | 规划角色 `pm`/`architect` 已不能写 src，可写 `plan/` `packet/`。没有 Claude 式 Shift+Tab plan mode | RoleSpec | v0.3 CLI | 本仓已有角色替代 | P1 | 文档本期（不另做 plan mode CLI，除非矩阵复审） |
 | P1-REWIND | 编辑工具改动可回滚；bash/外部副作用不在内 | 教程 `37-checkpoints.md` `/rewind` | 无产品 checkpoint。收据列出 `files_changed`，不是游戏存档 | — | 缺 | 行为对照 | P1 | 文档本期 |
 | P1-WEB | 搜网页 / 抓文档 | 教程「网络」；dump `WebFetchTool` `WebSearchTool` | legacy 有 web 工具；harness 无。优先 MCP 接，而不是再做一套内置浏览器 | MCP（CODE-02）或日后 `kiana-network` broker | 缺 | 行为对照 | P1 | 矩阵后开（建议经 MCP，不经 dump WebBrowser） |
@@ -173,11 +173,12 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | skipped | v0.4.5 | P1-READ | 结构化 Grep/Glob/Read 走 broker + 同一 sandbox | 已跳过：P0 搜索策略锁死为 `shell` 跑 `rg`/`ls`/`cat` |
 | 已完成 | v0.5.1 | DEPT-02 | 五个部门对象同时存在；sponsor 写 charter；closer 写 lessons；默认 Builder 仍写盘 | 招满角色；memory 工具 |
 | 已完成 | v0.5.2 | MEM | 六层分库 + `memory.search`/`write` 带 role/department ACL；命中进收据 | 把聊天自动入库；混库；向量库；`kiana memory` CLI |
-| 下一刀 | v0.5 later | LONG/SYMP | compact/resume；部门可开会 | 用 MCP 代替部门；JointSymposium；招满角色 |
+| 已完成 | v0.5 later | LONG-02 | 超预算 compact 进收据；同核 continue 之后仍能写盘 | `/compact` slash；跨进程 transcript 恢复；模型写摘要 |
+| 下一刀 | v0.5 later | SYMP-04 | 各部门可开会 | 用 MCP 代替部门；JointSymposium；招满角色 |
 | 再然后 | v0.6 | SURF2 | SDK/print 100% harness；下一入口 IDE 优先于 Desktop | 为 Desktop 复制 runner |
 | 再然后 | v1.0 | REL | 安装升级回滚 + 文档 + **本表 P0 全绿** | 工具数 100%、企业、TUI 像素对等 |
 
-`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.4 CODE-04 fake text-only / `unsupported_tools` 已绿。v0.5.1 DEPT-02 与 v0.5.2 MEM 已绿。下一独立 Phase 是 v0.5 later（compact/resume 或部门会）。P1-READ skipped。
+`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.4 CODE-04 fake text-only / `unsupported_tools` 已绿。v0.5.1 DEPT-02、v0.5.2 MEM、v0.5 later LONG-02 compact/resume 已绿。下一独立 Phase 是 SYMP-04 部门会。P1-READ skipped。
 
 ---
 

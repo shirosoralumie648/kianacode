@@ -10,7 +10,7 @@
 
 ## Current Milestone
 
-**v0.5 Five departments + six-layer RAG** — Phase 1–2 已本地绿：五个 `DepartmentSpec` 同时存在；六层 JSONL 记忆 + `memory.search`/`write` 经 daemon，按 knowledge_grants 过滤，命中进收据。默认工人仍是 `role=builder` / `department=executing`。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。下一站：v0.5 later compact/resume 或部门会。
+**v0.5 Five departments + six-layer RAG** — Phase 1–2 + LONG-02 已本地绿：五个 `DepartmentSpec`；六层 JSONL 记忆 ACL；超预算 compact 进收据；同核 continue-after-compact 仍能写盘。默认工人仍是 `role=builder` / `department=executing`。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。下一站：SYMP-04 各部门可开会。
 
 后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
 

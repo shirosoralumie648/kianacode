@@ -72,6 +72,12 @@ fn scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
     Arc::new(DaemonHost::with_harness(harness).expect("daemon with kiana harness"))
 }
 
+fn compacting_host(outputs: serde_json::Value, trigger: usize, retain: usize) -> Arc<DaemonHost> {
+    let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()))
+        .with_compact_budget(trigger, retain);
+    Arc::new(DaemonHost::with_harness(harness).expect("compacting daemon"))
+}
+
 struct CapturingModel {
     inner: ScriptedModel,
     seen: Mutex<Vec<ModelRequest>>,
@@ -1595,4 +1601,96 @@ async fn fake_text_only_provider_fails_closed_with_unsupported_tools() {
         !root.join("GOLDEN_PATH.txt").exists(),
         "text-only provider must not write GOLDEN_PATH.txt"
     );
+}
+
+#[tokio::test]
+async fn over_budget_run_records_compact_on_receipt() {
+    let host = compacting_host(json!([{"text": "compacted first turn"}]), 200, 40);
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(trusted_metadata(), "x".repeat(2000), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let compact = &response.output["compact"];
+    assert_eq!(compact["applied"], true, "{response:?}");
+    assert!(compact["count"].as_u64().unwrap_or(0) >= 1, "{compact}");
+    assert_eq!(compact["summary_present"], true, "{compact}");
+    let before = compact["tokens_before"].as_u64().unwrap_or(0);
+    let after = compact["tokens_after"].as_u64().unwrap_or(0);
+    assert!(after < before, "before={before} after={after} {compact}");
+}
+
+#[tokio::test]
+async fn under_budget_run_does_not_claim_compact() {
+    let host = compacting_host(json!([{"text": "short turn"}]), 100_000, 40);
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client.run(trusted_metadata(), "hello", None).await.unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let compact = &response.output["compact"];
+    assert_eq!(compact["applied"], false, "{response:?}");
+    assert_eq!(compact["count"], 0, "{compact}");
+}
+
+#[tokio::test]
+async fn continue_after_compact_still_writes_golden_path() {
+    let root = temp_project();
+    let host = compacting_host(
+        json!([
+            {"text": "compacted first turn"},
+            {
+                "text": "writing",
+                "tool_calls": [{
+                    "id": "c1",
+                    "name": "apply_patch",
+                    "arguments": {
+                        "patch": "*** Begin Patch\n*** Add File: GOLDEN_PATH.txt\n+hello\n*** End Patch\n"
+                    }
+                }]
+            },
+            {"text": "created GOLDEN_PATH.txt"}
+        ]),
+        200,
+        40,
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let started = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "x".repeat(2000),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    assert_eq!(started.output["compact"]["applied"], true, "{started:?}");
+    assert!(
+        !root.join("GOLDEN_PATH.txt").exists(),
+        "first compacted turn must not write yet"
+    );
+
+    let continued = client
+        .continue_run(
+            trusted_write_metadata_in(&root),
+            "create GOLDEN_PATH.txt",
+            Some("workspace-write".to_owned()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        continued.status,
+        ExecutionStatus::Completed,
+        "{continued:?}"
+    );
+    assert_eq!(
+        continued.output["compact"]["applied"], true,
+        "{continued:?}"
+    );
+    let written = root.join("GOLDEN_PATH.txt");
+    assert!(
+        written.exists(),
+        "continue after compact must write GOLDEN_PATH.txt: {continued:?}"
+    );
+    assert_eq!(fs::read_to_string(written).unwrap(), "hello\n");
 }

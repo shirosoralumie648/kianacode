@@ -453,11 +453,13 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
 
 ### 建议切分
 
-产品编号以 ROADMAP / 附录 C 为准：v0.5.1 = DEPT-02（已绿）；v0.5.2 = MEM JSONL ACL（已绿）；v0.5 later = compact/resume 或部门会。下面旧草稿名不要当打开顺序。
+产品编号以 ROADMAP / 附录 C 为准：v0.5.1 = DEPT-02（已绿）；v0.5.2 = MEM JSONL ACL（已绿）；v0.5 later compact/resume（已绿）；剩余 v0.5 later = SYMP-04 部门会。下面旧草稿名不要当打开顺序。
 
-**v0.5 later Compact 与上下文所有权**（旧草稿曾叫 v0.5.1；下一刀候选）
+**v0.5 later Compact 与上下文所有权** — **已本地绿（收据 compact + continue-after-compact）**（旧草稿曾叫 v0.5.1）
 
 - `kiana-runner/src/compact.rs` 做真；预算可见。
+- 收据 `compact.applied` / `tokens_before` / `tokens_after` / `summary_present`。pause 仍是 cancel。
+- 验证：`.planning/phases/16-VERIFICATION.md`。不是 `/compact` slash，不是 `kiana-query` 引擎，不是跨进程 transcript 恢复。
 - 参考：12-factor #3；Codex `core/src/compact.rs` 一族；deepseek `packages/compaction`、`packages/context`；grok `xai-grok-compaction`；continue `core/context`。
 
 **后开：工作流 / 计划落盘（产品功能）**（旧草稿曾叫 v0.5.2；不是已绿的 MEM）
@@ -589,9 +591,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.5 later 只打开 compact/resume **或** 部门会（二选一）。不解冻 JointSymposium。P1-READ skipped。不把向量库 / `kiana-query` / letta 落地页当完成。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。下一刀只打开 SYMP-04 部门会。不解冻 JointSymposium。P1-READ skipped。不把向量库 / `kiana-query` / letta 落地页当完成。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.5.2 / MEM-01..04 六层 JSONL + brokered `memory.search`/`write` 已本地绿。  
-下一命令：打开 **v0.5 later**（LONG-02 compact/resume 或 SYMP-04 部门会）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。
+当前计数：v0.5 later LONG-02 compact 上收据 + continue-after-compact 已本地绿。  
+下一命令：打开 **SYMP-04**（各部门可开会）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。

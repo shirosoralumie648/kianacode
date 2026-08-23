@@ -32,15 +32,43 @@ pub fn is_summary_message(message: &str) -> bool {
     message.starts_with(&format!("{SUMMARY_PREFIX}\n"))
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompactOutcome {
+    pub messages: Vec<ModelMessage>,
+    pub applied: bool,
+    pub tokens_before: usize,
+    pub tokens_after: usize,
+    pub summary_present: bool,
+}
+
 pub fn compact_if_needed(
     messages: Vec<ModelMessage>,
     trigger_tokens: usize,
     retain_tokens: usize,
-) -> Vec<ModelMessage> {
-    if trigger_tokens == 0 || history_tokens(&messages) <= trigger_tokens {
-        return messages;
+) -> CompactOutcome {
+    let tokens_before = history_tokens(&messages);
+    if trigger_tokens == 0 || tokens_before <= trigger_tokens {
+        return CompactOutcome {
+            summary_present: messages
+                .iter()
+                .any(|message| is_summary_message(&message.text)),
+            tokens_after: tokens_before,
+            messages,
+            applied: false,
+            tokens_before,
+        };
     }
-    build_compacted_history(&messages, retain_tokens)
+    let compacted = build_compacted_history(&messages, retain_tokens);
+    let tokens_after = history_tokens(&compacted);
+    CompactOutcome {
+        applied: true,
+        tokens_before,
+        tokens_after,
+        summary_present: compacted
+            .iter()
+            .any(|message| is_summary_message(&message.text)),
+        messages: compacted,
+    }
 }
 
 /// Codex `build_compacted_history`: keep recent real user messages under a
@@ -142,7 +170,9 @@ mod tests {
     fn compact_if_needed_is_noop_under_trigger() {
         let messages = vec![ModelMessage::user("short")];
         let out = compact_if_needed(messages.clone(), 1_000, 20);
-        assert_eq!(out, messages);
+        assert!(!out.applied);
+        assert_eq!(out.messages, messages);
+        assert_eq!(out.tokens_after, out.tokens_before);
     }
 
     #[test]
@@ -153,13 +183,26 @@ mod tests {
             ModelMessage::user("b".repeat(80)),
         ];
         let out = compact_if_needed(messages, 8, 4);
-        assert!(is_summary_message(&out.last().unwrap().text));
-        assert!(
-            history_tokens(&out) <= history_tokens(&[out[0].clone(), out[1].clone()]) + 1
-                || out.len() <= 3
-        );
+        assert!(out.applied);
+        assert!(out.summary_present);
+        assert!(is_summary_message(&out.messages.last().unwrap().text));
         assert!(!out
+            .messages
             .iter()
             .any(|message| message.role == ModelRole::Assistant));
+    }
+
+    #[test]
+    fn compact_outcome_shrinks_large_discarded_history() {
+        let messages = vec![ModelMessage::user("a".repeat(2000))];
+        let out = compact_if_needed(messages, 200, 40);
+        assert!(out.applied);
+        assert!(out.summary_present);
+        assert!(
+            out.tokens_after < out.tokens_before,
+            "before={} after={}",
+            out.tokens_before,
+            out.tokens_after
+        );
     }
 }

@@ -125,6 +125,12 @@ pub enum RunnerEvent {
         run_id: RunId,
         error: String,
     },
+    Compacted {
+        run_id: RunId,
+        tokens_before: u64,
+        tokens_after: u64,
+        summary_present: bool,
+    },
 }
 
 impl RunnerEvent {
@@ -134,7 +140,8 @@ impl RunnerEvent {
             | Self::Delta { run_id, .. }
             | Self::CapabilityRequested { run_id, .. }
             | Self::Completed { run_id, .. }
-            | Self::Failed { run_id, .. } => *run_id,
+            | Self::Failed { run_id, .. }
+            | Self::Compacted { run_id, .. } => *run_id,
         }
     }
 }
@@ -201,6 +208,25 @@ mod tests {
         assert_eq!(
             serde_json::from_slice::<RunnerCommand>(&encoded).unwrap(),
             command
+        );
+    }
+
+    #[test]
+    fn compacted_event_round_trips_token_counts() {
+        let run_id = RunId::new();
+        let event = RunnerEvent::Compacted {
+            run_id,
+            tokens_before: 500,
+            tokens_after: 120,
+            summary_present: true,
+        };
+        let encoded = serde_json::to_value(&event).unwrap();
+        assert_eq!(encoded["event"], "compacted");
+        assert_eq!(encoded["tokens_before"], 500);
+        assert_eq!(encoded["summary_present"], true);
+        assert_eq!(
+            serde_json::from_value::<RunnerEvent>(encoded).unwrap(),
+            event
         );
     }
 }

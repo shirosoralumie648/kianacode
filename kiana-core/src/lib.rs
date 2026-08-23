@@ -25,6 +25,7 @@ use tokio::sync::{watch, Notify};
 pub const LEGACY_EDGES_REMAINING: usize = 9;
 pub const HARNESS_ID: &str = "kiana-harness";
 pub const RUN_RESULT_SCHEMA: &str = "kiana.run-result.v1";
+pub const COMPACT_SCHEMA: &str = "kiana.compact.v1";
 const CONTEXT_QUERY_COMMAND: &str = "context.query.v1";
 const CONTEXT_REPO_MAP_OPERATION: &str = "context.repo_map";
 const CONTEXT_INDEX_OPERATION: &str = "context.index.read";
@@ -1192,6 +1193,26 @@ impl ControlPlane {
                     )
                     .await?;
                 }
+                RunnerEvent::Compacted {
+                    run_id,
+                    tokens_before,
+                    tokens_after,
+                    summary_present,
+                } => {
+                    self.record_event(
+                        request_id,
+                        sequence,
+                        "run.compacted",
+                        json!({
+                            "schema": COMPACT_SCHEMA,
+                            "run_id": run_id,
+                            "tokens_before": tokens_before,
+                            "tokens_after": tokens_after,
+                            "summary_present": summary_present,
+                        }),
+                    )
+                    .await?;
+                }
             }
             if completed || failed.is_some() {
                 break;
@@ -1615,6 +1636,7 @@ fn receipt_from_events(
             "prompt_hash": worker.prompt_hash,
             "files_changed": files_changed_from_events(events),
             "memory_hits": memory_hits_from_events(events),
+            "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
             "output": output,
         }),
@@ -1720,6 +1742,31 @@ fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> {
         }
     }
     files
+}
+
+fn compact_from_events(events: &[RuntimeEvent]) -> Value {
+    let mut count = 0u64;
+    let mut last = None;
+    for event in events {
+        if event.kind != "run.compacted" {
+            continue;
+        }
+        count += 1;
+        last = Some(event.data.clone());
+    }
+    match last {
+        Some(data) => json!({
+            "applied": true,
+            "count": count,
+            "tokens_before": data.get("tokens_before"),
+            "tokens_after": data.get("tokens_after"),
+            "summary_present": data.get("summary_present"),
+        }),
+        None => json!({
+            "applied": false,
+            "count": 0,
+        }),
+    }
 }
 
 fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {

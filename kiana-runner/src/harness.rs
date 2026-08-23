@@ -304,11 +304,22 @@ impl KianaHarness {
             run.messages.push(ModelMessage::user(message.text));
         }
 
-        run.messages = compact_if_needed(
+        let compact = compact_if_needed(
             std::mem::take(&mut run.messages),
             self.compact_trigger_tokens,
             self.compact_user_message_max_tokens,
         );
+        run.messages = compact.messages;
+
+        let mut events = Vec::new();
+        if compact.applied {
+            events.push(RunnerEvent::Compacted {
+                run_id: run.run_id,
+                tokens_before: compact.tokens_before as u64,
+                tokens_after: compact.tokens_after as u64,
+                summary_present: compact.summary_present,
+            });
+        }
 
         let output = match self
             .model
@@ -321,14 +332,13 @@ impl KianaHarness {
         {
             Ok(output) => output,
             Err(error) => {
-                return vec![RunnerEvent::Failed {
+                events.push(RunnerEvent::Failed {
                     run_id: run.run_id,
                     error,
-                }];
+                });
+                return events;
             }
         };
-
-        let mut events = Vec::new();
         if !output.text.is_empty() {
             run.last_text = output.text.clone();
             events.push(RunnerEvent::Delta {
@@ -577,6 +587,16 @@ mod tests {
                 .iter()
                 .all(|message| message.role == crate::model::ModelRole::User),
             "{first:?}"
+        );
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                RunnerEvent::Compacted {
+                    summary_present: true,
+                    ..
+                }
+            )),
+            "{events:?}"
         );
     }
 

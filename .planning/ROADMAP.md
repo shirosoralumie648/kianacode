@@ -17,7 +17,8 @@
 
 - [x] **Phase 1: Five department objects** — initiating/planning/executing/monitoring/closing
 - [x] **Phase 2: Six-layer RAG ACL** — JSONL 分库 + `memory.search`/`write`
-- [ ] **Later: department symposiums / compact / resume** — 下一刀
+- [x] **Phase 3: User-visible compact + resume-after-compact** — LONG-02
+- [ ] **Later: department symposiums** — SYMP-04 下一刀
 
 ### Phase 1: Five department objects
 
@@ -45,7 +46,21 @@
 4. Builder 不能读 `user-private` 或 `planning:unreleased-debate`；不能写 project 记忆。
 5. 不把 `kiana memory` CLI / 向量库 / `rag_collection` 名当成完成。不格式化 `cli.rs`。证明级别 `local_behavior`。
 
-**Plans:** 已执行。验证：`.planning/phases/15-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 compact/resume 或部门会。
+**Plans:** 已执行。验证：`.planning/phases/15-VERIFICATION.md`。同核证明在 in-process DaemonHost。
+
+### Phase 3: User-visible compact + resume-after-compact
+
+**Goal:** 超预算历史 compact 对用户可感知；compact 之后同一 DaemonHost 仍可 continue 并写盘。
+**Requirements:** LONG-02
+**Success Criteria:**
+
+1. 超预算 run 的收据含 `compact.applied=true`、token 计数、`summary_present=true`。
+2. 未超预算 run 不得声称 compact（`applied=false`, `count=0`）。
+3. compact 之后 same-host continue + workspace-write 仍能写出 `GOLDEN_PATH.txt`。
+4. pause 仍是现有 cancel。不新增 CLI 开关，不格式化 `cli.rs`。
+5. 不是 `/compact` slash、不是 `kiana-query` 引擎、不是跨进程 transcript 恢复。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/16-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 SYMP-04 部门会。
 
 ## 已完成：v0.4
 
