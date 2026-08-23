@@ -493,27 +493,36 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
 ## v0.6 — 多入口同一核
 
 **打开条件：** v0.5 resume 真能用。  
-**顺序（git 共识 + Kiana 已选 CLI）：** SDK/print 彻底同一核 → IDE → Desktop/Web。
+**产品北星切片：** 并行 Builder 同核（ORCH-04）已本地绿。SDK/IDE/Desktop/worktree 后开，不挡 v1.0 P0。
 
 ### 建议切分
 
-**v0.6.1 Headless SDK / RPC**
+**v0.6.1 执行部并行 Builder + 路径锁** — **已本地绿**
+
+- 同一 `DaemonHost` 两个 packet Builder；独立 session；不交叠 `path_allow` 都写盘。
+- ControlPlane 持路径锁。空 `path_allow` 锁 `*`。前缀重叠 → `path_lock_conflict`。spawn 返回即释放。
+- Packet `path_allow` 进 policy；越权 apply_patch → `packet_path_denied`。
+- Spawn 仍是原语：软件编排器是 `tokio::join` 两次 `spawn`。Chair/Queen 不是 LLM。
+- 验证：`.planning/phases/18-VERIFICATION.md`。
+- **不要：** worktree / Integrator / `kiana-tasks` swarm schema / ruflo Queen / 新 CLI / 格式化 `cli.rs`。
+
+**v0.6 later Headless SDK / RPC**（后开）
 
 - print/SDK/app-server 全部 `DaemonHost`。`runner.rs` 不再被产品路径调用。
 - 参考：12-factor #11；Codex 2025-09-30 拆 `mcp-server` 与 `app-server`（`codex-rs/app-server*`）；deepseek `packages/sdk`、`packages/acp`、`apps/cli`；pi `packages/protocol`、`packages/server`；continue `core/protocol`。
 
-**v0.6.2 IDE**
+**v0.6 later IDE**（后开）
 
 - 新入口只做 client。对照 continue `core/` + 扩展；cline / Roo-Code（Roo 与 cline 同源 IDE 路线）。
 - 不要复制 runner。
 
-**v0.6.3 Desktop / Web**
+**v0.6 later Desktop / Web**（后开）
 
 - 对照 OpenHands（当前树偏 Electron/前端）、orca（终端工作区）、emdash（Electron + worktree + 包一层 Codex CLI）。
 - emdash 的教训：它可以是 **壳**，内核仍是 agent CLI。Kiana Desktop 若做，必须包 `DaemonHost`，不是再写一个循环。
 - herdr：多 agent 终端复用，是工作区产品，不是 Kiana 内核。
 
-**v0.6.4 执行部并行 swarm（可与 6.1 并行决策，但路径锁必须先绿）**
+**v0.6 later 执行部 worktree swarm**（后开；路径锁已绿）
 
 - 做什么：多个 Builder，一人一包一 worktree；冲突路径串行；编排器是软件。
 - 主教材：`reference/ruflo/plugins/ruflo-swarm/README.md`（hierarchical、max 6–8、specialized、worktree、Monitor）。
@@ -521,9 +530,8 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
 - 本仓形状：`kiana-tasks/src/swarm.rs` 的 WorkPacket / path_locks / `.kiana/swarm-worktrees/{dispatch}/{task}`。把它做真接到 `KianaHarness`，不要当已完成。
 - 也对照：architect-loop 一人一 issue 一 worktree；coleam00/Archon 每 run 一个 worktree。
 - **不要：** ruflo Queen 当 LLM 编排器；Raft/BFT/Gossip；TeamCreate/SendMessage；默认 15–100 agent；共享 swarm memory 打穿 ACL。
-- 需求：现有 SURF2 之外加并行执行，打开时再赋 ID，不进 v0.2。
 
-**v0.6.5 远程执行雏形**
+**v0.6 later 远程执行雏形**（后开）
 
 - 已有 `kiana-remote` / `kiana-bridge`。只在 SDK 同核之后接。
 - Codex `cloud-tasks*` 是 v1.x 级，不要提前。
@@ -532,7 +540,7 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
 
 ## v1.0 — 完整个人产品
 
-**打开条件：** v0.6 至少 SDK 同核；安装升级过关；Coding pack 核心路径（不是工具数 100%）有矩阵证据。
+**打开条件：** v0.6 并行 Builder 同核已绿（ORCH-04）；安装升级过关；Coding pack 核心路径（不是工具数 100%）有矩阵证据。SDK/IDE 不是打开条件。
 
 ### 必须做的事
 
@@ -592,9 +600,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.5 可执行切片已绿。下一刀打开 v0.6。不解冻 JointSymposium。P1-READ skipped。不把向量库 / `kiana-query` / letta 落地页当完成。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.6.1 并行 Builder 已绿。下一刀打开 v1.0。不解冻 JointSymposium。不把 worktree / SDK/IDE / 向量库 / `kiana-query` / letta 落地页当完成。P1-READ skipped。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.5 later SYMP-04 各部门有界会已本地绿。JointSymposium 仍冻结。  
-下一命令：打开 **v0.6**（并行 Builder 同核 / SURF2 的当前切片）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。
+当前计数：v0.6.1 ORCH-04 同核并行 Builder + 路径锁已本地绿。  
+下一命令：打开 **v1.0**（安装/文档/P0 核心路径）。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。

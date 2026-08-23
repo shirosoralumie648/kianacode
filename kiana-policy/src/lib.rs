@@ -111,6 +111,21 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
                 reason: "role_path_denied".to_owned(),
             });
         }
+        if !context.path_allow.is_empty() {
+            if paths.is_empty() {
+                return Some(PolicyDecision::Deny {
+                    reason: "packet_path_required".to_owned(),
+                });
+            }
+            if paths
+                .iter()
+                .any(|path| !kiana_domain::allow_list_covers(&context.path_allow, path))
+            {
+                return Some(PolicyDecision::Deny {
+                    reason: "packet_path_denied".to_owned(),
+                });
+            }
+        }
     }
     None
 }
@@ -321,6 +336,22 @@ mod tests {
         context.assign_role(&RoleSpec::pm());
         assert!(matches!(
             DefaultPolicyEngine.evaluate(&context, &apply_patch("plan/WORK.md")),
+            PolicyDecision::Allow { .. }
+        ));
+    }
+
+    #[test]
+    fn packet_path_allow_denies_writes_outside_the_packet() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Balanced;
+        context.path_allow = vec!["ALPHA.txt".to_owned()];
+        match DefaultPolicyEngine.evaluate(&context, &apply_patch("GOLDEN_PATH.txt")) {
+            PolicyDecision::Deny { reason } => assert_eq!(reason, "packet_path_denied"),
+            other => panic!("expected packet deny, got {other:?}"),
+        }
+        assert!(matches!(
+            DefaultPolicyEngine.evaluate(&context, &apply_patch("ALPHA.txt")),
             PolicyDecision::Allow { .. }
         ));
     }

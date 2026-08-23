@@ -13,6 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::Notify;
 
 struct InProcessTransport {
     host: Arc<DaemonHost>,
@@ -734,6 +735,200 @@ async fn spawn_reuses_of_a_live_session_fail_closed() {
         .unwrap();
     assert_eq!(spawned.status, ExecutionStatus::Blocked, "{spawned:?}");
     assert_eq!(spawned.error.as_deref(), Some("spawn_session_not_fresh"));
+}
+
+struct RoutingModel;
+
+#[async_trait]
+impl ModelClient for RoutingModel {
+    async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+        let blob: String = request
+            .messages
+            .iter()
+            .map(|message| message.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let file = if blob.contains("ALPHA.txt") {
+            "ALPHA.txt"
+        } else if blob.contains("BRAVO.txt") {
+            "BRAVO.txt"
+        } else {
+            return Err(format!("unexpected_prompt:{blob}"));
+        };
+        let has_tool = request
+            .messages
+            .iter()
+            .any(|message| message.role == ModelRole::Tool);
+        if has_tool {
+            Ok(ModelOutput::text(format!("created {file}")))
+        } else {
+            Ok(ModelOutput::with_tool(
+                format!("writing {file}"),
+                "apply_patch",
+                json!({
+                    "patch": format!("*** Begin Patch\n*** Add File: {file}\n+hello\n*** End Patch\n")
+                }),
+            ))
+        }
+    }
+}
+
+struct HoldFirstModel {
+    inner: ScriptedModel,
+    entered: Notify,
+    release: Notify,
+    held: Mutex<bool>,
+}
+
+#[async_trait]
+impl ModelClient for HoldFirstModel {
+    async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+        let should_hold = {
+            let mut held = self.held.lock().unwrap();
+            if !*held {
+                *held = true;
+                true
+            } else {
+                false
+            }
+        };
+        if should_hold {
+            self.entered.notify_one();
+            self.release.notified().await;
+        }
+        self.inner.complete(request).await
+    }
+}
+
+#[tokio::test]
+async fn disjoint_packet_builders_write_in_parallel() {
+    let root = temp_project();
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(Arc::new(RoutingModel)))
+            .expect("routing daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut alpha = trusted_write_metadata_in(&root);
+    alpha.session_id = SessionId::new("builder-a");
+    let mut bravo = trusted_write_metadata_in(&root);
+    bravo.session_id = SessionId::new("builder-b");
+    let (alpha_done, bravo_done) = tokio::join!(
+        client.spawn(
+            alpha,
+            WorkPacket::builder_task("wp-a", "create ALPHA.txt containing hello")
+                .with_path_allow(["ALPHA.txt"]),
+            Some("workspace-write".to_owned()),
+        ),
+        client.spawn(
+            bravo,
+            WorkPacket::builder_task("wp-b", "create BRAVO.txt containing hello")
+                .with_path_allow(["BRAVO.txt"]),
+            Some("workspace-write".to_owned()),
+        ),
+    );
+    let alpha_done = alpha_done.unwrap();
+    let bravo_done = bravo_done.unwrap();
+    assert_eq!(
+        alpha_done.status,
+        ExecutionStatus::Completed,
+        "{alpha_done:?}"
+    );
+    assert_eq!(
+        bravo_done.status,
+        ExecutionStatus::Completed,
+        "{bravo_done:?}"
+    );
+    assert_eq!(alpha_done.output["session_id"], "builder-a");
+    assert_eq!(bravo_done.output["session_id"], "builder-b");
+    assert_eq!(alpha_done.output["work_packet_id"], "wp-a");
+    assert_eq!(bravo_done.output["work_packet_id"], "wp-b");
+    assert_eq!(
+        fs::read_to_string(root.join("ALPHA.txt")).unwrap(),
+        "hello\n"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("BRAVO.txt")).unwrap(),
+        "hello\n"
+    );
+}
+
+#[tokio::test]
+async fn overlapping_live_packet_spawns_fail_closed() {
+    let root = temp_project();
+    let model = Arc::new(HoldFirstModel {
+        inner: ScriptedModel::from_json(&apply_patch_cassette_for("ALPHA.txt")).unwrap(),
+        entered: Notify::new(),
+        release: Notify::new(),
+        held: Mutex::new(false),
+    });
+    let host = Arc::new(
+        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("holding daemon"),
+    );
+    let first_client = KianaClient::new(InProcessTransport { host: host.clone() });
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut first = trusted_write_metadata_in(&root);
+    first.session_id = SessionId::new("builder-a");
+    let entered_wait = model.entered.notified();
+    let first_task = tokio::spawn(async move {
+        first_client
+            .spawn(
+                first,
+                WorkPacket::builder_task("wp-a", "create ALPHA.txt containing hello")
+                    .with_path_allow(["ALPHA.txt"]),
+                Some("workspace-write".to_owned()),
+            )
+            .await
+    });
+    entered_wait.await;
+
+    let mut second = trusted_write_metadata_in(&root);
+    second.session_id = SessionId::new("builder-b");
+    let blocked = client
+        .spawn(
+            second,
+            WorkPacket::builder_task("wp-b", "also ALPHA.txt").with_path_allow(["ALPHA.txt"]),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(blocked.status, ExecutionStatus::Blocked, "{blocked:?}");
+    assert_eq!(blocked.error.as_deref(), Some("path_lock_conflict"));
+
+    model.release.notify_one();
+    let first_done = first_task.await.unwrap().unwrap();
+    assert_eq!(
+        first_done.status,
+        ExecutionStatus::Completed,
+        "{first_done:?}"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("ALPHA.txt")).unwrap(),
+        "hello\n"
+    );
+}
+
+#[tokio::test]
+async fn packet_path_allow_blocks_writes_outside_the_packet() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette_for("GOLDEN_PATH.txt"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-a");
+    let denied = client
+        .spawn(
+            builder,
+            WorkPacket::builder_task("wp-a", "create GOLDEN_PATH.txt containing hello")
+                .with_path_allow(["ALPHA.txt"]),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status, ExecutionStatus::Failed, "{denied:?}");
+    assert_eq!(denied.error.as_deref(), Some("packet_path_denied"));
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+    assert!(!root.join("ALPHA.txt").exists());
 }
 
 #[tokio::test]

@@ -119,6 +119,7 @@ impl DaemonHost {
             role_id: role.role_id,
             department_id: role.department_id,
             work_packet_id: None,
+            path_allow: Vec::new(),
         };
         let response = match request.body {
             RequestBody::Command(command) => {

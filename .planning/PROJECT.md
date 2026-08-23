@@ -10,9 +10,9 @@
 
 ## Current Milestone
 
-**v0.5 Five departments + six-layer RAG** — Phase 1–4 已本地绿：五个 `DepartmentSpec`；六层 JSONL 记忆 ACL；超预算 compact 进收据；同核 continue-after-compact 仍能写盘；五部门有界会（联席冻结）。默认工人仍是 `role=builder` / `department=executing`。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。下一站：v0.6 并行 Builder 同核。
+**v0.6 Parallel builders, same core** — Phase 1 已本地绿：同一 `DaemonHost` 两个 packet Builder + 路径锁；packet `path_allow` 交集 apply_patch。v0.5 五部门/六层 RAG/compact/部门会仍必须绿。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。SDK/IDE/worktree 后开。下一站：v1.0 安装/文档/P0 核心路径。
 
-后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 多入口同一核 → v1.0 个人完整产品。
+后续：v0.4 Coding pack + Reviewer → v0.5 五部门 + 六层 RAG → v0.6 并行 Builder 同核 → v1.0 个人完整产品。SDK/IDE/worktree 后开。
 
 ## Core Value
 

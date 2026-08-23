@@ -18,7 +18,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 
 struct UnavailableRunner;
 
@@ -657,6 +657,161 @@ async fn spawn_reuses_of_a_live_session_fail_closed() {
         .unwrap();
     assert_eq!(spawned.status, ExecutionStatus::Blocked, "{spawned:?}");
     assert_eq!(spawned.error.as_deref(), Some("spawn_session_not_fresh"));
+}
+
+struct HoldingRunner {
+    entered: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
+#[async_trait]
+impl RunnerPort for HoldingRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => {
+                self.entered.notify_one();
+                self.release.notified().await;
+                Ok(vec![
+                    RunnerEvent::Started { run_id },
+                    RunnerEvent::Completed {
+                        run_id,
+                        output: json!({ "text": "held" }),
+                    },
+                ])
+            }
+            other => Ok(vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
+#[tokio::test]
+async fn overlapping_live_spawns_fail_closed_on_path_locks() {
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let harness = CoreHarness::with_runner(Arc::new(HoldingRunner {
+        entered: entered.clone(),
+        release: release.clone(),
+    }));
+    let mut first = trusted_context();
+    first.session_id = kiana_domain::SessionId::new("builder-a");
+    first.permission_profile = PermissionProfile::Balanced;
+    let first_packet =
+        WorkPacket::builder_task("wp-a", "create ALPHA.txt").with_path_allow(["ALPHA.txt"]);
+    let first_core = Arc::new(harness.core);
+    let entered_wait = entered.notified();
+    let first_task = {
+        let core = first_core.clone();
+        tokio::spawn(async move {
+            core.spawn_from_packet(first, first_packet, Some("workspace-write".to_owned()))
+                .await
+        })
+    };
+    entered_wait.await;
+
+    let mut second = trusted_context();
+    second.session_id = kiana_domain::SessionId::new("builder-b");
+    second.permission_profile = PermissionProfile::Balanced;
+    let overlapping =
+        WorkPacket::builder_task("wp-b", "also ALPHA.txt").with_path_allow(["ALPHA.txt"]);
+    let blocked = first_core
+        .spawn_from_packet(second, overlapping, Some("workspace-write".to_owned()))
+        .await
+        .unwrap();
+    assert_eq!(blocked.status, ExecutionStatus::Blocked, "{blocked:?}");
+    assert_eq!(blocked.error.as_deref(), Some("path_lock_conflict"));
+
+    release.notify_one();
+    let first_done = first_task.await.unwrap().unwrap();
+    assert_eq!(
+        first_done.status,
+        ExecutionStatus::Completed,
+        "{first_done:?}"
+    );
+}
+
+#[tokio::test]
+async fn spawn_packet_path_allow_fails_closed_outside_the_packet() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        scripted_runner(json!([
+            {
+                "text": "writing",
+                "tool_calls": [{
+                    "id": "c1",
+                    "name": "apply_patch",
+                    "arguments": {
+                        "patch": "*** Begin Patch\n*** Add File: GOLDEN_PATH.txt\n+hello\n*** End Patch\n"
+                    }
+                }]
+            },
+            {"text": "created GOLDEN_PATH.txt"}
+        ])),
+        broker.clone(),
+    );
+    let mut worker = trusted_context();
+    worker.session_id = kiana_domain::SessionId::new("builder-a");
+    worker.permission_profile = PermissionProfile::Balanced;
+    let denied = harness
+        .core
+        .spawn_from_packet(
+            worker,
+            WorkPacket::builder_task("wp-a", "create GOLDEN_PATH.txt containing hello")
+                .with_path_allow(["ALPHA.txt"]),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status, ExecutionStatus::Failed, "{denied:?}");
+    assert_eq!(denied.error.as_deref(), Some("packet_path_denied"));
+    assert_eq!(*broker.calls.lock().await, 0);
+}
+
+#[tokio::test]
+async fn sequential_empty_packets_still_spawn() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "one"},
+        {"text": "two"}
+    ])));
+    let mut first = trusted_context();
+    first.session_id = kiana_domain::SessionId::new("builder-a");
+    first.permission_profile = PermissionProfile::Balanced;
+    let first_done = harness
+        .core
+        .spawn_from_packet(
+            first,
+            WorkPacket::builder_task("wp-a", "first packet"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        first_done.status,
+        ExecutionStatus::Completed,
+        "{first_done:?}"
+    );
+
+    let mut second = trusted_context();
+    second.session_id = kiana_domain::SessionId::new("builder-b");
+    second.permission_profile = PermissionProfile::Balanced;
+    let second_done = harness
+        .core
+        .spawn_from_packet(
+            second,
+            WorkPacket::builder_task("wp-b", "second packet"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        second_done.status,
+        ExecutionStatus::Completed,
+        "{second_done:?}"
+    );
 }
 
 #[tokio::test]

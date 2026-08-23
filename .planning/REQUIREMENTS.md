@@ -1,7 +1,7 @@
 # Requirements
 
 v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
-北星是 Company OS（见 `COMPANY.md`）。v0.5 Phase 1–4 已本地绿：五部门对象、六层 RAG ACL、compact/resume、各部门有界会。下一执行集是 **v0.6 并行 Builder 同核**。JointSymposium 仍冻结。pause 仍是 cancel。
+北星是 Company OS（见 `COMPANY.md`）。v0.6.1 ORCH-04 已本地绿：同核双 Builder + 路径锁。v0.5 Phase 1–4 仍必须绿。下一执行集是 **v1.0 安装/文档/P0 核心路径**。SDK/IDE/worktree 后开。JointSymposium 仍冻结。pause 仍是 cancel。
 
 ## v0.3 — Current
 
@@ -14,6 +14,7 @@ v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
 - **ORCH-01**: 确定性编排器按 work packet 派独立上下文的 Builder（Phase 2）
 - **ORCH-02**: PM / Architect 只能写计划工件（`charter/` `plan/` `packet/`），不能 `apply_patch` src。Policy 看 `role_id` + `department_id`
 - **ORCH-03**: 跨部门禁止自由群聊总线（不用 TeamCreate/SendMessage）；交接 = packet + eventlog
+- **ORCH-04**: 同一 DaemonHost 可并行两个 packet Builder；路径锁 fail-closed；packet `path_allow` 交集 apply_patch — **已本地绿（同核 spawn + path_lock_conflict + packet_path_denied）**；不是 worktree、不是 SDK/IDE、不是 Queen
 
 ### SYMP — One planning meeting (Phase 3)
 
@@ -87,7 +88,7 @@ v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
 - **MEM-03**: 检索命中写入收据；无来源不得当已验证结论 — **已本地绿（`memory_hits` + `verified`）**
 - **MEM-04**: instance scratch 默认不晋升；写入更高层必须显式 — **已本地绿（scratch 不进 project；promote 失败）**
 
-### v0.6 SURF2 — Extra surfaces
+### v0.6 SURF2 — Extra surfaces（后开，不挡 v1.0 P0）
 
 - **SURF2-01**: SDK/print 100% harness
 - **SURF2-02**: 下一入口（IDE 优先于 Desktop/Web）打同一 daemon

@@ -9,13 +9,31 @@
 - [x] **v0.3 Trusted Workbench + planning/executing + one symposium**
 - [x] **v0.4 Coding pack baseline** — P1-READ skipped (shell search)
 - [x] **v0.5 Five departments + six-layer RAG**
-- [ ] **v0.6 Extra surfaces, same core** ← 当前（未打开）
-- [ ] **v1.0 Personal complete product**
+- [x] **v0.6 Parallel builders, same core** — path locks; SDK/IDE/worktree remain later
+- [ ] **v1.0 Personal complete product** ← 当前（未打开）
 - [ ] **v1.x Team / enterprise**
 
-## 当前里程碑：v0.6
+## 当前里程碑：v1.0
 
-未打开。打开条件「v0.5 resume 真能用」已满足（LONG-02）。产品北星切片是并行 Builder 同核，不是 TUI/企业。JointSymposium 仍冻结。
+未打开。打开条件「v0.6 并行 Builder 同核」已满足（ORCH-04）。v1.0 是安装/文档/P0 核心路径，不是企业、不是 TUI 像素对等、不是 SDK/IDE 新入口。JointSymposium 仍冻结。
+
+## 已完成：v0.6
+
+- [x] **Phase 1: Parallel builders + path locks** — ORCH-04
+
+### Phase 1: Parallel builders + path locks
+
+**Goal:** 同一 `DaemonHost` 上两个 packet Builder 独立 session 并行写盘；活锁重叠 fail-closed；packet `path_allow` 交集 apply_patch。
+**Requirements:** ORCH-04
+**Success Criteria:**
+
+1. 两个不交叠 `path_allow` 的 spawn 都写出文件；两个 `session_id`；两个 `work_packet_id`。
+2. 活路径锁重叠（含前缀）→ `path_lock_conflict`；空 `path_allow` 锁 `*`；锁在 spawn 返回时释放。
+3. packet `path_allow` 之外的 apply_patch → `packet_path_denied`，不写盘。
+4. 顺序空 packet 仍可 spawn。默认 Builder 仍写 `GOLDEN_PATH.txt`。
+5. 不是 worktree / Integrator / Queen / 新 CLI / SDK/IDE。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/18-VERIFICATION.md`。同核证明在 in-process DaemonHost。
 
 ## 已完成：v0.5
 
@@ -78,7 +96,7 @@
 4. 决议不自动 `memory.write`。不新增 CLI 开关；CLI `--symposium` 仍只许 PM。不格式化 `cli.rs`。
 5. 不是 JointSymposium、不是招满角色、不是 Librarian。证明级别 `local_behavior`。
 
-**Plans:** 已执行。验证：`.planning/phases/17-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 v0.6 并行 Builder 同核。
+**Plans:** 已执行。验证：`.planning/phases/17-VERIFICATION.md`。同核证明在 in-process DaemonHost。
 
 ## 已完成：v0.4
 
@@ -222,6 +240,6 @@
 |---|---|---|
 | v0.4 | v0.3 绿；公开行为矩阵草稿签字 | CODE / REV |
 | v0.5 | v0.4 核心路径可用 | LONG / DEPT / SYMP / MEM |
-| v0.6 | v0.5 resume 真能用 | SURF2 |
-| v1.0 | v0.6 至少 SDK 同核；安装升级过关 | REL |
+| v0.6 | v0.5 resume 真能用 | ORCH-04 并行 Builder；SURF2 SDK/IDE 后开 |
+| v1.0 | v0.6 并行 Builder 同核已绿；安装升级过关 | REL |
 | v1.x | v1.0 个人产品已发布 | ENT |

@@ -108,6 +108,8 @@ pub struct RequestContext {
     pub department_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work_packet_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub path_allow: Vec<String>,
 }
 
 impl RequestContext {
@@ -122,6 +124,7 @@ impl RequestContext {
             role_id: default_role_id(),
             department_id: default_department_id(),
             work_packet_id: None,
+            path_allow: Vec::new(),
         }
     }
 
@@ -696,6 +699,11 @@ impl WorkPacket {
         }
     }
 
+    pub fn with_path_allow(mut self, paths: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.path_allow = paths.into_iter().map(Into::into).collect();
+        self
+    }
+
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema.trim() != WORK_PACKET_SCHEMA {
             return Err("packet_invalid");
@@ -748,6 +756,47 @@ fn push_packet_list(lines: &mut Vec<String>, label: &str, values: &[String]) {
         return;
     }
     lines.push(format!("{label}: {}", values.join(", ")));
+}
+
+pub const EXCLUSIVE_PATH_LOCK: &str = "*";
+
+pub fn builder_lock_paths(path_allow: &[String]) -> Vec<String> {
+    let mut paths: Vec<String> = path_allow
+        .iter()
+        .filter_map(|path| normalize_role_path(path))
+        .collect();
+    paths.sort();
+    paths.dedup();
+    if paths.is_empty() {
+        vec![EXCLUSIVE_PATH_LOCK.to_owned()]
+    } else {
+        paths
+    }
+}
+
+pub fn path_locks_conflict(left: &str, right: &str) -> bool {
+    if left == EXCLUSIVE_PATH_LOCK || right == EXCLUSIVE_PATH_LOCK {
+        return true;
+    }
+    left == right
+        || left.starts_with(&format!("{right}/"))
+        || right.starts_with(&format!("{left}/"))
+}
+
+pub fn allow_list_covers(path_allow: &[String], path: &str) -> bool {
+    let Some(path) = normalize_role_path(path) else {
+        return false;
+    };
+    if path_allow
+        .iter()
+        .any(|allow| allow.trim() == "." || allow.trim() == "*")
+    {
+        return true;
+    }
+    path_allow.iter().any(|allow| {
+        let allow = allow.trim().trim_matches('/');
+        !allow.is_empty() && (path == allow || path.starts_with(&format!("{allow}/")))
+    })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1577,6 +1626,25 @@ mod tests {
         assert_eq!(context.role_id, ROLE_BUILDER);
         assert_eq!(context.department_id, DEPARTMENT_EXECUTING);
         assert_eq!(context.work_packet_id, None);
+        assert!(context.path_allow.is_empty());
+    }
+
+    #[test]
+    fn builder_lock_paths_exclusive_when_empty_and_overlap_on_prefix() {
+        assert_eq!(builder_lock_paths(&[]), vec![EXCLUSIVE_PATH_LOCK]);
+        assert_eq!(
+            builder_lock_paths(&["ALPHA.txt".to_owned(), "ALPHA.txt".to_owned()]),
+            vec!["ALPHA.txt"]
+        );
+        assert!(path_locks_conflict("ALPHA.txt", "ALPHA.txt"));
+        assert!(path_locks_conflict("src", "src/lib.rs"));
+        assert!(!path_locks_conflict("ALPHA.txt", "BRAVO.txt"));
+        assert!(path_locks_conflict(EXCLUSIVE_PATH_LOCK, "ALPHA.txt"));
+        assert!(allow_list_covers(&["ALPHA.txt".to_owned()], "ALPHA.txt"));
+        assert!(!allow_list_covers(
+            &["ALPHA.txt".to_owned()],
+            "GOLDEN_PATH.txt"
+        ));
     }
 
     #[test]
@@ -1594,6 +1662,9 @@ mod tests {
         let mut architect = packet.clone();
         architect.assignee_role = ROLE_ARCHITECT.to_owned();
         assert_eq!(architect.validate(), Err("packet_role_must_be_builder"));
+        let allowed =
+            WorkPacket::builder_task("wp-2", "create ALPHA.txt").with_path_allow(["ALPHA.txt"]);
+        assert_eq!(allowed.path_allow, ["ALPHA.txt"]);
     }
 
     #[test]

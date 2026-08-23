@@ -1,12 +1,13 @@
 //! The single command and capability control plane for Kiana.
 
 use kiana_domain::{
-    ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
-    CapabilityResult, CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision,
-    PermissionProfile, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
-    RuntimeEvent, Symposium, SymposiumClaim, WorkPacket, DEPARTMENT_PLANNING, MEMORY_SEARCH_SCHEMA,
-    MONITORING_PATH_GATE, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_REVIEWER,
-    SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
+    builder_lock_paths, path_locks_conflict, ApprovalDecision, ApprovalId,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest, CapabilityResult,
+    CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision, PermissionProfile,
+    RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, RuntimeEvent, Symposium,
+    SymposiumClaim, WorkPacket, DEPARTMENT_PLANNING, MEMORY_SEARCH_SCHEMA, MONITORING_PATH_GATE,
+    REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_REVIEWER, SYMPOSIUM_RESULT_SCHEMA,
+    WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
@@ -52,6 +53,7 @@ pub struct ControlPlane {
     runner: Arc<dyn RunnerPort>,
     sessions: Mutex<HashMap<String, RunId>>,
     cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
+    path_locks: Mutex<HashMap<String, String>>,
 }
 
 impl ControlPlane {
@@ -72,6 +74,7 @@ impl ControlPlane {
             runner,
             sessions: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
+            path_locks: Mutex::new(HashMap::new()),
         }
     }
 
@@ -390,7 +393,25 @@ impl ControlPlane {
         }
         context.assign_role(&RoleSpec::builder());
         context.work_packet_id = Some(packet.id.clone());
-        self.start_run(context, packet.as_prompt(), sandbox).await
+        context.path_allow = packet.path_allow.clone();
+        let session_id = context.session_id.as_str().to_owned();
+        if let Err(reason) = self.acquire_builder_path_locks(&session_id, &context.path_allow) {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({
+                    "reason": reason,
+                    "command": "run.spawn",
+                    "session_id": session_id,
+                }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+        let response = self.start_run(context, packet.as_prompt(), sandbox).await;
+        self.release_builder_path_locks(&session_id);
+        response
     }
 
     pub async fn review_author_run(
@@ -1484,7 +1505,9 @@ impl ControlPlane {
                     }
                 }
             }
-            GateDecision::Denied { reason } if reason.starts_with("role_") => {
+            GateDecision::Denied { reason }
+                if reason.starts_with("role_") || reason.starts_with("packet_") =>
+            {
                 self.record_event(
                     request_id,
                     sequence,
@@ -1576,6 +1599,36 @@ impl ControlPlane {
         if sessions.get(session_id) == Some(&run_id) {
             sessions.remove(session_id);
         }
+    }
+
+    fn acquire_builder_path_locks(
+        &self,
+        session_id: &str,
+        path_allow: &[String],
+    ) -> Result<(), &'static str> {
+        let paths = builder_lock_paths(path_allow);
+        let mut locks = self
+            .path_locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        for path in &paths {
+            for (held, owner) in locks.iter() {
+                if owner != session_id && path_locks_conflict(path, held) {
+                    return Err("path_lock_conflict");
+                }
+            }
+        }
+        for path in paths {
+            locks.insert(path, session_id.to_owned());
+        }
+        Ok(())
+    }
+
+    fn release_builder_path_locks(&self, session_id: &str) {
+        self.path_locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|_, owner| owner != session_id);
     }
 
     fn watch_cancel(&self, run_id: RunId) -> watch::Receiver<bool> {
