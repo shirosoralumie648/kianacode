@@ -8,17 +8,21 @@
 - [x] **v0.2 Runnable Local Agent**
 - [x] **v0.3 Trusted Workbench + planning/executing + one symposium**
 - [x] **v0.4 Coding pack baseline** — P1-READ skipped (shell search)
-- [ ] **v0.5 Five departments + six-layer RAG** ← 当前
-- [ ] **v0.6 Extra surfaces, same core**
+- [x] **v0.5 Five departments + six-layer RAG**
+- [ ] **v0.6 Extra surfaces, same core** ← 当前（未打开）
 - [ ] **v1.0 Personal complete product**
 - [ ] **v1.x Team / enterprise**
 
-## 当前里程碑：v0.5
+## 当前里程碑：v0.6
+
+未打开。打开条件「v0.5 resume 真能用」已满足（LONG-02）。产品北星切片是并行 Builder 同核，不是 TUI/企业。JointSymposium 仍冻结。
+
+## 已完成：v0.5
 
 - [x] **Phase 1: Five department objects** — initiating/planning/executing/monitoring/closing
 - [x] **Phase 2: Six-layer RAG ACL** — JSONL 分库 + `memory.search`/`write`
 - [x] **Phase 3: User-visible compact + resume-after-compact** — LONG-02
-- [ ] **Later: department symposiums** — SYMP-04 下一刀
+- [x] **Phase 4: Department symposiums** — SYMP-04
 
 ### Phase 1: Five department objects
 
@@ -60,7 +64,21 @@
 4. pause 仍是现有 cancel。不新增 CLI 开关，不格式化 `cli.rs`。
 5. 不是 `/compact` slash、不是 `kiana-query` 引擎、不是跨进程 transcript 恢复。证明级别 `local_behavior`。
 
-**Plans:** 已执行。验证：`.planning/phases/16-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 SYMP-04 部门会。
+**Plans:** 已执行。验证：`.planning/phases/16-VERIFICATION.md`。同核证明在 in-process DaemonHost。
+
+### Phase 4: Department symposiums
+
+**Goal:** Initiating / Planning / Executing / Monitoring / Closing 都能开本部门有界会。主席是该部门 `can_convene` 角色，不是永远 PM。
+**Requirements:** SYMP-04
+**Success Criteria:**
+
+1. 五部门都能开会；规划会仍是 PM+Architect，Builder 不列席，anti-meeting 仍写 `plan/DECISION.json` + `packet/TASK.json`。
+2. 非规划会只写该部门决策文件，不产 Builder WorkPacket：initiating → `charter/DECISION.json`；executing → `receipt/DECISION.json`；monitoring → `gate/DECISION.json`；closing → `lessons/DECISION.json`。
+3. Builder 可 convene 执行部；Architect 主席仍 `symposium_chair_must_be_pm`；跨部门出席 → `joint_symposium_frozen`。
+4. 决议不自动 `memory.write`。不新增 CLI 开关；CLI `--symposium` 仍只许 PM。不格式化 `cli.rs`。
+5. 不是 JointSymposium、不是招满角色、不是 Librarian。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/17-VERIFICATION.md`。同核证明在 in-process DaemonHost。下一刀 v0.6 并行 Builder 同核。
 
 ## 已完成：v0.4
 

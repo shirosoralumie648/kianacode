@@ -4,9 +4,8 @@ use kiana_domain::{
     ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
     CapabilityResult, CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision,
     PermissionProfile, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
-    RuntimeEvent, Symposium, SymposiumClaim, WorkPacket, DECISION_RECORD_PATH,
-    MEMORY_SEARCH_SCHEMA, MONITORING_PATH_GATE, PLANNING_PATH_PACKET, PLANNING_PATH_PLAN,
-    REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+    RuntimeEvent, Symposium, SymposiumClaim, WorkPacket, DEPARTMENT_PLANNING, MEMORY_SEARCH_SCHEMA,
+    MONITORING_PATH_GATE, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_REVIEWER,
     SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
@@ -634,20 +633,22 @@ impl ControlPlane {
             .await?;
             return Ok(CoreResponse::blocked(request_id, "role_unknown"));
         };
-        if chair.role_id != ROLE_PM {
+        if !chair.can_convene {
+            let reason = if chair.department_id == DEPARTMENT_PLANNING {
+                "symposium_chair_must_be_pm"
+            } else {
+                "symposium_chair_cannot_convene"
+            };
             self.record_event(
                 request_id,
                 &mut sequence,
                 "run.rejected",
-                json!({ "reason": "symposium_chair_must_be_pm" }),
+                json!({ "reason": reason }),
             )
             .await?;
-            return Ok(CoreResponse::blocked(
-                request_id,
-                "symposium_chair_must_be_pm",
-            ));
+            return Ok(CoreResponse::blocked(request_id, reason));
         }
-        context.assign_role(&RoleSpec::pm());
+        context.assign_role(&chair);
 
         let max_rounds = match Symposium::validate_max_rounds(
             max_rounds.unwrap_or(Symposium::DEFAULT_MAX_ROUNDS),
@@ -665,21 +666,56 @@ impl ControlPlane {
             }
         };
 
-        match authorized_harness_sandbox(&context, sandbox.as_deref()) {
-            Ok("workspace-write") => {}
-            Ok(_) => {
-                self.record_event(
-                    request_id,
-                    &mut sequence,
-                    "run.rejected",
-                    json!({ "reason": "symposium_requires_workspace_write" }),
-                )
-                .await?;
-                return Ok(CoreResponse::blocked(
-                    request_id,
-                    "symposium_requires_workspace_write",
-                ));
+        if chair.department_id == DEPARTMENT_PLANNING {
+            match authorized_harness_sandbox(&context, sandbox.as_deref()) {
+                Ok("workspace-write") => {}
+                Ok(_) => {
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.rejected",
+                        json!({ "reason": "symposium_requires_workspace_write" }),
+                    )
+                    .await?;
+                    return Ok(CoreResponse::blocked(
+                        request_id,
+                        "symposium_requires_workspace_write",
+                    ));
+                }
+                Err(reason) => {
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.rejected",
+                        json!({ "reason": reason }),
+                    )
+                    .await?;
+                    return Ok(CoreResponse::blocked(request_id, reason));
+                }
             }
+        } else if !context.project_trusted
+            || matches!(context.permission_profile, PermissionProfile::Safe)
+        {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "workspace_write_requires_trusted_non_safe_profile" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "workspace_write_requires_trusted_non_safe_profile",
+            ));
+        }
+
+        let mut meeting = match Symposium::department(
+            &chair.department_id,
+            request_id.to_string(),
+            goal,
+            max_rounds,
+        ) {
+            Ok(meeting) => meeting,
             Err(reason) => {
                 self.record_event(
                     request_id,
@@ -690,9 +726,7 @@ impl ControlPlane {
                 .await?;
                 return Ok(CoreResponse::blocked(request_id, reason));
             }
-        }
-
-        let mut meeting = Symposium::planning(request_id.to_string(), goal, max_rounds);
+        };
         if let Err(reason) = meeting.validate() {
             self.record_event(
                 request_id,
@@ -706,8 +740,9 @@ impl ControlPlane {
 
         let mut speaker_sessions = Vec::new();
         if !anti_meeting {
+            let attendees = meeting.attendees.clone();
             for round in 0..max_rounds {
-                for role_id in [ROLE_PM, ROLE_ARCHITECT] {
+                for role_id in &attendees {
                     let role = RoleSpec::lookup(role_id).unwrap_or_else(RoleSpec::pm);
                     let session_id = meeting.speaker_session_id(role_id);
                     let mut speaker = context.clone();
@@ -763,7 +798,9 @@ impl ControlPlane {
             }
         };
 
-        if let Err(reason) = write_planning_artifacts(&context.project_root, &decision, &packet) {
+        if let Err(reason) =
+            write_symposium_artifacts(&context.project_root, &meeting, &decision, packet.as_ref())
+        {
             self.record_event(
                 request_id,
                 &mut sequence,
@@ -780,10 +817,11 @@ impl ControlPlane {
             "symposium.closed",
             json!({
                 "symposium_id": meeting.id,
+                "department_id": meeting.department_id,
                 "skipped_meeting": anti_meeting,
-                "builder_present": false,
+                "builder_present": meeting.builder_present(),
                 "decision_id": decision.id,
-                "work_packet_id": packet.id,
+                "work_packet_id": packet.as_ref().map(|packet| packet.id.clone()),
             }),
         )
         .await?;
@@ -794,13 +832,16 @@ impl ControlPlane {
                 "schema": SYMPOSIUM_RESULT_SCHEMA,
                 "harness": HARNESS_ID,
                 "symposium_id": meeting.id,
+                "department_id": meeting.department_id,
+                "chair": meeting.chair,
+                "attendees": meeting.attendees,
                 "status": meeting.status,
-                "builder_present": false,
+                "builder_present": meeting.builder_present(),
                 "skipped_meeting": anti_meeting,
                 "decision": decision,
                 "packet": packet,
-                "decision_path": DECISION_RECORD_PATH,
-                "packet_path": WORK_PACKET_PATH,
+                "decision_path": meeting.decision_path(),
+                "packet_path": packet.as_ref().map(|_| WORK_PACKET_PATH),
                 "speaker_sessions": speaker_sessions,
                 "blackboard": meeting.blackboard,
             }),
@@ -1813,27 +1854,39 @@ async fn wait_until_cancelled(rx: &watch::Receiver<bool>) {
     }
 }
 
-fn write_planning_artifacts(
+fn write_symposium_artifacts(
     project_root: &str,
+    meeting: &Symposium,
     decision: &DecisionRecord,
-    packet: &WorkPacket,
+    packet: Option<&WorkPacket>,
 ) -> Result<(), &'static str> {
     let root = Path::new(project_root);
     if project_root.trim().is_empty() || !root.is_dir() {
         return Err("symposium_artifact_write_failed");
     }
-    std::fs::create_dir_all(root.join(PLANNING_PATH_PLAN))
-        .map_err(|_| "symposium_artifact_write_failed")?;
-    std::fs::create_dir_all(root.join(PLANNING_PATH_PACKET))
-        .map_err(|_| "symposium_artifact_write_failed")?;
+    let decision_path = Path::new(meeting.decision_path());
+    if let Some(parent) = decision_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(root.join(parent))
+                .map_err(|_| "symposium_artifact_write_failed")?;
+        }
+    }
     let decision_json =
         serde_json::to_string_pretty(decision).map_err(|_| "symposium_artifact_write_failed")?;
-    let packet_json =
-        serde_json::to_string_pretty(packet).map_err(|_| "symposium_artifact_write_failed")?;
-    std::fs::write(root.join(DECISION_RECORD_PATH), decision_json)
+    std::fs::write(root.join(decision_path), decision_json)
         .map_err(|_| "symposium_artifact_write_failed")?;
-    std::fs::write(root.join(WORK_PACKET_PATH), packet_json)
-        .map_err(|_| "symposium_artifact_write_failed")?;
+    if let Some(packet) = packet {
+        if let Some(parent) = Path::new(WORK_PACKET_PATH).parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(root.join(parent))
+                    .map_err(|_| "symposium_artifact_write_failed")?;
+            }
+        }
+        let packet_json =
+            serde_json::to_string_pretty(packet).map_err(|_| "symposium_artifact_write_failed")?;
+        std::fs::write(root.join(WORK_PACKET_PATH), packet_json)
+            .map_err(|_| "symposium_artifact_write_failed")?;
+    }
     Ok(())
 }
 

@@ -872,6 +872,96 @@ async fn convene_then_spawn_keeps_architect_on_blackboard_not_pm_transcript() {
 }
 
 #[tokio::test]
+async fn each_department_can_convene_on_daemon_host() {
+    let cases = [
+        (
+            RoleSpec::sponsor(),
+            "initiating",
+            "charter/DECISION.json",
+            false,
+        ),
+        (RoleSpec::pm(), "planning", "plan/DECISION.json", true),
+        (
+            RoleSpec::builder(),
+            "executing",
+            "receipt/DECISION.json",
+            false,
+        ),
+        (
+            RoleSpec::reviewer(),
+            "monitoring",
+            "gate/DECISION.json",
+            false,
+        ),
+        (
+            RoleSpec::closer(),
+            "closing",
+            "lessons/DECISION.json",
+            false,
+        ),
+    ];
+    for (role, department, decision_path, emits_packet) in cases {
+        let root = temp_project();
+        let model = CapturingModel::from_json(json!([]));
+        let host = Arc::new(
+            DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+        );
+        let client = KianaClient::new(InProcessTransport { host });
+        let mut chair = trusted_write_metadata_in(&root);
+        chair.session_id = SessionId::new(format!("{department}-chair"));
+        chair.assign_role(&role);
+        let convened = client
+            .convene(
+                chair,
+                "decide the next slice",
+                true,
+                4,
+                Some("workspace-write".to_owned()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            convened.status,
+            ExecutionStatus::Completed,
+            "{department} {convened:?}"
+        );
+        assert_eq!(convened.output["department_id"], department);
+        assert_eq!(
+            convened.output["builder_present"],
+            department == "executing"
+        );
+        assert!(root.join(decision_path).exists(), "{department}");
+        assert_eq!(root.join("packet/TASK.json").exists(), emits_packet);
+        if department != "planning" {
+            assert!(!root.join("plan/DECISION.json").exists(), "{department}");
+        }
+        assert!(model.seen.lock().unwrap().is_empty());
+    }
+
+    let root = temp_project();
+    let host = scripted_host(json!([{"text": "should not run"}]));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut chair = trusted_write_metadata_in(&root);
+    chair.assign_role(&RoleSpec::architect());
+    let convened = client
+        .convene(
+            chair,
+            "decide the next slice",
+            true,
+            4,
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert_eq!(
+        convened.error.as_deref(),
+        Some("symposium_chair_must_be_pm")
+    );
+    assert!(!root.join("plan/DECISION.json").exists());
+}
+
+#[tokio::test]
 async fn review_after_builder_uses_new_session_without_model() {
     let root = temp_project();
     let model = CapturingModel::from_json(apply_patch_cassette());

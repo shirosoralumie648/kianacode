@@ -148,6 +148,7 @@ pub const PLANNING_PATH_CHARTER: &str = "charter";
 pub const PLANNING_PATH_PLAN: &str = "plan";
 pub const PLANNING_PATH_PACKET: &str = "packet";
 pub const CLOSING_PATH_LESSONS: &str = "lessons";
+pub const EXECUTING_PATH_RECEIPT: &str = "receipt";
 pub const WORK_PACKET_SCHEMA: &str = "kiana.work-packet.v1";
 pub const DECISION_RECORD_SCHEMA: &str = "kiana.decision-record.v1";
 pub const SYMPOSIUM_SCHEMA: &str = "kiana.symposium.v1";
@@ -156,6 +157,10 @@ pub const SYMPOSIUM_TYPE_DECISION: &str = "decision";
 pub const SYMPOSIUM_STATUS_CLOSED: &str = "closed";
 pub const SYMPOSIUM_STATUS_SKIPPED: &str = "skipped";
 pub const DECISION_RECORD_PATH: &str = "plan/DECISION.json";
+pub const INITIATING_DECISION_PATH: &str = "charter/DECISION.json";
+pub const EXECUTING_DECISION_PATH: &str = "receipt/DECISION.json";
+pub const MONITORING_DECISION_PATH: &str = "gate/DECISION.json";
+pub const CLOSING_DECISION_PATH: &str = "lessons/DECISION.json";
 pub const WORK_PACKET_PATH: &str = "packet/TASK.json";
 pub const REVIEW_PACKET_SCHEMA: &str = "kiana.review-packet.v1";
 pub const REVIEW_RESULT_SCHEMA: &str = "kiana.review-result.v1";
@@ -219,7 +224,7 @@ impl RoleSpec {
                 "role:builder".to_owned(),
                 "scratch".to_owned(),
             ],
-            false,
+            true,
             false,
             "executing",
             32,
@@ -288,7 +293,7 @@ impl RoleSpec {
                 "department:monitoring".to_owned(),
                 "project:events".to_owned(),
             ],
-            false,
+            true,
             false,
             "monitoring",
             8,
@@ -336,7 +341,7 @@ impl RoleSpec {
                 "department:closing".to_owned(),
                 "project:events".to_owned(),
             ],
-            false,
+            true,
             false,
             "closing",
             8,
@@ -559,8 +564,8 @@ impl DepartmentSpec {
             DEPARTMENT_EXECUTING,
             "Execute work packets. Write files and run allowed verification. Do not change acceptance.",
             vec![ROLE_BUILDER.to_owned()],
-            vec![".".to_owned()],
-            false,
+            vec![".".to_owned(), EXECUTING_PATH_RECEIPT.to_owned()],
+            true,
             vec!["receipt".to_owned()],
         )
     }
@@ -586,7 +591,7 @@ impl DepartmentSpec {
             "Review author receipts against acceptance. The reviewer is never the author.",
             vec![ROLE_REVIEWER.to_owned()],
             vec![MONITORING_PATH_GATE.to_owned()],
-            false,
+            true,
             vec!["review_packet".to_owned()],
         )
     }
@@ -608,7 +613,7 @@ impl DepartmentSpec {
             "Record lessons and close the receipt. Do not write source.",
             vec![ROLE_CLOSER.to_owned()],
             vec![CLOSING_PATH_LESSONS.to_owned()],
-            false,
+            true,
             vec!["lessons_logged".to_owned()],
         )
     }
@@ -631,6 +636,25 @@ impl DepartmentSpec {
         Self::catalog()
             .into_iter()
             .find(|department| department.department_id == department_id)
+    }
+
+    pub fn convene_chair_id(&self) -> Option<String> {
+        self.roles.iter().find_map(|role_id| {
+            RoleSpec::lookup(role_id)
+                .filter(|role| role.can_convene)
+                .map(|role| role.role_id)
+        })
+    }
+
+    pub fn decision_path(&self) -> &'static str {
+        match self.department_id.as_str() {
+            DEPARTMENT_INITIATING => INITIATING_DECISION_PATH,
+            DEPARTMENT_PLANNING => DECISION_RECORD_PATH,
+            DEPARTMENT_EXECUTING => EXECUTING_DECISION_PATH,
+            DEPARTMENT_MONITORING => MONITORING_DECISION_PATH,
+            DEPARTMENT_CLOSING => CLOSING_DECISION_PATH,
+            _ => DECISION_RECORD_PATH,
+        }
     }
 }
 
@@ -912,20 +936,38 @@ impl Symposium {
     pub const MAX_ROUNDS_CAP: u32 = 8;
 
     pub fn planning(id: impl Into<String>, agenda: impl Into<String>, max_rounds: u32) -> Self {
-        Self {
+        Self::department(DEPARTMENT_PLANNING, id, agenda, max_rounds)
+            .expect("planning department can convene")
+    }
+
+    pub fn department(
+        department_id: impl AsRef<str>,
+        id: impl Into<String>,
+        agenda: impl Into<String>,
+        max_rounds: u32,
+    ) -> Result<Self, &'static str> {
+        let department =
+            DepartmentSpec::lookup(department_id.as_ref()).ok_or("department_unknown")?;
+        if !department.can_convene {
+            return Err("symposium_department_cannot_convene");
+        }
+        let chair = department
+            .convene_chair_id()
+            .ok_or("symposium_chair_cannot_convene")?;
+        Ok(Self {
             schema: SYMPOSIUM_SCHEMA.to_owned(),
             id: id.into(),
-            department_id: DEPARTMENT_PLANNING.to_owned(),
+            department_id: department.department_id.clone(),
             symposium_type: SYMPOSIUM_TYPE_DECISION.to_owned(),
             agenda: agenda.into(),
-            chair: ROLE_PM.to_owned(),
-            attendees: vec![ROLE_PM.to_owned(), ROLE_ARCHITECT.to_owned()],
+            chair,
+            attendees: department.roles.clone(),
             max_rounds,
             blackboard: Blackboard::default(),
             status: "proposed".to_owned(),
             decision_id: None,
             work_packet_id: None,
-        }
+        })
     }
 
     pub fn validate_max_rounds(max_rounds: u32) -> Result<u32, &'static str> {
@@ -937,14 +979,21 @@ impl Symposium {
     }
 
     pub fn speaker_prompt(&self, role_id: &str) -> String {
+        let builder_rule = if self.department_id == DEPARTMENT_EXECUTING {
+            "Stay on this department's artifacts. Do not rewrite planning packets."
+        } else {
+            "Do not invite the Builder."
+        };
         format!(
-            "Planning symposium {}\nChair: {}\nAttendees: {}\nSpeak as {}\nAgenda: {}\n{}\nReply with a claim or vote. Do not patch source. Do not invite the Builder.",
+            "{} symposium {}\nChair: {}\nAttendees: {}\nSpeak as {}\nAgenda: {}\n{}\nReply with a claim or vote. Do not patch source. {}",
+            self.department_id.trim(),
             self.id.trim(),
             self.chair.trim(),
             self.attendees.join(", "),
             role_id.trim(),
             self.agenda.trim(),
-            self.blackboard.as_prompt()
+            self.blackboard.as_prompt(),
+            builder_rule
         )
     }
 
@@ -952,28 +1001,65 @@ impl Symposium {
         format!("{}-{}", self.id.trim(), role_id.trim())
     }
 
+    pub fn builder_present(&self) -> bool {
+        self.attendees
+            .iter()
+            .any(|role| role.trim() == ROLE_BUILDER)
+    }
+
+    pub fn decision_path(&self) -> &'static str {
+        DepartmentSpec::lookup(&self.department_id)
+            .map(|department| department.decision_path())
+            .unwrap_or(DECISION_RECORD_PATH)
+    }
+
     pub fn validate(&self) -> Result<(), &'static str> {
         Self::validate_max_rounds(self.max_rounds)?;
         if self.agenda.trim().is_empty() {
             return Err("symposium_goal_required");
         }
-        if self.chair.trim() != ROLE_PM {
+        let department = DepartmentSpec::lookup(&self.department_id).ok_or("department_unknown")?;
+        if !department.can_convene {
+            return Err("symposium_department_cannot_convene");
+        }
+        if self.department_id == DEPARTMENT_PLANNING && self.chair.trim() != ROLE_PM {
             return Err("symposium_chair_must_be_pm");
         }
-        if self
-            .attendees
-            .iter()
-            .any(|role| role.trim() == ROLE_BUILDER)
+        let Some(chair) = RoleSpec::lookup(&self.chair) else {
+            return Err("symposium_chair_cannot_convene");
+        };
+        if !chair.can_convene || chair.department_id != department.department_id {
+            return Err("symposium_chair_cannot_convene");
+        }
+        if self.department_id != DEPARTMENT_EXECUTING
+            && self
+                .attendees
+                .iter()
+                .any(|role| role.trim() == ROLE_BUILDER)
         {
             return Err("symposium_builder_not_attendee");
         }
-        let expected = [ROLE_PM, ROLE_ARCHITECT];
-        if self.attendees.len() != expected.len()
+        for role_id in &self.attendees {
+            let Some(role) = RoleSpec::lookup(role_id) else {
+                return Err("symposium_attendees_invalid");
+            };
+            if role.department_id != department.department_id {
+                return Err("joint_symposium_frozen");
+            }
+        }
+        if self.attendees.len() != department.roles.len()
             || self
                 .attendees
                 .iter()
-                .zip(expected)
-                .any(|(got, want)| got.trim() != want)
+                .zip(department.roles.iter())
+                .any(|(got, want)| got.trim() != want.trim())
+        {
+            return Err("symposium_attendees_invalid");
+        }
+        if !self
+            .attendees
+            .iter()
+            .any(|role| role.trim() == self.chair.trim())
         {
             return Err("symposium_attendees_invalid");
         }
@@ -983,9 +1069,8 @@ impl Symposium {
     pub fn close(
         &mut self,
         skipped_meeting: bool,
-    ) -> Result<(DecisionRecord, WorkPacket), &'static str> {
+    ) -> Result<(DecisionRecord, Option<WorkPacket>), &'static str> {
         self.validate()?;
-        let packet_id = format!("wp-{}", self.id.trim());
         let decision_id = format!("dec-{}", self.id.trim());
         let decision_text = self
             .blackboard
@@ -1001,10 +1086,23 @@ impl Symposium {
         let summary = if skipped_meeting {
             format!("Anti-meeting: proceed with {decision_text}")
         } else {
-            format!("Planning symposium closed: {decision_text}")
+            format!(
+                "{} symposium closed: {decision_text}",
+                self.department_id.trim()
+            )
         };
-        let packet = WorkPacket::builder_task(packet_id.clone(), self.agenda.trim());
-        packet.validate()?;
+        let packet = if self.department_id == DEPARTMENT_PLANNING {
+            let packet_id = format!("wp-{}", self.id.trim());
+            let packet = WorkPacket::builder_task(packet_id, self.agenda.trim());
+            packet.validate()?;
+            Some(packet)
+        } else {
+            None
+        };
+        let packet_id = packet
+            .as_ref()
+            .map(|packet| packet.id.clone())
+            .unwrap_or_default();
         let decision = DecisionRecord::closed(
             decision_id,
             self.id.clone(),
@@ -1019,7 +1117,11 @@ impl Symposium {
             SYMPOSIUM_STATUS_CLOSED.to_owned()
         };
         self.decision_id = Some(decision.id.clone());
-        self.work_packet_id = Some(packet_id);
+        self.work_packet_id = if packet_id.is_empty() {
+            None
+        } else {
+            Some(packet_id)
+        };
         Ok((decision, packet))
     }
 }
@@ -1331,7 +1433,8 @@ mod tests {
         assert!(!role.prompt_hash.is_empty());
         assert_eq!(department.department_id, DEPARTMENT_EXECUTING);
         assert_eq!(department.roles, [ROLE_BUILDER]);
-        assert!(!department.can_convene);
+        assert!(department.can_convene);
+        assert!(role.can_convene);
     }
 
     #[test]
@@ -1367,8 +1470,9 @@ mod tests {
         let monitoring = DepartmentSpec::monitoring();
         assert_eq!(monitoring.department_id, DEPARTMENT_MONITORING);
         assert_eq!(monitoring.roles, [ROLE_REVIEWER]);
-        assert!(!monitoring.can_convene);
+        assert!(monitoring.can_convene);
         let reviewer = RoleSpec::reviewer();
+        assert!(reviewer.can_convene);
         assert_eq!(reviewer.department_id, DEPARTMENT_MONITORING);
         assert_eq!(reviewer.tools, ["memory.search"]);
         assert!(!reviewer.workspace_write_allowed());
@@ -1418,9 +1522,10 @@ mod tests {
         let closing = DepartmentSpec::closing();
         assert_eq!(closing.roles, [ROLE_CLOSER]);
         assert_eq!(closing.artifacts, [CLOSING_PATH_LESSONS]);
-        assert!(!closing.can_convene);
+        assert!(closing.can_convene);
 
         let closer = RoleSpec::closer();
+        assert!(closer.can_convene);
         assert_eq!(closer.department_id, DEPARTMENT_CLOSING);
         assert!(closer.allows_path("lessons/LEARNED.md"));
         assert!(!closer.allows_path("GOLDEN_PATH.txt"));
@@ -1512,6 +1617,7 @@ mod tests {
         );
         meeting.validate().unwrap();
         let (decision, packet) = meeting.close(false).unwrap();
+        let packet = packet.expect("planning packet");
         assert_eq!(decision.schema, DECISION_RECORD_SCHEMA);
         assert_eq!(packet.assignee_role, ROLE_BUILDER);
         assert!(!decision.skipped_meeting);
@@ -1521,6 +1627,7 @@ mod tests {
         let mut skipped =
             Symposium::planning("sym-2", "create GOLDEN_PATH.txt containing hello", 4);
         let (decision, packet) = skipped.close(true).unwrap();
+        let packet = packet.expect("skipped planning packet");
         assert!(decision.skipped_meeting);
         assert_eq!(skipped.status, SYMPOSIUM_STATUS_SKIPPED);
         assert_eq!(packet.goal, "create GOLDEN_PATH.txt containing hello");
@@ -1532,6 +1639,67 @@ mod tests {
             with_builder.validate(),
             Err("symposium_builder_not_attendee")
         );
+    }
+
+    #[test]
+    fn each_department_can_convene_without_a_joint_meeting() {
+        let expected = [
+            (
+                DEPARTMENT_INITIATING,
+                ROLE_SPONSOR,
+                INITIATING_DECISION_PATH,
+                false,
+            ),
+            (DEPARTMENT_PLANNING, ROLE_PM, DECISION_RECORD_PATH, true),
+            (
+                DEPARTMENT_EXECUTING,
+                ROLE_BUILDER,
+                EXECUTING_DECISION_PATH,
+                false,
+            ),
+            (
+                DEPARTMENT_MONITORING,
+                ROLE_REVIEWER,
+                MONITORING_DECISION_PATH,
+                false,
+            ),
+            (
+                DEPARTMENT_CLOSING,
+                ROLE_CLOSER,
+                CLOSING_DECISION_PATH,
+                false,
+            ),
+        ];
+        for (department_id, chair, path, emits_packet) in expected {
+            let mut meeting =
+                Symposium::department(department_id, format!("sym-{department_id}"), "decide", 2)
+                    .unwrap();
+            assert_eq!(meeting.chair, chair);
+            assert_eq!(meeting.decision_path(), path);
+            assert_eq!(
+                meeting.builder_present(),
+                department_id == DEPARTMENT_EXECUTING
+            );
+            meeting.validate().unwrap();
+            let (decision, packet) = meeting.close(true).unwrap();
+            assert!(decision.skipped_meeting);
+            assert_eq!(packet.is_some(), emits_packet);
+            if department_id != DEPARTMENT_EXECUTING {
+                assert!(!meeting.attendees.iter().any(|role| role == ROLE_BUILDER));
+            }
+        }
+
+        let mut architect_chair =
+            Symposium::planning("sym-arch", "one vertical slice vs two packets", 2);
+        architect_chair.chair = ROLE_ARCHITECT.to_owned();
+        assert_eq!(
+            architect_chair.validate(),
+            Err("symposium_chair_must_be_pm")
+        );
+
+        let mut joint = Symposium::planning("sym-joint", "one vertical slice vs two packets", 2);
+        joint.attendees = vec![ROLE_PM.to_owned(), ROLE_REVIEWER.to_owned()];
+        assert_eq!(joint.validate(), Err("joint_symposium_frozen"));
     }
 
     #[test]

@@ -740,10 +740,14 @@ async fn cancel_unknown_run_fails_closed() {
 }
 
 fn trusted_write_pm(root: &std::path::Path) -> RequestContext {
+    trusted_write_role(root, &kiana_domain::RoleSpec::pm())
+}
+
+fn trusted_write_role(root: &std::path::Path, role: &RoleSpec) -> RequestContext {
     let mut context = RequestContext::local("chair-1", root.to_string_lossy());
     context.project_trusted = true;
     context.permission_profile = PermissionProfile::Balanced;
-    context.assign_role(&kiana_domain::RoleSpec::pm());
+    context.assign_role(role);
     context
 }
 
@@ -828,15 +832,13 @@ async fn convene_two_rounds_uses_private_speaker_sessions() {
 }
 
 #[tokio::test]
-async fn symposium_builder_chair_fails_closed() {
+async fn symposium_architect_chair_fails_closed() {
     let harness = CoreHarness::new();
     let root = temp_project();
-    let mut context = trusted_write_pm(&root);
-    context.assign_role(&kiana_domain::RoleSpec::builder());
     let convened = harness
         .core
         .convene_symposium(
-            context,
+            trusted_write_role(&root, &RoleSpec::architect()),
             "create GOLDEN_PATH.txt containing hello".to_owned(),
             true,
             Some(4),
@@ -850,6 +852,31 @@ async fn symposium_builder_chair_fails_closed() {
         Some("symposium_chair_must_be_pm")
     );
     assert!(!root.join("plan/DECISION.json").exists());
+}
+
+#[tokio::test]
+async fn symposium_builder_chair_writes_executing_decision() {
+    let harness = CoreHarness::new();
+    let root = temp_project();
+    let convened = harness
+        .core
+        .convene_symposium(
+            trusted_write_role(&root, &RoleSpec::builder()),
+            "create GOLDEN_PATH.txt containing hello".to_owned(),
+            true,
+            Some(4),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Completed, "{convened:?}");
+    assert_eq!(convened.output["department_id"], "executing");
+    assert_eq!(convened.output["chair"], "builder");
+    assert_eq!(convened.output["builder_present"], true);
+    assert_eq!(convened.output["packet"], json!(null));
+    assert!(root.join("receipt/DECISION.json").exists());
+    assert!(!root.join("plan/DECISION.json").exists());
+    assert!(!root.join("packet/TASK.json").exists());
 }
 
 #[tokio::test]
@@ -891,6 +918,79 @@ async fn symposium_max_rounds_zero_fails_closed() {
         convened.error.as_deref(),
         Some("symposium_max_rounds_invalid")
     );
+}
+
+#[tokio::test]
+async fn each_department_anti_meeting_writes_its_own_artifact() {
+    let cases = [
+        (
+            RoleSpec::sponsor(),
+            "initiating",
+            "charter/DECISION.json",
+            false,
+            false,
+        ),
+        (
+            RoleSpec::pm(),
+            "planning",
+            "plan/DECISION.json",
+            true,
+            false,
+        ),
+        (
+            RoleSpec::builder(),
+            "executing",
+            "receipt/DECISION.json",
+            false,
+            true,
+        ),
+        (
+            RoleSpec::reviewer(),
+            "monitoring",
+            "gate/DECISION.json",
+            false,
+            false,
+        ),
+        (
+            RoleSpec::closer(),
+            "closing",
+            "lessons/DECISION.json",
+            false,
+            false,
+        ),
+    ];
+    for (role, department, decision_path, emits_packet, builder_present) in cases {
+        let harness = CoreHarness::new();
+        let root = temp_project();
+        let convened = harness
+            .core
+            .convene_symposium(
+                trusted_write_role(&root, &role),
+                "decide the next slice".to_owned(),
+                true,
+                Some(4),
+                Some("workspace-write".to_owned()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            convened.status,
+            ExecutionStatus::Completed,
+            "{department} {convened:?}"
+        );
+        assert_eq!(convened.output["department_id"], department);
+        assert_eq!(convened.output["builder_present"], builder_present);
+        assert_eq!(convened.output["skipped_meeting"], true);
+        assert_eq!(convened.output["decision_path"], decision_path);
+        assert!(root.join(decision_path).exists(), "{department}");
+        assert_eq!(root.join("packet/TASK.json").exists(), emits_packet);
+        if department != "planning" {
+            assert!(!root.join("plan/DECISION.json").exists(), "{department}");
+            assert_eq!(convened.output["packet"], json!(null));
+        } else {
+            assert_eq!(convened.output["packet"]["assignee_role"], "builder");
+        }
+    }
 }
 
 #[tokio::test]

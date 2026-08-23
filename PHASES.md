@@ -444,8 +444,9 @@ Policy 用 `RequestContext.{role_id,department_id}`，core 在 broker 前 stamp�
 立项 charter → 规划 packets → 执行 builder → 监控 gates/reviewer → 收尾 lessons 入库。小任务允许软件跳过开会，但留下短 charter。  
 参考：`reference/pm-skills/_workflows/`、`deliver-*`、`iterate-lessons-log`；OpenSpec/GSD/planning-with-files 落盘形状。
 
-**SYMP-WP1 五部门可开会**  
-v0.3 的单场规划会推广到各部门；跨部门联席必须点名、限时、有 anti-meeting check。决议进**该部门 RAG**。  
+**SYMP-WP1 五部门可开会** — **已本地绿（部门有界会；联席冻结）**  
+v0.3 的单场规划会推广到各部门。主席是该部门 `can_convene` 角色，不是永远 PM。非规划部门写该部门 `DECISION.json`，不把 Builder 拉进规划辩论。跨部门联席仍冻结。决议文件落盘；晋升部门 RAG 必须显式 `memory.write`，本刀不自动灌库。  
+验证：`.planning/phases/17-VERIFICATION.md`。  
 参考：meeting family；autogen RequestToSpeak；Agency Swarm 定向流。
 
 **REV-WP1 独立评审**  
@@ -453,7 +454,7 @@ Reviewer 新 session、只读、不是作者。architect-loop cohesion review。
 
 ### 建议切分
 
-产品编号以 ROADMAP / 附录 C 为准：v0.5.1 = DEPT-02（已绿）；v0.5.2 = MEM JSONL ACL（已绿）；v0.5 later compact/resume（已绿）；剩余 v0.5 later = SYMP-04 部门会。下面旧草稿名不要当打开顺序。
+产品编号以 ROADMAP / 附录 C 为准：v0.5.1 = DEPT-02（已绿）；v0.5.2 = MEM JSONL ACL（已绿）；v0.5 later compact/resume（已绿）；v0.5 later SYMP-04 部门会（已绿）。JointSymposium 仍冻结。下面旧草稿名不要当打开顺序。
 
 **v0.5 later Compact 与上下文所有权** — **已本地绿（收据 compact + continue-after-compact）**（旧草稿曾叫 v0.5.1）
 
@@ -591,9 +592,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。下一刀只打开 SYMP-04 部门会。不解冻 JointSymposium。P1-READ skipped。不把向量库 / `kiana-query` / letta 落地页当完成。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v0.5 可执行切片已绿。下一刀打开 v0.6。不解冻 JointSymposium。P1-READ skipped。不把向量库 / `kiana-query` / letta 落地页当完成。
 
 ## 附录 C — 下一动作
 
-当前计数：v0.5 later LONG-02 compact 上收据 + continue-after-compact 已本地绿。  
-下一命令：打开 **SYMP-04**（各部门可开会）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。
+当前计数：v0.5 later SYMP-04 各部门有界会已本地绿。JointSymposium 仍冻结。  
+下一命令：打开 **v0.6**（并行 Builder 同核 / SURF2 的当前切片）。不要同时开 JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库。

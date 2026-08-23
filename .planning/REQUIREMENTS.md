@@ -1,7 +1,7 @@
 # Requirements
 
 v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
-北星是 Company OS（见 `COMPANY.md`）。v0.5 Phase 1–2 + LONG-02 compact/resume 已本地绿。下一执行集是 **SYMP-04 各部门可开会**。JointSymposium 仍冻结。pause 仍是 cancel。
+北星是 Company OS（见 `COMPANY.md`）。v0.5 Phase 1–4 已本地绿：五部门对象、六层 RAG ACL、compact/resume、各部门有界会。下一执行集是 **v0.6 并行 Builder 同核**。JointSymposium 仍冻结。pause 仍是 cancel。
 
 ## v0.3 — Current
 
@@ -81,7 +81,7 @@ v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
 - **LONG-03**: 产品拥有 prompt、context、control flow
 - **LONG-04**: 五个部门都有磁盘工件（charter/plan/packet/gate/receipt）
 - **DEPT-02**: Initiating / Planning / Executing / Monitoring / Closing 均为控制面对象，可并行存在 — **已本地绿（catalog + sponsor/closer 路径 ACL）**；不是招满角色，不是 RAG
-- **SYMP-04**: 各部门可开会；跨部门联席必须点名、限时、有议程
+- **SYMP-04**: 各部门可开会；跨部门联席必须点名、限时、有议程 — **已本地绿（五部门有界会；规划会回归不破）**；JointSymposium 仍冻结；决议不自动灌 RAG
 - **MEM-01**: 六层分库：company / department / role / project / user / instance-scratch — **已本地绿（JSONL 分库，不混库）**
 - **MEM-02**: `memory.search`/`write` 带 `role_id` + `department_id`，按 knowledge_grants 过滤 — **已本地绿（daemon broker）**
 - **MEM-03**: 检索命中写入收据；无来源不得当已验证结论 — **已本地绿（`memory_hits` + `verified`）**
