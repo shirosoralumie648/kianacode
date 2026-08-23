@@ -600,9 +600,9 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 B — 现在立刻不要打开的目录
 
-`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v1.0.1 安装生命周期已绿。下一刀 REL-03 closeout。不解冻 JointSymposium。不把 worktree / SDK/IDE / 向量库 / `kiana-query` / letta 落地页当完成。P1-READ skipped。
+`kiana-tools/src/` 新工具、`kiana-entrypoints/src/runner.rs` 扩循环、`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-url-handler`、`reference/claude-code-rev-main/src` 当实现源。v1.0 已在 `local_behavior` 上限下勾选。不要打开 v1.x。不解冻 JointSymposium。不把 worktree / SDK/IDE / 向量库 / `kiana-query` / letta 落地页当完成。P1-READ skipped。
 
 ## 附录 C — 下一动作
 
-当前计数：v1.0.1 REL-01/REL-02 temp install lifecycle + USER.md 已本地绿。  
-下一命令：打开 **v1.0 REL-03 closeout**（P0 审计收口，不是再做工具）。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库、`release-smoke.sh`。
+当前计数：v1.0 已在 `local_behavior` 上限下勾选（REL-01/02 生命周期 + USER.md；REL-03 P0 审计 + NOTICE；REL-04 仍草案）。  
+下一命令：**不要打开 v1.x**，除非用户显式要求。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、TUI、SkillTool、live provider、向量库、`release-smoke.sh`。

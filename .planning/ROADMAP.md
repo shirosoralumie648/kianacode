@@ -10,14 +10,17 @@
 - [x] **v0.4 Coding pack baseline** — P1-READ skipped (shell search)
 - [x] **v0.5 Five departments + six-layer RAG**
 - [x] **v0.6 Parallel builders, same core** — path locks; SDK/IDE/worktree remain later
-- [ ] **v1.0 Personal complete product** ← 当前（Phase 1 已绿；REL-03 closeout 未开）
-- [ ] **v1.x Team / enterprise**
+- [x] **v1.0 Personal complete product** — `local_behavior`；REL-04 草案；不是企业/签名包/live
+- [ ] **v1.x Team / enterprise** ← 当前（未打开）
 
-## 当前里程碑：v1.0
+## 当前里程碑：v1.x
 
-v0.6 打开条件已满足（ORCH-04）。v1.0 是安装/文档/P0 核心路径，不是企业、不是 TUI 像素对等、不是 SDK/IDE 新入口。JointSymposium 仍冻结。
+未打开。打开条件「v1.0 个人产品已发布」已满足（诚实：temp install + USER.md + P0 审计）。不要现在 plan/execute。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
+
+## 已完成：v1.0
 
 - [x] **Phase 1: Personal install lifecycle + USER.md** — REL-01, REL-02
+- [x] **Phase 2: P0 closeout + NOTICE** — REL-03
 
 ### Phase 1: Personal install lifecycle + USER.md
 
@@ -34,6 +37,19 @@ v0.6 打开条件已满足（ORCH-04）。v1.0 是安装/文档/P0 核心路径�
 7. 不是 packaged tarball / `~/.local/bin` / REL-03 再做工具。证明级别 `local_behavior`。
 
 **Plans:** 已执行。验证：`.planning/phases/19-VERIFICATION.md`。闸门：`scripts/v10-personal-lifecycle-smoke.sh`。
+
+### Phase 2: P0 closeout + NOTICE
+
+**Goal:** Coding pack P0-LOOP…P0-PROV 保持已绿；NOTICE 指向双许可与 `deny.toml`；可在诚实上限下勾选 v1.0。
+**Requirements:** REL-03
+**Success Criteria:**
+
+1. 矩阵全部 `| P0-` 行含 `已绿`（16 项）。
+2. `NOTICE` 写 MIT OR Apache-2.0 与 `deny.toml`，并声明不是 SBOM。
+3. `scripts/v10-p0-closeout-smoke.sh` 退出 0。
+4. REL-04 Daily/Research 仍草案。不新做工具。不跑 `release-smoke.sh`。证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/20-VERIFICATION.md`。
 
 ## 已完成：v0.6
 
@@ -259,5 +275,5 @@ v0.6 打开条件已满足（ORCH-04）。v1.0 是安装/文档/P0 核心路径�
 | v0.4 | v0.3 绿；公开行为矩阵草稿签字 | CODE / REV |
 | v0.5 | v0.4 核心路径可用 | LONG / DEPT / SYMP / MEM |
 | v0.6 | v0.5 resume 真能用 | ORCH-04 并行 Builder；SURF2 SDK/IDE 后开 |
-| v1.0 | v0.6 并行 Builder 同核已绿；安装升级过关 | REL |
-| v1.x | v1.0 个人产品已发布 | ENT |
+| v1.0 | v0.6 并行 Builder 同核已绿；安装升级过关 | REL — **已本地绿（诚实 `local_behavior`）** |
+| v1.x | v1.0 个人产品已发布 | ENT — 未打开 |

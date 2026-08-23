@@ -177,10 +177,11 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | 已完成 | v0.5 later | SYMP-04 | 各部门可开会；规划会仍排除 Builder；非规划会写本部门决策文件 | 用 MCP 代替部门；JointSymposium；招满角色；开会自动灌 RAG |
 | 已完成 | v0.6.1 | ORCH-04 | 同核两个 packet Builder + 路径锁；越权 `packet_path_denied` | worktree；Queen；新 CLI；SDK/IDE |
 | 已完成 | v1.0.1 | REL-01/02 | temp `INSTALL_DIR` 安装升级回滚恢复卸载 + `USER.md` | packaged tarball；`~/.local/bin`；104 req |
-| 下一刀 | v1.0 | REL-03 | 本表 P0 审计收口（不是再做工具） | 工具数 100%、企业、TUI 像素对等 |
+| 已完成 | v1.0.2 | REL-03 | 本表 P0 审计收口 + `NOTICE`；v1.0 在 `local_behavior` 上限下勾选 | 工具数 100%、live、SBOM、企业、TUI 像素对等 |
 | 后开 | v0.6 later | SURF2 | SDK/print 100% harness；下一入口 IDE 优先于 Desktop | 为 Desktop 复制 runner |
+| 未打开 | v1.x | ENT | 租户/RBAC/远程 | 掺进个人开源版 |
 
-`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.4 CODE-04 fake text-only / `unsupported_tools` 已绿。v0.5.1 DEPT-02、v0.5.2 MEM、v0.5 later LONG-02 compact/resume、v0.5 later SYMP-04 部门会、v0.6.1 ORCH-04 并行 Builder、v1.0.1 REL-01/02 安装手册已绿。下一独立 Phase 是 v1.0 REL-03 closeout。P1-READ skipped。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
+`PHASES.md` v0.4 打开条件「有一份签字的公开行为矩阵草稿」= **本文件**。v0.4.4 CODE-04 fake text-only / `unsupported_tools` 已绿。v0.5.1 DEPT-02、v0.5.2 MEM、v0.5 later LONG-02 compact/resume、v0.5 later SYMP-04 部门会、v0.6.1 ORCH-04 并行 Builder、v1.0.1 REL-01/02、v1.0.2 REL-03 已绿。v1.0 已勾选。不要打开 v1.x。P1-READ skipped。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
 
 ---
 

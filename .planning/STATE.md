@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Personal complete product
-current_phase: 1
-current_phase_name: Personal install lifecycle + USER.md
+current_phase: 2
+current_phase_name: P0 closeout + NOTICE
 status: completed
-stopped_at: v1.0.1 REL-01/REL-02 landed. Temp INSTALL_DIR can install, upgrade, rollback, recover, and uninstall. USER.md names real commands. Packaged tarball / ~/.local/bin / REL-03 recode remain later. Next is v1.0 REL-03 closeout (P0 audit, not more tools).
+stopped_at: v1.0 checked at local_behavior. REL-01/02 temp install + USER.md. REL-03 P0 audit + NOTICE. REL-04 Daily/Research stays draft. v1.x is not opened.
 last_updated: "2026-08-23"
 last_activity: 2026-08-23
-last_activity_desc: Land v1.0.1 personal install lifecycle and USER.md. Do not run release-smoke or claim whole v1.0. Next slice is REL-03 closeout.
+last_activity_desc: Land v1.0.2 REL-03 closeout and check v1.0. Do not open v1.x, worktrees, SDK/IDE, or live provider.
 progress:
-  total_phases: 1
-  completed_phases: 1
+  total_phases: 2
+  completed_phases: 2
   total_plans: 0
   completed_plans: 0
   percent: 100
@@ -22,17 +22,17 @@ progress:
 See: `COMPANY.md`, `DESIGN.md`, `PROCESS.md`, `PHASES.md`, `.planning/PROJECT.md`
 
 **Core value:** A company of small agents finishes real work and proves it.
-**Current focus:** v1.0.1 REL-01/REL-02 complete — next is v1.0 REL-03 closeout (P0 audit, not more tools).
+**Current focus:** v1.0 complete at `local_behavior`. Next product station is v1.x (not opened).
 
 ## Current Position
 
-Phase: 1 of v1.0
-Status: Complete — temp install lifecycle + USER.md
-Last activity: 2026-08-23 — REL-01/REL-02 landed; packaged tarball/SBOM later; JointSymposium frozen; P1-READ skipped; TUI park kept
+Phase: 2 of v1.0
+Status: Complete — P0 closeout + NOTICE; v1.0 checked
+Last activity: 2026-08-23 — REL-03 landed; REL-04 draft; JointSymposium frozen; P1-READ skipped; TUI park kept; v1.x not opened
 
 ## Notes
 
-- v0.2–v0.6 remain regression baselines. Do not regress Builder write, symposium, review, stdio MCP, skills/PreToolUse, fake text-only `unsupported_tools`, six-layer memory ACL, department symposiums, or parallel path locks.
+- v0.2–v0.6 remain regression baselines. Do not regress Builder write, symposium, review, stdio MCP, skills/PreToolUse, fake text-only `unsupported_tools`, six-layer memory ACL, department symposiums, parallel path locks, or temp install lifecycle.
 - P1-READ skipped: matrix locked Codex-shaped search via `shell`.
 - PATH-03 is now `shell` + `apply_patch` + `mcp` + `memory.search` + `memory.write`. Skills remain context, not a model tool.
 - Five departments exist as catalog objects. Do not staff every COMPANY.md role.
@@ -41,7 +41,9 @@ Last activity: 2026-08-23 — REL-01/REL-02 landed; packaged tarball/SBOM later;
 - Spawn 仍是原语。路径锁在 ControlPlane。空 `path_allow` 锁 `*`。packet 越权 `packet_path_denied`。
 - REL-01 证明是临时 `INSTALL_DIR` + `install.sh --uninstall`，不是 `~/.local/bin`，不是 dist tarball。
 - REL-02 是 `USER.md` 真命令，不是 104 req。
+- REL-03 是 P0 审计收口 + `NOTICE`，不是再做工具，不是 SBOM。
+- REL-04 Daily/Research 仍草案。
 - 不要扩张 `kiana-tools`，不解冻 TeamCreate/SendMessage。
 - 两个 Archon 都不是工人运行时。
-- 证明上限仍 `local_behavior`。
-- 下一产品站是 v1.0 REL-03 closeout（P0 审计收口），不是 worktree，不是 SDK/IDE，不是 JointSymposium，不是再做工具。
+- 证明上限仍 `local_behavior`。v1.0 不是 live provider、不是签名包、不是企业。
+- 不要打开 v1.x，除非用户显式要求。

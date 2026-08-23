@@ -1,7 +1,7 @@
 # Requirements
 
 v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
-北星是 Company OS（见 `COMPANY.md`）。v1.0.1 REL-01/REL-02 已本地绿：temp `INSTALL_DIR` 生命周期 + `USER.md`。v0.6.1 ORCH-04 仍必须绿。v0.5 Phase 1–4 仍必须绿。下一执行集是 **v1.0 REL-03 closeout**（P0 审计收口，不是再做工具）。SDK/IDE/worktree 后开。JointSymposium 仍冻结。pause 仍是 cancel。
+北星是 Company OS（见 `COMPANY.md`）。v1.0 已在 `local_behavior` 上限下勾选：REL-01/02 temp install + `USER.md`；REL-03 P0 审计 + `NOTICE`。REL-04 Daily/Research 仍草案。v0.6.1 ORCH-04 仍必须绿。不要打开 v1.x。SDK/IDE/worktree 后开。JointSymposium 仍冻结。pause 仍是 cancel。
 
 ## v0.3 — Current
 
@@ -98,8 +98,8 @@ v0.4 已本地绿（P1-READ skipped）。v0.3 / v0.2 黄金路径仍必须绿。
 
 - **REL-01**: 安装、升级、回滚、恢复 — **已本地绿（temp `INSTALL_DIR` + `install.sh --uninstall`；不是 packaged tarball / `~/.local/bin`）**
 - **REL-02**: 文档与支持 — **已本地绿（`USER.md` 真命令；不是 104 req）**
-- **REL-03**: Coding pack 核心路径（不是工具数 100%）— P0 已从 v0.4 绿；本切片不收口整个 v1.0
-- **REL-04**: Daily/Research 仅在同一核已有黄金路径时才算
+- **REL-03**: Coding pack 核心路径（不是工具数 100%）— **已本地绿（P0-LOOP…P0-PROV 审计收口 + `NOTICE`；不是再做工具，不是 live，不是 SBOM）**
+- **REL-04**: Daily/Research 仅在同一核已有黄金路径时才算 — **仍草案**
 
 ### v1.x ENT — Team / enterprise
 

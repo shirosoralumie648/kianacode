@@ -188,4 +188,4 @@ Codex 到 2025-07-11 才有 `codex apply` 远程 patch；cline hub drain/upgrade
 
 阶梯在本文件，git 证据在 PROCESS.md，**逐期剧本在 PHASES.md**。
 
-**v1.0.1 REL-01/REL-02 已本地绿（temp `INSTALL_DIR` 生命周期 + `USER.md`）。执行下一站只打开 REL-03 closeout**：P0 审计收口，不是再做工具。不要同时开工 worktree / SDK/IDE / JointSymposium / 解冻 TeamCreate/SendMessage / P1-READ / 向量库。HTTP MCP 仍是 `mcp_transport_unsupported`。
+**v1.0 已在 `local_behavior` 上限下勾选**（temp install + `USER.md` + P0 审计 + `NOTICE`；REL-04 仍草案）。不要打开 v1.x。不要同时开工 worktree / SDK/IDE / JointSymposium / 解冻 TeamCreate/SendMessage / P1-READ / 向量库。HTTP MCP 仍是 `mcp_transport_unsupported`。

@@ -1,0 +1,12 @@
+Kiana
+Copyright (c) Kiana contributors
+
+Kiana is licensed under MIT OR Apache-2.0.
+See LICENSE-MIT and LICENSE-APACHE.
+
+Third-party Rust crates are license-gated by deny.toml.
+That allowlist is the local supply-chain policy for this tree.
+This file is not an SBOM, not a signed attestation, and not a
+complete third-party crate inventory.
+
+Proof ceiling for the v1.0 personal product remains local_behavior.

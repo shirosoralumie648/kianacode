@@ -10,9 +10,9 @@
 
 ## Current Milestone
 
-**v1.0 Personal complete product** — Phase 1 已本地绿：temp `INSTALL_DIR` 安装/升级/回滚/恢复/卸载 + `USER.md`。v0.6 并行 Builder 仍必须绿。v0.5 五部门/六层 RAG/compact/部门会仍必须绿。v0.4 Coding pack 仍必须绿（P1-READ skipped）。`kiana tui` 保持 park。SDK/IDE/worktree 后开。下一站：v1.0 REL-03 closeout（P0 审计，不是再做工具）。
+**v1.0 Personal complete product** — 已在 `local_behavior` 上限下勾选。Phase 1 temp install + `USER.md`；Phase 2 P0 审计 + `NOTICE`。REL-04 Daily/Research 仍草案。v0.6 并行 Builder 仍必须绿。`kiana tui` 保持 park。SDK/IDE/worktree 后开。不要打开 v1.x。
 
-后续：v1.0 REL-03 closeout → v1.x 团队/企业。SDK/IDE/worktree 后开。
+后续：仅当用户显式要求才打开 v1.x 团队/企业。SDK/IDE/worktree 仍后开。
 
 ## Core Value
 
