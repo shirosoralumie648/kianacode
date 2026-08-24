@@ -604,5 +604,5 @@ v1.0 **不是** 企业、不是 38-reference 打勾、不是 TUI 像素对等 Cl
 
 ## 附录 C — 下一动作
 
-当前计数：v1.0 已勾；v1.0.3 文件夹工作台已绿（`kiana` / `--workdir` / `--pick-folder`，同一 `DaemonHost`）。`kiana tui` 仍 park。REL-04 仍草案。这不是 v1.x。  
+当前计数：v1.0 已勾；v1.0.4 工作台会话面已绿（TTY conversation / input / status，同一 `DaemonHost`）。`kiana tui` 仍 park。不声称 token 流式。REL-04 仍草案。这不是 v1.x。  
 下一命令：**不要打开 v1.x**，除非用户显式要求。不要同时开 worktree、SDK/IDE、JointSymposium、P1-READ、迁 `kiana tui`、SkillTool、live provider、向量库、`release-smoke.sh`、dsh Web UI 克隆。

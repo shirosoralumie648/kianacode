@@ -36,13 +36,18 @@ INSTALL_DIR=/tmp/kiana-bin bash install.sh --uninstall
 ## 文件夹工作台（Codex / pi / dsh 那种入口）
 
 产品路径是 `DaemonHost`，不是 parked 的 `kiana tui`。进目录就能干活；GUI 只负责选文件夹。
+TTY 是对话区 + 输入框 + 状态行。`--json` 仍是脚本/cassette 路径。不声称 token 流式。
 
 ```bash
 # 文件管理器：在项目目录打开终端，然后
 kiana trust .
 kiana
-# 输入需求。默认 sandbox 是 workspace-write。TTY 未信任会先问；one-shot 失败码与 kiana run 相同：
+# TTY：conversation / input / status。输入需求后回车。
+# Esc 或 Ctrl-C 取消正在跑的回合（同核 cancel_run）。
+# /sandbox read-only 或 /sandbox workspace-write 会真切换；空 /sandbox 显示当前值。
+# 默认 sandbox 是 workspace-write。TTY 未信任会先问；one-shot 失败码与 kiana run 相同：
 # workspace_write_requires_trusted_non_safe_profile
+# 不要会话面、只要 You>：KIANA_WORKBENCH_PLAIN=1 kiana
 
 # 指定文件夹（.desktop 的 Exec 就是这个）
 kiana --workdir /path/to/project -- "create GOLDEN_PATH.txt containing hello"
@@ -87,7 +92,8 @@ bash scripts/v03-workbench-smoke.sh
 ## 诚实边界
 
 - 并行 Builder 是同一 `DaemonHost` 上的 `spawn`，**没有**新 CLI。路径锁在 ControlPlane；越权是 `packet_path_denied`。
-- 文件夹工作台是 `kiana` / `--workdir` / `--pick-folder`。`kiana tui` 保持 park：legacy SDK/stream，不是 DaemonHost。
+- 文件夹工作台是 `kiana` / `--workdir` / `--pick-folder`。TTY 会话面是 `workbench_chat`，不是 `kiana tui`。`kiana tui` 保持 park：legacy SDK/stream，不是 DaemonHost。
+- 状态行只报 idle/running。token 流式、权限弹窗、`@文件`、跨进程 resume 都不是完成。
 - HTTP MCP 是 `mcp_transport_unsupported`。stdio MCP 才是产品路径。
 - live Anthropic / OpenAI / Ollama 不是完成。缺 tools 的 fake profile 必须 `unsupported_tools`，禁止假成功。
 - JointSymposium、招满 COMPANY.md 角色、Librarian、TeamCreate/SendMessage 仍冻结。

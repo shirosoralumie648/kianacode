@@ -89,7 +89,7 @@ kiana run --sandbox workspace-write -- "create a file named GOLDEN_PATH.txt cont
 
 必须为真：信任、真 provider、受限 shell/patch、失败可见、continue/cancel、重启后收据还在、收据含 `role=builder`。
 
-TUI 若不能接到同一 `DaemonHost`，就显式 park，不假装完成。**v0.2 Phase 4 已 park：** `kiana tui` 仍走 legacy SDK/stream。**v1.0.3 工作台已绿：** 空参数 / `--workdir` / `--pick-folder` 走 `workbench.rs` + 同一 `DaemonHost`，不是 dsh Web UI，也不是迁 `tui.rs`。
+TUI 若不能接到同一 `DaemonHost`，就显式 park，不假装完成。**v0.2 Phase 4 已 park：** `kiana tui` 仍走 legacy SDK/stream。**v1.0.4 工作台会话面已绿：** 空参数 TTY 走 `workbench_chat`（conversation / input / status）+ 同一 `DaemonHost`；`--json` 仍是 one-shot。不是 token 流式完成，不是 dsh Web UI，也不是迁 `tui.rs`。
 
 ### v0.3 — Trusted Workbench + 公司内核（站 6–8）
 

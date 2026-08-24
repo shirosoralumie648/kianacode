@@ -15,13 +15,14 @@
 
 ## 当前里程碑：v1.x
 
-未打开。打开条件「v1.0 个人产品已发布」已满足（诚实：temp install + USER.md + P0 审计 + 文件夹工作台）。不要现在 plan/execute。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
+未打开。打开条件「v1.0 个人产品已发布」已满足（诚实：temp install + USER.md + P0 审计 + 文件夹工作台 + TTY 会话面）。不要现在 plan/execute。JointSymposium 仍冻结。SDK/IDE/worktree 后开。
 
 ## 已完成：v1.0
 
 - [x] **Phase 1: Personal install lifecycle + USER.md** — REL-01, REL-02
 - [x] **Phase 2: P0 closeout + NOTICE** — REL-03
 - [x] **Phase 3: Personal folder workbench** — cwd / `--workdir` / `--pick-folder` on DaemonHost; `kiana tui` stays parked
+- [x] **Phase 4: Workbench conversation surface** — transcript + input + status on DaemonHost; Esc cancel; `/sandbox` switches
 
 ### Phase 1: Personal install lifecycle + USER.md
 
@@ -66,6 +67,20 @@
 6. `kiana tui` 仍 park。不是 dsh web、不是 live provider、不打开 v1.x。证明级别 `local_behavior`。
 
 **Plans:** 已执行。验证：`.planning/phases/21-VERIFICATION.md`。闸门：`scripts/v10-workbench-smoke.sh` + `kiana-entrypoints/tests/cli_workbench.rs`。
+
+### Phase 4: Workbench conversation surface
+
+**Goal:** TTY 工作台是对话区 + 输入框 + 状态行，不是回合结束后才打印的 `You>`。产品核仍是 `DaemonHost`。
+**Requirements:** 完整产品手感主缺口（Codex/pi 会话面）；不是迁 `kiana tui`，不是 token 流式完成
+**Success Criteria:**
+
+1. TTY `kiana` 走 `workbench_chat`：conversation / input / status。`--json` 和非 TTY 仍是 one-shot cassette。
+2. 状态行含 folder / trusted / sandbox / idle|running / session。`/sandbox read-only|workspace-write` 真切换；danger-full-access 拒绝。
+3. Esc / Ctrl-C 在 running 时走同核 `cancel_run`。不测 cassette 中途真停。
+4. `KIANA_WORKBENCH_PLAIN=1` 保留 rustyline。`kiana tui` 仍 park。不声称 streaming / live / 跨进程 resume。
+5. 证明级别 `local_behavior`。
+
+**Plans:** 已执行。验证：`.planning/phases/22-VERIFICATION.md`。闸门：`workbench_chat` 单测 + `scripts/v10-workbench-smoke.sh`。
 
 ## 已完成：v0.6
 

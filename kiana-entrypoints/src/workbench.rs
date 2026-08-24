@@ -21,6 +21,8 @@ Usage: kiana workbench [--json] [--sandbox read-only|workspace-write] [--role bu
        kiana gui
 
 Open a folder (cwd, --workdir, file-manager path, or GUI picker) and work through DaemonHost.
+TTY conversation: transcript + input + status. Esc/Ctrl-C cancels a running turn. /sandbox actually switches.
+--json and KIANA_WORKBENCH_PLAIN=1 stay one-shot / rustyline. Token streaming is not claimed.
 Interactive mode needs a terminal. Scripts pass a prompt after --.
 kiana tui stays parked.";
 
@@ -202,6 +204,19 @@ pub async fn run_workbench(mut launch: WorkbenchLaunch) -> Result<()> {
 
     let host = Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?);
     let session_id = uuid::Uuid::new_v4().to_string();
+    let plain = launch.json || std::env::var_os("KIANA_WORKBENCH_PLAIN").is_some();
+    if interactive && !plain {
+        return crate::workbench_chat::run(
+            host,
+            session_id,
+            workdir,
+            launch.sandbox,
+            options,
+            launch.prompt,
+        )
+        .await;
+    }
+
     let mut started = false;
     let mut last_run_id: Option<RunId> = None;
 
@@ -254,8 +269,20 @@ pub async fn run_workbench(mut launch: WorkbenchLaunch) -> Result<()> {
                 println!("trusted {}", workdir.display());
                 continue;
             }
-            "/sandbox" => {
-                println!("sandbox: {}", launch.sandbox);
+            trimmed if trimmed == "/sandbox" || trimmed.starts_with("/sandbox ") => {
+                let rest = trimmed.strip_prefix("/sandbox").unwrap_or("").trim();
+                if rest.is_empty() {
+                    println!("sandbox: {}", launch.sandbox);
+                } else {
+                    match crate::workbench_chat::normalize_sandbox(rest) {
+                        Ok(sandbox) => {
+                            launch.sandbox = sandbox.clone();
+                            options.insert("sandbox".to_string(), Value::String(sandbox.clone()));
+                            println!("sandbox: {sandbox}");
+                        }
+                        Err(error) => eprintln!("{error}"),
+                    }
+                }
                 continue;
             }
             "/receipt" => {

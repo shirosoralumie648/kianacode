@@ -128,7 +128,17 @@ pub async fn cancel_envelope(
     reason: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    let (client, metadata) = local_client(session_id, options)?;
+    cancel_envelope_on_host(new_local_host()?, session_id, run_id, reason, options).await
+}
+
+pub async fn cancel_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    reason: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let (client, metadata) = client_on_host(host, session_id, options)?;
     client
         .cancel_run(metadata, run_id, reason.into())
         .await

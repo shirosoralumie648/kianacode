@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Personal complete product
-current_phase: 3
-current_phase_name: Personal folder workbench
+current_phase: 4
+current_phase_name: Workbench conversation surface
 status: completed
-stopped_at: v1.0.3 folder workbench is green at local_behavior (cwd / --workdir / GUI picker on DaemonHost). TUI stays parked. v1.x is not opened.
-last_updated: "2026-08-23"
-last_activity: 2026-08-23
-last_activity_desc: Land v1.0.3 folder workbench. Do not open v1.x, worktrees, SDK/IDE, live provider, or unpark kiana tui.
+stopped_at: v1.0.4 workbench conversation surface is green at local_behavior (transcript + input + status on DaemonHost). TUI stays parked. Streaming / live / v1.x are not claimed.
+last_updated: "2026-08-24"
+last_activity: 2026-08-24
+last_activity_desc: Land v1.0.4 workbench conversation surface. Do not open v1.x, worktrees, SDK/IDE, live provider, or unpark kiana tui.
 progress:
-  total_phases: 3
-  completed_phases: 3
+  total_phases: 4
+  completed_phases: 4
   total_plans: 0
   completed_plans: 0
   percent: 100
@@ -22,13 +22,13 @@ progress:
 See: `COMPANY.md`, `DESIGN.md`, `PROCESS.md`, `PHASES.md`, `.planning/PROJECT.md`
 
 **Core value:** A company of small agents finishes real work and proves it.
-**Current focus:** v1.0.3 personal folder workbench landed. v1.x is not opened.
+**Current focus:** v1.0.4 workbench conversation surface landed. v1.x is not opened.
 
 ## Current Position
 
-Phase: 3 of v1.0
-Status: Complete — folder workbench (Codex/pi/dsh launch UX) on DaemonHost
-Last activity: 2026-08-23 — kiana/--workdir/--pick-folder cassette green; TUI park kept; v1.x not opened
+Phase: 4 of v1.0
+Status: Complete — TTY conversation surface (transcript + input + status) on DaemonHost
+Last activity: 2026-08-24 — workbench_chat unit tests + `--json` cassette green; TUI park kept; streaming not claimed; v1.x not opened
 
 ## Notes
 
@@ -43,8 +43,10 @@ Last activity: 2026-08-23 — kiana/--workdir/--pick-folder cassette green; TUI 
 - REL-02 是 `USER.md` 真命令，不是 104 req。
 - REL-03 是 P0 审计收口 + `NOTICE`，不是再做工具，不是 SBOM。
 - REL-04 Daily/Research 仍草案。
-- 文件夹工作台是 `kiana` / `--workdir` / `--pick-folder`。未信任写盘失败码与 `kiana run` 相同：`workspace_write_requires_trusted_non_safe_profile`。
+- 文件夹工作台是 `kiana` / `--workdir` / `--pick-folder`。TTY 会话面是 `workbench_chat`，不是 `kiana tui`。
+- 未信任写盘失败码与 `kiana run` 相同：`workspace_write_requires_trusted_non_safe_profile`。
+- Token streaming 未完成：`model_client` 仍 `stream: Some(false)`。状态行只报 idle/running。
 - 不要扩张 `kiana-tools`，不解冻 TeamCreate/SendMessage。
 - 两个 Archon 都不是工人运行时。
 - 证明上限仍 `local_behavior`。v1.0 不是 live provider、不是签名包、不是企业。
-- 不要打开 v1.x，除非用户显式要求。文件夹工作台不是 v1.x，也不是把 `kiana tui` 当产品。
+- 不要打开 v1.x，除非用户显式要求。会话面不是 v1.x，也不是把 `kiana tui` 当产品。
