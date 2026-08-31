@@ -525,11 +525,19 @@ mod tests {
         let items = vec!["first item".to_string(), "second item".to_string()];
         overlay.set_query("item".to_string(), &items);
 
-        let first = overlay.selected_result().expect("selected result").text.clone();
+        let first = overlay
+            .selected_result()
+            .expect("selected result")
+            .text
+            .clone();
         assert!(items.contains(&first));
 
         overlay.select_next();
-        let second = overlay.selected_result().expect("selected result").text.clone();
+        let second = overlay
+            .selected_result()
+            .expect("selected result")
+            .text
+            .clone();
         assert!(items.contains(&second));
         assert_ne!(first, second);
     }

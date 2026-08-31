@@ -14,11 +14,17 @@ mod tests;
 mod transitions;
 mod validator;
 
-pub use actions::{Action, ActionContext, ClearInputAction, FocusAction, LogAction, SaveStateAction, SequenceAction};
-pub use app_states::{AppState, AppEvent, DialogKind, OverlayState};
+pub use actions::{
+    Action, ActionContext, ClearInputAction, FocusAction, LogAction, SaveStateAction,
+    SequenceAction,
+};
+pub use app_states::{AppEvent, AppState, DialogKind, OverlayState};
 pub use core::{Event, State, Transition, TransitionError, TransitionResult, TransitionSuccess};
 pub use engine::{StateMachine, StateMachineConfig, TransitionDefinition};
-pub use guards::{AllGuard, AnyGuard, Guard, GuardResult, NoActiveOverlayGuard, SessionExistsGuard, AlwaysGuard, NeverGuard};
+pub use guards::{
+    AllGuard, AlwaysGuard, AnyGuard, Guard, GuardResult, NeverGuard, NoActiveOverlayGuard,
+    SessionExistsGuard,
+};
 pub use logger::{TransitionLog, TransitionLogger};
 pub use transitions::AppTransitions;
 pub use validator::{AppStateValidator, CompositeValidator, StateValidator, ValidationResult};

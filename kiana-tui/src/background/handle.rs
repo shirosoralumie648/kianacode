@@ -74,9 +74,9 @@ impl<T> TaskHandle<T> {
     /// This consumes the handle.
     pub async fn await_result(mut self) -> TaskResult<T> {
         match self.result_rx.take() {
-            Some(rx) => rx.await.unwrap_or_else(|_| {
-                Err(anyhow::anyhow!("Task was dropped before completing"))
-            }),
+            Some(rx) => rx
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("Task was dropped before completing"))),
             None => Err(anyhow::anyhow!("Result already consumed")),
         }
     }
@@ -165,9 +165,7 @@ mod tests {
 
         let handle = TaskHandle::new(id, metadata, status, rx, token);
 
-        let result = handle
-            .await_result_timeout(Duration::from_millis(10))
-            .await;
+        let result = handle.await_result_timeout(Duration::from_millis(10)).await;
         assert!(result.is_err());
     }
 }

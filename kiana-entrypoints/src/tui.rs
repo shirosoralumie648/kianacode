@@ -447,18 +447,18 @@ impl TuiRuntime {
                     } else {
                         match response.await {
                             Ok(PermissionPromptDecision::Allow) => {
-                                crate::command_dispatch::resolve_command_approval(
+                                crate::command_dispatch::resolve_command_approval_with_challenge(
                                     &command_context,
-                                    challenge.approval_id,
+                                    &challenge,
                                     kiana_protocol::ApprovalDecision::Approve,
                                 )
                                 .await
                                 .map_err(|error| error.to_string())
                             }
                             Ok(PermissionPromptDecision::Deny(_)) => {
-                                let _ = crate::command_dispatch::resolve_command_approval(
+                                let _ = crate::command_dispatch::resolve_command_approval_with_challenge(
                                     &command_context,
-                                    challenge.approval_id,
+                                    &challenge,
                                     kiana_protocol::ApprovalDecision::Deny,
                                 )
                                 .await;

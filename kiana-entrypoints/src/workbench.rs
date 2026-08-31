@@ -58,9 +58,7 @@ pub fn is_workbench_invocation(args: &[String]) -> bool {
             true
         }
         Some("--workdir") => true,
-        Some(value) if looks_like_workdir_path(value) => {
-            resolve_existing_dir(value).is_ok()
-        }
+        Some(value) if looks_like_workdir_path(value) => resolve_existing_dir(value).is_ok(),
         _ => false,
     }
 }
@@ -111,8 +109,7 @@ pub fn parse_workbench_args(args: &[String]) -> Result<WorkbenchLaunch> {
             "--workdir" => {
                 index += 1;
                 launch.workdir = Some(PathBuf::from(
-                    args.get(index)
-                        .ok_or_else(|| anyhow!("workdir_required"))?,
+                    args.get(index).ok_or_else(|| anyhow!("workdir_required"))?,
                 ));
             }
             value if value.starts_with("--workdir=") => {
@@ -325,14 +322,8 @@ async fn dispatch_turn(
     options: &HashMap<String, Value>,
 ) -> Result<kiana_protocol::ResponseEnvelope> {
     if started {
-        crate::harness_run::continue_envelope_on_host(
-            host,
-            session_id,
-            prompt,
-            run_id,
-            options,
-        )
-        .await
+        crate::harness_run::continue_envelope_on_host(host, session_id, prompt, run_id, options)
+            .await
     } else {
         crate::harness_run::run_envelope_on_host(host, session_id, prompt, options).await
     }
@@ -408,7 +399,9 @@ fn read_line(editor: &mut Option<rustyline::DefaultEditor>, prompt: &str) -> Res
                 let _ = editor.add_history_entry(&line);
                 return Ok(line);
             }
-            Err(rustyline::error::ReadlineError::Interrupted | rustyline::error::ReadlineError::Eof) => {
+            Err(
+                rustyline::error::ReadlineError::Interrupted | rustyline::error::ReadlineError::Eof,
+            ) => {
                 return Err(anyhow!("eof"));
             }
             Err(_) => {}
@@ -473,12 +466,16 @@ pub fn pick_folder() -> Result<PathBuf> {
             return run_picker_command(trimmed);
         }
     }
-    let has_display = std::env::var_os("DISPLAY").is_some()
-        || std::env::var_os("WAYLAND_DISPLAY").is_some();
+    let has_display =
+        std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some();
     if has_display {
         if which("zenity") {
             let output = Command::new("zenity")
-                .args(["--file-selection", "--directory", "--title=Kiana: choose folder"])
+                .args([
+                    "--file-selection",
+                    "--directory",
+                    "--title=Kiana: choose folder",
+                ])
                 .output()
                 .context("pick_folder_unavailable")?;
             return dir_from_command_output("zenity", output);
@@ -573,6 +570,9 @@ mod tests {
         let launch = parse_workbench_args(&["gui".to_owned()]).unwrap();
         assert!(launch.pick_folder);
         assert!(is_workbench_invocation(&["--pick-folder".to_owned()]));
-        assert!(is_workbench_invocation(&["--workdir".to_owned(), "/tmp".to_owned()]));
+        assert!(is_workbench_invocation(&[
+            "--workdir".to_owned(),
+            "/tmp".to_owned()
+        ]));
     }
 }

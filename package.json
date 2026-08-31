@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@claude-flow/aidefence": "^3.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

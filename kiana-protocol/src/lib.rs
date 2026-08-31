@@ -2,10 +2,15 @@
 
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
-    normalize_role_path, ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus,
-    PermissionProfile, RequestId, ReviewPacket, RoleSpec, RunId, SessionId, Symposium, WorkPacket,
-    DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, DEPARTMENT_PLANNING, REVIEW_PACKET_SCHEMA,
-    ROLE_ARCHITECT, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER, WORK_PACKET_SCHEMA,
+    normalize_role_path, AgentTemplate, ApprovalChallenge, ApprovalDecision, ApprovalId,
+    ArtifactId, BudgetLease, BudgetLeaseId, CapabilityExecutionState, CapabilityGrant,
+    CapabilityGrantId, CellId, CellLifecycle, CellSpec, ClosingReceipt, DelegationId,
+    DelegationPacket, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt, OrganizationId,
+    PermissionProfile, ReceiptId, RequestId, ReviewPacket, RoleSpec, RunId, SessionId, SpawnPlan,
+    SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId, WorkPacket,
+    WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH,
+    REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
+    WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,6 +37,10 @@ pub struct RequestMetadata {
     pub role_id: String,
     #[serde(default = "default_department_id")]
     pub department_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_packet_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub path_allow: Vec<String>,
 }
 
 impl RequestMetadata {
@@ -45,6 +54,8 @@ impl RequestMetadata {
             permission_profile: PermissionProfile::Safe,
             role_id: default_role_id(),
             department_id: default_department_id(),
+            work_packet_id: None,
+            path_allow: Vec::new(),
         }
     }
 
@@ -78,12 +89,24 @@ impl RequestEnvelope {
         approval_id: ApprovalId,
         decision: ApprovalDecision,
     ) -> Self {
+        Self::approval_decision_with_proof(metadata, approval_id, decision, None, None)
+    }
+
+    pub fn approval_decision_with_proof(
+        metadata: RequestMetadata,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+        request_hash: Option<String>,
+        nonce: Option<String>,
+    ) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
             metadata,
             body: RequestBody::ApprovalDecision(ApprovalDecisionRequest {
                 approval_id,
                 decision,
+                request_hash,
+                nonce,
             }),
         }
     }
@@ -177,6 +200,21 @@ impl RequestEnvelope {
         }
     }
 
+    pub fn close(
+        metadata: RequestMetadata,
+        author_session_id: impl Into<String>,
+        author_run_id: Option<RunId>,
+    ) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Close(CloseRequest {
+                author_session_id: author_session_id.into(),
+                author_run_id,
+            }),
+        }
+    }
+
     pub fn receipt(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
@@ -198,6 +236,7 @@ pub enum RequestBody {
     Spawn(SpawnRequest),
     Symposium(SymposiumRequest),
     Review(ReviewRequest),
+    Close(CloseRequest),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -210,6 +249,10 @@ pub struct CommandRequest {
 pub struct ApprovalDecisionRequest {
     pub approval_id: ApprovalId,
     pub decision: ApprovalDecision,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -266,6 +309,13 @@ pub struct SymposiumRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReviewRequest {
+    pub author_session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CloseRequest {
     pub author_session_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author_run_id: Option<RunId>,
@@ -359,6 +409,39 @@ mod tests {
         assert_eq!(encoded["body"]["request"]["decision"], "approve");
         assert!(encoded["body"]["request"].get("arguments").is_none());
         assert!(encoded["body"]["request"].get("request_hash").is_none());
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn approval_decision_proof_round_trips_when_present() {
+        let request = RequestEnvelope::approval_decision_with_proof(
+            RequestMetadata::local("session-1", "/repo"),
+            ApprovalId::new(),
+            ApprovalDecision::Approve,
+            Some("sha256:abc".to_owned()),
+            Some("nonce-1".to_owned()),
+        );
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["request"]["request_hash"], "sha256:abc");
+        assert_eq!(encoded["body"]["request"]["nonce"], "nonce-1");
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn close_envelope_round_trips_author_reference_without_transcript() {
+        let mut metadata = RequestMetadata::local("closer-1", "/repo");
+        metadata.assign_role(&RoleSpec::closer());
+        let request = RequestEnvelope::close(metadata, "builder-1", Some(RunId::new()));
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["type"], "close");
+        assert_eq!(encoded["body"]["request"]["author_session_id"], "builder-1");
+        assert!(encoded["body"]["request"].get("transcript").is_none());
         assert_eq!(
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             request

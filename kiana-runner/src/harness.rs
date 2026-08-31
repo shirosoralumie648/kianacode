@@ -16,7 +16,7 @@ use crate::inbox::{Inbox, InboxMessage, InboxTarget};
 use crate::model::{
     ModelClient, ModelMessage, ModelRequest, ModelToolCall, ScriptedModel, UnavailableModel,
 };
-use crate::tools::{capability_for_tool, tool_schemas, MAX_STEPS_PER_TURN};
+use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{CapabilityResult, RunId};
 use kiana_ports::{PortError, RunnerPort};
@@ -30,6 +30,23 @@ use std::sync::{Arc, Mutex};
 pub const HARNESS_ID: &str = "kiana-harness";
 pub const HARNESS_RESULT_SCHEMA: &str = "kiana.harness-result.v1";
 const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeConfig {
+    pub max_steps_per_turn: u32,
+    pub compact_trigger_tokens: usize,
+    pub compact_user_message_max_tokens: usize,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            max_steps_per_turn: 32,
+            compact_trigger_tokens: DEFAULT_COMPACT_TRIGGER_TOKENS,
+            compact_user_message_max_tokens: COMPACT_USER_MESSAGE_MAX_TOKENS,
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum KianaHarnessError {
@@ -55,6 +72,7 @@ pub struct KianaHarness {
     runs: Mutex<HashMap<RunId, ActiveRun>>,
     compact_trigger_tokens: usize,
     compact_user_message_max_tokens: usize,
+    max_steps_per_turn: u32,
 }
 
 impl Default for KianaHarness {
@@ -65,17 +83,35 @@ impl Default for KianaHarness {
 
 impl KianaHarness {
     pub fn new(model: Arc<dyn ModelClient>) -> Self {
+        Self::with_config(model, RuntimeConfig::default())
+    }
+
+    pub fn with_config(model: Arc<dyn ModelClient>, config: RuntimeConfig) -> Self {
         Self {
             model,
             runs: Mutex::new(HashMap::new()),
-            compact_trigger_tokens: DEFAULT_COMPACT_TRIGGER_TOKENS,
-            compact_user_message_max_tokens: COMPACT_USER_MESSAGE_MAX_TOKENS,
+            compact_trigger_tokens: config.compact_trigger_tokens,
+            compact_user_message_max_tokens: config.compact_user_message_max_tokens,
+            max_steps_per_turn: config.max_steps_per_turn.max(1),
+        }
+    }
+
+    pub fn config(&self) -> RuntimeConfig {
+        RuntimeConfig {
+            max_steps_per_turn: self.max_steps_per_turn,
+            compact_trigger_tokens: self.compact_trigger_tokens,
+            compact_user_message_max_tokens: self.compact_user_message_max_tokens,
         }
     }
 
     pub fn with_compact_budget(mut self, trigger_tokens: usize, retain_tokens: usize) -> Self {
         self.compact_trigger_tokens = trigger_tokens;
         self.compact_user_message_max_tokens = retain_tokens;
+        self
+    }
+
+    pub fn with_max_steps(mut self, max_steps_per_turn: u32) -> Self {
+        self.max_steps_per_turn = max_steps_per_turn.max(1);
         self
     }
 
@@ -292,7 +328,7 @@ impl KianaHarness {
     }
 
     async fn model_step(&self, run: &mut ActiveRun) -> Vec<RunnerEvent> {
-        if run.steps >= MAX_STEPS_PER_TURN {
+        if run.steps >= self.max_steps_per_turn {
             return vec![RunnerEvent::Failed {
                 run_id: run.run_id,
                 error: "max_steps_per_turn".to_owned(),

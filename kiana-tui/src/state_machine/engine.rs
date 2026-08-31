@@ -120,12 +120,7 @@ impl<S: State, E: Event, C> StateMachine<S, E, C> {
     }
 
     /// Register a transition.
-    pub fn add_transition(
-        &mut self,
-        from: S,
-        event: E,
-        definition: TransitionDefinition<S, E, C>,
-    ) {
+    pub fn add_transition(&mut self, from: S, event: E, definition: TransitionDefinition<S, E, C>) {
         let key = Self::make_key(&from, &event);
         self.transitions.insert(key, definition);
     }
@@ -136,12 +131,13 @@ impl<S: State, E: Event, C> StateMachine<S, E, C> {
         let key = Self::make_key(&from, &event);
 
         // Find transition definition
-        let definition = self.transitions.get(&key).ok_or_else(|| {
-            TransitionError::NoTransitionDefined {
-                state: format!("{:?}", from),
-                event: format!("{:?}", event),
-            }
-        })?;
+        let definition =
+            self.transitions
+                .get(&key)
+                .ok_or_else(|| TransitionError::NoTransitionDefined {
+                    state: format!("{:?}", from),
+                    event: format!("{:?}", event),
+                })?;
 
         // Check guards
         for guard in &definition.guards {
@@ -216,10 +212,13 @@ impl<S: State, E: Event, C> StateMachine<S, E, C> {
 
     /// Return to previous state if available.
     pub fn back(&mut self) -> Result<S, TransitionError> {
-        let previous = self.previous.take().ok_or_else(|| TransitionError::InvalidState {
-            state: format!("{:?}", self.current),
-            reason: "No previous state available".to_string(),
-        })?;
+        let previous = self
+            .previous
+            .take()
+            .ok_or_else(|| TransitionError::InvalidState {
+                state: format!("{:?}", self.current),
+                reason: "No previous state available".to_string(),
+            })?;
 
         let old_current = self.current.clone();
         self.current = previous.clone();
@@ -286,11 +285,13 @@ mod tests {
             StateMachine::new(AppState::Normal);
         let mut context = TestContext { has_session: true };
 
-        let definition = TransitionDefinition::new(
-            AppState::CommandPalette,
-            "open_command_palette".to_string(),
+        let definition =
+            TransitionDefinition::new(AppState::CommandPalette, "open_command_palette".to_string());
+        sm.add_transition(
+            AppState::Normal,
+            AppEvent::CommandPaletteRequested,
+            definition,
         );
-        sm.add_transition(AppState::Normal, AppEvent::CommandPaletteRequested, definition);
 
         let result = sm.transition(AppEvent::CommandPaletteRequested, &mut context);
         assert!(result.is_ok());
@@ -302,15 +303,11 @@ mod tests {
     fn test_guard_blocks_transition() {
         let mut sm: StateMachine<AppState, AppEvent, TestContext> =
             StateMachine::new(AppState::Normal);
-        let mut context = TestContext {
-            has_session: false,
-        };
+        let mut context = TestContext { has_session: false };
 
-        let definition = TransitionDefinition::new(
-            AppState::SessionList,
-            "open_session_list".to_string(),
-        )
-        .with_guard(Box::new(TestGuard));
+        let definition =
+            TransitionDefinition::new(AppState::SessionList, "open_session_list".to_string())
+                .with_guard(Box::new(TestGuard));
 
         sm.add_transition(AppState::Normal, AppEvent::SessionListRequested, definition);
 
@@ -325,11 +322,13 @@ mod tests {
             StateMachine::new(AppState::Normal);
         let mut context = TestContext { has_session: true };
 
-        let definition = TransitionDefinition::new(
-            AppState::CommandPalette,
-            "open_command_palette".to_string(),
+        let definition =
+            TransitionDefinition::new(AppState::CommandPalette, "open_command_palette".to_string());
+        sm.add_transition(
+            AppState::Normal,
+            AppEvent::CommandPaletteRequested,
+            definition,
         );
-        sm.add_transition(AppState::Normal, AppEvent::CommandPaletteRequested, definition);
 
         sm.transition(AppEvent::CommandPaletteRequested, &mut context)
             .unwrap();
@@ -346,11 +345,13 @@ mod tests {
             StateMachine::new(AppState::Normal);
         let mut context = TestContext { has_session: true };
 
-        let definition = TransitionDefinition::new(
-            AppState::CommandPalette,
-            "open_command_palette".to_string(),
+        let definition =
+            TransitionDefinition::new(AppState::CommandPalette, "open_command_palette".to_string());
+        sm.add_transition(
+            AppState::Normal,
+            AppEvent::CommandPaletteRequested,
+            definition,
         );
-        sm.add_transition(AppState::Normal, AppEvent::CommandPaletteRequested, definition);
 
         assert_eq!(sm.history().len(), 0);
 

@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
-use kiana_daemon::DaemonHost;
+use kiana_daemon::{DaemonHost, ProjectTrustAuthority};
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
-    RoleSpec, RunId, SessionId, WorkPacket,
+    ApprovalChallenge, ApprovalDecision, ExecutionStatus, PermissionProfile, RequestEnvelope,
+    RequestMetadata, ResponseEnvelope, RoleSpec, RunId, SessionId, WorkPacket,
 };
 use kiana_runner::{
     KianaHarness, ModelClient, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
@@ -11,7 +11,7 @@ use kiana_runner::{
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Notify;
 
@@ -24,6 +24,52 @@ impl ClientTransport for InProcessTransport {
     async fn send(&self, request: RequestEnvelope) -> Result<ResponseEnvelope, ClientError> {
         Ok(self.host.handle(request).await)
     }
+}
+
+#[derive(Clone, Copy)]
+struct FixedProjectTrustAuthority {
+    trusted: bool,
+}
+
+impl ProjectTrustAuthority for FixedProjectTrustAuthority {
+    fn project_trusted(&self, _project_root: &Path) -> Result<bool, String> {
+        Ok(self.trusted)
+    }
+}
+
+fn harness_host(harness: KianaHarness, trusted: bool) -> Result<DaemonHost, String> {
+    DaemonHost::with_harness_and_project_authority(
+        harness,
+        Arc::new(FixedProjectTrustAuthority { trusted }),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn trusted_harness_host(harness: KianaHarness) -> Result<DaemonHost, String> {
+    harness_host(harness, true)
+}
+
+fn untrusted_harness_host(harness: KianaHarness) -> Result<DaemonHost, String> {
+    harness_host(harness, false)
+}
+
+fn trusted_harness_host_on_disk(
+    harness: KianaHarness,
+    events_path: impl AsRef<Path>,
+) -> Result<DaemonHost, String> {
+    DaemonHost::with_harness_on_disk_and_project_authority(
+        harness,
+        events_path,
+        Arc::new(FixedProjectTrustAuthority { trusted: true }),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn trusted_env_harness_host() -> Result<DaemonHost, String> {
+    DaemonHost::with_env_harness_and_project_authority(Arc::new(FixedProjectTrustAuthority {
+        trusted: true,
+    }))
+    .map_err(|error| error.to_string())
 }
 
 fn trusted_metadata() -> RequestMetadata {
@@ -70,13 +116,18 @@ fn temp_project() -> PathBuf {
 
 fn scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
     let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()));
-    Arc::new(DaemonHost::with_harness(harness).expect("daemon with kiana harness"))
+    Arc::new(trusted_harness_host(harness).expect("daemon with kiana harness"))
+}
+
+fn untrusted_scripted_host(outputs: serde_json::Value) -> Arc<DaemonHost> {
+    let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()));
+    Arc::new(untrusted_harness_host(harness).expect("untrusted fixture daemon"))
 }
 
 fn compacting_host(outputs: serde_json::Value, trigger: usize, retain: usize) -> Arc<DaemonHost> {
     let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()))
         .with_compact_budget(trigger, retain);
-    Arc::new(DaemonHost::with_harness(harness).expect("compacting daemon"))
+    Arc::new(trusted_harness_host(harness).expect("compacting daemon"))
 }
 
 struct CapturingModel {
@@ -103,9 +154,40 @@ impl ModelClient for CapturingModel {
 
 #[test]
 fn local_daemon_constructs_without_a_model() {
+    let _env_lock = environment_lock();
     let home = temp_project();
-    std::env::set_var("KIANA_HOME", &home);
+    let _home = EnvGuard::set("KIANA_HOME", &home);
     let _host = DaemonHost::local().expect("local daemon");
+}
+
+#[tokio::test]
+async fn default_host_rejects_forged_trust_without_a_stored_record() {
+    let _env_lock = environment_lock();
+    let home = temp_project();
+    let root = temp_project();
+    let _home = EnvGuard::set("KIANA_HOME", &home);
+    let harness = KianaHarness::new(Arc::new(
+        ScriptedModel::from_json(&apply_patch_cassette()).unwrap(),
+    ));
+    let host = Arc::new(DaemonHost::with_harness(harness).expect("stored-authority daemon"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = RequestMetadata::local("session-1", root.to_string_lossy());
+    metadata.project_trusted = true;
+    metadata.permission_profile = PermissionProfile::Autonomous;
+    let response = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("workspace_write_requires_trusted_non_safe_profile")
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
 #[tokio::test]
@@ -262,7 +344,7 @@ async fn unknown_role_is_rejected() {
 #[tokio::test]
 async fn untrusted_workspace_write_does_not_create_file() {
     let root = temp_project();
-    let host = scripted_host(apply_patch_cassette());
+    let host = untrusted_scripted_host(apply_patch_cassette());
     let client = KianaClient::new(InProcessTransport { host });
     let mut metadata = RequestMetadata::local("session-1", root.to_string_lossy());
     metadata.permission_profile = PermissionProfile::Balanced;
@@ -283,6 +365,49 @@ async fn untrusted_workspace_write_does_not_create_file() {
 }
 
 #[tokio::test]
+async fn forged_wire_trust_cannot_grant_workspace_write() {
+    let root = temp_project();
+    let host = untrusted_scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = RequestMetadata::local("session-1", root.to_string_lossy());
+    metadata.project_trusted = true;
+    metadata.permission_profile = PermissionProfile::Autonomous;
+    let response = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("workspace_write_requires_trusted_non_safe_profile")
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn forged_wire_permission_profile_cannot_bypass_read_only() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.permission_profile = PermissionProfile::Autonomous;
+    let response = client
+        .run(
+            metadata,
+            "create a file named GOLDEN_PATH.txt containing hello",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::AwaitingApproval, "{response:?}");
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
 async fn trusted_read_only_apply_patch_does_not_create_file() {
     let root = temp_project();
     let host = scripted_host(apply_patch_cassette());
@@ -295,8 +420,127 @@ async fn trusted_read_only_apply_patch_does_not_create_file() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(
+        response.status,
+        ExecutionStatus::AwaitingApproval,
+        "{response:?}"
+    );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn cancel_after_awaiting_approval_rejects_later_approve() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let awaiting = client
+        .run(
+            trusted_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting.status,
+        ExecutionStatus::AwaitingApproval,
+        "{awaiting:?}"
+    );
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+
+    let cancelled = client
+        .cancel_run(trusted_metadata_in(&root), None, "user")
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert!(
+        cancelled
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("cancelled:"),
+        "{cancelled:?}"
+    );
+
+    let resumed = client
+        .approval_decision_with_proof(
+            trusted_metadata_in(&root),
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resumed.status, ExecutionStatus::Blocked, "{resumed:?}");
+    assert!(
+        resumed
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("approval_already_consumed"),
+        "{resumed:?}"
+    );
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn wire_approval_proof_retry_resumes_original_run() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let awaiting = client
+        .run(
+            trusted_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting.status,
+        ExecutionStatus::AwaitingApproval,
+        "{awaiting:?}"
+    );
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+
+    let rejected = client
+        .approval_decision_with_proof(
+            trusted_metadata_in(&root),
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some("sha256:wrong".to_owned()),
+            Some(challenge.nonce.clone()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rejected.status, ExecutionStatus::Blocked, "{rejected:?}");
+    assert!(rejected
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("approval_request_hash_mismatch"));
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+
+    let resumed = client
+        .approval_decision_with_proof(
+            trusted_metadata_in(&root),
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resumed.status, ExecutionStatus::Completed, "{resumed:?}");
+    assert_eq!(resumed.output["sandbox"], "read-only");
+    assert!(
+        !root.join("GOLDEN_PATH.txt").exists(),
+        "read-only approval continuation must not write: {resumed:?}"
+    );
 }
 
 #[tokio::test]
@@ -352,7 +596,7 @@ async fn shell_exec_stdout_is_fed_into_the_next_model_step() {
     let root = temp_project();
     fs::write(root.join("marker.txt"), "ok").unwrap();
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(Arc::new(RecordingModel {
+        trusted_harness_host(KianaHarness::new(Arc::new(RecordingModel {
             marker: "marker.txt".to_owned(),
             step: Mutex::new(0),
         })))
@@ -404,6 +648,9 @@ impl ModelClient for TimeoutModel {
                 if parsed.get("exit_code") != Some(&json!(124)) {
                     return Err(format!("tool_result_missing_exit_124:{}", tool.text));
                 }
+                if parsed.get("stop_confirmed") != Some(&json!(true)) {
+                    return Err(format!("tool_result_missing_stop_confirmation:{}", tool.text));
+                }
                 Ok(ModelOutput::text("command timed out"))
             }
             other => Err(format!("unexpected_model_step:{other}")),
@@ -415,7 +662,7 @@ impl ModelClient for TimeoutModel {
 async fn shell_timeout_ms_is_brokered_as_a_timed_out_tool_result() {
     let root = temp_project();
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(Arc::new(TimeoutModel {
+        trusted_harness_host(KianaHarness::new(Arc::new(TimeoutModel {
             step: Mutex::new(0),
         })))
         .expect("daemon with timeout model"),
@@ -494,7 +741,7 @@ impl ModelClient for CancelProbeModel {
 async fn cancel_stops_in_flight_shell_before_it_writes() {
     let root = temp_project();
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(Arc::new(CancelProbeModel)))
+        trusted_harness_host(KianaHarness::new(Arc::new(CancelProbeModel)))
             .expect("daemon with cancel probe"),
     );
     let runner = KianaClient::new(InProcessTransport {
@@ -518,11 +765,7 @@ async fn cancel_stops_in_flight_shell_before_it_writes() {
         .cancel_run(cancel_metadata, None, "user")
         .await
         .unwrap();
-    assert_ne!(
-        cancelled.status,
-        ExecutionStatus::Completed,
-        "{cancelled:?}"
-    );
+    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
     assert!(
         cancelled
             .error
@@ -559,7 +802,7 @@ async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
     let first_run_id;
     {
         let host = Arc::new(
-            DaemonHost::with_harness_on_disk(
+            trusted_harness_host_on_disk(
                 KianaHarness::new(Arc::new(
                     ScriptedModel::from_json(&apply_patch_cassette()).unwrap(),
                 )),
@@ -582,7 +825,7 @@ async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
     }
     {
         let host = Arc::new(
-            DaemonHost::with_harness_on_disk(
+            trusted_harness_host_on_disk(
                 KianaHarness::new(Arc::new(
                     ScriptedModel::from_json(&other_file_cassette()).unwrap(),
                 )),
@@ -604,7 +847,7 @@ async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
         assert_ne!(response.output["run_id"], first_run_id);
     }
     let host = Arc::new(
-        DaemonHost::with_harness_on_disk(
+        trusted_harness_host_on_disk(
             KianaHarness::new(Arc::new(ScriptedModel::from_json(&json!([])).unwrap())),
             &events,
         )
@@ -631,9 +874,24 @@ async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
     );
     assert!(root.join("GOLDEN_PATH.txt").exists());
     assert!(root.join("OTHER.txt").exists());
+    let foreign = client
+        .receipt(
+            RequestMetadata::local("foreign-session", root.to_string_lossy()),
+            RunId::parse_str(&first_run_id),
+        )
+        .await
+        .unwrap();
+    assert_eq!(foreign.status, ExecutionStatus::Blocked, "{foreign:?}");
+    assert_eq!(foreign.error.as_deref(), Some("run_owner_mismatch"));
+    assert!(foreign.output.is_null(), "foreign receipt leaked: {foreign:?}");
     let log = fs::read_to_string(&events).unwrap();
     assert!(log.contains(&first_run_id));
-    assert_eq!(log.matches("run.completed").count(), 2);
+    let completed_count = log
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|event| event["kind"] == "run.completed")
+        .count();
+    assert_eq!(completed_count, 2);
 }
 
 #[tokio::test]
@@ -643,7 +901,7 @@ async fn spawn_builder_from_packet_does_not_copy_planner_transcript() {
     outputs.insert(0, json!({"text": "planned"}));
     let model = CapturingModel::from_json(json!(outputs));
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+        trusted_harness_host(KianaHarness::new(model.clone())).expect("recording daemon"),
     );
     let client = KianaClient::new(InProcessTransport { host });
 
@@ -804,7 +1062,7 @@ impl ModelClient for HoldFirstModel {
 async fn disjoint_packet_builders_write_in_parallel() {
     let root = temp_project();
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(Arc::new(RoutingModel)))
+        trusted_harness_host(KianaHarness::new(Arc::new(RoutingModel)))
             .expect("routing daemon"),
     );
     let client = KianaClient::new(InProcessTransport { host });
@@ -863,7 +1121,7 @@ async fn overlapping_live_packet_spawns_fail_closed() {
         held: Mutex::new(false),
     });
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("holding daemon"),
+        trusted_harness_host(KianaHarness::new(model.clone())).expect("holding daemon"),
     );
     let first_client = KianaClient::new(InProcessTransport { host: host.clone() });
     let client = KianaClient::new(InProcessTransport { host });
@@ -936,7 +1194,7 @@ async fn anti_meeting_writes_decision_without_model_then_spawn() {
     let root = temp_project();
     let model = CapturingModel::from_json(apply_patch_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+        trusted_harness_host(KianaHarness::new(model.clone())).expect("recording daemon"),
     );
     let client = KianaClient::new(InProcessTransport { host });
 
@@ -993,7 +1251,7 @@ async fn convene_then_spawn_keeps_architect_on_blackboard_not_pm_transcript() {
     outputs.extend(apply_patch_cassette().as_array().cloned().unwrap());
     let model = CapturingModel::from_json(json!(outputs));
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+        trusted_harness_host(KianaHarness::new(model.clone())).expect("recording daemon"),
     );
     let client = KianaClient::new(InProcessTransport { host });
 
@@ -1099,7 +1357,7 @@ async fn each_department_can_convene_on_daemon_host() {
         let root = temp_project();
         let model = CapturingModel::from_json(json!([]));
         let host = Arc::new(
-            DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+            trusted_harness_host(KianaHarness::new(model.clone())).expect("recording daemon"),
         );
         let client = KianaClient::new(InProcessTransport { host });
         let mut chair = trusted_write_metadata_in(&root);
@@ -1161,7 +1419,7 @@ async fn review_after_builder_uses_new_session_without_model() {
     let root = temp_project();
     let model = CapturingModel::from_json(apply_patch_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone())).expect("recording daemon"),
+        trusted_harness_host(KianaHarness::new(model.clone())).expect("recording daemon"),
     );
     let client = KianaClient::new(InProcessTransport { host });
 
@@ -1202,6 +1460,87 @@ async fn review_after_builder_uses_new_session_without_model() {
     assert!(packet.contains("\"verdict\": \"pass\""), "{packet}");
     let seen_after_review = model.seen.lock().unwrap().len();
     assert_eq!(seen_after_review, seen_after_build);
+}
+
+#[tokio::test]
+async fn closing_closer_writes_receipt_after_independent_review() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-close-1");
+    let built = client
+        .run(
+            builder,
+            "create GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+    let author_run_id = RunId::parse_str(built.output["run_id"].as_str().unwrap());
+
+    let mut reviewer = trusted_write_metadata_in(&root);
+    reviewer.session_id = SessionId::new("reviewer-close-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = client
+        .review(reviewer, "builder-close-1", author_run_id)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Completed, "{reviewed:?}");
+
+    let mut closer = trusted_write_metadata_in(&root);
+    closer.session_id = SessionId::new("closer-1");
+    closer.assign_role(&RoleSpec::closer());
+    let closed = client
+        .close(closer, "builder-close-1", author_run_id)
+        .await
+        .unwrap();
+    assert_eq!(closed.status, ExecutionStatus::Completed, "{closed:?}");
+    assert_eq!(closed.output["schema"], "kiana.closing-receipt.v1");
+    assert_eq!(closed.output["author_session_id"], "builder-close-1");
+    assert_eq!(closed.output["reviewer_session_id"], "reviewer-close-1");
+    assert_eq!(closed.output["closer_session_id"], "closer-1");
+    assert_eq!(closed.output["accepted"], true);
+    assert_eq!(
+        fs::read_to_string(root.join("lessons").join("LEARNED.md"))
+            .unwrap()
+            .contains("GOLDEN_PATH.txt"),
+        true
+    );
+    assert!(root.join("lessons").join("CLOSING.json").exists());
+}
+
+#[tokio::test]
+async fn closing_without_a_passing_review_fails_closed() {
+    let root = temp_project();
+    let host = scripted_host(apply_patch_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let mut builder = trusted_write_metadata_in(&root);
+    builder.session_id = SessionId::new("builder-close-2");
+    let built = client
+        .run(
+            builder,
+            "create GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    let mut closer = trusted_write_metadata_in(&root);
+    closer.session_id = SessionId::new("closer-2");
+    closer.assign_role(&RoleSpec::closer());
+    let closed = client
+        .close(
+            closer,
+            "builder-close-2",
+            RunId::parse_str(built.output["run_id"].as_str().unwrap()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(closed.status, ExecutionStatus::Blocked, "{closed:?}");
+    assert_eq!(closed.error.as_deref(), Some("close_review_not_found"));
+    assert!(!root.join("lessons").join("CLOSING.json").exists());
 }
 
 #[tokio::test]
@@ -1248,6 +1587,15 @@ fn mcp_echo_cassette() -> serde_json::Value {
         },
         {"text": "mcp echoed hello"}
     ])
+}
+
+static ENVIRONMENT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn environment_lock() -> MutexGuard<'static, ()> {
+    ENVIRONMENT_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 struct EnvGuard {
@@ -1344,7 +1692,53 @@ fn tool_result_text(seen: &[ModelRequest]) -> &str {
 }
 
 #[tokio::test]
+async fn wire_actor_metadata_is_server_stamped() {
+    let host = scripted_host(json!([{"text": "ok"}]));
+    let root = temp_project();
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.actor_id = Some("caller-controlled".to_owned());
+    let response = host
+        .handle(RequestEnvelope::run(
+            metadata,
+            "hello",
+            Some("read-only".to_owned()),
+        ))
+        .await;
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    assert_eq!(response.output["actor_id"], "local-user");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn wire_explicit_run_id_cannot_cross_session_owner() {
+    let host = scripted_host(json!([{"text": "ok"}]));
+    let root = temp_project();
+    let first = host
+        .handle(RequestEnvelope::run(
+            trusted_metadata_in(&root),
+            "hello",
+            Some("read-only".to_owned()),
+        ))
+        .await;
+    let run_id: RunId = serde_json::from_value(first.output["run_id"].clone()).unwrap();
+    let mut other = trusted_metadata_in(&root);
+    other.session_id = SessionId::new("other-session");
+    let response = host
+        .handle(RequestEnvelope::continue_run(
+            other,
+            "continue",
+            Some("read-only".to_owned()),
+            Some(run_id),
+        ))
+        .await;
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert_eq!(response.error.as_deref(), Some("session_not_found"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
+    let _env_lock = environment_lock();
     if !python3_available() {
         eprintln!("skipping MCP stdio test because python3 is unavailable");
         return;
@@ -1359,16 +1753,33 @@ async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
     let _guard = EnvGuard::set("KIANA_MCP_SERVERS_JSON", config.to_string());
     let model = CapturingModel::from_json(mcp_echo_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+        trusted_harness_host(KianaHarness::new(model.clone()))
             .expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
     let root = temp_project();
-    let response = client
+    let awaiting = client
         .run(
             trusted_write_metadata_in(&root),
             "echo hello via mcp",
             Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting.status,
+        ExecutionStatus::AwaitingApproval,
+        "{awaiting:?}"
+    );
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+    let response = client
+        .approval_decision_with_proof(
+            trusted_write_metadata_in(&root),
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
         )
         .await
         .unwrap();
@@ -1388,7 +1799,7 @@ async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
 async fn untrusted_mcp_does_not_spawn_a_server() {
     let model = CapturingModel::from_json(mcp_echo_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+        untrusted_harness_host(KianaHarness::new(model.clone()))
             .expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
@@ -1424,6 +1835,7 @@ async fn reviewer_cannot_call_mcp() {
 
 #[tokio::test]
 async fn http_mcp_is_unsupported_this_slice() {
+    let _env_lock = environment_lock();
     let config = json!([{
         "name": "mock",
         "transport": "http",
@@ -1432,16 +1844,33 @@ async fn http_mcp_is_unsupported_this_slice() {
     let _guard = EnvGuard::set("KIANA_MCP_SERVERS_JSON", config.to_string());
     let model = CapturingModel::from_json(mcp_echo_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+        trusted_harness_host(KianaHarness::new(model.clone()))
             .expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
     let root = temp_project();
-    let response = client
+    let awaiting = client
         .run(
             trusted_write_metadata_in(&root),
             "echo hello via mcp",
             Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting.status,
+        ExecutionStatus::AwaitingApproval,
+        "{awaiting:?}"
+    );
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+    let response = client
+        .approval_decision_with_proof(
+            trusted_write_metadata_in(&root),
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
         )
         .await
         .unwrap();
@@ -1483,7 +1912,7 @@ async fn trusted_project_skill_appears_in_harness_system_message() {
     write_kiana_project_skill(&root, "code03-harness-demo");
     let model = CapturingModel::from_json(text_only_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+        trusted_harness_host(KianaHarness::new(model.clone()))
             .expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
@@ -1504,7 +1933,7 @@ async fn untrusted_project_skill_is_withheld_from_harness_system_message() {
     write_kiana_project_skill(&root, "code03-harness-demo");
     let model = CapturingModel::from_json(text_only_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+        untrusted_harness_host(KianaHarness::new(model.clone()))
             .expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
@@ -1536,7 +1965,7 @@ async fn pre_tool_use_hook_blocks_apply_patch_before_broker_execute() {
     let root = temp_project();
     let model = CapturingModel::from_json(apply_patch_cassette());
     let host = Arc::new(
-        DaemonHost::with_harness(KianaHarness::new(model.clone()))
+        trusted_harness_host(KianaHarness::new(model.clone()))
             .expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
@@ -1556,6 +1985,60 @@ async fn pre_tool_use_hook_blocks_apply_patch_before_broker_execute() {
     let seen = model.seen.lock().unwrap();
     let tool_text = tool_result_text(&seen);
     assert!(tool_text.contains("hook_blocked"), "{tool_text}");
+}
+
+#[tokio::test]
+async fn pre_tool_use_hook_update_input_fails_closed_before_broker_execute() {
+    let _guard = EnvGuard::set(
+        "KIANA_PRE_TOOL_USE_HOOKS",
+        r#"printf '%s' '{"decision":"allow","updated_input":{"path":"safe.txt"}}'"#,
+    );
+    let root = temp_project();
+    let model = CapturingModel::from_json(apply_patch_cassette());
+    let host = Arc::new(
+        trusted_harness_host(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+    let seen = model.seen.lock().unwrap();
+    assert!(tool_result_text(&seen).contains("hook_update_input_unapplied"));
+}
+
+#[tokio::test]
+async fn pre_tool_use_hook_ask_fails_closed_before_broker_execute() {
+    let _guard = EnvGuard::set(
+        "KIANA_PRE_TOOL_USE_HOOKS",
+        r#"printf '%s' '{"decision":"ask","reason":"confirm"}'"#,
+    );
+    let root = temp_project();
+    let model = CapturingModel::from_json(apply_patch_cassette());
+    let host = Arc::new(
+        trusted_harness_host(KianaHarness::new(model.clone()))
+            .expect("daemon with kiana harness"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "create a file named GOLDEN_PATH.txt containing hello",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert!(!root.join("GOLDEN_PATH.txt").exists());
+    let seen = model.seen.lock().unwrap();
+    assert!(tool_result_text(&seen).contains("hook_ask_unattended:confirm"));
 }
 
 #[tokio::test]
@@ -1732,6 +2215,42 @@ async fn builder_project_search_hits_land_on_receipt() {
     assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
+fn spoofed_pm_memory_search_cassette() -> serde_json::Value {
+    json!([
+        {
+            "text": "searching",
+            "tool_calls": [{
+                "id": "c-mem-spoof",
+                "name": "memory.search",
+                "arguments": {
+                    "query": "secret plan",
+                    "collection": "planning:unreleased-debate",
+                    "role_id": "pm",
+                    "department_id": "planning"
+                }
+            }]
+        },
+        { "text": "searched" }
+    ])
+}
+
+#[tokio::test]
+async fn model_role_arguments_cannot_widen_memory_grants() {
+    let root = temp_project();
+    let host = scripted_host(spoofed_pm_memory_search_cassette());
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(
+            trusted_write_metadata_in(&root),
+            "search unpublished planning debate",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_knowledge_denied"));
+}
+
 #[tokio::test]
 async fn builder_cannot_search_user_private_memory() {
     let root = temp_project();
@@ -1866,7 +2385,7 @@ async fn fake_text_only_provider_fails_closed_with_unsupported_tools() {
     let _model = EnvGuard::set("KIANA_FAKE_MODEL", "fake-text-only");
     let _script = EnvGuard::set("KIANA_HARNESS_SCRIPT", "");
     let root = temp_project();
-    let host = Arc::new(DaemonHost::with_env_harness().expect("env harness daemon"));
+    let host = Arc::new(trusted_env_harness_host().expect("env harness daemon"));
     let client = KianaClient::new(InProcessTransport { host });
     let response = client
         .run(

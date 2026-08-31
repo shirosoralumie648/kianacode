@@ -8,14 +8,14 @@ mod sessions;
 use acp::{AcpClient, AcpMessage};
 use anyhow::Result;
 use completion::CompletionEngine;
-use kiana_tui::components::notifications::{ToastLevel, ToastManager};
-use kiana_tui::components::{AppMode, HintCategory, HintPriority, KeyHint, StatusBar};
 use config::Config;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use kiana_tui::components::notifications::{ToastLevel, ToastManager};
+use kiana_tui::components::{AppMode, HintCategory, HintPriority, KeyHint, StatusBar};
 use kiana_tui::markdown::render_markdown;
 use kiana_tui::overlay::{Overlay, OverlayAction, SearchMode, SearchOverlay};
 use ratatui::{

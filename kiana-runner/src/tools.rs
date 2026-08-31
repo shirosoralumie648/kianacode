@@ -13,7 +13,6 @@ pub const TOOL_APPLY_PATCH: &str = "apply_patch";
 pub const TOOL_MCP: &str = "mcp";
 pub const TOOL_MEMORY_SEARCH: &str = "memory.search";
 pub const TOOL_MEMORY_WRITE: &str = "memory.write";
-pub const MAX_STEPS_PER_TURN: u32 = 32;
 
 pub fn tool_schemas() -> Vec<Value> {
     vec![

@@ -38,10 +38,7 @@ impl AppTransitions {
 
     /// Create a transition to command palette.
     pub fn open_command_palette<C>() -> TransitionDefinition<AppState, AppEvent, C> {
-        TransitionDefinition::new(
-            AppState::CommandPalette,
-            "open_command_palette".to_string(),
-        )
+        TransitionDefinition::new(AppState::CommandPalette, "open_command_palette".to_string())
     }
 
     /// Create a transition to config editor.

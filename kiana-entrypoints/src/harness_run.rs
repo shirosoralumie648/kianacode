@@ -9,7 +9,8 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
     normalize_role_path, ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata,
-    ResponseEnvelope, RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+    ResponseEnvelope, RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM,
+    ROLE_REVIEWER,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -229,6 +230,24 @@ pub async fn review_envelope(
     metadata.assign_role(&RoleSpec::reviewer());
     client
         .review(metadata, author_session_id.as_ref().to_owned(), None)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+pub async fn close_envelope(
+    session_id: impl Into<String>,
+    author_session_id: impl AsRef<str>,
+    author_run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let (client, mut metadata) = local_client(session_id, options)?;
+    metadata.assign_role(&RoleSpec::closer());
+    client
+        .close(
+            metadata,
+            author_session_id.as_ref().to_owned(),
+            author_run_id,
+        )
         .await
         .map_err(anyhow::Error::msg)
 }

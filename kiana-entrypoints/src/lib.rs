@@ -9,6 +9,9 @@ pub mod runner;
 pub mod sandbox;
 pub mod sdk;
 pub mod tui;
+pub mod web;
+mod web_thread;
+mod web_ui;
 pub mod workbench;
 mod workbench_chat;
 

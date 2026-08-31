@@ -71,19 +71,20 @@ pub async fn run_repl() -> Result<()> {
                             .map(|answer| matches!(answer.trim(), "y" | "Y" | "yes" | "YES"))
                             .unwrap_or(false);
                         if !approved {
-                            let _ = crate::command_dispatch::resolve_command_approval(
-                                &command_context,
-                                challenge.approval_id,
-                                kiana_protocol::ApprovalDecision::Deny,
-                            )
-                            .await;
+                            let _ =
+                                crate::command_dispatch::resolve_command_approval_with_challenge(
+                                    &command_context,
+                                    &challenge,
+                                    kiana_protocol::ApprovalDecision::Deny,
+                                )
+                                .await;
                             println!("{} Local write denied.", "Kiana:".bright_cyan().bold());
                             println!();
                             continue;
                         }
-                        crate::command_dispatch::resolve_command_approval(
+                        crate::command_dispatch::resolve_command_approval_with_challenge(
                             &command_context,
-                            challenge.approval_id,
+                            &challenge,
                             kiana_protocol::ApprovalDecision::Approve,
                         )
                         .await?

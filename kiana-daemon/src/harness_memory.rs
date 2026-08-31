@@ -5,14 +5,14 @@
 
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, MemoryCollection, RoleSpec,
-    MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH,
-    MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA,
-    MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, MEMORY_LAYER_COMPANY,
+    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
+    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_SEARCH_SCHEMA,
+    MEMORY_WRITE_SCHEMA, MemoryCollection, RoleSpec,
 };
 use kiana_ports::PortError;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -230,7 +230,7 @@ fn collection_path(
             other => {
                 return Err(PortError::Failed(format!(
                     "memory_collection_unknown:{other}"
-                )))
+                )));
             }
         };
         return Ok(home.join("memory").join(name));
@@ -266,7 +266,7 @@ fn collection_path(
                 other => {
                     return Err(PortError::Failed(format!(
                         "memory_collection_unknown:{other}"
-                    )))
+                    )));
                 }
             };
             base.join("project").join(name)
@@ -284,7 +284,7 @@ fn collection_path(
         other => {
             return Err(PortError::Failed(format!(
                 "memory_collection_unknown:{other}"
-            )))
+            )));
         }
     };
     Ok(path)

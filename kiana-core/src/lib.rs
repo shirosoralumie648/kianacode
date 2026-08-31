@@ -1,26 +1,56 @@
 //! The single command and capability control plane for Kiana.
 
+mod cell_registry;
+
+use cell_registry::MemoryCellRegistry;
 use kiana_domain::{
     builder_lock_paths, path_locks_conflict, ApprovalDecision, ApprovalId,
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest, CapabilityResult,
-    CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision, PermissionProfile,
-    RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, RuntimeEvent, Symposium,
-    SymposiumClaim, WorkPacket, DEPARTMENT_PLANNING, MEMORY_SEARCH_SCHEMA, MONITORING_PATH_GATE,
-    REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_REVIEWER, SYMPOSIUM_RESULT_SCHEMA,
-    WORK_PACKET_PATH,
+    AuthorizedCapabilityRequest, BudgetLease, CapabilityGrant, CapabilityGrantId,
+    CapabilityKind, CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec,
+    ClosingReceipt, CommandIntent, CoreResponse,
+    DecisionRecord, ExecutionStatus, GateDecision, MergeReceipt, PendingInvocation,
+    PermissionProfile, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
+    RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus, SupervisionLease, SupervisionLeaseId,
+    Symposium, SymposiumClaim,
+    WorkFingerprint, WorkPacket, CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA, DEPARTMENT_PLANNING,
+    MEMORY_SEARCH_SCHEMA, MONITORING_PATH_GATE, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA,
+    ROLE_BUILDER, ROLE_CLOSER, ROLE_REVIEWER, SPAWN_PLAN_SCHEMA, SUPERVISION_LEASE_SCHEMA,
+    SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::PolicyEngine;
-use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
-use kiana_query::{run_pre_tool_use_hooks, PreToolUseHookContext, ToolHookDecision};
+use kiana_ports::{
+    AllowAllPreToolHooks, ApprovalStorePort, CapabilityBrokerPort, CapabilityLease,
+    CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision, PreToolHookPort,
+    RunnerPort, SpawnReservationRequest,
+};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
-use kiana_types::ProjectTrust;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+use std::fs::{self, File, OpenOptions};
+use std::hash::{Hash, Hasher};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::sync::{Mutex, PoisonError};
-use tokio::sync::{watch, Notify};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::watch;
+
+struct PathLockLease {
+    _file: File,
+}
+
+struct BuilderPathLockGuard<'a> {
+    control_plane: &'a ControlPlane,
+    project_root: String,
+    session_id: String,
+}
+
+impl Drop for BuilderPathLockGuard<'_> {
+    fn drop(&mut self) {
+        self.control_plane
+            .release_builder_path_locks(&self.project_root, &self.session_id);
+    }
+}
 
 pub const LEGACY_EDGES_REMAINING: usize = 9;
 pub const HARNESS_ID: &str = "kiana-harness";
@@ -44,6 +74,13 @@ const MAX_CONTEXT_LIMIT: u64 = 1_000;
 const MAX_CONTEXT_BYTES_PER_FILE: u64 = 16 * 1024 * 1024;
 const MAX_CONTEXT_SNIPPET_LINES: u64 = 1_000;
 
+#[derive(Clone, Debug)]
+struct SessionBinding {
+    run_id: RunId,
+    actor_id: Option<String>,
+    project_root: String,
+}
+
 pub struct ControlPlane {
     policy: Arc<dyn PolicyEngine>,
     gates: Arc<dyn GateEngine>,
@@ -51,9 +88,13 @@ pub struct ControlPlane {
     capabilities: Arc<dyn CapabilityBrokerPort>,
     approvals: Arc<dyn ApprovalStorePort>,
     runner: Arc<dyn RunnerPort>,
-    sessions: Mutex<HashMap<String, RunId>>,
+    pre_tool_hooks: Arc<dyn PreToolHookPort>,
+    cell_registry: Arc<dyn kiana_ports::CellRegistryPort>,
+    sessions: Mutex<HashMap<String, SessionBinding>>,
+    pending_invocations: Mutex<HashMap<ApprovalId, PendingInvocation>>,
     cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
     path_locks: Mutex<HashMap<String, String>>,
+    durable_path_locks: Mutex<HashMap<String, Vec<PathLockLease>>>,
 }
 
 impl ControlPlane {
@@ -65,6 +106,48 @@ impl ControlPlane {
         approvals: Arc<dyn ApprovalStorePort>,
         runner: Arc<dyn RunnerPort>,
     ) -> Self {
+        Self::with_pre_tool_hooks(
+            policy,
+            gates,
+            events,
+            capabilities,
+            approvals,
+            runner,
+            Arc::new(AllowAllPreToolHooks),
+        )
+    }
+
+    pub fn with_pre_tool_hooks(
+        policy: Arc<dyn PolicyEngine>,
+        gates: Arc<dyn GateEngine>,
+        events: Arc<dyn EventStorePort>,
+        capabilities: Arc<dyn CapabilityBrokerPort>,
+        approvals: Arc<dyn ApprovalStorePort>,
+        runner: Arc<dyn RunnerPort>,
+        pre_tool_hooks: Arc<dyn PreToolHookPort>,
+    ) -> Self {
+        Self::with_pre_tool_hooks_and_cell_registry(
+            policy,
+            gates,
+            events,
+            capabilities,
+            approvals,
+            runner,
+            pre_tool_hooks,
+            Arc::new(MemoryCellRegistry::new()),
+        )
+    }
+
+    pub fn with_pre_tool_hooks_and_cell_registry(
+        policy: Arc<dyn PolicyEngine>,
+        gates: Arc<dyn GateEngine>,
+        events: Arc<dyn EventStorePort>,
+        capabilities: Arc<dyn CapabilityBrokerPort>,
+        approvals: Arc<dyn ApprovalStorePort>,
+        runner: Arc<dyn RunnerPort>,
+        pre_tool_hooks: Arc<dyn PreToolHookPort>,
+        cell_registry: Arc<dyn kiana_ports::CellRegistryPort>,
+    ) -> Self {
         Self {
             policy,
             gates,
@@ -72,9 +155,13 @@ impl ControlPlane {
             capabilities,
             approvals,
             runner,
+            pre_tool_hooks,
+            cell_registry,
             sessions: Mutex::new(HashMap::new()),
+            pending_invocations: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
             path_locks: Mutex::new(HashMap::new()),
+            durable_path_locks: Mutex::new(HashMap::new()),
         }
     }
 
@@ -252,29 +339,85 @@ impl ControlPlane {
         approval_id: ApprovalId,
         decision: ApprovalDecision,
     ) -> Result<CoreResponse, CoreError> {
-        let pending = match self.approvals.consume(context, approval_id).await {
+        self.decide_approval_with_proof(context, approval_id, decision, None, None)
+            .await
+    }
+
+    pub async fn decide_approval_with_proof(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+    ) -> Result<CoreResponse, CoreError> {
+        let persisted_run_id = self.approval_run_id(approval_id).await?;
+        let pending = match self
+            .approvals
+            .consume_with_proof(context, approval_id, request_hash, nonce)
+            .await
+        {
             Ok(pending) => pending,
             Err(error) => {
                 return Ok(CoreResponse::blocked(context.request_id, error.to_string()));
             }
         };
+        let invocation = self
+            .pending_invocations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&approval_id);
         let request_id = pending.request.request_id;
+        let event_request_id = invocation
+            .as_ref()
+            .map(|pending| pending.event_request_id)
+            .unwrap_or(request_id);
+        let event_sequence = invocation
+            .as_ref()
+            .map(|pending| pending.event_sequence)
+            .unwrap_or(4);
         let event_kind = match decision {
             ApprovalDecision::Approve => "approval.approved",
             ApprovalDecision::Deny => "approval.denied",
         };
-        self.append_event(
-            request_id,
-            4,
-            event_kind,
-            json!({
-                "approval_id": approval_id,
-                "request_hash": pending.challenge.request_hash,
-                "session_id": context.session_id,
-                "actor_id": context.actor_id,
-            }),
-        )
-        .await?;
+        let mut approval_event = json!({
+            "approval_id": approval_id,
+            "request_hash": pending.challenge.request_hash,
+            "session_id": context.session_id,
+            "actor_id": context.actor_id,
+        });
+        if let Some(invocation) = &invocation {
+            approval_event["run_id"] = json!(invocation.run_id);
+        }
+        self.append_event(event_request_id, event_sequence, event_kind, approval_event)
+            .await?;
+
+        if invocation.is_none()
+            && decision == ApprovalDecision::Approve
+            && persisted_run_id.is_some()
+        {
+            self.append_event(
+                event_request_id,
+                event_sequence.saturating_add(1),
+                "approval.continuation_unavailable",
+                json!({
+                    "approval_id": approval_id,
+                    "run_id": persisted_run_id,
+                    "error": "approval_continuation_unavailable",
+                }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "approval_continuation_unavailable",
+            ));
+        }
+
+        if let Some(invocation) = invocation {
+            return self
+                .resume_approved_invocation(context, request_id, approval_id, decision, invocation)
+                .await;
+        }
 
         if decision == ApprovalDecision::Deny {
             return Ok(CoreResponse {
@@ -284,9 +427,139 @@ impl ControlPlane {
                 error: Some("approval_denied".to_owned()),
             });
         }
-
         self.execute_authorized_request(pending.request, format!("approval:{approval_id}"), 5)
             .await
+    }
+
+    async fn resume_approved_invocation(
+        &self,
+        _decision_context: &RequestContext,
+        request_id: RequestId,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+        invocation: PendingInvocation,
+    ) -> Result<CoreResponse, CoreError> {
+        if decision == ApprovalDecision::Deny {
+            let _ = self
+                .runner
+                .send(RunnerCommand::CapabilityResult {
+                    run_id: invocation.run_id,
+                    result: CapabilityResult::failure(invocation.request_id, "approval_denied"),
+                })
+                .await;
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Denied,
+                output: json!({ "approval_id": approval_id, "run_id": invocation.run_id }),
+                error: Some("approval_denied".to_owned()),
+            });
+        }
+
+        let mut request = invocation.request.clone();
+        if let Err(error) = self.bind_cell_scope(&invocation.context, &mut request).await {
+            let reason = error.to_string();
+            let _ = self
+                .runner
+                .send(RunnerCommand::CapabilityResult {
+                    run_id: invocation.run_id,
+                    result: CapabilityResult::failure(invocation.request_id, reason.clone()),
+                })
+                .await;
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Blocked,
+                output: run_identity(&invocation.context, invocation.run_id, &invocation.sandbox),
+                error: Some(reason),
+            });
+        }
+        let cell_lease = self.begin_cell_capability_from_request(&request).await?;
+        let result = match self
+            .capabilities
+            .execute(AuthorizedCapabilityRequest::new(
+                format!("approval:{approval_id}"),
+                request.clone(),
+            )?)
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => CapabilityResult::failure(invocation.request_id, error.to_string()),
+        };
+        let outcome = if result.success {
+            CapabilityOutcome::Succeeded
+        } else {
+            CapabilityOutcome::Failed
+        };
+        if let Some(lease) = cell_lease {
+            self.finish_cell_capability(lease, outcome).await?;
+        }
+        if result.request_id != invocation.request_id {
+            let reason = "capability_result_mismatch";
+            self.append_event(
+                invocation.event_request_id,
+                invocation.event_sequence + 1,
+                "capability.result_unknown",
+                json!({
+                    "run_id": invocation.run_id,
+                    "capability_request_id": invocation.request_id,
+                    "result_request_id": result.request_id,
+                    "error": reason,
+                }),
+            )
+            .await?;
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::ResultUnknown,
+                output: run_identity(&invocation.context, invocation.run_id, &invocation.sandbox),
+                error: Some(reason.to_owned()),
+            });
+        }
+        self.append_event(
+            invocation.event_request_id,
+            invocation.event_sequence + 1,
+            if result.success {
+                "capability.completed"
+            } else {
+                "capability.failed"
+            },
+            capability_event_payload(
+                &result.output,
+                &request,
+                &invocation.context,
+                invocation.run_id,
+            ),
+        )
+        .await?;
+        let events = match self
+            .runner
+            .send(RunnerCommand::CapabilityResult {
+                run_id: invocation.run_id,
+                result,
+            })
+            .await
+        {
+            Ok(events) => events,
+            Err(error) => {
+                return Ok(CoreResponse {
+                    request_id,
+                    status: ExecutionStatus::Failed,
+                    output: run_identity(
+                        &invocation.context,
+                        invocation.run_id,
+                        &invocation.sandbox,
+                    ),
+                    error: Some(error.to_string()),
+                });
+            }
+        };
+        let mut sequence = invocation.event_sequence + 2;
+        self.drive_run(
+            &invocation.context,
+            invocation.run_id,
+            &invocation.sandbox,
+            events,
+            &mut sequence,
+        )
+        .await
     }
 
     async fn execute_authorized_request(
@@ -296,9 +569,39 @@ impl ControlPlane {
         result_sequence: u64,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = request.request_id;
-        let authorized = AuthorizedCapabilityRequest::new(authorization_id, request)?;
+        let cell_lease = self.begin_cell_capability_from_request(&request).await?;
+        let authorized = AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
         match self.capabilities.execute(authorized).await {
             Ok(result) => {
+                let outcome = if result.request_id != request_id {
+                    CapabilityOutcome::Unknown
+                } else if result.success {
+                    CapabilityOutcome::Succeeded
+                } else {
+                    CapabilityOutcome::Failed
+                };
+                if let Some(lease) = cell_lease {
+                    self.finish_cell_capability(lease, outcome).await?;
+                }
+                if result.request_id != request_id {
+                    self.append_event(
+                        request_id,
+                        result_sequence,
+                        "capability.result_unknown",
+                        json!({
+                            "capability_request_id": request_id,
+                            "result_request_id": result.request_id,
+                            "error": "capability_result_mismatch",
+                        }),
+                    )
+                    .await?;
+                    return Ok(CoreResponse {
+                        request_id,
+                        status: ExecutionStatus::ResultUnknown,
+                        output: Value::Null,
+                        error: Some("capability_result_mismatch".to_owned()),
+                    });
+                }
                 let success = result.success;
                 let status = if success {
                     ExecutionStatus::Completed
@@ -322,7 +625,7 @@ impl ControlPlane {
                         } else {
                             "capability.failed"
                         },
-                        output.clone(),
+                        redact_event_value(&output),
                     )
                     .await
                     .is_err()
@@ -342,12 +645,16 @@ impl ControlPlane {
                 })
             }
             Err(error) => {
+                if let Some(lease) = cell_lease {
+                    self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
+                        .await?;
+                }
                 let reason = error.to_string();
                 self.append_event(
                     request_id,
                     result_sequence,
                     "capability.failed",
-                    json!({ "error": &reason }),
+                    json!({ "error": redact_event_text(&reason) }),
                 )
                 .await?;
                 Ok(CoreResponse {
@@ -363,7 +670,7 @@ impl ControlPlane {
     pub async fn spawn_from_packet(
         &self,
         mut context: RequestContext,
-        packet: WorkPacket,
+        mut packet: WorkPacket,
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
@@ -391,27 +698,436 @@ impl ControlPlane {
             .await?;
             return Ok(CoreResponse::blocked(request_id, "spawn_session_not_fresh"));
         }
-        context.assign_role(&RoleSpec::builder());
-        context.work_packet_id = Some(packet.id.clone());
-        context.path_allow = packet.path_allow.clone();
-        let session_id = context.session_id.as_str().to_owned();
-        if let Err(reason) = self.acquire_builder_path_locks(&session_id, &context.path_allow) {
+        if !matches!(
+            packet.status,
+            kiana_domain::WorkPacketStatus::Draft
+                | kiana_domain::WorkPacketStatus::Approved
+                | kiana_domain::WorkPacketStatus::Assigned
+        ) {
             self.append_event(
                 request_id,
                 1,
                 "run.rejected",
                 json!({
-                    "reason": reason,
+                    "reason": "packet_status_not_spawnable",
                     "command": "run.spawn",
-                    "session_id": session_id,
+                    "packet_id": &packet.id,
+                    "status": packet.status,
                 }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "packet_status_not_spawnable",
+            ));
+        }
+        context.assign_role(&RoleSpec::builder());
+        context.work_packet_id = Some(packet.id.clone());
+        context.path_allow = packet.path_allow.clone();
+        let session_id = context.session_id.as_str().to_owned();
+        let project_root = context.project_root.clone();
+        if let Err(reason) = self.acquire_builder_path_locks(
+            &project_root,
+            &session_id,
+            &context.path_allow,
+        ) {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({ "reason": reason, "command": "run.spawn", "session_id": session_id }),
             )
             .await?;
             return Ok(CoreResponse::blocked(request_id, reason));
         }
-        let response = self.start_run(context, packet.as_prompt(), sandbox).await;
-        self.release_builder_path_locks(&session_id);
-        response
+        let _path_lock_guard = BuilderPathLockGuard {
+            control_plane: self,
+            project_root: project_root.clone(),
+            session_id: session_id.clone(),
+        };
+        let run_id = RunId::new();
+        let admission = match self.reserve_packet_cell(&context, &packet, run_id).await {
+            Ok(admission) => admission,
+            Err(error) => {
+                let error = spawn_error_reason(&error);
+                self.append_event(
+                    request_id,
+                    1,
+                    "run.rejected",
+                    json!({
+                        "reason": &error,
+                        "command": "run.spawn",
+                        "packet_id": &packet.id,
+                    }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, error));
+            }
+        };
+        let mut context = context;
+        context.cell_id = Some(admission.cell.cell_id);
+        packet.owner_cell_id = Some(admission.cell.cell_id);
+        packet.budget_lease_id = Some(admission.budget.lease_id);
+        packet.acceptor_id = context.actor_id.clone();
+        let mut packet_sequence = 1u64;
+        self.record_event(
+            request_id,
+            &mut packet_sequence,
+            "cell.validated",
+            cell_event_payload(&admission, "validated"),
+        )
+        .await?;
+        let admission = match self
+            .cell_registry
+            .commit_spawn(admission.plan.plan_id)
+            .await
+        {
+            Ok(admission) => admission,
+            Err(error) => {
+                let _ = self
+                    .cell_registry
+                    .abort_spawn(admission.plan.plan_id, "spawn_commit_failed")
+                    .await;
+                return Ok(CoreResponse::blocked(request_id, error.to_string()));
+            }
+        };
+        self.record_event(
+            request_id,
+            &mut packet_sequence,
+            "spawn.committed",
+            spawn_event_payload(&admission),
+        )
+        .await?;
+        let admission = match self
+            .cell_registry
+            .transition_cell(
+                admission.cell.cell_id,
+                CellLifecycle::Ready,
+                CellLifecycle::Running,
+            )
+            .await
+        {
+            Ok(cell) => {
+                let mut admission = admission;
+                admission.cell = cell;
+                admission
+            }
+            Err(error) => {
+                let _ = self
+                    .cell_registry
+                    .abort_spawn(admission.plan.plan_id, "cell_start_failed")
+                    .await;
+                return Ok(CoreResponse::blocked(request_id, error.to_string()));
+            }
+        };
+        self.record_event(
+            request_id,
+            &mut packet_sequence,
+            "cell.started",
+            cell_event_payload(&admission, "running"),
+        )
+        .await?;
+        if packet.status == kiana_domain::WorkPacketStatus::Draft {
+            packet.transition_status(kiana_domain::WorkPacketStatus::Approved)?;
+            self.record_event(
+                request_id,
+                &mut packet_sequence,
+                "packet.approved",
+                json!({
+                    "packet_id": &packet.id,
+                    "status": packet.status,
+                    "actor_id": context.actor_id,
+                }),
+            )
+            .await?;
+        }
+        if packet.status == kiana_domain::WorkPacketStatus::Approved {
+            packet.transition_status(kiana_domain::WorkPacketStatus::Assigned)?;
+            self.record_event(
+                request_id,
+                &mut packet_sequence,
+                "packet.assigned",
+                json!({
+                    "packet_id": &packet.id,
+                    "status": packet.status,
+                    "assignee_role": &packet.assignee_role,
+                }),
+            )
+            .await?;
+        }
+        if packet.status == kiana_domain::WorkPacketStatus::Assigned {
+            packet.transition_status(kiana_domain::WorkPacketStatus::Running)?;
+            self.record_event(
+                request_id,
+                &mut packet_sequence,
+                "packet.accepted",
+                json!({
+                    "packet_id": &packet.id,
+                    "status": packet.status,
+                    "acceptor_id": context.actor_id,
+                }),
+            )
+            .await?;
+        }
+        let response = self
+            .start_run_with_id(context.clone(), packet.as_prompt(), sandbox, Some(run_id))
+            .await;
+        let mut response = match response {
+            Ok(response) => response,
+            Err(error) => {
+                let _ = self
+                    .cell_registry
+                    .abort_spawn(admission.plan.plan_id, "runner_start_failed")
+                    .await;
+                return Err(error);
+            }
+        };
+        let cell_lifecycle = match response.status {
+            ExecutionStatus::Completed => {
+                Some((CellLifecycle::Running, CellLifecycle::ReadyToMerge))
+            }
+            ExecutionStatus::AwaitingApproval => {
+                Some((CellLifecycle::Running, CellLifecycle::WaitingInput))
+            }
+            ExecutionStatus::Blocked | ExecutionStatus::Denied | ExecutionStatus::Failed => {
+                Some((CellLifecycle::Running, CellLifecycle::Failed))
+            }
+            ExecutionStatus::Cancelled => {
+                Some((CellLifecycle::Running, CellLifecycle::CancelRequested))
+            }
+            ExecutionStatus::ResultUnknown => {
+                Some((CellLifecycle::Running, CellLifecycle::Quarantined))
+            }
+            ExecutionStatus::Accepted | ExecutionStatus::Running => None,
+        };
+        if let Some((expected, next)) = cell_lifecycle {
+            let lifecycle = self
+                .cell_registry
+                .transition_cell(admission.cell.cell_id, expected, next)
+                .await;
+            match lifecycle {
+                Ok(lifecycle) => {
+                    let mut lifecycle_admission = admission.clone();
+                    lifecycle_admission.cell = lifecycle.clone();
+                    self.record_event(
+                        request_id,
+                        &mut packet_sequence,
+                        cell_event_kind(lifecycle.lifecycle),
+                        cell_event_payload(&lifecycle_admission, lifecycle.lifecycle.as_str()),
+                    )
+                    .await?;
+                    let lifecycle = if response.status == ExecutionStatus::Cancelled {
+                        let cancelled = self
+                            .cell_registry
+                            .transition_cell(
+                                admission.cell.cell_id,
+                                CellLifecycle::CancelRequested,
+                                CellLifecycle::Cancelled,
+                            )
+                            .await?;
+                        let mut cancelled_admission = admission.clone();
+                        cancelled_admission.cell = cancelled.clone();
+                        self.record_event(
+                            request_id,
+                            &mut packet_sequence,
+                            "cell.cancelled",
+                            cell_event_payload(&cancelled_admission, cancelled.lifecycle.as_str()),
+                        )
+                        .await?;
+                        cancelled
+                    } else {
+                        lifecycle
+                    };
+                    if matches!(
+                        lifecycle.lifecycle,
+                        CellLifecycle::ReadyToMerge
+                            | CellLifecycle::Failed
+                            | CellLifecycle::Quarantined
+                            | CellLifecycle::Cancelled
+                    ) {
+                        let retirement = self
+                            .cell_registry
+                            .retire_cell(admission.cell.cell_id, "packet_run_terminal")
+                            .await;
+                        match retirement {
+                            Ok(retirement) => {
+                                self.record_event(
+                                    request_id,
+                                    &mut packet_sequence,
+                                    "cell.retired",
+                                    retirement_event_payload(&retirement),
+                                )
+                                .await?;
+                            }
+                            Err(error) => {
+                                return Ok(CoreResponse {
+                                    request_id,
+                                    status: ExecutionStatus::ResultUnknown,
+                                    output: run_identity(&context, run_id, "read-only"),
+                                    error: Some(format!("cell_retirement_failed:{error}")),
+                                });
+                            }
+                        }
+                    }
+                }
+                Err(error) => {
+                    return Ok(CoreResponse {
+                        request_id,
+                        status: ExecutionStatus::ResultUnknown,
+                        output: run_identity(&context, run_id, "read-only"),
+                        error: Some(format!("cell_transition_failed:{error}")),
+                    });
+                }
+            }
+        }
+        let next_status = match response.status {
+            ExecutionStatus::Completed => kiana_domain::WorkPacketStatus::Succeeded,
+            ExecutionStatus::AwaitingApproval => kiana_domain::WorkPacketStatus::AwaitingApproval,
+            ExecutionStatus::Blocked => kiana_domain::WorkPacketStatus::Blocked,
+            ExecutionStatus::Cancelled => kiana_domain::WorkPacketStatus::Cancelled,
+            ExecutionStatus::Denied | ExecutionStatus::Failed | ExecutionStatus::ResultUnknown => {
+                kiana_domain::WorkPacketStatus::Failed
+            }
+            ExecutionStatus::Accepted | ExecutionStatus::Running => packet.status,
+        };
+        if next_status != packet.status {
+            packet.transition_status(next_status)?;
+            let event_kind = match next_status {
+                kiana_domain::WorkPacketStatus::Succeeded => "packet.succeeded",
+                kiana_domain::WorkPacketStatus::AwaitingApproval => "packet.awaiting_approval",
+                kiana_domain::WorkPacketStatus::Blocked => "packet.blocked",
+                kiana_domain::WorkPacketStatus::Cancelled => "packet.cancelled",
+                _ => "packet.failed",
+            };
+            self.record_event(
+                request_id,
+                &mut packet_sequence,
+                event_kind,
+                json!({
+                    "packet_id": &packet.id,
+                    "status": packet.status,
+                    "run_id": response.output.get("run_id"),
+                }),
+            )
+            .await?;
+        }
+        if let Some(output) = response.output.as_object_mut() {
+            output.insert("packet_status".to_owned(), json!(packet.status));
+        }
+        Ok(response)
+    }
+
+    async fn reserve_packet_cell(
+        &self,
+        context: &RequestContext,
+        packet: &WorkPacket,
+        run_id: RunId,
+    ) -> Result<kiana_ports::SpawnReservation, CoreError> {
+        let template = self
+            .cell_registry
+            .resolve_template(ROLE_BUILDER, cell_registry::TEMPLATE_VERSION)
+            .await?;
+        let now = unix_ms();
+        let deadline = packet
+            .deadline_unix_ms
+            .unwrap_or_else(|| now.saturating_add(template.ttl_seconds.saturating_mul(1_000)));
+        if deadline <= now {
+            return Err(CoreError::Port(PortError::Failed(
+                "spawn_deadline_expired".to_owned(),
+            )));
+        }
+        let grant_paths = if packet.path_allow.is_empty() {
+            vec![".".to_owned()]
+        } else {
+            packet.path_allow.clone()
+        };
+        let budget = BudgetLease::new(
+            template.estimated_cost.max(1),
+            template.estimated_cost.max(1).saturating_mul(4096),
+            template.ttl_seconds.saturating_mul(1_000),
+            1,
+            1,
+        );
+        let supervision = SupervisionLease {
+            schema: SUPERVISION_LEASE_SCHEMA.to_owned(),
+            lease_id: SupervisionLeaseId::new(),
+            heartbeat_interval_seconds: template.heartbeat_interval_seconds,
+            stall_threshold_seconds: template.ttl_seconds,
+            retry_limit: 0,
+            retries_used: 0,
+        };
+        let grant = CapabilityGrant {
+            schema: CAPABILITY_GRANT_SCHEMA.to_owned(),
+            grant_id: CapabilityGrantId::new(),
+            capability: CapabilityKind::Other("coding".to_owned()),
+            operation: "builder.packet".to_owned(),
+            resources: vec!["workspace".to_owned()],
+            paths: grant_paths,
+            expires_at_unix_ms: deadline,
+            approval_id: None,
+            delegation_allowed: false,
+        };
+        let plan = SpawnPlan {
+            schema: SPAWN_PLAN_SCHEMA.to_owned(),
+            plan_id: SpawnPlanId::new(),
+            parent_cell_id: None,
+            reason_code: "packet_spawn".to_owned(),
+            candidate_templates: vec![template.template_id],
+            count: 1,
+            partition: packet.id.clone(),
+            input_refs: packet.inputs.clone(),
+            output_contract: RUN_RESULT_SCHEMA.to_owned(),
+            requested_capabilities: template.default_capabilities.clone(),
+            budget_reservation: 1,
+            deadline_unix_ms: deadline,
+            rollback_policy: "abort".to_owned(),
+            idempotency_key: format!("packet:{}:{}", context.project_root, packet.id),
+            expected_utility: 0,
+            status: SpawnPlanStatus::Proposed,
+        };
+        let cell = CellSpec {
+            schema: CELL_SCHEMA.to_owned(),
+            cell_id: CellId::new(),
+            parent_cell_id: None,
+            root_run_id: run_id,
+            template_id: template.template_id,
+            template_version: template.version.clone(),
+            role_id: ROLE_BUILDER.to_owned(),
+            objective: packet.goal.clone(),
+            input_refs: packet.inputs.clone(),
+            output_contract: plan.output_contract.clone(),
+            partition_key: plan.partition.clone(),
+            owned_paths: packet.path_allow.clone(),
+            work_packet_id: Some(packet.id.clone()),
+            owner_actor_id: context.actor_id.clone(),
+            capability_grant_id: grant.grant_id,
+            budget_lease_id: budget.lease_id,
+            supervision_lease_id: supervision.lease_id,
+            depth: 0,
+            spawn_quota: template.max_children,
+            lifecycle: CellLifecycle::Proposed,
+        };
+        let fingerprint = WorkFingerprint::from_parts(
+            &packet.goal,
+            &packet.inputs,
+            &plan.partition,
+            &plan.output_contract,
+            "kiana.policy.v1",
+        )
+        .map_err(|reason| CoreError::Port(PortError::Failed(reason.to_owned())))?;
+        Ok(self
+            .cell_registry
+            .reserve_spawn(SpawnReservationRequest {
+                plan,
+                cell,
+                template,
+                budget,
+                grant,
+                supervision,
+                fingerprint,
+                owned_paths: packet.path_allow.clone(),
+            })
+            .await?)
     }
 
     pub async fn review_author_run(
@@ -499,7 +1215,7 @@ impl ControlPlane {
         }
 
         let events = self
-            .events_for_author(&author_session_id, author_run_id)
+            .events_for_author(&context, &author_session_id, author_run_id)
             .await?;
         if events.is_empty() || !events.iter().any(|event| event.kind == "run.completed") {
             self.record_event(
@@ -535,6 +1251,19 @@ impl ControlPlane {
             ));
         }
 
+        let author_run_id = author_run_id
+            .or_else(|| {
+                events.iter().find_map(|event| {
+                    (event.kind == "run.authorized")
+                        .then(|| event.data.get("run_id"))
+                        .flatten()
+                        .and_then(Value::as_str)
+                        .and_then(RunId::parse_str)
+                })
+            })
+            .ok_or_else(|| {
+                CoreError::Port(PortError::Failed("review_author_run_missing".to_owned()))
+            })?;
         let files = files_changed_from_events(&events);
         let verdict = if files.is_empty() {
             "needs_change"
@@ -575,9 +1304,31 @@ impl ControlPlane {
             .await?;
             return Ok(CoreResponse::blocked(request_id, reason));
         }
+        let reviewer_session_id = kiana_domain::SessionId::new(context.session_id.as_str());
+        let merge_receipt = if verdict == "pass" {
+            let receipt = MergeReceipt {
+                schema: kiana_domain::MERGE_RECEIPT_SCHEMA.to_owned(),
+                receipt_id: kiana_domain::ReceiptId::new(),
+                author_run_id,
+                author_session_id: kiana_domain::SessionId::new(author_session_id.clone()),
+                reviewer_session_id: reviewer_session_id.clone(),
+                reviewer_verdict: verdict.to_owned(),
+                files: files.clone(),
+                accepted: true,
+                provenance: vec![REVIEW_PACKET_PATH.to_owned(), "run.completed".to_owned()],
+            };
+            receipt
+                .validate()
+                .map_err(|reason| CoreError::Port(PortError::Failed(reason.to_owned())))?;
+            write_merge_artifact(&context.project_root, &receipt)
+                .map_err(|reason| CoreError::Port(PortError::Failed(reason.to_owned())))?;
+            Some(receipt)
+        } else {
+            None
+        };
 
         let run_id = RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new);
-        self.remember_session(context.session_id.as_str(), run_id);
+        self.remember_session(&context, run_id);
         self.record_event(
             request_id,
             &mut sequence,
@@ -587,6 +1338,7 @@ impl ControlPlane {
                 "reviewer_session_id": context.session_id,
                 "verdict": verdict,
                 "builder_present": false,
+                "merge_receipt_id": merge_receipt.as_ref().map(|receipt| receipt.receipt_id),
             }),
         )
         .await?;
@@ -606,8 +1358,255 @@ impl ControlPlane {
                 "verdict": verdict,
                 "files_reviewed": files,
                 "review_path": REVIEW_PACKET_PATH,
+                "merge_path": merge_receipt.as_ref().map(|_| kiana_domain::MERGE_RECEIPT_PATH),
                 "packet": packet,
+                "merge_receipt": merge_receipt,
             }),
+        ))
+    }
+
+    pub async fn close_author_run(
+        &self,
+        mut context: RequestContext,
+        author_session_id: String,
+        author_run_id: Option<RunId>,
+    ) -> Result<CoreResponse, CoreError> {
+        let request_id = context.request_id;
+        let mut sequence = 1u64;
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "request.accepted",
+            json!({ "command": "run.close" }),
+        )
+        .await?;
+
+        let author_session_id = author_session_id.trim().to_owned();
+        if author_session_id.is_empty() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_author_required" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "close_author_required"));
+        }
+        let Some(closer) = RoleSpec::lookup(&context.role_id) else {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "role_unknown" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "role_unknown"));
+        };
+        if closer.role_id != ROLE_CLOSER {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_role_must_be_closer" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "close_role_must_be_closer",
+            ));
+        }
+        context.assign_role(&RoleSpec::closer());
+        if context.session_id.as_str() == author_session_id {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_author_session_denied" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "close_author_session_denied",
+            ));
+        }
+        if self.session_known(context.session_id.as_str()) {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_session_not_fresh" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "close_session_not_fresh"));
+        }
+
+        let author_events = self
+            .events_for_author(&context, &author_session_id, author_run_id)
+            .await?;
+        let Some(author_run_id) = author_run_id.or_else(|| {
+            author_events.iter().find_map(|event| {
+                (event.kind == "run.authorized")
+                    .then(|| event.data.get("run_id"))
+                    .flatten()
+                    .and_then(Value::as_str)
+                    .and_then(RunId::parse_str)
+            })
+        }) else {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_author_not_found" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, "close_author_not_found"));
+        };
+        if author_events.is_empty()
+            || !author_events
+                .iter()
+                .any(|event| event.kind == "run.completed")
+        {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_author_not_completed" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "close_author_not_completed",
+            ));
+        }
+        let review = match read_review_artifact(&context.project_root) {
+            Ok(review) => review,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+        if review.author_session_id != author_session_id {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_review_author_mismatch" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "close_review_author_mismatch",
+            ));
+        }
+        if review.author_role_id != ROLE_BUILDER || review.verdict != "pass" {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_review_not_accepted" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "close_review_not_accepted",
+            ));
+        }
+        let merge = match read_merge_artifact(&context.project_root) {
+            Ok(merge) => merge,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+        if merge.author_run_id != author_run_id
+            || merge.author_session_id.as_str() != author_session_id
+            || merge.reviewer_session_id.as_str() != review.reviewer_session_id
+            || merge.files != review.files_reviewed
+            || !merge.accepted
+        {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "close_merge_receipt_mismatch" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "close_merge_receipt_mismatch",
+            ));
+        }
+        let reviewer_session_id = kiana_domain::SessionId::new(review.reviewer_session_id.clone());
+        let receipt = ClosingReceipt {
+            schema: kiana_domain::CLOSING_RECEIPT_SCHEMA.to_owned(),
+            receipt_id: kiana_domain::ReceiptId::new(),
+            project_id: None,
+            author_run_id,
+            author_session_id: kiana_domain::SessionId::new(author_session_id.clone()),
+            reviewer_session_id: reviewer_session_id.clone(),
+            closer_session_id: context.session_id.clone(),
+            review_id: review.id.clone(),
+            verdict: review.verdict.clone(),
+            accepted: true,
+            files_verified: review.files_reviewed.clone(),
+            exceptions: Vec::new(),
+            lessons_path: "lessons/LEARNED.md".to_owned(),
+        };
+        if let Err(reason) = receipt.validate() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+        if let Err(reason) = write_closing_artifact(&context.project_root, &receipt) {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
+        self.remember_session(&context, RunId::new());
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "closing.completed",
+            json!({
+                "receipt_id": receipt.receipt_id,
+                "author_run_id": author_run_id,
+                "author_session_id": author_session_id,
+                "reviewer_session_id": reviewer_session_id,
+                "closer_session_id": context.session_id,
+                "review_id": review.id,
+                "files_verified": receipt.files_verified,
+            }),
+        )
+        .await?;
+        Ok(CoreResponse::completed(
+            request_id,
+            serde_json::to_value(receipt).map_err(|error| {
+                CoreError::Port(PortError::Failed(format!(
+                    "close_receipt_serialize:{error}"
+                )))
+            })?,
         ))
     }
 
@@ -875,8 +1874,19 @@ impl ControlPlane {
         prompt: String,
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
+        self.start_run_with_id(context, prompt, sandbox, None).await
+    }
+
+    async fn start_run_with_id(
+        &self,
+        context: RequestContext,
+        prompt: String,
+        sandbox: Option<String>,
+        requested_run_id: Option<RunId>,
+    ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
-        let run_id = RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new);
+        let run_id = requested_run_id
+            .unwrap_or_else(|| RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new));
         let mut sequence = 1u64;
         self.record_event(
             request_id,
@@ -886,6 +1896,8 @@ impl ControlPlane {
                 "command": "run.start",
                 "run_id": run_id,
                 "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
                 "role_id": context.role_id,
                 "harness": HARNESS_ID,
             }),
@@ -935,6 +1947,8 @@ impl ControlPlane {
             json!({
                 "run_id": run_id,
                 "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
                 "role_id": context.role_id,
                 "harness": HARNESS_ID,
                 "sandbox": sandbox,
@@ -945,7 +1959,7 @@ impl ControlPlane {
 
         // Session index and cancel watch must exist before the first model step
         // so an in-flight cancel can resolve session-1 and abort shell.exec.
-        self.remember_session(context.session_id.as_str(), run_id);
+        self.remember_session(&context, run_id);
         let _cancel_rx = self.watch_cancel(run_id);
 
         let pending_events = match self
@@ -969,7 +1983,7 @@ impl ControlPlane {
                     request_id,
                     &mut sequence,
                     "run.failed",
-                    json!({ "error": &reason }),
+                    json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )
                 .await?;
                 return Ok(CoreResponse {
@@ -1064,7 +2078,7 @@ impl ControlPlane {
                     request_id,
                     &mut sequence,
                     "run.failed",
-                    json!({ "error": &reason }),
+                    json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )
                 .await?;
                 return Ok(CoreResponse {
@@ -1126,6 +2140,45 @@ impl ControlPlane {
         )
         .await?;
 
+        let pending_approvals: Vec<ApprovalId> = self
+            .pending_invocations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter_map(|(approval_id, pending)| (pending.run_id == run_id).then_some(*approval_id))
+            .collect();
+        for approval_id in pending_approvals {
+            if let Err(error) = self
+                .approvals
+                .invalidate(&context, approval_id, &reason)
+                .await
+            {
+                let error = error.to_string();
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.failed",
+                    json!({
+                        "run_id": run_id,
+                        "error": &error,
+                        "reason": "approval_invalidation_failed",
+                        "approval_id": approval_id,
+                    }),
+                )
+                .await?;
+                return Ok(CoreResponse {
+                    request_id,
+                    status: ExecutionStatus::Failed,
+                    output: run_identity(&context, run_id, "read-only"),
+                    error: Some(format!("approval_invalidation_failed:{error}")),
+                });
+            }
+            self.pending_invocations
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&approval_id);
+        }
+
         let inflight = self.signal_cancel(run_id);
         let events = match self
             .runner
@@ -1142,7 +2195,7 @@ impl ControlPlane {
                     request_id,
                     &mut sequence,
                     "run.failed",
-                    json!({ "error": &reason }),
+                    json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )
                 .await?;
                 return Ok(CoreResponse {
@@ -1182,12 +2235,12 @@ impl ControlPlane {
             request_id,
             &mut sequence,
             "run.cancelled",
-            json!({ "error": &cancelled }),
+            json!({ "run_id": run_id, "error": redact_event_text(&cancelled) }),
         )
         .await?;
         Ok(CoreResponse {
             request_id,
-            status: ExecutionStatus::Failed,
+            status: ExecutionStatus::Cancelled,
             output: run_identity(&context, run_id, "read-only"),
             error: Some(cancelled),
         })
@@ -1218,18 +2271,43 @@ impl ControlPlane {
                     )
                     .await?;
                 }
-                RunnerEvent::Delta { text, .. } => {
-                    self.record_event(request_id, sequence, "run.delta", json!({ "text": text }))
-                        .await?;
+                RunnerEvent::Delta { run_id, text } => {
+                    self.record_event(
+                        request_id,
+                        sequence,
+                        "run.delta",
+                        json!({ "run_id": run_id, "text": text }),
+                    )
+                    .await?;
                 }
                 RunnerEvent::CapabilityRequested { run_id, request } => {
                     match self
                         .broker_harness_capability(
-                            context, request_id, run_id, sequence, request, &cancel_rx,
+                            context, request_id, run_id, sandbox, sequence, request, &cancel_rx,
                         )
                         .await?
                     {
-                        Ok(events) => pending_events.extend(events),
+                        Ok(Some(events)) => pending_events.extend(events),
+                        Ok(None) => {
+                            let pending = self
+                                .pending_invocations
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .values()
+                                .find(|pending| pending.run_id == run_id)
+                                .cloned();
+                            let Some(pending) = pending else {
+                                failed = Some("pending_invocation_missing".to_owned());
+                                break;
+                            };
+                            self.clear_cancel(run_id);
+                            return Ok(CoreResponse {
+                                request_id,
+                                status: ExecutionStatus::AwaitingApproval,
+                                output: json!({ "approval": pending.challenge, "run_id": run_id }),
+                                error: Some("approval_required".to_owned()),
+                            });
+                        }
                         Err(reason) => {
                             failed = Some(reason);
                             break;
@@ -1237,21 +2315,24 @@ impl ControlPlane {
                     }
                 }
                 RunnerEvent::Completed {
-                    output: harness_output,
-                    ..
+                    run_id,
+                    output: mut harness_output,
                 } => {
+                    if let Some(object) = harness_output.as_object_mut() {
+                        object.insert("run_id".to_owned(), json!(run_id));
+                    }
                     output = harness_output;
                     completed = true;
                     self.record_event(request_id, sequence, "run.completed", output.clone())
                         .await?;
                 }
-                RunnerEvent::Failed { error, .. } => {
+                RunnerEvent::Failed { run_id, error } => {
                     failed = Some(error.clone());
                     self.record_event(
                         request_id,
                         sequence,
                         "run.failed",
-                        json!({ "error": error }),
+                        json!({ "run_id": run_id, "error": redact_event_text(&error) }),
                     )
                     .await?;
                 }
@@ -1286,10 +2367,25 @@ impl ControlPlane {
             if error == "run_not_found" {
                 self.forget_session(context.session_id.as_str(), run_id);
             }
+            let result_unknown = error.strip_prefix("result_unknown:").is_some();
+            if result_unknown {
+                let _ = self
+                    .record_event(
+                        request_id,
+                        sequence,
+                        "run.result_unknown",
+                        json!({ "run_id": run_id, "error": redact_event_text(&error) }),
+                    )
+                    .await;
+            }
             return Ok(CoreResponse {
                 request_id,
                 status: if error == "run_not_found" {
                     ExecutionStatus::Blocked
+                } else if result_unknown {
+                    ExecutionStatus::ResultUnknown
+                } else if error.starts_with("cancelled:") {
+                    ExecutionStatus::Cancelled
                 } else {
                     ExecutionStatus::Failed
                 },
@@ -1303,7 +2399,7 @@ impl ControlPlane {
                 request_id,
                 sequence,
                 "run.failed",
-                json!({ "error": reason }),
+                json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
             )
             .await?;
             return Ok(CoreResponse {
@@ -1314,7 +2410,7 @@ impl ControlPlane {
             });
         }
 
-        self.remember_session(context.session_id.as_str(), run_id);
+        self.remember_session(&context, run_id);
         let receipt = self
             .run_receipt_from_store(context, run_id, sandbox, output)
             .await?;
@@ -1329,21 +2425,51 @@ impl ControlPlane {
         run_id: Option<RunId>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
-        let run_id = match run_id.or_else(|| RunId::parse_str(context.session_id.as_str())) {
-            Some(run_id) => run_id,
-            None => {
-                return Ok(CoreResponse::blocked(request_id, "receipt_not_found"));
+        let run_id = match run_id {
+            Some(run_id) => {
+                if let Some(binding) = self.session_binding(context.session_id.as_str()) {
+                    if !Self::same_session_principal(&binding, &context) || binding.run_id != run_id
+                    {
+                        return Ok(CoreResponse::blocked(request_id, "run_owner_mismatch"));
+                    }
+                }
+                run_id
             }
+            None => match self.resolve_run_id(&context, None) {
+                Ok(run_id) => run_id,
+                Err(reason) => return Ok(CoreResponse::blocked(request_id, reason)),
+            },
         };
         let events = self.events_for_run(&context, run_id).await?;
         if events.is_empty() {
             return Ok(CoreResponse::blocked(request_id, "receipt_not_found"));
+        }
+        if receipt_owner_mismatch(&events, &context) {
+            return Ok(CoreResponse::blocked(request_id, "run_owner_mismatch"));
         }
         let sandbox = events
             .iter()
             .rev()
             .find_map(|event| event.data.get("sandbox").and_then(Value::as_str))
             .unwrap_or("read-only");
+        if let Some(error) = events.iter().rev().find_map(|event| {
+            if event.kind == "run.result_unknown" {
+                event
+                    .data
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            } else {
+                None
+            }
+        }) {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::ResultUnknown,
+                output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
+                error: Some(error),
+            });
+        }
         if let Some(error) = events.iter().rev().find_map(|event| {
             if event.kind == "run.failed" || event.kind == "run.cancelled" {
                 event
@@ -1358,7 +2484,11 @@ impl ControlPlane {
             if !events.iter().any(|event| event.kind == "run.completed") {
                 return Ok(CoreResponse {
                     request_id,
-                    status: ExecutionStatus::Failed,
+                    status: if events.iter().any(|event| event.kind == "run.cancelled") {
+                        ExecutionStatus::Cancelled
+                    } else {
+                        ExecutionStatus::Failed
+                    },
                     output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
                     error: Some(error),
                 });
@@ -1389,6 +2519,27 @@ impl ControlPlane {
         ))
     }
 
+    async fn approval_run_id(&self, approval_id: ApprovalId) -> Result<Option<RunId>, CoreError> {
+        let events = match self.events.read_all().await {
+            Ok(events) => events,
+            Err(_) => return Ok(None),
+        };
+        let approval_id = approval_id.to_string();
+        Ok(events.iter().rev().find_map(|event| {
+            if event.kind != "approval.requested"
+                || event.data.get("approval_id").and_then(Value::as_str)
+                    != Some(approval_id.as_str())
+            {
+                return None;
+            }
+            event
+                .data
+                .get("run_id")
+                .and_then(Value::as_str)
+                .and_then(RunId::parse_str)
+        }))
+    }
+
     async fn events_for_run(
         &self,
         context: &RequestContext,
@@ -1402,16 +2553,104 @@ impl ControlPlane {
 
     async fn events_for_author(
         &self,
+        reviewer: &RequestContext,
         author_session_id: &str,
         author_run_id: Option<RunId>,
     ) -> Result<Vec<RuntimeEvent>, CoreError> {
         let run_id = author_run_id
             .or_else(|| RunId::parse_str(author_session_id))
             .or_else(|| self.session_run_id(author_session_id));
-        match self.events.read_all().await {
-            Ok(all) => Ok(filter_session_events(&all, run_id, author_session_id)),
-            Err(_) => Ok(Vec::new()),
+        let events = match self.events.read_all().await {
+            Ok(all) => filter_session_events(&all, run_id, author_session_id),
+            Err(_) => Vec::new(),
+        };
+        let identity = events.iter().find(|event| event.kind == "run.authorized");
+        if let Some(identity) = identity {
+            let session_matches = identity
+                .data
+                .get("session_id")
+                .and_then(Value::as_str)
+                .is_none_or(|session| session == author_session_id);
+            let project_matches = identity
+                .data
+                .get("project_root")
+                .and_then(Value::as_str)
+                .is_none_or(|project| {
+                    Self::canonical_project_root(project)
+                        == Self::canonical_project_root(&reviewer.project_root)
+                });
+            let actor_matches = match (
+                identity.data.get("actor_id").and_then(Value::as_str),
+                reviewer.actor_id.as_deref(),
+            ) {
+                (Some(actor), Some(expected)) => actor == expected,
+                _ => true,
+            };
+            if !session_matches || !project_matches || !actor_matches {
+                return Ok(Vec::new());
+            }
         }
+        Ok(events)
+    }
+
+    async fn bind_cell_scope(
+        &self,
+        context: &RequestContext,
+        request: &mut CapabilityRequest,
+    ) -> Result<(), CoreError> {
+        let Some(cell_id) = context.cell_id else {
+            if request.capability_grant_id.is_some() || request.budget_lease_id.is_some() {
+                return Err(CoreError::Port(PortError::Failed(
+                    "cell_capability_scope_incomplete".to_owned(),
+                )));
+            }
+            return Ok(());
+        };
+        let reservation = self
+            .cell_registry
+            .reservation_for_cell(cell_id)
+            .await?
+            .ok_or_else(|| CoreError::Port(PortError::Failed("cell_not_found".to_owned())))?;
+        request.cell_id = Some(cell_id);
+        request.capability_grant_id = Some(reservation.grant.grant_id);
+        request.budget_lease_id = Some(reservation.budget.lease_id);
+        Ok(())
+    }
+
+    async fn begin_cell_capability_from_request(
+        &self,
+        request: &CapabilityRequest,
+    ) -> Result<Option<CapabilityLease>, CoreError> {
+        let Some(cell_id) = request.cell_id else {
+            if request.capability_grant_id.is_some() || request.budget_lease_id.is_some() {
+                return Err(CoreError::Port(PortError::Failed(
+                    "cell_capability_scope_incomplete".to_owned(),
+                )));
+            }
+            return Ok(None);
+        };
+        let grant_id = request.capability_grant_id.ok_or_else(|| {
+            CoreError::Port(PortError::Failed("cell_capability_scope_incomplete".to_owned()))
+        })?;
+        let budget_id = request.budget_lease_id.ok_or_else(|| {
+            CoreError::Port(PortError::Failed("cell_capability_scope_incomplete".to_owned()))
+        })?;
+        Ok(Some(
+            self.cell_registry
+                .begin_capability(cell_id, grant_id, budget_id, request)
+                .await?,
+        ))
+    }
+
+    async fn finish_cell_capability(
+        &self,
+        lease: CapabilityLease,
+        outcome: CapabilityOutcome,
+    ) -> Result<(), CoreError> {
+        self.cell_registry
+            .finish_capability(lease, outcome)
+            .await
+            .map_err(CoreError::from)
     }
 
     async fn broker_harness_capability(
@@ -1419,21 +2658,37 @@ impl ControlPlane {
         context: &RequestContext,
         request_id: kiana_domain::RequestId,
         run_id: RunId,
+        sandbox: &str,
         sequence: &mut u64,
         mut request: CapabilityRequest,
         cancel_rx: &watch::Receiver<bool>,
-    ) -> Result<Result<Vec<RunnerEvent>, String>, CoreError> {
+    ) -> Result<Result<Option<Vec<RunnerEvent>>, String>, CoreError> {
         stamp_request_identity(&mut request, context);
+        if let Err(error) = self.bind_cell_scope(context, &mut request).await {
+            let reason = error.to_string();
+            self.record_event(
+                request_id,
+                sequence,
+                "run.capability_blocked",
+                json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
+            )
+            .await?;
+            return Ok(Err(reason));
+        }
         self.record_event(
             request_id,
             sequence,
             "run.capability_requested",
             json!({
+                "run_id": run_id,
                 "request_id": request.request_id,
                 "capability": request.capability,
                 "operation": request.operation,
                 "risk": request.risk,
-                "arguments": request.arguments,
+                "cell_id": request.cell_id,
+                "capability_grant_id": request.capability_grant_id,
+                "budget_lease_id": request.budget_lease_id,
+                "arguments": redact_event_value(&request.arguments),
             }),
         )
         .await?;
@@ -1444,31 +2699,60 @@ impl ControlPlane {
             request_id,
             sequence,
             "capability.decision",
-            json!({ "policy": &policy, "gate": &gate }),
+            json!({ "run_id": run_id, "policy": &policy, "gate": &gate }),
         )
         .await?;
 
         let result = match gate {
             GateDecision::Allowed { authorization_id } => {
-                if let Some(reason) = pre_tool_hook_block(context, &request).await {
+                let hook_decision = self.pre_tool_hooks.decide(context, &request).await;
+                let hook_error = match hook_decision {
+                    Ok(PreToolHookDecision::Allow) => None,
+                    Ok(PreToolHookDecision::Block(reason)) => {
+                        Some(format!("hook_blocked:{reason}"))
+                    }
+                    Ok(PreToolHookDecision::Ask { reason }) => {
+                        Some(format!("hook_ask_unattended:{reason}"))
+                    }
+                    Err(error) => Some(format!("hook_blocked:{error}")),
+                };
+                if let Some(reason) = hook_error {
                     self.record_event(
                         request_id,
                         sequence,
                         "capability.failed",
-                        json!({ "error": &reason }),
+                        json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                     )
                     .await?;
                     CapabilityResult::failure(request.request_id, reason)
                 } else {
+                    let cell_lease = match self.begin_cell_capability_from_request(&request).await {
+                        Ok(lease) => lease,
+                        Err(error) => {
+                            let reason = error.to_string();
+                            self.record_event(
+                                request_id,
+                                sequence,
+                                "capability.failed",
+                                json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
+                            )
+                            .await?;
+                            return Ok(Err(reason));
+                        }
+                    };
                     let authorized =
                         AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
                     tokio::select! {
                         _ = wait_until_cancelled(cancel_rx) => {
+                            if let Some(lease) = cell_lease {
+                                self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
+                                    .await?;
+                            }
                             self.record_event(
                                 request_id,
                                 sequence,
                                 "run.cancelled",
-                                json!({ "error": "cancelled:user" }),
+                                json!({ "run_id": run_id, "error": "cancelled:user" }),
                             )
                             .await?;
                             return Ok(Err("cancelled:user".to_owned()));
@@ -1476,7 +2760,22 @@ impl ControlPlane {
                         executed = self.capabilities.execute(authorized) => {
                             match executed {
                                 Ok(result) => {
-                                    self.record_event(
+                                    let outcome = if result.request_id != request.request_id {
+                                        CapabilityOutcome::Unknown
+                                    } else if result.success {
+                                        CapabilityOutcome::Succeeded
+                                    } else {
+                                        CapabilityOutcome::Failed
+                                    };
+                                    if result.request_id != request.request_id {
+                                        if let Some(lease) = cell_lease {
+                                            self.finish_cell_capability(lease, outcome).await?;
+                                        }
+                                        return Ok(Err(
+                                            "result_unknown:capability_result_mismatch".to_owned(),
+                                        ));
+                                    }
+                                    let result_event = self.record_event(
                                         request_id,
                                         sequence,
                                         if result.success {
@@ -1484,18 +2783,54 @@ impl ControlPlane {
                                         } else {
                                             "capability.failed"
                                         },
-                                        result.output.clone(),
+                                        capability_event_payload(
+                                            &result.output,
+                                            &request,
+                                            context,
+                                            run_id,
+                                        ),
                                     )
-                                    .await?;
+                                    .await;
+                                    if let Err(error) = result_event {
+                                        if let Some(lease) = cell_lease {
+                                            self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
+                                                .await?;
+                                        }
+                                        return Ok(Err(format!(
+                                            "result_unknown:{}",
+                                            redact_event_text(&error.to_string())
+                                        )));
+                                    }
+                                    if let Some(lease) = cell_lease {
+                                        self.finish_cell_capability(lease, outcome).await?;
+                                    }
                                     result
                                 }
                                 Err(error) => {
+                                    if let Some(lease) = cell_lease {
+                                        self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
+                                            .await?;
+                                    }
                                     let reason = error.to_string();
+                                    if reason.starts_with("shell_result_unknown:") {
+                                        self.record_event(
+                                            request_id,
+                                            sequence,
+                                            "capability.result_unknown",
+                                            json!({
+                                                "run_id": run_id,
+                                                "capability_request_id": request.request_id,
+                                                "error": redact_event_text(&reason),
+                                            }),
+                                        )
+                                        .await?;
+                                        return Ok(Err(format!("result_unknown:{reason}")));
+                                    }
                                     self.record_event(
                                         request_id,
                                         sequence,
                                         "capability.failed",
-                                        json!({ "error": &reason }),
+                                        json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                                     )
                                     .await?;
                                     CapabilityResult::failure(request.request_id, reason)
@@ -1512,17 +2847,65 @@ impl ControlPlane {
                     request_id,
                     sequence,
                     "run.capability_blocked",
-                    json!({ "reason": &reason }),
+                    json!({ "run_id": run_id, "reason": &reason }),
                 )
                 .await?;
                 return Ok(Err(reason));
             }
-            GateDecision::AwaitingApproval { reason } | GateDecision::Denied { reason } => {
+            GateDecision::AwaitingApproval { reason } => {
+                let mut approval_context = context.clone();
+                approval_context.request_id = request.request_id;
+                let challenge = self
+                    .approvals
+                    .stage(&approval_context, request.clone(), &reason)
+                    .await?;
+                self.record_event(
+                    request_id,
+                    sequence,
+                    "approval.requested",
+                    json!({
+                        "run_id": run_id,
+                        "approval_id": challenge.approval_id,
+                        "request_hash": &challenge.request_hash,
+                        "session_id": context.session_id,
+                        "actor_id": context.actor_id,
+                        "expires_at_unix_ms": challenge.expires_at_unix_ms,
+                    }),
+                )
+                .await?;
+                self.approvals.activate(challenge.approval_id).await?;
+                self.pending_invocations
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .insert(
+                        challenge.approval_id,
+                        PendingInvocation {
+                            approval_id: challenge.approval_id,
+                            challenge: challenge.clone(),
+                            request_id: request.request_id,
+                            event_request_id: request_id,
+                            event_sequence: *sequence + 1,
+                            run_id,
+                            request,
+                            context: context.clone(),
+                            sandbox: sandbox.to_owned(),
+                        },
+                    );
+                self.record_event(
+                    request_id,
+                    sequence,
+                    "run.awaiting_approval",
+                    json!({ "run_id": run_id, "approval_id": challenge.approval_id }),
+                )
+                .await?;
+                return Ok(Ok(None));
+            }
+            GateDecision::Denied { reason } => {
                 self.record_event(
                     request_id,
                     sequence,
                     "run.capability_blocked",
-                    json!({ "reason": &reason }),
+                    json!({ "run_id": run_id, "reason": &reason }),
                 )
                 .await?;
                 CapabilityResult::failure(
@@ -1537,14 +2920,14 @@ impl ControlPlane {
             .send(RunnerCommand::CapabilityResult { run_id, result })
             .await
         {
-            Ok(events) => Ok(Ok(events)),
+            Ok(events) => Ok(Ok(Some(events))),
             Err(error) => {
                 let reason = error.to_string();
                 self.record_event(
                     request_id,
                     sequence,
                     "run.failed",
-                    json!({ "error": &reason }),
+                    json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )
                 .await?;
                 Ok(Err(reason))
@@ -1561,18 +2944,27 @@ impl ControlPlane {
         context: &RequestContext,
         run_id: Option<RunId>,
     ) -> Result<RunId, &'static str> {
-        if let Some(run_id) = run_id {
-            return Ok(run_id);
+        let sessions = self.sessions.lock().unwrap_or_else(PoisonError::into_inner);
+        let binding = sessions
+            .get(context.session_id.as_str())
+            .ok_or("session_not_found")?;
+        if !Self::same_session_principal(binding, context) {
+            return Err("session_owner_mismatch");
         }
-        if let Some(parsed) = RunId::parse_str(context.session_id.as_str()) {
-            return Ok(parsed);
+        if let Some(requested) = run_id {
+            if requested != binding.run_id {
+                return Err("run_owner_mismatch");
+            }
         }
+        Ok(binding.run_id)
+    }
+
+    fn session_binding(&self, session_id: &str) -> Option<SessionBinding> {
         self.sessions
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(context.session_id.as_str())
-            .copied()
-            .ok_or("session_not_found")
+            .get(session_id)
+            .cloned()
     }
 
     fn session_known(&self, session_id: &str) -> bool {
@@ -1584,25 +2976,47 @@ impl ControlPlane {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(session_id)
-            .copied()
+            .map(|binding| binding.run_id)
     }
 
-    fn remember_session(&self, session_id: &str, run_id: RunId) {
+    fn remember_session(&self, context: &RequestContext, run_id: RunId) {
         self.sessions
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(session_id.to_owned(), run_id);
+            .insert(
+                context.session_id.as_str().to_owned(),
+                SessionBinding {
+                    run_id,
+                    actor_id: context.actor_id.clone(),
+                    project_root: context.project_root.clone(),
+                },
+            );
     }
 
     fn forget_session(&self, session_id: &str, run_id: RunId) {
         let mut sessions = self.sessions.lock().unwrap_or_else(PoisonError::into_inner);
-        if sessions.get(session_id) == Some(&run_id) {
+        if sessions
+            .get(session_id)
+            .is_some_and(|binding| binding.run_id == run_id)
+        {
             sessions.remove(session_id);
         }
     }
 
+    fn same_session_principal(binding: &SessionBinding, context: &RequestContext) -> bool {
+        binding.actor_id == context.actor_id
+            && Self::canonical_project_root(&binding.project_root)
+                == Self::canonical_project_root(&context.project_root)
+    }
+
+    fn canonical_project_root(root: &str) -> std::path::PathBuf {
+        let path = Path::new(root);
+        path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+    }
+
     fn acquire_builder_path_locks(
         &self,
+        project_root: &str,
         session_id: &str,
         path_allow: &[String],
     ) -> Result<(), &'static str> {
@@ -1618,17 +3032,31 @@ impl ControlPlane {
                 }
             }
         }
+
+        let lock_key = path_lock_session_key(project_root, session_id);
+        let durable = match acquire_durable_path_locks(project_root, &paths) {
+            Ok(durable) => durable,
+            Err(reason) => return Err(reason),
+        };
         for path in paths {
             locks.insert(path, session_id.to_owned());
         }
+        self.durable_path_locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(lock_key, durable);
         Ok(())
     }
 
-    fn release_builder_path_locks(&self, session_id: &str) {
+    fn release_builder_path_locks(&self, project_root: &str, session_id: &str) {
         self.path_locks
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .retain(|_, owner| owner != session_id);
+        self.durable_path_locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&path_lock_session_key(project_root, session_id));
     }
 
     fn watch_cancel(&self, run_id: RunId) -> watch::Receiver<bool> {
@@ -1686,11 +3114,53 @@ impl ControlPlane {
         kind: &str,
         data: Value,
     ) -> Result<(), CoreError> {
+        let (aggregate_type, aggregate_id) = aggregate_for_event(request_id, &data);
+        let idempotency_key =
+            format!("{request_id}:{aggregate_type}:{aggregate_id}:{sequence}:{kind}");
+        let current_version = match self
+            .events
+            .read_stream(&aggregate_type, &aggregate_id)
+            .await
+        {
+            Ok(events) => events
+                .iter()
+                .map(|event| event.stream_version.unwrap_or(event.sequence))
+                .max()
+                .unwrap_or(0),
+            Err(_) => sequence.saturating_sub(1),
+        };
         self.events
-            .append(RuntimeEvent::new(request_id, sequence, kind, data)?)
+            .append_idempotent_expected(
+                RuntimeEvent::new(request_id, sequence, kind, data)?
+                    .with_stream_metadata(
+                        aggregate_type,
+                        aggregate_id,
+                        current_version.saturating_add(1),
+                    )
+                    .with_idempotency_key(idempotency_key),
+                Some(current_version),
+            )
             .await?;
         Ok(())
     }
+}
+
+fn aggregate_for_event(request_id: kiana_domain::RequestId, data: &Value) -> (String, String) {
+    if let Some(packet_id) = data
+        .get("packet_id")
+        .and_then(Value::as_str)
+        .filter(|packet_id| !packet_id.trim().is_empty())
+    {
+        return ("work_packet".to_owned(), packet_id.to_owned());
+    }
+    if let Some(run_id) = data
+        .get("run_id")
+        .and_then(Value::as_str)
+        .filter(|run_id| !run_id.trim().is_empty())
+    {
+        return ("run".to_owned(), run_id.to_owned());
+    }
+    ("request".to_owned(), request_id.to_string())
 }
 
 fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value {
@@ -1702,6 +3172,7 @@ fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value
             "session_id": context.session_id,
             "harness": HARNESS_ID,
             "sandbox": sandbox,
+            "actor_id": context.actor_id,
             "role_id": worker.role_id,
             "department_id": worker.department_id,
             "prompt_hash": worker.prompt_hash,
@@ -1725,6 +3196,7 @@ fn receipt_from_events(
             "session_id": context.session_id,
             "harness": HARNESS_ID,
             "sandbox": sandbox,
+            "actor_id": context.actor_id,
             "role_id": worker.role_id,
             "department_id": worker.department_id,
             "prompt_hash": worker.prompt_hash,
@@ -1749,6 +3221,163 @@ fn with_work_packet(mut receipt: Value, context: &RequestContext) -> Value {
         receipt["input"] = json!("work_packet");
     }
     receipt
+}
+
+fn path_lock_session_key(project_root: &str, session_id: &str) -> String {
+    format!("{}\0{}", ControlPlane::canonical_project_root(project_root).display(), session_id)
+}
+
+fn durable_path_lock_root() -> PathBuf {
+    std::env::var_os("KIANA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".kiana")))
+        .unwrap_or_else(|| PathBuf::from(".kiana"))
+        .join("locks")
+}
+
+fn durable_path_lock_path(project_root: &str, path: &str) -> PathBuf {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    ControlPlane::canonical_project_root(project_root)
+        .display()
+        .to_string()
+        .hash(&mut hasher);
+    path.hash(&mut hasher);
+    durable_path_lock_root().join(format!("{:016x}.lock", hasher.finish()))
+}
+
+fn acquire_durable_path_locks(
+    project_root: &str,
+    paths: &[String],
+) -> Result<Vec<PathLockLease>, &'static str> {
+    let root = durable_path_lock_root();
+    fs::create_dir_all(&root).map_err(|_| "path_lock_unavailable")?;
+    let mut leases = Vec::with_capacity(paths.len());
+    for path in paths {
+        let lock_path = durable_path_lock_path(project_root, path);
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(lock_path)
+            .map_err(|_| "path_lock_unavailable")?;
+        if !try_lock_path_file(&file) {
+            return Err("path_lock_conflict");
+        }
+        leases.push(PathLockLease { _file: file });
+    }
+    Ok(leases)
+}
+
+#[cfg(unix)]
+fn try_lock_path_file(file: &File) -> bool {
+    use std::os::fd::AsRawFd;
+    unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) == 0 }
+}
+
+#[cfg(not(unix))]
+fn try_lock_path_file(_file: &File) -> bool {
+    true
+}
+
+fn unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
+}
+
+fn spawn_error_reason(error: &CoreError) -> String {
+    error.to_string()
+}
+
+fn cell_event_payload(
+    reservation: &kiana_ports::SpawnReservation,
+    lifecycle: &str,
+) -> Value {
+    json!({
+        "schema": CELL_SCHEMA,
+        "cell_id": reservation.cell.cell_id,
+        "plan_id": reservation.plan.plan_id,
+        "run_id": reservation.cell.root_run_id,
+        "role_id": reservation.cell.role_id,
+        "lifecycle": lifecycle,
+        "owned_paths": reservation.owned_paths,
+        "capability_grant_id": reservation.grant.grant_id,
+        "budget_lease_id": reservation.budget.lease_id,
+        "supervision_lease_id": reservation.supervision.lease_id,
+        "replayed": reservation.replayed,
+    })
+}
+
+fn spawn_event_payload(reservation: &kiana_ports::SpawnReservation) -> Value {
+    json!({
+        "schema": SPAWN_PLAN_SCHEMA,
+        "plan_id": reservation.plan.plan_id,
+        "run_id": reservation.cell.root_run_id,
+        "cell_id": reservation.cell.cell_id,
+        "status": reservation.plan.status,
+        "idempotency_key": reservation.plan.idempotency_key,
+        "fingerprint": reservation.fingerprint,
+        "replayed": reservation.replayed,
+    })
+}
+
+fn retirement_event_payload(retirement: &kiana_domain::RetirementRecord) -> Value {
+    json!({
+        "schema": kiana_domain::RETIREMENT_RECORD_SCHEMA,
+        "cell_id": retirement.cell_id,
+        "grant_id": retirement.grant_id,
+        "budget_lease_id": retirement.budget_lease_id,
+        "supervision_lease_id": retirement.supervision_lease_id,
+        "released_paths": retirement.released_paths,
+        "reason": retirement.reason,
+        "retired_at_unix_ms": retirement.retired_at_unix_ms,
+    })
+}
+
+fn cell_event_kind(lifecycle: kiana_domain::CellLifecycle) -> &'static str {
+    match lifecycle {
+        kiana_domain::CellLifecycle::Validated => "cell.validated",
+        kiana_domain::CellLifecycle::Spawning => "cell.spawning",
+        kiana_domain::CellLifecycle::Ready => "cell.ready",
+        kiana_domain::CellLifecycle::Running => "cell.started",
+        kiana_domain::CellLifecycle::WaitingInput => "cell.waiting_input",
+        kiana_domain::CellLifecycle::CancelRequested => "cell.cancel_requested",
+        kiana_domain::CellLifecycle::Cancelled => "cell.cancelled",
+        kiana_domain::CellLifecycle::Blocked => "cell.blocked",
+        kiana_domain::CellLifecycle::ReadyToMerge => "cell.ready_to_merge",
+        kiana_domain::CellLifecycle::Quarantined => "cell.quarantined",
+        kiana_domain::CellLifecycle::Failed => "cell.failed",
+        kiana_domain::CellLifecycle::Retired => "cell.retired",
+        _ => "cell.lifecycle_changed",
+    }
+}
+
+fn receipt_owner_mismatch(events: &[RuntimeEvent], context: &RequestContext) -> bool {
+    let Some(identity) = events.iter().find(|event| event.kind == "run.authorized") else {
+        return false;
+    };
+    let session_matches = identity
+        .data
+        .get("session_id")
+        .and_then(Value::as_str)
+        .is_none_or(|session| session == context.session_id.as_str());
+    let project_matches = identity
+        .data
+        .get("project_root")
+        .and_then(Value::as_str)
+        .is_none_or(|project| {
+            ControlPlane::canonical_project_root(project)
+                == ControlPlane::canonical_project_root(&context.project_root)
+        });
+    let actor_matches = match (
+        identity.data.get("actor_id").and_then(Value::as_str),
+        context.actor_id.as_deref(),
+    ) {
+        (Some(actor), Some(expected)) => actor == expected,
+        _ => true,
+    };
+    !(session_matches && project_matches && actor_matches)
 }
 
 fn filter_run_events(
@@ -1799,22 +3428,120 @@ fn filter_session_events(
         .collect()
 }
 
+fn capability_event_payload(
+    output: &Value,
+    request: &CapabilityRequest,
+    context: &RequestContext,
+    run_id: RunId,
+) -> Value {
+    let mut payload = redact_event_value(output);
+    if let Some(object) = payload.as_object_mut() {
+        object.insert("run_id".to_owned(), json!(run_id));
+        object.insert("session_id".to_owned(), json!(context.session_id));
+        object.insert("capability".to_owned(), json!(request.capability));
+        object.insert("operation".to_owned(), json!(request.operation));
+        object.insert("cell_id".to_owned(), json!(request.cell_id));
+        object.insert(
+            "capability_grant_id".to_owned(),
+            json!(request.capability_grant_id),
+        );
+        object.insert("budget_lease_id".to_owned(), json!(request.budget_lease_id));
+        object.insert(
+            "capability_request_id".to_owned(),
+            json!(request.request_id),
+        );
+    }
+    payload
+}
+
+fn redact_event_text(text: &str) -> String {
+    const SENSITIVE_MARKERS: &[&str] = &[
+        "token=",
+        "password=",
+        "api_key=",
+        "access_key=",
+        "private_key=",
+        "secret=",
+        "bearer ",
+        "authorization: bearer ",
+        "\"token\":\"",
+        "\"password\":\"",
+        "\"api_key\":\"",
+        "\"access_key\":\"",
+        "\"private_key\":\"",
+        "\"secret\":\"",
+        "\"authorization\":\"bearer ",
+    ];
+    let mut redacted = text.to_owned();
+    for marker in SENSITIVE_MARKERS {
+        let marker_lower = marker.to_ascii_lowercase();
+        let quoted = marker.ends_with('\"');
+        let mut search_from = 0;
+        while search_from < redacted.len() {
+            let lower = redacted.to_ascii_lowercase();
+            let Some(relative_start) = lower[search_from..].find(&marker_lower) else {
+                break;
+            };
+            let start = search_from + relative_start + marker.len();
+            let end = if quoted {
+                redacted[start..]
+                    .find('\"')
+                    .map_or(redacted.len(), |relative_end| start + relative_end)
+            } else {
+                redacted[start..]
+                    .find(|character: char| {
+                        character.is_whitespace()
+                            || matches!(character, '&' | ',' | ';' | '\"' | '}')
+                    })
+                    .map_or(redacted.len(), |relative_end| start + relative_end)
+            };
+            if end <= start {
+                break;
+            }
+            redacted.replace_range(start..end, "[REDACTED]");
+            search_from = start + "[REDACTED]".len();
+        }
+    }
+    redacted
+}
+
+fn redact_event_value(value: &Value) -> Value {
+    match value {
+        Value::Array(items) => Value::Array(items.iter().map(redact_event_value).collect()),
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .map(|(key, value)| {
+                    let normalized = key.to_ascii_lowercase();
+                    let sensitive = normalized != "secret_ref"
+                        && (normalized.contains("token")
+                            || normalized.contains("password")
+                            || normalized.contains("api_key")
+                            || normalized.contains("access_key")
+                            || normalized.contains("private_key")
+                            || normalized.contains("secret"));
+                    let value = if sensitive {
+                        Value::String("[REDACTED]".to_owned())
+                    } else {
+                        redact_event_value(value)
+                    };
+                    (key.clone(), value)
+                })
+                .collect(),
+        ),
+        Value::String(text) => Value::String(redact_event_text(text)),
+        _ => value.clone(),
+    }
+}
+
 fn stamp_request_identity(request: &mut CapabilityRequest, context: &RequestContext) {
     let Some(arguments) = request.arguments.as_object_mut() else {
         return;
     };
-    arguments
-        .entry("role_id")
-        .or_insert_with(|| json!(context.role_id));
-    arguments
-        .entry("department_id")
-        .or_insert_with(|| json!(context.department_id));
-    arguments
-        .entry("session_id")
-        .or_insert_with(|| json!(context.session_id.as_str()));
-    arguments
-        .entry("project_root")
-        .or_insert_with(|| json!(context.project_root));
+    arguments.insert("role_id".to_owned(), json!(context.role_id));
+    arguments.insert("department_id".to_owned(), json!(context.department_id));
+    arguments.insert("session_id".to_owned(), json!(context.session_id.as_str()));
+    arguments.insert("project_root".to_owned(), json!(context.project_root));
 }
 
 fn files_changed_from_events(events: &[RuntimeEvent]) -> Vec<String> {
@@ -1943,6 +3670,78 @@ fn write_symposium_artifacts(
     Ok(())
 }
 
+fn read_review_artifact(project_root: &str) -> Result<ReviewPacket, &'static str> {
+    let root = Path::new(project_root);
+    if !root.is_dir() {
+        return Err("close_project_not_found");
+    }
+    let raw = std::fs::read_to_string(root.join(REVIEW_PACKET_PATH))
+        .map_err(|_| "close_review_not_found")?;
+    let review: ReviewPacket = serde_json::from_str(&raw).map_err(|_| "close_review_invalid")?;
+    review.validate().map_err(|_| "close_review_invalid")?;
+    Ok(review)
+}
+
+fn write_closing_artifact(
+    project_root: &str,
+    receipt: &ClosingReceipt,
+) -> Result<(), &'static str> {
+    let root = Path::new(project_root);
+    if project_root.trim().is_empty() || !root.is_dir() {
+        return Err("closing_artifact_write_failed");
+    }
+    let lessons = root.join("lessons");
+    std::fs::create_dir_all(&lessons).map_err(|_| "closing_artifact_write_failed")?;
+    let receipt_json =
+        serde_json::to_string_pretty(receipt).map_err(|_| "closing_artifact_write_failed")?;
+    std::fs::write(
+        lessons.join(
+            kiana_domain::CLOSING_RECEIPT_PATH
+                .rsplit('/')
+                .next()
+                .unwrap(),
+        ),
+        receipt_json,
+    )
+    .map_err(|_| "closing_artifact_write_failed")?;
+    let mut learned = String::from("# Closing lessons\n\n");
+    learned.push_str("The Builder output passed independent Review and was accepted by Closing.\n");
+    if !receipt.files_verified.is_empty() {
+        learned.push_str("\nVerified files:\n");
+        for file in &receipt.files_verified {
+            learned.push_str("- ");
+            learned.push_str(file);
+            learned.push('\n');
+        }
+    }
+    std::fs::write(lessons.join("LEARNED.md"), learned).map_err(|_| "closing_artifact_write_failed")
+}
+
+fn read_merge_artifact(project_root: &str) -> Result<MergeReceipt, &'static str> {
+    let root = Path::new(project_root);
+    let raw = std::fs::read_to_string(root.join(kiana_domain::MERGE_RECEIPT_PATH))
+        .map_err(|_| "close_merge_receipt_not_found")?;
+    let merge: MergeReceipt =
+        serde_json::from_str(&raw).map_err(|_| "close_merge_receipt_invalid")?;
+    merge
+        .validate()
+        .map_err(|_| "close_merge_receipt_invalid")?;
+    Ok(merge)
+}
+
+fn write_merge_artifact(project_root: &str, receipt: &MergeReceipt) -> Result<(), &'static str> {
+    let root = Path::new(project_root);
+    if project_root.trim().is_empty() || !root.is_dir() {
+        return Err("merge_artifact_write_failed");
+    }
+    std::fs::create_dir_all(root.join(MONITORING_PATH_GATE))
+        .map_err(|_| "merge_artifact_write_failed")?;
+    let receipt_json =
+        serde_json::to_string_pretty(receipt).map_err(|_| "merge_artifact_write_failed")?;
+    std::fs::write(root.join(kiana_domain::MERGE_RECEIPT_PATH), receipt_json)
+        .map_err(|_| "merge_artifact_write_failed")
+}
+
 fn write_review_artifact(project_root: &str, packet: &ReviewPacket) -> Result<(), &'static str> {
     let root = Path::new(project_root);
     if project_root.trim().is_empty() || !root.is_dir() {
@@ -1955,54 +3754,6 @@ fn write_review_artifact(project_root: &str, packet: &ReviewPacket) -> Result<()
     std::fs::write(root.join(REVIEW_PACKET_PATH), packet_json)
         .map_err(|_| "review_artifact_write_failed")?;
     Ok(())
-}
-
-async fn pre_tool_hook_block(
-    context: &RequestContext,
-    request: &CapabilityRequest,
-) -> Option<String> {
-    let project_trust = if context.project_trusted {
-        ProjectTrust::Trusted
-    } else {
-        ProjectTrust::Untrusted
-    };
-    let decision = run_pre_tool_use_hooks(PreToolUseHookContext {
-        abort_signal: Arc::new(Notify::new()),
-        cwd: PathBuf::from(&context.project_root),
-        project_trust,
-        permission_mode: permission_mode_label(context.permission_profile),
-        query_source: HARNESS_ID.to_owned(),
-        tool_name: hook_tool_name(&request.operation),
-        tool_input: request.arguments.clone(),
-        tool_use_id: request
-            .arguments
-            .get("call_id")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-    })
-    .await;
-    match decision {
-        ToolHookDecision::Allow | ToolHookDecision::UpdateInput(_) => None,
-        ToolHookDecision::Block(reason) => Some(format!("hook_blocked:{reason}")),
-        ToolHookDecision::Ask { reason, .. } => Some(format!("hook_ask_unattended:{reason}")),
-    }
-}
-
-fn hook_tool_name(operation: &str) -> String {
-    match operation {
-        "apply_patch" | "file_change" => "apply_patch".to_owned(),
-        "shell.exec" | "shell" | "bash" | "exec" | "command_execution" => "shell".to_owned(),
-        "mcp.call" | "mcp" => "mcp".to_owned(),
-        other => other.to_owned(),
-    }
-}
-
-fn permission_mode_label(profile: PermissionProfile) -> String {
-    match profile {
-        PermissionProfile::Safe => "safe".to_owned(),
-        PermissionProfile::Balanced => "balanced".to_owned(),
-        PermissionProfile::Autonomous => "autonomous".to_owned(),
-    }
 }
 
 fn authorized_harness_sandbox(
@@ -2324,4 +4075,73 @@ pub enum CoreError {
     Domain(#[from] kiana_domain::DomainError),
     #[error(transparent)]
     Port(#[from] PortError),
+}
+
+#[cfg(test)]
+mod event_redaction_tests {
+    use super::{capability_event_payload, redact_event_text, redact_event_value};
+    use kiana_domain::{CapabilityKind, CapabilityRequest, RequestContext, RequestId, RunId};
+    use serde_json::json;
+
+    #[test]
+    fn capability_result_keeps_cell_scope_correlation() {
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            json!({ "patch": "*** Begin Patch" }),
+        );
+        request.cell_id = Some(kiana_domain::CellId::new());
+        request.capability_grant_id = Some(kiana_domain::CapabilityGrantId::new());
+        request.budget_lease_id = Some(kiana_domain::BudgetLeaseId::new());
+        let context = RequestContext::local("session-1", "/repo");
+        let run_id = RunId::new();
+        let payload = capability_event_payload(
+            &json!({ "changed": true }),
+            &request,
+            &context,
+            run_id,
+        );
+
+        assert_eq!(payload["run_id"], json!(run_id));
+        assert_eq!(payload["session_id"], "session-1");
+        assert_eq!(payload["cell_id"], json!(request.cell_id));
+        assert_eq!(payload["capability_grant_id"], json!(request.capability_grant_id));
+        assert_eq!(payload["budget_lease_id"], json!(request.budget_lease_id));
+        assert_eq!(payload["capability_request_id"], json!(request.request_id));
+    }
+
+    #[test]
+    fn event_error_redaction_preserves_codes_and_masks_secret_parameters() {
+        let redacted = redact_event_text("provider_failed token=abc123, retryable=true");
+        assert_eq!(redacted, "provider_failed token=[REDACTED], retryable=true");
+    }
+
+    #[test]
+    fn event_redaction_masks_bearer_and_json_string_secrets() {
+        let redacted = redact_event_value(&json!({
+            "error": "Authorization: Bearer bearer-secret token=token-secret",
+            "nested": ["{\"api_key\":\"json-secret\"}"],
+            "secret_ref": "vault://capability",
+        }));
+        let text = redacted.to_string();
+        assert!(!text.contains("bearer-secret"), "{text}");
+        assert!(!text.contains("token-secret"), "{text}");
+        assert!(!text.contains("json-secret"), "{text}");
+        assert!(text.contains("[REDACTED]"), "{text}");
+        assert_eq!(redacted["secret_ref"], "vault://capability");
+    }
+
+    #[test]
+    fn event_redaction_preserves_references_and_non_sensitive_results() {
+        let redacted = redact_event_value(&json!({
+            "secret_ref": "provider/anthropic",
+            "api_key": "do-not-record",
+            "nested": [{"access_token": "also-private", "path": "src/lib.rs"}],
+        }));
+        assert_eq!(redacted["secret_ref"], "provider/anthropic");
+        assert_eq!(redacted["api_key"], "[REDACTED]");
+        assert_eq!(redacted["nested"][0]["access_token"], "[REDACTED]");
+        assert_eq!(redacted["nested"][0]["path"], "src/lib.rs");
+    }
 }

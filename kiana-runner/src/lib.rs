@@ -13,7 +13,9 @@ mod model;
 mod protocol_runner;
 mod tools;
 
-pub use harness::{KianaHarness, KianaHarnessError, HARNESS_ID, HARNESS_RESULT_SCHEMA};
+pub use harness::{
+    KianaHarness, KianaHarnessError, RuntimeConfig, HARNESS_ID, HARNESS_RESULT_SCHEMA,
+};
 pub use inbox::{Inbox, InboxMessage, InboxTarget};
 pub use model::{
     ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,

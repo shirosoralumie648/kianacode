@@ -1973,9 +1973,11 @@ mod tests {
         assert!(!install.contains(r#"! -d ".git""#));
         assert!(install.contains("KIANA_SKIP_PATH_SETUP"));
         assert!(install.contains("cargo build --release -p kiana-entrypoints --bin kiana"));
-        assert!(install.contains(r#""$INSTALL_DIR/kiana${EXE_EXT}" doctor"#));
-        assert!(install.contains("kiana config init"));
-        assert!(install.contains("kiana login"));
+        assert!(install.contains(r#"installed="$INSTALL_DIR/kiana${EXE_EXT}""#));
+        assert!(install.contains(r#""$installed" doctor"#));
+        assert!(install.contains("USER.md"));
+        assert!(!install.contains("kiana config init"));
+        assert!(!install.contains("kiana login"));
         assert!(!install.contains("运行配置向导"));
     }
 

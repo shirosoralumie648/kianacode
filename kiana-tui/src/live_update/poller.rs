@@ -260,7 +260,6 @@ impl<T> Drop for LivePoller<T> {
     }
 }
 
-
 fn poller_stopped(state: &Arc<RwLock<PollerState>>) -> bool {
     *state.read().unwrap() == PollerState::Stopped
 }

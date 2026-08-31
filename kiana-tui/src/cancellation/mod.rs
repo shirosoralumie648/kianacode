@@ -43,7 +43,7 @@ mod token;
 
 pub use guard::CancellationGuard;
 pub use timeout::{TimeoutManager, TimeoutToken};
-pub use token::{CancelledError, CancellationToken};
+pub use token::{CancellationToken, CancelledError};
 
 use std::future::Future;
 
@@ -115,7 +115,10 @@ where
 ///     assert!(result.is_err()); // timed out
 /// }
 /// ```
-pub async fn with_timeout<F, T>(timeout: tokio::time::Duration, future: F) -> Result<T, CancelledError>
+pub async fn with_timeout<F, T>(
+    timeout: tokio::time::Duration,
+    future: F,
+) -> Result<T, CancelledError>
 where
     F: Future<Output = T>,
 {

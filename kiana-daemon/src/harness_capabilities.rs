@@ -9,7 +9,7 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult};
 use kiana_ports::PortError;
 use kiana_runner_protocol::{DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
@@ -24,6 +24,8 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const EXEC_TIMEOUT_EXIT_CODE: i32 = 124;
 const EXEC_OUTPUT_MAX_BYTES: usize = 1024 * 1024;
 const IO_DRAIN_TIMEOUT: Duration = Duration::from_millis(2000);
+const PROCESS_GROUP_TERM_GRACE: Duration = Duration::from_millis(100);
+const PROCESS_GROUP_EXIT_GRACE: Duration = Duration::from_millis(250);
 const READ_CHUNK_SIZE: usize = 8192;
 
 pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
@@ -209,6 +211,7 @@ async fn run_confined(
     timeout: Duration,
 ) -> Result<Value, PortError> {
     let mut command = sandboxed_command(&argv, project_root, workdir, sandbox)?;
+    prepare_process_group(&mut command);
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -217,6 +220,7 @@ async fn run_confined(
     let mut child = command
         .spawn()
         .map_err(|error| PortError::Failed(format!("shell_exec_failed:{error}")))?;
+    let mut process_group = ProcessGroupGuard::new(child.id());
     let stdout = child
         .stdout
         .take()
@@ -230,17 +234,23 @@ async fn run_confined(
     // Codex exec.rs consume_output: timeout is an exec outcome (exit 124,
     // timed_out=true), not a capability crash. Kill the child, then drain
     // pipes with IO_DRAIN_TIMEOUT so inherited fds cannot hang the agent.
-    let (exit_code, timed_out) = tokio::select! {
+    let (exit_code, timed_out, stop_confirmed) = tokio::select! {
         status = child.wait() => {
             let status = status
                 .map_err(|error| PortError::Failed(format!("shell_exec_failed:{error}")))?;
-            (status.code().unwrap_or(-1), false)
+            (status.code().unwrap_or(-1), false, true)
         }
         _ = tokio::time::sleep(timeout) => {
-            kill_child(&mut child);
-            (EXEC_TIMEOUT_EXIT_CODE, true)
+            let stop_confirmed = terminate_process_group(&mut child, process_group.id()).await;
+            if !stop_confirmed {
+                return Err(PortError::Failed(
+                    "shell_result_unknown:process_group_not_stopped".to_owned(),
+                ));
+            }
+            (EXEC_TIMEOUT_EXIT_CODE, true, stop_confirmed)
         }
     };
+    process_group.finish_if_stopped();
     let stdout = drain_capped(&mut stdout_handle).await;
     let stderr = drain_capped(&mut stderr_handle).await;
     Ok(json!({
@@ -248,6 +258,7 @@ async fn run_confined(
         "stderr": render_capped(&stderr.bytes, stderr.truncated),
         "exit_code": exit_code,
         "timed_out": timed_out,
+        "stop_confirmed": stop_confirmed,
         "sandbox": sandbox,
         "backend": crate::harness_sandbox::SANDBOX_BACKEND,
     }))
@@ -258,8 +269,115 @@ struct CappedOutput {
     truncated: bool,
 }
 
-fn kill_child(child: &mut Child) {
-    let _ = child.start_kill();
+fn prepare_process_group(command: &mut Command) {
+    #[cfg(unix)]
+    command.process_group(0);
+}
+
+struct ProcessGroupGuard {
+    pid: Option<u32>,
+    active: bool,
+}
+
+impl ProcessGroupGuard {
+    fn new(pid: Option<u32>) -> Self {
+        Self { pid, active: true }
+    }
+
+    fn id(&self) -> Option<u32> {
+        self.pid
+    }
+
+    fn finish_if_stopped(&mut self) {
+        #[cfg(unix)]
+        {
+            if self.pid.is_none_or(|pid| !process_group_exists(pid)) {
+                self.active = false;
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            self.active = false;
+        }
+    }
+}
+
+impl Drop for ProcessGroupGuard {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        #[cfg(unix)]
+        if let Some(pid) = self.pid {
+            signal_process_group(pid, libc::SIGKILL);
+        }
+    }
+}
+
+async fn terminate_process_group(child: &mut Child, pid: Option<u32>) -> bool {
+    let Some(pid) = pid else {
+        if child.start_kill().is_err() {
+            return false;
+        }
+        return child.wait().await.is_ok();
+    };
+
+    #[cfg(unix)]
+    {
+        if !signal_process_group(pid, libc::SIGTERM) {
+            let _ = child.start_kill();
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = child.start_kill();
+    }
+
+    let mut leader_reaped = false;
+    if tokio::time::timeout(PROCESS_GROUP_TERM_GRACE, child.wait())
+        .await
+        .is_ok()
+    {
+        leader_reaped = true;
+    }
+
+    #[cfg(unix)]
+    if process_group_exists(pid) {
+        signal_process_group(pid, libc::SIGKILL);
+    }
+    if !leader_reaped {
+        let _ = child.wait().await;
+    }
+
+    #[cfg(unix)]
+    {
+        let deadline = tokio::time::Instant::now() + PROCESS_GROUP_EXIT_GRACE;
+        while process_group_exists(pid) && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        return leader_reaped && !process_group_exists(pid);
+    }
+    #[cfg(not(unix))]
+    {
+        leader_reaped
+    }
+}
+
+#[cfg(unix)]
+fn signal_process_group(pid: u32, signal: libc::c_int) -> bool {
+    let Ok(pgid) = libc::pid_t::try_from(pid) else {
+        return false;
+    };
+    unsafe { libc::kill(-pgid, signal) == 0 }
+}
+
+#[cfg(unix)]
+fn process_group_exists(pid: u32) -> bool {
+    let Ok(pgid) = libc::pid_t::try_from(pid) else {
+        return false;
+    };
+    let result = unsafe { libc::kill(-pgid, 0) };
+    result == 0 || std::io::Error::last_os_error().kind() == std::io::ErrorKind::PermissionDenied
 }
 
 async fn read_capped<R>(mut reader: R, max_bytes: usize) -> std::io::Result<CappedOutput>
@@ -572,6 +690,38 @@ mod tests {
             "timeout should kill the sandboxed sleep within Codex IO drain, elapsed={elapsed:?}"
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn shell_timeout_terminates_descendant_processes() {
+        let root = temp_root();
+        let result = ShellExecHandler
+            .execute(authorized(
+                CapabilityKind::Process,
+                SHELL_OPERATION,
+                json!({
+                    "command": "printf '%s' $$ > group.pid; sleep 60 & child=$!; printf '%s' $child > child.pid; wait $child",
+                    "timeout_ms": 250,
+                    "project_root": root.to_string_lossy(),
+                    "sandbox": "workspace-write",
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(result.output["timed_out"], true, "{}", result.output);
+        let group_pid = fs::read_to_string(root.join("group.pid"))
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+        while process_group_exists(group_pid) && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            !process_group_exists(group_pid),
+            "process group {group_pid} survived"
+        );
     }
 
     #[tokio::test]

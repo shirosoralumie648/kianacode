@@ -7,11 +7,15 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult};
 use kiana_ports::PortError;
 use kiana_services::mcp::{McpClient, McpServerConfig, TransportType};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 
 const MCP_OPERATION: &str = "mcp.call";
 const MCP_RESULT_SCHEMA: &str = "kiana.mcp-result.v1";
+const MCP_MAX_CONFIG_BYTES: usize = 64 * 1024;
+const MCP_MAX_TOOL_NAME_BYTES: usize = 256;
+const MCP_MAX_ARGUMENT_BYTES: usize = 64 * 1024;
+const MCP_MAX_RESULT_BYTES: usize = 256 * 1024;
 pub(crate) const MCP_SERVERS_ENV: &str = "KIANA_MCP_SERVERS_JSON";
 
 pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
@@ -51,6 +55,11 @@ impl CapabilityHandler for McpCallHandler {
             .call_tool(&tool, tool_arguments)
             .await
             .map_err(|error| PortError::Failed(format!("mcp_call_failed:{error}")))?;
+        let result_bytes = serde_json::to_vec(&result)
+            .map_err(|error| PortError::Failed(format!("mcp_result_invalid:{error}")))?;
+        if result_bytes.len() > MCP_MAX_RESULT_BYTES {
+            return Err(PortError::Failed("mcp_result_too_large".to_owned()));
+        }
         Ok(CapabilityResult::success(
             request_id,
             json!({
@@ -73,12 +82,27 @@ fn required_tool(arguments: &Value) -> Result<String, PortError> {
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| PortError::Failed("mcp_tool_required".to_owned()))
+        .and_then(|tool| {
+            if tool.len() > MCP_MAX_TOOL_NAME_BYTES {
+                Err(PortError::Failed("mcp_tool_too_large".to_owned()))
+            } else {
+                Ok(tool)
+            }
+        })
 }
 
 fn tool_arguments(value: Option<&Value>) -> Result<HashMap<String, Value>, PortError> {
     match value {
         None | Some(Value::Null) => Ok(HashMap::new()),
-        Some(Value::Object(map)) => Ok(map_to_hash(map)),
+        Some(Value::Object(map)) => {
+            let arguments = map_to_hash(map);
+            let bytes = serde_json::to_vec(&arguments)
+                .map_err(|error| PortError::Failed(format!("mcp_arguments_invalid:{error}")))?;
+            if bytes.len() > MCP_MAX_ARGUMENT_BYTES {
+                return Err(PortError::Failed("mcp_arguments_too_large".to_owned()));
+            }
+            Ok(arguments)
+        }
         Some(_) => Err(PortError::Failed(
             "mcp_arguments_object_required".to_owned(),
         )),
@@ -97,6 +121,9 @@ fn load_servers() -> Result<Vec<McpServerConfig>, PortError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(PortError::Failed("mcp_servers_required".to_owned()));
+    }
+    if trimmed.len() > MCP_MAX_CONFIG_BYTES {
+        return Err(PortError::Failed("mcp_config_too_large".to_owned()));
     }
     serde_json::from_str::<Vec<McpServerConfig>>(trimmed)
         .or_else(|_| serde_json::from_str::<McpServerConfig>(trimmed).map(|config| vec![config]))
@@ -126,6 +153,21 @@ fn select_server(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn oversized_mcp_inputs_fail_closed() {
+        let long_tool = json!({ "tool": "x".repeat(MCP_MAX_TOOL_NAME_BYTES + 1) });
+        assert!(matches!(
+            required_tool(&long_tool),
+            Err(PortError::Failed(message)) if message == "mcp_tool_too_large"
+        ));
+        let long_arguments = json!({ "arguments": { "payload": "x".repeat(MCP_MAX_ARGUMENT_BYTES) } });
+        assert!(matches!(
+            tool_arguments(long_arguments.get("arguments")),
+            Err(PortError::Failed(message)) if message == "mcp_arguments_too_large"
+        ));
+        let _env = std::env::var(MCP_SERVERS_ENV).ok();
+    }
 
     #[test]
     fn missing_tool_fails_closed() {

@@ -50,6 +50,25 @@ where
             .await
     }
 
+    pub async fn approval_decision_with_proof(
+        &self,
+        metadata: RequestMetadata,
+        approval_id: ApprovalId,
+        decision: ApprovalDecision,
+        request_hash: Option<String>,
+        nonce: Option<String>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::approval_decision_with_proof(
+                metadata,
+                approval_id,
+                decision,
+                request_hash,
+                nonce,
+            ))
+            .await
+    }
+
     pub async fn run(
         &self,
         metadata: RequestMetadata,
@@ -134,6 +153,21 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::review(
+                metadata,
+                author_session_id,
+                author_run_id,
+            ))
+            .await
+    }
+
+    pub async fn close(
+        &self,
+        metadata: RequestMetadata,
+        author_session_id: impl Into<String> + Send,
+        author_run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::close(
                 metadata,
                 author_session_id,
                 author_run_id,

@@ -39,6 +39,6 @@ mod task;
 pub use executor::TaskExecutor;
 pub use handle::{TaskHandle, TimeoutError};
 pub use task::{
-    BackgroundTask, FunctionTask, ProgressSender, ProgressUpdate, TaskId, TaskMetadata,
-    TaskResult, TaskStatus,
+    BackgroundTask, FunctionTask, ProgressSender, ProgressUpdate, TaskId, TaskMetadata, TaskResult,
+    TaskStatus,
 };

@@ -82,7 +82,9 @@ impl TaskExecutor {
 
             // Execute the task
             let progress_sender = ProgressSender::new(progress_tx);
-            let result = task.execute(cancel_token_clone.clone(), progress_sender).await;
+            let result = task
+                .execute(cancel_token_clone.clone(), progress_sender)
+                .await;
 
             // Stop progress updater
             progress_handle.abort();
@@ -170,7 +172,6 @@ impl Default for TaskExecutor {
         Self::new()
     }
 }
-
 
 fn apply_progress_update(status: &Arc<RwLock<TaskStatus>>, update: ProgressUpdate) {
     let mut status = status.write().unwrap();

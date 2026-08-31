@@ -1,12 +1,33 @@
 use serde_json::Value;
+use std::fs;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn architecture_status_routes_through_the_real_binary() {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let home = std::env::temp_dir().join(format!("kiana-cli-architecture-{stamp}"));
+    fs::create_dir_all(&home).unwrap();
+    let previous_home = std::env::var_os("KIANA_HOME");
+    std::env::set_var("KIANA_HOME", &home);
+    kiana_types::write_project_trust(
+        std::env::current_dir().unwrap(),
+        kiana_types::ProjectTrust::Trusted,
+    )
+    .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
         .args(["architecture", "status", "--json"])
+        .env("KIANA_HOME", &home)
         .output()
         .unwrap();
+    match previous_home {
+        Some(value) => std::env::set_var("KIANA_HOME", value),
+        None => std::env::remove_var("KIANA_HOME"),
+    }
+    let _ = fs::remove_dir_all(home);
     assert!(
         output.status.success(),
         "{}",

@@ -2,11 +2,23 @@
 //!
 //! Markers and hunk grammar are derived from OpenAI Codex (Apache-2.0)
 //! `codex-rs/apply-patch`. Copied into Kiana; `reference/` is audit-only.
+//!
+//! Parse, path confinement, and hunk application are preflighted against an
+//! in-memory overlay before any user-visible write. Single-file updates replace
+//! via a same-directory temp file and rename.
 
 use kiana_ports::PortError;
-use serde_json::{json, Value};
-use std::fs;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::fs::{self, File, OpenOptions};
+use std::hash::{Hash, Hasher};
+use std::io::Write;
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
+use std::time::SystemTime;
 
 const BEGIN_PATCH: &str = "*** Begin Patch";
 const END_PATCH: &str = "*** End Patch";
@@ -39,16 +51,123 @@ struct UpdateChunk {
     new_lines: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OverlayFile {
+    Present(String),
+    Deleted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PlannedOp {
+    Add {
+        target: PathBuf,
+        contents: String,
+    },
+    Delete {
+        target: PathBuf,
+    },
+    Update {
+        target: PathBuf,
+        contents: String,
+    },
+    Move {
+        source: PathBuf,
+        destination: PathBuf,
+        contents: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PlannedPatch {
+    operations: Vec<PlannedOp>,
+    preconditions: Vec<PathPrecondition>,
+}
+
+#[derive(Debug)]
+struct ProjectPatchLock {
+    _file: File,
+}
+
+impl ProjectPatchLock {
+    fn acquire(project_root: &Path) -> Result<Self, PortError> {
+        let lock_dir = std::env::var_os("KIANA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".kiana"))
+            })
+            .unwrap_or_else(|| PathBuf::from(".kiana"))
+            .join("locks");
+        fs::create_dir_all(&lock_dir)
+            .map_err(|_| failed("apply_patch_lock_unavailable"))?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        project_root.display().to_string().hash(&mut hasher);
+        let path = lock_dir.join(format!("patch-{:#016x}.lock", hasher.finish()));
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path)
+            .map_err(|_| failed("apply_patch_lock_unavailable"))?;
+        if !try_lock_project_patch(&file) {
+            return Err(PortError::Conflict("apply_patch_lock_unavailable".to_owned()));
+        }
+        Ok(Self { _file: file })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PathPrecondition {
+    path: PathBuf,
+    snapshot: PathSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PathSnapshot {
+    Missing,
+    Present {
+        fingerprint: MetadataFingerprint,
+        contents: Option<Vec<u8>>,
+        readonly: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MetadataFingerprint {
+    is_file: bool,
+    is_dir: bool,
+    is_symlink: bool,
+    len: u64,
+    modified: Option<SystemTime>,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+}
+
 pub fn apply_codex_patch(project_root: &Path, patch: &str) -> Result<Value, PortError> {
+    let project_root = project_root
+        .canonicalize()
+        .map_err(|error| failed(format!("apply_patch_project_root_invalid:{error}")))?;
+    if !project_root.is_dir() {
+        return Err(failed("apply_patch_project_root_invalid:not_directory"));
+    }
     let hunks = parse_patch(patch)?;
     if hunks.is_empty() {
         return Err(failed("apply_patch_empty"));
     }
-    let mut changed = Vec::new();
-    for hunk in hunks {
-        changed.push(apply_hunk(project_root, hunk)?);
-    }
-    Ok(json!({ "changed": changed }))
+    let planned = plan_hunks(&project_root, hunks)?;
+    let _lock = ProjectPatchLock::acquire(&project_root)?;
+    commit_planned(&project_root, &planned)
+}
+
+#[cfg(unix)]
+fn try_lock_project_patch(file: &File) -> bool {
+    unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) == 0 }
+}
+
+#[cfg(not(unix))]
+fn try_lock_project_patch(_file: &File) -> bool {
+    false
 }
 
 fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {
@@ -172,53 +291,438 @@ fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {
     Ok(hunks)
 }
 
-fn apply_hunk(project_root: &Path, hunk: Hunk) -> Result<Value, PortError> {
+fn plan_hunks(project_root: &Path, hunks: Vec<Hunk>) -> Result<PlannedPatch, PortError> {
+    let mut overlay = HashMap::new();
+    let mut operations = Vec::new();
+    for hunk in hunks {
+        operations.push(plan_hunk(project_root, hunk, &mut overlay)?);
+    }
+    let preconditions = capture_preconditions(project_root, &operations)?;
+    Ok(PlannedPatch {
+        operations,
+        preconditions,
+    })
+}
+
+fn plan_hunk(
+    project_root: &Path,
+    hunk: Hunk,
+    overlay: &mut HashMap<PathBuf, OverlayFile>,
+) -> Result<PlannedOp, PortError> {
     match hunk {
-        Hunk::AddFile { path, contents } => {
-            let target = confined_new_file(project_root, &path)?;
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(io_failed)?;
-            }
-            if target.exists() {
-                return Err(failed("apply_patch_add_exists"));
-            }
-            fs::write(&target, contents).map_err(io_failed)?;
-            Ok(json!({ "op": "add", "path": display_relative(project_root, &target) }))
-        }
-        Hunk::DeleteFile { path } => {
-            let target = confined_existing_file(project_root, &path)?;
-            fs::remove_file(&target).map_err(io_failed)?;
-            Ok(json!({ "op": "delete", "path": display_relative(project_root, &target) }))
-        }
+        Hunk::AddFile { path, contents } => plan_add(project_root, path, contents, overlay),
+        Hunk::DeleteFile { path } => plan_delete(project_root, path, overlay),
         Hunk::UpdateFile {
             path,
             move_path,
             chunks,
-        } => {
-            let source = confined_existing_file(project_root, &path)?;
-            let original = fs::read_to_string(&source).map_err(io_failed)?;
-            let updated = apply_chunks(&original, &chunks)?;
-            let destination = match move_path {
-                Some(moved) => {
-                    let destination = confined_new_file(project_root, &moved)?;
-                    if let Some(parent) = destination.parent() {
-                        fs::create_dir_all(parent).map_err(io_failed)?;
-                    }
-                    fs::write(&destination, updated).map_err(io_failed)?;
-                    fs::remove_file(&source).map_err(io_failed)?;
-                    destination
-                }
-                None => {
-                    fs::write(&source, updated).map_err(io_failed)?;
-                    source
-                }
-            };
-            Ok(json!({
-                "op": "update",
-                "path": display_relative(project_root, &destination)
-            }))
+        } => plan_update(project_root, path, move_path, chunks, overlay),
+    }
+}
+
+fn plan_add(
+    root: &Path,
+    path: PathBuf,
+    contents: String,
+    overlay: &mut HashMap<PathBuf, OverlayFile>,
+) -> Result<PlannedOp, PortError> {
+    let target = planned_new_path(root, &path, overlay)?;
+    overlay.insert(target.clone(), OverlayFile::Present(contents.clone()));
+    Ok(PlannedOp::Add { target, contents })
+}
+
+fn plan_delete(
+    root: &Path,
+    path: PathBuf,
+    overlay: &mut HashMap<PathBuf, OverlayFile>,
+) -> Result<PlannedOp, PortError> {
+    let target = planned_existing_path(root, &path, overlay)?;
+    overlay.insert(target.clone(), OverlayFile::Deleted);
+    Ok(PlannedOp::Delete { target })
+}
+
+fn planned_existing_path(
+    root: &Path,
+    relative: &Path,
+    overlay: &HashMap<PathBuf, OverlayFile>,
+) -> Result<PathBuf, PortError> {
+    let candidate = confined_candidate(root, relative)?;
+    if let Some(file) = overlay_file(overlay, &candidate) {
+        return match file {
+            OverlayFile::Present(_) => Ok(candidate),
+            OverlayFile::Deleted => Err(failed("apply_patch_path_not_file")),
+        };
+    }
+    let target = confined_existing_file(root, relative)?;
+    if let Some(file) = overlay_file(overlay, &target) {
+        return match file {
+            OverlayFile::Present(_) => Ok(target),
+            OverlayFile::Deleted => Err(failed("apply_patch_path_not_file")),
+        };
+    }
+    Ok(target)
+}
+
+fn plan_update(
+    root: &Path,
+    path: PathBuf,
+    move_path: Option<PathBuf>,
+    chunks: Vec<UpdateChunk>,
+    overlay: &mut HashMap<PathBuf, OverlayFile>,
+) -> Result<PlannedOp, PortError> {
+    let (source, original) = planned_existing(root, &path, overlay)?;
+    let contents = apply_chunks(&original, &chunks)?;
+    match move_path {
+        Some(moved) => plan_move(root, source, moved, contents, overlay),
+        None => {
+            overlay.insert(source.clone(), OverlayFile::Present(contents.clone()));
+            Ok(PlannedOp::Update {
+                target: source,
+                contents,
+            })
         }
     }
+}
+
+fn plan_move(
+    root: &Path,
+    source: PathBuf,
+    moved: PathBuf,
+    contents: String,
+    overlay: &mut HashMap<PathBuf, OverlayFile>,
+) -> Result<PlannedOp, PortError> {
+    let destination = planned_new_path(root, &moved, overlay)?;
+    overlay.insert(source.clone(), OverlayFile::Deleted);
+    overlay.insert(destination.clone(), OverlayFile::Present(contents.clone()));
+    Ok(PlannedOp::Move {
+        source,
+        destination,
+        contents,
+    })
+}
+
+fn planned_existing(
+    root: &Path,
+    relative: &Path,
+    overlay: &HashMap<PathBuf, OverlayFile>,
+) -> Result<(PathBuf, String), PortError> {
+    let candidate = confined_candidate(root, relative)?;
+    if let Some(file) = overlay_file(overlay, &candidate) {
+        return overlay_present(candidate, file);
+    }
+    let target = confined_existing_file(root, relative)?;
+    if let Some(file) = overlay_file(overlay, &target) {
+        return overlay_present(target, file);
+    }
+    let contents = fs::read_to_string(&target).map_err(io_failed)?;
+    Ok((target, contents))
+}
+
+fn planned_new_path(
+    root: &Path,
+    relative: &Path,
+    overlay: &HashMap<PathBuf, OverlayFile>,
+) -> Result<PathBuf, PortError> {
+    let candidate = confined_candidate(root, relative)?;
+    match overlay_file(overlay, &candidate) {
+        Some(OverlayFile::Present(_)) => Err(failed("apply_patch_add_exists")),
+        Some(OverlayFile::Deleted) => Ok(candidate),
+        None => new_path_from_disk(root, relative),
+    }
+}
+
+fn new_path_from_disk(root: &Path, relative: &Path) -> Result<PathBuf, PortError> {
+    let target = confined_new_file(root, relative)?;
+    if target.exists() {
+        Err(failed("apply_patch_add_exists"))
+    } else {
+        Ok(target)
+    }
+}
+
+fn overlay_file<'a>(
+    overlay: &'a HashMap<PathBuf, OverlayFile>,
+    path: &Path,
+) -> Option<&'a OverlayFile> {
+    overlay.get(path).or_else(|| {
+        path.canonicalize()
+            .ok()
+            .and_then(|canonical| overlay.get(&canonical))
+    })
+}
+
+fn overlay_present(path: PathBuf, file: &OverlayFile) -> Result<(PathBuf, String), PortError> {
+    match file {
+        OverlayFile::Present(contents) => Ok((path, contents.clone())),
+        OverlayFile::Deleted => Err(failed("apply_patch_path_not_file")),
+    }
+}
+
+fn commit_planned(project_root: &Path, planned: &PlannedPatch) -> Result<Value, PortError> {
+    verify_preconditions(&planned.preconditions)?;
+    let mut changed = Vec::new();
+    for operation in &planned.operations {
+        match commit_op(project_root, operation) {
+            Ok(change) => changed.push(change),
+            Err(error) => {
+                return match rollback_preconditions(&planned.preconditions) {
+                    Ok(()) => Err(error),
+                    Err(rollback_error) => Err(failed(format!(
+                        "apply_patch_rollback_failed:{error};{rollback_error}"
+                    ))),
+                };
+            }
+        }
+    }
+    Ok(json!({ "changed": changed }))
+}
+
+fn capture_preconditions(
+    project_root: &Path,
+    operations: &[PlannedOp],
+) -> Result<Vec<PathPrecondition>, PortError> {
+    let mut paths = Vec::new();
+    for operation in operations {
+        let operation_paths = match operation {
+            PlannedOp::Add { target, .. }
+            | PlannedOp::Delete { target }
+            | PlannedOp::Update { target, .. } => {
+                vec![target]
+            }
+            PlannedOp::Move {
+                source,
+                destination,
+                ..
+            } => vec![source, destination],
+        };
+        for path in operation_paths {
+            let mut current = Some(path.as_path());
+            while let Some(candidate) = current {
+                if !candidate.starts_with(project_root) {
+                    break;
+                }
+                if !paths.iter().any(|existing: &PathBuf| existing == candidate) {
+                    paths.push(candidate.to_path_buf());
+                }
+                if candidate == project_root {
+                    break;
+                }
+                current = candidate.parent();
+            }
+        }
+    }
+    paths.sort_by_key(|path| path.components().count());
+    paths
+        .into_iter()
+        .map(|path| {
+            let snapshot = snapshot_path(&path)?;
+            Ok(PathPrecondition { path, snapshot })
+        })
+        .collect()
+}
+
+fn verify_preconditions(preconditions: &[PathPrecondition]) -> Result<(), PortError> {
+    for precondition in preconditions {
+        let current = snapshot_path(&precondition.path)?;
+        if !same_snapshot(&current, &precondition.snapshot) {
+            return Err(failed(format!(
+                "apply_patch_path_changed:{}",
+                precondition.path.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn same_snapshot(current: &PathSnapshot, expected: &PathSnapshot) -> bool {
+    match (current, expected) {
+        (PathSnapshot::Missing, PathSnapshot::Missing) => true,
+        (
+            PathSnapshot::Present {
+                fingerprint: current,
+                ..
+            },
+            PathSnapshot::Present {
+                fingerprint: expected,
+                ..
+            },
+        ) => current == expected,
+        _ => false,
+    }
+}
+
+fn snapshot_path(path: &Path) -> Result<PathSnapshot, PortError> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(PathSnapshot::Missing);
+        }
+        Err(error) => return Err(io_failed(error)),
+    };
+    let contents = if metadata.is_file() {
+        Some(fs::read(path).map_err(io_failed)?)
+    } else {
+        None
+    };
+    Ok(PathSnapshot::Present {
+        fingerprint: metadata_fingerprint(&metadata),
+        contents,
+        readonly: metadata.permissions().readonly(),
+    })
+}
+
+fn metadata_fingerprint(metadata: &fs::Metadata) -> MetadataFingerprint {
+    MetadataFingerprint {
+        is_file: metadata.is_file(),
+        is_dir: metadata.is_dir(),
+        is_symlink: metadata.file_type().is_symlink(),
+        len: metadata.len(),
+        modified: metadata.modified().ok(),
+        #[cfg(unix)]
+        device: metadata.dev(),
+        #[cfg(unix)]
+        inode: metadata.ino(),
+    }
+}
+
+fn rollback_preconditions(preconditions: &[PathPrecondition]) -> Result<(), PortError> {
+    let mut ordered = preconditions.to_vec();
+    ordered.sort_by_key(|precondition| std::cmp::Reverse(precondition.path.components().count()));
+    for precondition in ordered {
+        restore_snapshot(&precondition.path, &precondition.snapshot)?;
+    }
+    Ok(())
+}
+
+fn restore_snapshot(path: &Path, snapshot: &PathSnapshot) -> Result<(), PortError> {
+    match snapshot {
+        PathSnapshot::Missing => match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.is_dir() => fs::remove_dir(path).map_err(io_failed),
+            Ok(_) => fs::remove_file(path).map_err(io_failed),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(io_failed(error)),
+        },
+        PathSnapshot::Present {
+            fingerprint,
+            contents,
+            readonly,
+        } => {
+            if !fingerprint.is_file {
+                return Ok(());
+            }
+            let contents = contents
+                .as_deref()
+                .ok_or_else(|| failed("apply_patch_rollback_contents_missing"))?;
+            atomic_replace_bytes(path, contents)?;
+            let mut permissions = fs::metadata(path).map_err(io_failed)?.permissions();
+            permissions.set_readonly(*readonly);
+            fs::set_permissions(path, permissions).map_err(io_failed)
+        }
+    }
+}
+
+fn commit_op(project_root: &Path, op: &PlannedOp) -> Result<Value, PortError> {
+    match op {
+        PlannedOp::Add { target, contents } => commit_add(project_root, target, contents),
+        PlannedOp::Delete { target } => commit_delete(project_root, target),
+        PlannedOp::Update { target, contents } => commit_update(project_root, target, contents),
+        PlannedOp::Move {
+            source,
+            destination,
+            contents,
+        } => commit_move(project_root, source, destination, contents),
+    }
+}
+
+fn commit_add(project_root: &Path, target: &Path, contents: &str) -> Result<Value, PortError> {
+    ensure_parent(target)?;
+    create_new_file(target, contents)?;
+    Ok(json!({ "op": "add", "path": display_relative(project_root, target) }))
+}
+
+fn commit_delete(project_root: &Path, target: &Path) -> Result<Value, PortError> {
+    fs::remove_file(target).map_err(io_failed)?;
+    Ok(json!({ "op": "delete", "path": display_relative(project_root, target) }))
+}
+
+fn commit_update(project_root: &Path, target: &Path, contents: &str) -> Result<Value, PortError> {
+    atomic_replace(target, contents)?;
+    Ok(json!({ "op": "update", "path": display_relative(project_root, target) }))
+}
+
+fn commit_move(
+    project_root: &Path,
+    source: &Path,
+    destination: &Path,
+    contents: &str,
+) -> Result<Value, PortError> {
+    ensure_parent(destination)?;
+    create_new_file(destination, contents)?;
+    fs::remove_file(source).map_err(io_failed)?;
+    Ok(json!({ "op": "update", "path": display_relative(project_root, destination) }))
+}
+
+fn ensure_parent(path: &Path) -> Result<(), PortError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(io_failed)?;
+    }
+    Ok(())
+}
+
+fn create_new_file(path: &Path, contents: &str) -> Result<(), PortError> {
+    let mut file = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(failed("apply_patch_add_exists"));
+        }
+        Err(error) => return Err(io_failed(error)),
+    };
+    file.write_all(contents.as_bytes()).map_err(|error| {
+        let _ = fs::remove_file(path);
+        io_failed(error)
+    })
+}
+
+fn atomic_replace(path: &Path, contents: &str) -> Result<(), PortError> {
+    atomic_replace_bytes(path, contents.as_bytes())
+}
+
+fn atomic_replace_bytes(path: &Path, contents: &[u8]) -> Result<(), PortError> {
+    let tmp = temp_sibling(path)?;
+    let permissions = fs::metadata(path)
+        .ok()
+        .map(|metadata| metadata.permissions());
+    let result = (|| {
+        fs::write(&tmp, contents).map_err(io_failed)?;
+        if let Some(permissions) = permissions {
+            fs::set_permissions(&tmp, permissions).map_err(io_failed)?;
+        }
+        fs::rename(&tmp, path).map_err(io_failed)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result
+}
+
+fn temp_sibling(path: &Path) -> Result<PathBuf, PortError> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| failed("apply_patch_path_required"))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    Ok(path.with_file_name(format!(
+        ".{}.kiana-patch-{}-{}",
+        name.to_string_lossy(),
+        std::process::id(),
+        stamp
+    )))
 }
 
 fn apply_chunks(original: &str, chunks: &[UpdateChunk]) -> Result<String, PortError> {
@@ -279,19 +783,27 @@ fn locate_chunk(lines: &[String], chunk: &UpdateChunk) -> Result<usize, PortErro
 
 fn confined_existing_file(root: &Path, relative: &Path) -> Result<PathBuf, PortError> {
     let candidate = confined_candidate(root, relative)?;
+    reject_symlink_components(root, &candidate)?;
+    let metadata = fs::symlink_metadata(&candidate).map_err(io_failed)?;
+    if !metadata.is_file() {
+        return Err(failed("apply_patch_path_not_file"));
+    }
+    reject_hardlink(&metadata)?;
     let resolved = candidate
         .canonicalize()
         .map_err(|error| failed(format!("apply_patch_path_invalid:{error}")))?;
     ensure_inside(root, &resolved)?;
-    if !resolved.is_file() {
-        return Err(failed("apply_patch_path_not_file"));
-    }
     Ok(resolved)
 }
 
 fn confined_new_file(root: &Path, relative: &Path) -> Result<PathBuf, PortError> {
     let candidate = confined_candidate(root, relative)?;
+    reject_symlink_components(root, &candidate)?;
     if candidate.exists() {
+        let metadata = fs::symlink_metadata(&candidate).map_err(io_failed)?;
+        if metadata.is_file() {
+            reject_hardlink(&metadata)?;
+        }
         let resolved = candidate
             .canonicalize()
             .map_err(|error| failed(format!("apply_patch_path_invalid:{error}")))?;
@@ -309,6 +821,33 @@ fn confined_new_file(root: &Path, relative: &Path) -> Result<PathBuf, PortError>
         }
     }
     Ok(candidate)
+}
+
+fn reject_symlink_components(root: &Path, candidate: &Path) -> Result<(), PortError> {
+    let relative = candidate
+        .strip_prefix(root)
+        .map_err(|_| failed("apply_patch_path_outside_project"))?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        current.push(name);
+        if let Ok(metadata) = fs::symlink_metadata(&current) {
+            if metadata.file_type().is_symlink() {
+                return Err(failed("apply_patch_path_symlink"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reject_hardlink(metadata: &fs::Metadata) -> Result<(), PortError> {
+    #[cfg(unix)]
+    if metadata.nlink() > 1 {
+        return Err(failed("apply_patch_path_hardlink"));
+    }
+    Ok(())
 }
 
 fn confined_candidate(root: &Path, relative: &Path) -> Result<PathBuf, PortError> {
@@ -365,6 +904,96 @@ mod tests {
         root
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn project_patch_lock_waits_for_the_current_commit() {
+        let root = temp_root();
+        let first = ProjectPatchLock::acquire(&root).unwrap();
+        let waiting_root = root.clone();
+        let waiting = std::thread::spawn(move || ProjectPatchLock::acquire(&waiting_root));
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        assert!(!waiting.is_finished());
+        drop(first);
+        assert!(waiting.join().unwrap().is_ok());
+    }
+
+    #[test]
+    fn commit_failure_rolls_back_earlier_operations() {
+        let root = temp_root();
+        fs::write(root.join("blocker"), "keep-me\n").unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Add File: first.txt\n+first\n*** Add File: blocker/second.txt\n+second\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            PortError::Failed(message) if message.starts_with("apply_patch_io:")
+        ));
+        assert!(!root.join("first.txt").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("blocker")).unwrap(),
+            "keep-me\n"
+        );
+    }
+
+    #[test]
+    fn changed_file_after_preflight_is_rejected() {
+        let root = temp_root();
+        let target = root.join("file.txt");
+        fs::write(&target, "before\n").unwrap();
+        let hunks = parse_patch(
+            "*** Begin Patch\n*** Update File: file.txt\n@@\n-before\n+after\n*** End Patch\n",
+        )
+        .unwrap();
+        let planned = plan_hunks(&root, hunks).unwrap();
+        fs::write(&target, "changed\n").unwrap();
+        assert_eq!(
+            verify_preconditions(&planned.preconditions).unwrap_err(),
+            failed(format!("apply_patch_path_changed:{}", target.display()))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_target_is_rejected_without_following_it() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root();
+        let outside = temp_root();
+        fs::write(outside.join("outside.txt"), "outside\n").unwrap();
+        symlink(outside.join("outside.txt"), root.join("linked.txt")).unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Update File: linked.txt\n@@\n-outside\n+overwritten\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert_eq!(error, failed("apply_patch_path_symlink"));
+        assert_eq!(
+            fs::read_to_string(outside.join("outside.txt")).unwrap(),
+            "outside\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hardlinked_target_is_rejected_without_mutating_peer() {
+        let root = temp_root();
+        let outside = temp_root();
+        fs::write(outside.join("outside.txt"), "outside\n").unwrap();
+        fs::hard_link(outside.join("outside.txt"), root.join("linked.txt")).unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Update File: linked.txt\n@@\n-outside\n+overwritten\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert_eq!(error, failed("apply_patch_path_hardlink"));
+        assert_eq!(
+            fs::read_to_string(outside.join("outside.txt")).unwrap(),
+            "outside\n"
+        );
+    }
+
     #[test]
     fn add_file_is_confined_to_project_root() {
         let root = temp_root();
@@ -403,5 +1032,135 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error, failed("apply_patch_path_not_relative"));
+    }
+
+    #[test]
+    fn later_file_hunk_mismatch_leaves_earlier_file_untouched() {
+        let root = temp_root();
+        fs::write(root.join("first.txt"), "keep-me\n").unwrap();
+        fs::write(root.join("second.txt"), "original\n").unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Update File: first.txt\n@@\n-keep-me\n+changed\n*** Update File: second.txt\n@@\n-missing\n+nope\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert_eq!(error, failed("apply_patch_hunk_mismatch"));
+        assert_eq!(
+            fs::read_to_string(root.join("first.txt")).unwrap(),
+            "keep-me\n"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("second.txt")).unwrap(),
+            "original\n"
+        );
+    }
+
+    #[test]
+    fn later_add_conflict_does_not_keep_earlier_add() {
+        let root = temp_root();
+        fs::write(root.join("exists.txt"), "already\n").unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Add File: new.txt\n+fresh\n*** Add File: exists.txt\n+nope\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert_eq!(error, failed("apply_patch_add_exists"));
+        assert!(!root.join("new.txt").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("exists.txt")).unwrap(),
+            "already\n"
+        );
+    }
+
+    #[test]
+    fn later_chunk_mismatch_does_not_write_partial_update() {
+        let root = temp_root();
+        fs::write(root.join("file.txt"), "alpha\nbeta\n").unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Update File: file.txt\n@@\n-alpha\n+ALPHA\n@@\n-missing\n+nope\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert_eq!(error, failed("apply_patch_hunk_mismatch"));
+        assert_eq!(
+            fs::read_to_string(root.join("file.txt")).unwrap(),
+            "alpha\nbeta\n"
+        );
+    }
+
+    #[test]
+    fn later_mismatch_does_not_keep_earlier_delete() {
+        let root = temp_root();
+        fs::write(root.join("gone.txt"), "delete-me\n").unwrap();
+        fs::write(root.join("keep.txt"), "stay\n").unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Delete File: gone.txt\n*** Update File: keep.txt\n@@\n-missing\n+nope\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert_eq!(error, failed("apply_patch_hunk_mismatch"));
+        assert_eq!(
+            fs::read_to_string(root.join("gone.txt")).unwrap(),
+            "delete-me\n"
+        );
+        assert_eq!(fs::read_to_string(root.join("keep.txt")).unwrap(), "stay\n");
+    }
+
+    #[test]
+    fn binary_file_delete_is_supported_and_rollback_safe() {
+        let root = temp_root();
+        let binary = root.join("binary.dat");
+        fs::write(&binary, [0, 159, 146, 150, 255]).unwrap();
+        fs::write(root.join("blocker"), "block").unwrap();
+        let error = apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Delete File: binary.dat\n*** Add File: blocker/second.txt\n+second\n*** End Patch\n",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, PortError::Failed(message) if message.starts_with("apply_patch_io:"))
+        );
+        assert_eq!(fs::read(&binary).unwrap(), [0, 159, 146, 150, 255]);
+
+        apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Delete File: binary.dat\n*** End Patch\n",
+        )
+        .unwrap();
+        assert!(!binary.exists());
+    }
+
+    #[test]
+    fn multiple_hunks_apply_after_full_preflight() {
+        let root = temp_root();
+        fs::write(root.join("file.txt"), "alpha\nbeta\n").unwrap();
+        apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Update File: file.txt\n@@\n-alpha\n+ALPHA\n@@\n-beta\n+BETA\n*** End Patch\n",
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(root.join("file.txt")).unwrap(),
+            "ALPHA\nBETA\n"
+        );
+    }
+
+    #[test]
+    fn successful_update_does_not_leave_temp_siblings() {
+        let root = temp_root();
+        fs::write(root.join("file.txt"), "old\n").unwrap();
+        apply_codex_patch(
+            &root,
+            "*** Begin Patch\n*** Update File: file.txt\n@@\n-old\n+new\n*** End Patch\n",
+        )
+        .unwrap();
+        let leftovers: Vec<_> = fs::read_dir(&root)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name())
+            .filter(|name| name.to_string_lossy().contains("kiana-patch"))
+            .collect();
+        assert!(leftovers.is_empty());
+        assert_eq!(fs::read_to_string(root.join("file.txt")).unwrap(), "new\n");
     }
 }

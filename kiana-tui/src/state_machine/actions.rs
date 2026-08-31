@@ -144,7 +144,10 @@ mod tests {
         let mut context = TestContext;
         let result = action.execute(&TestState::A, &mut context);
         assert!(result.is_ok());
-        assert_eq!(<ClearInputAction as Action<TestState, TestContext>>::name(&action), "ClearInput");
+        assert_eq!(
+            <ClearInputAction as Action<TestState, TestContext>>::name(&action),
+            "ClearInput"
+        );
     }
 
     #[test]
@@ -153,7 +156,10 @@ mod tests {
         let mut context = TestContext;
         let result = action.execute(&TestState::A, &mut context);
         assert!(result.is_ok());
-        assert_eq!(<SaveStateAction as Action<TestState, TestContext>>::name(&action), "SaveState");
+        assert_eq!(
+            <SaveStateAction as Action<TestState, TestContext>>::name(&action),
+            "SaveState"
+        );
     }
 
     #[test]
@@ -162,7 +168,10 @@ mod tests {
         let mut context = TestContext;
         let result = action.execute(&TestState::A, &mut context);
         assert!(result.is_ok());
-        assert_eq!(<FocusAction as Action<TestState, TestContext>>::name(&action), "Focus");
+        assert_eq!(
+            <FocusAction as Action<TestState, TestContext>>::name(&action),
+            "Focus"
+        );
     }
 
     #[test]
@@ -171,15 +180,16 @@ mod tests {
         let mut context = TestContext;
         let result = action.execute(&TestState::A, &mut context);
         assert!(result.is_ok());
-        assert_eq!(<LogAction as Action<TestState, TestContext>>::name(&action), "Log");
+        assert_eq!(
+            <LogAction as Action<TestState, TestContext>>::name(&action),
+            "Log"
+        );
     }
 
     #[test]
     fn test_sequence_action_success() {
-        let actions: Vec<Box<dyn Action<TestState, TestContext>>> = vec![
-            Box::new(ClearInputAction),
-            Box::new(SaveStateAction),
-        ];
+        let actions: Vec<Box<dyn Action<TestState, TestContext>>> =
+            vec![Box::new(ClearInputAction), Box::new(SaveStateAction)];
         let sequence = SequenceAction::new(actions);
         let mut context = TestContext;
         let result = sequence.execute(&TestState::A, &mut context);

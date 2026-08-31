@@ -34,25 +34,13 @@ pub struct TransitionSuccess<S: State> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionError {
     /// No transition defined for the current state and event
-    NoTransitionDefined {
-        state: String,
-        event: String,
-    },
+    NoTransitionDefined { state: String, event: String },
     /// Guard condition failed
-    GuardFailed {
-        guard_name: String,
-        reason: String,
-    },
+    GuardFailed { guard_name: String, reason: String },
     /// Action execution failed
-    ActionFailed {
-        action_name: String,
-        reason: String,
-    },
+    ActionFailed { action_name: String, reason: String },
     /// Invalid state
-    InvalidState {
-        state: String,
-        reason: String,
-    },
+    InvalidState { state: String, reason: String },
 }
 
 impl std::fmt::Display for TransitionError {
@@ -64,7 +52,10 @@ impl std::fmt::Display for TransitionError {
             Self::GuardFailed { guard_name, reason } => {
                 write!(f, "Guard '{guard_name}' failed: {reason}")
             }
-            Self::ActionFailed { action_name, reason } => {
+            Self::ActionFailed {
+                action_name,
+                reason,
+            } => {
                 write!(f, "Action '{action_name}' failed: {reason}")
             }
             Self::InvalidState { state, reason } => {

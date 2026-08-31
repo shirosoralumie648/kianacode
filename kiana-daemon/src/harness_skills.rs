@@ -8,7 +8,7 @@
 use async_trait::async_trait;
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
-use kiana_skills::{load_all_skills_with_trust, Command as Skill};
+use kiana_skills::{Command as Skill, load_all_skills_with_trust};
 use kiana_types::ProjectTrust;
 use std::sync::Arc;
 

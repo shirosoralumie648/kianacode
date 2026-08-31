@@ -62,13 +62,13 @@ mod integration_tests {
     #[test]
     fn test_state_validation() {
         let validator = AppStateValidator;
-        
+
         let result = validator.validate(&AppState::Normal);
         assert!(result.valid);
-        
+
         let result = validator.validate(&AppState::CommandPalette);
         assert!(result.valid);
-        
+
         let result = validator.validate(&AppState::Dialog(DialogKind::Blocking));
         assert!(result.valid);
     }
@@ -94,8 +94,9 @@ mod integration_tests {
             AppTransitions::open_help(),
         );
 
-        sm.transition(AppEvent::HelpRequested, &mut context).unwrap();
-        
+        sm.transition(AppEvent::HelpRequested, &mut context)
+            .unwrap();
+
         assert_eq!(sm.history().len(), 1);
         let log = &sm.history()[0];
         assert_eq!(log.from, AppState::Normal);
@@ -118,9 +119,10 @@ mod integration_tests {
         );
 
         // Go to help
-        sm.transition(AppEvent::HelpRequested, &mut context).unwrap();
+        sm.transition(AppEvent::HelpRequested, &mut context)
+            .unwrap();
         assert_eq!(sm.current_state(), &AppState::Help);
-        
+
         // Go back
         let result = sm.back();
         assert!(result.is_ok());
@@ -157,16 +159,17 @@ mod integration_tests {
         sm.transition(AppEvent::CommandPaletteRequested, &mut context)
             .unwrap();
         assert_eq!(sm.current_state(), &AppState::CommandPalette);
-        
+
         sm.back().unwrap();
-        
+
         sm.transition(AppEvent::ConfigEditRequested, &mut context)
             .unwrap();
         assert_eq!(sm.current_state(), &AppState::ConfigEditing);
-        
+
         sm.back().unwrap();
-        
-        sm.transition(AppEvent::HelpRequested, &mut context).unwrap();
+
+        sm.transition(AppEvent::HelpRequested, &mut context)
+            .unwrap();
         assert_eq!(sm.current_state(), &AppState::Help);
     }
 }

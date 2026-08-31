@@ -42,8 +42,22 @@ macro_rules! uuid_id {
 
 uuid_id!(RequestId);
 uuid_id!(RunId);
+uuid_id!(TurnId);
+uuid_id!(CellId);
 uuid_id!(EventId);
+uuid_id!(ExecutionId);
+uuid_id!(InvocationId);
 uuid_id!(ApprovalId);
+uuid_id!(ArtifactId);
+uuid_id!(ReceiptId);
+uuid_id!(OrganizationId);
+uuid_id!(ProjectId);
+uuid_id!(TemplateId);
+uuid_id!(SpawnPlanId);
+uuid_id!(BudgetLeaseId);
+uuid_id!(CapabilityGrantId);
+uuid_id!(SupervisionLeaseId);
+uuid_id!(DelegationId);
 
 impl RunId {
     pub fn parse_str(value: &str) -> Option<Self> {
@@ -72,6 +86,56 @@ impl SessionId {
 }
 
 impl fmt::Display for SessionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct WorkFingerprint(String);
+
+impl WorkFingerprint {
+    pub fn from_parts(
+        objective: &str,
+        input_refs: &[String],
+        partition: &str,
+        output_contract: &str,
+        policy_snapshot: &str,
+    ) -> Result<Self, &'static str> {
+        if objective.trim().is_empty()
+            || partition.trim().is_empty()
+            || output_contract.trim().is_empty()
+            || policy_snapshot.trim().is_empty()
+        {
+            return Err("work_fingerprint_input_required");
+        }
+        let mut inputs = input_refs
+            .iter()
+            .map(|input| input.trim())
+            .filter(|input| !input.is_empty())
+            .collect::<Vec<_>>();
+        inputs.sort_unstable();
+        let canonical = format!(
+            "objective={}\ninputs={}\npartition={}\noutput={}\npolicy={}",
+            objective.trim(),
+            inputs.join("\u{1f}"),
+            partition.trim(),
+            output_contract.trim(),
+            policy_snapshot.trim(),
+        );
+        Ok(Self(format!(
+            "fnv1a64:{:016x}",
+            fnv1a64(canonical.as_bytes())
+        )))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for WorkFingerprint {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(formatter)
     }
@@ -108,6 +172,8 @@ pub struct RequestContext {
     pub department_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work_packet_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_id: Option<CellId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path_allow: Vec<String>,
 }
@@ -124,6 +190,7 @@ impl RequestContext {
             role_id: default_role_id(),
             department_id: default_department_id(),
             work_packet_id: None,
+            cell_id: None,
             path_allow: Vec::new(),
         }
     }
@@ -164,10 +231,12 @@ pub const INITIATING_DECISION_PATH: &str = "charter/DECISION.json";
 pub const EXECUTING_DECISION_PATH: &str = "receipt/DECISION.json";
 pub const MONITORING_DECISION_PATH: &str = "gate/DECISION.json";
 pub const CLOSING_DECISION_PATH: &str = "lessons/DECISION.json";
+pub const CLOSING_RECEIPT_PATH: &str = "lessons/CLOSING.json";
 pub const WORK_PACKET_PATH: &str = "packet/TASK.json";
 pub const REVIEW_PACKET_SCHEMA: &str = "kiana.review-packet.v1";
 pub const REVIEW_RESULT_SCHEMA: &str = "kiana.review-result.v1";
 pub const REVIEW_PACKET_PATH: &str = "gate/REVIEW.json";
+pub const MERGE_RECEIPT_PATH: &str = "gate/MERGE.json";
 pub const MONITORING_PATH_GATE: &str = "gate";
 pub const MEMORY_LAYER_COMPANY: &str = "company";
 pub const MEMORY_LAYER_DEPARTMENT: &str = "department";
@@ -181,6 +250,17 @@ pub const MEMORY_COLLECTION_PLANNING_UNRELEASED: &str = "planning:unreleased-deb
 pub const MEMORY_SEARCH_SCHEMA: &str = "kiana.memory-search.v1";
 pub const MEMORY_WRITE_SCHEMA: &str = "kiana.memory-write.v1";
 pub const MEMORY_RECORD_SCHEMA: &str = "kiana.memory-record.v1";
+pub const AGENT_TEMPLATE_SCHEMA: &str = "kiana.agent-template.v1";
+pub const CELL_SCHEMA: &str = "kiana.cell.v1";
+pub const SPAWN_PLAN_SCHEMA: &str = "kiana.spawn-plan.v1";
+pub const BUDGET_LEASE_SCHEMA: &str = "kiana.budget-lease.v1";
+pub const CAPABILITY_GRANT_SCHEMA: &str = "kiana.capability-grant.v1";
+pub const SUPERVISION_LEASE_SCHEMA: &str = "kiana.supervision-lease.v1";
+pub const DELEGATION_PACKET_SCHEMA: &str = "kiana.delegation-packet.v1";
+pub const MERGE_RECEIPT_SCHEMA: &str = "kiana.merge-receipt.v1";
+pub const CLOSING_RECEIPT_SCHEMA: &str = "kiana.closing-receipt.v1";
+pub const SPAWN_RESULT_SCHEMA: &str = "kiana.spawn-result.v1";
+pub const RETIREMENT_RECORD_SCHEMA: &str = "kiana.retirement-record.v1";
 pub const MEMORY_LAYERS: [&str; 6] = [
     MEMORY_LAYER_COMPANY,
     MEMORY_LAYER_DEPARTMENT,
@@ -665,6 +745,28 @@ impl DepartmentSpec {
 pub struct WorkPacket {
     pub schema: String,
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<ProjectId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_packet_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_cell_id: Option<CellId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptor_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub data_scope: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acceptance_tests: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline_unix_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_lease_id: Option<BudgetLeaseId>,
+    #[serde(default, skip_serializing_if = "is_draft_status")]
+    pub status: WorkPacketStatus,
     #[serde(default = "default_from_department")]
     pub from_department: String,
     #[serde(default = "default_department_id")]
@@ -680,6 +782,10 @@ pub struct WorkPacket {
     pub forbidden: Vec<String>,
 }
 
+fn is_draft_status(status: &WorkPacketStatus) -> bool {
+    *status == WorkPacketStatus::Draft
+}
+
 fn default_from_department() -> String {
     DEPARTMENT_PLANNING.to_owned()
 }
@@ -689,6 +795,17 @@ impl WorkPacket {
         Self {
             schema: WORK_PACKET_SCHEMA.to_owned(),
             id: id.into(),
+            project_id: None,
+            parent_packet_id: None,
+            owner_cell_id: None,
+            acceptor_id: None,
+            inputs: Vec::new(),
+            dependencies: Vec::new(),
+            data_scope: Vec::new(),
+            acceptance_tests: Vec::new(),
+            deadline_unix_ms: None,
+            budget_lease_id: None,
+            status: WorkPacketStatus::Draft,
             from_department: default_from_department(),
             to_department: default_department_id(),
             assignee_role: default_role_id(),
@@ -704,6 +821,27 @@ impl WorkPacket {
         self
     }
 
+    pub fn with_acceptance_tests(
+        mut self,
+        tests: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.acceptance_tests = tests.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn with_dependencies(
+        mut self,
+        dependencies: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.dependencies = dependencies.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn transition_status(&mut self, next: WorkPacketStatus) -> Result<(), DomainError> {
+        self.status = self.status.transition(next)?;
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema.trim() != WORK_PACKET_SCHEMA {
             return Err("packet_invalid");
@@ -713,6 +851,9 @@ impl WorkPacket {
         }
         if self.goal.trim().is_empty() {
             return Err("packet_goal_required");
+        }
+        if self.status.is_terminal() {
+            return Err("packet_status_terminal");
         }
         let role = RoleSpec::lookup(&self.assignee_role).ok_or("packet_role_unknown")?;
         if role.role_id != ROLE_BUILDER {
@@ -739,10 +880,667 @@ impl WorkPacket {
             ),
             format!("Goal: {}", self.goal.trim()),
         ];
+        push_packet_list(&mut lines, "Inputs", &self.inputs);
+        push_packet_list(&mut lines, "Dependencies", &self.dependencies);
+        push_packet_list(&mut lines, "Data scope", &self.data_scope);
         push_packet_list(&mut lines, "Path allow", &self.path_allow);
+        push_packet_list(&mut lines, "Acceptance tests", &self.acceptance_tests);
         push_packet_list(&mut lines, "Acceptance", &self.acceptance);
         push_packet_list(&mut lines, "Forbidden", &self.forbidden);
         lines.join("\n")
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AgentTemplate {
+    pub schema: String,
+    pub template_id: TemplateId,
+    pub version: String,
+    pub role_id: String,
+    pub mission_schema: String,
+    pub input_schema: String,
+    pub output_schema: String,
+    pub default_capabilities: Vec<String>,
+    pub sandbox_profile: String,
+    pub estimated_cost: u64,
+    pub max_children: u32,
+    pub max_depth: u32,
+    pub ttl_seconds: u64,
+    pub heartbeat_interval_seconds: u64,
+    pub checkpoint_policy: String,
+    pub merge_strategy: String,
+    #[serde(default)]
+    pub delegation_allowed: bool,
+}
+
+impl AgentTemplate {
+    pub fn for_role(role: &RoleSpec, version: impl Into<String>) -> Self {
+        Self {
+            schema: AGENT_TEMPLATE_SCHEMA.to_owned(),
+            template_id: TemplateId::new(),
+            version: version.into(),
+            role_id: role.role_id.clone(),
+            mission_schema: "kiana.mission.v1".to_owned(),
+            input_schema: "kiana.input.v1".to_owned(),
+            output_schema: "kiana.output.v1".to_owned(),
+            default_capabilities: role.tools.clone(),
+            sandbox_profile: role.sandbox.clone(),
+            estimated_cost: u64::from(role.max_steps),
+            max_children: 0,
+            max_depth: 0,
+            ttl_seconds: 300,
+            heartbeat_interval_seconds: 15,
+            checkpoint_policy: "on_failure".to_owned(),
+            merge_strategy: "receipt_only".to_owned(),
+            delegation_allowed: false,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != AGENT_TEMPLATE_SCHEMA {
+            return Err("template_invalid");
+        }
+        if self.version.trim().is_empty() {
+            return Err("template_version_required");
+        }
+        if RoleSpec::lookup(&self.role_id).is_none() {
+            return Err("template_role_unknown");
+        }
+        if self.mission_schema.trim().is_empty()
+            || self.input_schema.trim().is_empty()
+            || self.output_schema.trim().is_empty()
+        {
+            return Err("template_schema_required");
+        }
+        if self.ttl_seconds == 0 || self.heartbeat_interval_seconds == 0 {
+            return Err("template_lifetime_invalid");
+        }
+        if self.heartbeat_interval_seconds > self.ttl_seconds {
+            return Err("template_heartbeat_exceeds_ttl");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BudgetLease {
+    pub schema: String,
+    pub lease_id: BudgetLeaseId,
+    pub max_tool_calls: u64,
+    pub max_tokens: u64,
+    pub max_wall_clock_ms: u64,
+    pub max_concurrency: u32,
+    pub max_effects: u32,
+    #[serde(default)]
+    pub max_reserved_budget: u64,
+    #[serde(default)]
+    pub reserved_budget: u64,
+    #[serde(default)]
+    pub tool_calls_used: u64,
+    #[serde(default)]
+    pub tokens_used: u64,
+    #[serde(default)]
+    pub effects_used: u32,
+}
+
+impl BudgetLease {
+    pub fn new(
+        max_tool_calls: u64,
+        max_tokens: u64,
+        max_wall_clock_ms: u64,
+        max_concurrency: u32,
+        max_effects: u32,
+    ) -> Self {
+        Self {
+            schema: BUDGET_LEASE_SCHEMA.to_owned(),
+            lease_id: BudgetLeaseId::new(),
+            max_tool_calls,
+            max_tokens,
+            max_wall_clock_ms,
+            max_concurrency,
+            max_effects,
+            max_reserved_budget: max_tool_calls,
+            reserved_budget: 0,
+            tool_calls_used: 0,
+            tokens_used: 0,
+            effects_used: 0,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != BUDGET_LEASE_SCHEMA {
+            return Err("budget_lease_invalid");
+        }
+        if self.max_tool_calls == 0
+            || self.max_tokens == 0
+            || self.max_wall_clock_ms == 0
+            || self.max_concurrency == 0
+        {
+            return Err("budget_lease_limit_required");
+        }
+        if self.tool_calls_used > self.max_tool_calls
+            || self.tokens_used > self.max_tokens
+            || self.effects_used > self.max_effects
+            || self.reserved_budget > self.reservation_limit()
+        {
+            return Err("budget_lease_exceeded");
+        }
+        Ok(())
+    }
+
+    fn reservation_limit(&self) -> u64 {
+        // Legacy JSON did not carry an admission limit. Treat zero as the
+        // backwards-compatible tool-call ceiling; newly-created leases pin it.
+        if self.max_reserved_budget == 0 {
+            self.max_tool_calls
+        } else {
+            self.max_reserved_budget
+        }
+    }
+
+    pub fn can_reserve(&self, amount: u64) -> bool {
+        amount
+            <= self
+                .reservation_limit()
+                .saturating_sub(self.reserved_budget)
+    }
+
+    pub fn reserve(&mut self, amount: u64) -> Result<(), &'static str> {
+        if !self.can_reserve(amount) {
+            return Err("spawn_budget_exceeded");
+        }
+        self.reserved_budget = self
+            .reserved_budget
+            .checked_add(amount)
+            .ok_or("spawn_budget_exceeded")?;
+        Ok(())
+    }
+
+    pub fn release(&mut self, amount: u64) -> Result<(), &'static str> {
+        if amount > self.reserved_budget {
+            return Err("spawn_budget_release_invalid");
+        }
+        self.reserved_budget -= amount;
+        Ok(())
+    }
+
+    pub fn can_consume(&self, tool_calls: u64, tokens: u64, effects: u32) -> bool {
+        tool_calls <= self.max_tool_calls.saturating_sub(self.tool_calls_used)
+            && tokens <= self.max_tokens.saturating_sub(self.tokens_used)
+            && effects <= self.max_effects.saturating_sub(self.effects_used)
+    }
+
+    pub fn consume(
+        &mut self,
+        tool_calls: u64,
+        tokens: u64,
+        effects: u32,
+    ) -> Result<(), &'static str> {
+        if !self.can_consume(tool_calls, tokens, effects) {
+            return Err("budget_lease_exceeded");
+        }
+        self.tool_calls_used = self
+            .tool_calls_used
+            .checked_add(tool_calls)
+            .ok_or("budget_lease_exceeded")?;
+        self.tokens_used = self
+            .tokens_used
+            .checked_add(tokens)
+            .ok_or("budget_lease_exceeded")?;
+        self.effects_used = self
+            .effects_used
+            .checked_add(effects)
+            .ok_or("budget_lease_exceeded")?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityGrant {
+    pub schema: String,
+    pub grant_id: CapabilityGrantId,
+    pub capability: CapabilityKind,
+    pub operation: String,
+    #[serde(default)]
+    pub resources: Vec<String>,
+    #[serde(default)]
+    pub paths: Vec<String>,
+    pub expires_at_unix_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_id: Option<ApprovalId>,
+    #[serde(default)]
+    pub delegation_allowed: bool,
+}
+
+impl CapabilityGrant {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != CAPABILITY_GRANT_SCHEMA {
+            return Err("capability_grant_invalid");
+        }
+        if self.operation.trim().is_empty() || self.expires_at_unix_ms == 0 {
+            return Err("capability_grant_scope_required");
+        }
+        if self
+            .paths
+            .iter()
+            .any(|path| normalize_role_path(path).is_none())
+        {
+            return Err("capability_grant_path_invalid");
+        }
+        Ok(())
+    }
+
+    pub fn contains(&self, child: &Self) -> bool {
+        self.capability == child.capability
+            && self.operation == child.operation
+            && child.expires_at_unix_ms <= self.expires_at_unix_ms
+            && (!child.delegation_allowed || self.delegation_allowed)
+            && child
+                .resources
+                .iter()
+                .all(|resource| self.resources.contains(resource))
+            && child
+                .paths
+                .iter()
+                .all(|path| allow_list_covers(&self.paths, path))
+    }
+
+    pub fn allows_request(&self, request: &CapabilityRequest) -> bool {
+        let exact_scope = self.capability == request.capability && self.operation == request.operation;
+        let coding_scope = matches!(&self.capability, CapabilityKind::Other(scope) if scope == "coding")
+            && self.operation == "builder.packet"
+            && matches!(
+                request.operation.as_str(),
+                "shell.exec" | "apply_patch" | "mcp.call" | "memory.search" | "memory.write"
+            );
+        if !exact_scope && !coding_scope {
+            return false;
+        }
+        let paths = capability_request_paths(request);
+        paths.is_empty() || paths.iter().all(|path| allow_list_covers(&self.paths, path))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SupervisionLease {
+    pub schema: String,
+    pub lease_id: SupervisionLeaseId,
+    pub heartbeat_interval_seconds: u64,
+    pub stall_threshold_seconds: u64,
+    pub retry_limit: u32,
+    #[serde(default)]
+    pub retries_used: u32,
+}
+
+impl SupervisionLease {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != SUPERVISION_LEASE_SCHEMA {
+            return Err("supervision_lease_invalid");
+        }
+        if self.heartbeat_interval_seconds == 0
+            || self.stall_threshold_seconds < self.heartbeat_interval_seconds
+        {
+            return Err("supervision_lease_interval_invalid");
+        }
+        if self.retries_used > self.retry_limit {
+            return Err("supervision_lease_retries_exceeded");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CellSpec {
+    pub schema: String,
+    pub cell_id: CellId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_cell_id: Option<CellId>,
+    pub root_run_id: RunId,
+    pub template_id: TemplateId,
+    pub template_version: String,
+    pub role_id: String,
+    pub objective: String,
+    #[serde(default)]
+    pub input_refs: Vec<String>,
+    pub output_contract: String,
+    pub partition_key: String,
+    #[serde(default)]
+    pub owned_paths: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_packet_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_actor_id: Option<String>,
+    pub capability_grant_id: CapabilityGrantId,
+    pub budget_lease_id: BudgetLeaseId,
+    pub supervision_lease_id: SupervisionLeaseId,
+    pub depth: u32,
+    pub spawn_quota: u32,
+    #[serde(default)]
+    pub lifecycle: CellLifecycle,
+}
+
+impl CellSpec {
+    pub fn validate(&self, template: &AgentTemplate) -> Result<(), &'static str> {
+        if self.schema.trim() != CELL_SCHEMA {
+            return Err("cell_invalid");
+        }
+        template.validate()?;
+        if self.template_id != template.template_id
+            || self.template_version != template.version
+            || self.role_id != template.role_id
+        {
+            return Err("cell_template_mismatch");
+        }
+        if self.objective.trim().is_empty() || self.output_contract.trim().is_empty() {
+            return Err("cell_contract_required");
+        }
+        if self.depth > template.max_depth {
+            return Err("cell_depth_exceeded");
+        }
+        if self
+            .owned_paths
+            .iter()
+            .any(|path| normalize_role_path(path).is_none())
+        {
+            return Err("cell_path_invalid");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SpawnPlan {
+    pub schema: String,
+    pub plan_id: SpawnPlanId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_cell_id: Option<CellId>,
+    pub reason_code: String,
+    pub candidate_templates: Vec<TemplateId>,
+    pub count: u32,
+    pub partition: String,
+    #[serde(default)]
+    pub input_refs: Vec<String>,
+    pub output_contract: String,
+    #[serde(default)]
+    pub requested_capabilities: Vec<String>,
+    pub budget_reservation: u64,
+    pub deadline_unix_ms: u64,
+    pub rollback_policy: String,
+    pub idempotency_key: String,
+    pub expected_utility: i64,
+    #[serde(default)]
+    pub status: SpawnPlanStatus,
+}
+
+impl SpawnPlan {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != SPAWN_PLAN_SCHEMA {
+            return Err("spawn_plan_invalid");
+        }
+        if self.count == 0 || self.candidate_templates.is_empty() {
+            return Err("spawn_plan_count_invalid");
+        }
+        if self.reason_code.trim().is_empty()
+            || self.output_contract.trim().is_empty()
+            || self.idempotency_key.trim().is_empty()
+        {
+            return Err("spawn_plan_contract_required");
+        }
+        if self.deadline_unix_ms == 0 {
+            return Err("spawn_plan_deadline_required");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpawnPlanStatus {
+    Proposed,
+    Validated,
+    Reserved,
+    Committed,
+    RolledBack,
+    Rejected,
+}
+
+impl SpawnPlanStatus {
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Proposed, Self::Validated | Self::Rejected)
+                | (Self::Validated, Self::Reserved | Self::Rejected)
+                | (
+                    Self::Reserved,
+                    Self::Committed | Self::RolledBack | Self::Rejected
+                )
+                | (Self::Committed, Self::RolledBack)
+        )
+    }
+
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "spawn_plan",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Validated => "validated",
+            Self::Reserved => "reserved",
+            Self::Committed => "committed",
+            Self::RolledBack => "rolled_back",
+            Self::Rejected => "rejected",
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::RolledBack | Self::Rejected)
+    }
+}
+
+impl Default for SpawnPlanStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SpawnReceipt {
+    pub schema: String,
+    pub plan_id: SpawnPlanId,
+    pub cell_id: CellId,
+    pub root_run_id: RunId,
+    pub work_packet_id: String,
+    pub fingerprint: WorkFingerprint,
+    pub lifecycle: CellLifecycle,
+    pub replayed: bool,
+}
+
+impl SpawnReceipt {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != SPAWN_RESULT_SCHEMA {
+            return Err("spawn_receipt_invalid");
+        }
+        if self.work_packet_id.trim().is_empty() || self.fingerprint.as_str().trim().is_empty() {
+            return Err("spawn_receipt_contract_required");
+        }
+        if self.lifecycle == CellLifecycle::Proposed {
+            return Err("spawn_receipt_lifecycle_invalid");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RetirementRecord {
+    pub schema: String,
+    pub cell_id: CellId,
+    pub grant_id: CapabilityGrantId,
+    pub budget_lease_id: BudgetLeaseId,
+    pub supervision_lease_id: SupervisionLeaseId,
+    #[serde(default)]
+    pub released_paths: Vec<String>,
+    pub reason: String,
+    pub retired_at_unix_ms: u64,
+}
+
+impl RetirementRecord {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != RETIREMENT_RECORD_SCHEMA {
+            return Err("retirement_record_invalid");
+        }
+        if self.reason.trim().is_empty() || self.retired_at_unix_ms == 0 {
+            return Err("retirement_record_contract_required");
+        }
+        if self
+            .released_paths
+            .iter()
+            .any(|path| normalize_role_path(path).is_none())
+        {
+            return Err("retirement_record_path_invalid");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DelegationPacket {
+    pub schema: String,
+    pub delegation_id: DelegationId,
+    pub parent_cell_id: CellId,
+    pub child_cell_id: CellId,
+    pub source_packet_id: String,
+    #[serde(default)]
+    pub capability_scopes: Vec<String>,
+    #[serde(default)]
+    pub path_scopes: Vec<String>,
+    pub budget_lease_id: BudgetLeaseId,
+    pub capability_grant_id: CapabilityGrantId,
+    pub supervision_lease_id: SupervisionLeaseId,
+    pub expires_at_unix_ms: u64,
+    #[serde(default)]
+    pub delegation_allowed: bool,
+}
+
+impl DelegationPacket {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != DELEGATION_PACKET_SCHEMA {
+            return Err("delegation_packet_invalid");
+        }
+        if self.parent_cell_id == self.child_cell_id {
+            return Err("delegation_packet_self_parent");
+        }
+        if self.source_packet_id.trim().is_empty() || self.expires_at_unix_ms == 0 {
+            return Err("delegation_packet_contract_required");
+        }
+        if self
+            .path_scopes
+            .iter()
+            .any(|path| normalize_role_path(path).is_none())
+        {
+            return Err("delegation_packet_path_invalid");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MergeReceipt {
+    pub schema: String,
+    pub receipt_id: ReceiptId,
+    pub author_run_id: RunId,
+    pub author_session_id: SessionId,
+    pub reviewer_session_id: SessionId,
+    pub reviewer_verdict: String,
+    #[serde(default)]
+    pub files: Vec<String>,
+    pub accepted: bool,
+    #[serde(default)]
+    pub provenance: Vec<String>,
+}
+
+impl MergeReceipt {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != MERGE_RECEIPT_SCHEMA {
+            return Err("merge_receipt_invalid");
+        }
+        if self.author_session_id.is_empty() || self.reviewer_session_id.is_empty() {
+            return Err("merge_receipt_identity_required");
+        }
+        if self.author_session_id == self.reviewer_session_id {
+            return Err("merge_receipt_reviewer_author_same");
+        }
+        if self.reviewer_verdict != "pass" || !self.accepted {
+            return Err("merge_receipt_not_accepted");
+        }
+        if self
+            .files
+            .iter()
+            .any(|path| normalize_role_path(path).is_none())
+        {
+            return Err("merge_receipt_path_invalid");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ClosingReceipt {
+    pub schema: String,
+    pub receipt_id: ReceiptId,
+    pub project_id: Option<ProjectId>,
+    pub author_run_id: RunId,
+    pub author_session_id: SessionId,
+    pub reviewer_session_id: SessionId,
+    pub closer_session_id: SessionId,
+    pub review_id: String,
+    pub verdict: String,
+    pub accepted: bool,
+    #[serde(default)]
+    pub files_verified: Vec<String>,
+    #[serde(default)]
+    pub exceptions: Vec<String>,
+    pub lessons_path: String,
+}
+
+impl ClosingReceipt {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema.trim() != CLOSING_RECEIPT_SCHEMA {
+            return Err("closing_receipt_invalid");
+        }
+        if self.author_session_id.is_empty()
+            || self.reviewer_session_id.is_empty()
+            || self.closer_session_id.is_empty()
+        {
+            return Err("closing_receipt_identity_required");
+        }
+        if self.closer_session_id == self.author_session_id
+            || self.closer_session_id == self.reviewer_session_id
+        {
+            return Err("closing_receipt_role_separation_failed");
+        }
+        if self.review_id.trim().is_empty() || self.lessons_path.trim() != "lessons/LEARNED.md" {
+            return Err("closing_receipt_provenance_required");
+        }
+        if self.verdict != "pass" || !self.accepted {
+            return Err("closing_receipt_not_accepted");
+        }
+        if self
+            .files_verified
+            .iter()
+            .any(|path| normalize_role_path(path).is_none())
+        {
+            return Err("closing_receipt_path_invalid");
+        }
+        Ok(())
     }
 }
 
@@ -1183,6 +1981,9 @@ pub fn normalize_role_path(path: &str) -> Option<String> {
     if Path::new(&path).is_absolute() {
         return None;
     }
+    if path == "." {
+        return Some(".".to_owned());
+    }
     let mut parts = Vec::new();
     for component in Path::new(&path).components() {
         match component {
@@ -1258,6 +2059,12 @@ pub struct CapabilityRequest {
     pub operation: String,
     pub arguments: Value,
     pub risk: RiskLevel,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_id: Option<CellId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capability_grant_id: Option<CapabilityGrantId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_lease_id: Option<BudgetLeaseId>,
 }
 
 impl CapabilityRequest {
@@ -1273,6 +2080,9 @@ impl CapabilityRequest {
             operation: operation.into(),
             arguments,
             risk: RiskLevel::ReadOnly,
+            cell_id: None,
+            capability_grant_id: None,
+            budget_lease_id: None,
         }
     }
 
@@ -1280,6 +2090,37 @@ impl CapabilityRequest {
         self.risk = risk;
         self
     }
+}
+
+fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
+    let mut paths = Vec::new();
+    if let Some(path) = request
+        .arguments
+        .get("path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+    {
+        paths.push(path.to_owned());
+    }
+    if let Some(patch) = request.arguments.get("patch").and_then(Value::as_str) {
+        for line in patch.lines() {
+            let line = line.trim();
+            for prefix in [
+                "*** Add File:",
+                "*** Update File:",
+                "*** Delete File:",
+                "*** Move to:",
+            ] {
+                if let Some(path) = line.strip_prefix(prefix).map(str::trim) {
+                    if !path.is_empty() {
+                        paths.push(path.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    paths
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1297,12 +2138,29 @@ pub struct ApprovalChallenge {
     pub request_hash: String,
     pub expires_at_unix_ms: u64,
     pub reason: String,
+    #[serde(default)]
+    pub nonce: String,
+    #[serde(default)]
+    pub policy_version: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PendingApproval {
     pub challenge: ApprovalChallenge,
     pub request: CapabilityRequest,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingInvocation {
+    pub approval_id: ApprovalId,
+    pub challenge: ApprovalChallenge,
+    pub request_id: RequestId,
+    pub event_request_id: RequestId,
+    pub event_sequence: u64,
+    pub run_id: RunId,
+    pub request: CapabilityRequest,
+    pub context: RequestContext,
+    pub sandbox: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1373,6 +2231,328 @@ pub enum GateDecision {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum ApprovalState {
+    Staged,
+    Active,
+    Approved,
+    Denied,
+    Expired,
+    Cancelled,
+    Consumed,
+}
+
+impl ApprovalState {
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Staged, Self::Active)
+                | (Self::Active, Self::Approved)
+                | (Self::Active, Self::Denied)
+                | (Self::Active, Self::Expired)
+                | (Self::Active, Self::Cancelled)
+                | (Self::Approved, Self::Consumed)
+        )
+    }
+
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "approval",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Staged => "staged",
+            Self::Active => "active",
+            Self::Approved => "approved",
+            Self::Denied => "denied",
+            Self::Expired => "expired",
+            Self::Cancelled => "cancelled",
+            Self::Consumed => "consumed",
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Denied | Self::Expired | Self::Cancelled | Self::Consumed
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityExecutionState {
+    Requested,
+    PolicyChecked,
+    AwaitingApproval,
+    Authorized,
+    Denied,
+    Dispatching,
+    Executing,
+    Succeeded,
+    Failed,
+    Cancelled,
+    Unknown,
+}
+
+impl CapabilityExecutionState {
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Requested, Self::PolicyChecked)
+                | (Self::PolicyChecked, Self::AwaitingApproval)
+                | (Self::PolicyChecked, Self::Authorized)
+                | (Self::PolicyChecked, Self::Denied)
+                | (Self::Authorized, Self::Dispatching)
+                | (Self::Dispatching, Self::Executing)
+                | (Self::Executing, Self::Succeeded)
+                | (Self::Executing, Self::Failed)
+                | (Self::Executing, Self::Cancelled)
+                | (Self::Executing, Self::Unknown)
+                | (Self::AwaitingApproval, Self::Authorized)
+                | (Self::AwaitingApproval, Self::Denied)
+                | (Self::AwaitingApproval, Self::Cancelled)
+                | (Self::AwaitingApproval, Self::Unknown)
+        )
+    }
+
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "capability_execution",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Requested => "requested",
+            Self::PolicyChecked => "policy_checked",
+            Self::AwaitingApproval => "awaiting_approval",
+            Self::Authorized => "authorized",
+            Self::Denied => "denied",
+            Self::Dispatching => "dispatching",
+            Self::Executing => "executing",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Denied | Self::Succeeded | Self::Failed | Self::Cancelled | Self::Unknown
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkPacketStatus {
+    Draft,
+    Approved,
+    Assigned,
+    Running,
+    Blocked,
+    AwaitingApproval,
+    Succeeded,
+    Reviewed,
+    Closed,
+    Failed,
+    Cancelled,
+}
+
+impl WorkPacketStatus {
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Draft, Self::Approved)
+                | (Self::Approved, Self::Assigned)
+                | (Self::Assigned, Self::Running)
+                | (Self::Running, Self::Blocked)
+                | (Self::Running, Self::AwaitingApproval)
+                | (Self::Running, Self::Succeeded)
+                | (Self::Running, Self::Failed)
+                | (Self::Running, Self::Cancelled)
+                | (Self::Blocked, Self::Running)
+                | (Self::AwaitingApproval, Self::Running)
+                | (Self::Succeeded, Self::Reviewed)
+                | (Self::Reviewed, Self::Closed)
+        )
+    }
+
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "work_packet",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Approved => "approved",
+            Self::Assigned => "assigned",
+            Self::Running => "running",
+            Self::Blocked => "blocked",
+            Self::AwaitingApproval => "awaiting_approval",
+            Self::Succeeded => "succeeded",
+            Self::Reviewed => "reviewed",
+            Self::Closed => "closed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::Closed | Self::Failed | Self::Cancelled)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CellLifecycle {
+    Proposed,
+    Validated,
+    Spawning,
+    Ready,
+    Running,
+    WaitingInput,
+    Blocked,
+    Checkpointing,
+    ReadyToMerge,
+    Merging,
+    Succeeded,
+    Retiring,
+    Retired,
+    CancelRequested,
+    Cancelled,
+    Stalled,
+    Retrying,
+    Failed,
+    Quarantined,
+}
+
+impl CellLifecycle {
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Proposed, Self::Validated)
+                | (Self::Validated, Self::Spawning)
+                | (Self::Spawning, Self::Ready)
+                | (Self::Ready, Self::Running)
+                | (Self::Running, Self::WaitingInput)
+                | (Self::Running, Self::Blocked)
+                | (Self::Running, Self::Checkpointing)
+                | (Self::Running, Self::ReadyToMerge)
+                | (Self::Running, Self::CancelRequested)
+                | (Self::Running, Self::Stalled)
+                | (Self::Running, Self::Failed)
+                | (Self::Running, Self::Quarantined)
+                | (Self::WaitingInput, Self::Running)
+                | (Self::Blocked, Self::Running)
+                | (Self::Checkpointing, Self::Running)
+                | (Self::Checkpointing, Self::ReadyToMerge)
+                | (Self::ReadyToMerge, Self::Merging)
+                | (Self::ReadyToMerge, Self::Retiring)
+                | (Self::Merging, Self::Succeeded)
+                | (Self::Succeeded, Self::Retiring)
+                | (Self::Retiring, Self::Retired)
+                | (Self::Stalled, Self::Retrying)
+                | (Self::Retrying, Self::Running)
+                | (Self::Retrying, Self::Failed)
+                | (Self::Failed, Self::Quarantined)
+                | (Self::CancelRequested, Self::Cancelled)
+                | (Self::Cancelled, Self::Retiring)
+                | (Self::Quarantined, Self::Retiring)
+        )
+    }
+
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "cell",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Validated => "validated",
+            Self::Spawning => "spawning",
+            Self::Ready => "ready",
+            Self::Running => "running",
+            Self::WaitingInput => "waiting_input",
+            Self::Blocked => "blocked",
+            Self::Checkpointing => "checkpointing",
+            Self::ReadyToMerge => "ready_to_merge",
+            Self::Merging => "merging",
+            Self::Succeeded => "succeeded",
+            Self::Retiring => "retiring",
+            Self::Retired => "retired",
+            Self::CancelRequested => "cancel_requested",
+            Self::Cancelled => "cancelled",
+            Self::Stalled => "stalled",
+            Self::Retrying => "retrying",
+            Self::Failed => "failed",
+            Self::Quarantined => "quarantined",
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::Retired | Self::Cancelled | Self::Quarantined)
+    }
+}
+
+impl Default for ApprovalState {
+    fn default() -> Self {
+        Self::Staged
+    }
+}
+
+impl Default for CapabilityExecutionState {
+    fn default() -> Self {
+        Self::Requested
+    }
+}
+
+impl Default for WorkPacketStatus {
+    fn default() -> Self {
+        Self::Draft
+    }
+}
+
+impl Default for CellLifecycle {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ExecutionStatus {
     Accepted,
     Denied,
@@ -1380,8 +2560,71 @@ pub enum ExecutionStatus {
     Running,
     Completed,
     Failed,
+    Cancelled,
     ResultUnknown,
     Blocked,
+}
+
+impl ExecutionStatus {
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Accepted, Self::Running)
+                | (Self::Accepted, Self::AwaitingApproval)
+                | (Self::Accepted, Self::Denied)
+                | (Self::Accepted, Self::Blocked)
+                | (Self::Running, Self::AwaitingApproval)
+                | (Self::Running, Self::Completed)
+                | (Self::Running, Self::Failed)
+                | (Self::Running, Self::Cancelled)
+                | (Self::Running, Self::ResultUnknown)
+                | (Self::Running, Self::Blocked)
+                | (Self::AwaitingApproval, Self::Running)
+                | (Self::AwaitingApproval, Self::Denied)
+                | (Self::AwaitingApproval, Self::Failed)
+                | (Self::AwaitingApproval, Self::Cancelled)
+                | (Self::AwaitingApproval, Self::ResultUnknown)
+                | (Self::AwaitingApproval, Self::Blocked)
+        )
+    }
+
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if self.can_transition_to(next) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "execution",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Denied => "denied",
+            Self::AwaitingApproval => "awaiting_approval",
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+            Self::ResultUnknown => "result_unknown",
+            Self::Blocked => "blocked",
+        }
+    }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Denied
+                | Self::Completed
+                | Self::Failed
+                | Self::Cancelled
+                | Self::ResultUnknown
+                | Self::Blocked
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1391,6 +2634,14 @@ pub struct RuntimeEvent {
     pub sequence: u64,
     pub kind: String,
     pub data: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aggregate_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aggregate_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_version: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
 }
 
 impl RuntimeEvent {
@@ -1409,7 +2660,28 @@ impl RuntimeEvent {
             sequence,
             kind: kind.into(),
             data,
+            aggregate_type: None,
+            aggregate_id: None,
+            stream_version: None,
+            idempotency_key: None,
         })
+    }
+
+    pub fn with_stream_metadata(
+        mut self,
+        aggregate_type: impl Into<String>,
+        aggregate_id: impl Into<String>,
+        stream_version: u64,
+    ) -> Self {
+        self.aggregate_type = Some(aggregate_type.into());
+        self.aggregate_id = Some(aggregate_id.into());
+        self.stream_version = Some(stream_version);
+        self
+    }
+
+    pub fn with_idempotency_key(mut self, idempotency_key: impl Into<String>) -> Self {
+        self.idempotency_key = Some(idempotency_key.into());
+        self
     }
 }
 
@@ -1448,11 +2720,190 @@ pub enum DomainError {
     EmptyAuthorizationId,
     #[error("event_sequence_must_be_positive")]
     InvalidEventSequence,
+    #[error("{aggregate}_invalid_state_transition:{from}->{to}")]
+    InvalidStateTransition {
+        aggregate: &'static str,
+        from: &'static str,
+        to: &'static str,
+    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn approval_state_machine_is_single_use_and_terminal() {
+        assert_eq!(
+            ApprovalState::Staged
+                .transition(ApprovalState::Active)
+                .unwrap(),
+            ApprovalState::Active
+        );
+        assert_eq!(
+            ApprovalState::Active
+                .transition(ApprovalState::Approved)
+                .unwrap()
+                .transition(ApprovalState::Consumed)
+                .unwrap(),
+            ApprovalState::Consumed
+        );
+        assert!(ApprovalState::Consumed.is_terminal());
+        assert_eq!(
+            ApprovalState::Consumed
+                .transition(ApprovalState::Active)
+                .unwrap_err(),
+            DomainError::InvalidStateTransition {
+                aggregate: "approval",
+                from: "consumed",
+                to: "active",
+            }
+        );
+    }
+
+    #[test]
+    fn capability_execution_cannot_skip_authorization_or_recover_unknown() {
+        assert!(!CapabilityExecutionState::Requested
+            .can_transition_to(CapabilityExecutionState::Executing));
+        assert!(CapabilityExecutionState::PolicyChecked
+            .can_transition_to(CapabilityExecutionState::AwaitingApproval));
+        assert!(CapabilityExecutionState::Executing
+            .can_transition_to(CapabilityExecutionState::Unknown));
+        assert!(CapabilityExecutionState::Unknown.is_terminal());
+        assert!(!CapabilityExecutionState::Unknown
+            .can_transition_to(CapabilityExecutionState::Succeeded));
+    }
+
+    #[test]
+    fn cancelled_execution_is_terminal_and_serializes_distinctly() {
+        assert!(ExecutionStatus::Running.can_transition_to(ExecutionStatus::Cancelled));
+        assert!(ExecutionStatus::AwaitingApproval.can_transition_to(ExecutionStatus::Cancelled));
+        assert!(ExecutionStatus::Cancelled.is_terminal());
+        assert!(!ExecutionStatus::Cancelled.can_transition_to(ExecutionStatus::Running));
+        let encoded = serde_json::to_string(&ExecutionStatus::Cancelled).unwrap();
+        assert_eq!(encoded, "\"cancelled\"");
+        assert_eq!(ExecutionStatus::Cancelled.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn work_packet_and_cell_terminals_cannot_return_to_running() {
+        assert!(WorkPacketStatus::Closed.is_terminal());
+        assert!(!WorkPacketStatus::Closed.can_transition_to(WorkPacketStatus::Running));
+        assert!(WorkPacketStatus::Blocked.can_transition_to(WorkPacketStatus::Running));
+        assert!(WorkPacketStatus::AwaitingApproval.can_transition_to(WorkPacketStatus::Running));
+        assert!(CellLifecycle::Retired.is_terminal());
+        assert!(!CellLifecycle::Retired.can_transition_to(CellLifecycle::Running));
+        assert!(!CellLifecycle::Failed.is_terminal());
+        assert!(CellLifecycle::CancelRequested.can_transition_to(CellLifecycle::Cancelled));
+    }
+
+    #[test]
+    fn stable_ids_are_distinct_serializable_contract_types() {
+        let turn = TurnId::new();
+        let cell = CellId::new();
+        assert_ne!(turn.to_string(), cell.to_string());
+        let encoded = serde_json::to_string(&turn).unwrap();
+        assert_eq!(serde_json::from_str::<TurnId>(&encoded).unwrap(), turn);
+    }
+
+    #[test]
+    fn company_os_contracts_validate_and_child_grants_only_shrink() {
+        let role = RoleSpec::builder();
+        let template = AgentTemplate::for_role(&role, "1.0.0");
+        assert!(template.validate().is_ok());
+
+        let mut parent = CapabilityGrant {
+            schema: CAPABILITY_GRANT_SCHEMA.to_owned(),
+            grant_id: CapabilityGrantId::new(),
+            capability: CapabilityKind::Filesystem,
+            operation: "apply_patch".to_owned(),
+            resources: vec!["workspace".to_owned()],
+            paths: vec!["src".to_owned()],
+            expires_at_unix_ms: 200,
+            approval_id: None,
+            delegation_allowed: true,
+        };
+        let child = CapabilityGrant {
+            schema: CAPABILITY_GRANT_SCHEMA.to_owned(),
+            grant_id: CapabilityGrantId::new(),
+            capability: CapabilityKind::Filesystem,
+            operation: "apply_patch".to_owned(),
+            resources: vec!["workspace".to_owned()],
+            paths: vec!["src/lib.rs".to_owned()],
+            expires_at_unix_ms: 100,
+            approval_id: None,
+            delegation_allowed: false,
+        };
+        assert!(parent.validate().is_ok());
+        assert!(child.validate().is_ok());
+        assert!(parent.contains(&child));
+        parent.delegation_allowed = false;
+        let mut delegated_child = child.clone();
+        delegated_child.delegation_allowed = true;
+        assert!(!parent.contains(&delegated_child));
+    }
+
+    #[test]
+    fn budget_lease_rejects_overconsumption_without_mutating_usage() {
+        let lease = BudgetLease::new(2, 100, 1_000, 1, 1);
+        assert!(lease.can_consume(2, 100, 1));
+        assert!(!lease.can_consume(3, 100, 1));
+        assert_eq!(lease.tool_calls_used, 0);
+        assert_eq!(lease.effects_used, 0);
+    }
+
+    #[test]
+    fn work_packet_legacy_json_defaults_to_draft_and_round_trips_new_fields() {
+        let packet: WorkPacket = serde_json::from_value(serde_json::json!({
+            "schema": WORK_PACKET_SCHEMA,
+            "id": "wp-1",
+            "goal": "ship a change"
+        }))
+        .unwrap();
+        assert_eq!(packet.status, WorkPacketStatus::Draft);
+        assert!(packet.project_id.is_none());
+
+        let mut packet = packet;
+        packet.project_id = Some(ProjectId::new());
+        packet.acceptance_tests = vec!["cargo test".to_owned()];
+        packet
+            .transition_status(WorkPacketStatus::Approved)
+            .unwrap();
+        let encoded = serde_json::to_value(&packet).unwrap();
+        assert_eq!(encoded["status"], "approved");
+        assert_eq!(encoded["acceptance_tests"][0], "cargo test");
+
+        packet.status = WorkPacketStatus::Closed;
+        assert_eq!(packet.validate(), Err("packet_status_terminal"));
+    }
+
+    #[test]
+    fn runtime_event_supports_optional_company_os_stream_metadata() {
+        let request_id = RequestId::new();
+        let event = RuntimeEvent::new(request_id, 2, "run.completed", Value::Null)
+            .unwrap()
+            .with_stream_metadata("request", request_id.to_string(), 2)
+            .with_idempotency_key("run-2-completed");
+
+        assert_eq!(event.aggregate_type.as_deref(), Some("request"));
+        assert_eq!(
+            event.aggregate_id.as_deref().unwrap(),
+            request_id.to_string()
+        );
+        assert_eq!(event.stream_version, Some(2));
+        assert_eq!(event.idempotency_key.as_deref(), Some("run-2-completed"));
+
+        let legacy: RuntimeEvent = serde_json::from_value(serde_json::json!({
+            "event_id": event.event_id,
+            "request_id": request_id,
+            "sequence": 1,
+            "kind": "run.accepted",
+            "data": null
+        }))
+        .unwrap();
+        assert!(legacy.aggregate_type.is_none());
+        assert!(legacy.idempotency_key.is_none());
+    }
 
     #[test]
     fn request_context_defaults_to_untrusted() {

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
-use kiana_daemon::DaemonHost;
+use kiana_daemon::{DaemonHost, ProjectTrustAuthority};
 use kiana_protocol::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, RequestEnvelope,
     RequestMetadata, ResponseEnvelope,
@@ -22,6 +22,30 @@ impl ClientTransport for InProcessTransport {
     }
 }
 
+#[derive(Clone, Copy)]
+struct FixedProjectTrustAuthority {
+    trusted: bool,
+}
+
+impl ProjectTrustAuthority for FixedProjectTrustAuthority {
+    fn project_trusted(&self, _project_root: &Path) -> Result<bool, String> {
+        Ok(self.trusted)
+    }
+}
+
+fn local_host_with_trust(trusted: bool) -> DaemonHost {
+    DaemonHost::local_with_project_authority(Arc::new(FixedProjectTrustAuthority { trusted }))
+        .unwrap()
+}
+
+fn trusted_local_host() -> DaemonHost {
+    local_host_with_trust(true)
+}
+
+fn untrusted_local_host() -> DaemonHost {
+    local_host_with_trust(false)
+}
+
 fn trusted_metadata() -> RequestMetadata {
     let mut metadata = RequestMetadata::local("session-1", "/repo");
     metadata.project_trusted = true;
@@ -30,7 +54,7 @@ fn trusted_metadata() -> RequestMetadata {
 
 #[tokio::test]
 async fn in_process_client_reaches_core_through_daemon() {
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let response = client
         .command(trusted_metadata(), "system.architecture", Value::Null)
@@ -45,7 +69,7 @@ async fn in_process_client_reaches_core_through_daemon() {
 
 #[tokio::test]
 async fn unknown_and_untrusted_commands_are_blocked() {
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let unknown = client
         .command(trusted_metadata(), "unknown.command", Value::Null)
@@ -54,7 +78,11 @@ async fn unknown_and_untrusted_commands_are_blocked() {
     assert_eq!(unknown.status, ExecutionStatus::Blocked);
     assert_eq!(unknown.error.as_deref(), Some("command_unregistered"));
 
-    let untrusted = client
+    let untrusted_host = Arc::new(untrusted_local_host());
+    let untrusted_client = KianaClient::new(InProcessTransport {
+        host: untrusted_host,
+    });
+    let untrusted = untrusted_client
         .command(
             RequestMetadata::local("session-2", "/repo"),
             "system.architecture",
@@ -65,7 +93,7 @@ async fn unknown_and_untrusted_commands_are_blocked() {
     assert_eq!(untrusted.status, ExecutionStatus::Blocked);
     assert_eq!(untrusted.error.as_deref(), Some("project_untrusted"));
 
-    let untrusted_query = client
+    let untrusted_query = untrusted_client
         .command(
             RequestMetadata::local("session-3", "/repo"),
             "context.query.v1",
@@ -83,7 +111,7 @@ async fn unknown_and_untrusted_commands_are_blocked() {
 
 #[tokio::test]
 async fn malformed_envelope_is_rejected_before_core() {
-    let host = DaemonHost::local().unwrap();
+    let host = trusted_local_host();
     let valid = RequestEnvelope::command(trusted_metadata(), "system.architecture", Value::Null);
     let mut invalid = valid.clone();
     invalid.schema = "kiana.protocol.v0".to_owned();
@@ -100,14 +128,16 @@ async fn malformed_envelope_is_rejected_before_core() {
 
 #[tokio::test]
 async fn approval_decision_without_a_daemon_challenge_is_blocked() {
-    let host = DaemonHost::local().unwrap();
+    let host = trusted_local_host();
     let mut metadata = trusted_metadata();
     metadata.request_id = kiana_protocol::RequestId::new();
     let response = host
-        .handle(RequestEnvelope::approval_decision(
+        .handle(RequestEnvelope::approval_decision_with_proof(
             metadata,
             ApprovalId::new(),
             ApprovalDecision::Approve,
+            Some("sha256:missing".to_owned()),
+            Some("missing".to_owned()),
         ))
         .await;
     assert_eq!(response.status, ExecutionStatus::Blocked);
@@ -116,6 +146,20 @@ async fn approval_decision_without_a_daemon_challenge_is_blocked() {
         .as_deref()
         .unwrap_or_default()
         .contains("approval_not_found"));
+}
+
+#[tokio::test]
+async fn proofless_wire_approval_is_rejected_before_store_lookup() {
+    let host = trusted_local_host();
+    let response = host
+        .handle(RequestEnvelope::approval_decision(
+            trusted_metadata(),
+            ApprovalId::new(),
+            ApprovalDecision::Approve,
+        ))
+        .await;
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert_eq!(response.error.as_deref(), Some("approval_proof_required"));
 }
 
 #[tokio::test]
@@ -131,7 +175,7 @@ async fn repo_map_reaches_query_handler_and_uses_metadata_project_root() {
     .unwrap();
     fs::write(forged.join("secret.txt"), "must not be scanned\n").unwrap();
 
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let mut metadata = RequestMetadata::local("session-query", root.to_string_lossy());
     metadata.project_trusted = true;
@@ -168,7 +212,7 @@ async fn repo_map_reaches_query_handler_and_uses_metadata_project_root() {
 
 #[tokio::test]
 async fn malformed_repo_map_intent_is_blocked_before_the_handler() {
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let response = client
         .command(
@@ -302,7 +346,7 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
     fs::write(root.join("tests/lib_test.rs"), "use kiana::materialize;\n").unwrap();
     fs::write(root.join("source/research.md"), "materialization source\n").unwrap();
 
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
 
     for (operation, schema) in [
@@ -361,10 +405,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
         let challenge: ApprovalChallenge =
             serde_json::from_value(response.output["approval"].clone()).unwrap();
         let approved = client
-            .approval_decision(
+            .approval_decision_with_proof(
                 trusted_metadata_for(&root, "materialization-write"),
                 challenge.approval_id,
                 ApprovalDecision::Approve,
+                Some(challenge.request_hash.clone()),
+                Some(challenge.nonce.clone()),
             )
             .await
             .unwrap();
@@ -390,10 +436,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
     let challenge: ApprovalChallenge =
         serde_json::from_value(response.output["approval"].clone()).unwrap();
     let approved = client
-        .approval_decision(
+        .approval_decision_with_proof(
             trusted_metadata_for(&root, "materialization-ingest"),
             challenge.approval_id,
             ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
         )
         .await
         .unwrap();
@@ -415,7 +463,7 @@ async fn materialization_writes_fail_closed_for_context_and_path_escapes() {
     fs::create_dir_all(&outside).unwrap();
     fs::write(root.join("README.md"), "boundary\n").unwrap();
 
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
 
     let parent = client
@@ -471,10 +519,12 @@ async fn materialization_writes_fail_closed_for_context_and_path_escapes() {
         let challenge: ApprovalChallenge =
             serde_json::from_value(symlink_pending.output["approval"].clone()).unwrap();
         let symlink_escape = client
-            .approval_decision(
+            .approval_decision_with_proof(
                 trusted_metadata_for(&root, "boundary"),
                 challenge.approval_id,
                 ApprovalDecision::Approve,
+                Some(challenge.request_hash.clone()),
+                Some(challenge.nonce.clone()),
             )
             .await
             .unwrap();
@@ -504,10 +554,12 @@ async fn materialization_writes_fail_closed_for_context_and_path_escapes() {
     let mut wrong_actor = trusted_metadata_for(&root, "boundary");
     wrong_actor.actor_id = Some("other-actor".to_owned());
     let wrong = client
-        .approval_decision(
+        .approval_decision_with_proof(
             wrong_actor,
             challenge.approval_id,
             ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
         )
         .await
         .unwrap();
@@ -520,10 +572,12 @@ async fn materialization_writes_fail_closed_for_context_and_path_escapes() {
     assert!(!root.join("safe.json").exists());
 
     let approved = client
-        .approval_decision(
+        .approval_decision_with_proof(
             trusted_metadata_for(&root, "boundary"),
             challenge.approval_id,
             ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
         )
         .await
         .unwrap();
@@ -658,7 +712,7 @@ async fn context_query_operation_and_numeric_bounds_fail_closed() {
 }
 
 async fn context_query(root: &Path, arguments: Value) -> ResponseEnvelope {
-    let host = Arc::new(DaemonHost::local().unwrap());
+    let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let mut metadata = RequestMetadata::local("session-context", root.to_string_lossy());
     metadata.project_trusted = true;

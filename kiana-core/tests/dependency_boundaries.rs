@@ -44,6 +44,8 @@ const STRICT_ALLOWED: &[(&str, &[&str])] = &[
             "kiana-runner",
             "kiana-runner-protocol",
             "kiana-services",
+            "kiana-skills",
+            "kiana-types",
         ],
     ),
 ];

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kiana</title>
+  <style>
+    :root {
+      --bg:#0b0d10; --sidebar:#12151a; --panel:#161a21; --border:#2a313c;
+      --text:#e7ecf3; --muted:#8b93a1; --accent:#4c8dff; --user:#1c3a5f;
+      --ok:#3dd68c; --warn:#f5a524; --err:#ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--text);
+      font:14px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    .frame { display:grid; grid-template-columns:260px 1fr 320px; height:100%; }
+    .sidebar, .details { background:var(--sidebar); overflow:auto; padding:16px; }
+    .sidebar { border-right:1px solid var(--border); }
+    .details { border-left:1px solid var(--border); }
+    .center { display:flex; flex-direction:column; min-width:0; }
+    .brand { font-weight:700; letter-spacing:.04em; }
+    .muted { color:var(--muted); font-size:12px; }
+    .folder { margin:12px 0 8px; word-break:break-all; font-family:ui-monospace,monospace; font-size:12px; }
+    button, select, textarea { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:8px; }
+    button, select { padding:8px 10px; cursor:pointer; }
+    button.primary { background:var(--accent); border-color:transparent; color:#fff; }
+    button.ghost { width:100%; margin:6px 0; text-align:left; }
+    .row { display:flex; gap:8px; margin:8px 0; }
+    .row > * { flex:1; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; background:#1b2430; color:var(--muted); }
+    .pill.ok { color:var(--ok); } .pill.run { color:var(--warn); } .pill.bad { color:var(--err); }
+    .banner { margin:10px 0; padding:10px; border-radius:8px; border:1px solid var(--warn); color:var(--warn); font-size:12px; display:none; }
+    .banner.show { display:block; }
+    .chat { flex:1; overflow:auto; padding:20px 24px; }
+    .item { max-width:760px; margin:0 auto 12px; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel); white-space:pre-wrap; }
+    .item.userMessage { background:var(--user); }
+    .item.commandExecution, .item.fileChange { font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
+    .item.error { border-color:var(--err); color:var(--err); }
+    .who { font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.08em; }
+    .guide { max-width:760px; margin:24px auto; }
+    .guide h1 { font-size:22px; margin:0 0 8px; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+    .chips button { background:#1b2430; }
+    .composer { border-top:1px solid var(--border); padding:12px 16px; background:#0e1116; }
+    textarea { width:100%; min-height:72px; resize:vertical; padding:10px; }
+    h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+    pre { white-space:pre-wrap; word-break:break-word; font-size:12px; color:var(--muted); }
+    .sessions button.active { border-color:var(--accent); }
+    .coach { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:9; }
+    .coach.show { display:flex; }
+    .coach .card { width:min(560px,92vw); background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; }
+    .coach ol { color:var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <aside class="sidebar">
+      <div class="brand">KIANA</div>
+      <div class="muted">Codex App 形 · Thread / Turn / Item</div>
+      <div class="folder" id="folder">…</div>
+      <div><span class="pill" id="trust">untrusted</span> <span class="pill" id="status">idle</span></div>
+      <div class="banner" id="trustBanner">未信任时不能写盘。先点「信任此文件夹」。这就是 Codex 的审批大门，Kiana 用 ProjectTrust 做成 fail-closed。</div>
+      <div class="row">
+        <button id="trustBtn">信任此文件夹</button>
+        <select id="sandbox">
+          <option value="workspace-write">workspace-write</option>
+          <option value="read-only">read-only</option>
+        </select>
+      </div>
+      <button class="ghost" id="openFolder">打开文件夹…</button>
+      <button class="ghost" id="newProject">新建 ~/.kiana 项目</button>
+      <button class="ghost" id="newSession">新 Thread</button>
+      <button class="ghost" id="showGuide">再看引导</button>
+      <h2>Threads</h2>
+      <div class="sessions" id="sessions"></div>
+    </aside>
+    <main class="center">
+      <div class="chat" id="chat">
+        <div class="guide" id="emptyGuide">
+          <h1>Ask Kiana</h1>
+          <p class="muted">对照 Codex App：左边是 Thread 列表，中间是 Turn 里的 Item（你的话、工具、改文件、回答），右边是 diff / 状态。工人仍是 DaemonHost，不声称 token 流式。</p>
+          <div class="chips">
+            <button data-prompt="列出这个工作区里有哪些文件，并总结各自用途">先看看仓库</button>
+            <button data-prompt="在当前文件夹创建一个 README.md，用三句话介绍这个项目">写一份 README</button>
+            <button data-prompt="create a file named GOLDEN_PATH.txt containing hello">黄金路径写盘</button>
+          </div>
+        </div>
+      </div>
+      <div class="composer">
+        <textarea id="prompt" placeholder="Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。"></textarea>
+        <div class="row">
+          <button class="primary" id="send">发送 Turn</button>
+          <button id="cancel">打断 Turn</button>
+        </div>
+        <div class="muted">thread/start → turn/start → item/* 。Kiana 一次 run 就是一个 Turn。</div>
+      </div>
+    </main>
+    <aside class="details">
+      <h2>Turn</h2>
+      <pre id="progress">还没开始</pre>
+      <h2>Changed files</h2>
+      <pre id="files">还没有 fileChange。</pre>
+      <h2>Capabilities</h2>
+      <p class="muted">模型面：shell + apply_patch。审批：信任 × 沙箱。不是 50-tool 克隆，也不是 live ChatGPT 登录。</p>
+      <h2>诚实边界</h2>
+      <p class="muted">没有 token 流式、没有 inline command 弹窗（未信任直接拦）、没有 Codex 云线程。关窗口可留托盘。</p>
+    </aside>
+  </div>
+  <div class="coach" id="coach">
+    <div class="card">
+      <div class="brand">Codex App 形引导</div>
+      <h1 style="font-size:22px;margin:8px 0;">Thread → Turn → Item</h1>
+      <ol>
+        <li>左边选或新建 Thread（一次对话）。工作区不对就打开文件夹 / 新建 ~/.kiana 项目。</li>
+        <li>信任当前文件夹。Codex 用审批弹窗；Kiana 用 ProjectTrust，未过门不能写盘。</li>
+        <li>发送一条 Turn。中间会出现 userMessage、commandExecution、fileChange、agentMessage。</li>
+      </ol>
+      <button class="primary" id="coachOk">开始</button>
+    </div>
+  </div>
+  <script>
+    window.__KIANA_WEB_TOKEN__ = '__KIANA_WEB_TOKEN_VALUE__';
+    const chat = document.getElementById('chat');
+    const promptEl = document.getElementById('prompt');
+    const emptyGuide = document.getElementById('emptyGuide');
+    const coach = document.getElementById('coach');
+    let sessionId = null;
+    let running = false;
+    let started = false;
+    let stateCache = null;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
+    function addItem(item) {
+      if (!started) { emptyGuide.remove(); started = true; }
+      const el = document.createElement('div');
+      el.className = 'item ' + item.kind;
+      el.innerHTML = '<div class="who">' + escapeHtml(item.title || item.kind) + '</div>' + escapeHtml(item.body || '');
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    async function api(path, body) {
+      const headers = {'x-kiana-web-token': window.__KIANA_WEB_TOKEN__};
+      if (body !== undefined) headers['content-type'] = 'application/json';
+      const opts = body === undefined ? { headers } : { method:'POST', headers, body: JSON.stringify(body) };
+      const res = await fetch(path, opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    function renderThread(s) {
+      const thread = s.thread || { turns: [] };
+      chat.querySelectorAll('.item').forEach(n => n.remove());
+      started = false;
+      if (!emptyGuide.parentNode) chat.prepend(emptyGuide);
+      (thread.turns || []).forEach(turn => (turn.items || []).forEach(addItem));
+      if ((thread.turns || []).length) emptyGuide.remove();
+    }
+    function renderState(s) {
+      stateCache = s;
+      sessionId = s.session_id;
+      running = !!s.running;
+      document.getElementById('folder').textContent = s.folder;
+      const trust = document.getElementById('trust');
+      trust.textContent = s.trusted ? 'trusted' : 'untrusted';
+      trust.className = 'pill ' + (s.trusted ? 'ok' : 'bad');
+      document.getElementById('trustBanner').classList.toggle('show', !s.trusted);
+      const st = document.getElementById('status');
+      st.textContent = running ? 'running' : 'idle';
+      st.className = 'pill ' + (running ? 'run' : 'ok');
+      document.getElementById('sandbox').value = s.sandbox;
+      const files = (s.last && s.last.files_changed) || [];
+      document.getElementById('files').textContent = files.length ? files.join('\n') : '还没有 fileChange。';
+      const thread = s.thread || { turns: [], name: 'New thread' };
+      const lastTurn = (thread.turns || []).slice(-1)[0];
+      document.getElementById('progress').textContent =
+        'thread ' + (thread.name || 'New thread') + '\n' +
+        'turns ' + ((thread.turns || []).length) + '\n' +
+        'status ' + (lastTurn ? lastTurn.status : 'idle') + '\n' +
+        'streaming ' + s.streaming;
+      const box = document.getElementById('sessions');
+      box.innerHTML = '';
+      (s.threads || s.sessions || []).forEach(item => {
+        const b = document.createElement('button');
+        b.className = 'ghost' + (item.id === s.session_id ? ' active' : '');
+        b.textContent = (item.name || item.id.slice(0,8)) + (item.running ? ' · running' : '');
+        b.onclick = () => { sessionId = item.id; refresh(); };
+        box.appendChild(b);
+      });
+      renderThread(s);
+    }
+    async function refresh() { renderState(await api('/api/state')); }
+    async function sendPrompt(prompt) {
+      const text = String(prompt || '').trim();
+      if (!text || running) return;
+      if (stateCache && !stateCache.trusted) {
+        addItem({ kind:'error', title:'blocked', body:'还没信任这个文件夹。Codex 会弹审批；Kiana 直接 fail-closed。' });
+        return;
+      }
+      promptEl.value = '';
+      try {
+        const data = await api('/api/run', { prompt: text, session_id: sessionId });
+        renderState(data);
+      } catch (err) {
+        addItem({ kind:'error', title:'error', body: String(err.message || err) });
+        await refresh();
+      }
+    }
+    document.getElementById('send').onclick = () => sendPrompt(promptEl.value);
+    document.getElementById('cancel').onclick = async () => { renderState(await api('/api/cancel', { session_id: sessionId })); };
+    document.getElementById('trustBtn').onclick = async () => { renderState(await api('/api/trust', {})); };
+    document.getElementById('sandbox').onchange = async (e) => { renderState(await api('/api/sandbox', { sandbox: e.target.value })); };
+    document.getElementById('newSession').onclick = async () => { renderState(await api('/api/session', {})); };
+    document.querySelectorAll('.chips button').forEach(btn => {
+      btn.onclick = () => { promptEl.value = btn.getAttribute('data-prompt'); promptEl.focus(); };
+    });
+    const openFolder = document.getElementById('openFolder');
+    const newProject = document.getElementById('newProject');
+    if (window.kianaDesktop) {
+      openFolder.onclick = () => window.kianaDesktop.openFolder();
+      newProject.onclick = () => window.kianaDesktop.newProject();
+    } else { openFolder.hidden = true; newProject.hidden = true; }
+    document.getElementById('showGuide').onclick = () => coach.classList.add('show');
+    document.getElementById('coachOk').onclick = () => {
+      coach.classList.remove('show');
+      try { localStorage.setItem('kiana.guide.v2', '1'); } catch (e) {}
+    };
+    promptEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendPrompt(promptEl.value); }
+      if (e.key === 'Escape') document.getElementById('cancel').click();
+    });
+    if (!localStorage.getItem('kiana.guide.v2')) coach.classList.add('show');
+    refresh().catch(err => addItem({ kind:'error', title:'error', body:String(err) }));
+  </script>
+</body>
+</html>

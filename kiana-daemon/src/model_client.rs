@@ -12,11 +12,11 @@ use kiana_runner::{
 };
 use kiana_services::api::messages::{Message, MessagesRequest};
 use kiana_services::api::provider::{
-    provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
-    OpenAiCompatibleProvider, Provider, ProviderError, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
-    OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
+    ANTHROPIC_PROVIDER_ID, AnthropicProvider, FAKE_PROVIDER_ID, FakeProvider, OLLAMA_PROVIDER_ID,
+    OPENAI_COMPATIBLE_PROVIDER_ID, OllamaProvider, OpenAiCompatibleProvider, Provider,
+    ProviderError, provider_registry_entry,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -264,7 +264,7 @@ fn output_from_content(content: &[Value]) -> ModelOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiana_services::api::provider::{FakeProviderStep, FAKE_TEXT_ONLY_MODEL_ID};
+    use kiana_services::api::provider::{FAKE_TEXT_ONLY_MODEL_ID, FakeProviderStep};
 
     #[tokio::test]
     async fn provider_wrapper_maps_tool_calls_and_final_text() {

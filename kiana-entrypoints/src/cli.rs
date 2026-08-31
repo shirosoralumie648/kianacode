@@ -77,6 +77,10 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return run_main(&args).await;
     }
 
+    if args.first().map(String::as_str) == Some("web") {
+        return crate::web::main_from_args(&args).await;
+    }
+
     if crate::workbench::is_workbench_invocation(&args) {
         return crate::workbench::main_from_args(&args).await;
     }
@@ -329,7 +333,7 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
@@ -340,6 +344,7 @@ async fn run_main(args: &[String]) -> Result<()> {
     let mut anti_meeting = false;
     let mut packet_path: Option<String> = None;
     let mut review_id: Option<String> = None;
+    let mut close_id: Option<String> = None;
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
     let mut receipt_id: Option<String> = None;
@@ -395,6 +400,17 @@ async fn run_main(args: &[String]) -> Result<()> {
             value if value.starts_with("--review=") => {
                 review_id = Some(value.trim_start_matches("--review=").to_owned());
             }
+            "--close" => {
+                index += 1;
+                close_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("close_author_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--close=") => {
+                close_id = Some(value.trim_start_matches("--close=").to_owned());
+            }
             "--continue" => {
                 index += 1;
                 continue_id = Some(
@@ -443,6 +459,7 @@ async fn run_main(args: &[String]) -> Result<()> {
     let exclusive = u8::from(symposium)
         + u8::from(packet_path.is_some())
         + u8::from(review_id.is_some())
+        + u8::from(close_id.is_some())
         + u8::from(continue_id.is_some())
         + u8::from(cancel_id.is_some())
         + u8::from(receipt_id.is_some());
@@ -488,10 +505,26 @@ async fn run_main(args: &[String]) -> Result<()> {
             }
         }
     }
+    if let Some(id) = close_id.as_deref().map(str::trim) {
+        if id.is_empty() {
+            return Err(anyhow!("close_author_required"));
+        }
+        if !prompt.trim().is_empty() {
+            return Err(anyhow!("close_prompt_conflict"));
+        }
+        if let Some(role_id) = role.as_deref() {
+            let closer = kiana_protocol::RoleSpec::lookup(role_id)
+                .is_some_and(|role| role.role_id == kiana_protocol::ROLE_CLOSER);
+            if !closer {
+                return Err(anyhow!("close_role_must_be_closer"));
+            }
+        }
+    }
     if cancel_id.is_none()
         && receipt_id.is_none()
         && packet_path.is_none()
         && review_id.is_none()
+        && close_id.is_none()
         && prompt.trim().is_empty()
     {
         if symposium {
@@ -537,6 +570,9 @@ async fn run_main(args: &[String]) -> Result<()> {
     } else if let Some(author_session_id) = review_id {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::review_envelope(session_id, author_session_id, &options).await?
+    } else if let Some(author_session_id) = close_id {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        crate::harness_run::close_envelope(session_id, author_session_id, None, &options).await?
     } else {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::run_envelope(session_id, prompt, &options).await?
@@ -6539,6 +6575,10 @@ struct DirectConnectCommandRunRequest {
 struct DirectConnectApprovalDecisionRequest {
     approval_id: ApprovalId,
     decision: ApprovalDecision,
+    #[serde(default)]
+    request_hash: Option<String>,
+    #[serde(default)]
+    nonce: Option<String>,
 }
 
 async fn direct_connect_app_command_run_handler(
@@ -6730,10 +6770,12 @@ async fn direct_connect_app_approval_decision_handler(
             ),
         ]),
     };
-    match crate::command_dispatch::resolve_command_approval_response(
+    match crate::command_dispatch::resolve_command_approval_response_with_proof(
         &context,
         body.approval_id,
         body.decision,
+        body.request_hash,
+        body.nonce,
     )
     .await
     {
@@ -6760,6 +6802,7 @@ fn direct_connect_approval_status(status: ControlPlaneStatus) -> &'static str {
         ControlPlaneStatus::Running => "running",
         ControlPlaneStatus::Completed => "completed",
         ControlPlaneStatus::Failed => "failed",
+        ControlPlaneStatus::Cancelled => "cancelled",
         ControlPlaneStatus::ResultUnknown => "result_unknown",
         ControlPlaneStatus::Blocked => "blocked",
     }
@@ -14019,6 +14062,7 @@ fn print_help() {
     println!("  kiana --workdir DIR   Work in DIR (file manager / GUI target)");
     println!("  kiana --pick-folder   GUI folder picker, then workbench");
     println!("  kiana workbench [--workdir DIR] [--] <prompt>  Same DaemonHost spine as kiana run");
+    println!("  kiana web [--workdir DIR] [--bind 127.0.0.1:3080] [--no-open]  Loopback Web workbench on DaemonHost (dsh-shaped; not token streaming)");
     println!("  kiana -p <prompt>     Run a non-interactive prompt and print the result");
     println!("  kiana -c [prompt]     Continue the most recent local SDK session");
     println!("  kiana -r <id> [prompt]  Resume a local SDK session");
@@ -14064,7 +14108,7 @@ fn print_help() {
     println!("  kiana reply <id> ...  Run a prompt in a local SDK session");
     println!("  kiana reply <id> --record-only ...  Append without model execution");
     println!("  kiana reply <id> --json-schema '{{...}}' ...  Request structured output");
-    println!("  kiana tui             Parked (legacy SDK stream, not DaemonHost)");
+    println!("  kiana tui             Parked in v0.2 (legacy SDK stream, not DaemonHost)");
     println!("  kiana --bg <prompt>   Run a prompt through the local background worker");
     println!("  kiana ps              List local background tasks");
     println!("  kiana daemon start    Start the resident background task supervisor");

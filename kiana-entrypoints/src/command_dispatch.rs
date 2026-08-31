@@ -38,9 +38,9 @@ pub async fn execute_command(
     match dispatch_command(command, context).await? {
         CommandDispatchOutcome::Completed(result) => Ok(result),
         CommandDispatchOutcome::AwaitingApproval(challenge) if approve_local_write => {
-            resolve_command_approval(
+            resolve_command_approval_with_challenge(
                 &approval_context,
-                challenge.approval_id,
+                &challenge,
                 ApprovalDecision::Approve,
             )
             .await
@@ -114,6 +114,44 @@ pub async fn resolve_command_approval_response(
     });
     client
         .approval_decision(metadata, approval_id, decision)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+pub async fn resolve_command_approval_with_challenge(
+    context: &CommandContext,
+    challenge: &ApprovalChallenge,
+    decision: ApprovalDecision,
+) -> anyhow::Result<CommandResult> {
+    let response = resolve_command_approval_response_with_proof(
+        context,
+        challenge.approval_id,
+        decision,
+        Some(challenge.request_hash.clone()),
+        Some(challenge.nonce.clone()),
+    )
+    .await?;
+    match response_outcome(response)? {
+        CommandDispatchOutcome::Completed(result) => Ok(result),
+        CommandDispatchOutcome::AwaitingApproval(_) => {
+            Err(anyhow!("approval_decision_returned_new_challenge"))
+        }
+    }
+}
+
+pub async fn resolve_command_approval_response_with_proof(
+    context: &CommandContext,
+    approval_id: ApprovalId,
+    decision: ApprovalDecision,
+    request_hash: Option<String>,
+    nonce: Option<String>,
+) -> anyhow::Result<ResponseEnvelope> {
+    let metadata = request_metadata(context)?;
+    let client = KianaClient::new(LocalDaemonTransport {
+        host: local_daemon()?,
+    });
+    client
+        .approval_decision_with_proof(metadata, approval_id, decision, request_hash, nonce)
         .await
         .map_err(anyhow::Error::msg)
 }
@@ -198,6 +236,7 @@ fn status_name(status: ExecutionStatus) -> &'static str {
         ExecutionStatus::Running => "running",
         ExecutionStatus::Completed => "completed",
         ExecutionStatus::Failed => "failed",
+        ExecutionStatus::Cancelled => "cancelled",
         ExecutionStatus::ResultUnknown => "result_unknown",
         ExecutionStatus::Blocked => "blocked",
     }
@@ -293,6 +332,7 @@ mod tests {
         let root = fixture_root("repo-map");
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(root.join("src/lib.rs"), "pub struct RoutedContext;\n").unwrap();
+        kiana_types::write_project_trust(&root, kiana_types::ProjectTrust::Trusted).unwrap();
         let result = execute_command(
             &ContextCommand,
             CommandContext {
@@ -308,6 +348,7 @@ mod tests {
         let map: Value = serde_json::from_str(&result.value).unwrap();
         assert_eq!(map["token_budget"], 1000);
         assert_eq!(map["files"][0]["path"], "src/lib.rs");
+        let _ = kiana_types::remove_project_trust(&root);
         let _ = fs::remove_dir_all(root);
     }
 
@@ -343,6 +384,7 @@ mod tests {
             "pub fn checkout_flow() {}\n// checkout workflow\n",
         )
         .unwrap();
+        kiana_types::write_project_trust(&root, kiana_types::ProjectTrust::Trusted).unwrap();
         let app_state = HashMap::from([
             ("cwd".to_owned(), Value::String(root.display().to_string())),
             ("project_trusted".to_owned(), Value::Bool(true)),
@@ -374,6 +416,7 @@ mod tests {
         assert_eq!(pack["schema"], "kiana.context-pack.v1");
         assert_eq!(pack["snippets"][0]["path"], "src/lib.rs");
 
+        let _ = kiana_types::remove_project_trust(&root);
         let _ = fs::remove_dir_all(root);
     }
 

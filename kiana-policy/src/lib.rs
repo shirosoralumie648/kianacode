@@ -47,19 +47,13 @@ impl PolicyEngine for DefaultPolicyEngine {
                     }
                 }
             }
-            RiskLevel::ExternalSideEffect => {
-                if request.operation == "mcp.call"
-                    && !matches!(context.permission_profile, PermissionProfile::Safe)
-                {
-                    PolicyDecision::Allow {
-                        authorization_id: format!("policy:{}", request.request_id),
-                    }
+            RiskLevel::ExternalSideEffect => PolicyDecision::Ask {
+                reason: if request.operation == "mcp.call" {
+                    "mcp_external_side_effect_requires_approval".to_owned()
                 } else {
-                    PolicyDecision::Ask {
-                        reason: "external_side_effect_requires_approval".to_owned(),
-                    }
-                }
-            }
+                    "external_side_effect_requires_approval".to_owned()
+                },
+            },
             RiskLevel::Critical => PolicyDecision::Ask {
                 reason: "critical_action_requires_approval".to_owned(),
             },
@@ -393,14 +387,16 @@ mod tests {
     }
 
     #[test]
-    fn trusted_builder_workspace_write_allows_mcp_call() {
+    fn trusted_builder_workspace_write_mcp_requires_approval() {
         let mut context = RequestContext::local("session-1", "/repo");
         context.project_trusted = true;
         context.permission_profile = PermissionProfile::Balanced;
-        assert!(matches!(
-            DefaultPolicyEngine.evaluate(&context, &mcp_call()),
-            PolicyDecision::Allow { .. }
-        ));
+        match DefaultPolicyEngine.evaluate(&context, &mcp_call()) {
+            PolicyDecision::Ask { reason } => {
+                assert_eq!(reason, "mcp_external_side_effect_requires_approval")
+            }
+            other => panic!("expected ask, got {other:?}"),
+        }
     }
 
     #[test]
@@ -430,7 +426,7 @@ mod tests {
         context.project_trusted = true;
         match DefaultPolicyEngine.evaluate(&context, &mcp_call()) {
             PolicyDecision::Ask { reason } => {
-                assert_eq!(reason, "external_side_effect_requires_approval")
+                assert_eq!(reason, "mcp_external_side_effect_requires_approval")
             }
             other => panic!("expected ask, got {other:?}"),
         }

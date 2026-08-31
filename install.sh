@@ -210,5 +210,6 @@ echo "📝 真实可跑命令见 USER.md（trust / run / symposium / packet / re
 echo "   临时目录生命周期: bash scripts/v10-personal-lifecycle-smoke.sh"
 echo "   cassette 黄金路径: bash scripts/harness-golden-smoke.sh"
 echo "   卸载（幂等）: INSTALL_DIR=\"$INSTALL_DIR\" bash install.sh --uninstall"
+    echo "   桌面壳（Electron，关窗可留托盘）: bash scripts/install-desktop.sh"
 echo "   kiana tui 保持 park，不是产品路径。"
 echo "   证明上限 local_behavior；live provider 不是安装完成条件。"

@@ -1,28 +1,23 @@
-# Rust build output
-target/
+# Rust and Cargo build output
+**/target/
+.cargo/registry/
+.cargo/git/
+.cargo/.package-cache
+sccache/
 
-# Release/package output
+# Release and package artifacts
+contrib/
 dist/
 *.tar.gz
 *.zip
+*.deb
+*.rpm
+*.dmg
+*.msi
+*.AppImage
 *.sha256
 
 # Local Kiana runtime state
-.kiana/tasks/
-.kiana/workflows/
-.kiana/teams/
-.kiana/bg-tasks/
-.kiana/plans/
-.kiana/swarm-worktrees/
-.kiana/context-ingest/
-.kiana/context-index.json
-.kiana/context-artifacts.json
-.kiana/context-artifact-store.json
-.kiana/first-start.json
-.kiana/oauth.json
-.kiana/trust.json
-.kiana/tmp/
-.kiana/logs/
 **/.kiana/tasks/
 **/.kiana/workflows/
 **/.kiana/teams/
@@ -40,73 +35,144 @@ dist/
 **/.kiana/logs/
 *kiana-post-tool-use-hook-*post-hook.json*
 
-# Generated GSD code-intelligence cache
-.planning/intel/
+# Ruflo runtime state and local vector databases.
+# Keep project configuration files such as .claude-flow/config.yaml tracked.
+.claude/
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+.claude-flow/agents/
+.claude-flow/hooks/
+.claude-flow/metrics/
+.claude-flow/neural/
+.claude-flow/policy/
+.claude-flow/swarm/
+.claude-flow/workflows/
+.claude-flow/daemon-state.json
+.claude-flow/daemon.pid
+.claude-flow/harness-active-policy.json
+.claude-flow/*.tmp
+.swarm/
+*.db-shm
+*.db-wal
+*.db-journal
+agentdb.rvf
+ruvector.db
 
-# Local assistant/editor state
-.claude/*.local.md
-**/.claude/*.local.md
+# Local assistant configuration and session state
 .agents/
+.codex/
+.claude/*.local.md
+.claude/settings.local.json
+.claude/memory.db
+**/.claude/*.local.md
+
+# Generated GSD and code-intelligence state
+.planning/intel/
+graphify-out/
+.superpowers/
+
+# Reference checkouts are local inputs, not product source.
+# Keep curated findings under docs/reference_audit/ instead.
+reference/
+reference-typescript/
 
 # Secrets and environment overrides
 .env
 .env.*
 !.env.example
+!.env.sample
+!.env.template
+.env.local
+.env.*.local
+.secrets/
+secrets/
 *.pem
 *.key
 *.p12
 *.pfx
 
-# Reference checkouts kept out of the product repository by default.
-# Keep curated audit notes under docs/reference_audit/ instead.
-reference/
-reference-typescript/
+# Node and package-manager state
+node_modules/
+.next/
+.parcel-cache/
+.turbo/
+build/
+out/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+*.npmrc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# IDE/editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-*.bak
-*.tmp
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Build caches
-.cargo/
-sccache/
-
-# Python caches and local test state
+# Python environments and caches
+.venv/
+.venv-*/
+venv/
 __pycache__/
 *.py[cod]
+*.pyo
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-htmlcov/
+.ipynb_checkpoints/
+.tox/
+.nox/
 
-# Coverage and profiling
+# Test, coverage, and profiling output
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+.nyc_output/
+.eslintcache
+*.tsbuildinfo
+test-results/
+playwright-report/
 *.profraw
 *.profdata
-coverage/
 perf.data
 flamegraph.svg
 
-# Logs
+# Logs and temporary files
 *.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+.cache/
+tmp/
+temp/
 .worktrees/
 
-# Generated code-intelligence dumps (do not commit)
-graphify-out/
+# IDE and editor metadata
+.vscode/
+.idea/
+.fleet/
+*.iml
 
-# Local Superpowers/session notes. Canonical plans live in docs/superpowers/.
-.superpowers/
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
 
-# Optional VS Code extension build artifacts (not a master workspace member)
-extensions/vscode/node_modules/
-extensions/vscode/out/
-*.vsix
-
+# Ruflo local secrets and runtime data
+.mcp.json
+CLAUDE.md.pre-ruflo
+docs/.claude-flow/
+.claude-flow/.gitignore
+.claude-flow/CAPABILITIES.md
+.claude-flow/memory-package.json
+.claude-flow/routing-outcomes.json
+.claude-flow/security/
+.claude-flow/tasks/

@@ -42,10 +42,7 @@ pub enum TaskStatus {
     /// Task completed successfully.
     Completed { duration: Duration },
     /// Task failed with an error.
-    Failed {
-        error: String,
-        duration: Duration,
-    },
+    Failed { error: String, duration: Duration },
     /// Task was cancelled.
     Cancelled { reason: Option<String> },
 }
