@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiana.app-server.commands.v1",
+  "title": "kiana.app-server.commands.v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "kiana.app-server.commands.v1"
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "additionalProperties": true
+}

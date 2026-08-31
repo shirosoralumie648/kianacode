@@ -61,6 +61,51 @@ kiana gui
 
 闸门：`bash scripts/v10-workbench-smoke.sh`
 
+## 网页工作台（dsh 形，同一核）
+
+`kiana web` 是 DeepSeek Harness Web UI 的布局抄法：侧栏选会话、中间对话、右侧细节。工人仍是 `DaemonHost` / `KianaHarness`。只绑回环。不声称 token 流式，不是 dsh Cordis 克隆。
+
+```bash
+kiana trust .
+kiana web --no-open --bind 127.0.0.1:3080
+# 浏览器打开打印的 URL。Trust / sandbox / New session / Send / Cancel 都打同一核。
+```
+
+闸门：`cargo test -p kiana-entrypoints --test cli_web`
+
+## 可安装桌面壳（Electron）
+
+点开先到 Codex 形欢迎页：**打开文件夹**、**继续上次**、或 **先不选项目**。不选时自动在 `~/.kiana/workspaces/project-…` 建 scratch，工人只在那里写盘。关窗口可选 **Keep in background** 留托盘。只绑回环。不是签名商店包。
+
+```bash
+# 先有 kiana 二进制
+INSTALL_DIR=/tmp/kiana-bin KIANA_SKIP_PATH_SETUP=1 KIANA_SKIP_BUILD=1 \
+  KIANA_BIN=target/debug/kiana bash install.sh
+
+# 再装桌面壳（需要 Node/npm；会下载 Electron）
+INSTALL_DIR=/tmp/kiana-bin KIANA_DESKTOP_HOME=/tmp/kiana-desktop \
+  KIANA_DESKTOP_DIR=/tmp/kiana-applications \
+  KIANA_BIN=/tmp/kiana-bin/kiana bash scripts/install-desktop.sh
+
+/tmp/kiana-bin/kiana-desktop
+```
+
+闸门：`node --test contrib/desktop/tests/*.js`
+
+### `.deb` 包
+
+把 CLI + Electron 壳打成可 `dpkg -i` 的本地包（不是签名 Debian 源）。
+
+```bash
+# 需要 node/npm/dpkg-deb，以及一份 kiana 二进制
+# Electron 运行时约 100MB；第一次会从镜像拉 Chromium，不是卡住。
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ \
+  KIANA_BIN=target/debug/kiana bash scripts/package-desktop-deb.sh
+sudo dpkg -i dist/kiana-desktop_0.1.0_amd64.deb
+# 应用菜单打开 Kiana，或 kiana-desktop / kiana --help
+# 卸：sudo dpkg -r kiana-desktop
+```
+
 ## 受信仓库里干活
 
 仓库先 `kiana trust .`。`kiana run` 默认 sandbox 只读；写盘必须 `--sandbox workspace-write`。工作台默认已经是 workspace-write。

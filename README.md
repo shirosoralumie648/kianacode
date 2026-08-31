@@ -11,6 +11,20 @@ v1.0 已在 `local_behavior` 上限下勾选：temp `INSTALL_DIR` 生命周期 +
 - [PROCESS.md](PROCESS.md) — git 证据、外环站、内环 SOP
 - [PHASES.md](PHASES.md) — 每一期做什么、改哪些 crate、对照哪些 reference 文件
 
+CompanyOS 规范入口：
+
+- [docs/company-os-overview.md](docs/company-os-overview.md) — 白话总览：心智模型、任务走读、术语词典和 FAQ（第一次读从这里开始）
+- [docs/README.md](docs/README.md) — CompanyOS 文档总入口、权威层级、阅读路径和变更规则
+- [docs/company-os-spec-index.md](docs/company-os-spec-index.md) — 规范阅读顺序、canonical owner、证据状态和实施阶段
+- [docs/company-os-design.md](docs/company-os-design.md) — 总体产品、控制面、PMP、能力风险和安全边界
+- [docs/company-os-domain-contracts.md](docs/company-os-domain-contracts.md) — Objective、Project、Milestone、Acceptance、Delivery、Outcome 等业务生命周期
+- [docs/company-os-platform-architecture.md](docs/company-os-platform-architecture.md) — Runtime、Memory、Context/Cache、Capability/MCP、Workflow、Swarm、Provider 和 Observability
+- [docs/company-os-operations-governance.md](docs/company-os-operations-governance.md) — Identity、Scheduler、Human Inbox、Artifact、Cost、Recovery、Data Governance 和 Connector
+- [docs/company-os-quality-ecosystem.md](docs/company-os-quality-ecosystem.md) — Eval、Golden Trace、反馈学习、模型/Prompt 版本、代码知识和插件生态
+- [docs/company-os-ui-ux.md](docs/company-os-ui-ux.md) — CLI/TTY、Web、Desktop、Run/Approval/Receipt/Recovery 的 UI 与交互规范
+- [docs/company-os-implementation-outline.md](docs/company-os-implementation-outline.md) — 可认领的工程切片、验收条件和 90 天工程序列
+- [docs/company-os-security-constitution.md](docs/company-os-security-constitution.md) — 安全宪法、负向路径和证明等级
+
 v1.0 声明停在 `local_behavior`。真实可跑命令见 [USER.md](USER.md)。Claude Code / Desktop / 企业仍是北星，不是本版本完成。
 
 ```bash
@@ -34,6 +48,17 @@ kiana run --packet packet/TASK.json --sandbox workspace-write --json
 
 # v0.2 Builder direct-write still works
 kiana run --sandbox workspace-write -- "create GOLDEN_PATH.txt containing hello"
+
+# loopback Web workbench (dsh-shaped UI, same DaemonHost; not token streaming)
+kiana web --no-open --bind 127.0.0.1:3080
+
+# installable Electron shell: opens kiana web, close can keep tray
+bash scripts/install-desktop.sh
+kiana-desktop
+
+# Debian package (local, unsigned)
+KIANA_BIN=target/debug/kiana bash scripts/package-desktop-deb.sh
+sudo dpkg -i dist/kiana-desktop_0.1.0_amd64.deb
 ```
 
 CI / local cassette eval (not a live provider):

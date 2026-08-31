@@ -1,0 +1,791 @@
+# Kiana CompanyOS 运营、治理与可靠性
+
+> 文档性质：运营与治理规范目标（Normative Target）。
+>
+> 本文补齐 CompanyOS 在 Agent Platform 之外的运行保障：身份与组织管理、触发器与调度、人类决策入口、Artifact/Workspace 交付、成本与容量、可靠性、数据治理和集成边界。
+>
+> 当前实现和证据等级以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准。本文中的对象、状态机和参考设计尚未被实现或测试证明时，不得写成当前能力。
+
+> **本文速览（导读，非规范）**
+>
+> - **讲什么**：让系统"长期跑而不出事"的运营保障——身份与授权（Principal/Membership/RoleAssignment）、定时与触发（Trigger/Scheduler）、人类决策收件箱（Human Inbox）、产物与交付（Artifact/Workspace/Git）、成本与背压（CostLedger/Quota）、故障恢复（Incident/RecoveryPlan）、数据治理与隐私（分类/留存/删除/Secret）。
+> - **回答的问题**："不是跑通一次，而是天天跑——谁负责、怎么排队、坏了怎么办、钱花在哪、数据怎么删干净。"
+> - **什么时候读**：涉及身份、调度、成本、恢复、数据删除的实现时按章节查阅。
+>
+> 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
+
+## 1. 目标
+
+CompanyOS 不仅要能够执行一个 Agent Run，还要能够在较长时间内可靠地运行一家公司或个人工作系统：
+
+```text
+身份与授权
+  → 触发与排队
+  → 计划与执行
+  → Artifact 交付
+  → 成本与容量控制
+  → 失败检测与恢复
+  → 人类决策与升级
+  → 数据留存、删除与审计
+```
+
+已有控制面主要回答“请求是否允许”，本文补充：
+
+- 谁是这个请求的责任主体；
+- 什么事件可以创建 Run；
+- 人类在哪里处理等待中的决定；
+- 产物如何版本化、审查、交付和回滚；
+- Agent 成本、并发和 Provider 限额如何管理；
+- 崩溃、超时、未知结果和数据损坏如何收敛；
+- 记忆、Artifact、日志和 Provider 数据如何受到生命周期治理。
+
+## 2. 总体架构
+
+```text
+Principal / Organization
+          │
+          ▼
+Identity + Assignment + Data Governance
+          │
+          ▼
+Trigger / Scheduler / Human Inbox
+          │
+          ▼
+Workflow / Agent Run / Capability Broker
+          │
+          ├── Artifact / Workspace / Delivery
+          ├── Cost / Capacity / Backpressure
+          ├── Health / Recovery / Incident
+          └── Event / Audit / Receipt
+```
+
+本文与其他 CompanyOS 文档的关系：
+
+- `company-os-design.md`：总体产品、PMP、权限和安全原则；
+- `company-os-domain-contracts.md`：Objective、Project、Acceptance、Delivery、Outcome；
+- `company-os-platform-architecture.md`：Runtime、Memory、Context、MCP、Workflow、Swarm、Provider；
+- 本文：身份、运营、可靠性和治理；
+- `company-os-quality-ecosystem.md`：评测、学习、插件、模型治理和开发者生态；
+- `company-os-security-constitution.md`：不可违反的安全宪法和负向验收。
+
+## 3. Identity、组织成员与授权生命周期
+
+### 3.1 Principal 类型
+
+```text
+HumanPrincipal       人类用户或审批人
+AgentPrincipal       某个 AgentTemplate/Cell 的运行身份
+ServicePrincipal     DaemonHost、Scheduler、Projector 等服务身份
+McpPrincipal         某个 MCP Server 的受限身份
+ProviderPrincipal    外部模型/服务账户的引用身份
+```
+
+所有 Principal 都必须有不可变 ID。客户端提交的 `actor_id`、`role_id`、`department_id` 或 `trust` 字段只是请求声明，不能直接成为 authenticated identity。
+
+### 3.2 组织对象
+
+```text
+Organization
+  ├── Membership
+  ├── RoleAssignment
+  ├── ProjectAssignment
+  ├── ServiceIdentity
+  ├── PolicyProfile
+  └── DataBoundary
+```
+
+目标合同：
+
+```text
+Membership {
+  membership_id
+  organization_id
+  principal_id
+  status
+  roles[]
+  scopes[]
+  valid_from
+  valid_until?
+  authority_epoch
+}
+
+RoleAssignment {
+  assignment_id
+  organization_id
+  principal_id
+  role_id
+  department_id
+  project_scope[]
+  capability_scopes[]
+  approver_for[]
+  status
+  authority_epoch
+}
+```
+
+### 3.3 身份状态
+
+```text
+Principal:
+  Proposed → Active → Suspended → Revoked → Archived
+
+Membership:
+  Invited → Accepted → Active → Suspended / Expired → Revoked
+
+RoleAssignment:
+  Requested → Approved → Active → Reduced / Suspended → Revoked
+```
+
+规则：
+
+1. 权限撤销必须增加 `authority_epoch` 或等价 fencing version；旧 Run、Grant、Approval 和 Scheduler trigger 不能继续使用过期 assignment；
+2. 新的 Agent Cell 必须从父 Cell、Template、Project 和 Principal 的权限交集中派生；
+3. ServicePrincipal 不能代表 HumanPrincipal 直接完成需要人类确认的价值判断；
+4. Approval authority 必须明确是 human、policy 还是 delegated approver；
+5. 一个 Session 的 owner、workspace、project 和 organization 不能由普通模型文本改变；
+6. 跨项目查询必须有显式 `SharingGrant`，不能因为同一用户而自动 union 全部 Memory。
+
+### 3.4 本地优先身份模型
+
+个人本地版可以从以下最小模型开始：
+
+```text
+LocalInstance
+  → LocalHumanPrincipal
+  → ProjectTrust
+  → RoleAssignment
+  → SessionOwnership
+```
+
+本地 bearer token、受保护 Unix socket 或 OS credential 只能解决入口认证的一部分；仍需要服务端从 stored assignment 派生 role、department、project scope 和 authority epoch。
+
+团队/企业版才增加：
+
+```text
+Tenant
+SSO / OIDC
+SCIM
+OrganizationMembership
+ServiceAccount
+AuditPrincipal
+KeyRotation
+```
+
+### 3.5 Reference 映射
+
+| 参考项目/材料 | 可吸收设计 | Kiana 不直接复制 |
+|---|---|---|
+| Codex | Thread/Turn identity、rollout reconstruction 和 interrupt boundary | 不把 thread id 当作完整授权边界 |
+| OpenCode | session run-state、active run 和 stale response 防护 | 不依赖进程内 Map 保存 ownership |
+| Cline | Local Runtime Host 统一持有 runtime 与客户端连接 | 不让 UI 自己生成权限 |
+| Crush | RunID correlation、queued/active/terminal 状态 | 不把取消请求本身当作效果已停止 |
+| Agent Framework | Approval 绑定原始 FunctionCall identity | 不使用未绑定调用的全局 approval |
+| Kiana 当前设计 | RoleSpec、ProjectTrust、Grant 和 Approval | 必须继续补 durable principal 与 authority epoch |
+
+## 4. Trigger、Scheduler 与自动化入口
+
+### 4.1 Trigger 类型
+
+```text
+ManualTrigger       用户或 CLI 明确启动
+ScheduleTrigger     本地时间表或周期
+FileTrigger         文件/目录变化
+GitTrigger          commit、branch 或 tag 变化
+EventTrigger        Runtime/Project/Incident 事件
+WorkflowTrigger     上游 Workflow 完成
+ApprovalTrigger     人类批准后继续
+ExternalTrigger     受认证的外部 webhook；未来能力
+```
+
+### 4.2 TriggerDefinition
+
+```text
+TriggerDefinition {
+  trigger_id
+  owner_principal_id
+  organization_id
+  project_id?
+  source
+  filter
+  workflow_ref
+  definition_version
+  enabled
+  timezone?
+  schedule?
+  concurrency_policy
+  deduplication_window
+  idempotency_policy
+  missed_run_policy
+  budget_policy
+  approval_policy
+  data_scope[]
+  created_at
+  updated_at
+}
+```
+
+Trigger 只能提交一个 Workflow/Run 请求，不能直接执行 Capability。
+
+### 4.3 Trigger 状态
+
+```text
+Draft → Validating → Enabled
+Enabled → Paused / Firing / Disabled / Revoked
+Firing → Accepted / Deduplicated / Rejected
+Accepted → Queued → Started / Expired / Cancelled
+```
+
+每次 firing 必须有：
+
+```text
+trigger_firing_id
+trigger_id
+observed_event_id?
+scheduled_at
+observed_at
+idempotency_key
+workflow_instance_id?
+run_id?
+status
+```
+
+### 4.4 调度规则
+
+- 同一个 trigger 的 firing 必须使用稳定 idempotency key；
+- `at_most_once`、`at_least_once` 和 `exactly_once` 必须分别定义语义，不能把本地重试宣称为 exactly-once effect；
+- 并发策略至少支持 `reject`、`queue`、`replace`、`coalesce`；
+- Scheduler 重启后必须重新读取 durable definitions；
+- 错过计划按 `skip`、`fire_once` 或 `catch_up` 处理；
+- 自动触发不提高能力风险等级，也不跳过 Approval；
+- 计划暂停、项目关闭、Principal 撤销和 Budget 超限必须阻止新 firing；
+- Scheduler 只能创建有 owner、scope、budget 和 expiry 的 Workflow instance。
+
+### 4.5 Reference 映射
+
+| 参考项目/材料 | 可吸收设计 | Kiana 约束 |
+|---|---|---|
+| CrewAI | 事件驱动 Flow、checkpoint 和恢复 | checkpoint 错误不能被吞掉 |
+| Archon | DAG、确定性节点、人工 Gate | YAML 只是定义格式，不是权限 |
+| ChatDev 2 | Graph node、human/tool 节点 | 不用共享 ChatChain 保存状态 |
+| Agno / OpenAI Agents | 可暂停 Run 和 human requirement | 必须持久化 requirement 和 owner |
+| Claude Managed Agents 设计 | deployment firing、session/run 分离 | 当前 Kiana 不宣称托管部署能力 |
+
+## 5. Human Inbox、Approval 和升级
+
+### 5.1 人类任务对象
+
+```text
+HumanTask {
+  human_task_id
+  type: approval | review | acceptance | escalation | reconciliation
+  owner_principal_id
+  project_id?
+  workflow_instance_id?
+  run_id?
+  invocation_id?
+  title
+  reason
+  risk
+  payload_digest?
+  evidence_refs[]
+  due_at?
+  expires_at?
+  status
+  decision_ref?
+}
+```
+
+### 5.2 HumanTask 状态
+
+```text
+Created → Assigned → Visible → Acknowledged
+Visible → Snoozed / Escalated / Expired / Cancelled
+Acknowledged → Decided / Rejected / Delegated
+Decided → Applied / Failed / ReconciliationRequired
+```
+
+人类界面至少要显示：
+
+- 触发它的 Objective、Project、Workflow 和 Run；
+- 请求者、责任人和审批 authority；
+- 最终 payload 和 digest；
+- 风险等级和预算影响；
+- 证据、来源和数据范围；
+- 如果拒绝或过期，后续 Workflow 如何处理；
+- 是否存在副作用不确定性。
+
+### 5.3 升级规则
+
+```text
+未处理 Approval
+  → reminder
+  → escalation target
+  → timeout policy
+  → expire / cancel / human intervention
+```
+
+沉默不是批准。Delegated approver 只能在原始 authority scope 内决定，并且必须留下 delegation provenance。
+
+### 5.4 Reference 映射
+
+| 参考项目 | 可吸收设计 |
+|---|---|
+| Agno | RunRequirement 持久化、pause/continue |
+| Agent Framework | approval lifecycle 和原始 call identity |
+| Cline | approval callback 与 runtime host 分离 |
+| Letta Code | 过期 approval、cursor 和 resume |
+| Crush | permission wait、run correlation 和 terminal event |
+
+## 6. Artifact、Workspace、Git 与交付
+
+### 6.1 Artifact 生命周期
+
+```text
+Artifact {
+  artifact_id
+  artifact_type
+  project_id?
+  run_id?
+  source_event_cursor
+  content_hash
+  parent_artifact_id?
+  version
+  media_type
+  sensitivity
+  owner
+  retention_policy
+  status
+}
+```
+
+```text
+Draft → Versioned → ReviewCandidate → Accepted → Delivered
+Draft / Versioned → Rejected / Superseded / Expired / Deleted
+Delivered → Confirmed / DeliveryUnknown
+```
+
+Artifact 不等于 Event：
+
+- Event 是不可变运行事实；
+- Artifact 是可读取、可版本化的产物；
+- Receipt 是从事实、Artifact 和验证结果生成的报告；
+- Transcript 是可丢弃的展示视图。
+
+### 6.2 Workspace 与 Git
+
+```text
+WorkspaceSnapshot
+  → Worktree / Branch
+  → PatchSet
+  → Verification
+  → ReviewCandidate
+  → MergeCandidate
+  → AcceptedArtifact
+```
+
+必须记录：
+
+```text
+workspace_root
+snapshot_hash
+base_revision
+changed_paths
+path_lock_refs[]
+author_cell_id
+reviewer_cell_id
+verification_refs[]
+merge_decision
+```
+
+规则：
+
+- Builder 的写集必须被 WorkPacket 和 PathLock 限制；
+- Review 必须看到明确的 snapshot/base revision；
+- Merge 不能覆盖原始 Artifact 或 Evidence；
+- 冲突产生新的 MergeConflict/WorkPacket，而不是静默改写；
+- 发布或导出必须有目标、版本、接收方和 DeliveryReceipt；
+- rollback 产生新的反向动作和事件，不删除历史。
+
+### 6.3 Reference 映射
+
+| 参考项目 | 可吸收设计 |
+|---|---|
+| Roo Code | 写操作前 checkpoint、model history 与 UI timeline 分离 |
+| Pi | append-only history tree、branch/fork 和恢复 |
+| Archon | worktree 隔离、实现与审查节点分离 |
+| gpt-pilot | task/command 状态链 |
+| Aider | diff、repo map、增量上下文 |
+| OpenHands | Artifact、事件桥和客户端投影 |
+
+## 7. Cost、Capacity 与 Backpressure
+
+### 7.1 预算层次
+
+```text
+FinancialBudget       支付、收入、合同承诺
+ProjectBudget         项目成本、容量和时间基线
+RuntimeBudget         Run 的 token、工具、墙钟和存储限额
+CellBudget            子 Cell 的派生租约
+ProviderBudget        某 Provider 的速率和费用限制
+```
+
+不同预算不能互相替代：
+
+```text
+RuntimeBudget consumed
+≠ ProjectBudget achieved
+≠ FinancialBudget authorized
+```
+
+### 7.2 UsageRecord 与 CostLedger
+
+```text
+UsageRecord {
+  usage_id
+  organization_id
+  project_id?
+  workflow_instance_id?
+  cell_id?
+  run_id
+  provider
+  model
+  input_tokens
+  output_tokens
+  cache_read_tokens
+  cache_write_tokens
+  tool_calls
+  wall_time_ms
+  storage_bytes
+  external_effect_count
+  estimated_cost
+  measured_cost?
+  created_at
+}
+```
+
+`CostLedger` 只能追加或通过明确的 correction event 修正，不能覆盖历史消费。
+
+### 7.3 容量与背压
+
+必须限制：
+
+- 每个 Session active Run 数；
+- 每个 Project active Cell 数；
+- 全局 Provider 并发；
+- MCP server 子进程数；
+- shell 子进程和 CPU/内存；
+- EventLog 写入队列；
+- Memory index backlog；
+- Workflow trigger firing rate；
+- Artifact 和日志磁盘容量。
+
+背压策略：
+
+```text
+Accept
+→ Queue
+→ Delay
+→ Coalesce
+→ Reject with retry_after
+→ Escalate
+```
+
+背压不能通过丢弃 Approval、Event、Receipt 或 terminal event 来缓解。
+
+### 7.4 成本指标
+
+```text
+cost_per_run
+cost_per_accepted_delivery
+cache_savings
+memory_retrieval_cost
+workflow_retry_cost
+swarm_duplicate_work_cost
+budget_burn_rate
+queue_wait_time
+```
+
+必须按 `model/provider/prompt_version/workflow/project` 分桶。平均 token 消耗不是质量指标，核心指标仍是 accepted delivery 和 outcome。
+
+## 8. Reliability、Recovery 与 Incident Operations
+
+### 8.1 运行健康对象
+
+```text
+HealthStatus {
+  component_id
+  component_type
+  observed_at
+  state: healthy | degraded | unavailable | quarantined
+  last_success_at?
+  failure_count
+  latency
+  version
+  details_redacted
+}
+```
+
+适用组件：
+
+```text
+DaemonHost
+ControlPlane
+EventStore
+StateProjector
+MemoryIndex
+ProviderGateway
+McpServer
+WorkflowScheduler
+ArtifactStore
+```
+
+### 8.2 失败分类
+
+```text
+RetryableTransient
+PermanentInputError
+PolicyDenied
+ApprovalExpired
+CapacityRejected
+Cancelled
+ResultUnknown
+PersistenceFailure
+SecurityViolation
+DependencyUnavailable
+```
+
+错误分类必须影响：
+
+- 是否可以自动 retry；
+- 是否需要新 Approval；
+- 是否必须创建 Incident；
+- 是否要进入 DeadLetter/Reconciliation；
+- CLI/HTTP/Receipt 的最终状态。
+
+### 8.3 RecoveryPlan
+
+```text
+RecoveryPlan {
+  recovery_id
+  incident_id
+  target_aggregate
+  observed_state
+  last_durable_cursor
+  safe_actions[]
+  forbidden_actions[]
+  requires_human
+  compensation_ref?
+  reconciliation_ref?
+  status
+}
+```
+
+统一恢复流程：
+
+```text
+Detect
+  → Classify
+  → Fence
+  → Persist incident
+  → Retry / Reconcile / Compensate
+  → Verify
+  → Resume or Close
+```
+
+### 8.4 关键故障规则
+
+- EventLog 追加失败时，不能发布“已完成”；
+- Projector 失败时，不能删除原始事件，必须允许重放；
+- Provider timeout 不等于 effect 未发生；
+- MCP process crash 后不能自动重复不幂等调用；
+- Cancel 返回后若不能确认 handler 停止，必须是 `cancelling` 或 `result_unknown`；
+- 磁盘满、半写 JSONL、损坏 Artifact 和失联子进程必须可观测；
+- Recovery action 本身如果有副作用，也必须经过新的授权和 idempotency key；
+- Incident 关闭必须引用验证证据，不依赖模型说“已经恢复”。
+
+### 8.5 Reference 映射
+
+| 参考项目 | 可吸收设计 |
+|---|---|
+| Goose | effect-before-event、状态机重载、步骤级恢复 |
+| Crush | queued/active cancel、terminal event 和 dispatch race 测试 |
+| DeepSeek Harness | 子进程组、工具边界和确定性 failure fixture |
+| OpenCode | projector、hydration、retry/compaction 关系 |
+| Cline | abort 队列、host/runtime 生命周期 |
+| CrewAI | checkpoint event，但不能吞掉 checkpoint failure |
+
+## 9. Data Governance 与 Privacy
+
+### 9.1 数据分类
+
+```text
+Public
+Internal
+ProjectConfidential
+UserPrivate
+CredentialSecret
+PersonalData
+SensitivePersonalData
+ExternalProviderData
+OperationalSecurityData
+```
+
+每个 Memory、Artifact、Event payload、Tool result 和日志字段都必须有分类或默认分类。
+
+### 9.2 Purpose 与 ProcessingGrant
+
+```text
+ProcessingGrant {
+  grant_id
+  principal_id
+  data_refs[]
+  purpose
+  allowed_operations[]
+  allowed_destinations[]
+  expires_at?
+  retention_policy
+  consent_ref?
+  status
+}
+```
+
+允许 Agent 读取某个 Project Memory，不代表允许：
+
+- 把它送给任意 Provider；
+- 写入 Company-wide Memory；
+- 复制到别的 Project；
+- 放进长期 prompt cache；
+- 作为外部邮件或订单内容。
+
+### 9.3 数据生命周期
+
+```text
+Collected
+  → Classified
+  → Scoped
+  → Used
+  → Shared / Exported
+  → Archived
+  → Expired / Deleted
+```
+
+删除或修正必须传播到：
+
+```text
+Primary record
+→ Event projection
+→ Artifact index
+→ Vector index
+→ Graph index
+→ Compaction summary
+→ Provider-bound cache policy
+→ Search result cache
+```
+
+安全事件、法律留存和审计证据可以有不同 retention，但必须由显式 policy 决定。
+
+### 9.4 Secret 规则
+
+Secret 原值不得进入：
+
+```text
+Prompt
+Transcript
+RuntimeEvent payload
+Receipt
+stdout/stderr
+argv
+Memory
+Cache artifact
+Error string
+```
+
+只能通过受控 Broker 的短期 invocation handle 解析。日志、指标和错误只记录 redacted metadata。
+
+### 9.5 数据治理 Reference
+
+参考 Agent 项目更多提供的是 runtime 边界，不是完整隐私系统；Kiana 应吸收：
+
+- Cline/Goose 的 host/tool boundary；
+- OpenCode/Roo 的工具结果和历史分离；
+- Letta/Continue 的分层 session/memory；
+- 12-factor 的最小上下文原则；
+- 本仓安全宪法关于 Secret、Memory ACL 和 provenance 的约束。
+
+不能把“有 Memory ACL”误称为完成了 retention、删除、consent 和 Provider processing governance。
+
+## 10. Integration 与 Connector 边界
+
+未来外部 Connector 统一采用：
+
+```text
+ConnectorDefinition
+  → AccountBinding
+  → CapabilityDescriptor
+  → DataProcessingPolicy
+  → HealthCheck
+  → Approval
+  → Invocation
+  → ProviderReceipt
+  → Reconciliation
+```
+
+Connector 不得直接写 Project 或 Memory 状态；只能通过 versioned command/event 和 ControlPlane 改变状态。
+
+Connector 需要明确：
+
+- 外部账户身份；
+- 读取和写入 scope；
+- webhook 签名/重放防护；
+- rate limit；
+- provider receipt；
+- cancellation/refund/reconciliation；
+- 数据留存和跨境处理；
+- version 和 schema drift；
+- 断线恢复；
+- 删除和撤销。
+
+当前不应先做大量 Connector。优先做本地、只读、可回放的 adapter fixture。
+
+## 11. 运营完成定义
+
+达到 `proven_local` 前至少需要：
+
+- 一个本地 Principal 可创建、暂停、撤销 RoleAssignment；
+- Session/Run/Workflow 不依赖全局 active 状态；
+- Schedule、Manual、Event trigger 都是可重放、可去重的命令；
+- Approval、Review、Acceptance、Reconciliation 都有 Human Inbox 投影；
+- Artifact、Workspace、Patch 和 Delivery 可从 Event/Receipt 回溯；
+- CostLedger 能区分 Runtime、Project 和 Financial budget；
+- crash、timeout、cancel、disk full、MCP failure 和 Provider unknown 都有 Incident/Recovery；
+- 删除和 retention policy 不会留下未治理的 Memory/Index/Cache 副本；
+- 外部 Connector 不会绕过 ControlPlane、Approval、Idempotency 和 Receipt。
+
+## 12. 实施顺序
+
+```text
+P0 durable principal + ownership + event/recovery
+  ↓
+P1 human inbox + cost/quota + artifact snapshot
+  ↓
+P2 local trigger/scheduler + incident/reconciliation
+  ↓
+P3 data classification + retention/deletion + provider processing policy
+  ↓
+P4 connector SDK + webhook/event ingress
+  ↓
+P5 team/tenant/remote operations
+```
+
+在 P0–P2 之前不做：
+
+- 自动支付；
+- 无人值守外部发送；
+- 远程执行；
+- 多租户共享 Memory；
+- 大规模 Marketplace Connector；
+- 无人值守的物理设备操作。
+
+## 13. 当前诚实描述
+
+> **Kiana 已有本地 ControlPlane、ProjectTrust、Approval、EventLog、Artifact 和部分运行安全能力；持久化 Principal、完整 Scheduler/Human Inbox、成本账本、跨进程恢复、Incident/Reconciliation、数据删除传播和外部 Connector 治理仍是目标能力。**

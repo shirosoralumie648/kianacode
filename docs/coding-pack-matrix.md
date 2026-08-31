@@ -10,6 +10,15 @@ Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.
 这不是 Claude Code 克隆清单，也不是把
 `reference/claude-code-rev-main/src/tools/` 的目录名搬进 `kiana-tools`。
 
+> **本文速览（导读，非规范）**
+>
+> - **讲什么**：v1.0 Coding pack 的审计底表——每个用户可见行为（自然语言派活、改文件、跑命令、MCP、Skill、Hook…）的现状、负责 crate、测试证据、许可证边界和"本期做不做"；外加冻结清单（明确不做的事）和签字后的打开顺序。
+> - **回答的问题**："Coding 能力里哪些真的做完了（已绿）、哪些明确延后或永远不做。"
+> - **地位**：v1.0 `REL-03` 发布检查只认这张表——不在表里、没有 owner 和测试证据的能力，一律不算完成。
+> - **读表提示**：「dump」指 `reference/` 里无 git 历史的还原代码树，只能当名字对照，禁止搬源码；「已绿」的证明上限是 `local_behavior`（本机受控环境下可复现），不是线上验证。
+>
+> 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
+
 ---
 
 ## 0. 怎么读
@@ -53,7 +62,7 @@ v0.4.4 把 P0-PROV / CODE-04 打成已绿（诚实：fake text-only / `unsupport
 
 ### 0.4 本草稿锁死的产品决策
 
-1. owned harness 保持 broker 工具面：`shell` + `apply_patch` + `mcp`。不把 `kiana-tools` 50+ 接上当完成。
+1. owned harness 保持 broker 工具面：`shell` + `apply_patch` + `mcp`（v0.5.2 MEM 已绿后加入 `memory.search` / `memory.write`，仍经同一 broker，见 §6）。不把 `kiana-tools` 50+ 接上当完成。
 2. P0 ≠ dump 工具数。Read/Grep/Glob 不是 P0；今天用 `shell` 搜。
 3. MCP 必须经 daemon broker 进 harness，禁止 `runner.rs` 当产品 MCP。
 4. Skills / hooks 必须经 harness + trust，加载器存在 ≠ 接到工人。
@@ -82,7 +91,7 @@ v0.4.4 把 P0-PROV / CODE-04 打成已绿（诚实：fake text-only / `unsupport
 | P0-ORCH | 独立上下文工人；packet 是唯一输入；规划会有界 | COMPANY.md；architect-loop；OpenSpec | `--packet` 新 session；`--symposium` PM+Architect 硬顶轮次；anti-meeting 可跳过 | `kiana-core`；`kiana-domain` | `.planning/phases/6,7,8-VERIFICATION.md` | 本仓 + 方法对照 | P0 | 已绿 |
 | P0-MCP | 作为 MCP **客户端** 发现/调用外部 server（stdio / HTTP）；工具经同一审批/沙箱 | 教程 `22-mcp.md`；Codex mcp-types 2025-05-02；deepseek `packages/mcp` 2026-07-07 | **stdio 已绿。** 模型工具 `mcp` → broker `mcp.call`。`KIANA_MCP_SERVERS_JSON`。HTTP → `mcp_transport_unsupported`。legacy `kiana-tools/mcp_tool.rs` 与 `kiana-entrypoints/mcp.rs` **仍不算产品路径** | `kiana-daemon` `harness_mcp.rs`；`kiana-runner` `tools.rs`；`kiana-policy` | `.planning/phases/11-VERIFICATION.md`；`trusted_builder_stdio_mcp_echoes_through_daemon` | MCP 规范公开；实现对照 Codex/deepseek Apache/MIT，不对照 dump | P0 | 已绿（stdio）；HTTP 仍后开 |
 | P0-SKILL | 项目/用户 Skill 对工人可见；trust 决定项目 Skill；按需加载 | 教程 `26-agent-skills.md`；`reference/skills` | **context 已绿。** Daemon `SkillAwareRunner` 把 skill pack 注入 harness 第一条 System 消息。项目 `.claude/skills` / `.kiana/skills` 未信任 withhold。不是模型工具 `skill`，不是 dump SkillTool | `kiana-daemon` `harness_skills.rs`；`kiana-skills`；`kiana-runner` | `.planning/phases/12-VERIFICATION.md`；`trusted_project_skill_appears_in_harness_system_message` | Agent Skills 公开用法可借鉴；dump SkillTool 禁止搬 | P0 | 已绿（context） |
-| P0-HOOK | pre/post tool、stop、session 钩子能拦或续；失败可见 | 教程 `33-hooks.md`；deepseek `packages/hooks` | **PreToolUse 已绿。** policy Allow 之后、broker execute 之前可 `hook_blocked`。Ask fail-closed。post/stop/session 仍不是产品完成 | `kiana-core` `pre_tool_hook_block`；`kiana-query` stop_hooks | `.planning/phases/12-VERIFICATION.md`；`pre_tool_use_hook_blocks_apply_patch_before_broker_execute` | 行为对照 | P0 | 已绿（PreToolUse） |
+| P0-HOOK | pre/post tool、stop、session 钩子能拦或续；失败可见 | 教程 `33-hooks.md`；deepseek `packages/hooks` | **PreToolUse 已绿（仅 harness 的 policy-Allowed 能力路径）。** `hook_blocked` 可在 broker 执行前阻断；Ask fail-closed 已实现但尚无产品路径 daemon 回归证据；harness 不应用 `UpdateInput`。post/stop/session 仍不是产品完成 | `kiana-core` `pre_tool_hook_block`；`kiana-daemon/src/pre_tool_hooks.rs`（旧 `kiana-query` stop_hooks 仅作迁移参考） | `.planning/phases/12-VERIFICATION.md`；`pre_tool_use_hook_blocks_apply_patch_before_broker_execute` | 行为对照 | P0 | 已绿（PreToolUse） |
 | P0-PROV | 多供应商能力差必须显式报告/降级，禁止静默装等价 | 教程 `05-third-party-models.md`；OpenHands provider settings；12-factor #2/#3 | **fake text-only 已绿。** Daemon `ProviderModelClient` 把缺 tools 映射成 `unsupported_tools`；run Failed，不写盘。Harness 仍 `stream: Some(false)`，故 **不是** `unsupported_streaming`。live Anthropic/OpenAI/Ollama **不是**完成。`kiana run --json` 是同一 run spine，本刀未编 CLI | `kiana-services`；`kiana-daemon/src/model_client.rs` | `.planning/phases/13-VERIFICATION.md`；`fake_text_only_provider_fails_closed_with_unsupported_tools` | 本仓 + 行为对照 | P0 | 已绿（fake text-only / unsupported_tools） |
 
 P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜」列为 5 类内置工具之一。Kiana 选择 Codex 形——**用 `shell` 跑 `rg`/`ls`/`cat`**，不在 P0 再做一个 Read/Grep/Glob 注册表。若 v0.4.2–0.4.3 之后仍无法在沙箱里可靠搜索，再开 P1-READ。
@@ -123,7 +132,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 - `kiana-entrypoints/src/mcp.rs` — Kiana 作为 MCP **server** 暴露 legacy 工具，给别人调 Kiana。这是反方向。
 - `kiana-services/src/mcp.rs` + `kiana-tools/src/mcp_tool.rs` — client 在 legacy 注册表。
 - `kiana-skills/` — 加载器仍在；产品路径是 daemon 把它装配进 harness System，不是 SkillTool。
-- `kiana-query/src/stop_hooks.rs` — PreToolUse 已接到 harness 黄金路径；post/stop/session 仍未当产品完成。
+- `kiana-query/src/stop_hooks.rs` — legacy hook model and stop-hook code retained for compatibility/reference; current product-path PreToolUse adapter is `kiana-daemon/src/pre_tool_hooks.rs`. Post/stop/session hooks remain not product-complete.。
 
 ---
 
