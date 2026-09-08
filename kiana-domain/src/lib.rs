@@ -1,4 +1,13 @@
-//! Stable domain contracts for the Kiana control plane.
+//! Kiana ControlPlane 使用的稳定领域契约。
+//!
+//! 本 crate 位于依赖图底层，只定义 ID、角色/部门、WorkPacket、能力请求、审批、事件和
+//! 生命周期等值对象，不依赖 daemon、query 或具体执行器。结构体的序列化形状是跨模块
+//! 的契约，但“存在一个类型”不等于运行时已经强制：真正的授权顺序、CAS、lease 和持久
+//! 证据仍由 core 与 ports 的实现负责。
+//!
+//! 所有路径、能力和状态 helper 都采用收紧/拒绝优先的语义。调用方应把 `None`、拒绝和
+//! `ResultUnknown` 与“没有副作用”严格区分，并以 EventLog/Receipt 作为事实来源，不把
+//! transcript、UI 投影或模型自述当作状态权威。
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -6,21 +15,49 @@ use std::fmt;
 use std::path::{Component, Path};
 use uuid::Uuid;
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// 结构化会话消息的发送者类型。
+pub enum ConversationRole {
+    /// 用户提交的提示。
+    User,
+    /// 模型生成的文本。
+    Assistant,
+    /// 工具或能力执行结果；不代表执行成功。
+    Tool,
+}
+
+/// 可沿协议传递的会话历史消息。
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConversationMessage {
+    /// 消息发送者角色。
+    pub role: ConversationRole,
+    /// 消息正文或工具结果文字。
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 可选工具调用 ID，用于把工具结果关联回某次模型调用。
+    pub tool_call_id: Option<String>,
+}
+
 macro_rules! uuid_id {
     ($name:ident) => {
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
         #[serde(transparent)]
+        /// 由 UUID 支撑的稳定领域标识。
         pub struct $name(Uuid);
 
         impl $name {
+            /// 创建新的随机 UUID 标识。
             pub fn new() -> Self {
                 Self(Uuid::new_v4())
             }
 
+            /// 从已有 UUID 构造标识，不进行额外格式校验。
             pub const fn from_uuid(value: Uuid) -> Self {
                 Self(value)
             }
 
+            /// 取出底层 UUID 值。
             pub const fn as_uuid(self) -> Uuid {
                 self.0
             }
@@ -60,6 +97,7 @@ uuid_id!(SupervisionLeaseId);
 uuid_id!(DelegationId);
 
 impl RunId {
+    /// 从字符串解析 run UUID；首尾空白会被忽略，格式错误返回 `None`。
     pub fn parse_str(value: &str) -> Option<Self> {
         Uuid::parse_str(value.trim()).ok().map(Self::from_uuid)
     }
@@ -69,17 +107,21 @@ pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+/// 用户或入口分配的会话标识。
 pub struct SessionId(String);
 
 impl SessionId {
+    /// 创建 session ID；该函数保留调用方的文字，不自动生成 UUID。
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }
 
+    /// 返回不拷贝的原始 session ID。
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// 判断去除首尾空白后是否为空。
     pub fn is_empty(&self) -> bool {
         self.0.trim().is_empty()
     }
@@ -93,9 +135,14 @@ impl fmt::Display for SessionId {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+/// 用于幂等和冲突识别的规范化工作指纹。
 pub struct WorkFingerprint(String);
 
 impl WorkFingerprint {
+    /// 按目标、输入引用、分区、输出契约和策略快照生成指纹。
+    ///
+    /// 输入引用会排序并去除空项，使同一工作集合不受输入顺序影响；关键字段缺失时拒绝
+    /// 生成。当前算法是 FNV-1a64 文字指纹，不应当作密码学哈希或跨系统防碰撞证明。
     pub fn from_parts(
         objective: &str,
         input_refs: &[String],
@@ -130,6 +177,7 @@ impl WorkFingerprint {
         )))
     }
 
+    /// 返回指纹文字，例如 `fnv1a64:...`。
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -143,10 +191,14 @@ impl fmt::Display for WorkFingerprint {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 请求可声明的权限档位；它本身不构成授权。
 pub enum PermissionProfile {
     #[default]
+    /// 最保守档位，默认拒绝高风险或未明确授权动作。
     Safe,
+    /// 允许经过策略与审批的有限动作。
     Balanced,
+    /// 请求更宽能力，但仍不能跳过硬拒绝和 ControlPlane。
     Autonomous,
 }
 
@@ -159,26 +211,39 @@ fn default_department_id() -> String {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 一次协议请求在控制平面中的身份、信任和范围快照。
 pub struct RequestContext {
+    /// 当前请求的稳定 ID。
     pub request_id: RequestId,
+    /// 所属会话 ID。
     pub session_id: SessionId,
+    /// 项目根目录文字；消费方必须进一步规范化。
     pub project_root: String,
+    /// 发起请求的主体标识。
     pub actor_id: Option<String>,
+    /// 项目资源是否已通过 trust 检查。
     pub project_trusted: bool,
+    /// 请求声明的权限档位，不能单独授予能力。
     pub permission_profile: PermissionProfile,
     #[serde(default = "default_role_id")]
+    /// 角色 ID。
     pub role_id: String,
     #[serde(default = "default_department_id")]
+    /// 部门 ID。
     pub department_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 可选 WorkPacket ID。
     pub work_packet_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 可选执行 cell ID。
     pub cell_id: Option<CellId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// 请求允许触达的路径集合；实际范围应与所有上游边界取交集。
     pub path_allow: Vec<String>,
 }
 
 impl RequestContext {
+    /// 创建默认本地上下文：未信任项目、Safe 权限、Builder/Executing 身份。
     pub fn local(session_id: impl Into<String>, project_root: impl Into<String>) -> Self {
         Self {
             request_id: RequestId::new(),
@@ -195,6 +260,7 @@ impl RequestContext {
         }
     }
 
+    /// 将角色和部门字段同步为给定角色快照。
     pub fn assign_role(&mut self, role: &RoleSpec) {
         self.role_id = role.role_id.clone();
         self.department_id = role.department_id.clone();
@@ -271,22 +337,39 @@ pub const MEMORY_LAYERS: [&str; 6] = [
 ];
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 角色的工具、沙箱、路径、知识和模型预算快照。
+///
+/// `RoleSpec` 是策略输入，不是绕过策略的授权令牌。角色允许的工具、路径和知识集合
+/// 仍要与部门、项目、WorkPacket、审批和当前请求范围求交集。
 pub struct RoleSpec {
+    /// 稳定角色标识，如 `builder` 或 `reviewer`。
     pub role_id: String,
+    /// 所属部门标识。
     pub department_id: String,
+    /// 注入模型的角色指令文字。
     pub prompt: String,
+    /// 角色指令的内容指纹，用于检测指令漂移。
     pub prompt_hash: String,
+    /// 模型可见工具名称白名单。
     pub tools: Vec<String>,
+    /// 角色默认沙箱档位。
     pub sandbox: String,
+    /// 角色可触达的相对路径前缀。
     pub path_allow: Vec<String>,
+    /// 角色可读取的知识集合授权。
     pub knowledge_grants: Vec<String>,
+    /// 是否可以主持 symposium。
     pub can_convene: bool,
+    /// 是否可以参与投票。
     pub can_vote: bool,
+    /// 角色对应的模型配置档位名。
     pub model_profile: String,
+    /// 单个 harness 回合允许的最大步骤数。
     pub max_steps: u32,
 }
 
 impl RoleSpec {
+    /// 返回执行 Builder 的固定角色快照。
     pub fn builder() -> Self {
         Self::new(
             ROLE_BUILDER,
@@ -314,6 +397,7 @@ impl RoleSpec {
         )
     }
 
+    /// 返回规划 PM 的固定角色快照。
     pub fn pm() -> Self {
         Self::new(
             ROLE_PM,
@@ -343,6 +427,7 @@ impl RoleSpec {
         )
     }
 
+    /// 返回只读规划 Architect 的固定角色快照。
     pub fn architect() -> Self {
         Self::new(
             ROLE_ARCHITECT,
@@ -363,6 +448,7 @@ impl RoleSpec {
         )
     }
 
+    /// 返回监控 Reviewer 的固定角色快照。
     pub fn reviewer() -> Self {
         Self::new(
             ROLE_REVIEWER,
@@ -383,6 +469,7 @@ impl RoleSpec {
         )
     }
 
+    /// 返回 initiating Sponsor 的固定角色快照。
     pub fn sponsor() -> Self {
         Self::new(
             ROLE_SPONSOR,
@@ -407,6 +494,7 @@ impl RoleSpec {
         )
     }
 
+    /// 返回 closing Closer 的固定角色快照。
     pub fn closer() -> Self {
         Self::new(
             ROLE_CLOSER,
@@ -431,6 +519,7 @@ impl RoleSpec {
         )
     }
 
+    /// 返回全部内置角色，顺序固定用于目录和审计展示。
     pub fn catalog() -> [RoleSpec; 6] {
         [
             Self::sponsor(),
@@ -442,6 +531,7 @@ impl RoleSpec {
         ]
     }
 
+    /// 按角色 ID 查找内置角色；空 ID 默认返回 Builder。
     pub fn lookup(role_id: &str) -> Option<Self> {
         let role_id = role_id.trim();
         if role_id.is_empty() {
@@ -452,10 +542,14 @@ impl RoleSpec {
             .find(|role| role.role_id == role_id)
     }
 
+    /// 判断角色白名单是否包含指定模型工具名称。
     pub fn allows_tool(&self, tool: &str) -> bool {
         self.tools.iter().any(|allowed| allowed == tool)
     }
 
+    /// 判断角色路径白名单是否覆盖给定相对路径。
+    ///
+    /// 路径会先经过 `normalize_role_path`；非法绝对路径和目录穿越返回 false。
     pub fn allows_path(&self, path: &str) -> bool {
         let Some(path) = normalize_role_path(path) else {
             return false;
@@ -473,10 +567,12 @@ impl RoleSpec {
         })
     }
 
+    /// 判断角色默认沙箱是否为项目内可写档位。
     pub fn workspace_write_allowed(&self) -> bool {
         self.sandbox == ROLE_SANDBOX_WORKSPACE_WRITE
     }
 
+    /// 判断角色是否获准读取指定知识集合。
     pub fn allows_knowledge(&self, collection: &str) -> bool {
         let Some(parsed) = MemoryCollection::parse(collection) else {
             return false;
@@ -486,6 +582,7 @@ impl RoleSpec {
             .any(|grant| MemoryCollection::parse(grant).is_some_and(|grant| grant.covers(&parsed)))
     }
 
+    /// 将角色知识授权解析为可审计的集合对象。
     pub fn granted_collections(&self) -> Vec<MemoryCollection> {
         self.knowledge_grants
             .iter()
@@ -493,6 +590,9 @@ impl RoleSpec {
             .collect()
     }
 
+    /// 判断角色是否可以向指定知识集合写入。
+    ///
+    /// 写入规则按角色硬编码为最小范围；未知角色和只读角色默认拒绝。
     pub fn allows_memory_write(&self, collection: &str) -> bool {
         let Some(parsed) = MemoryCollection::parse(collection) else {
             return false;
@@ -540,12 +640,16 @@ impl RoleSpec {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 六层知识记忆中的一个规范化集合地址。
 pub struct MemoryCollection {
+    /// 记忆层级，例如 `project` 或 `user`。
     pub layer: String,
+    /// 层内集合名，例如 `project:code`。
     pub collection: String,
 }
 
 impl MemoryCollection {
+    /// 解析允许的集合别名；未知、空或非法集合返回 `None`。
     pub fn parse(raw: &str) -> Option<Self> {
         let raw = raw.trim().trim_matches('/');
         if raw.is_empty() {
@@ -578,6 +682,7 @@ impl MemoryCollection {
         })
     }
 
+    /// 判断当前授权集合是否覆盖请求集合。
     pub fn covers(&self, requested: &MemoryCollection) -> bool {
         if self.collection == requested.collection {
             return true;
@@ -601,6 +706,7 @@ impl MemoryCollection {
         false
     }
 
+    /// 判断集合是否属于用户/公司 home 范围。
     pub fn home_scoped(&self) -> bool {
         matches!(
             self.layer.as_str(),
@@ -610,14 +716,23 @@ impl MemoryCollection {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 部门的职责、角色、产物和 gate 配置快照。
 pub struct DepartmentSpec {
+    /// 部门稳定 ID。
     pub department_id: String,
+    /// PMP 分组标识。
     pub pmp_group: String,
+    /// 部门任务描述。
     pub mission: String,
+    /// 部门可包含的角色 ID。
     pub roles: Vec<String>,
+    /// 部门允许写入或读取的产物路径。
     pub artifacts: Vec<String>,
+    /// 部门默认知识集合。
     pub rag_collection: String,
+    /// 是否允许主持 symposium。
     pub can_convene: bool,
+    /// 部门必须满足的 gate 名称。
     pub gates: Vec<String>,
 }
 
@@ -642,6 +757,7 @@ impl DepartmentSpec {
         }
     }
 
+    /// 返回 executing 部门配置。
     pub fn executing() -> Self {
         Self::new(
             DEPARTMENT_EXECUTING,
@@ -653,6 +769,7 @@ impl DepartmentSpec {
         )
     }
 
+    /// 返回 planning 部门配置。
     pub fn planning() -> Self {
         Self::new(
             DEPARTMENT_PLANNING,
@@ -668,6 +785,7 @@ impl DepartmentSpec {
         )
     }
 
+    /// 返回 monitoring 部门配置。
     pub fn monitoring() -> Self {
         Self::new(
             DEPARTMENT_MONITORING,
@@ -679,6 +797,7 @@ impl DepartmentSpec {
         )
     }
 
+    /// 返回 initiating 部门配置。
     pub fn initiating() -> Self {
         Self::new(
             DEPARTMENT_INITIATING,
@@ -690,6 +809,7 @@ impl DepartmentSpec {
         )
     }
 
+    /// 返回 closing 部门配置。
     pub fn closing() -> Self {
         Self::new(
             DEPARTMENT_CLOSING,
@@ -701,6 +821,7 @@ impl DepartmentSpec {
         )
     }
 
+    /// 返回全部内置部门，顺序固定用于目录和审计展示。
     pub fn catalog() -> [DepartmentSpec; 5] {
         [
             Self::initiating(),
@@ -711,6 +832,7 @@ impl DepartmentSpec {
         ]
     }
 
+    /// 按部门 ID 查找内置部门；空 ID 默认返回 executing。
     pub fn lookup(department_id: &str) -> Option<Self> {
         let department_id = department_id.trim();
         if department_id.is_empty() {
@@ -721,6 +843,7 @@ impl DepartmentSpec {
             .find(|department| department.department_id == department_id)
     }
 
+    /// 返回该部门中第一个可主持 symposium 的角色。
     pub fn convene_chair_id(&self) -> Option<String> {
         self.roles.iter().find_map(|role_id| {
             RoleSpec::lookup(role_id)
@@ -729,6 +852,7 @@ impl DepartmentSpec {
         })
     }
 
+    /// 返回该部门决策记录的相对路径。
     pub fn decision_path(&self) -> &'static str {
         match self.department_id.as_str() {
             DEPARTMENT_INITIATING => INITIATING_DECISION_PATH,
@@ -742,42 +866,67 @@ impl DepartmentSpec {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 可执行工作的不可变范围、验收和分配描述。
+///
+/// WorkPacket 是 Builder 获得工作范围的主要契约。`validate` 只检查领域不变量；真正的
+/// 文件写集、budget、cell 和审批仍须由 ControlPlane 再次绑定，不能因为 packet 中存在
+/// `path_allow` 就直接执行。
 pub struct WorkPacket {
+    /// packet schema 版本。
     pub schema: String,
+    /// packet 的业务标识。
     pub id: String,
+    /// 所属项目 ID。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<ProjectId>,
+    /// 父 packet ID。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_packet_id: Option<String>,
+    /// 执行该 packet 的 cell ID。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner_cell_id: Option<CellId>,
+    /// 验收者主体标识。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub acceptor_id: Option<String>,
+    /// 输入引用列表。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<String>,
+    /// 依赖的其他 packet/工件标识。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dependencies: Vec<String>,
+    /// 数据访问范围声明。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_scope: Vec<String>,
+    /// 结构化验收测试列表。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub acceptance_tests: Vec<String>,
+    /// 截止时间 Unix 毫秒。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline_unix_ms: Option<u64>,
+    /// 绑定的 budget lease。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub budget_lease_id: Option<BudgetLeaseId>,
+    /// packet 生命周期状态。
     #[serde(default, skip_serializing_if = "is_draft_status")]
     pub status: WorkPacketStatus,
+    /// 发起部门。
     #[serde(default = "default_from_department")]
     pub from_department: String,
+    /// 目标部门。
     #[serde(default = "default_department_id")]
     pub to_department: String,
+    /// 被分配的角色。
     #[serde(default = "default_role_id")]
     pub assignee_role: String,
+    /// 人类可读目标。
     pub goal: String,
+    /// 允许写入的相对路径。
     #[serde(default)]
     pub path_allow: Vec<String>,
+    /// 验收条件文字列表。
     #[serde(default)]
     pub acceptance: Vec<String>,
+    /// 明确禁止的操作或范围。
     #[serde(default)]
     pub forbidden: Vec<String>,
 }
@@ -791,6 +940,7 @@ fn default_from_department() -> String {
 }
 
 impl WorkPacket {
+    /// 创建默认分配给 executing Builder 的草稿 packet。
     pub fn builder_task(id: impl Into<String>, goal: impl Into<String>) -> Self {
         Self {
             schema: WORK_PACKET_SCHEMA.to_owned(),
@@ -816,11 +966,13 @@ impl WorkPacket {
         }
     }
 
+    /// 设置 packet 的相对路径白名单。
     pub fn with_path_allow(mut self, paths: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.path_allow = paths.into_iter().map(Into::into).collect();
         self
     }
 
+    /// 设置验收测试列表。
     pub fn with_acceptance_tests(
         mut self,
         tests: impl IntoIterator<Item = impl Into<String>>,
@@ -829,6 +981,7 @@ impl WorkPacket {
         self
     }
 
+    /// 设置依赖 packet 列表。
     pub fn with_dependencies(
         mut self,
         dependencies: impl IntoIterator<Item = impl Into<String>>,
@@ -837,11 +990,13 @@ impl WorkPacket {
         self
     }
 
+    /// 按 WorkPacketStatus 的领域状态机迁移状态。
     pub fn transition_status(&mut self, next: WorkPacketStatus) -> Result<(), DomainError> {
         self.status = self.status.transition(next)?;
         Ok(())
     }
 
+    /// 校验 schema、标识、角色、部门和终态约束。
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema.trim() != WORK_PACKET_SCHEMA {
             return Err("packet_invalid");
@@ -869,6 +1024,10 @@ impl WorkPacket {
         Ok(())
     }
 
+    /// 将 packet 字段编排为注入 Builder 的提示文本。
+    ///
+    /// 这是上下文展示，不是安全边界；路径、工具和执行权限必须由结构化上下文与策略
+    /// 单独传递并验证。
     pub fn as_prompt(&self) -> String {
         let mut lines = vec![
             format!("Work packet {}", self.id.trim()),
@@ -1146,7 +1305,8 @@ impl CapabilityGrant {
     }
 
     pub fn allows_request(&self, request: &CapabilityRequest) -> bool {
-        let exact_scope = self.capability == request.capability && self.operation == request.operation;
+        let exact_scope =
+            self.capability == request.capability && self.operation == request.operation;
         let coding_scope = matches!(&self.capability, CapabilityKind::Other(scope) if scope == "coding")
             && self.operation == "builder.packet"
             && matches!(
@@ -1157,7 +1317,10 @@ impl CapabilityGrant {
             return false;
         }
         let paths = capability_request_paths(request);
-        paths.is_empty() || paths.iter().all(|path| allow_list_covers(&self.paths, path))
+        paths.is_empty()
+            || paths
+                .iter()
+                .all(|path| allow_list_covers(&self.paths, path))
     }
 }
 
@@ -2013,12 +2176,16 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// 面向模型/工具的结构化命令意图。
 pub struct CommandIntent {
+    /// 命令注册名。
     pub name: String,
+    /// 命令参数 JSON。
     pub arguments: Value,
 }
 
 impl CommandIntent {
+    /// 创建一个不执行任何副作用的命令意图。
     pub fn new(name: impl Into<String>, arguments: Value) -> Self {
         Self {
             name: name.into(),
@@ -2029,45 +2196,71 @@ impl CommandIntent {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 能力请求所属的资源类别。
 pub enum CapabilityKind {
+    /// 查询、索引或只读上下文能力。
     Query,
+    /// 文件读取/写入能力。
     Filesystem,
+    /// 进程或 shell 能力。
     Process,
+    /// 外部网络或 MCP 能力。
     Network,
+    /// 模型调用能力。
     Model,
+    /// 机密读取能力，默认高风险。
     Secret,
+    /// 沙箱后端或隔离能力。
     Sandbox,
+    /// 计算机/桌面交互能力。
     Computer,
+    /// 工具包装能力。
     Tool,
+    /// 未内置的扩展类别；策略必须显式识别后才能放行。
     Other(String),
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 能力请求的风险标签。
 pub enum RiskLevel {
     #[default]
+    /// 只读或本地无副作用操作。
     ReadOnly,
+    /// 修改本地文件或状态。
     LocalWrite,
+    /// 可能影响外部系统的操作。
     ExternalSideEffect,
+    /// 关键或不可逆操作。
     Critical,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// 交给 policy/gate/broker 链路审核的能力请求。
 pub struct CapabilityRequest {
+    /// 请求唯一 ID。
     pub request_id: RequestId,
+    /// 能力类别。
     pub capability: CapabilityKind,
+    /// broker 使用的精确操作键。
     pub operation: String,
+    /// 原始结构化参数；策略和 handler 必须分别校验。
     pub arguments: Value,
+    /// 请求声明的风险级别，不能由模型单方面提升为授权。
     pub risk: RiskLevel,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 所属 cell ID。
     pub cell_id: Option<CellId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 绑定的 capability grant ID。
     pub capability_grant_id: Option<CapabilityGrantId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 绑定的 budget lease ID。
     pub budget_lease_id: Option<BudgetLeaseId>,
 }
 
 impl CapabilityRequest {
+    /// 创建默认 ReadOnly 风险的能力请求。
     pub fn new(
         request_id: RequestId,
         capability: CapabilityKind,
@@ -2086,6 +2279,7 @@ impl CapabilityRequest {
         }
     }
 
+    /// 设置请求风险并返回 builder 风格值。
     pub fn with_risk(mut self, risk: RiskLevel) -> Self {
         self.risk = risk;
         self
@@ -2125,51 +2319,86 @@ fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 用户对一次待审批请求的决定。
 pub enum ApprovalDecision {
+    /// 同意当前精确请求。
     Approve,
+    /// 拒绝当前请求。
     Deny,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// 一次性审批挑战及其绑定证明材料。
 pub struct ApprovalChallenge {
+    /// 挑战 schema 标识。
     pub schema: String,
+    /// 审批 ID。
     pub approval_id: ApprovalId,
+    /// 被审批请求 ID。
     pub request_id: RequestId,
+    /// 请求内容摘要，防止批准被转用于另一请求。
     pub request_hash: String,
+    #[serde(default)]
+    /// 签发挑战时由服务端确定的请求风险；旧记录缺失时默认只读，以禁止自动批准。
+    pub risk: RiskLevel,
+    /// Unix 毫秒过期时间。
     pub expires_at_unix_ms: u64,
+    /// 面向用户的审批/拒绝原因。
     pub reason: String,
     #[serde(default)]
+    /// 可选一次性 nonce。
     pub nonce: String,
     #[serde(default)]
+    /// 生成挑战时的策略版本。
     pub policy_version: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// 待审批请求及其挑战的组合。
 pub struct PendingApproval {
+    /// 给 UI/调用方展示并回传的挑战。
     pub challenge: ApprovalChallenge,
+    /// 等待决定的能力请求。
     pub request: CapabilityRequest,
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// 尚未完成审批的能力请求及其运行上下文。
+///
+/// 该类型只在 core 内保存，故意不序列化；审批通过后仍需重新绑定 challenge、上下文、
+/// sandbox 和事件序号，不能直接把其中的请求交给 broker。
 pub struct PendingInvocation {
+    /// 待决定的审批 ID。
     pub approval_id: ApprovalId,
+    /// 当时签发的审批挑战。
     pub challenge: ApprovalChallenge,
+    /// 外层协议请求 ID。
     pub request_id: RequestId,
+    /// 记录审批事件所用的请求 ID。
     pub event_request_id: RequestId,
+    /// 下一条事件序号。
     pub event_sequence: u64,
+    /// 所属 run ID。
     pub run_id: RunId,
+    /// 等待授权的能力请求。
     pub request: CapabilityRequest,
+    /// 创建 pending 时的请求上下文快照。
     pub context: RequestContext,
+    /// 当时请求的沙箱档位。
     pub sandbox: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// 已由 ControlPlane 生成授权 ID 的能力请求。
 pub struct AuthorizedCapabilityRequest {
+    /// core 生成的非空授权记录 ID。
     pub authorization_id: String,
+    /// 已通过策略、gate 和必要审批的原始请求。
     pub request: CapabilityRequest,
 }
 
 impl AuthorizedCapabilityRequest {
+    /// 创建授权请求；空授权 ID 直接拒绝，防止 broker 接受匿名执行。
     pub fn new(
         authorization_id: impl Into<String>,
         request: CapabilityRequest,
@@ -2186,14 +2415,20 @@ impl AuthorizedCapabilityRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// capability handler 返回给控制平面的结构化结果。
 pub struct CapabilityResult {
+    /// 对应原能力请求 ID。
     pub request_id: RequestId,
+    /// handler 是否报告成功；`false` 仍可能伴随部分副作用。
     pub success: bool,
+    /// handler 输出或结构化错误。
     pub output: Value,
+    /// 可供回执追踪的证据引用。
     pub evidence_refs: Vec<String>,
 }
 
 impl CapabilityResult {
+    /// 创建成功结果；不会自动添加证据引用。
     pub fn success(request_id: RequestId, output: Value) -> Self {
         Self {
             request_id,
@@ -2203,6 +2438,7 @@ impl CapabilityResult {
         }
     }
 
+    /// 创建失败结果；错误文字被放入结构化 `output.error`。
     pub fn failure(request_id: RequestId, error: impl Into<String>) -> Self {
         Self {
             request_id,
@@ -2628,11 +2864,17 @@ impl ExecutionStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// EventLog 中一条带流元数据的不可变运行事件。
 pub struct RuntimeEvent {
+    /// 事件全局 ID；重复 ID 必须被 EventStore 拒绝。
     pub event_id: EventId,
+    /// 关联请求 ID。
     pub request_id: RequestId,
+    /// 请求内递增序号，从 1 开始。
     pub sequence: u64,
+    /// 稳定事件种类。
     pub kind: String,
+    /// 结构化事件载荷。
     pub data: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aggregate_type: Option<String>,
@@ -2645,6 +2887,7 @@ pub struct RuntimeEvent {
 }
 
 impl RuntimeEvent {
+    /// 创建基础事件；序号 0 会被拒绝。
     pub fn new(
         request_id: RequestId,
         sequence: u64,
@@ -2667,6 +2910,7 @@ impl RuntimeEvent {
         })
     }
 
+    /// 附加 aggregate stream 类型、ID 和版本，供 CAS/重放检查使用。
     pub fn with_stream_metadata(
         mut self,
         aggregate_type: impl Into<String>,
@@ -2679,6 +2923,7 @@ impl RuntimeEvent {
         self
     }
 
+    /// 附加幂等键；合法性和载荷一致性由 EventStore 验证。
     pub fn with_idempotency_key(mut self, idempotency_key: impl Into<String>) -> Self {
         self.idempotency_key = Some(idempotency_key.into());
         self
@@ -2686,14 +2931,20 @@ impl RuntimeEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// ControlPlane 返回给 daemon 的统一响应。
 pub struct CoreResponse {
+    /// 原请求 ID。
     pub request_id: RequestId,
+    /// 当前执行状态。
     pub status: ExecutionStatus,
+    /// 结构化输出。
     pub output: Value,
+    /// 可选错误原因。
     pub error: Option<String>,
 }
 
 impl CoreResponse {
+    /// 创建 Completed 响应。
     pub fn completed(request_id: RequestId, output: Value) -> Self {
         Self {
             request_id,
@@ -2703,6 +2954,7 @@ impl CoreResponse {
         }
     }
 
+    /// 创建 fail-closed 的 Blocked 响应。
     pub fn blocked(request_id: RequestId, reason: impl Into<String>) -> Self {
         let reason = reason.into();
         Self {
@@ -2715,11 +2967,15 @@ impl CoreResponse {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+/// 领域对象不变量或状态转换失败。
 pub enum DomainError {
+    /// 授权 ID 为空。
     #[error("authorization_id_required")]
     EmptyAuthorizationId,
+    /// 事件序号不是正整数。
     #[error("event_sequence_must_be_positive")]
     InvalidEventSequence,
+    /// aggregate 生命周期不允许该状态转换。
     #[error("{aggregate}_invalid_state_transition:{from}->{to}")]
     InvalidStateTransition {
         aggregate: &'static str,
@@ -3238,6 +3494,23 @@ mod tests {
     }
 
     #[test]
+    fn legacy_approval_challenge_defaults_risk_to_read_only() {
+        let challenge: ApprovalChallenge = serde_json::from_value(serde_json::json!({
+            "schema": APPROVAL_CHALLENGE_SCHEMA,
+            "approval_id": ApprovalId::new(),
+            "request_id": RequestId::new(),
+            "request_hash": "sha256:legacy",
+            "expires_at_unix_ms": 1,
+            "reason": "approval_required",
+            "nonce": "nonce",
+            "policy_version": "kiana.policy.v1",
+        }))
+        .unwrap();
+
+        assert_eq!(challenge.risk, RiskLevel::ReadOnly);
+    }
+
+    #[test]
     fn authorization_and_event_invariants_fail_closed() {
         let request = CapabilityRequest::new(
             RequestId::new(),
@@ -3281,5 +3554,55 @@ mod tests {
             Vec::new(),
         );
         assert_eq!(packet.validate(), Err("review_author_must_be_builder"));
+    }
+
+    #[test]
+    fn role_paths_are_normalized_and_traversal_is_rejected() {
+        // 路径规范化必须消除无害的分隔符差异，同时拒绝绝对路径和目录穿越。
+        assert_eq!(
+            normalize_role_path(" ./src\\lib.rs "),
+            Some("src/lib.rs".to_owned())
+        );
+        assert_eq!(normalize_role_path("."), Some(".".to_owned()));
+        assert_eq!(normalize_role_path("/etc/passwd"), None);
+        assert_eq!(normalize_role_path("../outside.txt"), None);
+        assert_eq!(normalize_role_path("src/../../outside.txt"), None);
+        assert_eq!(normalize_role_path(""), None);
+    }
+
+    #[test]
+    fn work_fingerprint_is_order_independent_and_requires_inputs() {
+        // 指纹输入中的引用顺序不应影响结果；关键字段缺失时必须拒绝生成指纹。
+        let first = WorkFingerprint::from_parts(
+            " ship change ",
+            &[" b ".to_owned(), "a".to_owned(), String::new()],
+            " packet-1 ",
+            " output-v1 ",
+            " policy-v1 ",
+        )
+        .unwrap();
+        let second = WorkFingerprint::from_parts(
+            "ship change",
+            &["a".to_owned(), "b".to_owned()],
+            "packet-1",
+            "output-v1",
+            "policy-v1",
+        )
+        .unwrap();
+        assert_eq!(first, second);
+        assert!(first.as_str().starts_with("fnv1a64:"));
+
+        // 四个契约字段任意一个为空都不能生成可审计的工作指纹。
+        for (objective, partition, output, policy) in [
+            ("", "packet", "output", "policy"),
+            ("objective", "", "output", "policy"),
+            ("objective", "packet", "", "policy"),
+            ("objective", "packet", "output", ""),
+        ] {
+            assert_eq!(
+                WorkFingerprint::from_parts(objective, &[], partition, output, policy),
+                Err("work_fingerprint_input_required")
+            );
+        }
     }
 }

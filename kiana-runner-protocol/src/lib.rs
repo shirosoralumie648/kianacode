@@ -1,37 +1,64 @@
-//! Commands and events exchanged across the runner boundary.
+//! runner 边界上的命令与事件契约。
+//!
+//! 本 crate 只定义 `RunnerCommand`/`RunnerEvent` 的可序列化 wire shape。Runner 可以请求
+//! capability，但不能直接执行；`CapabilityRequested` 必须回到 daemon broker，结果也
+//! 必须按 run ID 关联。`project_trusted`、sandbox 和 instructions 是上游快照/输入，不是
+//! runner 自行授予权限的依据。
 
-use kiana_domain::{CapabilityRequest, CapabilityResult, RunId};
+use kiana_domain::{CapabilityRequest, CapabilityResult, ConversationMessage, RunId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// harness 缺省的只读沙箱档位。
 pub const DEFAULT_HARNESS_SANDBOX: &str = "read-only";
+/// harness 支持的项目内可写沙箱档位。
 pub const HARNESS_SANDBOX_WORKSPACE_WRITE: &str = "workspace-write";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
+/// daemon 发给 runner 的控制命令。
 pub enum RunnerCommand {
+    /// 启动新 run，可带历史、项目根、沙箱和系统指令。
     Start {
+        /// run 稳定 ID。
         run_id: RunId,
+        /// 当前提示词。
         prompt: String,
         #[serde(default)]
+        /// 结构化历史消息；缺失时按空历史处理。
+        history: Vec<ConversationMessage>,
+        #[serde(default)]
+        /// 项目根目录。
         project_root: String,
         #[serde(default = "default_harness_sandbox")]
+        /// 请求沙箱档位。
         sandbox: String,
         #[serde(default)]
+        /// 上游注入的系统指令。
         instructions: String,
         #[serde(default)]
+        /// 项目 trust 快照；不能替代 core 的实时授权。
         project_trusted: bool,
     },
+    /// 将 capability handler 的结果回传给 runner。
     CapabilityResult {
+        /// 对应 run ID。
         run_id: RunId,
+        /// handler 的结构化结果。
         result: CapabilityResult,
     },
+    /// 继续已有 run。
     Continue {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 新的提示词。
         prompt: String,
     },
+    /// 请求取消 run。
     Cancel {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 取消原因。
         reason: String,
     },
 }
@@ -41,10 +68,12 @@ fn default_harness_sandbox() -> String {
 }
 
 impl RunnerCommand {
+    /// 构造默认只读、无项目上下文的新 run 命令。
     pub fn start(run_id: RunId, prompt: impl Into<String>) -> Self {
         Self::Start {
             run_id,
             prompt: prompt.into(),
+            history: Vec::new(),
             project_root: String::new(),
             sandbox: default_harness_sandbox(),
             instructions: String::new(),
@@ -52,6 +81,7 @@ impl RunnerCommand {
         }
     }
 
+    /// 构造带项目根和沙箱的新 run 命令。
     pub fn start_in(
         run_id: RunId,
         prompt: impl Into<String>,
@@ -68,6 +98,7 @@ impl RunnerCommand {
         )
     }
 
+    /// 构造带系统指令和 trust 快照的新 run 命令。
     pub fn start_in_with_instructions(
         run_id: RunId,
         prompt: impl Into<String>,
@@ -79,6 +110,7 @@ impl RunnerCommand {
         Self::Start {
             run_id,
             prompt: prompt.into(),
+            history: Vec::new(),
             project_root: project_root.into(),
             sandbox: sandbox.into(),
             instructions: instructions.into(),
@@ -86,6 +118,28 @@ impl RunnerCommand {
         }
     }
 
+    /// 构造带结构化历史的新 run 命令。
+    pub fn start_in_with_history(
+        run_id: RunId,
+        prompt: impl Into<String>,
+        history: Vec<ConversationMessage>,
+        project_root: impl Into<String>,
+        sandbox: impl Into<String>,
+        instructions: impl Into<String>,
+        project_trusted: bool,
+    ) -> Self {
+        Self::Start {
+            run_id,
+            prompt: prompt.into(),
+            history,
+            project_root: project_root.into(),
+            sandbox: sandbox.into(),
+            instructions: instructions.into(),
+            project_trusted,
+        }
+    }
+
+    /// 构造继续命令。
     pub fn continue_run(run_id: RunId, prompt: impl Into<String>) -> Self {
         Self::Continue {
             run_id,
@@ -93,6 +147,7 @@ impl RunnerCommand {
         }
     }
 
+    /// 取得任意命令关联的 run ID。
     pub const fn run_id(&self) -> RunId {
         match self {
             Self::Start { run_id, .. }
@@ -105,35 +160,56 @@ impl RunnerCommand {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
+/// runner 返回给 daemon 的事件。
 pub enum RunnerEvent {
+    /// run 已接受并开始。
     Started {
+        /// 对应 run ID。
         run_id: RunId,
     },
+    /// 模型输出增量；是否持久化由 daemon 事件适配器决定。
     Delta {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 增量文本。
         text: String,
     },
+    /// runner 请求 daemon 执行一个能力。
     CapabilityRequested {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 待审批/执行的能力请求。
         request: CapabilityRequest,
     },
+    /// runner 认为 run 已完成；仍需由 daemon 形成最终 receipt。
     Completed {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 模型输出 JSON。
         output: Value,
     },
+    /// runner 报告失败。
     Failed {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 失败原因。
         error: String,
     },
+    /// 上下文压缩摘要事件。
     Compacted {
+        /// 对应 run ID。
         run_id: RunId,
+        /// 压缩前估算 token 数。
         tokens_before: u64,
+        /// 压缩后估算 token 数。
         tokens_after: u64,
+        /// 是否包含摘要文本。
         summary_present: bool,
     },
 }
 
 impl RunnerEvent {
+    /// 取得事件关联的 run ID。
     pub const fn run_id(&self) -> RunId {
         match self {
             Self::Started { run_id }

@@ -1,3 +1,14 @@
+//! 工作区文本上下文索引、搜索、向量检索和 artifact 图构建。
+//!
+//! 该模块把受信项目中的可读文本文件转换为带稳定 schema 的上下文数据。所有扫描都会
+//! 先 canonicalize 根目录、复用 repo map 的忽略规则，并对单文件字节数和返回数量设上限；
+//! 缓存和 ingest 结果只用于加速与审计展示，不是 EventLog，也不能替代 ControlPlane 的
+//! trust、sandbox、路径锁或能力授权。
+//!
+//! “向量搜索”当前使用本地确定性 hash embedding（`kiana.deterministic-hash-embedding.v1`），
+//! 不是在线模型服务。分数、token 估算和依赖边都是启发式结果，调用方应把它们当作上下文
+//! 候选，而不是编译器、语义分析器或业务事实的最终结论。
+
 use crate::repo_map::{collect_paths, language_for_path, IgnoreRules};
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -12,7 +23,9 @@ const DEFAULT_VECTOR_DIMENSIONS: usize = 64;
 const DETERMINISTIC_VECTOR_MODEL: &str = "kiana.deterministic-hash-embedding.v1";
 
 #[derive(Debug, Clone, Copy)]
+/// 构建文件索引时的单文件读取上限。
 pub struct ContextIndexOptions {
+    /// 最大字节数；`None` 或 0 使用 128 KiB 默认值。
     pub max_bytes_per_file: Option<usize>,
 }
 
@@ -25,8 +38,11 @@ impl Default for ContextIndexOptions {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// 关键词搜索的返回数量和单文件读取上限。
 pub struct ContextSearchOptions {
+    /// 最多返回多少个命中；`None` 或 0 使用默认值 10。
     pub limit: Option<usize>,
+    /// 单文件最大读取字节数。
     pub max_bytes_per_file: Option<usize>,
 }
 
@@ -40,8 +56,11 @@ impl Default for ContextSearchOptions {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// 向量搜索的返回数量和单文件读取上限。
 pub struct ContextVectorSearchOptions {
+    /// 最多返回多少个向量命中；`None` 或 0 使用默认值 10。
     pub limit: Option<usize>,
+    /// 单文件最大读取字节数。
     pub max_bytes_per_file: Option<usize>,
 }
 
@@ -55,9 +74,13 @@ impl Default for ContextVectorSearchOptions {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// 组装上下文 pack 时的搜索、读取和摘要截断参数。
 pub struct ContextPackOptions {
+    /// 最多纳入多少个搜索命中。
     pub limit: Option<usize>,
+    /// 搜索单文件最大读取字节数。
     pub max_bytes_per_file: Option<usize>,
+    /// 每个命中最多保留多少行上下文。
     pub max_snippet_lines: Option<usize>,
 }
 
@@ -72,7 +95,9 @@ impl Default for ContextPackOptions {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// 构建 artifact 元数据时的单文件读取上限。
 pub struct ContextArtifactOptions {
+    /// 最大字节数；超限、二进制或非法 UTF-8 文件会被跳过。
     pub max_bytes_per_file: Option<usize>,
 }
 
@@ -85,8 +110,11 @@ impl Default for ContextArtifactOptions {
 }
 
 #[derive(Debug, Clone)]
+/// 从一个源目录 ingest artifact 到受控存储目录时的参数。
 pub struct ContextArtifactIngestOptions {
+    /// ingest 存储目录；相对路径按目标根目录解析。
     pub store_dir: Option<PathBuf>,
+    /// 源文件的最大读取字节数。
     pub max_bytes_per_file: Option<usize>,
 }
 
@@ -100,71 +128,118 @@ impl Default for ContextArtifactIngestOptions {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 文件内容索引及缓存状态报告。
 pub struct ContextIndex {
+    /// 稳定 schema 标识。
     pub schema: String,
+    /// canonicalize 后的索引根路径。
     pub root: String,
+    /// 成功纳入的文件数量。
     pub files_indexed: usize,
+    /// 因忽略、大小、二进制或编码原因跳过的文件数量。
     pub skipped_files: usize,
+    /// 纳入文件的字节总数。
     pub total_bytes: u64,
+    /// 按相对路径稳定排序的文件条目。
     pub files: Vec<ContextIndexedFile>,
+    /// 使用持久缓存时的复用/变更统计。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<ContextIndexCacheReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 索引中的单个文本文件元数据。
 pub struct ContextIndexedFile {
+    /// 相对于索引根的正斜杠路径。
     pub path: String,
+    /// 由扩展名推断的语言标签。
     pub language: Option<String>,
+    /// 文件字节数。
     pub bytes: u64,
+    /// 按换行计算的行数。
     pub line_count: usize,
+    /// 内容 hash，用于缓存复用和变更比较。
     pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 仅包含文件级 artifact 元数据的集合。
 pub struct ContextArtifacts {
+    /// 稳定 schema 标识。
     pub schema: String,
+    /// artifact 根目录。
     pub root: String,
+    /// 成功生成的 artifact 数量。
     pub files_indexed: usize,
+    /// 被过滤或读取失败而跳过的数量。
     pub skipped_files: usize,
+    /// artifact 条目列表。
     pub artifacts: Vec<ContextArtifactItem>,
+    /// 可选的持久缓存差异报告。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<ContextArtifactsCacheReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 一个文件 artifact 的稳定身份与内容摘要。
 pub struct ContextArtifactItem {
+    /// 由路径和内容 hash 组成的稳定 ID。
     pub id: String,
+    /// 当前实现固定为 `file`。
     pub kind: String,
+    /// 相对于根目录的文件路径。
     pub path: String,
+    /// 由扩展名推断的语言。
     pub language: Option<String>,
+    /// 文件字节数。
     pub bytes: u64,
+    /// 文件行数。
     pub line_count: usize,
+    /// 文件内容 hash。
     pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 将源目录文件复制到 ingest store 后的清单报告。
 pub struct ContextArtifactIngest {
+    /// ingest 报告 schema。
     pub schema: String,
+    /// 目标项目根目录。
     pub root: String,
+    /// 被扫描的源目录。
     pub source_root: String,
+    /// 相对于目标根目录的存储目录。
     pub store_dir: String,
+    /// 相对于目标根目录的 manifest 路径。
     pub manifest_path: String,
+    /// artifact 条目的 schema。
     pub artifacts_schema: String,
+    /// 成功复制并登记的文件数。
     pub ingested_files: usize,
+    /// 被跳过的文件数。
     pub skipped_files: usize,
+    /// 成功复制文件的总字节数。
     pub total_bytes: u64,
+    /// 与上一次 manifest 的同步差异。
     #[serde(default)]
     pub sync: ContextArtifactIngestSyncReport,
     pub artifacts: Vec<ContextIngestedArtifact>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// ingest 与旧 manifest 之间的文件级同步统计。
 pub struct ContextArtifactIngestSyncReport {
+    /// 对比所依据的 manifest 路径。
     pub path: String,
+    /// `created`、`unchanged` 或 `updated` 等当前状态标签。
     pub status: String,
+    /// 内容 hash 未变且可复用的文件数。
     pub reused_files: usize,
+    /// 新出现的文件数。
     pub added_files: usize,
+    /// 内容发生变化的文件数。
     pub changed_files: usize,
+    /// 上一次存在但本次消失的文件数。
     pub removed_files: usize,
 }
 
@@ -182,188 +257,322 @@ impl Default for ContextArtifactIngestSyncReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 被复制到 ingest store 的单个 artifact。
 pub struct ContextIngestedArtifact {
+    /// 稳定 artifact ID。
     pub id: String,
+    /// 当前固定为 `file`。
     pub kind: String,
+    /// 源目录中的相对路径。
     pub source_path: String,
+    /// ingest store 中的相对路径。
     pub stored_path: String,
+    /// 语言标签。
     pub language: Option<String>,
+    /// 复制后的字节数。
     pub bytes: u64,
+    /// 复制后的行数。
     pub line_count: usize,
+    /// 内容 hash。
     pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// artifact 缓存的新增、复用、变更和删除统计。
 pub struct ContextArtifactsCacheReport {
+    /// 缓存文件路径。
     pub path: String,
+    /// 当前缓存状态标签。
     pub status: String,
+    /// 未变更而复用的 artifact 数量。
     pub reused_artifacts: usize,
+    /// 新增 artifact 数量。
     pub added_artifacts: usize,
+    /// hash 变化的 artifact 数量。
     pub changed_artifacts: usize,
+    /// 本次不再存在的 artifact 数量。
     pub removed_artifacts: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 包含 artifact 集合和依赖关系图的组合存储报告。
 pub struct ContextArtifactStore {
+    /// 存储报告 schema。
     pub schema: String,
+    /// canonicalize 后的项目根。
     pub root: String,
+    /// artifact 集合 schema。
     pub artifacts_schema: String,
+    /// 依赖图 schema。
     pub dependency_graph_schema: String,
+    /// artifact 节点数量。
     pub artifact_count: usize,
+    /// 依赖边数量。
     pub dependency_count: usize,
+    /// 按角色归类的 artifact 数量。
     pub artifact_roles: Vec<ContextArtifactRoleSummary>,
+    /// 文件 artifact 集合。
     pub artifacts: ContextArtifacts,
+    /// 依赖图。
     pub dependency_graph: ContextArtifactDependencyGraph,
+    /// 可选持久缓存差异报告。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<ContextArtifactStoreCacheReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 某一 artifact 角色的计数汇总。
 pub struct ContextArtifactRoleSummary {
+    /// 角色名，例如 `source`、`test` 或 `prd`。
     pub role: String,
+    /// 该角色的 artifact 数量。
     pub count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// artifact store 是否具备规划所需角色的就绪报告。
 pub struct ContextArtifactReadiness {
+    /// 就绪报告 schema。
     pub schema: String,
+    /// 项目根路径。
     pub root: String,
+    /// 使用的 artifact store schema。
     pub artifact_store_schema: String,
+    /// `ready` 或 `incomplete`。
     pub status: String,
+    /// artifact 总数。
     pub artifact_count: usize,
+    /// 依赖边总数。
     pub dependency_count: usize,
+    /// 每个必需角色的存在情况。
     pub required_roles: Vec<ContextArtifactReadinessRole>,
+    /// 缺失的角色名。
     pub missing_roles: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 单个必需 artifact 角色的就绪明细。
 pub struct ContextArtifactReadinessRole {
+    /// 角色名。
     pub role: String,
+    /// 当前实现是否要求该角色。
     pub required: bool,
+    /// 是否至少找到一个该角色 artifact。
     pub present: bool,
+    /// 找到的数量。
     pub count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// artifact store 持久缓存的差异报告。
 pub struct ContextArtifactStoreCacheReport {
+    /// 缓存文件路径。
     pub path: String,
+    /// 当前缓存状态标签。
     pub status: String,
+    /// 复用的 artifact 数量。
     pub reused_artifacts: usize,
+    /// 新增的 artifact 数量。
     pub added_artifacts: usize,
+    /// 变更的 artifact 数量。
     pub changed_artifacts: usize,
+    /// 移除的 artifact 数量。
     pub removed_artifacts: usize,
+    /// 复用的依赖边数量。
     pub reused_dependencies: usize,
+    /// 新增的依赖边数量。
     pub added_dependencies: usize,
+    /// 移除的依赖边数量。
     pub removed_dependencies: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 文件 artifact 之间的启发式依赖关系图。
 pub struct ContextArtifactDependencyGraph {
+    /// 依赖图 schema。
     pub schema: String,
+    /// 图对应的项目根。
     pub root: String,
+    /// 文件节点列表。
     pub nodes: Vec<ContextArtifactDependencyNode>,
+    /// `test_of` 和 `path_reference` 等关系边。
     pub edges: Vec<ContextArtifactDependencyEdge>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 依赖图中的一个 artifact 节点。
 pub struct ContextArtifactDependencyNode {
+    /// 与 artifact 集合对应的稳定 ID。
     pub id: String,
+    /// 节点类型，当前通常为 `file`。
     pub kind: String,
+    /// 相对文件路径。
     pub path: String,
+    /// 语言标签。
     pub language: Option<String>,
+    /// 内容 hash。
     pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 依赖图中的一条有向关系及其证据文本。
 pub struct ContextArtifactDependencyEdge {
+    /// 源节点 ID。
     pub source: String,
+    /// 目标节点 ID。
     pub target: String,
+    /// 关系类型。
     pub relation: String,
+    /// 用于审计和人工理解的路径匹配说明。
     pub evidence: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 持久化文件索引的复用和变更统计。
 pub struct ContextIndexCacheReport {
+    /// 缓存文件路径。
     pub path: String,
+    /// 当前缓存状态标签。
     pub status: String,
+    /// hash 未变并复用的文件数。
     pub reused_files: usize,
+    /// 新增文件数。
     pub added_files: usize,
+    /// 内容变化文件数。
     pub changed_files: usize,
+    /// 被移除文件数。
     pub removed_files: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 关键词上下文搜索的完整结果。
 pub struct ContextSearchResults {
+    /// 搜索结果 schema。
     pub schema: String,
+    /// 搜索根目录。
     pub root: String,
+    /// 调用方提交的原始查询（去除首尾空白）。
     pub query: String,
+    /// 分词后用于匹配的非空词项。
     pub terms: Vec<String>,
+    /// 实际采用的返回上限。
     pub limit: usize,
+    /// 成功读取并索引的文件数。
     pub files_indexed: usize,
+    /// 被跳过的文件数。
     pub skipped_files: usize,
+    /// 按分数、路径和行号稳定排序的命中。
     pub hits: Vec<ContextSearchHit>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 关键词搜索中的单行命中。
 pub struct ContextSearchHit {
+    /// 相对文件路径。
     pub path: String,
+    /// 语言标签。
     pub language: Option<String>,
+    /// 词项和出现次数计算出的整数分数。
     pub score: u64,
+    /// 该行及文件中词项的累计出现数。
     pub occurrences: u64,
+    /// 实际匹配到的词项。
     pub matched_terms: Vec<String>,
+    /// 一基行号。
     pub line_number: usize,
+    /// 命中的原始文本行。
     pub line: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 确定性 hash embedding 向量搜索的完整结果。
 pub struct ContextVectorSearchResults {
+    /// 搜索结果 schema。
     pub schema: String,
+    /// 搜索根目录。
     pub root: String,
+    /// 原始查询文本。
     pub query: String,
+    /// 分词后的查询词项。
     pub terms: Vec<String>,
+    /// 当前使用的本地 embedding 模型标签。
     pub embedding_model: String,
+    /// 向量维数。
     pub dimensions: usize,
+    /// 实际采用的返回上限。
     pub limit: usize,
+    /// 成功读取文件数。
     pub files_indexed: usize,
+    /// 被过滤或读取失败的文件数。
     pub skipped_files: usize,
+    /// 按相似度、词项重叠、路径和行号稳定排序的命中。
     pub hits: Vec<ContextVectorSearchHit>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 向量搜索中的单行命中。
 pub struct ContextVectorSearchHit {
+    /// 相对文件路径。
     pub path: String,
+    /// 语言标签。
     pub language: Option<String>,
+    /// 文件内容 hash。
     pub content_hash: String,
+    /// 查询向量与该行向量的相似度。
     pub score: f64,
+    /// 查询词在该行的重叠数量。
     pub token_overlap: usize,
+    /// 一基行号。
     pub line_number: usize,
+    /// 命中的原始文本行。
     pub line: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 供模型消费的组合上下文包。
 pub struct ContextPack {
+    /// context pack schema。
     pub schema: String,
+    /// 搜索根目录。
     pub root: String,
+    /// 原始查询文本。
     pub query: String,
+    /// 分词后的查询词项。
     pub terms: Vec<String>,
+    /// 实际采用的命中上限。
     pub limit: usize,
+    /// 每个 snippet 的最大行数。
     pub max_snippet_lines: usize,
+    /// 成功读取文件数。
     pub files_indexed: usize,
+    /// 被跳过文件数。
     pub skipped_files: usize,
+    /// 截断后的上下文片段。
     pub snippets: Vec<ContextPackSnippet>,
+    /// 与当前上下文关联的 artifact 图。
     pub artifact_graph: ContextArtifactGraph,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 上下文包中的一个连续代码/文本片段。
 pub struct ContextPackSnippet {
+    /// 相对文件路径。
     pub path: String,
+    /// 语言标签。
     pub language: Option<String>,
+    /// 文件内容 hash。
     pub content_hash: String,
+    /// 关键词匹配分数。
     pub score: u64,
+    /// 匹配出现次数。
     pub occurrences: u64,
+    /// 匹配到的词项。
     pub matched_terms: Vec<String>,
+    /// 片段起始一基行号。
     pub start_line: usize,
+    /// 片段结束一基行号。
     pub end_line: usize,
+    /// 实际发送给模型的摘录文本。
     pub excerpt: String,
 }
 
@@ -393,6 +602,11 @@ pub struct ContextArtifactEdge {
     pub matched_terms: Vec<String>,
 }
 
+/// 扫描工作区并生成当前内容的文件索引。
+///
+/// 每个候选文件先经过忽略规则、二进制/UTF-8 检查和 `max_bytes_per_file` 限制；成功条目
+/// 保存路径、语言、行数和内容 hash。函数只读文件，不写缓存；需要持久化时调用
+/// [`build_persistent_context_index`]。
 pub fn build_context_index(
     root: impl AsRef<Path>,
     options: ContextIndexOptions,
@@ -426,6 +640,10 @@ pub fn build_context_index(
     })
 }
 
+/// 扫描工作区并生成文件 artifact 元数据集合。
+///
+/// artifact ID 同时包含相对路径和内容 hash，因此同一路径内容变化会产生新身份。结果
+/// 仍是内存报告，不代表 artifact 已复制到独立存储或已进入 EventLog。
 pub fn build_context_artifacts(
     root: impl AsRef<Path>,
     options: ContextArtifactOptions,
@@ -465,6 +683,10 @@ pub fn build_context_artifacts(
     })
 }
 
+/// 构建 artifact 集合并将完整报告写入指定 JSON 缓存文件。
+///
+/// 相对缓存路径按项目根解析，父目录会按需创建；写入失败会返回错误。缓存差异统计只
+/// 比较报告内容，不能证明写入已经经过 `fsync` 或跨进程原子替换。
 pub fn build_persistent_context_artifacts(
     root: impl AsRef<Path>,
     options: ContextArtifactOptions,
@@ -495,6 +717,12 @@ pub fn build_persistent_context_artifacts(
     Ok(report)
 }
 
+/// 将源目录中的可识别文本复制到受控 ingest store，并写出 manifest。
+///
+/// `source_root` 不得位于 store 内部，以免扫描到自己生成的文件。每次调用会先清空 store
+/// 的 `files/` 子目录，再按稳定候选路径复制并登记文件；因此这是有明确覆盖行为的同步
+/// 操作，调用方应在合适的授权上下文中调用。失败时可能已完成部分文件清理或复制，不能
+/// 把函数错误解释成源目录未变化。
 pub fn ingest_context_artifacts(
     root: impl AsRef<Path>,
     source_root: impl AsRef<Path>,
@@ -582,6 +810,11 @@ pub fn ingest_context_artifacts(
     Ok(report)
 }
 
+/// 根据 artifact 路径关系和测试命名约定构建启发式依赖图。
+///
+/// `test_of` 边来自测试目标路径推断，`path_reference` 边来自文件内容中出现目标路径；
+/// 两者都附带 evidence 文本并稳定排序。图不是完整编译依赖或 import 图，缺边不能证明
+/// 没有依赖，误边也不能直接作为执行授权依据。
 pub fn build_context_artifact_dependency_graph(
     root: impl AsRef<Path>,
     options: ContextArtifactOptions,
@@ -654,6 +887,10 @@ pub fn build_context_artifact_dependency_graph(
     })
 }
 
+/// 一次性构建 artifact 集合、依赖图和角色汇总。
+///
+/// 为保持同一快照，函数使用相同选项分别构建集合和图；底层文件在两次读取间发生变化
+/// 时，调用方应把结果视为本地启发式报告而不是原子快照。
 pub fn build_context_artifact_store(
     root: impl AsRef<Path>,
     options: ContextArtifactOptions,
@@ -676,6 +913,10 @@ pub fn build_context_artifact_store(
     })
 }
 
+/// 构建 artifact store 并将报告写入 JSON 缓存。
+///
+/// 该函数会创建缓存父目录并覆盖目标文件；缓存只用于后续差异统计，不改变源文件，也
+/// 不提供跨进程锁或崩溃恢复保证。
 pub fn build_persistent_context_artifact_store(
     root: impl AsRef<Path>,
     options: ContextArtifactOptions,
@@ -706,6 +947,10 @@ pub fn build_persistent_context_artifact_store(
     Ok(store)
 }
 
+/// 根据 artifact 角色是否齐全生成规划输入就绪报告。
+///
+/// 当前实现固定要求 `prd`、`design`、`tasks`、`source`、`test` 五类角色各至少一个。
+/// “ready”只表示扫描结果满足数量条件，不表示内容质量、验收标准或代码正确性已经审核。
 pub fn build_context_artifact_readiness(
     root: impl AsRef<Path>,
     options: ContextArtifactOptions,
@@ -749,6 +994,10 @@ pub fn build_context_artifact_readiness(
     })
 }
 
+/// 构建文件索引并将结果写入 JSON 缓存文件。
+///
+/// 函数先读取旧缓存计算复用/新增/变更/删除统计，再覆盖写入新索引；任何缓存读取或
+/// 写入错误都会返回，而不会退回空索引。
 pub fn build_persistent_context_index(
     root: impl AsRef<Path>,
     options: ContextIndexOptions,
@@ -779,6 +1028,10 @@ pub fn build_persistent_context_index(
     Ok(index)
 }
 
+/// 对工作区文本执行确定性的大小写不敏感关键词搜索。
+///
+/// 空查询直接报错；命中按分数、路径和行号稳定排序后截断到 `limit`。文件读取、编码和
+/// 大小限制与索引路径一致，结果中的 `skipped_files` 必须与“没有命中”区分开。
 pub fn search_context_index(
     root: impl AsRef<Path>,
     query: &str,
@@ -835,6 +1088,10 @@ pub fn search_context_index(
     })
 }
 
+/// 使用本地确定性 hash embedding 对工作区执行近似向量搜索。
+///
+/// 查询和每个候选文件都转成固定 64 维向量，再结合 token overlap 排序。该函数不访问
+/// 网络、不调用 live provider；相似度是检索提示，不是语义正确性的证明。
 pub fn search_context_vectors(
     root: impl AsRef<Path>,
     query: &str,
@@ -905,6 +1162,11 @@ pub fn search_context_vectors(
     })
 }
 
+/// 将关键词命中截取为受行数限制的上下文片段，并附加 artifact 图。
+///
+/// 片段会再次读取文件以生成相邻行摘录，因此文件在搜索后被修改时，hash/行文可能来自
+/// 不同瞬间；调用方应把 pack 当作短期上下文候选。`max_snippet_lines` 和 `limit` 均会
+/// 归一化为正值默认值，防止无限输出。
 pub fn build_context_pack(
     root: impl AsRef<Path>,
     query: &str,

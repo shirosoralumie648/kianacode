@@ -1,37 +1,34 @@
-/// Token budget tracking and continuation decisions.
-///
-/// Corresponds to `tokenBudget.ts`. The query loop calls `check_token_budget`
-/// after each model response to decide whether to continue nudging the model
-/// toward completion or to stop.
-///
-/// Thresholds:
-/// - `COMPLETION_THRESHOLD` (0.9): if token usage is below 90% of budget and
-///   not diminishing, we may continue.
-/// - `DIMINISHING_THRESHOLD` (500): if the last two delta measurements are both
-///   below 500 tokens and we've already continued ≥3 times, we stop (diminishing
-///   returns guard).
+//! 查询循环的 token 预算跟踪与继续/停止决定。
+//!
+//! 外层在每次模型响应后调用 [`check_token_budget`]，根据累计 token 数和最近增长量决定
+//! 是否追加一条继续工作的用户消息。这个模块只做本地计数和纯决定，不负责限制模型实际
+//! 消耗的硬配额；硬预算仍必须由 Runner、ControlPlane 或供应商适配器执行。
+//!
+//! 两个固定阈值共同防止无限续跑：低于 90% 且增长正常时最多继续；已经续跑至少三次、
+//! 且最近两次增长都低于 500 token 时视为收益递减并停止。阈值是当前实现事实，不代表
+//! 所有入口都已经接入该 reducer。
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
 const COMPLETION_THRESHOLD: f64 = 0.9;
 const DIMINISHING_THRESHOLD: u64 = 500;
 
-/// Mutable state updated each time `check_token_budget` is called.
+/// 每次预算检查都会更新的可序列化状态。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BudgetTracker {
-    /// Number of times we have continued beyond the initial response.
+    /// 超过初始响应后已继续请求模型的次数。
     pub continuation_count: u32,
-    /// Token delta observed in the last budget check.
+    /// 上一次检查观察到的 token 增量。
     pub last_delta_tokens: u64,
-    /// Global turn token count at the last budget check.
+    /// 上一次检查记录的累计 turn token 数。
     pub last_global_turn_tokens: u64,
-    /// Monotonic start time used for `duration_ms` in completion events.
+    /// 单调时钟起点，用于生成完成事件中的耗时；序列化时刻意跳过。
     #[serde(skip)]
     pub started_at: Option<Instant>,
 }
 
 impl BudgetTracker {
-    /// Create a fresh tracker at query start.
+    /// 在查询开始时创建空跟踪器。
     pub fn new() -> Self {
         BudgetTracker {
             continuation_count: 0,
@@ -41,7 +38,10 @@ impl BudgetTracker {
         }
     }
 
-    /// Elapsed milliseconds since tracker creation (0 if clock unavailable).
+    /// 返回创建跟踪器以来经过的毫秒数。
+    ///
+    /// `Instant` 不可序列化；从恢复数据构造的跟踪器可能没有起点，此时返回 0，而不是
+    /// 使用 wall-clock 猜测耗时。
     pub fn elapsed_ms(&self) -> u64 {
         self.started_at
             .map(|t| t.elapsed().as_millis() as u64)
@@ -55,41 +55,53 @@ impl Default for BudgetTracker {
     }
 }
 
-/// Data attached to a `stop` decision when the budget loop has been active.
+/// 预算循环曾经续跑时附加在停止决定上的统计数据。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BudgetCompletionEvent {
+    /// 已续跑次数。
     pub continuation_count: u32,
-    /// Percentage of budget consumed (0–100).
+    /// 已消耗预算的四舍五入百分比（理论上可因累计超额大于 100）。
     pub pct: u32,
+    /// 当前累计 turn token 数。
     pub turn_tokens: u64,
+    /// 本轮采用的正预算值。
     pub budget: u64,
+    /// 是否因连续低增量而判定为收益递减。
     pub diminishing_returns: bool,
+    /// 从跟踪器创建到停止的单调耗时毫秒。
     pub duration_ms: u64,
 }
 
-/// Decision returned by `check_token_budget`.
+/// [`check_token_budget`] 返回的继续/停止决定。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum TokenBudgetDecision {
-    /// Continue the query loop; include `nudge_message` as a user message.
+    /// 继续查询循环，并把 `nudge_message` 作为用户消息追加给模型。
     Continue {
+        /// 用于提醒模型在剩余预算内完成工作的消息。
         nudge_message: String,
+        /// 决定作出后累计的续跑次数。
         continuation_count: u32,
+        /// 当前预算百分比。
         pct: u32,
+        /// 当前累计 token 数。
         turn_tokens: u64,
+        /// 本轮预算。
         budget: u64,
     },
-    /// Stop the query loop; optionally record completion metrics.
+    /// 停止查询循环；若已经续跑过，可附带完成统计。
     Stop {
+        /// 无预算或子代理快速停止时为 `None`。
         completion_event: Option<BudgetCompletionEvent>,
     },
 }
 
-/// Decide whether to continue the query loop based on token consumption.
+/// 根据 token 消耗决定是否继续查询循环。
 ///
-/// Returns `Stop { completion_event: None }` immediately when:
-/// - running as a subagent (`agent_id.is_some()`), or
-/// - no budget is configured (`budget` is `None` or zero).
+/// 预算为 `None`/零时，或调用方标记为子代理时，函数立即返回无统计的 `Stop`。正常主代理
+/// 在低于 90% 且未触发收益递减时返回 `Continue`；一旦超过阈值或已出现收益递减则停止。
+/// `global_turn_tokens` 应来自同一会话的累计计数，调用方必须保证不会把不同会话的计数
+/// 混在一起，否则增量判断会失真。
 pub fn check_token_budget(
     tracker: &mut BudgetTracker,
     agent_id: Option<&str>,
@@ -148,8 +160,10 @@ pub fn check_token_budget(
     }
 }
 
-/// Generate the nudge message inserted into the conversation to prompt the
-/// model to keep working toward completion within the remaining budget.
+/// 生成追加到对话中的预算提醒消息。
+///
+/// 该字符串是模型提示，不是权限或硬限制。`remaining` 使用饱和减法，预算已经超出时显示
+/// 0；真正停止仍由 [`check_token_budget`] 的决定控制。
 pub fn get_budget_continuation_message(pct: u32, turn_tokens: u64, budget: u64) -> String {
     let remaining = budget.saturating_sub(turn_tokens);
     format!(

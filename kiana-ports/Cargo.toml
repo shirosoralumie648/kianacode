@@ -16,3 +16,7 @@ kiana-domain.workspace = true
 kiana-runner-protocol.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+serde_json.workspace = true

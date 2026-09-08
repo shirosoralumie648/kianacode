@@ -1,246 +1,14 @@
 //! Append-only event storage adapters for Kiana.
 
-use async_trait::async_trait;
-use kiana_domain::{RequestId, RuntimeEvent};
-use kiana_ports::{EventAppendResult, EventStorePort, PortError};
-use std::fs::{self, OpenOptions};
-use std::io::Write;
-#[cfg(unix)]
-use std::os::fd::AsRawFd;
-use std::path::{Path, PathBuf};
-use tokio::sync::RwLock;
+mod event_store_core;
+mod jsonl;
+mod memory;
 
-#[derive(Debug, Default)]
-pub struct MemoryEventLog {
-    events: RwLock<Vec<RuntimeEvent>>,
-}
+pub use jsonl::JsonlEventLog;
+pub use memory::MemoryEventLog;
 
-impl MemoryEventLog {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-#[async_trait]
-impl EventStorePort for MemoryEventLog {
-    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
-        self.append_expected(event, None).await
-    }
-
-    async fn append_expected(
-        &self,
-        event: RuntimeEvent,
-        expected_version: Option<u64>,
-    ) -> Result<(), PortError> {
-        let mut events = self.events.write().await;
-        reject_expected_version(&events, &event, expected_version)?;
-        reject_conflicts(&events, &event)?;
-        events.push(event);
-        Ok(())
-    }
-
-    async fn append_idempotent(&self, event: RuntimeEvent) -> Result<EventAppendResult, PortError> {
-        self.append_idempotent_expected(event, None).await
-    }
-
-    async fn append_idempotent_expected(
-        &self,
-        event: RuntimeEvent,
-        expected_version: Option<u64>,
-    ) -> Result<EventAppendResult, PortError> {
-        let key = event_idempotency_key(&event)?;
-        let mut events = self.events.write().await;
-        if let Some(existing) = events
-            .iter()
-            .find(|existing| existing.idempotency_key.as_deref() == Some(key))
-        {
-            ensure_idempotent_match(existing, &event)?;
-            return Ok(EventAppendResult {
-                event: existing.clone(),
-                replayed: true,
-            });
-        }
-        reject_expected_version(&events, &event, expected_version)?;
-        reject_conflicts(&events, &event)?;
-        events.push(event.clone());
-        Ok(EventAppendResult {
-            event,
-            replayed: false,
-        })
-    }
-
-    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
-        Ok(self
-            .events
-            .read()
-            .await
-            .iter()
-            .filter(|event| &event.request_id == request_id)
-            .cloned()
-            .collect())
-    }
-
-    async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
-        Ok(self.events.read().await.clone())
-    }
-}
-
-#[cfg(unix)]
-struct ProcessEventLogLock(std::fs::File);
-
-#[cfg(unix)]
-impl ProcessEventLogLock {
-    fn acquire(path: &Path) -> Result<Self, PortError> {
-        let lock_path = path.with_extension("jsonl.lock");
-        if let Some(parent) = lock_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| {
-                PortError::Failed(format!("eventlog_lock_create_failed:{error}"))
-            })?;
-        }
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .open(lock_path)
-            .map_err(|error| PortError::Failed(format!("eventlog_lock_open_failed:{error}")))?;
-        let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
-        if result != 0 {
-            return Err(PortError::Failed(format!(
-                "eventlog_lock_acquire_failed:{}",
-                std::io::Error::last_os_error()
-            )));
-        }
-        Ok(Self(file))
-    }
-}
-
-#[cfg(unix)]
-impl Drop for ProcessEventLogLock {
-    fn drop(&mut self) {
-        let _ = unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
-    }
-}
-
-#[cfg(not(unix))]
-struct ProcessEventLogLock;
-
-#[cfg(not(unix))]
-impl ProcessEventLogLock {
-    fn acquire(_path: &Path) -> Result<Self, PortError> {
-        Ok(Self)
-    }
-}
-
-#[derive(Debug)]
-pub struct JsonlEventLog {
-    path: PathBuf,
-    events: RwLock<Vec<RuntimeEvent>>,
-}
-
-impl JsonlEventLog {
-    pub fn open_default() -> Result<Self, PortError> {
-        Self::open(default_sessions_log_path()?)
-    }
-
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, PortError> {
-        let path = path.as_ref().to_path_buf();
-        let _process_lock = ProcessEventLogLock::acquire(&path)?;
-        let events = if path.exists() {
-            load_jsonl(&path)?
-        } else {
-            Vec::new()
-        };
-        Ok(Self {
-            path,
-            events: RwLock::new(events),
-        })
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-}
-
-#[async_trait]
-impl EventStorePort for JsonlEventLog {
-    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
-        self.append_expected(event, None).await
-    }
-
-    async fn append_expected(
-        &self,
-        event: RuntimeEvent,
-        expected_version: Option<u64>,
-    ) -> Result<(), PortError> {
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        if self.path.exists() {
-            *events = load_jsonl(&self.path)?;
-        }
-        reject_expected_version(&events, &event, expected_version)?;
-        reject_conflicts(&events, &event)?;
-        append_jsonl_line(&self.path, &event)?;
-        events.push(event);
-        Ok(())
-    }
-
-    async fn append_idempotent(&self, event: RuntimeEvent) -> Result<EventAppendResult, PortError> {
-        self.append_idempotent_expected(event, None).await
-    }
-
-    async fn append_idempotent_expected(
-        &self,
-        event: RuntimeEvent,
-        expected_version: Option<u64>,
-    ) -> Result<EventAppendResult, PortError> {
-        let key = event_idempotency_key(&event)?;
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        if self.path.exists() {
-            *events = load_jsonl(&self.path)?;
-        }
-        if let Some(existing) = events
-            .iter()
-            .find(|existing| existing.idempotency_key.as_deref() == Some(key))
-        {
-            ensure_idempotent_match(existing, &event)?;
-            return Ok(EventAppendResult {
-                event: existing.clone(),
-                replayed: true,
-            });
-        }
-        reject_expected_version(&events, &event, expected_version)?;
-        reject_conflicts(&events, &event)?;
-        append_jsonl_line(&self.path, &event)?;
-        events.push(event.clone());
-        Ok(EventAppendResult {
-            event,
-            replayed: false,
-        })
-    }
-
-    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        if self.path.exists() {
-            *events = load_jsonl(&self.path)?;
-        }
-        Ok(events
-            .iter()
-            .filter(|event| &event.request_id == request_id)
-            .cloned()
-            .collect())
-    }
-
-    async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        if self.path.exists() {
-            *events = load_jsonl(&self.path)?;
-        }
-        Ok(events.clone())
-    }
-}
+use kiana_ports::PortError;
+use std::path::PathBuf;
 
 pub fn default_sessions_log_path() -> Result<PathBuf, PortError> {
     let home = if let Ok(value) = std::env::var("KIANA_HOME") {
@@ -257,178 +25,13 @@ pub fn default_sessions_log_path() -> Result<PathBuf, PortError> {
     Ok(home.join("sessions").join("events.jsonl"))
 }
 
-fn reject_expected_version(
-    events: &[RuntimeEvent],
-    event: &RuntimeEvent,
-    expected_version: Option<u64>,
-) -> Result<(), PortError> {
-    let Some(expected_version) = expected_version else {
-        return Ok(());
-    };
-    let current_version = events
-        .iter()
-        .filter(|existing| same_stream(existing, event))
-        .map(stream_version)
-        .max()
-        .unwrap_or(0);
-    if current_version != expected_version {
-        return Err(PortError::Conflict(
-            "event_stream_version_mismatch".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn reject_conflicts(events: &[RuntimeEvent], event: &RuntimeEvent) -> Result<(), PortError> {
-    if events
-        .iter()
-        .any(|existing| existing.event_id == event.event_id)
-    {
-        return Err(PortError::Conflict("event_id_duplicate".to_owned()));
-    }
-    let version = stream_version(event);
-    if events
-        .iter()
-        .any(|existing| same_stream(existing, event) && stream_version(existing) >= version)
-    {
-        return Err(PortError::Conflict(
-            "event_sequence_not_monotonic".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn same_stream(left: &RuntimeEvent, right: &RuntimeEvent) -> bool {
-    let left_has_metadata = left.aggregate_type.is_some() || left.aggregate_id.is_some();
-    let right_has_metadata = right.aggregate_type.is_some() || right.aggregate_id.is_some();
-    if left_has_metadata || right_has_metadata {
-        return matches!(
-            (
-                left.aggregate_type.as_deref(),
-                left.aggregate_id.as_deref(),
-                right.aggregate_type.as_deref(),
-                right.aggregate_id.as_deref(),
-            ),
-            (Some(left_type), Some(left_id), Some(right_type), Some(right_id))
-                if left_type == right_type && left_id == right_id
-        );
-    }
-    left.request_id == right.request_id
-}
-
-fn stream_version(event: &RuntimeEvent) -> u64 {
-    event.stream_version.unwrap_or(event.sequence)
-}
-
-fn event_idempotency_key(event: &RuntimeEvent) -> Result<&str, PortError> {
-    event
-        .idempotency_key
-        .as_deref()
-        .filter(|key| !key.trim().is_empty())
-        .ok_or_else(|| PortError::Failed("event_idempotency_key_required".to_owned()))
-}
-
-fn ensure_idempotent_match(
-    existing: &RuntimeEvent,
-    candidate: &RuntimeEvent,
-) -> Result<(), PortError> {
-    let same_payload = existing.request_id == candidate.request_id
-        && existing.sequence == candidate.sequence
-        && existing.kind == candidate.kind
-        && existing.data == candidate.data
-        && existing.aggregate_type == candidate.aggregate_type
-        && existing.aggregate_id == candidate.aggregate_id
-        && existing.stream_version == candidate.stream_version;
-    if !same_payload {
-        return Err(PortError::Conflict(
-            "event_idempotency_key_payload_mismatch".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn load_jsonl(path: &Path) -> Result<Vec<RuntimeEvent>, PortError> {
-    let bytes = fs::read(path)
-        .map_err(|error| PortError::Failed(format!("eventlog_open_failed:{error}")))?;
-    let mut events = Vec::new();
-    let mut offset = 0usize;
-    for (line_index, segment) in bytes.split_inclusive(|byte| *byte == b'\n').enumerate() {
-        let has_newline = segment.last() == Some(&b'\n');
-        let line = if has_newline {
-            &segment[..segment.len() - 1]
-        } else {
-            segment
-        };
-        let line_number = line_index + 1;
-        offset += segment.len();
-        if line.iter().all(u8::is_ascii_whitespace) {
-            continue;
-        }
-        match serde_json::from_slice::<RuntimeEvent>(line) {
-            Ok(event) => {
-                reject_conflicts(&events, &event)?;
-                events.push(event);
-            }
-            Err(error)
-                if !has_newline
-                    && offset == bytes.len()
-                    && !events.is_empty()
-                    && is_torn_tail_error(&error) =>
-            {
-                truncate_torn_tail(path, offset - segment.len())?;
-                break;
-            }
-            Err(error) => {
-                return Err(PortError::Failed(format!(
-                    "eventlog_corrupt:line={line_number}:{error}"
-                )))
-            }
-        }
-    }
-    Ok(events)
-}
-
-fn is_torn_tail_error(error: &serde_json::Error) -> bool {
-    error.to_string().to_ascii_lowercase().contains("eof")
-}
-
-fn truncate_torn_tail(path: &Path, complete_bytes: usize) -> Result<(), PortError> {
-    let file = OpenOptions::new()
-        .write(true)
-        .open(path)
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_open_failed:{error}")))?;
-    file.set_len(complete_bytes as u64)
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_failed:{error}")))?;
-    file.sync_data()
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_sync_failed:{error}")))
-}
-
-fn append_jsonl_line(path: &Path, event: &RuntimeEvent) -> Result<(), PortError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| PortError::Failed(format!("eventlog_create_failed:{error}")))?;
-    }
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|error| PortError::Failed(format!("eventlog_open_failed:{error}")))?;
-    let mut encoded = serde_json::to_string(event)
-        .map_err(|error| PortError::Failed(format!("eventlog_encode_failed:{error}")))?;
-    encoded.push('\n');
-    file.write_all(encoded.as_bytes())
-        .map_err(|error| PortError::Failed(format!("eventlog_write_failed:{error}")))?;
-    file.flush()
-        .map_err(|error| PortError::Failed(format!("eventlog_flush_failed:{error}")))?;
-    file.sync_data()
-        .map_err(|error| PortError::Failed(format!("eventlog_sync_failed:{error}")))?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kiana_domain::{RequestId, RuntimeEvent};
+    use kiana_ports::EventStorePort;
     use serde_json::Value;
+    use std::fs;
     use std::sync::Arc;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -478,6 +81,21 @@ mod tests {
             error,
             PortError::Conflict("event_sequence_not_monotonic".to_owned())
         );
+    }
+
+    #[tokio::test]
+    async fn duplicate_event_id_is_rejected_before_append() {
+        // 相同事件 ID 即使使用更大的序号也不能再次写入事实源。
+        let store = MemoryEventLog::new();
+        let request_id = RequestId::new();
+        let first = RuntimeEvent::new(request_id, 1, "accepted", Value::Null).unwrap();
+        store.append(first.clone()).await.unwrap();
+
+        let mut duplicate = first;
+        duplicate.sequence = 2;
+        let error = store.append(duplicate).await.unwrap_err();
+        assert_eq!(error, PortError::Conflict("event_id_duplicate".to_owned()));
+        assert_eq!(store.read_request(&request_id).await.unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -535,6 +153,34 @@ mod tests {
         assert_eq!(
             store.read_request(&request_id).await.unwrap(),
             vec![first, second]
+        );
+    }
+
+    #[tokio::test]
+    async fn jsonl_repairs_a_valid_unterminated_final_line_before_append() {
+        let path = temp_log();
+        let request_id = RequestId::new();
+        let first = RuntimeEvent::new(request_id, 1, "run.accepted", Value::Null).unwrap();
+        let first_encoded = serde_json::to_string(&first).unwrap();
+        fs::write(&path, &first_encoded).unwrap();
+
+        let second = RuntimeEvent::new(request_id, 2, "run.completed", Value::Null).unwrap();
+        let second_encoded = serde_json::to_string(&second).unwrap();
+        {
+            let store = JsonlEventLog::open(&path).unwrap();
+            assert_eq!(store.read_all().await.unwrap(), vec![first.clone()]);
+            assert_eq!(
+                fs::read_to_string(&path).unwrap(),
+                format!("{first_encoded}\n")
+            );
+            store.append(second.clone()).await.unwrap();
+        }
+
+        let reopened = JsonlEventLog::open(&path).unwrap();
+        assert_eq!(reopened.read_all().await.unwrap(), vec![first, second]);
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            format!("{first_encoded}\n{second_encoded}\n")
         );
     }
 
@@ -853,5 +499,56 @@ mod tests {
             PortError::Conflict("event_stream_version_mismatch".to_owned())
         );
         assert_eq!(fs::read_to_string(&path).unwrap(), before);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn jsonl_rejects_existing_symlink_without_mutating_its_target() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_log();
+        let outside = temp_log();
+        let request_id = RequestId::new();
+        let existing = RuntimeEvent::new(request_id, 1, "run.accepted", Value::Null).unwrap();
+        fs::write(
+            &outside,
+            format!("{}\n", serde_json::to_string(&existing).unwrap()),
+        )
+        .unwrap();
+        symlink(&outside, &root).unwrap();
+
+        let error = JsonlEventLog::open(&root).unwrap_err();
+        assert!(error.to_string().contains("eventlog_open_failed"));
+        assert_eq!(
+            fs::read_to_string(&outside).unwrap(),
+            format!("{}\n", serde_json::to_string(&existing).unwrap())
+        );
+        let _ = fs::remove_file(&root);
+        let _ = fs::remove_file(root.with_extension("jsonl.lock"));
+        let _ = fs::remove_file(outside);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn jsonl_append_rejects_path_replaced_by_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_log();
+        let outside = temp_log();
+        let request_id = RequestId::new();
+        let existing = RuntimeEvent::new(request_id, 1, "run.accepted", Value::Null).unwrap();
+        let next = RuntimeEvent::new(request_id, 2, "run.completed", Value::Null).unwrap();
+        let store = JsonlEventLog::open(&root).unwrap();
+        store.append(existing.clone()).await.unwrap();
+        fs::write(&outside, "outside\n").unwrap();
+        fs::remove_file(&root).unwrap();
+        symlink(&outside, &root).unwrap();
+
+        let error = store.append(next).await.unwrap_err();
+        assert!(error.to_string().contains("eventlog_open_failed"));
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
+        let _ = fs::remove_file(&root);
+        let _ = fs::remove_file(root.with_extension("jsonl.lock"));
+        let _ = fs::remove_file(outside);
     }
 }

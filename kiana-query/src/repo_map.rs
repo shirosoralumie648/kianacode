@@ -1,3 +1,10 @@
+//! 面向模型上下文的轻量仓库结构摘要。
+//!
+//! Repo map 只读取本地工作区中可识别的文本文件，按稳定路径顺序提取语言、字节数和少量
+//! 顶层符号，再在 token 预算内截断结果。它不是完整语法树、构建系统或权限扫描器：忽略
+//! 规则、二进制过滤和符号提取都采用保守的启发式。返回的 map 只能帮助查询上下文组织，
+//! 不能替代 `ControlPlane` 的 trust、path lock 或 sandbox 校验。
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -8,7 +15,9 @@ const DEFAULT_TOKEN_BUDGET: u64 = 4_000;
 const MAX_SYMBOLS_PER_FILE: usize = 12;
 
 #[derive(Debug, Clone, Copy)]
+/// 构建 repo map 时采用的大小限制。
 pub struct RepoMapOptions {
+    /// 输出允许使用的估算 token 上限；`None` 或 0 使用默认值 4000。
     pub max_tokens: Option<u64>,
 }
 
@@ -21,24 +30,42 @@ impl Default for RepoMapOptions {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// 一个仓库的结构摘要及其截断状态。
 pub struct RepoMap {
+    /// 已规范化的仓库根路径。
     pub root: String,
+    /// 本次采用的 token 预算。
     pub token_budget: u64,
+    /// 已纳入文件条目的估算 token 总数，不是模型供应商的精确计费数。
     pub estimated_tokens: u64,
+    /// 是否因预算不足而省略了文件。
     pub truncated: bool,
+    /// 被预算省略的文件数量。
     pub omitted_files: usize,
+    /// 按相对路径排序的文件摘要。
     pub files: Vec<RepoMapFile>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Repo map 中的单文件摘要。
 pub struct RepoMapFile {
+    /// 相对于 map 根目录的正斜杠路径。
     pub path: String,
+    /// 根据扩展名推断的语言；无法识别时为 `None`。
     pub language: Option<String>,
+    /// UTF-8 文本的字节长度。
     pub bytes: u64,
+    /// 路径、语言和符号名称的粗略 token 估算。
     pub estimated_tokens: u64,
+    /// 最多保留 `MAX_SYMBOLS_PER_FILE`（当前为 12）个顶层符号的启发式名称。
     pub symbols: Vec<String>,
 }
 
+/// 扫描仓库并构建稳定、受 token 预算限制的结构摘要。
+///
+/// 根目录会先 canonicalize；读取失败会返回带路径上下文的错误。路径先完整收集并排序，
+/// 再按预算顺序纳入文件，因此同一工作区和预算可以得到稳定输出。二进制、非 UTF-8、被
+/// 默认忽略或 `.gitignore` 忽略的条目不会进入结果。
 pub fn build_repo_map(root: impl AsRef<Path>, options: RepoMapOptions) -> Result<RepoMap> {
     let root = root.as_ref();
     let root = fs::canonicalize(root)
@@ -59,6 +86,7 @@ pub fn build_repo_map(root: impl AsRef<Path>, options: RepoMapOptions) -> Result
         let Some(entry) = map_file(&root, &path)? else {
             continue;
         };
+        // 预算以条目估算值计算；超限文件被计数但不再尝试拆分其符号，避免输出顺序漂移。
         if estimated_tokens + entry.estimated_tokens > token_budget {
             omitted_files += 1;
             continue;
@@ -77,6 +105,10 @@ pub fn build_repo_map(root: impl AsRef<Path>, options: RepoMapOptions) -> Result
     })
 }
 
+/// 递归收集满足忽略规则且扩展名可识别的文件路径。
+///
+/// 每层目录先按文件名排序，调用者在顶层再次排序以抵御不同文件系统的 `read_dir` 顺序。
+/// `root` 只用于计算相对路径和匹配 `.gitignore`，函数本身不读取文件内容。
 pub(crate) fn collect_paths(
     root: &Path,
     dir: &Path,
@@ -95,6 +127,7 @@ pub(crate) fn collect_paths(
             .file_type()
             .with_context(|| format!("failed to read file type {}", path.display()))?;
         let rel = path.strip_prefix(root).unwrap_or(path.as_path());
+        // 目录在这里被整体跳过，避免进入 target、node_modules 等高噪声或生成目录。
         if ignore_rules.ignores(rel, file_type.is_dir()) {
             continue;
         }
@@ -108,6 +141,10 @@ pub(crate) fn collect_paths(
     Ok(())
 }
 
+/// 将一个候选文本文件转换为 [`RepoMapFile`]；二进制和非法 UTF-8 返回 `None`。
+///
+/// 当前符号提取只读取内容的行文本，并且每文件有固定上限，因此不会因为超大源码文件
+/// 生成无限大的上下文。路径显示保持相对且使用 `/`，便于跨平台比较和模型阅读。
 fn map_file(root: &Path, path: &Path) -> Result<Option<RepoMapFile>> {
     let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
     if bytes.contains(&0) {
@@ -148,12 +185,20 @@ fn display_path(path: &Path) -> String {
     }
 }
 
+/// 估算一个文件条目的上下文 token 占用。
+///
+/// 这是按字符数除以 4 的粗略预算，不承诺与任何模型 tokenizer 一致；它只用于保证输出
+/// 有确定上限，不能作为计费、配额或安全判断。
 fn estimate_entry_tokens(path: &str, language: Option<&str>, symbols: &[String]) -> u64 {
     let symbol_chars = symbols.iter().map(String::len).sum::<usize>();
     let language_chars = language.map(str::len).unwrap_or(0);
     (((path.len() + language_chars + symbol_chars) as u64) / 4 + 6).max(4)
 }
 
+/// 根据文件扩展名返回内部语言标签。
+///
+/// 映射是白名单，未知扩展名返回 `None` 并被扫描器跳过；它不读取 shebang，也不判断
+/// 文件真实语法，所以标签只能用于摘要展示和符号提取分派。
 pub(crate) fn language_for_path(path: &Path) -> Option<&'static str> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("rs") => Some("rust"),
@@ -183,6 +228,10 @@ pub(crate) fn language_for_path(path: &Path) -> Option<&'static str> {
     }
 }
 
+/// 按语言选择轻量符号提取器，并限制每个文件的结果数量。
+///
+/// 该函数故意不引入完整 parser：repo map 需要快速、容错地生成上下文。遇到无法识别的
+/// 行会跳过，提取出的名称不应被当作编译器或语义索引的权威结果。
 fn extract_symbols(language: &str, content: &str) -> Vec<String> {
     let mut symbols = Vec::new();
     for line in content.lines() {
@@ -268,13 +317,21 @@ fn symbol_name_after(line: &str, keyword: &str) -> Option<String> {
 }
 
 #[derive(Debug, Default)]
+/// 组合默认目录、`.gitignore` 名称和简单通配符的忽略规则。
 pub(crate) struct IgnoreRules {
+    /// 只按文件名匹配的忽略名称。
     names: HashSet<String>,
+    /// 只对目录生效的忽略名称。
     dir_names: HashSet<String>,
+    /// 含 `*` 或 `/` 的相对路径模式。
     path_patterns: Vec<String>,
 }
 
 impl IgnoreRules {
+    /// 加载默认规则并追加仓库根目录的 `.gitignore`。
+    ///
+    /// 当前实现跳过否定规则（以 `!` 开头）和复杂 gitignore 语义；这是一项明确的摘要
+    /// 简化，不应被描述成与 Git 完全等价。配置文件损坏或不存在时保留默认规则。
     pub(crate) fn load(root: &Path) -> Self {
         let mut rules = Self {
             names: common_ignored_names(),
@@ -302,6 +359,10 @@ impl IgnoreRules {
         rules
     }
 
+    /// 判断相对路径是否应该跳过。
+    ///
+    /// 隐藏文件、默认名称、默认目录、路径任一组件命中规则或通配符匹配都会被忽略。该
+    /// 顺序先做廉价的文件名判断，再做模式扫描，结果只影响上下文摘要，不改变任何文件。
     pub(crate) fn ignores(&self, rel: &Path, is_dir: bool) -> bool {
         let rel_text = rel.to_string_lossy().replace('\\', "/");
         let file_name = rel.file_name().and_then(|name| name.to_str()).unwrap_or("");
@@ -326,6 +387,7 @@ impl IgnoreRules {
     }
 }
 
+/// 判断单个路径组件是否属于默认忽略目录。
 fn ignored_component(component: Component<'_>, rules: &IgnoreRules) -> bool {
     let Component::Normal(value) = component else {
         return false;
@@ -336,6 +398,7 @@ fn ignored_component(component: Component<'_>, rules: &IgnoreRules) -> bool {
     rules.dir_names.contains(value) || value == ".git"
 }
 
+/// 返回仓库摘要默认忽略的常见元文件名。
 fn common_ignored_names() -> HashSet<String> {
     [".DS_Store", "Cargo.lock"]
         .into_iter()
@@ -343,6 +406,7 @@ fn common_ignored_names() -> HashSet<String> {
         .collect()
 }
 
+/// 返回仓库摘要默认忽略的生成、依赖和缓存目录名。
 fn common_ignored_dirs() -> HashSet<String> {
     [
         ".git",
@@ -361,6 +425,10 @@ fn common_ignored_dirs() -> HashSet<String> {
     .collect()
 }
 
+/// 实现仅支持 `*` 的简单通配符匹配。
+///
+/// 星号可以匹配任意长度文本；函数不实现 `?`、字符类、转义或 Git 的目录锚定语义，
+/// 因此只应在本模块的摘要过滤中使用。模式与文本均已由调用方规范化为正斜杠路径。
 fn wildcard_matches(pattern: &str, text: &str) -> bool {
     if pattern == "*" {
         return true;

@@ -1,18 +1,14 @@
-/// Stop-hook orchestration for the query loop.
-///
-/// Corresponds to `stopHooks.ts`. Runs after every model turn to:
-///
-/// 1. Execute registered "Stop" hooks and collect blocking errors / continuation
-///    prevention signals.
-/// 2. Fire background work (prompt suggestion, memory extraction, auto-dream) in
-///    non-bare mode — these are fire-and-forget and do not block the response.
-/// 3. When running as a teammate agent, additionally run `TaskCompleted` hooks
-///    for in-progress owned tasks and `TeammateIdle` hooks.
-///
-/// The Rust port models the async generator as a `tokio::sync::mpsc` channel
-/// pair: the caller receives a `StopHookStream` receiver and drains it while
-/// the hook logic runs on a spawned task. The return value (`StopHookResult`)
-/// is sent as the last item on a oneshot channel.
+//! 查询循环的停止钩子与工具前后置钩子编排。
+//!
+//! 每轮模型响应后，模块解析受信来源中的 hook 命令，按顺序执行并把进度、阻断错误、运行
+//! 时错误和汇总通过 `mpsc` 流发送给调用方；最终结果通过 `oneshot` 返回。PreToolUse 和
+//! PostToolUse 复用同一执行器，但只返回“允许、询问、更新输入或阻断”的决定，绝不直接
+//! 授予能力。SessionStart/UserPromptSubmit 只产生上下文或更新后的输入。
+//!
+//! 项目级 hook/plugin 配置必须先经过 `ProjectTrust`；未信任项目只能使用允许的用户级或
+//! KIANA_HOME 级来源。命令超时、启动失败、格式错误和默认非零退出都按阻断/运行时错误
+//! 处理，除非显式配置 warning 策略。该模块的本地执行结果会进入 hook 事件流，但不是
+//! EventLog 的替代事实源，也不等同于整个 Kiana 能力已授权。
 use futures::FutureExt;
 use kiana_types::{
     hooks::{hook_commands_for_event, parse_hook_commands, parse_hook_config, HookConfigError},
@@ -32,61 +28,76 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
 
 // ---------------------------------------------------------------------------
-// Public types
+// 公共类型
 // ---------------------------------------------------------------------------
 
-/// Lightweight description of a hook that ran during this turn.
+/// 本轮实际启动过的单个 hook 命令摘要。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookInfo {
+    /// 解析后实际执行的 shell 命令。
     pub command: String,
+    /// 传给命令 stdin 的 JSON 文本；可能为空或包含上下文输入。
     pub prompt_text: Option<String>,
+    /// 命令从启动到结束/超时的耗时毫秒。
     pub duration_ms: Option<u64>,
 }
 
-/// Events streamed out of `handle_stop_hooks` while hooks are executing.
+/// `handle_stop_hooks` 执行期间按顺序发出的事件。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StopHookEvent {
-    /// A hook produced a blocking error; the content should be shown to the user.
+    /// hook 产生阻断错误；调用方应把内容反馈给用户/模型并停止自动继续。
     BlockingError { content: String },
-    /// A hook produced a structured runtime error for public event streams.
+    /// hook 解析或执行产生结构化运行时错误。
     RuntimeError {
+        /// 稳定错误码（若可识别）。
         #[serde(skip_serializing_if = "Option::is_none")]
         code: Option<String>,
+        /// 清理后的错误文本。
         message: String,
+        /// 额外诊断字段；默认为空对象。
         #[serde(default)]
         details: Value,
     },
-    /// A hook signalled that the query loop should not continue.
+    /// hook 明确要求查询循环不要继续。
     ContinuationPrevented { reason: String },
-    /// Informational progress update (hook started / finished).
+    /// hook 开始/完成过程中的提示事件。
     Progress {
+        /// hook 事件名称。
         hook_name: String,
+        /// 本次 hook 的稳定展示 ID。
         tool_use_id: String,
     },
-    /// Hook execution finished — summary statistics.
+    /// 本组 hook 全部处理后的汇总统计。
     Summary {
+        /// 实际执行的命令数量。
         hook_count: usize,
+        /// 每个命令的摘要。
         hook_infos: Vec<HookInfo>,
+        /// 阻断或退出错误列表。
         errors: Vec<String>,
+        /// 是否有 hook 阻止继续。
         prevented_continuation: bool,
+        /// hook 提供的停止原因。
         stop_reason: Option<String>,
+        /// 是否至少收到一段非空 stdout。
         has_output: bool,
     },
-    /// The query was aborted while hooks were running.
+    /// hook 执行期间查询被中止。
     Aborted,
 }
 
-/// Final result returned after all stop hooks have run.
+/// 所有停止 hook 处理完成后返回给 reducer/外层的最终结果。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StopHookResult {
-    /// Blocking error messages to be fed back into the conversation.
+    /// 需要反馈给模型的阻断错误文本。
     pub blocking_errors: Vec<String>,
-    /// When `true` the query loop must not continue to the next iteration.
+    /// 为 `true` 时查询循环不得自动进入下一轮。
     pub prevent_continuation: bool,
 }
 
 impl StopHookResult {
+    /// 构造无错误、允许继续的结果。
     pub fn clean() -> Self {
         StopHookResult {
             blocking_errors: vec![],
@@ -94,6 +105,7 @@ impl StopHookResult {
         }
     }
 
+    /// 构造明确阻止继续的结果。
     pub fn prevented() -> Self {
         StopHookResult {
             blocking_errors: vec![],
@@ -101,6 +113,7 @@ impl StopHookResult {
         }
     }
 
+    /// 构造带阻断错误、但允许模型尝试修复的结果。
     pub fn with_errors(errors: Vec<String>) -> Self {
         StopHookResult {
             blocking_errors: errors,
@@ -110,42 +123,72 @@ impl StopHookResult {
 }
 
 #[derive(Debug, Clone)]
+/// PreToolUse hook 的最小输入上下文。
 pub struct PreToolUseHookContext {
+    /// 可被 hook 执行轮询的取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
+    /// 解析项目级 hook 的工作目录。
     pub cwd: PathBuf,
+    /// 项目信任级别，决定是否加载项目资源。
     pub project_trust: ProjectTrust,
+    /// 当前权限模式展示值。
     pub permission_mode: String,
+    /// 查询入口来源展示值。
     pub query_source: String,
+    /// 即将调用的工具名。
     pub tool_name: String,
+    /// 即将发送给工具的参数。
     pub tool_input: Value,
+    /// 可选的工具调用 ID。
     pub tool_use_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
+/// PostToolUse hook 的最小输入上下文。
 pub struct PostToolUseHookContext {
+    /// 可被 hook 执行轮询的取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
+    /// 解析项目级 hook 的工作目录。
     pub cwd: PathBuf,
+    /// 项目信任级别。
     pub project_trust: ProjectTrust,
+    /// 当前权限模式展示值。
     pub permission_mode: String,
+    /// 查询入口来源展示值。
     pub query_source: String,
+    /// 已执行的工具名。
     pub tool_name: String,
+    /// 工具原始输入。
     pub tool_input: Value,
+    /// 可选的工具调用 ID。
     pub tool_use_id: Option<String>,
+    /// 工具返回的结构化结果。
     pub tool_result: Value,
+    /// 工具是否报告错误。
     pub is_error: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// 工具前后置 hook 对调用方给出的受限决定。
 pub enum ToolHookDecision {
+    /// 不增加额外限制；仍需通过 ControlPlane 的策略和 Broker。
     Allow,
+    /// 暂停并请求审批，可选携带经过 hook 更新的输入。
     Ask {
+        /// 审批原因。
         reason: String,
+        /// hook 修改后的输入。
         updated_input: Option<Value>,
     },
+    /// 阻断工具调用。
     Block(String),
+    /// 仅更新输入，调用方可在后续策略检查中重新评估。
     UpdateInput(Value),
 }
 
+/// 执行受信 PreToolUse hook 并把结果收敛为工具调用决定。
+///
+/// 任一 hook 启动/超时/非零错误默认会转成 `Block`；项目未信任时不会加载项目 hook。
 pub async fn run_pre_tool_use_hooks(ctx: PreToolUseHookContext) -> ToolHookDecision {
     let stop_ctx = StopHookContext {
         abort_signal: ctx.abort_signal,
@@ -187,6 +230,10 @@ pub async fn run_pre_tool_use_hooks(ctx: PreToolUseHookContext) -> ToolHookDecis
     }
 }
 
+/// 执行 PostToolUse hook 并返回审计后的受限决定。
+///
+/// PostToolUse 的 `Ask` 不会把已经完成的工具重新授权，因此当前适配器将其折叠为阻断；
+/// hook 返回的更新输入也不会改变已经产生的工具结果。
 pub async fn run_post_tool_use_hooks(ctx: PostToolUseHookContext) -> ToolHookDecision {
     let stop_ctx = StopHookContext {
         abort_signal: ctx.abort_signal,
@@ -225,14 +272,23 @@ pub async fn run_post_tool_use_hooks(ctx: PostToolUseHookContext) -> ToolHookDec
 }
 
 #[derive(Debug, Clone)]
+/// SessionStart hook 的最小输入上下文。
 pub struct SessionStartHookContext {
+    /// 取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
+    /// hook 配置工作目录。
     pub cwd: PathBuf,
+    /// 项目信任级别。
     pub project_trust: ProjectTrust,
+    /// 权限模式展示值。
     pub permission_mode: String,
+    /// 查询入口来源。
     pub query_source: String,
 }
 
+/// 执行 SessionStart hook 并返回追加到会话上下文的文本。
+///
+/// 任何 hook 错误、超时或取消都会以 `Err` 返回；不会静默当作“没有上下文”。
 pub async fn run_session_start_hooks(ctx: SessionStartHookContext) -> Result<Vec<String>, String> {
     let stop_ctx = StopHookContext {
         abort_signal: ctx.abort_signal,
@@ -253,21 +309,35 @@ pub async fn run_session_start_hooks(ctx: SessionStartHookContext) -> Result<Vec
 }
 
 #[derive(Debug, Clone)]
+/// UserPromptSubmit hook 的最小输入上下文。
 pub struct UserPromptSubmitHookContext {
+    /// 取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
+    /// hook 配置工作目录。
     pub cwd: PathBuf,
+    /// 项目信任级别。
     pub project_trust: ProjectTrust,
+    /// 权限模式展示值。
     pub permission_mode: String,
+    /// 查询入口来源。
     pub query_source: String,
+    /// 用户原始提示。
     pub user_prompt: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// UserPromptSubmit hook 处理后的上下文和提示结果。
 pub struct UserPromptSubmitHookResult {
+    /// hook 追加的上下文文本。
     pub add_contexts: Vec<String>,
+    /// hook 请求替换后的提示文本。
     pub updated_prompt: Option<String>,
 }
 
+/// 执行 UserPromptSubmit hook，返回追加上下文和可选的新提示。
+///
+/// 多个 hook 按配置顺序执行；前一个 hook 的提示更新会成为后一个 hook 的输入。错误不会
+/// 被吞掉，以免模型在缺失安全/业务前置检查时继续运行。
 pub async fn run_user_prompt_submit_hooks(
     ctx: UserPromptSubmitHookContext,
 ) -> Result<UserPromptSubmitHookResult, String> {
@@ -301,62 +371,56 @@ pub async fn run_user_prompt_submit_hooks(
 }
 
 // ---------------------------------------------------------------------------
-// Hook executor context
+// Hook 执行上下文
 // ---------------------------------------------------------------------------
 
-/// Caller-supplied context threaded through hook execution.
+/// 在 hook 执行链中传递的调用方上下文。
 ///
-/// In the TypeScript codebase this is `REPLHookContext` plus fields from
-/// `ToolUseContext`. We surface only what the hook machinery needs; callers
-/// build this from their own richer structs.
+/// 结构只暴露 hook 所需的最小字段；它不是完整的请求授权上下文。项目资源开关在这里
+/// 只作为解析输入，真正的能力授权仍由控制面完成。
 #[derive(Debug, Clone)]
 pub struct StopHookContext {
-    /// Signal polled during hook execution — aborting cancels the loop.
+    /// hook 执行期间轮询的取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
-    /// `Some` when running inside a subagent.
+    /// 子代理运行时的 agent ID。
     pub agent_id: Option<String>,
-    /// Permission mode string (e.g. "default", "acceptEdits").
+    /// 权限模式字符串。
     pub permission_mode: String,
-    /// Source of the query (e.g. "repl_main_thread", "sdk").
+    /// 查询入口来源。
     pub query_source: String,
-    /// Whether stop hooks are active for this query.
+    /// 是否启用 Stop hook 主流程。
     pub stop_hook_active: bool,
-    /// Whether running in bare/simple mode (suppresses background bookkeeping).
+    /// 是否为 bare/simple 模式。
     pub bare_mode: bool,
-    /// Whether this process is acting as a teammate agent.
+    /// 当前进程是否作为 teammate agent 运行。
     pub is_teammate: bool,
-    /// Name of the teammate agent (if `is_teammate`).
+    /// teammate 名称。
     pub agent_name: Option<String>,
-    /// Name of the team (if `is_teammate`).
+    /// team 名称。
     pub team_name: Option<String>,
-    /// Working directory used to resolve project-local hook files.
+    /// 解析项目 hook 文件时使用的工作目录。
     pub cwd: PathBuf,
-    /// Whether project-local hook files are allowed to participate.
+    /// 项目级 hook 是否因 trust 允许参与。
     pub project_trust: ProjectTrust,
 }
 
 // ---------------------------------------------------------------------------
-// Core orchestration
+// 核心编排
 // ---------------------------------------------------------------------------
 
-/// Result channels returned to the caller.
+/// 异步 hook 执行返回给调用方的两个通道。
 pub struct StopHookHandle {
-    /// Stream of events produced while hooks execute.
+    /// hook 执行期间的有序事件流。
     pub events: mpsc::Receiver<StopHookEvent>,
-    /// Resolves once all hooks have finished; carries the final result.
+    /// 全部 hook 结束后解析的最终结果。
     pub result: oneshot::Receiver<StopHookResult>,
 }
 
-/// Begin executing stop hooks asynchronously.
+/// 异步启动 Stop hook 主流程并立即返回两个结果通道。
 ///
-/// Returns a `StopHookHandle` immediately. The caller should drain `events`
-/// concurrently with awaiting `result`. Both channels close when the hook
-/// task completes.
-///
-/// # Cancellation
-/// Notify `ctx.abort_signal` at any time to interrupt the hook loop; the task
-/// will emit `StopHookEvent::Aborted` and resolve `result` with
-/// `StopHookResult::prevented()`.
+/// 调用方应在等待 `result` 的同时持续消费 `events`，否则有界通道填满后 hook 任务可能
+/// 反压等待。向 `ctx.abort_signal` 发送通知会中断当前循环，发出 `Aborted` 并以
+/// `StopHookResult::prevented()` 结束；这只是 hook 层取消，不替代控制面的 Run fencing。
 pub fn handle_stop_hooks(ctx: StopHookContext) -> StopHookHandle {
     let (event_tx, event_rx) = mpsc::channel::<StopHookEvent>(64);
     let (result_tx, result_rx) = oneshot::channel::<StopHookResult>();
@@ -372,12 +436,12 @@ pub fn handle_stop_hooks(ctx: StopHookContext) -> StopHookHandle {
     }
 }
 
-/// Internal async execution — runs in the spawned task.
+/// 在独立 Tokio 任务中执行 Stop hook 的内部实现。
 async fn run_stop_hooks(ctx: StopHookContext, tx: mpsc::Sender<StopHookEvent>) -> StopHookResult {
-    // --- Execute primary Stop hooks ---
+    // 先执行主 Stop hook；只有它没有阻断/错误时才会继续到 teammate 分支。
     let stop_result = execute_hook_set(HookEvent::Stop, &ctx, &tx, ctx.stop_hook_active).await;
 
-    // Check abort before proceeding to secondary hooks.
+    // 在进入后续 hook 前再次检查取消，避免主 hook 返回后仍启动新的命令。
     if ctx.abort_signal.try_recv_aborted() {
         let _ = tx.send(StopHookEvent::Aborted).await;
         return StopHookResult::prevented();
@@ -401,7 +465,7 @@ async fn run_stop_hooks(ctx: StopHookContext, tx: mpsc::Sender<StopHookEvent>) -
         HookSetResult::Clean => {}
     }
 
-    // --- Teammate-specific hooks ---
+    // teammate 只额外运行受限的 TeammateIdle/TaskCompleted 流程。
     if ctx.is_teammate {
         let teammate_result = run_teammate_hooks(&ctx, &tx).await;
         match teammate_result {
@@ -427,11 +491,12 @@ async fn run_stop_hooks(ctx: StopHookContext, tx: mpsc::Sender<StopHookEvent>) -
 }
 
 // ---------------------------------------------------------------------------
-// Hook set helpers
+// Hook 集合辅助函数
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
 #[allow(dead_code)]
+/// hook 执行器内部使用的事件输入。
 enum HookEvent {
     Stop,
     SessionStart,
@@ -459,6 +524,7 @@ enum HookEvent {
 
 #[derive(Debug)]
 #[allow(dead_code)]
+/// 单组 hook 汇总后的内部决定。
 enum HookSetResult {
     Clean,
     Aborted,
@@ -479,6 +545,8 @@ async fn execute_hook_set(
     tx: &mpsc::Sender<StopHookEvent>,
     active: bool,
 ) -> HookSetResult {
+    // 配置解析与命令执行分开：配置错误先进入错误事件流，不能在无法解释的 schema 下
+    // 猜测命令或放宽项目资源边界。
     let hook_name = event.name();
     let hook_resolution = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
     let commands = hook_resolution.commands;
@@ -500,6 +568,7 @@ async fn execute_hook_set(
         return HookSetResult::Aborted;
     }
 
+    // 同一个配置错误同时发 RuntimeError 和 BlockingError，分别服务机器订阅者与模型/用户。
     for error in &runtime_errors {
         let _ = tx
             .send(StopHookEvent::RuntimeError {
@@ -528,6 +597,7 @@ async fn execute_hook_set(
             })
             .await;
 
+        // 每个命令获得执行前 event 的快照；PreToolUse 的输入更新会传给后续命令。
         let input_json = hook_input_json(&event, ctx, active);
         let run = run_hook_command(command, &input_json, timeout_duration, &ctx.abort_signal).await;
         hook_infos.push(HookInfo {
@@ -574,6 +644,7 @@ async fn execute_hook_set(
                 }
             );
             summary_errors.push(exit_error.clone());
+            // 默认非零退出阻断；仅显式 warning 配置允许继续，并把错误保留在汇总中。
             if hook_nonzero_policy().is_deny() {
                 blocking_errors.push(exit_error);
             } else {
@@ -633,6 +704,8 @@ async fn execute_hook_set(
         })
         .await;
 
+    // 结果优先级固定为：阻断错误 > 明确禁止继续 > Ask > 仅更新输入 > clean。
+    // 这样后续“允许继续”的字段不会冲掉更早发现的配置或执行错误。
     if !blocking_errors.is_empty() {
         HookSetResult::BlockingErrors(blocking_errors)
     } else if prevented_continuation {
@@ -656,6 +729,8 @@ async fn execute_hook_set_silent(
     ctx: &StopHookContext,
     active: bool,
 ) -> HookSetResult {
+    // 静默入口仍然完整执行同一套规则，只把事件流排空而不暴露给调用方，避免出现第二
+    // 套不同的 hook 语义。
     let (tx, mut rx) = mpsc::channel::<StopHookEvent>(64);
     let drain = tokio::spawn(async move { while rx.recv().await.is_some() {} });
     let result = execute_hook_set(event, ctx, &tx, active).await;
@@ -668,6 +743,8 @@ async fn execute_context_hook_set(
     mut event: HookEvent,
     ctx: &StopHookContext,
 ) -> Result<ContextHookSetResult, String> {
+    // SessionStart/UserPromptSubmit 需要传递上下文或修改后的输入，因此沿用相同的命令
+    // 顺序和取消检查，但不产生公开 StopHookEvent 流。
     let hook_name = event.name();
     let hook_resolution = hook_commands_for(hook_name, ctx.project_trust, &ctx.cwd);
     let commands = hook_resolution.commands;
@@ -753,33 +830,35 @@ async fn execute_context_hook_set(
     }
 }
 
-/// Run TeammateIdle and TaskCompleted hooks for teammate agents.
+/// 为 teammate agent 运行 TeammateIdle 和 TaskCompleted hook。
 async fn run_teammate_hooks(
     ctx: &StopHookContext,
     tx: &mpsc::Sender<StopHookEvent>,
 ) -> HookSetResult {
-    // TaskCompleted hooks would be run for each in-progress task owned by this
-    // agent. TeammateIdle runs once after all task hooks.
+    // 当前实现只触发一次 TeammateIdle；TaskCompleted 的任务枚举尚未接入此适配器。
+    // 不在这里发明自由消息总线或额外执行循环。
     execute_hook_set(HookEvent::TeammateIdle, ctx, tx, false).await
 }
 
 // ---------------------------------------------------------------------------
-// Notification helper
+// 通知辅助函数
 // ---------------------------------------------------------------------------
 
-/// Build the user-visible notification text for a stop-hook error.
+/// 构造展示给用户的 Stop hook 错误提示文本。
+///
+/// `expand_shortcut` 由入口层提供，因此本函数不解析快捷键，也不泄露 hook 的 stdout/stderr。
 pub fn stop_hook_error_notification(expand_shortcut: &str) -> String {
     format!("Stop hook error occurred · {expand_shortcut} to see")
 }
 
 // ---------------------------------------------------------------------------
-// Abort-signal helper (mimics AbortController.signal.aborted)
+// 取消信号辅助函数（近似 AbortController.signal.aborted）
 // ---------------------------------------------------------------------------
 
-/// Extension trait that adds `try_recv_aborted` to `tokio::sync::Notify`.
+/// 为 `tokio::sync::Notify` 增加非阻塞取消检查。
 ///
-/// A `Notify` is used here as a lightweight cancellation primitive. In a real
-/// integration this would be a `CancellationToken` from `tokio-util`.
+/// 当前用 `Notify` 作为轻量取消原语；它只表示“曾收到取消通知”，不负责杀死控制面中的
+/// 其他进程或撤销已发出的能力授权。更完整的集成可替换为 `CancellationToken`。
 trait AbortSignalExt {
     fn try_recv_aborted(&self) -> bool;
 }
@@ -845,6 +924,8 @@ async fn run_hook_command(
     timeout_duration: Duration,
     abort_signal: &Arc<tokio::sync::Notify>,
 ) -> HookRun {
+    // 每个命令都在独立 shell 子进程中运行，stdin 接收结构化 JSON；timeout 或取消时
+    // `kill_on_drop` 负责回收子进程句柄，但不声称能清理所有外部孙进程。
     let started = Instant::now();
     let mut shell = shell_command(command);
     shell
@@ -1011,6 +1092,8 @@ fn hook_commands_for(
     project_trust: ProjectTrust,
     cwd: &Path,
 ) -> HookCommandResolution {
+    // 配置优先级：事件专用环境变量 > 通用环境变量 > 用户/受信项目文件 > 已安装插件。
+    // 事件专用变量存在但格式错误时直接报错，不静默回退到其他来源。
     let specific_env = match hook_name {
         "Stop" => "KIANA_STOP_HOOKS",
         "SessionStart" => "KIANA_SESSION_START_HOOKS",
@@ -1060,6 +1143,8 @@ fn hook_commands_from_files(
     project_trust: ProjectTrust,
     cwd: &Path,
 ) -> HookCommandResolution {
+    // 项目文件的候选路径已经由 trust 过滤；每个文件的 JSON/schema 错误分别保留来源，
+    // 便于审计究竟是哪一份配置阻断了请求。
     let mut resolution = HookCommandResolution::default();
     for path in hooks_file_paths_with_trust(project_trust, cwd) {
         if !path.is_file() {
@@ -1101,6 +1186,8 @@ fn hook_commands_from_files(
 }
 
 fn plugin_hook_commands(hook_name: &str) -> HookCommandResolution {
+    // 插件必须有可识别 manifest 才会被考虑；缺失 hooks.json 的插件被视为没有该事件，
+    // 而不是错误地执行目录中的任意文件。
     let mut resolution = HookCommandResolution::default();
     for plugin in installed_plugin_roots() {
         if find_manifest_path(&plugin).is_none() {
@@ -1219,6 +1306,8 @@ fn find_manifest_path(plugin_root: &Path) -> Option<PathBuf> {
 }
 
 fn hooks_file_paths_with_trust(project_trust: ProjectTrust, cwd: &Path) -> Vec<PathBuf> {
+    // 用户级/KIANA_HOME 级配置与项目级配置分开处理；只有 trust 允许项目资源时才加入
+    // `.kiana/hooks.json`，防止未信任目录注入命令。
     if let Ok(path) = std::env::var("KIANA_HOOKS_FILE") {
         return vec![PathBuf::from(path)];
     }
@@ -1238,6 +1327,8 @@ fn hooks_file_paths_with_trust(project_trust: ProjectTrust, cwd: &Path) -> Vec<P
 }
 
 fn hook_input_json(event: &HookEvent, ctx: &StopHookContext, active: bool) -> String {
+    // 同时输出 snake_case 和兼容 camelCase 字段，保证既有 hook 脚本能迁移；输入只是
+    // 命令上下文，不会把它变成能力授权或扩大写集。
     let mut input = json!({
         "hook_event_name": event.name(),
         "permission_mode": &ctx.permission_mode,
@@ -1302,6 +1393,7 @@ fn hook_input_json(event: &HookEvent, ctx: &StopHookContext, active: bool) -> St
 }
 
 fn hook_timeout_duration() -> Duration {
+    // 非法、零值或缺失配置统一使用 30 秒，避免把无限等待暴露给查询循环。
     let millis = std::env::var("KIANA_HOOK_TIMEOUT_MS")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
@@ -1337,6 +1429,8 @@ fn hook_nonzero_policy() -> HookNonzeroPolicy {
 }
 
 fn parse_hook_output(stdout: &str) -> ParsedHookOutput {
+    // 非 JSON stdout 视为没有结构化决定；命令退出码和 stderr 仍由上层先行处理。只有
+    // 可解析字段才会改变继续、Ask、错误或输入更新状态。
     let Ok(value) = serde_json::from_str::<Value>(stdout) else {
         return ParsedHookOutput::default();
     };
