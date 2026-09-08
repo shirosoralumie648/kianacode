@@ -8,9 +8,9 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：系统怎么"变好而不悄悄变坏"——可重放的评测（EvalSuite/EvalCase/GoldenTrace）、评分与质量门、人类反馈与漂移检测、模型/Prompt/路由的版本治理、代码知识索引（repo map/符号索引）、插件与 Skill 生态、供应链安全审查。
+> - **讲什么**：系统怎么"变好而不悄悄变坏"——可重放的评测（EvalSuite/EvalCase/GoldenTrace）、评分与质量门（`QualityGate` 与 Candidate 状态机）、人类反馈与漂移检测、模型/Prompt/路由的版本治理、代码知识索引（repo map/符号索引）、插件与 Skill 生态、供应链安全审查。
 > - **回答的问题**："换了模型、改了 Prompt、装了插件之后，怎么知道没有退步、没有引入安全问题。"
-> - **核心规则**：学习只能改版本化的配置（Prompt/路由/索引），永远不能自动改权限、安全策略或历史事实。
+> - **核心规则**：学习只能改版本化的配置（Prompt/路由/索引），永远不能自动改权限、安全策略或历史事实；代码知识查询服务于服务端上下文装配，不新增模型可见工具。
 > - **什么时候读**：做评测、改模型配置、接入插件或 Skill 时。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
@@ -233,7 +233,10 @@ QualityScore
   + context_relevance
   + cost_efficiency
   + latency
+  + replay_correctness
 ```
+
+`replay_correctness` 是布尔 gate 维度（同一 EvalCase 重放与 baseline 是否一致，取 0/1），独立于 `recovery_correctness`：后者度量 crash/restart/Unknown 后的恢复能力，前者度量重放确定性。二者不合并，否则数值平均会掩盖 replay divergence。
 
 安全和事实完整性是阻断项，不得用文本质量或低成本抵消：
 
@@ -244,7 +247,9 @@ if replay_correctness == false → reject
 if forbidden_effect != empty → reject
 ```
 
-### 5.2 质量门状态
+### 5.2 Candidate 状态与 QualityGate 合同
+
+Candidate 状态机（对象 `VersionedCandidate`，即 §2 图中的 Versioned Candidate；canonical 登记见 [`company-os-implementation-outline.md`](company-os-implementation-outline.md) Slice L2 的 Candidate/Promotion）：
 
 ```text
 Draft → OfflineEvaluated → Shadowed → Approved
@@ -252,6 +257,45 @@ OfflineEvaluated → Rejected
 Shadowed → RolledBack / Approved
 Approved → Deprecated
 ```
+
+`VersionedCandidate` 最小字段合同：
+
+```text
+VersionedCandidate {
+  candidate_id
+  baseline_id
+  changed_dimension: model | prompt | tool_catalog | memory_index | workflow | route
+  changed_version_ref
+  suite_version
+  status: Draft | OfflineEvaluated | Shadowed | Approved | Rejected | RolledBack | Deprecated
+  created_at
+  created_by
+}
+```
+
+Promote 绑定中的其余版本字段由 `changed_version_ref` 指向的版本快照提供，不在 Candidate 上重复定义。
+
+`QualityGate` 是“门槛配置 + 裁决记录”的合同（canonical 登记见 [`company-os-spec-index.md`](company-os-spec-index.md) §4.3 与 [`company-os-implementation-outline.md`](company-os-implementation-outline.md) Slice L1；owner `kiana-runner` / `kiana-eventlog`）：
+
+```text
+QualityGate {
+  gate_id
+  gate_version
+  suite_version
+  thresholds: { policy_safety, evidence_completeness, recovery_correctness, replay_correctness, ... }
+  blocking_rules[]
+  verdict: pass | reject | needs_shadow | rollback
+  candidate_id
+  baseline_id
+  score_delta
+  known_regressions[]
+  approver
+  decided_at
+  evidence_ref
+}
+```
+
+门槛配置（`gate_version`、`suite_version`、`thresholds`、`blocking_rules`）与裁决记录（`verdict` 及其后字段）必须分离：配置可以升版本，裁决记录一旦写入不可改写，只能由新的 `gate_version` 追加新裁决。
 
 每次 Promote 都必须绑定：
 
@@ -277,7 +321,7 @@ approver
 Feedback {
   feedback_id
   principal_id
-  target_type: response | tool_call | memory | workflow | artifact | receipt
+  target_type: turn | tool_call | memory | workflow | artifact | receipt
   target_ref
   label
   comment?
@@ -287,6 +331,8 @@ Feedback {
   privacy_policy
 }
 ```
+
+`response` 不是 canonical 对象名：对单轮模型回复的评价挂到 `Turn`，对整次执行的评价挂到 `Run`，对事实投影的评价挂到 `Receipt`；`target_ref` 必须指向对应 canonical ID。
 
 Feedback 只能产生候选改进：
 
@@ -385,6 +431,10 @@ RouteDecision {
 
 Coding CompanyOS 还需要独立的代码知识能力，而不是只把整个仓库塞进 Context。
 
+§8.2 的查询类型服务于服务端上下文装配，不新增模型可见工具：模型工具面保持冻结，只有已登记且通过冻结流程的固定工具集对模型可见（清单与证据以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 和 [`coding-pack-matrix.md`](coding-pack-matrix.md) 为准）。若未来把某类查询作为工具开放，必须走 `CapabilityDescriptor` 登记与工具面冻结流程，不得直接写进模型工具 schema，也不得把 `kiana-query` 的 repo map/search 当作模型可见工具。
+
+> **开放决策（跨文档）**：是否把结构化查询（Read/Grep/Glob 类）作为模型可见工具开放。本规范不预设打开；打开前必须由 [`coding-pack-matrix.md`](coding-pack-matrix.md) 的 P1-READ 决策、`CapabilityDescriptor` 登记和工具面冻结流程共同确认。
+
 ### 8.1 Code Knowledge Index
 
 ```text
@@ -404,7 +454,10 @@ RepositorySnapshot
 ```text
 Unindexed → Scanning → Indexed → Stale → Updating → Indexed
 Scanning / Updating → Failed → Retry / Quarantined
+Quarantined → Rebuild / Purge → Unindexed
 ```
+
+`Quarantined` 索引不得参与查询，也不得被当作当前仓库状态；退出只有显式 Rebuild 或 Purge 两条路径，必须记录原因和操作者，不能自动重试后直接回到 `Indexed`。
 
 ### 8.2 Query 类型
 
@@ -464,6 +517,19 @@ ExtensionManifest {
   compatibility
 }
 ```
+
+`extension_type` 与 [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §7.1 的 `CapabilityDescriptor.source_type` 属于不同域、不同枚举：`extension_type` 描述扩展包交付的内容形态，`source_type` 描述可被 broker 派发的能力来源；不得把 `extension_type` 直接当 `source_type` 使用。映射关系为：
+
+```text
+extension_type skill      → source_type skill
+extension_type workflow   → source_type workflow
+extension_type capability → 按承载方式记 source_type：内置执行器承载记 built_in，MCP server 提供记 mcp
+extension_type memory     → 不新增 source_type；若暴露可调用项，必须归入 skill / workflow / built_in / mcp 之一
+extension_type provider   → 不新增 source_type；若暴露可调用项，必须归入 skill / workflow / built_in / mcp 之一
+extension_type ui         → 不新增 source_type；若暴露可调用项，必须归入 skill / workflow / built_in / mcp 之一
+```
+
+`built_in` 是运行时来源类别（由 Kiana 内置执行器承载），不是 `extension_type` 的取值。
 
 ### 9.2 Extension 生命周期
 
@@ -561,7 +627,9 @@ owner
 
 ## 11. Quality、Ecosystem 与产品边界
 
-### P0：可靠性和回归
+> 本节阶段号是**局部命名 Q-1…Q-4**，只表示本文内部的阅读与实施顺序。全局阶段序列以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 为唯一 canonical；本文档的 Skill/Plugin/Workflow Pack 生态在 spec-index §7 属于 P4，不在全局 P2。对应关系：Q-1/Q-2 落在全局 P0–P1，Q-3 对应全局 P4 的 Skill/Plugin ecosystem，Q-4 对应全局 P4–P6。
+
+### Q-1：可靠性和回归
 
 - Runtime normalized event fixture；
 - approval/cancel/Unknown/replay 测试；
@@ -570,7 +638,7 @@ owner
 - provider-independent EvalSuite；
 - security/policy regression。
 
-### P1：上下文和代码知识
+### Q-2：上下文和代码知识
 
 - ContextPlan 和 token budget eval；
 - memory retrieval/ACL/provenance eval；
@@ -578,7 +646,7 @@ owner
 - cache telemetry 和 invalidation diagnosis；
 - Tool Search top-k 和 schema validation eval。
 
-### P2：扩展和变更治理
+### Q-3：扩展和变更治理
 
 - Skill/Plugin/Workflow Pack manifest；
 - trust/install/upgrade/rollback；
@@ -586,7 +654,7 @@ owner
 - shadow route 和 canary；
 - feedback、drift 和 quality promotion。
 
-### P3：生态与外部平台
+### Q-4：生态与外部平台
 
 - provider marketplace；
 - signed external packs；
@@ -596,7 +664,7 @@ owner
 
 ## 12. 完成定义
 
-达到 `proven_local` 前至少需要：
+达到 `local_behavior` 前至少需要：
 
 - 同一 EvalCase 可以在 fake model、CLI 和 DaemonHost 主路径中重放；
 - Event、Artifact、Receipt 和 Score 可以关联；
@@ -610,4 +678,10 @@ owner
 
 ## 13. 当前诚实描述
 
-> **Kiana 已有部分 query、memory ACL、skills、hooks、capability broker、cassette 和 focused regression 素材；统一 Eval/GoldenTrace、模型与 Prompt 变更治理、代码知识索引、插件生命周期、质量晋级和生态供应链仍处于目标设计阶段。**
+当前状态只能引用 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 的既有证据块，不得从本文目标推断：
+
+- `CURRENT_STATUS.md` §3 证据块 “Current Gate 0 revalidation after MCP, Swarm, and JSONL recovery slices (2026-09-07)” 只把已演练的本地路径证明到 `local_behavior`，不建立 durable/live/physical；
+- `CURRENT_STATUS.md` §2 能力表把本地受控 coding 行为、DaemonHost 主路径、WorkPacket/Symposium/Review 标为 `partial`，把 live provider、token streaming、跨进程完整 resume 标为 `not_supported`/`deferred`；
+- `CURRENT_STATUS.md` §5 “当前禁止的表述” 继续适用。
+
+> **据此：Kiana 已有部分 query、memory ACL、skills、hooks、capability broker、cassette 和 focused regression 素材；统一 Eval/GoldenTrace、模型与 Prompt 变更治理、代码知识索引、插件生命周期、质量晋级和生态供应链仍处于目标设计阶段。**

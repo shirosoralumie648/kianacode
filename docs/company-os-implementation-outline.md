@@ -6,9 +6,9 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：把所有规范拆成可认领的工程切片——模块责任地图（哪个 crate 管什么）、切片 A 到 M 各自的目标/实现位置/验收条件、能力域实施顺序、证据与测试模板、当前 Gate 0 状态、高优先级负向证据清单和 90 天工程序列。
+> - **讲什么**：把所有规范拆成可认领的工程切片——模块责任地图（哪个 crate 管什么）、切片 A 到 M 各自的目标/实现位置/验收条件、切片实现卡登记位置、能力域实施顺序、证据与测试模板、Gate 0 命令入口、高优先级负向证据清单和 90 天工程序列。
 > - **回答的问题**："下一步该做什么、在哪个 crate 做、做到什么程度算过关。"
-> - **什么时候读**：认领开发任务时——它是"规范"到"代码"之间的桥；§6 和 §6.1 列出了当前已知的真实缺口，动手前先看。
+> - **什么时候读**：认领开发任务时——它是"规范"到"代码"之间的桥；§6.1 列出当前已知负向证据，§6 只登记 Gate 0 命令，当前是否通过以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典；当前实际能力以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准。
 
@@ -113,7 +113,8 @@ Schema 注册表必须区分 canonical domain schema 与 wire protocol schema；
 - 相同 WorkFingerprint 不重复创建；
 - spawn 预留预算、锁和 grant 具有原子语义；
 - retire 撤销 grant、释放锁和预算。
-- 当前 packet spawn 已执行 template/budget/grant/supervision/Cell 的 reserve→commit→terminal→retire 链；registry projector 和跨进程 durable state 仍未完成。
+
+**当前状态**：`partial`（`local_behavior`）。CURRENT_STATUS 的「P3-01 Cell lifecycle admission evidence (2026-08-31)」记录 packet spawn 已执行 template/budget/grant/supervision/Cell 的 reserve→commit→terminal→retire 链；同一证据块记录 registry/budget 仍是进程内状态，尚无 durable Cell projector 和跨进程恢复。状态与证明等级以账本为准，不由此处推断。
 
 ### Slice D：WorkPacket 与交接
 
@@ -272,14 +273,14 @@ record_outcome       → OutcomeRecorded
 
 | 子切片 | canonical 合同 | 主要 owner | 参考设计 | 当前状态 |
 |---|---|---|---|---|
-| J1 Runtime | Session、Turn、Run、Invocation、NormalizedEvent | `kiana-runner` / `kiana-eventlog` | DeepSeek Harness、OpenCode、Goose、Crush | `code_partial` |
+| J1 Runtime | Session、Turn、Run、Invocation、NormalizedEvent | `kiana-runner` / `kiana-eventlog` | DeepSeek Harness、OpenCode、Goose、Crush | `partial` |
 | J2 Context/Cache | ContextPlan、TokenBudget、ContextCheckpoint、CacheTelemetry | `kiana-query` / provider adapter | Aider、Continue、Pi、Roo、Claude API prompt-cache pattern | `target` |
-| J3 Memory | MemoryRecord、MemoryQuery、Promotion、Expiry、Provenance | `kiana-query` / `kiana-ports` | Continue、Letta、MemPalace、memorix | `code_partial` |
-| J4 Capability/MCP | CapabilityDescriptor、ToolSnapshot、McpServer lifecycle | broker / `kiana-daemon` | DeepSeek ToolRuntime、OpenCode、Cline、Goose | `code_partial` |
+| J3 Memory | MemoryRecord、MemoryQuery、Promotion、Expiry、Provenance | `kiana-query` / `kiana-ports` | Continue、Letta、MemPalace、memorix | `partial` |
+| J4 Capability/MCP | CapabilityDescriptor、ToolSnapshot、McpServer lifecycle | broker / `kiana-daemon` | DeepSeek ToolRuntime、OpenCode、Cline、Goose | `partial` |
 | J5 Workflow | WorkflowDefinition、NodeExecution、Signal、Compensation | `kiana-workflow` / `kiana-core` | Pydantic AI Graph、CrewAI Flow、Archon YAML/DAG | `target` |
 | J6 Swarm | SwarmPlan、Partition、Child Cell、MergeDecision | `kiana-core` / `kiana-daemon` | AutoGen、Agency Swarm、MetaGPT、ChatDev | `target` |
 | J7 Provider/Output | provider-normalized stream、cursor、usage、terminal event | `kiana-daemon` / `kiana-protocol` | Cline、Letta、Crush、OpenCode | `not_supported`/`target` |
-| J8 Observability | Trace、Receipt、Eval、cost/cache/retry metrics | `kiana-eventlog` / query | Agno、DeepSeek fixtures、OpenCode | `code_partial` |
+| J8 Observability | Trace、Receipt、Eval、cost/cache/retry metrics | `kiana-eventlog` / query | Agno、DeepSeek fixtures、OpenCode | `partial` |
 
 **共同验收**：
 
@@ -302,12 +303,12 @@ record_outcome       → OutcomeRecorded
 
 | 子切片 | canonical 合同 | 主要 owner | 参考设计 | 当前状态 |
 |---|---|---|---|---|
-| K1 Identity | Principal、Membership、RoleAssignment、AuthorityEpoch | `kiana-domain` / `kiana-core` | Codex Thread/Turn、OpenCode run-state、Cline host | `code_partial` |
+| K1 Identity | Principal、Membership、RoleAssignment、AuthorityEpoch | `kiana-domain` / `kiana-core` | Codex Thread/Turn、OpenCode run-state、Cline host | `partial` |
 | K2 Trigger | TriggerDefinition、TriggerFiring、Schedule、Signal | `kiana-daemon` / `kiana-workflow` | CrewAI Flow、Archon DAG、ChatDev Graph | `target` |
-| K3 Human control | HumanTask、ApprovalInbox、Escalation、Reconciliation | `kiana-core` / `kiana-daemon` | Agno requirements、Agent Framework approval、Letta resume | `code_partial` |
-| K4 Artifact | ArtifactVersion、WorkspaceSnapshot、PatchSet、Delivery | `kiana-domain` / `kiana-eventlog` | Roo checkpoint、Pi tree、Archon worktree、Aider diff | `code_partial` |
+| K3 Human control | HumanTask、ApprovalInbox、Escalation、Reconciliation | `kiana-core` / `kiana-daemon` | Agno requirements、Agent Framework approval、Letta resume | `partial` |
+| K4 Artifact | ArtifactVersion、WorkspaceSnapshot、PatchSet、Delivery | `kiana-domain` / `kiana-eventlog` | Roo checkpoint、Pi tree、Archon worktree、Aider diff | `partial` |
 | K5 Cost/capacity | UsageRecord、CostLedger、Quota、Backpressure | `kiana-core` / `kiana-eventlog` | DeepSeek usage、Agno run usage、OpenCode processor | `target` |
-| K6 Reliability | HealthStatus、Incident、RecoveryPlan、Reconciliation | `kiana-eventlog` / `kiana-daemon` | Goose recovery、Crush cancel、Cline abort | `code_partial` |
+| K6 Reliability | HealthStatus、Incident、RecoveryPlan、Reconciliation | `kiana-eventlog` / `kiana-daemon` | Goose recovery、Crush cancel、Cline abort | `partial` |
 | K7 Data governance | DataClass、Purpose、ProcessingGrant、Retention | `kiana-domain` / `kiana-ports` | Kiana security constitution + host/tool boundaries | `target` |
 | K8 Connector | ConnectorDefinition、AccountBinding、ProviderReceipt | broker / adapter crates | Goose extensions、Cline host、MCP lifecycle | `not_supported`/`target` |
 
@@ -332,11 +333,11 @@ record_outcome       → OutcomeRecorded
 
 | 子切片 | canonical 合同 | 主要 owner | 参考设计 | 当前状态 |
 |---|---|---|---|---|
-| L1 Eval | EvalSuite、EvalCase、GoldenTrace、QualityGate | `kiana-runner` / `kiana-eventlog` | DeepSeek fixtures、OpenCode effect tests、Cline runtime tests | `code_partial` |
+| L1 Eval | EvalSuite、EvalCase、GoldenTrace、QualityGate | `kiana-runner` / `kiana-eventlog` | DeepSeek fixtures、OpenCode effect tests、Cline runtime tests | `partial` |
 | L2 Feedback | Feedback、Pattern、Candidate、Promotion | `kiana-query` / `kiana-domain` | Agno run feedback、MemPalace lessons、memorix | `target` |
 | L3 Version governance | ModelProfile、PromptBundle、RouteDecision、DriftReport | `kiana-runner` / `kiana-protocol` | Provider-normalized designs、OpenCode processor | `target` |
-| L4 Code intelligence | RepositorySnapshot、SymbolIndex、DependencyGraph、RepoMap | `kiana-query` | Aider repo map、Continue context provider、OpenHands workspace | `code_partial` |
-| L5 Extension | ExtensionManifest、SkillPack、CapabilityPack、WorkflowPack | `kiana-skills` / broker / daemon | Cline extensions、Goose extensions、Archon packs | `code_partial`/`target` |
+| L4 Code intelligence | RepositorySnapshot、SymbolIndex、DependencyGraph、RepoMap | `kiana-query` | Aider repo map、Continue context provider、OpenHands workspace | `partial` |
+| L5 Extension | ExtensionManifest、SkillPack、CapabilityPack、WorkflowPack | `kiana-skills` / broker / daemon | Cline extensions、Goose extensions、Archon packs | `partial`/`target` |
 | L6 Supply chain | content hash、license、signature、capability diff、rollback | daemon / packaging | Cline/Goose host boundary、Archon artifact gates | `target` |
 
 **共同验收**：
@@ -360,12 +361,12 @@ record_outcome       → OutcomeRecorded
 
 | 子切片 | canonical 合同 | 主要 owner | 参考设计 | 当前状态 |
 |---|---|---|---|---|
-| M1 Workbench baseline | status line、transcript、input、trust、sandbox、cancel、receipt | `kiana-entrypoints` | Codex、Pi、Aider | `proven_local`/`partial` |
-| M2 UI projection | `UiSnapshot`、`UiAction`、cursor、epoch、pending action | `kiana-protocol` / `kiana-daemon` | OpenCode、Crush、Cline | `target` |
+| M1 Workbench baseline | status line、transcript、input、trust、sandbox、cancel、receipt | `kiana-entrypoints` | Codex、Pi、Aider | `partial`（`local_behavior`） |
+| M2 UI projection | `UiSnapshot`、`UiAction`、cursor、epoch、pending action | `kiana-protocol`（wire DTO）/ `kiana-daemon`（投影生成） | OpenCode、Crush、Cline | `target` |
 | M3 Human actions | Approval、Review、Acceptance、Incident action card | `kiana-daemon` / `kiana-entrypoints` | Agno、Agent Framework、Letta | `target` |
 | M4 Run/Artifact detail | Run timeline、Invocation、Diff、Evidence、Receipt | `kiana-daemon` / `kiana-entrypoints` | Roo Code、OpenHands、Aider | `target` |
 | M5 Web sync | snapshot hydration、event subscription、reconnect、stale response guard | `kiana-entrypoints` | OpenCode、Crush、Letta | `target` |
-| M6 Desktop shell | workspace onboarding、health、tray、background、safe close | `contrib/desktop` | Cline host、OpenHands UI | `code_partial` |
+| M6 Desktop shell | workspace onboarding、health、tray、background、safe close | `contrib/desktop` | Cline host、OpenHands UI | `partial` |
 | M7 accessible fallback | keyboard、窄屏、text status、aria/high contrast | all presentation owners | Codex/TUI patterns | `target` |
 
 **共同验收**：
@@ -379,11 +380,13 @@ record_outcome       → OutcomeRecorded
 - Secret、隐藏 reasoning 和未授权 Memory 不进入可见或可复制内容；
 - 当前未支持 token streaming、remote、live provider 和真实外部副作用不出现在“已完成”界面。
 
-**当前状态**：`code_partial`/`target`。Workbench 已有 conversation/input/status、trust、sandbox、cancel 和 receipt 入口；统一 Run detail、Human Inbox、cursor hydration 和完整恢复交互尚未完成。
+**当前状态**：`partial`/`target`。Workbench 已有 conversation/input/status、trust、sandbox、cancel 和 receipt 入口；统一 Run detail、Human Inbox、cursor hydration 和完整恢复交互尚未完成。
 
 ## 4. 能力域实施顺序
 
-### P4.1 Coding
+> 全局阶段序列以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 为唯一 canonical（P0–P6）；本节按能力域组织，不定义全局阶段编号。
+
+### Coding
 
 复用现有 shell、apply_patch、query、memory、stdio MCP 和 skills，但先修：
 
@@ -394,7 +397,7 @@ record_outcome       → OutcomeRecorded
 - bwrap 缺失时不得退化宿主执行；
 - provider/tool args schema 和大小限制。
 
-### P4.2 Office / Work
+### Office / Work
 
 先实现：
 
@@ -405,19 +408,19 @@ record_outcome       → OutcomeRecorded
 
 后实现发送、提交和外部资料修改；这些属于 R3，需要最终 payload 单次确认。
 
-### P4.3 Search / Recommendation
+### Search / Recommendation
 
 先实现只读搜索、来源、时间和新鲜度；搜索结果永不产生购买或预订授权。
 
-### P4.4 Commerce / Food
+### Commerce / Food
 
 最后才实现购物车、下单、支付和退款。R4 必须绑定商户、商品、数量、总成本、地址、时间、条款、账户、digest 和 idempotency key；价格或条款漂移即重新确认。
 
-### P4.5 Mobility / Travel
+### Mobility / Travel
 
 先实现路线、报价和行程草稿；出票、打车、订房、改签和取消必须单次确认、供应商状态核验和 Unknown 对账。
 
-### P4.6 Home / IoT
+### Home / IoT
 
 先做设备读取和场景草稿。门锁、摄像、麦克风、燃气、高功率、固件、车辆和安防属于 R5，默认禁止自治，需要独立安全控制器、watchdog、急停和人工接管。
 
@@ -450,9 +453,19 @@ failure/retry/unknown semantics
 5. Entrypoint E2E：CLI、TTY、HTTP、Desktop subprocess；
 6. Failure injection：kill-9、磁盘满、半写日志、超时、并发审批、取消、路径竞态、孤儿进程/锁。
 
-## 6. 现状 Gate 0
+### 5.1 切片实现卡登记位置
 
-当前工作树含未提交修改和新增文件。第一门不是新增功能，而是证据校准：
+§1 的九项是每个切片（含 Slice J/K/L/M 的子切片）进入实现前的登记项，必须逐项填写，缺项不得进入实现。登记方式：
+
+- 每个切片/子切片在开工前登记一张实现卡，字段模板复用 [`company-os-spec-index.md`](company-os-spec-index.md) §10 文档变更卡；owner、依赖、canonical 类型、稳定错误码、状态转移、事件序列、测试 fixture、预期 Receipt 和失败/取消/`result_unknown` 语义在卡内逐项对应。
+- 本文各 Slice 只登记实现卡中的 owner、canonical 合同、参考设计、验收和当前状态；canonical 类型的主要实现位置见 §2 模块责任地图，跨文档 owner 以 spec-index §4 注册表为准。
+- 测试 fixture、预期 Receipt 和失败/取消/Unknown 语义的记录格式见 §5 证据与测试模板。
+- 状态与证明等级只在 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 的证据块中登记；本文表格里的「当前状态」只是索引，不构成证据，证明等级按 spec-index §6.1 的 `source` / `local_behavior` / `durable` / `live` / `physical` 成对记录。
+- Slice J/K/L/M 子切片表的最小退出条件 = 该 Slice 的「共同验收」+ 实现卡中按九项填写的失败/取消/Unknown 断言；两者未同时满足不得提升状态。
+
+## 6. Gate 0 与当前状态入口
+
+Gate 0 必须绑定 worktree 状态、源码快照、工具链、精确命令和结果。**当前是否通过只看 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md)，不能从本文、局部 Slice 状态或历史证据块推断。**
 
 ```bash
 cargo fmt --all --check
@@ -463,29 +476,35 @@ bash scripts/release-smoke.sh
 bash scripts/v10-workbench-smoke.sh
 ```
 
-当前已知注意事项：
+以下三条是本文曾记录的历史证据缺口，均已由账本既有证据块关闭。保留它们只为记录曾经出现过的问题，不得据此推断当前状态：
 
-- 全 workspace 测试曾返回 exit 101；必须绑定具体源码快照后重新验证；
-- `kiana-core` dependency boundary 测试曾报告违规依赖 `kiana-query`、`kiana-types`；不得通过放宽断言隐藏；
-- `kiana-core` 仍有进程内 sessions/cancellations/path locks；显式 receipt 已用 `run.authorized` 做 owner fencing，但不能宣称完整跨进程恢复；
-- Harness approval path 尚未形成 PendingInvocation round-trip；
+| 历史注意事项 | 关闭它的账本证据块 |
+|---|---|
+| 全 workspace 测试曾返回 exit 101 | CURRENT_STATUS「Current Gate 0 revalidation after MCP, Swarm, and JSONL recovery slices (2026-09-07)」：`exit_code: 0` for every listed command |
+| `kiana-core` dependency boundary 测试曾报告违规依赖 `kiana-query`、`kiana-types` | CURRENT_STATUS「G0-02 slice evidence (2026-08-28)」：`kiana-core` 已移除 `kiana-query` 与 `kiana-types`，边界测试不再报告 forbidden internal dependencies |
+| Harness approval path 尚未形成 PendingInvocation round-trip | CURRENT_STATUS「P1-02 same-host continuation slice evidence (2026-08-29)」：P1-02 target → partial，PendingInvocation same-host continuation implemented |
+
+当前仍成立的限制（以账本 limitations 为准，不得写得比账本更强）：
+
+- `kiana-core` 仍有进程内 sessions/cancellations/path locks；显式 receipt 已用 `run.authorized` 做 owner fencing，但不构成完整跨进程恢复；
+- durable authenticated principal、durable PendingInvocation/cancellation reconciliation、完整 effect-time TOCTOU 和跨进程生命周期恢复在账本 limitations 中仍为 open；
 - 当前 Desktop、生活能力和外部 adapter 不能宣称生产完成。
 
 ## 6.1 Gate 0/P1 高优先级负向证据
 
-以下事实来自当前代码审计，必须作为阻断项记录，不得被已有局部测试或对象定义覆盖：
+以下负向证据来自当前代码审计和账本记录。已缓解项标注关闭它的账本证据块，残余缺口仍必须作为阻断项记录，不得被已有局部测试或对象定义覆盖：
 
 | 证据 | 当前实现事实 | 分类 | 目标修复 |
 |---|---|---|---|
-| Identity | `DaemonHost` 使用固定本地主体并从 stored ProjectTrust authority 派生 project trust；wire actor/trust/profile 不能授予权限，但 role/department 仍由请求选择，尚无 durable authenticated principal | `code_partial` | 由受保护入口解析身份，服务端从不可变 assignment 派生 role/department/authority epoch |
-| External risk | `DefaultPolicyEngine` 对非 Safe profile 的 `mcp.call` 可能直接 Allow | `gap` | 按 namespaced operation、目标、数据和实际副作用重新分级；R3+ 需确认，支付/旅行/IoT 不得复用 coding grant |
-| Filesystem | `apply_patch` 在 canonicalize 后使用 `fs::write/remove`；多 hunk 后续失败可能保留前序写入 | `code_partial` | fd-relative/no-follow 或隔离工作树、原子应用、版本 fencing 和 rollback |
-| Cancellation | cancel 主要依赖 watch + Runner Cancel，并返回 Failed；没有完整 process-group/handler fence 和 effect confirmation | `gap` | 引入 authorization/dispatch/handler fences；无法确认停止时返回 `cancelling`/`result_unknown` |
+| Identity | `DaemonHost` 使用固定本地主体并从 stored ProjectTrust authority 派生 project trust；wire actor/trust/profile 不能授予权限，但 role/department 仍由请求选择，尚无 durable authenticated principal | `partial` | 由受保护入口解析身份，服务端从不可变 assignment 派生 role/department/authority epoch |
+| External risk | 已缓解，残余缺口 open：CURRENT_STATUS「P1-06 server-owned MCP risk boundary evidence (2026-09-02)」记录 ControlPlane 与 `DefaultPolicyEngine` 在 Broker dispatch 前拒绝 MCP risk downgrade 和 capability-kind mismatch；`capability_risk_violation` 对 `mcp.call`/`mcp` 声明 ReadOnly/LocalWrite 直接 Deny（`mcp_risk_downgrade`），非 Network capability 直接 Deny（`mcp_capability_mismatch`），ExternalSideEffect/Critical 一律 Ask。残余：namespaced operation、目标、数据和实际副作用的分级仍不完整 | `partial`（已缓解） | 按 namespaced operation、目标、数据和实际副作用重新分级；R3+ 需确认，支付/旅行/IoT 不得复用 coding grant |
+| Filesystem | 已缓解，残余缺口 open：CURRENT_STATUS「P1-04 apply_patch descriptor-anchored update commit evidence (2026-09-07)」记录 Linux 单文件更新已用预打开的父目录描述符锚定临时文件创建、目标替换和模式查询，并拒绝 symlink/hardlink、独占创建临时文件；残余：add/delete/move、多 hunk 事务性、非 Linux 回退、bind-mount 替换和崩溃恢复仍未覆盖 | `partial`（已缓解） | 覆盖全部 patch 操作类型与非 Linux 路径；隔离工作树、原子多文件应用、版本 fencing 和 rollback |
+| Cancellation | cancel 主要依赖 watch + Runner Cancel，并返回 Failed；没有完整 process-group/handler fence 和 effect confirmation | `gap` | 引入 authorization/dispatch/handler fences；无法确认停止时返回 `cancel_requested`/`result_unknown` |
 | Ownership | continue、receipt、review 和 Web session 主要按内存 session/run 查找，未完成 authenticated owner 校验；Web 使用全局 active | `gap` | 每次请求显式 session_id，绑定 actor/project/instance，拒绝跨主体操作 |
-| Event privacy | RuntimeEvent 仍只有 request sequence 等简单字段；capability arguments 可能原样进入 event；CapabilityResult 关联校验不完整 | `code_partial` | schema 化 aggregate event、字段级 redaction、payload/result correlation 和 append CAS |
+| Event privacy | 已缓解，残余缺口 open：CURRENT_STATUS「P1-05 shell secret sentinel boundary evidence (2026-09-07)」「P1-05 centralized event/result redaction boundary evidence (2026-09-02)」记录 EventLog append、Receipt 投影、Broker→Runner 结果、直接响应和 harness 结果事件共用递归 redaction 与 server-owned 结果关联，sentinel 密钥不出现在事件、回执或后续模型请求中；残余：redaction 基于结构化 JSON 递归与键名/标记匹配，无法证明任意编码密钥检测，完整 argv/environment/stdout/stderr 扫描与 durable projector/CAS 恢复仍 open | `partial`（已缓解） | schema 化敏感字段契约、完整进程输出扫描、durable audit projector 和 append CAS |
 | Approval replay | Approval decision 可以使用新的 decision request_id 作为 causation/correlation；真正风险是 pending request 的 actor/session/project/profile、request hash、目标和 approval scope 未被完整绑定，或 approval 被重复消费 | `gap` | 保留 execution request_id 作为原始执行关联；decision request_id 仅作 causation/correlation；实现 exact digest、单次 consume、expiry、nonce 和 owner 校验 |
 
-这些条款在代码修复前只能标记为 `local_behavior` 的已知限制，不能标记为 `code_enforced` 或 `proven_durable`。验收必须先覆盖 deny、越权、重放、TOCTOU、取消竞态、泄漏和恢复，再覆盖成功路径。
+未缓解的条款在代码修复前只能标记为 `local_behavior` 的已知限制，不得声称已强制（code-enforced）或已获得 `durable`/`live`/`physical` 证明。验收必须先覆盖 deny、越权、重放、TOCTOU、取消竞态、泄漏和恢复，再覆盖成功路径。
 
 ## 7. 90 天工程序列
 

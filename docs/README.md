@@ -53,6 +53,9 @@ docs/
 │   ├── company-os-spec-index.md ····· 规范索引：概念归谁管（canonical owner）、依赖边界
 │   └── schemas/ ····················· 机器可校验的 JSON schema 合同
 │
+├── 功能走读（现实层，非规范）
+│   └── features/ ··················· 每篇讲一个功能的代码真实现状（01–10，索引见 features/README.md）
+│
 ├── 实施与审计（"下一步做什么、凭什么算完成"）
 │   ├── company-os-implementation-outline.md 工程切片 A–M、验收条件、Gate 0、90 天序列
 │   ├── coding-pack-matrix.md ········ v1.0 Coding pack 审计底表：逐行为的现状/owner/证据
@@ -69,7 +72,7 @@ docs/
 - **Agent 平台**：定义 Session/Run、Memory、Capability/MCP、Workflow、Swarm 等平台能力；必须复用同一个 ControlPlane、Event Store 和 Receipt 体系；
 - **体验**：UI 只能投影 State/Event，不能创建第二个 Agent loop 或权限边界；
 - **安全与注册表**：安全宪法优先于任何便利功能；领域字段和状态机只在 canonical owner 处定义；
-- **实施与审计**：实施大纲里的 `code_partial`/`target` 不改变当前状态账本；参考项目的代码、文档和规模不能证明 Kiana 的实现状态，也不应被复制成第二套 runtime。
+- **实施与审计**：实施大纲里的 `partial`/`target` 不改变当前状态账本；参考项目的代码、文档和规模不能证明 Kiana 的实现状态，也不应被复制成第二套 runtime。
 
 ## 3. 文档权威顺序
 
@@ -199,22 +202,6 @@ company-os-reference-matrix.md
 
 ## 7. 当前主线
 
-当前最小可验证主线不是"先实现所有功能"，而是：
+全局实施阶段序列（P0–P6）的唯一 canonical 是 [`company-os-spec-index.md`](company-os-spec-index.md) §7；本节不维护第二套 P 编号，阶段含义和先后顺序以该节为准。
 
-```text
-P0 统一当前事实、canonical schema 和 runtime ledger
-  ↓
-P1 ContextPlan、Memory lifecycle、Capability catalog、Identity、Cost 和 Eval
-  ↓
-P2 Durable Workflow、Human Inbox、Recovery 和 client cursor
-  ↓
-P3 有界 Swarm 与 Planner/Builder/Reviewer/Closer
-  ↓
-P4 Provider streaming、Scheduler、Skill/Plugin ecosystem
-  ↓
-P5 Office / Commerce / Travel / IoT bounded contexts
-  ↓
-P6 Team / Remote / Enterprise
-```
-
-当前不应通过新增 UI、百级工具、自由消息总线或外部副作用来掩盖 P0/P1 的事实源、身份、恢复和评测缺口。
+当前最小可验证主线不是"先实现所有功能"，而是先补齐事实源、canonical schema、runtime ledger、身份、恢复和评测的缺口；不应通过新增 UI、百级工具、自由消息总线或外部副作用来掩盖这些缺口。

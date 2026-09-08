@@ -27,6 +27,28 @@ kiana-entrypoints
   → capability broker / handlers
 ```
 
+### S0 concurrency and fail-closed correction evidence (2026-09-01)
+
+```text
+source_snapshot: dirty checkout with uncommitted CompanyOS WIP; apply_patch transaction and broker failure handling corrected
+worktree_status: WIP; no commit/reset; unrelated existing edits preserved
+command_argv:
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --lib apply_patch --locked --offline
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo fmt --all --check
+  bash scripts/v10-workbench-smoke.sh
+cwd/environment: repository root; Linux; stable toolchain; offline dependencies
+fixture or cassette: daemon_host packet concurrency, hook denial, harness shell, apply_patch lock tests
+exit_code: 0 for all listed commands; core 43/43, daemon_host 57/57, apply_patch 17/17
+status change: S0 CompanyOS primary-path failure inventory reduced; Gate 0 remains red on legacy entrypoints tests
+proof-level change: local_behavior evidence for serialized patch preflight/commit and fail-closed executor errors
+limitations: legacy kiana-entrypoints CLI/SDK failures remain; frozen cli.rs was not modified; no S1-S4 gate advancement
+reviewer: focused adversarial regression review
+```
+
 | 能力 | 状态 | 证明等级 | 当前边界 |
 |---|---|---|---|
 | 本地受信项目上的受控 coding 行为 | partial | local_behavior | 受固定本机、cassette/fake-script 和现有 smoke 限制 |
@@ -45,23 +67,450 @@ kiana-entrypoints
 
 ## 3. Gate 0 当前结果
 
-Gate 0 整体仍未通过；本轮已关闭 app-server schema 集合缺口并修复 daemon approval actor mismatch，但 release smoke 仍被冻结的 legacy CLI/SDK 测试阻塞：
+Gate 0 的历史证据块保留其当时结论；当前快照在 MCP 参数边界、completion-marker 与 JSONL 尾记录修复后重新验证为绿。S0 证据门已通过，但这不提升 S1-S4 的状态，也不把本地证据写成 durable/live/physical。
+
+### CompanyOS spec alignment and design-gap fill (2026-09-08)
 
 ```text
-当前已验证：
-cargo fmt --all --check
-cargo check --workspace --locked --offline
-cargo clippy --workspace --all-targets --locked --offline
-cargo test -p kiana-core --test dependency_boundaries --locked --offline
-cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
-cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
-bash scripts/v10-workbench-smoke.sh
-→ 均通过
+source_snapshot: dirty checkout at 842e5a4 + uncommitted CompanyOS WIP; this slice edits documentation only (docs/, CURRENT_STATUS.md)
+worktree_status: WIP; documentation-only change; no source, test, manifest, or frozen-path change
+command_argv:
+  git diff --check -- docs/
+  git diff --stat -- docs/
+  (markdown link-integrity sweep over docs/*.md and docs/features/*.md)
+cwd/environment: repository root; Linux x86_64; no cargo command executed (documentation-only slice)
+fixture or cassette: none; the 14 changed documents and their cross-references are the artifact
+exit_code: 0 for diff check and link sweep; no test/build command was run because no code changed
+artifact paths and SHA-256: docs/company-os-*.md (12), docs/coding-pack-matrix.md, docs/schemas/README.md, docs/README.md, docs/features/ (10 walkthroughs + index); no SHA-256 generated
+status change: no capability status promotion. Documentation status statements were aligned to existing ledger evidence blocks: security-constitution SEC-03 not_supported -> partial (P3-01 2026-08-31), SEC-06 Web auth partial with in-process token and exact Host/Origin (P1-01 2026-09-07), SEC-08/09/11 intent_only -> partial (P1-03/P1-06/P1-12); implementation-outline Gate 0, external-risk, filesystem, and event-privacy rows now cite their closing evidence blocks
+proof-level change: source-level only (documentation). No new local_behavior/durable/live/physical evidence; no test was run
+limitations: documents describe the dirty working tree; no code fix was made for any reported spec-vs-code conflict (RiskLevel four-level vs R0-R5 mapping, entrypoint auto-approve, WorkPacket ACK state, Run cancel_requested intermediate state remain open decisions recorded in the documents); new normative text (state machines, object contracts, determinism contract) is drafted and awaits owner review
+reviewer: 10 parallel read-only audits plus a coordinator cross-document consistency sweep (proof-level vocabulary, status vocabulary, P-sequence canonicalization, cancel naming, link integrity)
+```
 
-仍未通过：
-cargo test --workspace --locked --offline --no-fail-fast
-bash scripts/release-smoke.sh
-→ legacy entrypoints CLI/SDK tests 失败；DaemonHost CompanyOS focused path 已通过
+### Current Gate 0 revalidation after MCP, Swarm, and JSONL recovery slices (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes and the pre-existing kiana-entrypoints/created.txt fixture preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain (rustc/cargo 1.97.1); locked/offline Cargo dependency resolution; release smoke uses its temporary install/project fixtures
+fixture or cassette: full workspace unit/integration/doc tests; advertised stdio MCP schema fixtures; Swarm temporary worker/artifact fixtures; JSONL crash-tail fixtures; release product-shell install fixture; v1.0 workbench cassette
+exit_code: 0 for every listed command; workspace tests passed including kiana-entrypoints library 433/433, kiana-commands swarm_command 46/46, and kiana-eventlog 25/25; release smoke reported product shell smoke passed and completed release build/install; workbench smoke reported ok
+artifact paths and SHA-256: no new persistent release/workbench artifact retained; command exit records and the dirty source snapshot are the evidence artifacts; no artifact hash generated
+status change: S0 Gate 0 remains green for this current snapshot; P1 security and P2 recovery remain partial, and S1-S4 gates remain open
+proof-level change: current source/build/test/release/workbench evidence establishes local_behavior for the exercised local paths; the JSONL slice adds disk close/reopen evidence but does not establish full durable runtime recovery; no live/physical claim
+limitations: checkout remains dirty and existing compiler/clippy warnings are non-fatal; release/workbench checks use local temporary fixtures/cassettes; authenticated principal, durable PendingInvocation/cancellation reconciliation, full effect-time TOCTOU protection, complete redaction coverage, aggregate projector rebuild, and cross-process lifecycle recovery remain incomplete
+reviewer: focused MCP, Swarm concurrency, and JSONL recovery review plus the exact full Gate 0 regression; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### P1-05 shell secret sentinel boundary evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (72 status entries); existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-daemon --test daemon_host shell_secret_sentinels_do_not_reach_events_receipt_or_model_context --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --lib event_redaction --locked --offline -- --test-threads=1
+  cargo check -p kiana-daemon --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized daemon integration test; local bubblewrap sandbox available
+fixture or cassette: scripted KianaHarness sends an array-form shell argv ["/bin/echo", "api_key=argv-sentinel"], then a shell command emitting Authorization Bearer stdout and X-Api-Key stderr markers; host KIANA_SHELL_SECRET=env-sentinel probes sandbox environment filtering; disk-backed JSONL events, the public Receipt read, complete protocol responses, and the captured next ModelRequest are scanned
+exit_code: fmt=0; focused daemon sentinel regression=0 (1/1); daemon_host=0 (59/59); core event_redaction=0 (7/7); daemon check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary disk JSONL fixture is created below the OS temp directory by the test; no repository artifact or SHA-256 was generated; test assertions and command exits are the evidence
+status change: P1-05 remains partial; the exercised shell route now has an end-to-end regression proving that the four sentinels do not reach durable events, the public Receipt, complete run/receipt response envelopes, or the following model request, while redacted output remains observable
+proof-level change: adds local_behavior evidence for the exercised local shell/Broker boundary only; this does not promote SEC-05 from intent_only or claim durable, live, physical, or complete SecretRef enforcement
+limitations: redaction still depends on the current sensitive-key and text-marker set; arbitrary unmarked secret output, provider echoes, external caches, child-Cell inputs, process memory, and live OS argv inspection are not covered; the environment probe covers the sandbox whitelist/name filter rather than a general secret-classification system
+reviewer: focused negative-path shell/Broker privacy regression and serialized daemon/core verification; no production execution path, frozen surface, or dependency manifest changed
+```
+
+### P1-01 Web exact-listener Host/Origin denial evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo test -p kiana-entrypoints --test cli_web web_rejects_wrong_origin_and_host_without_mutating_trust --locked --offline -- --test-threads=1
+  cargo test -p kiana-entrypoints --test cli_web web_rejects_foreign_bearers_and_sessions_without_mutation --locked --offline -- --test-threads=1
+  cargo test -p kiana-entrypoints --test cli_web --locked --offline -- --test-threads=1
+  cargo test -p kiana-entrypoints --lib web::tests --locked --offline -- --test-threads=1
+  cargo check -p kiana-entrypoints --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized child-process Web integration tests
+fixture or cassette: real `kiana web --no-open --bind 127.0.0.1:0` child processes over temporary untrusted Git fixtures; their process-local page tokens and session cookies are extracted, then wrong-loopback-port/host/origin, hostile origin/host, missing token, wrong token, foreign token, and foreign session combinations are attempted before an exact-Origin success request
+exit_code: focused WEB-01 regression before the implementation change=101 (wrong-loopback-port Origin returned HTTP 200 instead of 401); focused regression after the change=0 (1/1); foreign bearer/session regression=0 (1/1); cli_web=0 (6/6); in-process web module=0 (9/9); entrypoints check=0; initial fmt check=1 for one formatting-only diff and final fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary Web home/project directories and child process are owned by the test; no repository artifact or SHA-256 was generated; HTTP status/state assertions and command exits are the evidence
+status change: P1-01 remains partial; WebApp now retains the actual listener SocketAddr, the token index requires that exact Host, and authenticated state/mutation routes require the exact Host plus an exact listener match for any supplied Origin; a correct token paired with another loopback port is rejected without trusting the project
+proof-level change: adds local_behavior negative evidence for the process-local Web mutation boundary; this does not promote SEC-06 beyond its current transport/authentication limits or claim durable session ownership
+limitations: the token, session map, and trust UI state remain process-local; health remains intentionally unauthenticated and Origin remains optional for direct non-browser clients; there is no durable authenticated principal, session recovery, or OS-level local-user boundary, so this slice does not claim cross-process durable ownership
+reviewer: Codex focused child-process and in-process Web verification; no independent reviewer, dependency change, frozen-path change, or second execution path
+```
+
+### Gate 0 full regression after Web listener and bearer/session slices (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; noninteractive workspace/release execution; serialized daemon and Web child-process fixtures
+fixture or cassette: full workspace unit/integration/doc tests; release temporary install/project and product-shell fixtures; v1.0 Workbench cassette; Web wrong-authority and cross-process bearer/session fixtures
+exit_code: 0 for every listed command; workspace tests passed including kiana-entrypoints library 433/433 and cli_web 6/6; noninteractive release smoke completed product-shell smoke, release build, and temporary install; workbench smoke returned `v10-workbench-smoke: ok`; diff check=0
+artifact paths and SHA-256: release/workbench temporary artifacts were removed by their scripts; no persistent artifact or SHA-256 generated; command exits, test assertions, and the dirty source snapshot are the evidence artifacts
+status change: S0 Gate 0 remains green for the current snapshot; P1-01/P1-02/P1-03/P1-04/P1-05/P1-06 and P2 recovery remain partial; no S1-S4 promotion
+proof-level change: current source/build/test/release-install/workbench evidence establishes local_behavior for the exercised local paths; no durable/live/physical claim
+limitations: checkout remains dirty and existing compiler/clippy warnings are non-fatal; release/workbench evidence uses local temporary fixtures/cassettes; authenticated principal, durable PendingInvocation/cancellation reconciliation, full effect-time TOCTOU, complete redaction, aggregate projector rebuild, and cross-process lifecycle recovery remain incomplete
+reviewer: focused S0 Gate 0 regression after three security slices; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### P1-04 apply_patch descriptor-anchored update commit evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-daemon --lib committed_update_keeps_the_preflighted_parent_after_path_replacement --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --lib apply_patch --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo check -p kiana-daemon --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized daemon tests
+fixture or cassette: an update preflights a nested regular file, opens every present parent directory with `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`, then the pathname parent is renamed and replaced before commit; descriptor-relative `openat`/`renameat` must update only the original directory and preserve the original file mode
+exit_code: fmt=0; focused adversarial regression=0 (1/1); apply_patch=0 (20/20); daemon_host=0 (60/60); daemon check=0; final fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary project directories are created below the OS temp directory and removed by the test; no repository artifact or SHA-256 was generated; file-content, mode, path-isolation assertions and command exits are the evidence
+status change: P1-04 remains partial; Linux single-file update commits now anchor temporary creation, target replacement, and target-mode lookup to a parent descriptor opened before final precondition verification, so a later pathname-parent replacement cannot redirect that update
+proof-level change: strengthens local_behavior negative evidence for one Linux apply_patch parent-directory TOCTOU boundary; no durable/live/physical promotion
+limitations: Linux update operations only receive this descriptor-relative treatment; add/delete/move, rollback, non-Linux fallback, target replacement after verification, bind-mount substitution, and cross-process durable recovery remain open
+reviewer: focused apply_patch adversarial review plus serialized daemon regression; no independent reviewer, dependency change, frozen-path change, or second execution path
+```
+
+### P1-04 apply_patch temporary-file collision fencing evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-daemon --lib apply_patch --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo check -p kiana-daemon --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized daemon tests
+fixture or cassette: apply_patch unit fixtures for full preflight, rollback, symlink/hardlink rejection, planted temporary-sibling symlink, and exhaustion of all temporary names; daemon_host exercises the brokered trusted and read-only apply_patch paths
+exit_code: fmt=0; apply_patch=0 (19/19); daemon_host=0 (59/59); daemon check=0; fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary project and outside-target fixtures are created below the OS temp directory and removed by tests; no repository artifact or SHA-256 was generated; assertions and command exits are the evidence
+status change: P1-04 remains partial; temporary update-file creation now uses exclusive create with bounded candidate rotation, so an occupied candidate (including a symlink) is never followed or reused and exhaustion fails closed without truncating existing candidates
+proof-level change: strengthens local_behavior evidence for the apply_patch commit boundary and preserves daemon integration behavior; no durable/live/physical promotion
+limitations: this closes pre-existing temporary-name collisions but does not provide fd-relative/no-follow guarantees against every effect-time parent-directory rename or external filesystem race; project lock, snapshot checks, rollback, symlink/hardlink checks, and atomic rename remain bounded by the current process/filesystem model
+reviewer: focused apply_patch adversarial review plus serialized daemon regression; no independent review performed for this narrow implementation slice
+```
+
+### P1-04 EventLog descriptor-anchored append evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-eventlog --locked --offline
+  cargo check -p kiana-eventlog --locked --offline
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized core/daemon tests
+fixture or cassette: EventLog opens a nested sessions directory, pre-opens it with `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`, replaces the pathname parent, and appends one event through `openat`; the original directory must receive the record while the replacement remains untouched; existing reopen, CAS, idempotency, torn-tail, and symlink regressions remain green
+exit_code: fmt=0; kiana-eventlog=0 (28/28 plus 0 doc-tests); eventlog check=0; core control-plane=0 (82/82); daemon control-plane=0 (13/13); daemon_host=0 (60/60); final fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary EventLog parent fixtures are created below the OS temp directory and removed by the test; no repository artifact or SHA-256 was generated; file-content/path-isolation assertions and command exits are the evidence
+status change: P1-04/P2-01 remain partial; Linux JSONL append now anchors creation/open/append to a pre-opened no-follow parent directory, preventing a pathname-parent replacement after preflight from redirecting the event write
+proof-level change: strengthens local_behavior negative evidence for the EventLog append filesystem boundary while preserving existing local disk reopen/CAS/recovery behavior; no durable/live/physical promotion
+limitations: load, torn-tail truncation, final-newline repair, lock-file creation, parent creation, non-Linux fallback, and concurrent parent replacement outside the opened descriptor remain bounded by the current process/filesystem model; aggregate projector rebuild, durable PendingInvocation/cancellation reconciliation, provider-effect verification, and cross-process lifecycle recovery remain open
+reviewer: focused EventLog filesystem-fencing review plus serialized core/daemon regression; no assertions weakened, tests skipped, frozen paths changed, dependency change, or second execution path
+```
+
+### Gate 0 full regression after descriptor-anchored apply_patch and EventLog slices (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; noninteractive workspace/release execution; serialized daemon and Web child-process fixtures
+fixture or cassette: full workspace unit/integration/doc tests including apply_patch and EventLog regressions; release temporary install/project and product-shell fixtures; v1.0 Workbench cassette
+exit_code: 0 for every listed command; workspace tests passed including kiana-entrypoints library 433/433 and cli_web 6/6; release smoke completed product-shell smoke, release build, and temporary install; workbench smoke returned `v10-workbench-smoke: ok`; diff check=0
+artifact paths and SHA-256: release/workbench temporary artifacts were removed by their scripts; no persistent artifact or SHA-256 generated; command exits, test assertions, and the dirty source snapshot are the evidence artifacts
+status change: S0 Gate 0 remains green for the current snapshot; P1-01/P1-02/P1-03/P1-04/P1-05/P1-06 and P2 recovery remain partial; no S1-S4 promotion
+proof-level change: current source/build/test/release-install/workbench evidence establishes local_behavior for the exercised local paths; no durable/live/physical promotion
+limitations: checkout remains dirty and existing compiler/clippy warnings are non-fatal; release/workbench evidence uses local temporary fixtures/cassettes; authenticated principal, durable PendingInvocation/cancellation reconciliation, remaining effect-time TOCTOU paths outside the covered Linux update/append operations, complete redaction, aggregate projector rebuild, and cross-process lifecycle recovery remain incomplete
+reviewer: focused S0 Gate 0 regression after Linux apply_patch and EventLog filesystem-fencing slices; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### P1-04 approval-store temporary-file collision fencing evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes, including approval challenge risk/formatting edits, preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-daemon --lib approval_store --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-daemon --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized daemon tests
+fixture or cassette: approval-store unit fixtures for a planted first-candidate symlink to an independent outside directory and exhaustion of all 16 candidates; persisted approval reopen/merge/CAS fixtures; DaemonHost and daemon control-plane integration fixtures
+exit_code: fmt=0; approval_store=0 (11/11); daemon_host=0 (59/59); daemon control-plane=0 (13/13); daemon check=0; fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary approval roots and outside targets are created below the OS temp directory and removed by tests; no repository artifact or SHA-256 was generated; file-content assertions and command exits are the evidence
+status change: P1-04 remains partial; approval records now allocate a same-directory temporary sibling with exclusive create and bounded candidate rotation, so a pre-existing file or symlink is never followed or truncated and exhaustion fails closed with `approval_store_temp_unavailable`
+proof-level change: local_behavior evidence for the approval persistence write boundary, while existing reopen, independent-approval merge, and stale-disk CAS behavior remains green; no durable/live/physical promotion
+limitations: the bounded helper does not provide fd-relative/no-follow protection against every effect-time parent-directory rename or an external filesystem race; process locking, aggregate projector rebuild, durable PendingInvocation/cancellation reconciliation, provider-effect verification, and cross-process lifecycle recovery remain open
+reviewer: focused approval-store adversarial review plus serialized daemon regression; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### P1-04 JSONL EventLog final-path symlink fencing evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-eventlog --locked --offline
+  cargo check -p kiana-eventlog --locked --offline
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized core/daemon tests
+fixture or cassette: existing JSONL reopen, torn-tail repair, idempotency, CAS, and concurrent-instance fixtures; a valid outside event file reached through a planted EventLog symlink; an opened EventLog path replaced by a symlink before append
+exit_code: fmt=0; kiana-eventlog=0 (27/27 plus 0 doc-tests); eventlog check=0; core control-plane=0 (80/80); daemon control-plane=0 (13/13); daemon_host=0 (59/59); fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary EventLog/outside fixtures are created below the OS temp directory and removed by tests; no repository artifact or SHA-256 was generated; outside-file content assertions and command exits are the evidence
+status change: P1-04/P2-01 remain partial; Unix JSONL lock, read, append, torn-tail truncation, and final-newline repair opens now use `O_NOFOLLOW`, and presence checks use `symlink_metadata`, so a final path symlink or replacement is rejected before reading or mutating its target
+proof-level change: local_behavior negative evidence for the EventLog final-path symlink and effect-time replacement boundary, while existing disk reopen/CAS/recovery behavior remains green; no durable/live/physical promotion
+limitations: Unix final-component no-follow does not cover every parent-directory rename or non-Unix equivalent, and it does not establish aggregate projector rebuild, durable PendingInvocation/cancellation reconciliation, provider-effect verification, or cross-process lifecycle recovery
+reviewer: focused EventLog filesystem-fencing review plus serialized core/daemon regression; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### P1-04 memory JSONL final-path symlink fencing evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-daemon --lib harness_memory --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo check -p kiana-daemon --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized daemon tests
+fixture or cassette: harness-memory unit fixtures for an existing symlink on the read and append paths, with an independent outside JSONL target; daemon_host memory/search, authorization, shell, approval, and lifecycle fixtures
+exit_code: fmt=0; harness_memory=0 (4/4); daemon_host=0 (59/59); daemon check=0; fmt check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary memory and outside-target fixtures are created below the OS temp directory and removed by tests; no repository artifact or SHA-256 was generated; outside-file content assertions and command exits are the evidence
+status change: P1-04/P2 memory persistence remain partial; memory reads now distinguish dangling/symlink presence with `symlink_metadata`, and Unix final-file opens use `O_NOFOLLOW`, so an existing final-path symlink is rejected without reading or appending to its target
+proof-level change: local_behavior negative evidence for the memory broker's final-path read/write boundary, while existing role and collection authorization behavior remains green; no durable/live/physical promotion
+limitations: Unix final-component no-follow does not cover every parent-directory rename or non-Unix equivalent; memory records still lack full provenance/promotion/expiry lifecycle, cross-process locking, aggregate rebuild, durable PendingInvocation/cancellation reconciliation, and complete secret classification
+reviewer: focused memory filesystem-fencing review plus serialized daemon regression; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### P1-04 governance artifact symlink and atomic-write evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries); existing user/WIP changes preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo test -p kiana-core --test control_plane review_artifact_symlink_is_rejected_without_mutating_target --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane review_artifact_symlink --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --lib artifact_path_tests --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host closing_rejects_symlinked_review_and_merge_artifacts --locked --offline -- --test-threads=1
+  cargo clippy -p kiana-core --all-targets --locked --offline
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --locked --offline -- --test-threads=1
+  cargo check -p kiana-core -p kiana-daemon --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; serialized core/daemon integration tests
+fixture or cassette: the pre-fix core regression planted `gate/REVIEW.json` as a symlink to an outside sentinel; the fixed public regressions cover final-file and `gate/` parent symlinks plus rejection-event projection; private prepared-write fixtures deterministically replace the parent directory, insert a final symlink, change the target version, and plant a hardlink between prepare and commit; the daemon fixture runs a brokered Builder apply_patch cassette, produces valid independent Review and Merge artifacts, replaces each artifact with an outside symlink, and attempts Closing
+exit_code: pre-fix focused regression=101 (review incorrectly returned Completed); first descriptor-test compile attempt=101 (invalid `Result` equality in new test support, corrected before behavioral result); fixed core symlink regressions=0 (2/2); descriptor race regressions=0 (4/4); focused daemon Closing regression=0 (1/1); core clippy=0 with pre-existing warnings only; fmt check=0; core control-plane=0 (82/82); daemon_host=0 (60/60); full kiana-core=0 (11 unit, 82 control-plane, 2 dependency-boundary, 0 doc-tests); affected-crate check=0; diff check=0; existing kiana-core dead-code warning remains non-fatal
+artifact paths and SHA-256: temporary project and outside-target fixtures are created below the OS temp directory; no repository artifact or SHA-256 was generated; outside-content, blocked-response, event-kind, and absent-Closing assertions plus command exits are the evidence
+status change: P1-04 and the S3 governance-artifact boundary remain partial; on Linux, Symposium decisions/packets, Review packets, Merge receipts, Closing receipts, and lessons now traverse/create parents with no-follow directory descriptors, create bounded exclusive descriptor-relative temporary files, snapshot single-link regular targets, revalidate root/parent identity and target version, and commit with `renameat2` no-replace/exchange; Review/Merge reads revalidate file identity/version and path identity before returning; rejected Review writes emit `run.rejected` and never `review.closed`, while symlinked gate inputs cannot produce Closing artifacts
+proof-level change: local_behavior negative evidence for governance artifact final-file/parent symlink denial, hardlink denial, directory-rename fencing, target-version fencing, and per-file atomic replacement, with the existing end-to-end Builder -> Review -> Closing path remaining green; no durable/live/physical promotion
+limitations: descriptor anchoring prevents a raced path from redirecting the write outside the opened project directory, but bind-mount substitution is not rejected and a parent rename after the final identity revalidation can still commit into the already-open original directory; non-Linux builds retain the pathname fallback; multi-file Symposium and Closing writes are not transactional; directory fsync is best-effort and its failure is not represented as `result_unknown`; exchange rollback failure also has no durable reconciliation record; crash recovery/reconciliation from governance artifacts remains incomplete
+reviewer: focused adversarial filesystem review plus core and serialized DaemonHost regression; no independent reviewer, assertion weakening, skipped test, frozen-path change, dependency change, or second execution path
+```
+
+### Gate 0 full regression after P1-04 (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (73 status entries before this evidence block); existing user/WIP changes preserved; no commit/reset/push/merge or worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/release-smoke.sh; rc=$?; printf 'RELEASE_SMOKE_EXIT=%s\n' "$rc"; exit "$rc"
+  KIANA_RELEASE_SMOKE_SKIP_BUILD_GATES=1 bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo resolution; workspace tests and daemon tests serialized where required; release/workbench use temporary local fixtures
+fixture or cassette: full workspace unit/integration/doc tests; release temporary install/project and product-shell fixtures; v1.0 Workbench cassette
+exit_code: fmt=0; workspace check=0; clippy=0; workspace tests=0; full release-smoke=0 on the explicit status-capturing rerun (including embedded serialized workspace tests, product-shell smoke, release build, and temporary install); explicit skip-build-gates release-smoke=0; workbench=0; diff check=0
+artifact paths and SHA-256: release/workbench temporary artifacts were removed by their scripts; no persistent artifact or SHA-256 generated; command exits, test assertions, and the dirty source snapshot are the evidence artifacts
+status change: S0 Gate 0 remains green for the current snapshot; P1-01/P1-02/P1-03/P1-04/P1-05/P1-06 and P2 recovery remain partial; no S1-S4 promotion
+proof-level change: source/build/test/release-install/workbench evidence establishes local_behavior for the exercised local paths; JSONL and approval persistence remain bounded local disk evidence, with no durable/live/physical claim
+limitations: checkout remains dirty and existing warnings are non-fatal; release/workbench evidence uses temporary local fixtures; authenticated principal, durable PendingInvocation/cancellation reconciliation, full effect-time TOCTOU, complete redaction, aggregate projector rebuild, and cross-process lifecycle recovery remain incomplete
+reviewer: focused S0 Gate 0 regression after three security slices; no assertions weakened, tests skipped, frozen paths changed, or second execution path added
+```
+
+### S0 Gate 0 exit evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; workspace test run non-interactively
+fixture or cassette: release-smoke temporary install/project; trusted context artifact cache deny-before-approval and approved-write paths; v10 workbench cassette
+exit_code: 0 for each of the six exact commands; workspace entrypoints 433/433 and release-smoke embedded regression suite passed
+artifact paths and SHA-256: no persistent release/workbench artifact retained; command exit records and the checked-in source snapshot are the evidence artifacts; no artifact hash generated
+status change: S0 Gate 0 red → green; this block makes no S1 completion claim
+proof-level change: Gate 0 source/build/test/smoke evidence establishes local_behavior for the exercised local product path; no durable/live/physical claim
+limitations: worktree remains dirty; existing compiler/clippy warnings remain non-fatal; release and workbench evidence uses local temporary fixtures/cassettes; S1-S4 security, persistence, business, and platform gates remain open
+reviewer: Codex implementation pass plus independent focused approval-risk review; daemon wire challenge risk assertion passed
+```
+
+### P1-06 MCP advertised-schema argument fence evidence (2026-09-06)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo check -p kiana-daemon --locked --offline
+  cargo clippy -p kiana-daemon --all-targets --locked --offline
+  cargo test -p kiana-daemon --lib harness_mcp --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host trusted_builder_stdio_mcp_echoes_through_daemon --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host unknown_stdio_mcp_tool_is_rejected_before_tools_call --locked --offline -- --test-threads=1
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable rust toolchain; locked/offline dependencies; serialized daemon tests
+fixture or cassette: advertised stdio MCP tool schemas, required/type/additionalProperties argument cases, unsupported combinator case, trusted echo server, and unknown-tool server marker
+exit_code: 0 for every listed command; harness_mcp 10/10 and both daemon integration tests passed
+status change: P1-06 remains partial; the daemon now validates an advertised tool's bounded schema and arguments before issuing tools/call
+proof-level change: local_behavior negative evidence for missing, wrongly typed, unknown, deeply nested, and unsupported-schema inputs, plus preserved authorized stdio execution
+limitations: only the daemon-enforced JSON-Schema subset is supported; arbitrary combinators, full provenance/attestation, durable schema snapshots, HTTP MCP, live providers, and external adapters remain open
+reviewer: focused MCP boundary review and serialized daemon regression suite
+```
+
+### S0/P1-03 Swarm completion-marker race correction evidence (2026-09-06)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all
+  cargo test -p kiana-commands --test swarm_command --locked --offline -- --test-threads=1
+  cargo test -p kiana-commands --all-targets --jobs 1 --locked --offline --no-fail-fast -- --test-threads=1 --nocapture
+  cargo test --workspace --locked --offline --no-fail-fast
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked/offline dependencies; workspace test targets run concurrently while each target uses its configured test threads
+fixture or cassette: bounded Swarm worker shell fixtures, temporary workflow artifacts, authenticated result packets, and full workspace test fixtures
+exit_code: 0 for every listed command; swarm target 46/46, kiana-commands all targets passed, workspace tests passed with no failed targets
+status change: Gate 0 workspace test requirement is green for this snapshot; P1-03 remains partial because broader durable cancellation/recovery proof is open
+proof-level change: local_behavior evidence that a worker completion marker is observed only after its completion timestamp, preventing a partial result packet from racing an immutable artifact commit; full workspace regression now passes under concurrent Cargo target execution
+limitations: release-smoke and static quality gates still need the post-fix rerun; worker completion metadata remains a local file protocol and does not by itself establish cross-process durable recovery
+reviewer: focused Swarm race investigation and full workspace regression; no assertions weakened and no tests skipped
+```
+
+### Current workspace regression after Swarm marker fix (2026-09-06)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo test --workspace --locked --offline --no-fail-fast
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked/offline dependencies; default Cargo target scheduling
+fixture or cassette: workspace package and integration test fixtures, including kiana-commands Swarm and kiana-entrypoints CLI/SDK paths
+exit_code: 0; all workspace targets passed, including kiana-commands swarm_command 46/46 and kiana-entrypoints library 433/433
+status change: Gate 0 workspace test leg changed from red to green for this snapshot; release smoke remains to be rerun
+proof-level change: confirms the completion-marker ordering fix holds under the previously failing cross-target scheduling
+limitations: this command does not cover release packaging/install assertions or workbench smoke; warnings remain non-fatal
+reviewer: full workspace regression after the Swarm marker fix
+```
+
+### Current workspace/release smoke recheck evidence (2026-09-06)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  cargo test -p kiana-commands --test swarm_command --locked --offline -- --test-threads=1
+  cargo test -p kiana-commands --test swarm_command --locked --offline
+  bash scripts/v10-workbench-smoke.sh
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked/offline dependencies; workspace/release commands allow Cargo target parallelism; focused swarm reruns are isolated
+fixture or cassette: workspace package test targets; swarm workflow/worker temporary fixtures; v1.0 workbench cassette
+exit_code: workspace 101 (only target failure `-p kiana-commands --test swarm_command`); release smoke 101 at its workspace test gate with the same target; focused swarm serial 0 (46/46); focused swarm default 0 (46/46); workbench smoke 0
+status change: none; Gate 0 remains partial/red for this snapshot
+proof-level change: confirms the failure is reproducible only in the multi-target workspace/release execution while the swarm target and workbench smoke pass in isolation; no product status upgrade
+limitations: first swarm failure reports an artifact-content conflict during repeated worker result observation and poisons the target's process-local environment mutex, so later failures cascade as `PoisonError`; root cause of the cross-target timing sensitivity still needs a production/test-isolation fix; warnings remain non-fatal
+reviewer: focused concurrency classification; no assertions weakened and no failed target skipped
+```
+
+### Current Gate 0 evidence after Swarm marker fix (2026-09-06)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain (rustc/cargo 1.97.1); locked/offline dependencies; release smoke uses temporary install fixtures and serial workspace tests; workbench uses the local debug binary
+fixture or cassette: full workspace unit/integration/doc tests; Swarm temporary worker/artifact fixtures; release product-shell install fixture; v1.0 workbench cassette
+exit_code: 0 for every listed command; workspace tests passed including kiana-commands swarm_command 46/46 and kiana-entrypoints library 433/433; release smoke completed build/install/product-shell checks; workbench smoke reported ok
+status change: S0 Gate 0 changed from partial/red to green for this snapshot; P1-03 and P1-06 remain partial and S1-S4 gates remain open
+proof-level change: current source/build/test/release/workbench evidence establishes local_behavior for the exercised local product path; no durable/live/physical claim
+limitations: checkout remains dirty and existing compiler/clippy warnings are non-fatal; release/workbench checks use local temporary fixtures/cassettes; Swarm completion metadata is still a local file protocol; persistence/recovery, full security-constitution coverage, business closure, and platform gates remain incomplete
+reviewer: focused Swarm concurrency review, MCP boundary review, and full Gate 0 regression; no assertions weakened, tests skipped, or frozen paths changed
 ```
 
 `kiana-core` 已移除 `kiana-query` 与 `kiana-types`；`kiana-daemon` 作为组合根保留并显式允许其 `kiana-query`、`kiana-skills` 与 `kiana-types` 适配依赖。边界测试不再报告 forbidden internal dependencies。
@@ -397,10 +846,331 @@ reviewer: focused verification; parallel daemon failures were not treated as pro
 | P1-03 | cancel fencing、进程组/孙进程停止和 Unknown | partial | local_behavior → durable |
 | P1-04 | apply_patch 原子性与 effect-time TOCTOU | partial | local_behavior → durable |
 | P1-05 | event/Receipt 字段级 redaction 和结果关联校验 | partial | durable |
-| P1-06 | generic MCP 与外部生活能力的风险隔离 | target/not_supported | live/physical 前置 |
+| P1-06 | generic MCP 与外部生活能力的风险隔离 | partial | local_behavior → live/physical 前置 |
 | P2-01 | aggregate event stream、CAS、重放和恢复 | partial | durable |
 | P3-01 | Template/Cell/SpawnPlan/Lease/Grant/DelegationPacket | partial | durable |
 | P3-02 | Planner → fresh Builder → independent Reviewer → Closer | partial | local_behavior → durable |
+
+### P1-06 server-owned MCP risk boundary evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-policy --locked --offline
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized core tests
+fixture or cassette: trusted control-plane context; counting Broker; direct forged `mcp.call` requests with default ReadOnly and wrong CapabilityKind
+exit_code: 0 for all commands; policy 19/19 and core control-plane 50/50 passed
+artifact paths and SHA-256: no persistent artifact retained; test stdout and checked-in source snapshot are the evidence artifacts; no artifact hash generated
+status change: P1-06 target/not_supported → partial; ControlPlane and DefaultPolicyEngine now reject MCP risk downgrade and capability-kind mismatch before Broker dispatch
+proof-level change: local_behavior negative evidence for forged MCP risk and no-Broker-effect paths; stdio-only MCP remains bounded local behavior
+limitations: complete argument JSON-Schema conformance and durable server executable/config/schema provenance remain open; requested-tool advertisement identity/shape and provider-result envelope checks are covered in the follow-up evidence below; configured stdio discovery still starts only after ControlPlane approval but is not a durable provenance record; HTTP MCP, live providers, commerce, travel, and physical adapters remain unsupported; no durable or live/physical claim
+reviewer: independent S1 gap scan plus adversarial slice review; no remaining MCP risk-invariant blocker found in this slice
+```
+
+### P1-05 centralized event/result redaction boundary evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --lib --locked --offline event_redaction -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo check -p kiana-policy -p kiana-core -p kiana-daemon --locked --offline
+  cargo clippy -p kiana-policy -p kiana-core -p kiana-daemon --all-targets --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized control-plane and daemon tests
+fixture or cassette: sentinel Bearer/Basic/token/API-key/X-Api-Key runner delta and completion; secret-bearing Broker success/error results; legacy persisted completed/failed/result_unknown events; numeric token metrics including token_overlap; scalar/array capability result correlation
+exit_code: fmt=0; event redaction=0 (7/7); core control-plane=0 (50/50); daemon control-plane=0 (13/13); daemon_host=0 (58/58); affected-crate check=0; affected-crate clippy=0; diff check=0; existing non-fatal warnings remain
+artifact paths and SHA-256: no persistent artifact retained; test stdout and checked-in source snapshot are the evidence artifacts; no artifact hash generated
+status change: P1-05 remains partial; EventLog append, current and legacy Receipt projection/CoreResponse error, Broker-to-Runner success/error, direct response, and direct/harness result-event paths now share recursive redaction and server-owned result correlation; ordinary Broker failures continue through Runner instead of terminating the run
+proof-level change: local_behavior negative evidence that exercised sentinel credentials do not enter EventLog, Receipt, Runner result, or direct response; legacy failed/result_unknown errors are redacted on read; scalar results remain attributable to exact request/capability/grant scope
+limitations: redaction uses structured-JSON recursion plus key/marker matching rather than schema-generated sensitive-field contracts and cannot prove arbitrary encoded-secret detection; raw provider process memory is outside this slice; durable audit projector/CAS recovery and complete stdout/stderr/argv/environment scan remain open; no durable SEC-05/SEC-10 completion claim
+reviewer: independent adversarial review found the Broker-error continuation regression, legacy receipt error leak, and numeric token-metric compatibility regressions; all were closed with serialized regression coverage, and no further slice-local blocker was reported
+```
+
+### P1-06 advertised MCP tool/result boundary evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo test -p kiana-daemon --lib harness_mcp --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host unknown_stdio_mcp_tool_is_rejected_before_tools_call --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  bash scripts/release-smoke.sh
+  bash scripts/v10-workbench-smoke.sh
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized daemon tests; Python 3 available for stdio integration fixture
+fixture or cassette: unit fixtures for unknown, duplicate, and malformed requested-tool advertisements plus malformed provider envelopes and `isError`; Python stdio server advertises `echo`, records `tools/call` to a temporary marker, and the integration cassette requests an unknown tool
+exit_code: harness_mcp=0 (6/6); unknown-tool daemon_host=0 (1/1); daemon control-plane=0 (13/13); daemon_host=0 (58/58); fmt=0; workspace check=0; workspace clippy=0; workspace tests=0 (including kiana-entrypoints 433/433); release-smoke=0; v10-workbench-smoke=0; diff check=0
+artifact paths and SHA-256: temporary MCP call marker and release/workbench directories were cleaned by their tests/scripts; no persistent artifact retained and no artifact hash generated
+status change: P1-06 remains partial; after authorization, the daemon checks the requested tool against the server advertisement, rejects unknown/ambiguous names and malformed object-schema shapes, bounds the provider result envelope, and maps provider `isError` to a failed capability result; an unknown-tool integration run proved no `tools/call` marker was written
+proof-level change: local_behavior negative evidence for no-call-on-unknown-tool and fail-closed malformed tool/result boundaries, plus full Gate 0 source/build/test/smoke regression evidence; no durable/live/physical claim
+limitations: complete argument validation against arbitrary JSON Schema is not implemented; server executable/config/schema provenance is not durable or signed; only stdio is supported and discovery still launches the configured local process after approval; HTTP MCP, live providers, commerce, travel, and physical adapters remain unsupported
+reviewer: focused implementation plus independent adversarial slice review; no remaining tool/result boundary blocker was reported within this slice
+```
+
+### P1-05 cancel/continue direct-response redaction evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane cancel --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane continue_runner_send_error_is_redacted_in_direct_response --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host --locked --offline -- --test-threads=1
+  cargo test -p kiana-tools --lib --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized daemon/core tests
+fixture or cassette: `CancelBoundaryRunner` captures a token-bearing cancellation reason and returns token-bearing runner errors; `ContinueErrorRunner` returns a token-bearing continue-send error; assertions inspect Runner input, direct CoreResponse, and persisted event text
+exit_code: fmt=0; cancel focused=0 (5/5); continue-send focused=0 (1/1); core control-plane=0 (53/53); daemon control-plane=0 (13/13); daemon_host=0 (58/58); kiana-tools lib=0 (198/198); workspace check=0; workspace clippy=0; workspace tests=0; diff check=0; existing non-fatal warnings remain
+artifact paths and SHA-256: no persistent artifact retained; temporary test state was cleaned by fixtures; no artifact hash generated
+status change: P1-05 remains partial; cancellation reasons are sanitized at ControlPlane ingress before Runner dispatch, Runner send/failure responses, direct CoreResponse, and event append; continue Runner send errors now receive the same direct-response redaction boundary
+proof-level change: local_behavior negative evidence that token-bearing cancel/continue reasons do not cross Runner, direct-response, or event boundaries; full workspace source/build/test regression remained at exit 0; no durable/live/physical claim
+limitations: structured-JSON/key/marker redaction does not prove arbitrary encoded-secret detection; raw provider process memory and complete argv/environment/stdout/stderr scanning remain outside this slice; durable projector/CAS recovery and immutable session principal/role binding remain open
+reviewer: implementation plus independent `/root/next_slice_audit` adversarial review; no slice-local blocker reported
+```
+
+### P1-02 approval event-store read failure evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane approval_run_lookup_failure_fails_closed_before_consumption_or_execution --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized core tests
+fixture or cassette: active local-write approval backed by an EventStore whose `read_all` returns `PortError::Unavailable`; TestApprovalStore and CountingBroker inspect consumption and dispatch
+exit_code: fmt=0; focused=0 (1/1); core control-plane=0 (55/55); workspace check=0; diff check=0; existing non-fatal warnings remain
+artifact paths and SHA-256: no persistent artifact retained; in-memory approval/event assertions and test stdout are the evidence artifacts; no artifact hash generated
+status change: P1-02 remains partial; approval run-association lookup now propagates EventStore read failures instead of treating them as an empty event set, so approval consumption and Broker execution do not proceed on an unavailable event store
+proof-level change: local_behavior negative evidence for fail-closed approval lookup, preserving an active unconsumed approval and zero Broker calls on a read failure
+limitations: durable approval/PendingInvocation state, cross-process recovery, and an independently persisted approval/run index remain open; callers receive a structured Core/Port failure rather than a durable recovery result
+reviewer: implementation plus independent `/root/next_slice_audit` port-contract review; no slice-local blocker reported
+```
+
+### P1-01 immutable session role/department evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane session_role_and_department_are_immutable_for_continue_cancel_and_receipt --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane persisted_receipt_rejects_role_department_mismatch --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized core tests
+fixture or cassette: completed Builder session followed by forged `pm/planning` continue, cancel, and receipt requests; persisted run.authorized identity with builder/executing role snapshot
+exit_code: fmt=0; two focused tests=0 (1/1 each); core control-plane=0 (57/57); workspace check=0; diff check=0; existing non-fatal warnings remain
+artifact paths and SHA-256: no persistent artifact retained; in-memory events, response assertions, and test stdout are the evidence artifacts; no artifact hash generated
+status change: P1-01 remains partial; SessionBinding now fixes actor, canonical project, role, and department for live continue/cancel/receipt ownership, and new run.authorized events persist role/department for restart receipt checks; legacy identity events without those fields remain compatible
+proof-level change: local_behavior negative evidence that a same actor/project cannot swap role or department to continue, cancel, or read a live/persisted run receipt
+limitations: principal authentication is still a fixed local daemon identity; SessionBinding and pending state remain process-local; legacy events missing role/department cannot prove the older assignment; durable cross-process principal/session recovery and tenant boundaries remain open
+reviewer: implementation plus independent `/root/next_slice_audit` identity-boundary review; no slice-local blocker reported
+```
+
+### P1-01 direct role/department assignment boundary evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane start_run_rejects_role_department_mismatch_before_runner --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-core --locked --offline
+  cargo check --workspace --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized core tests
+fixture or cassette: trusted context forged with `role_id=pm` and `department_id=executing`; `CountingRunner` records attempted Runner dispatch; in-memory EventLog inspects the rejection
+exit_code: fmt=0; mismatch focused=0 (1/1); core control-plane=0 (54/54); core check=0; workspace check=0; diff check=0; existing non-fatal warnings remain
+artifact paths and SHA-256: no persistent artifact retained; in-memory event and Runner-call assertions are the evidence artifacts; no artifact hash generated
+status change: P1-01 remains partial; direct ControlPlane `start_run` now rejects a valid role paired with a non-matching nonempty department before sandbox authorization or Runner dispatch and records `run.rejected` with `role_department_mismatch`
+proof-level change: local_behavior negative evidence for malformed role/department assignment and no-Runner-effect path; no durable identity or cross-request session-binding claim
+limitations: SessionBinding currently binds actor/project but not immutable role/department; continue/cancel/receipt ownership and durable principal recovery remain open; DaemonHost and direct-core assignment semantics are covered separately
+reviewer: implementation plus independent `/root/next_slice_audit` adversarial review; no slice-local blocker reported
+```
+
+### P1-02 approval read capability distinction evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane unsupported_approval_run_lookup_preserves_legacy_direct_approval --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane approval_run_lookup_failure_fails_closed_before_consumption_or_execution --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+  cargo clippy --workspace --all-targets --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized focused tests
+fixture or cassette: a read_request-only EventStore using the default `event_store_read_all_unsupported` response for a direct approval, plus a separate EventStore returning `PortError::Unavailable`; TestApprovalStore and CountingBroker inspect approval state and execution
+exit_code: fmt=0; unsupported compatibility focused=0 (1/1); unavailable fail-closed focused=0 (1/1); workspace check=0; workspace clippy=0; workspace tests=0; diff check=0; existing non-fatal warnings remain
+artifact paths and SHA-256: no persistent artifact retained; in-memory approval/event assertions and command output are the evidence artifacts; no artifact hash generated
+status change: P1-02 remains partial; approval Run-association lookup now treats only the explicit unsupported capability as an unknown association for legacy direct approvals, while propagating real EventStore read failures before approval consumption or Broker execution
+proof-level change: local_behavior positive compatibility and negative fail-closed evidence for the two distinct EventStore outcomes; no durable/live/physical claim
+limitations: an adapter that cannot scan events cannot prove a persisted Run association; durable PendingInvocation/Runner recovery, an independent approval/run index, and mandatory authenticated wire proof remain open
+reviewer: implementation plus independent `/root/approval_context_audit2` ApprovalStore contract audit; product DaemonHost binding remains authoritative and no slice-local blocker was reported
+```
+
+### P1/P2 EventStore receipt-read and terminal replay evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane receipt_ --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane review_author_lookup --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-core --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized control-plane tests
+fixture or cassette: MemoryEventLog terminal-event permutations; an EventStore returning an actual read failure; a read-request-only EventStore; and a stream-only EventStore with independently addressable Run aggregates
+exit_code: fmt=0; receipt filter=0 (12/12); review lookup filter=0 (2/2); core control-plane=0 (67/67); core check=0; diff check=0; existing non-fatal dead-code warning remains
+artifact paths and SHA-256: no persistent artifact retained; in-memory event assertions and test stdout are the evidence artifacts; no artifact hash generated
+status change: P1-02 and P2-01 remain partial; actual EventStore read failures now propagate, persisted Receipt lookup uses only full history or an exact Run stream rather than a caller request fallback, and incomplete/conflicting/errorless terminal histories project to Unknown/Failed/Cancelled without inventing Completed
+proof-level change: local_behavior negative and compatibility evidence for failed versus explicitly unsupported reads, target-Run receipt isolation, exact-stream recovery, review failure propagation, and terminal replay semantics; no durable/live/physical claim
+limitations: current-command receipt construction may still use a filtered in-process request stream only when full history is explicitly unsupported; public persisted receipt/review requires a full scan or exact Run stream; no durable Session/Run/Invocation projector, reconciliation queue, provider verification, or cross-process PendingInvocation recovery is claimed
+reviewer: implementation plus independent `/root/event_read_audit` EventStore contract audit; its receipt-relabel and unsupported-read findings are covered by the listed regressions
+```
+
+### P1-05 persisted Run result-correlation evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (71 status entries); existing user changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane receipt_ --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane review_ --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane close_without_run_id_does_not_accept_a_foreign_run_completion --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-core --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux 6.8.0-138-generic x86_64; rustc 1.97.1; cargo 1.97.1; locked/offline dependency resolution; serialized core tests
+fixture or cassette: MemoryEventLog with a target run.authorized plus foreign run.completed/capability.completed under the same RequestId; a fresh ControlPlane reconstructing one persisted Builder Run without an in-memory SessionBinding
+exit_code: fmt=0; receipt filter=0 (13/13); review filter=0 (11/11); closer negative=0 (1/1); core control-plane=0 (71/71); core check=0; diff check=0; existing non-fatal dead-code warning remains
+artifact paths and SHA-256: temporary per-test project artifacts are retained only in OS temp fixtures; no persistent artifact or SHA-256 generated; in-memory event assertions and test stdout are the evidence artifacts
+status change: P1-05 remains partial; Receipt, Reviewer, and Closer now bind event projection to an exact Run payload/aggregate identity rather than expanding through a shared RequestId; restart lookup accepts exactly one complete persisted Builder authorization and rejects zero, ambiguous, or incomplete identities
+proof-level change: local_behavior negative evidence that a persisted foreign Run cannot forge a Completed Receipt, file-change list, accepted Review/Merge artifact, or author completion for close; positive reconstruction evidence covers one unambiguous persisted Builder Run
+limitations: legacy events lacking data.run_id are usable only with exact durable run aggregate metadata; current-command receipt construction still has its documented request-scoped compatibility path when global history is explicitly unsupported; no durable Session/Run/Invocation projector, reconciliation queue, provider-effect verification, or cross-process PendingInvocation recovery is claimed
+reviewer: implementation plus independent `/root/s1_gap_audit` result-correlation audit; its explicit Receipt and no-session-map Reviewer/Closer findings are covered by the listed regressions
+```
+
+### P2-01 EventStore stream-read CAS fail-closed evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: pre-existing multi-crate WIP retained; this slice changes ControlPlane aggregate-version lookup and its focused EventStore contract fixtures without reset, commit, push, merge, or worktree deletion
+command_argv:
+  cargo test -p kiana-core --test control_plane event_stream_read_failure_prevents_append_and_runner_dispatch --locked --offline -- --test-threads=1  # pre-fix expected failure
+  cargo test -p kiana-core --test control_plane event_stream_read_failure_prevents_append_and_runner_dispatch --locked --offline -- --test-threads=1  # post-fix
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-core --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; offline dependency resolution; serialized control-plane integration test execution
+fixture or cassette: EventStore whose `read_stream` returns `event_stream_read_unavailable` while its append path would otherwise accept writes; CountingRunner proves no dispatch; read-all-unavailable fixtures delegate exact streams only where their declared scenario requires writes
+exit_code: pre-fix focused test=101 (expected regression reproduction: event append and Runner dispatch occurred); post-fix focused test=0 (1/1); full core control-plane=0 (72/72); fmt=0; core check=0; diff check=0; existing non-fatal MemoryCellRegistry dead-code warning remains
+artifact paths and SHA-256: no persistent artifact retained; in-memory EventStore/Runner assertions and test stdout are the evidence artifacts; no artifact hash generated
+status change: P2-01 remains partial; ControlPlane now propagates aggregate stream-read failures before deriving an expected version, so it neither appends an unverifiable CAS event nor dispatches the Runner after that failure
+proof-level change: local_behavior negative evidence for the first-write/empty-stream ambiguity boundary and compatibility evidence for adapters with independently readable aggregate streams but no global scan
+limitations: this does not make all legacy adapters aggregate-stream capable, prove cross-process CAS, or rebuild durable Session/Run/Invocation state; disk-full, torn-tail reconciliation, approval continuation, provider-effect verification, and cross-process PendingInvocation recovery remain open
+reviewer: independent `/root/s0_review` EventStore contract audit identified the unsafe fallback; focused regression covers its read-failure/write-success counterexample
+```
+
+### P2-01 JSONL valid-unterminated-tail recovery evidence (2026-09-06)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-eventlog --locked --offline
+  cargo clippy -p kiana-eventlog --all-targets --locked --offline
+  cargo test -p kiana-core --locked --offline
+  cargo test -p kiana-daemon --locked --offline
+  cargo check --workspace --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain; locked/offline dependencies; daemon/core tests use their existing serialized fixtures where configured
+fixture or cassette: JSONL file containing one valid RuntimeEvent without a trailing newline; reopen repairs and fsyncs the delimiter before a second append, then a fresh reopen reads both events; malformed complete final lines remain fail-closed
+exit_code: 0 for every listed command; kiana-eventlog 25/25; kiana-core lib 7/7, control-plane 80/80, dependency boundaries 2/2; kiana-daemon lib 53/53, control-plane 13/13, daemon_host 58/58; workspace check 0; clippy 0; diff check 0
+status change: P2-01 remains partial; JsonlEventLog now repairs a legal unterminated final record before future appends, preserving line framing across close/reopen and preventing concatenated JSON records
+proof-level change: local_behavior plus disk reopen/append evidence for this JSONL crash-recovery boundary; no claim that the full Session/Run/Invocation projector or cross-process lifecycle recovery is durable
+limitations: repair still depends on the local JSONL adapter and process lock; malformed complete records, disk-full/permission failures, aggregate projector rebuild, pending approval/Runner state, and cross-process lifecycle recovery remain open
+reviewer: focused eventlog recovery review with core/daemon regression suite; no assertions weakened and no tests skipped
+```
+
+### P1-03 cancellation confirmation and pre-signalled fence evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (71 status entries); existing user changes preserved; no commit, reset, push, merge, or worktree deletion
+command_argv:
+  cargo test -p kiana-core --test control_plane unconfirmed_cancel_result_is_unknown_without_cancelling_or_forgetting_the_run --locked --offline -- --test-threads=1  # pre-fix expected failure
+  cargo test -p kiana-core --test control_plane concurrent_continue_cancel_runner_not_found_preserves_fencing_before_dispatch --locked --offline -- --test-threads=1  # pre-fix expected failure
+  cargo test -p kiana-core --test control_plane concurrent_continue_cancel_runner_not_found_preserves_fencing_before_dispatch --locked --offline -- --test-threads=1  # post-fix
+  cargo test -p kiana-core --test control_plane cancel --locked --offline -- --test-threads=1
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-core --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked/offline; serialized test target
+fixture or cassette: direct fake Runner responses (non-cancel failure, foreign run, target Completion conflict, run_not_found) and a deterministic Continue/Cancel race where Continue has taken runner state and later emits CapabilityRequested; CountingBroker assertions
+exit_code: pre-fix unconfirmed=101 (incorrect Cancelled projection); pre-fix concurrent race=101 (Continue Completed / expected Cancelled and broker path allowed); post-fix race=0 (1/1); cancel suite=0 (11/11); fmt=0; core control-plane=0 (76/76); core check=0; diff check=0; existing nonfatal MemoryCellRegistry dead-code warning remains
+artifact paths and SHA-256: kiana-core/src/lib.rs; kiana-core/tests/control_plane.rs; CURRENT_STATUS.md; no persistent fixture or cassette created and no SHA-256 generated
+status change: P1-03 remains partial; direct cancellation accepts only an unambiguous target `cancelled:` response; wrong, mixed, conflicting, transport, no-confirmation, and run_not_found responses record `run.result_unknown`; an already signalled cancellation blocks policy, pre-tool, and Broker dispatch and resolves the race with a biased cancellation branch
+proof-level change: local_behavior negative evidence for the covered fake-runner paths; the deterministic race proves no Broker call after the pre-signalled fence
+limitations: runner, cancellation, and session state remain in memory and there is no atomic per-Run lifecycle epoch; confirmed cancellation cleanup still needs that future lifecycle proof against a newly starting continuation; no durable restart reconciliation, cgroup/process-tree proof, kill-9 recovery, cross-process pending invocation, or real-world effect proof is claimed
+reviewer: independent `/root/cancel_confirmation_audit` and `/root/cancel_stale_session_audit`; their ambiguous-response and no-`!inflight` cleanup findings are covered by the focused tests and stated limitation
+```
+
+### P1-05 Runner event Run-ID provenance evidence (2026-09-02)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout (71 status entries); existing user changes preserved; no commit, reset, push, merge, or worktree deletion
+command_argv:
+  cargo test -p kiana-core --test control_plane foreign_runner_completion_is_unknown_without_receipt_projection --locked --offline -- --test-threads=1  # pre-fix expected failure
+  cargo test -p kiana-core --test control_plane foreign_runner_ --locked --offline -- --test-threads=1  # post-fix
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo check -p kiana-core --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked/offline; serialized control-plane test target
+fixture or cassette: `ForeignRunEventRunner` returns a target `Started` followed by either a foreign `CapabilityRequested` or foreign `Completed`; `CountingBroker` and a public Receipt read assert that neither capability dispatch nor completion/receipt projection is accepted
+exit_code: pre-fix foreign completion=101 (target Run incorrectly returned Completed with foreign output); post-fix foreign runner filter=0 (2/2); full core control-plane=0 (78/78); core check=0; fmt=0; diff check=0; existing nonfatal MemoryCellRegistry dead-code warning remains
+artifact paths and SHA-256: kiana-core/src/lib.rs; kiana-core/tests/control_plane.rs; CURRENT_STATUS.md; no persistent fixture or cassette created and no SHA-256 generated
+status change: P1-05 remains partial; `drive_run` now rejects every Runner event whose `run_id` differs from its expected Run before event projection, Broker dispatch, or terminal receipt construction, recording only target `run.result_unknown`; the shared guard is used by Start, Continue, and capability-result drive paths
+proof-level change: local_behavior negative evidence for target Start with foreign capability and completion events, including a public Receipt replay; source-level shared-entry coverage for Continue and capability-result paths; no durable provenance claim
+limitations: this validates only the event Run ID from the local RunnerPort boundary; it does not establish durable runner/provider provenance, a reconciliation queue, cross-process Runner recovery, process-tree cancellation confirmation, or real-world side-effect verification; `result_unknown` lifecycle cleanup still lacks an atomic per-Run epoch
+reviewer: independent `/root/runner_event_identity_audit` identified the pre-guard foreign capability, completion, failure, and aggregate-projection risks; focused regressions cover the capability and completion counterexamples
+```
 
 ## 5. 当前禁止的表述
 
@@ -1394,4 +2164,40 @@ limitations: durable reconciliation queue and provider-side effect verification 
 reviewer: focused failure-injection review; no live provider or durable workflow claim
 ```
 
+### S0 legacy CLI boundary evidence (2026-09-01)
 
+```text
+source_snapshot: local worktree after explicit authorization to touch frozen CLI compatibility surface
+worktree_status: dirty; preserves pre-existing user/WIP changes
+command_argv: cargo test -p kiana-entrypoints --lib --locked --offline -- --test-threads=1; focused direct-connect tests
+cwd/environment: repository root; locked offline Cargo; serialized environment tests
+fixture or cassette: local mock model servers and temporary session/workspace fixtures
+exit_code: entrypoints lib 101 (429 passed, 2 legacy fixture failures); direct-connect text/permission focused tests 0
+status change: provider options propagate into DaemonHost construction through explicit immutable configuration
+proof-level change: local_behavior for supported CompanyOS direct-connect model execution
+limitations: legacy permission/tool-loop fixtures request TaskCreate or frozen Read/Write/Edit/Bash tools and conflict with the owned five-tool harness; no legacy runner or tool surface was reattached
+reviewer: Codex
+```
+
+### P1-02 restart approval proof preflight evidence (2026-09-07)
+
+```text
+source_snapshot: 842e5a4fea8d61dfe083e74315957a29e7772d6a + uncommitted CompanyOS WIP
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit, reset, push, merge, or worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-core --test control_plane persisted_run_approval_without_pending_invocation_fails_closed --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --lib disk_store_survives_reopen_and_consumes_once --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --lib approval --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; stable Rust toolchain (rustc/cargo 1.97.1); locked/offline Cargo dependency resolution; serialized approval/core/daemon tests
+fixture or cassette: persisted Run-bound approval with explicit challenge hash/nonce and no live PendingInvocation; repeated approval retry; reopened disk approval validated before consume and rejected after single-use consume
+exit_code: 0 for every listed command; focused restart regression 1/1, disk reopen regression 1/1, core control_plane 82/82, daemon approval 11/11, workspace check=0, format=0, diff check=0
+artifact paths and SHA-256: temporary JSONL approval fixture is created below the OS temp directory and removed by the test; no repository artifact or SHA-256 was generated; assertions and command exits are the evidence
+status change: P1-02/P2 restart approval behavior remains partial but now validates authenticated proof without consuming a durable Active approval when the persisted Run has no in-memory continuation; the unavailable continuation marker is idempotent across retries
+proof-level change: local_behavior plus durable-reopen evidence for non-consuming proof validation, exact hash/nonce/context/integrity checks in the production approval adapter, and single-use state after a subsequent consume
+limitations: PendingInvocation and Runner state are still process-local; preflight validation and later consume are separate operations and do not establish an atomic cross-process recovery transaction; no durable continuation projector, kill-9 reconciliation, or full Session/Run/Invocation rebuild is claimed
+reviewer: focused approval replay/restart review with serialized core/daemon verification; no assertions weakened, frozen paths changed, dependency manifests changed, or second execution path added
+```

@@ -229,6 +229,7 @@ kiana run --close <builder会话ID>
 | Cell | 执行单元：一次有预算、有权限、有父子关系的"临时工位"；文档里"细胞分裂"就是指 Cell 派生子 Cell | [`company-os-design.md`](company-os-design.md) §5.4、§6 |
 | SpawnPlan | 分裂计划：想创建子 Cell？先提交计划，过校验、预留预算，才许创建 | [`company-os-design.md`](company-os-design.md) §5.5 |
 | WorkPacket | 任务工单：跨部门交接的唯一正式单位（见上文对照表） | [`company-os-domain-contracts.md`](company-os-domain-contracts.md)；[`company-os-design.md`](company-os-design.md) §5.1 |
+| DelegationPacket | 运行时授权信封：父 Cell 给子 Cell 的"我授权你做什么、到什么时候、还能不能再往下派"；**和 WorkPacket 不是一回事**——WorkPacket 是业务交接（目标/验收/责任），DelegationPacket 只管运行时授权，两者不能互相替代 | [`company-os-spec-index.md`](company-os-spec-index.md) §4.2、§6.3 |
 | Symposium | 有界会议：固定议程和轮数、必须产出文件的多角色讨论；规划会和监控会都不让 Builder 列席（这条边界已冻结） | [`company-os-design.md`](company-os-design.md)；[`../COMPANY.md`](../COMPANY.md) |
 | WorkFingerprint | 任务指纹：同样的活儿不重复干——指纹相同的任务应复用结果或拒绝重复创建 | [`company-os-design.md`](company-os-design.md) §6.3 |
 
@@ -241,8 +242,11 @@ kiana run --close <builder会话ID>
 | Approval | 审批：需要人（或明确授权的规则）点头的申请；绑定精确内容摘要，一次性消费，过期作废 | [`company-os-design.md`](company-os-design.md) §10 |
 | CapabilityGrant | 能力授权：短期、精确、不可转借的"出入证" | [`company-os-design.md`](company-os-design.md) §5.6 |
 | BudgetLease | 预算租约：token/工具次数/时长/并发的硬配额 | 同上 |
+| RuntimeBudget | 运行级预算：一次 Run 的总配额，向下派生出各个 Cell 的 `BudgetLease`；两者不能互相替代 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §5.3 |
+| SharingGrant | 跨项目共享授权：允许 A 项目的记忆/产物给 B 项目用；默认拒绝、只能收窄，有明确范围和有效期 | [`company-os-operations-governance.md`](company-os-operations-governance.md) §3 |
 | SupervisionLease | 监督租约：心跳、检查点、卡死判定、重试上限——防止子任务"失联装死" | 同上 |
 | Broker | 受托执行器：所有真实执行的必经之路（见上文对照表） | `kiana-capability-broker` |
+| PathLock | 路径锁：并行 Builder 按工单"占住"自己可写的路径；重叠或越权路径直接拒绝（`packet_path_denied`），防止两个工人同时改同一片文件 | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) §3（Slice B）；[`company-os-design.md`](company-os-design.md) §14.3 |
 | trust | 项目信任：`kiana trust .` 把一个目录标记为受信；未受信项目一切写操作被拒 | [`../USER.md`](../USER.md) |
 | sandbox | 沙箱档位：`read-only`（只读）/ `workspace-write`（可写工作区）。注意默认值因入口而异：`kiana run` 默认只读，文件夹工作台默认 workspace-write（但都要求项目已 trust）；工作区外一律拒绝 | [`../USER.md`](../USER.md)；[`../CLAUDE.md`](../CLAUDE.md) |
 | fail-closed | 失败即关闭：任何拿不准的情况（没批、过期、越界、校验失败）一律拒绝，绝不"先做了再说" | 全部规范通用 |
@@ -265,6 +269,9 @@ kiana run --close <builder会话ID>
 | result_unknown | 结果未知：可能已经产生副作用但确认不了（超时/崩溃/日志丢失）。它是一等状态，禁止自动重试，必须对账 | [`company-os-security-constitution.md`](company-os-security-constitution.md) SEC-09 |
 | PendingInvocation | 挂起的调用：等审批时把调用"冻结"起来，批准后原地续跑，而不是报错重来（目标设计，尚未完成） | [`company-os-design.md`](company-os-design.md) §10.1 |
 | cassette / fake-script | 模型录像带：预先录好的模型响应脚本（`KIANA_HARNESS_SCRIPT` 环境变量指定），让测试不依赖真模型、永远可复现 | [`../USER.md`](../USER.md) |
+| cancel_requested / cancelling | 取消中间态：`cancel_requested` 是 wire 状态名，`cancelling` 只是界面上的显示名、**不是状态也不是终态**；停止确认不了时只能进 `result_unknown` | [`company-os-design.md`](company-os-design.md) §10.2 |
+| HandoffReceipt | 交接回执：接收方确认收到工单的凭证（ACK）；它只证明"责任转移了"，不证明活干完了 | [`company-os-design.md`](company-os-design.md) §9.2 |
+| epoch | 事件桥代次：客户端重连时用来判断"手里的快照是不是过期了"；daemon 重启、权限代次或能力目录变化时递增 | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §10.2 |
 
 ### 5.5 平台能力侧（"模型看什么、系统怎么扩展"）
 
@@ -281,6 +288,9 @@ kiana run --close <builder会话ID>
 | Swarm | 有界多 Agent：受控的"分头干活再合并"，必须有父级、分区、预算、深度、合并规则；不是自由群聊（目标设计） | 同上 §9 |
 | NormalizedEvent | 归一化事件：不同模型服务商的流式输出格式各异，先统一翻译成内部格式再进系统 | 同上 §10 |
 | EvalSuite / GoldenTrace | 评测集 / 黄金轨迹：可重放的测试用例和"标准答案录像"，改了模型/提示词之后跑一遍防退步（目标设计） | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §3 |
+| Partition / MergeDecision | 分区与合并裁决：Swarm 里每个子任务的互斥归属，以及"合并哪些结果、丢弃哪些"的正式决定（**决定 ≠ 回执**，回执是 MergeReceipt） | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §9 |
+| QualityGate / VersionedCandidate | 质量门与候选版本：候选版本要先过影子/回放评测才能提升（promote）或回滚；质量门是门槛配置加裁决记录 | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §5 |
+| ExtensionManifest | 扩展清单：技能/工作流/能力包等扩展的身份证（版本、权限、来源），装之前先过信任检查 | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §9 |
 
 ### 5.6 状态与证据侧（"怎么防止吹牛"）
 
@@ -290,7 +300,21 @@ kiana run --close <builder会话ID>
 | proof_level | 证到什么程度：`source` → `local_behavior` → `durable` → `live` → `physical`（见下一节） | 同上 |
 | canonical owner | 户口所在地：每个概念只有一个正式定义处（哪份文档 + 哪个 crate），其他地方只能引用不能重新定义 | [`company-os-spec-index.md`](company-os-spec-index.md) §4 |
 | Evidence Ledger | 证据账本：状态提升必须绑定源码快照、精确命令和结果 | [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
-| Gate 0 | 第零道门：格式检查、编译、lint、全量测试、冒烟脚本全绿才算通过；当前尚未整体通过 | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) §6 |
+| Gate 0 | 第零道门：格式检查、编译、lint、全量测试、冒烟脚本全绿才算通过；当前是否通过以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) §3 的当前证据块为准（历史块只代表当时结论） | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) §6 |
+| intent_only / code_enforced | 宪法条款的两种标记：`intent_only` = 只有设计意图、还没有强制点；`code_enforced` = 代码里真的拦得住。**当前没有任何一条达到 `code_enforced`** | [`company-os-security-constitution.md`](company-os-security-constitution.md) §1.1 |
+
+### 5.7 运营治理侧（"长期跑起来靠什么"）
+
+| 术语 | 白话解释 | 详见 |
+|---|---|---|
+| Principal | 主体身份：系统里"谁在做事"的正式身份，分人类、Agent、服务、MCP server、外部 provider 引用五类；请求里自称的 actor/role 不算数 | [`company-os-operations-governance.md`](company-os-operations-governance.md) §3 |
+| AuthorityEpoch | 授权代次：权限一被撤销或收紧就加一代；旧运行、旧授权、旧审批、旧定时器不能拿着过期的权限继续用 | [`company-os-operations-governance.md`](company-os-operations-governance.md) §3 |
+| Human Inbox / HumanTask | 人工收件箱 / 人工任务：需要人拍板的事（审批、评审、验收、升级、对账）统一进一个带状态和截止时间的待办；沉默不等于批准 | [`company-os-operations-governance.md`](company-os-operations-governance.md) §5 |
+| Trigger / Scheduler | 触发器 / 调度器：什么时候自动开工（手动、定时、文件变化、git 变化、事件、上游工作流、审批通过等）；自动触发只许创建 Run，不许直接执行工具，也不降低风险等级 | [`company-os-operations-governance.md`](company-os-operations-governance.md) §4 |
+| CostLedger | 成本账本：每次运行花了多少 token、工具次数、时长和预估费用；只追加、可修正、不能覆盖历史，运行时花费不等于项目收益，更不是付款授权 | [`company-os-operations-governance.md`](company-os-operations-governance.md) §7 |
+| RateCard | 单价表：版本化的计费单价；成本估算必须引用某一版，改价只能新增版本 | 同上 §7 |
+| RecoveryPlan | 恢复计划：崩溃/半写/超时之后"怎么收拾"的正式方案，有状态（提出→批准→执行→验证）和明确授权，不能现场即兴 | 同上 §8 |
+| ReconciliationRequired | 待对账：结果未知或账目对不上时的中间状态，必须收敛到事故或对账流程，不能挂着不管 | 同上 §5 |
 
 ---
 
@@ -370,7 +394,7 @@ git 提交是对外可见、难以撤销的副作用，而且这个仓库常有�
 stdio MCP 是本地子进程，风险边界清楚；HTTP MCP 意味着远程调用，涉及一整套没做的安全设计（认证、传输、注入面）。没做就明确拒绝（返回 `mcp_transport_unsupported`），而不是"能连就先连上"——这就是 fail-closed。
 
 **Q9：文档里一会儿 P0/P1/P2，一会儿 Slice A/B/C，一会儿 R0–R5，怎么区分？**
-三套编号是三个不相干的维度：**P0–P6** 是实施阶段（先做什么后做什么）；**Slice A–M** 是工程切片（把工作切成可认领的块，见实施大纲）；**R0–R5** 是风险等级（一个动作有多危险）。另外 [`coding-pack-matrix.md`](coding-pack-matrix.md) 里的 P0/P1 特指"Coding pack 里哪些行为是 v1.0 核心"，范围只限那张表。
+三套编号是三个不相干的维度：**P0–P6** 是全局实施阶段序列，唯一 canonical 在 [`company-os-spec-index.md`](company-os-spec-index.md) §7（先做什么后做什么）；**Slice A–M** 是工程切片（把工作切成可认领的块，见实施大纲）；**R0–R5** 是风险等级（一个动作有多危险）。另外 [`coding-pack-matrix.md`](coding-pack-matrix.md) 里的 P0/P1 特指"Coding pack 里哪些行为是 v1.0 核心"，范围只限那张表。
 
 **Q10：「dump」是什么意思？**
 指 `reference/` 里没有 git 历史的还原代码树（比如 `claude-code-rev-main`）。它们只能当"某个工具名存在过"的证明，许可证不明，**禁止**照抄源码。相关规则见 [`coding-pack-matrix.md`](coding-pack-matrix.md) §9 的许可证边界。

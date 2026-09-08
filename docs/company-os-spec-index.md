@@ -36,10 +36,12 @@
 | 问题 | 首要依据 | 不能从哪里推断 |
 |---|---|---|
 | 当前能运行什么 | `CURRENT_STATUS.md`、`README.md`、`USER.md`、精确回执 | 不能从目标规范推断 |
+| 术语怎么用大白话理解 | `company-os-overview.md`（非规范导读） | 不能作为规范语义、canonical 定义或当前状态依据 |
 | CompanyOS 业务是什么 | `company-os-domain-contracts.md` | 不能从工具名或 prompt 推断 |
 | Agent 平台怎么协作 | `company-os-platform-architecture.md` | 不能从某个旧 runtime 推断 |
 | 如何保障长期运行 | `company-os-operations-governance.md` | 不能从一次成功运行推断 |
 | 如何评测和扩展 | `company-os-quality-ecosystem.md` | 不能从代码存在推断质量 |
+| Coding pack 哪些行为完成或冻结 | `coding-pack-matrix.md`、精确回执 | 不能从"已绿"外推 durable/live，也不能反推表外能力 |
 | 安全边界是什么 | `company-os-security-constitution.md` | 不能由模型文本放宽 |
 | 先实施什么 | `company-os-implementation-outline.md`、`PHASES.md` | 不能因参考项目有此功能就提前打开 |
 | 参考项目学什么 | `company-os-reference-matrix.md`、`reference-agent-audit/` | 不能把参考代码当 Kiana 证据 |
@@ -51,6 +53,7 @@
 | 层 | 文档 | 责任 |
 |---|---|---|
 | 总入口 | [`README.md`](README.md) | 阅读路径、权威层级和变更规则 |
+| 白话导读 | [`company-os-overview.md`](company-os-overview.md) | 非规范第一入口：心智模型、任务走读、术语词典、FAQ |
 | 当前事实 | [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) | 当前状态、证明等级、Gate 结果和限制 |
 | 产品总规范 | [`company-os-design.md`](company-os-design.md) | 北极星、PMP、控制面、能力风险和产品边界 |
 | 业务领域 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) | Objective、Project、Acceptance、Delivery、Outcome 等业务事实 |
@@ -60,6 +63,7 @@
 | 用户体验 | [`company-os-ui-ux.md`](company-os-ui-ux.md) | CLI/TTY、Web Workbench、Desktop、Run/Approval/Receipt/Recovery 投影 |
 | 安全证据 | [`company-os-security-constitution.md`](company-os-security-constitution.md) | 安全宪法、风险等级、负向验收和发布门 |
 | 工程实施 | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) | Slice、owner、测试、证据和 90 天顺序 |
+| Coding 审计 | [`coding-pack-matrix.md`](coding-pack-matrix.md) | v1.0 Coding pack 审计底表与冻结清单权威（不在表内、没有 owner 和证据的能力不算完成） |
 | 参考速查 | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) | 功能与参考项目的映射、吸收和排除 |
 | 机器合同 | [`schemas/README.md`](schemas/README.md) | schema 分层、版本、校验和迁移规则 |
 | 参考审计 | [`reference-agent-audit/README.md`](reference-agent-audit/README.md) | 外部项目审计和证据索引 |
@@ -75,6 +79,7 @@
 | `Initiative` | 问题、假设、价值和立项决策 | `kiana-domain` | `kiana-core` |
 | `Portfolio` / `Program` | 投资组合、共享目标和依赖 | `kiana-domain` | future projection |
 | `Project` | 范围、成功标准、预算和生命周期 | `kiana-domain` | `kiana-core` / `kiana-daemon` |
+| `Charter` / `Plan` | 项目立项工件与版本化计划（`Project.charter_ref` / `plan_ref`） | `kiana-domain` | `kiana-core` |
 | `Milestone` | 阶段交付和验收标准 | `kiana-domain` | `kiana-daemon` |
 | `WorkPacket` | 跨部门目标、写集、依赖、验收和责任 | `kiana-domain` | `kiana-core` |
 | `Acceptance` | criteria snapshot、Evidence 和独立决策 | `kiana-domain` | `kiana-core` |
@@ -92,13 +97,16 @@
 | `Department` / `RoleSpec` | 部门使命、角色工具和知识 ACL | `kiana-domain` | `kiana-core` |
 | `AgentTemplate` | 固定 prompt、工具、sandbox、预算和生命周期策略 | `kiana-domain` | `kiana-daemon` |
 | `AgentInstance` / `Cell` | 有界执行单元、parent、grant、budget 和 supervision | `kiana-domain` | `kiana-core` / `kiana-daemon` |
-| `SpawnPlan` / `DelegationPacket` | 受限分裂和内部授权信封 | `kiana-domain` | `kiana-core` |
+| `SpawnPlan` / `DelegationPacket` / `SpawnGrant` | 分裂申请、父子 Cell 运行时授权信封和 spawn 能力特化视图 | `kiana-domain` | `kiana-core` |
 | `Session` | 长期会话、owner、workspace 和 lineage | `kiana-domain` | `kiana-runner` / event store |
 | `Turn` / `Run` | 交互轮次和执行生命周期 | `kiana-domain` | `kiana-runner` |
 | `Invocation` / `CapabilityExecution` | 工具调用、审批、执行、结果和 Unknown | `kiana-domain` | broker / `kiana-core` |
 | `RuntimeEvent` | 不可变执行事实和 cursor | `kiana-domain` / event ports | `kiana-eventlog` |
 | `Artifact` / `Receipt` | 产物和事实投影 | `kiana-domain` / event ports | `kiana-eventlog` / daemon |
-| `BudgetLease` | token、工具、墙钟、并发和 effect 配额 | `kiana-domain` | `kiana-core` |
+| `HandoffReceipt` / `MergeReceipt` / `RetirementRecord` / `ClosingReceipt` | 交接 ACK、合并、退役和项目关闭的控制面收据 | `kiana-domain` | `kiana-core` / `kiana-eventlog` |
+| `BudgetLease` | token、工具、墙钟、并发和 effect 配额（canonical 名；旧 `CellBudget` 已废弃） | `kiana-domain` | `kiana-core` |
+| `ProviderBudget` | Provider 速率、并发和费用限制层（operations 扩展层，横切而不是 `BudgetLease` 的子级） | `kiana-core` / provider adapter | `kiana-core` |
+| `RateCard` | 版本化单价表；`UsageRecord.estimated_cost` 必须引用其 version，价格变化只能新增版本 | `kiana-core` / `kiana-eventlog` | `kiana-core` |
 | `CapabilityGrant` | 能力、资源、路径、TTL 和 approval scope | `kiana-domain` | `kiana-core` / broker |
 | `SupervisionLease` | heartbeat、checkpoint、stall 和 retry 限制 | `kiana-domain` | `kiana-core` |
 
@@ -111,12 +119,15 @@
 | Workflow | `WorkflowDefinition`、`WorkflowInstance`、`NodeExecution`、`Signal` | `kiana-workflow` / `kiana-core` |
 | Swarm | `SwarmPlan`、`Partition`、child Cell、`MergeDecision` | `kiana-core` / `kiana-daemon` |
 | Provider | `NormalizedEvent`、usage、cursor、terminal event | provider adapter / protocol |
-| Operations | `Principal`、`TriggerDefinition`、`HumanTask`、`RecoveryPlan` | domain / daemon / ports |
+| Operations | `Principal`、`AuthorityEpoch`、`TriggerDefinition`、`HumanTask`、`RecoveryPlan` | `kiana-domain` / `kiana-core` / `kiana-daemon` / ports |
+| Cost / Capacity | `UsageRecord`、`CostLedger`、`CostCorrection`、`Quota`、`Backpressure` | `kiana-core` / `kiana-eventlog` |
+| Data Governance | `DataClass`、`Purpose`、`ProcessingGrant`、`Retention`、`SharingGrant` | `kiana-domain` / `kiana-ports` |
+| Connector | `ConnectorDefinition`、`AccountBinding`、`ProviderReceipt` | broker / adapter crates |
 | Quality | `EvalSuite`、`EvalCase`、`GoldenTrace`、`QualityGate` | runner / eventlog |
 | Ecosystem | `ExtensionManifest`、Skill/Workflow/Capability Pack | skills / broker / daemon |
-| UI/UX | `UiSnapshot`、`UiAction`、client projection state | `kiana-entrypoints` / `kiana-daemon` |
+| UI/UX | `UiSnapshot`、`UiAction`、cursor、epoch、pending action | `kiana-protocol`（wire DTO）/ `kiana-daemon`（投影生成） |
 
-详见 [`company-os-platform-architecture.md`](company-os-platform-architecture.md)、[`company-os-operations-governance.md`](company-os-operations-governance.md) 和 [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md)。
+详见 [`company-os-platform-architecture.md`](company-os-platform-architecture.md)、[`company-os-operations-governance.md`](company-os-operations-governance.md)、[`company-os-ui-ux.md`](company-os-ui-ux.md) 和 [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md)。
 
 ## 5. 入口与依赖边界
 
@@ -176,19 +187,22 @@ canonical domain schema
 - 事件历史不能因当前代码升级而静默改写；
 - WorkPacket、RiskLevel、Approval 和 EventLog 的 legacy 兼容边界必须显式记录。
 
-机器合同详见 [`schemas/README.md`](schemas/README.md)。
+机器合同详见 [`schemas/README.md`](schemas/README.md) §3（目标目录）和 §5（版本规则）。
 
 ### 6.3 关键兼容边界
 
-- 当前 RiskLevel 与目标 R0–R5 需要版本化映射；
-- `WorkPacket` 与 `DelegationPacket` 不是同一个对象；
+- 当前 `kiana-domain::RiskLevel` 四档（`ReadOnly`、`LocalWrite`、`ExternalSideEffect`、`Critical`）与目标 R0–R5 六档的版本化映射是**开放决策**，映射表待定，本节不发明映射（目标风险矩阵见 [`company-os-security-constitution.md`](company-os-security-constitution.md) §3）；
+- `WorkPacket`、`SpawnPlan` 与 `DelegationPacket` 不是同一个对象：业务交接、分裂申请和运行时授权信封不能互相替代；
 - Prompt Cache 不能替代 Session/Event 持久化；
 - Tool Search 不能替代 Policy/Approval；
 - `BudgetLease` 不能替代 ProjectBudget 或 FinancialBudget；
+- `CellBudget` 是 `BudgetLease` 的早期草稿名，已废弃，预算对象统一使用 canonical 名 `BudgetLease`；
 - Receipt 不能单独证明现实世界效果；
 - stdio MCP 是当前支持边界，HTTP MCP、远程执行和物理控制仍需单独安全设计。
 
 ## 7. 实施切片总览
+
+本节是全局实施阶段序列（P0–P6）的唯一 canonical；其他文档引用阶段编号时以本节为准。
 
 ```text
 A  Contract Registry
@@ -203,6 +217,7 @@ I  Company Business Lifecycle
 J  Runtime/Memory/Context/Cache/Workflow/Swarm/Provider
 K  Identity/Trigger/Human Inbox/Artifact/Cost/Recovery/Data
 L  Eval/Feedback/Code Intelligence/Extension/Supply Chain
+M  UI/UX and Client Projection
 ```
 
 当前推荐顺序：

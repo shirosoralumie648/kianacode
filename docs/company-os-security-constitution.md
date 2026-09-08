@@ -7,10 +7,11 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：十二条不可违反的安全条款（SEC-01 到 SEC-12），每条都写清设计意图、代码强制点、测试证据要求和当前真实状态；外加 R0–R5 风险能力矩阵、负向验收矩阵、发布门和当前边界声明。
+> - **讲什么**：十二条不可违反的安全条款（SEC-01 到 SEC-12，全部 `SEC-P0`），每条都写清设计意图、代码强制点、测试证据要求和当前真实状态（状态标记定义见 §1.1）；外加 R0–R5 风险能力矩阵、带证据引用的负向验收矩阵、发布门和当前边界声明。
 > - **回答的问题**："什么事绝对不能发生，以及怎么证明它确实不会发生。"
 > - **地位**：整个仓库优先级最高的文档之一——安全宪法压过任何便利功能；每项能力必须先证明拒绝/失败/取消路径，才允许庆祝成功路径。
 > - **什么时候读**：实现任何有副作用的能力之前；判断"能不能宣称某项安全保证"时。
+> - **开放决策**：entrypoint auto-approve 的允许边界（SEC-01 末段）、代码 `RiskLevel` 四档与 R0–R5 的映射（§3 末段）——本文只标注现状和待决问题，不自行拍板。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
 
@@ -26,7 +27,27 @@
 
 只有同时具备设计意图、代码强制、拒绝路径、故障路径和测试引用，规则才能标记为 `code_enforced`。只有有绑定源码快照的测试结果，才能标记为 `proven_*`。
 
+### 1.1 状态标记
+
+条款 Status 行只使用下列四个标记；它们不是新的 `feature_status` 枚举，必须映射到 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 的既有状态：
+
+| 标记 | 含义 | 与 CURRENT_STATUS `feature_status` 的映射 |
+|---|---|---|
+| `code_enforced` | 同时具备设计意图、代码强制点、拒绝路径、故障路径和测试引用，规则本身已被强制 | 不是 `feature_status` 取值，是条款成熟度标记；当前无一条达到 |
+| `partial` | 代码路径部分存在且已有负向证据，但存在已声明缺口 | `partial` |
+| `intent_only` | 只有设计约束，代码强制点或负向证据不足，不得据此宣称能力 | 账本最低档：`target`，或带已知绕过口子的 `partial` |
+| `not_supported` | 当前必须拒绝或显示不可用，不得伪造成功 | `not_supported` |
+
+当前 SEC-01–SEC-12 没有任何一条标记为 `code_enforced`：全部条款都至少缺一项（完整代码强制点、拒绝路径、故障路径或绑定源码快照的测试引用）。Status 行只是当前事实的快照摘要，权威状态和证据以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准。
+
 ## 2. 宪法条款
+
+**条款优先级**：SEC-01–SEC-12 全部为 `SEC-P0`。安全宪法不设低优先级条款——任何一条不满足对应负向测试即阻断发布（见 §5）。这里的 `SEC-P0` 是安全条款优先级，与 [`company-os-ui-ux.md`](company-os-ui-ux.md) §13 的 UI P0–P4（界面实施顺序）和 [`company-os-spec-index.md`](company-os-spec-index.md) §7 的实施阶段 P0–P6（工程推进顺序）不是同一个维度，不得互相换算。
+
+**开放决策（规范空白，本宪法不自行拍板）**：
+
+- entrypoint auto-approve 的允许边界（现状与待决问题见 SEC-01 末段）；
+- 代码 `RiskLevel` 四档与 R0–R5 的版本化映射（现状与待决问题见 §3 末段）。
 
 ### SEC-01 真实身份绑定
 
@@ -36,7 +57,9 @@
 
 **Test evidence**：伪造 actor、修改 role/department、复用他人 session/approval；断言稳定错误码、无副作用和 `command.rejected` 事件。
 
-**Status**：DaemonHost 已使用固定本地主体并从 stored ProjectTrust 派生项目可信度，wire 中的 trust/profile 只能作为声明；Web 仍无真实身份认证，role/department assignment 与 durable principal 未完成，状态为 `partial`。
+**Status**：`partial`——DaemonHost 已使用固定本地主体并从 stored ProjectTrust 派生项目可信度，wire 中的 trust/profile 只能作为声明（CURRENT_STATUS P1-01，2026-08-31 host-derived ProjectTrust authority）；Web 已有进程内页面 token，但不构成 durable principal（P1-01，2026-09-07）；role/department assignment 与 durable authenticated principal 未完成（P1-01，2026-09-02 已证明进程内 session role/department 绑定，不等于 durable principal）。
+
+**开放决策（规范空白）——entrypoint auto-approve**：现状是 `kiana-entrypoints/src/command_dispatch.rs` 的 `should_auto_approve_local_write` 在 `approve_local_write` 应用状态为真且 challenge 风险为 `RiskLevel::LocalWrite` 时，直接以 `ApprovalDecision::Approve` 走 approval continuation，没有人工点击。本条要求审批显式且绑定 actor、session、payload digest、目标、policy version、nonce 和 expiry；该入口路径与本条要求的边界尚未被规范裁决。待决问题：是否允许任何形式的 entrypoint auto-approve；若允许，风险上限是哪一档（仅 `ReadOnly`，还是可到 `LocalWrite`）；是否必须由用户显式开启 flag 且默认关闭；是否必须在事件/Receipt/UI 中披露"自动批准"及其主体。在裁决前，本宪法不承认 auto-approve 可作为 durable 授权证据，也不得将其扩展到 `LocalWrite` 以上。
 
 ### SEC-02 权限单调缩减
 
@@ -55,7 +78,7 @@ child_grant ⊆ parent_grant
 
 **Test evidence**：随机生成 parent/child grants，任何 child 超集都拒绝；child 默认 `delegation_allowed=false`。
 
-**Status**：当前 role/path/policy 有部分实现；完整 Cell Grant 尚未实现，`local_behavior` 不能升级为全面证明。
+**Status**：`partial`——role/department/path/policy 有部分实现（CURRENT_STATUS P1-01，2026-09-02 immutable session role/department；P3-01，2026-08-31 进程内 Cell/Grant registry）；完整 Cell Grant 与子权限单调缩减的全面证明尚未实现，`local_behavior` 不能升级为全面证明。
 
 ### SEC-03 细胞资源上限
 
@@ -65,7 +88,7 @@ child_grant ⊆ parent_grant
 
 **Test evidence**：达到任意上限时原子拒绝且不泄漏预算、锁或 Grant；父级 cancel/fail/retire 级联撤销后代。
 
-**Status**：当前无完整 AgentInstance/SpawnPlan/Budget/Lease 生命周期，`not_supported`。
+**Status**：`partial`——进程内 CellRegistry reserve/commit、Cell/Grant/Budget 绑定与 lease accounting 已有证据（CURRENT_STATUS P3-01，2026-08-31：Cell lifecycle admission、capability scope/budget fence、malformed Cell scope fail-closed）；durable projector、AgentInstance/SpawnPlan 完整生命周期、跨重启级联撤销未证明。
 
 ### SEC-04 外部和物理能力
 
@@ -95,7 +118,7 @@ child_grant ⊆ parent_grant
 
 **Test evidence**：绑定 `0.0.0.0`、LAN、公网或解析后的非 loopback 时拒绝；无 token、错误 token、错误 Origin、他人 session 对 mutation 无状态和文件变化。
 
-**Status**：当前有 loopback allowlist，但无认证、Origin/CSRF 和 ownership，只有 transport evidence。
+**Status**：`partial`——已有进程内随机 token、exact Host 与绑定地址 Origin 拒绝（CURRENT_STATUS P1-01，2026-09-07：`web_rejects_wrong_origin_and_host_without_mutating_trust`、`web_rejects_foreign_bearers_and_sessions_without_mutation`），属 transport + 进程内证据；durable principal、跨进程 session recovery、CSRF 与 OS 级边界未证明。
 
 ### SEC-07 路径与 TOCTOU
 
@@ -105,7 +128,7 @@ child_grant ⊆ parent_grant
 
 **Test evidence**：授权后执行前替换 symlink、hardlink、目录 rename、文件版本和 cwd；返回 `path_changed` 或 `precondition_failed` 且无越界写。
 
-**Status**：当前有 canonical/path allow 检查，完整 TOCTOU 防护未证明，`intent_only`。
+**Status**：`partial`——已有 canonical/path allow 检查与 symlink/hardlink/file-identity、descriptor-anchored commit 证据（CURRENT_STATUS P1-04，2026-09-07 descriptor-anchored update commit；2026-08-31 process/filesystem fencing）；完整 effect-time TOCTOU 防护（fd-relative/no-follow 全链路、mount swap、锁后执行前全量重验）未证明。
 
 ### SEC-08 Cancel fencing
 
@@ -127,7 +150,7 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 **Test evidence**：授权前、审批中、dispatching、handler started、effect done/result lost、重复 cancel 和 parent cancel 均有时序测试。
 
-**Status**：当前 cancellation watch 不等于进程树终止，`intent_only`。
+**Status**：`partial`——packet cancellation 已显式经过 `CancelRequested` → `Cancelled` → `Retired`（CURRENT_STATUS P1-03，2026-08-31 packet Cell cancellation lifecycle）；shell timeout 要求 process-group stop confirmation，无法确认时进入 `shell_result_unknown`（P1-03，2026-08-31）；direct cancel 只接受无歧义的 `cancelled:` 响应，其余响应记录 `run.result_unknown`（P1-03，2026-09-02）。durable cancel generation、cgroup/进程树完整停止证明与跨重启恢复未证明，cancellation watch 仍不等于进程树终止。
 
 ### SEC-09 Unknown 一等状态
 
@@ -137,7 +160,7 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 **Test evidence**：provider timeout、daemon crash、event append 失败、late response、部分 JSONL、cancel 后未确认停止；断言 Unknown、pending reconciliation 和禁止自动重试。
 
-**Status**：当前存在状态名但未形成完整恢复契约，`intent_only`。
+**Status**：`partial`——receipt replay 已优先识别持久化 `run.result_unknown`，无 `run.completed` 时返回 Unknown 而不是 Completed，且不完整/冲突/无终止事件的历史投影为 Unknown/Failed/Cancelled（CURRENT_STATUS P1/P2，2026-09-02 receipt-read and terminal replay）；未确认 cancel 与停止不确定的 shell 已进入 Unknown（P1-03，2026-09-02）。reconciliation queue、provider verification 与完整恢复契约未证明。
 
 ### SEC-10 审计与事实源
 
@@ -147,7 +170,7 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 **Test evidence**：乱序、重复、伪造 Receipt、CAS 冲突、事件回滚、重启重放和 Receipt 与状态不一致均被拒绝。
 
-**Status**：当前 JSONL 有限持久化和按 request 序列，尚非 aggregate/CAS durable authority。
+**Status**：`partial`——JSONL EventLog 有限持久化、按 request 序列，已有 stream-read CAS fail-closed 与合法未终止尾记录恢复证据（CURRENT_STATUS P2-01，2026-09-02 / 2026-09-06）；尚非 aggregate/CAS durable authority，durable Session/Run/Invocation projector 与跨进程恢复未证明。
 
 ### SEC-11 不可信输入
 
@@ -157,7 +180,7 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 **Test evidence**：提示注入、伪造 tool name、超大 args、未知字段、恶意 provider response 和 skill 内容不得提升权限或扩大数据读取。
 
-**Status**：当前 provider/skill 约束不完整，`intent_only`。
+**Status**：`partial`——MCP advertised-schema argument fence（CURRENT_STATUS P1-06，2026-09-06：`unknown_stdio_mcp_tool_is_rejected_before_tools_call`）与 server-owned MCP risk boundary（P1-06，2026-09-02）已有证据；任意 JSON-Schema combinator、完整 provenance/attestation、恶意 skill 与 live provider 输入仍未证明。
 
 ### SEC-12 资源耗尽
 
@@ -167,7 +190,7 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 **Test evidence**：超限返回稳定错误码；磁盘满、输出截断、并发峰值和慢 handler 不造成状态泄漏或锁永久占用。
 
-**Status**：部分现有 limits，全面 quota 未证明，`intent_only`。
+**Status**：`partial`——已有 Web body 128 KiB、prompt 64 KiB、session count、transcript turn 与 projection output 配额及超限 fail-closed 证据（CURRENT_STATUS P1-12，2026-08-31）；完整 event/tool-args/并发/artifact 配额、背压、磁盘满与慢 handler 状态泄漏未证明。
 
 ## 3. 风险等级与能力矩阵
 
@@ -182,31 +205,37 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 同一动作按副作用、敏感性、资金、法律、物理危险和可逆性取最高风险，不能用“只是工具调用”降级。
 
+**开放决策（规范空白）——RiskLevel 四档与 R0–R5 的映射**：本矩阵的 R0–R5 是目标风险分级；当前代码只有四档 `RiskLevel`（`ReadOnly` / `LocalWrite` / `ExternalSideEffect` / `Critical`，见 `kiana-domain/src/lib.rs`），两者尚未建立版本化映射（[`company-os-spec-index.md`](company-os-spec-index.md) §6.3 已登记该兼容边界）。待决问题：四档到 R0–R5 的映射表、由谁在何处标注、无法映射时的 fail-closed 规则、以及映射表自身的版本与迁移策略。在映射落地前，不得用代码中的四档反推 R 级，也不得把 `Critical` 直接等同于 R5。
+
 ## 4. 验收矩阵
 
-| ID | 场景 | 必须断言 |
-|---|---|---|
-| ACT-01 | actor 缺失/伪造/不匹配 | 稳定 deny code；Broker 调用数为零 |
-| ACT-02 | approval 改 payload、目标、actor、session 或重放 | deny；single-use；原 digest 不变 |
-| ACL-01 | role/department/path/memory 越权 | deny；无文件、网络或数据泄漏 |
-| ACL-02 | child grant 超过 parent | 原子拒绝；无权限扩大 |
-| CELL-01 | depth、children、root、budget、retry、concurrency 到顶 | 无泄漏预留；级联 revoke |
-| EXT-01 | payment/travel/order 未确认、漂移、超时 | 无 effect；Unknown 不盲重试 |
-| EXT-02 | lock/gas/camera/vehicle/firmware 自治 | 默认 deny；无 safety controller 不 dispatch |
-| SEC-01 | sentinel secret 全链路 | 原值不出 Broker |
-| WEB-01 | 非 loopback、无 token、Origin 错误、他人 session | mutation 无状态变化 |
-| FS-01 | symlink/hardlink/rename/version race | `path_changed`/`precondition_failed`；无越界写 |
-| CAN-01 | cancel 与 approval/dispatch/handler race | 状态和事件可证明；无法确认则 Unknown |
-| UNK-01 | provider/daemon/event crash | durable pending reconciliation；禁止假成功 |
-| AUD-01 | 乱序、重复、伪造 receipt、CAS 冲突 | reject；重放状态与 live state 一致 |
-| FI-01 | 所有故障注入点 | fail-closed、无权限扩大、无 secret 泄漏 |
+| ID | 场景 | 必须断言 | 证据引用 |
+|---|---|---|---|
+| ACT-01 | actor 缺失/伪造/不匹配 | 稳定 deny code；Broker 调用数为零 | CURRENT_STATUS P1-01（2026-09-02 direct role/department boundary；2026-08-29 local principal and session ownership） |
+| ACT-02 | approval 改 payload、目标、actor、session 或重放 | deny；single-use；原 digest 不变 | CURRENT_STATUS P1-02（2026-08-29 structured approval digest / authorization-context binding；2026-09-07 restart approval proof preflight） |
+| ACL-01 | role/department/path/memory 越权 | deny；无文件、网络或数据泄漏 | CURRENT_STATUS P1-01（2026-09-02 immutable session role/department）；P1-03（2026-08-31 Builder path lock） |
+| ACL-02 | child grant 超过 parent | 原子拒绝；无权限扩大 | 尚无 child-grant 单调性专项证据；CURRENT_STATUS P3-01（2026-08-31）只覆盖 Cell scope/budget fence，本条待建 |
+| CELL-01 | depth、children、root、budget、retry、concurrency 到顶 | 无泄漏预留；级联 revoke | CURRENT_STATUS P3-01（2026-08-31 Cell lifecycle admission；capability scope/budget fence；lease accounting） |
+| EXT-01 | payment/travel/order 未确认、漂移、超时 | 无 effect；Unknown 不盲重试 | 无 adapter；CURRENT_STATUS 标记 `not_supported`（SEC-04） |
+| EXT-02 | lock/gas/camera/vehicle/firmware 自治 | 默认 deny；无 safety controller 不 dispatch | 无 adapter；CURRENT_STATUS 标记 `not_supported`（SEC-04） |
+| SEC-05 | sentinel secret 全链路 | 原值不出 Broker | CURRENT_STATUS P1-05（2026-09-07 shell/Broker sentinel regression）；完整 stdout/stderr/argv/env 链路仍开放 |
+| WEB-01 | 非 loopback、无 token、Origin 错误、他人 session | mutation 无状态变化 | CURRENT_STATUS P1-01（2026-09-07 `web_rejects_wrong_origin_and_host_without_mutating_trust`、`web_rejects_foreign_bearers_and_sessions_without_mutation`） |
+| FS-01 | symlink/hardlink/rename/version race | `path_changed`/`precondition_failed`；无越界写 | CURRENT_STATUS P1-04（2026-09-07 descriptor-anchored update commit；2026-08-31 process/filesystem fencing） |
+| CAN-01 | cancel 与 approval/dispatch/handler race | 状态和事件可证明；无法确认则 Unknown | CURRENT_STATUS P1-03（2026-09-02 cancellation confirmation and pre-signalled fence；2026-08-31 packet Cell cancellation lifecycle） |
+| UNK-01 | provider/daemon/event crash | durable pending reconciliation；禁止假成功 | CURRENT_STATUS P1/P2（2026-09-02 receipt-read and terminal replay）；durable reconciliation 与 provider verification 仍未完成 |
+| AUD-01 | 乱序、重复、伪造 receipt、CAS 冲突 | reject；重放状态与 live state 一致 | CURRENT_STATUS P2-01（2026-09-02 EventStore stream-read CAS fail-closed；2026-09-06 JSONL valid-unterminated-tail recovery） |
+| INP-01 | 伪造 tool name、超大 args、未知字段、恶意 skill | 不提权；不扩大数据读取 | CURRENT_STATUS P1-06（2026-09-06 MCP advertised-schema argument fence；2026-09-02 advertised tool/result boundary） |
+| QUO-01 | body/prompt/event/并发超限 | 稳定错误码；无状态泄漏 | CURRENT_STATUS P1-12（2026-08-31 body/prompt/session/turn/projection quotas）；完整 event/并发/backpressure quota 仍未完成 |
+| FI-01 | 所有故障注入点 | fail-closed、无权限扩大、无 secret 泄漏 | 分散在 P1-02/P1-03/P1-04/P1-05 各负向回归；尚无统一 fault-injection 矩阵 |
+
+矩阵 ID 与条款对应：ACT-01/ACT-02 → SEC-01，ACL-01/ACL-02 → SEC-02，CELL-01 → SEC-03，EXT-01/EXT-02 → SEC-04，SEC-05 → SEC-05（sentinel secret，不再与 SEC-01 条款撞号），WEB-01 → SEC-06，FS-01 → SEC-07，CAN-01 → SEC-08，UNK-01 → SEC-09，AUD-01 → SEC-10，INP-01 → SEC-11，QUO-01 → SEC-12，FI-01 为跨条款故障注入。
 
 ## 5. 发布门
 
 发布前必须满足：
 
 - 每项能力都有 owner、拒绝路径、故障路径和证据引用；
-- 所有 P0 宪法条款通过对应 negative tests；
+- 所有 `SEC-P0` 宪法条款（SEC-01–SEC-12 全部，见 §2）通过对应 negative tests；
 - 测试绑定 immutable source snapshot；
 - 不使用 ignored、flaky、skipped 测试替代证据；
 - 未知、审计写失败、身份不确定或 provider 状态不确定都会阻断发布；
@@ -215,12 +244,14 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 
 ## 6. 当前边界声明
 
+> **本节为快照摘要，权威以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准；本节与账本冲突时以账本为准，并必须立即修正本节。**
+
 当前 Kiana 的安全声明只覆盖受信本地项目、固定本机行为和 `local_behavior` 证据。当前 loopback 限制不等于身份认证，trust 不等于项目安全，Receipt 不等于现实结果验证，Grant/Reviewer/Cell 尚未因“对象存在”而自动成为强制安全边界。
 
 当前实现中的具体限制必须显式保留在证据账本中：
 
 - `DaemonHost` 为 actor 使用固定本地主体，并从经过校验的 stored ProjectTrust 记录派生 project trust；wire 中的 `project_trusted` 和 `permission_profile` 不再授予项目或写权限；role/department 仍是声明，尚无 durable authenticated principal；
-- Web 使用进程内 session map 和隐式 active 状态，尚无 token、Host/Origin、CSRF 或完整 session ownership；多标签页隔离尚未证明；
+- Web 已有进程内随机 token 和 exact Host/Origin 拒绝（`partial`，transport + 进程内证据；CURRENT_STATUS P1-01，2026-09-07），但 session map 和隐式 active 状态仍只属于当前进程；durable principal、跨进程 session recovery 和 OS 级边界未证明，多标签页隔离尚未证明；
 - `JsonlEventLog` 目前是进程内锁、按 request 的 sequence 和有限重启读取，不是跨进程 aggregate/CAS durable authority；显式 run receipt 已在投影前校验持久化 `run.authorized` owner，但完整 state/session recovery 仍未完成；
 - Builder packet admission 现在额外使用基于项目和写集哈希的 kernel-backed lock file；这只证明跨 ControlPlane 的 admission fencing，不等于 durable Cell/Grant/Budget projector 或 effect-time TOCTOU 防护；
 - packet spawn 现在在执行前通过 CellRegistry reserve/commit template、budget、grant 和 supervision，并在终态 retire；这些资源事实仍是进程内 registry，不能宣称 durable Cell/Grant/Budget projector。
@@ -237,7 +268,7 @@ Shell、孙进程和 MCP 子进程必须可停止或进入 Unknown。
 - Web router 现在限制 body 为 128 KiB，prompt 为 64 KiB，超限请求在 DaemonHost/broker 前拒绝；完整 session/artifact quota 和 backpressure 仍未完成。
 - capability result event 现在保留经过 redaction 的 Cell/Grant/Budget/request correlation 字段，便于审计关联；这不等于结果 provenance 或 durable audit authority。
 - `cancel_run` 现在返回独立的 `cancelled` 状态并写入 `run.cancelled`，但这仍不能等同于已确认所有 effect 停止；Runner/provider/handler 的停止保证和 `result_unknown` 对账仍需实现；
-- Harness capability 遇到 `AwaitingApproval` 当前可能以 capability failure 返回给 Runner，尚未形成持久 `PendingInvocation` 和同一 Runner 的 approval continuation；
+- Harness capability 遇到 `AwaitingApproval` 已有同一 host 的 `PendingInvocation` continuation（CURRENT_STATUS P1-02，2026-08-29：PendingInvocation same-host continuation implemented）；若持久 approval 关联 Run 但当前没有可恢复的 PendingInvocation，则返回 `approval_continuation_unavailable` 且不 direct-dispatch；跨进程/durable Runner recovery 仍未完成；
 - Broker handler 返回的结果尚未由统一 descriptor、schema、timeout、quota 和 provenance 契约完整约束。
 
 支付、外卖、打车、酒店、机票、火车票和智能家居在未完成 adapter、身份、审批、幂等、故障对账和测试前，统一显示为 `not_supported` 或 `target`，不得伪造成功。

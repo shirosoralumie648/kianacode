@@ -6,7 +6,8 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：26 个外部 Agent 项目"学什么、不学什么"的速查表——每项能力的首选参考项目、可吸收的具体设计、Kiana 的边界约束，以及明确排除的模式（自由消息总线、无限 Swarm 等）。
+> - **讲什么**：外部 Agent 项目"学什么、不学什么"的速查表，对照 [`reference-agent-audit/`](reference-agent-audit/README.md) 的 26 项目审计清单——每项能力的首选参考项目、可吸收的具体设计、Kiana 的边界约束，以及明确排除的模式（自由消息总线、无限 Swarm 等）。
+> - **覆盖**：§3 小结覆盖 24 个结构化审计项目；MemPalace、memorix 仅目录级参考，未做结构化审计。
 > - **回答的问题**："这个功能别人是怎么做的、我们学哪部分、坚决不学哪部分。"
 > - **注意**：参考项目里存在某个实现，不等于 Kiana 已实现或应该照抄。
 > - **什么时候读**：设计新能力前找参考时；配合 [`reference-agent-audit/`](reference-agent-audit/README.md) 的逐项目审计使用。
@@ -29,25 +30,37 @@
 | CompanyOS 能力 | 首选参考 | 可吸收的具体设计 | Kiana 的边界 | 阶段 |
 |---|---|---|---|---|
 | Session/Turn/Run ledger | DeepSeek Harness | step boundary、事件追加、tool result 回灌 | 事件必须进入 Kiana EventLog，不能另起 runtime | P0 |
+| Session 内输入语义（start/steer/recover/suspend） | Codex | idle 启动、running 注入、仅 idle 恢复、suspend 转移 ownership 且不写 terminal event | 必须映射到 Kiana Run 状态机；suspend 类状态要有 terminal event 对账，不能无限等 TurnComplete | P0 |
 | Event projector/hydration | OpenCode | event projector、session 串行化、snapshot 与 live event 合并 | UI 事件不是事实源 | P0 |
 | Durable effect/recovery | Goose | effect-before-event、状态机 checkpoint、按步骤恢复 | 仍需 Kiana CAS、Receipt 和 Unknown 语义 | P0 |
 | Approval continuation | Agno | 可序列化 requirement、pause/continue | Approval 绑定 actor、run、invocation digest 和 expiry | P0 |
 | Approval lifecycle | Agent Framework | 原始 FunctionCall identity、approval state | 不能通过未绑定 call 的全局 approval | P0 |
-| Cancellation | Crush | RunID、queued/active/terminal、cancel race 测试 | 取消未确认停止时必须是 cancelling/Unknown | P0 |
+| Event 单消费者队列 | adk-python | non-partial Event 持久化后才解除生产方等待；partial 只用于流式 | Kiana EventLog append 成功后才继续；partial 不改变持久 state | P0 |
+| Approval 绑定原始调用 | adk-python | 审批校验 tool、call ID、name、args 与历史一致，只重执行同一原始调用，消费后删除 | Kiana ApprovalRequirement 绑定 canonical tool identity，不可换调用/换参数 | P0 |
+| Cancellation | Crush | RunID、queued/active/terminal、cancel race 测试 | 取消未确认停止时必须是 `cancel_requested`（UI 投影名 `cancelling`）/`result_unknown` | P0 |
+| 双取消模式 | openai-agents-python | immediate 与 after_turn 两种取消；cancel 后仍需 drain event 完成清理 | Kiana 提供 cancel_now / stop_after_turn 两种明确命令，UI 显示「正在收敛」 | P0 |
 | Process-tree fencing | DeepSeek Harness | 子进程树和 timeout cleanup | 不把协作式 token 当成强制终止 | P0 |
 | Runtime host | Cline | CLI/IDE/UI 共享 Local Runtime Host | 统一归入 DaemonHost，不能让 UI 授权 | P0 |
+| Approval 位于 Core | Codex | approval policy / permission profile 是 Session/Core 状态，UI 只显示和提交 decision；带 amendment 的批准持久化 | Kiana 由 ControlPlane 强制审批，UI 不是授权边界 | P0 |
+| Sandbox / permission profile | Codex | read-only / workspace-write / danger-full-access 档位与审批、profile 绑定 Session | Kiana 默认 read-only、写盘显式、工作区外 fail-closed；不引入 danger-full-access | P0 |
+| Cancel / pause / stop-goal 语义分离 | OpenHands（仅 agent-canvas 前端/适配层） | Local interrupt、Cloud pause、Goal stop 含义不同，不能统一当「已取消」 | Kiana 区分 `cancel_requested`（UI 投影名 `cancelling`）/`result_unknown` 与 paused/terminal，取消未确认不得写成已停止 | P0 |
+| Web 事件桥（tail preload + since 订阅） | OpenHands（仅 agent-canvas 前端/适配层） | 最近 N 条 REST preload + `resend_mode='since'` 增量订阅、事件 ID 去重、副作用前去重 | 当前 Web 仅 loopback 且不宣称 token streaming；UI metadata 不是授权事实 | P1 |
 | Context assembly | Aider | repo map、任务相关上下文、输入预算 | repo map 只能检索，不能授予写权限 | P1 |
 | Context provider | Continue | 多入口共享 Core、history 和 context provider | 所有入口复用同一 ControlPlane | P1 |
 | History/UI 分离 | Roo Code | model history 与 UI timeline 分开，恢复补齐悬空 tool result | 不从 transcript 推断 Invocation 状态 | P1 |
 | History tree | Pi | append-only JSONL tree、fork/resume/compaction | 增加 CAS、ACL、provenance 和 Receipt | P1 |
+| Versioned RunState / resume | openai-agents-python | 版本化 RunState 覆盖 approval、trace、sandbox、max turns、pending input，未知版本 fail fast；resume 不重复写 tool | Kiana durable RunSnapshot + 迁移/拒绝策略；跨进程恢复仍是 deferred | P1 |
 | Prompt/context compression | OpenCode、Goose | context processor、checkpoint、重试和压缩边界 | compaction 不覆盖原始事件 | P1 |
 | Prompt cache | Claude API cache pattern | stable prefix、deterministic tool order、usage telemetry | 当前无真实 Provider 命中证明 | P1 |
 | Tool runtime | DeepSeek Harness | Central ToolRuntime、schema/approval/执行集中 | 搜索、Policy、Broker、Executor 仍分层 | P1 |
 | Tool permission | OpenCode | allow/deny/ask、tool lifecycle | 最终 verdict 由 ControlPlane 产生 | P1 |
 | Extension/MCP host | Cline、Goose | host/runtime 分离、extension/tool approval | 当前以 stdio MCP 为边界，HTTP MCP 不支持 | P1 |
 | Tool schema/approval | Agent Framework | typed schema、调用 identity 绑定 | schema hash drift 必须使相关 approval 失效 | P1 |
+| 极简 agent loop / 工具解析契约 | mini-swe-agent | 小核心 + 可替换 model/environment adapter；缺调用、坏 JSON、未知工具、缺 command 都有解析测试 | Kiana 保持单一 harness 循环，工具仍经 broker；不采用无限制 `shell=True` | P2 |
 | Typed graph | Pydantic AI | Graph、typed state、validate-before-defer | 领域事件和 wire schema 由 Kiana 定义 | P2 |
 | Event-driven workflow | CrewAI | Flow 与 Crew 分离、checkpoint | 不吞掉 checkpoint/handler failure | P2 |
+| Agent loop 设计检查表（factor 1–8） | 12-factor-agents | 结构化下一步选择、源码自有 prompt/context、统一执行状态、start-pause-resume、human-as-tool | 教育性示例，不是运行时；Kiana 仍需 ControlPlane 状态机和持久事件 | P2 |
+| 审批暂停 / 恢复演示 | 12-factor-agents | divide 需审批时返回调用方，`/thread/:id/response` 恢复同一 thread | 示例端点无认证、无幂等、无重启恢复，禁止照搬 | P2 |
 | YAML/DAG process | Archon | fresh context、确定性节点、人工 Gate、worktree | YAML 是配置，不是权限和事实源 | P2 |
 | Workflow graph | ChatDev 2 / MacNet | node 可连接 memory/human/tool | 不复用共享 ChatChain 作为状态 | P2 |
 | Runtime/team separation | AutoGen | RequestToSpeak、progress ledger、有界 turns | 不采用无限 group chat | P2 |
@@ -59,7 +72,7 @@
 | Client replay | Letta Code、Crush | cursor、seq/epoch、terminal result 必达 | 当前 Web 不宣称 token streaming | P2/P4 |
 | Golden lifecycle tests | DeepSeek、Cline、OpenCode | fake model、effect test、dispatch race | 失败/拒绝/Unknown 和成功都要覆盖 | P0 |
 | Cost/usage | Agno、DeepSeek | run usage、token/cost/step 计量 | 成本不能抵消安全或证据失败 | P1 |
-| Lessons/memory | MemPalace、memorix | diary、retro、lessons 写回 | 需要 ACL、purpose、retention 和 provenance | P1/P2 |
+| Lessons/memory | MemPalace、memorix（仅目录级参考，未做结构化审计） | diary、retro、lessons 写回 | 需要 ACL、purpose、retention 和 provenance | P1/P2 |
 
 ## 3. 按项目总结
 
@@ -75,6 +88,14 @@
 - fake model lifecycle tests。
 
 不直接复制：TypeScript package topology、Provider 实现和与 Kiana 不兼容的默认执行权限。
+
+### Codex
+
+适合借鉴：Core 是唯一执行控制面，CLI/TUI/app-server 只是薄适配器；Thread/Turn/step 与 start/steer/recover/suspend 输入语义清晰；每 step 重捕获 context 并精确回灌工具结果；approval 与 permission/sandbox profile 位于 Session/Core，UI 只提交 decision；CancellationToken 全链传播，rollout reconstruction / rollback / flush 形成恢复边界。
+
+不直接复制：Core/runtime 规模很大，多 transport 背压和 suspend ownership transfer 的兼容演进需要强测试；suspend 不产生 terminal event，消费者不能无限等 TurnComplete。
+
+`coding-pack-matrix.md` §1 的 P0-WRITE / P0-SHELL / P0-SANDBOX / P0-MCP / P1-COMPACT 都标「Codex Apache-2.0 形状可借鉴」，复用形状时保留来源注释。
 
 ### OpenCode
 
@@ -101,6 +122,14 @@
 
 不直接复制：多层兼容路径和 UI 私有状态。
 
+### OpenHands
+
+注意审计边界：`reference/OpenHands` 是 `@openhands/agent-canvas` 前端/适配层，不是 OpenHands Python Agent Server 本体；服务端 model、tool executor、sandbox、persistence 和 approval enforcement 无法从当前源码验证。
+
+适合借鉴：REST tail preload + since WebSocket 的可恢复事件桥、事件 ID 与副作用前去重、stream delta 帧批处理、conversation 切换防串台、UI metadata 与 runtime/authorization state 分开持久化。
+
+不直接复制：Local interrupt / Cloud pause / stop-goal 语义不对称，不能统一解释为「已取消」；前端可见 session key 和前端审批 response 都不是可信执行边界，审批必须在 ControlPlane/Broker 强制。
+
 ### Goose
 
 适合借鉴：
@@ -123,6 +152,18 @@
 - dispatch race tests。
 
 不直接复制：把协作式 cancel 误认为强制副作用停止。
+
+### adk-python
+
+适合借鉴：Event 是对话、工具、审批、状态、checkpoint 和 rewind 的共同事实日志；单消费者 queue 保证 non-partial Event 持久化后才继续；ToolConfirmation 绑定原始 function-call ID/name/args 并去重，审批不能替换工具或参数；temp state 只在 invocation 内共享；rewind 追加新 Event 而不删除历史。
+
+不直接复制：Node Runtime 与旧 BaseAgent 双轨并存，Agent-level final Event 不等于 invocation 完成，InMemorySessionService 不能当生产 backend，自定义 SessionService 必须自己实现 optimistic concurrency。
+
+### openai-agents-python
+
+适合借鉴：流式与非流式共享 turn resolution/tool/guardrail/approval/persistence 语义；版本化 RunState 覆盖 approval、trace、sandbox、max turns、pending input，未知版本 fail fast；immediate 与 after_turn 双取消模式；approval 绑定 namespace、qualified tool key 和 call ID；guardrail 在工具副作用前有竞态保护。
+
+不直接复制：Session 与 RunState 双层持久化的 ownership 和重复写入由宿主负责，cancel 后仍需 drain events，after_turn 不是立即停止（UI 要显示「正在收敛」），tracing 可能包含敏感数据。
 
 ### Agno、Agent Framework、Letta Code
 
@@ -148,6 +189,12 @@
 
 不直接复制：Markdown/trajectory log 作为事实源、默认不受限 shell 或弱身份边界。
 
+### mini-swe-agent
+
+适合借鉴：小型协议化架构把 agent 循环、model adapter 和 environment 清晰分离，工厂可替换 adapter 而不改循环；工具调用解析对缺调用、坏 JSON、未知工具和缺 command 都有测试；超时保留部分输出并终止 POSIX 进程组。
+
+不直接复制：没有会话身份、反序列化或恢复路径，轨迹 JSON 只是检查工件不是可恢复会话；轨迹写入非原子；`shell=True` 加继承主机环境是无限制执行，confirm 只是交互式 UX 而不是安全边界。
+
 ### Pydantic AI、CrewAI、Archon、ChatDev、AutoGen
 
 适合借鉴：
@@ -160,6 +207,12 @@
 
 不直接复制：让 LLM 决定全部流程状态、共享 ChatChain、无限 GroupChat 或无边界 Agent 递归。
 
+### 12-factor-agents
+
+适合借鉴：factor 1–8 作为设计检查表——结构化下一步选择、源码自有 prompt/context、统一执行状态、start-pause-resume、human-as-tool；审批门控后返回调用方、再由 response 路由恢复同一 thread 的路径清晰。
+
+不直接复制：final 运行时是内存 Map，无持久化、恢复、取消、流式；`while(true)` 没有迭代预算；未转义字符串插值会破坏上下文完整性；HTTP 审批端点无认证、幂等和重放保护——这些正是 Kiana 要补齐的缺口。
+
 ### MetaGPT、Agency Swarm
 
 适合借鉴：
@@ -170,6 +223,8 @@
 - orchestrator-worker 关系。
 
 不直接复制：全员广播、自由私聊和把自然语言消息当正式交接。
+
+未单列小节的审计项目：`claude-code-rust`（反面教材，见 [`coding-pack-matrix.md`](coding-pack-matrix.md) §8）与 `gpt-pilot`（见 §2 的 Project task state 行）。
 
 ## 4. 推荐吸收顺序
 

@@ -1,8 +1,8 @@
 # Coding pack 公开行为矩阵（CODE-01）
 
 Date: 2026-08-23
-Status: **签字草稿**（v0.4 Phase 2）+ CODE-02 stdio **已绿** + CODE-03 context/PreToolUse **已绿** + CODE-04 fake text-only **已绿**
-Proof: `local_behavior`
+Status: **已签字 / REL-03 已收口（v1.0.2）** + 当前增量：CODE-02 stdio **已绿** + CODE-03 context/PreToolUse **已绿** + CODE-04 fake text-only **已绿** + v0.5/v0.6 增量（DEPT-02 / MEM / LONG-02 / SYMP-04 / ORCH-04，见 §6）
+Proof: `local_behavior`（当前状态与证明等级以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准；本表「已绿」不得读成 durable/live/physical）
 Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.md`、`.planning/phases/12-VERIFICATION.md`、`.planning/phases/13-VERIFICATION.md`、`PHASES.md` v0.4.4、`DESIGN.md` §4
 
 本文件是 v1.0 `REL-03` 的审计底表。没有本表条目、owner、测试和证据的能力，不得计入 Coding pack 完成。
@@ -40,12 +40,12 @@ Companion: `.planning/phases/10-CONTEXT.md`、`.planning/phases/11-VERIFICATION.
 
 | 标记 | 含义 |
 |---|---|
-| **已绿** | v0.2 / v0.3 / v0.4 Phase 1–4 已在 owned harness 上证明 |
+| **已绿** | v0.2 / v0.3 / v0.4 Phase 1–4 已在 owned harness 上证明；v0.5/v0.6 增量见 §6 |
 | **文档本期** | 本 Phase 只进矩阵，不写代码 |
-| **矩阵后开** | 本草稿签字后才允许开实现；CODE-04 已绿；下一刀仅当需要才是 P1-READ |
+| **矩阵后开** | 本表签字后才允许开实现；CODE-04 已绿；下一刀仅当需要才是 P1-READ |
 | **冻结** | 直到声明的版本，或永远不做产品总线 |
 
-v0.4.4 把 P0-PROV / CODE-04 打成已绿（诚实：fake text-only / `unsupported_tools`；不是 live，不是 `unsupported_streaming`）。HTTP MCP 仍不是代码完成。
+v0.4.4 把 P0-PROV / CODE-04 打成已绿（诚实：fake text-only / `unsupported_tools`；不是 live，不是 `unsupported_streaming`）。HTTP MCP 仍冻结（§5 FZ-MCP-HTTP），不是代码完成。
 
 ### 0.3 对照源（只行为）
 
@@ -58,9 +58,9 @@ v0.4.4 把 P0-PROV / CODE-04 打成已绿（诚实：fake text-only / `unsupport
 | `reference/claude-code-rust` | 反面教材：第 1 天 v1.0.0 | 禁止当站序或完成定义 |
 | Codex / deepseek / pi / cline git（`PROCESS.md`） | MCP/skills **何时**进产品 | 不把 git 日期当完成 |
 
-两个 dump 无 git，不能当演进证据。Kiana 工人形状跟 Codex：模型只见 `shell` + `apply_patch` + `mcp`，副作用由 daemon broker。
+两个 dump 无 git，不能当演进证据。Kiana 工人形状跟 Codex：模型只见 `shell` + `apply_patch` + `mcp` + `memory.search` / `memory.write`（v0.5.2 MEM 已绿，仍经同一 broker，见 §0.4 第 1 条 / §6），副作用由 daemon broker。
 
-### 0.4 本草稿锁死的产品决策
+### 0.4 本表锁死的产品决策
 
 1. owned harness 保持 broker 工具面：`shell` + `apply_patch` + `mcp`（v0.5.2 MEM 已绿后加入 `memory.search` / `memory.write`，仍经同一 broker，见 §6）。不把 `kiana-tools` 50+ 接上当完成。
 2. P0 ≠ dump 工具数。Read/Grep/Glob 不是 P0；今天用 `shell` 搜。
@@ -156,21 +156,26 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | ID | 行为 / 目录 | 为什么冻 | 直到 |
 |---|---|---|---|
 | FZ-TEAM | dump `TeamCreateTool` `SendMessageTool`；本仓 `kiana-coordinator` | 自由群聊总线。跨部门只交 packet | **永远**不当产品总线 |
-| FZ-TOOLS | 把 `kiana-tools` 50+ 接到 harness | 完成定义会变成工具数。owned harness 是 Codex 形 broker 工具面（`shell` + `apply_patch` + `mcp`） | 永远不按「接上」完成；单点能力走 broker |
+| FZ-TOOLS | 把 `kiana-tools` 50+ 接到 harness | 完成定义会变成工具数。owned harness 是 Codex 形 broker 工具面（`shell` + `apply_patch` + `mcp` + `memory.search` / `memory.write`） | 永远不按「接上」完成；单点能力走 broker |
 | FZ-DUMP | `reference/claude-code-rev-main/src/**` 当实现 | 无 git 的还原树；许可证不清 | 永远只许模块名对照 |
 | FZ-CCMAIN | `reference/claude-code-main (2)` 源码复用 | Anthropic Commercial ToS | 永远只许公开 README/插件叙事 |
 | FZ-CCRUST | `reference/claude-code-rust` 站序 | 第 1 天发布 v1.0.0 再修编译再补 MCP | 永远当反面教材 |
 | FZ-CLI | 拆 `cli.rs`（~25k / 934KB）当目标 | 只在挡住 spine 时拆 | 非本里程碑 |
-| FZ-DEPT | 五部门 + 六层 RAG + JointSymposium | 打开条件是 v0.4 核心路径（含 MCP **或**本表明确延期 MCP） | v0.5 |
+| FZ-DEPT | 五部门 + 六层 RAG | 打开条件是 v0.4 核心路径（含 MCP **或**本表明确延期 MCP）；v0.5.1 DEPT-02 / v0.5.2 MEM 已按 §6 收口 | v0.5 |
+| FZ-JOINT | JointSymposium（五部门联合会议） | §6 SYMP-04 只开部门会，规划会仍排除 Builder；联合会议不是产品总线 | 仍冻结，重开需书面决定 |
 | FZ-SWARM | ruflo Queen / 15–100 agent / 共享 swarm memory | 同核 path lock 已绿（ORCH-04）；Queen/worktree 仍后开 | v0.6 later |
+| FZ-MCP-HTTP | HTTP MCP transport | 产品边界是 stdio（CODE-02 已绿仅 stdio）；HTTP 返回 `mcp_transport_unsupported` | 冻结到有传输安全、审批绑定和 daemon 回归证据；重开需书面决定 |
+| FZ-LIVE | live provider 接入 / token streaming 当完成 | 证明上限仍是 `local_behavior`（§0.4 第 6 条）；P0-PROV 只到 fake text-only / `unsupported_tools`，harness 仍 `stream: Some(false)` | 冻结到有真实 provider adapter、对账和证据块；重开需书面决定 |
 | FZ-ENT | 租户 / SSO / 托管策略 / 官方云 | git 里没有「先企业再写盘」 | v1.x |
 | FZ-104 | 恢复旧 104 req 语料 | 已删；本矩阵替代 | 永远不 |
+
+支付/出行/IoT、企业租户与远程执行见 [`company-os-reference-matrix.md`](company-os-reference-matrix.md) §5 与 [`company-os-implementation-outline.md`](company-os-implementation-outline.md)。
 
 延期 MCP 的合法写法：若 CODE-02 打开前发现许可证或安全块，必须在本文件改「是否本期」为 **冻结到 v0.5 之后** 并说明原因。未改表就把 MCP 标完成，无效。
 
 ---
 
-## 6. 本草稿签字后的打开顺序
+## 6. 本表签字后的打开顺序
 
 只打开一行。做完再动下一行。
 
@@ -254,4 +259,4 @@ Kiana 反例已发生过一次：24-phase Project OS 跳过「能改文件」。
 3. 每条绿行有 owner crate + 测试名 + `local_behavior` 证据。
 4. dump 工具数、`kiana-tools` 文件数、reference 打勾、crate 数，全部无效。
 
-本 Phase 不把 2 变成绿。本 Phase 只把表造出来。
+v1.0.2 已按本节收口，见 §6。

@@ -10,9 +10,9 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：Agent 平台的九个"平面"——运行时（Session/Turn/Run/Invocation）、上下文与记忆（ContextPlan/Memory）、缓存与压缩（Prompt Cache/Compaction）、工具发现（CapabilityDescriptor/Tool Search/MCP）、工作流（Workflow）、有界多 Agent（Swarm）、Provider 网关、可观测与评测——每个平面的对象合同、硬性不变量和参考项目取舍。
-> - **回答的问题**："模型每次应该看到什么、工具怎么被发现和授权、并行怎么不失控、不同模型服务商的输出怎么统一。"
-> - **什么时候读**：实现运行时、记忆、MCP、工作流、Swarm 相关能力时按章节查阅；§3 的十条硬不变量值得所有人先通读一遍。
+> - **讲什么**：Agent 平台的九个"平面"——运行时（Session/Turn/Run/Invocation，含 pre-tool hook 位置与合法转移）、上下文与记忆（ContextPlan/Memory，含 promotion/expiry/collection）、缓存与压缩（Prompt Cache/Compaction）、工具发现（CapabilityDescriptor/Tool Search/MCP，含失败恢复与 trust decision）、工作流（Workflow 确定性合同与 replay divergence）、有界多 Agent（Swarm，含 Partition/MergeDecision）、Provider 网关（NormalizedEvent 与客户端 epoch）、可观测与评测——每个平面的对象合同、硬性不变量和参考项目取舍。
+> - **回答的问题**："模型每次应该看到什么、工具怎么被发现和授权、并行怎么不失控、不同模型服务商的输出怎么统一、失败与重放凭什么可复现。"
+> - **什么时候读**：实现运行时、记忆、MCP、工作流、Swarm 相关能力时按章节查阅；§3 的十条硬不变量值得所有人先通读一遍；规范与代码的已知冲突集中在 §16 开放决策。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
 
@@ -70,7 +70,7 @@ Platform Planes
 | Company Domain | 为什么做、交付什么、结果是否实现 | Objective、Project、Acceptance、Outcome | `kiana-domain` | 目标合同已补，运行时未完整 |
 | Control Plane | 谁能做什么 | identity、policy、gate、approval、grant | `kiana-core` | 主路径已有局部实现 |
 | Agent Runtime | 一次执行如何运行、暂停和恢复 | Session、Turn、Run、Invocation | `kiana-runner` + `kiana-eventlog` | 单机局部实现，耐久恢复未完成 |
-| Context / Memory | 模型应该知道什么 | ContextPlan、MemoryRecord、MemoryQuery | `kiana-query` + ports | 有索引、ACL、budget 片段，生命周期未闭合 |
+| Context / Memory | 模型应该知道什么 | ContextPlan、ContextCheckpoint、MemoryRecord、MemoryQuery | `kiana-query` + ports | 有索引、ACL、budget 片段，生命周期未闭合 |
 | Capability Discovery | 如何发现可用工具 | CapabilityDescriptor、ToolSnapshot | broker + discovery service | 工具存在，统一 catalog 仍需建立 |
 | Workflow | 按什么顺序完成工作 | WorkflowDefinition、NodeExecution、Signal | `kiana-workflow` + `kiana-core` | 需要收敛为同核确定性引擎 |
 | Swarm | 何时有界并行、如何合并 | SpawnPlan、Cell、Partition、MergeDecision | `kiana-core` + `kiana-daemon` | Cell/Packet 有合同，完整 scheduler 未完成 |
@@ -137,7 +137,9 @@ Ingress
   → Normalize provider events
   → Persist model output / tool calls
   → Validate tool arguments
-  → Policy / Gate / Approval
+  → Policy / Gate verdict
+  → Pre-tool hook（仅前序 Allowed 后执行）
+  → Approval（策略或 hook Ask 要求时）
   → Broker dispatch
   → Persist tool result and evidence
   → Re-assemble next context
@@ -155,6 +157,15 @@ cancelled       取消已安全收敛
 result_unknown  可能已有副作用，但事实尚未确认
 ```
 
+Pre-tool hook 合同（新增规范）：
+
+- **位置**：hook 只在 Policy/Gate 判定为 `Allowed` 之后、Broker dispatch 之前执行；Policy/Gate 已拒绝的请求不进入 hook。
+- **与 Policy verdict 的关系**：hook 只能收紧，不能放宽——`Allow` 不是授权，hook 不得把 Deny 改写为 Allow，也不得改写请求以扩大 capability、path、budget 或 approval scope；需要改变输入时按新请求重新走完整 verdict。
+- **Block 的终态**：hook 返回 `Block`，或 hook 执行失败（端口错误、配置损坏）时，本次 Invocation 以 `failed` 收敛，稳定错误码 `hook_blocked:<reason>`；因为尚未 dispatch、无副作用，不得记为 `result_unknown`，Run 也不得 `completed`。
+- **Ask 的归宿**：hook 返回 `Ask` 时必须进入与 [`company-os-design.md`](company-os-design.md) §10.1 相同的 ApprovalChallenge/PendingInvocation 通路；审批通路不可用或无人值守时 fail-closed 为 `failed`（`hook_ask_unattended:<reason>`），不得静默放行（当前实现差距见 §16）。
+- **可观测**：hook 决策（decision、reason、hook/policy 版本）必须写入事件，Receipt 必须能回答“哪个 hook 因什么阻断了本次调用”。
+- **局部证据**：`CURRENT_STATUS.md` 的 G0-02 slice evidence（`PreToolHookPort` 注入 daemon）与 P1-02 证据块；`docs/coding-pack-matrix.md` P0-HOOK 行（`hook_blocked` 可在 broker 执行前阻断）。这些证据只覆盖已实现部分，不覆盖 Ask→Approval 通路。
+
 ### 4.3 参考项目与吸收决策
 
 | 参考项目 | 值得吸收的设计 | 不直接复制的部分 |
@@ -168,6 +179,43 @@ result_unknown  可能已有副作用，但事实尚未确认
 | 12-factor-agents | 小型 reducer/event loop、限制 Agent 步数 | 不复制无限 `while(true)` |
 
 这些参考的统一结论和证据索引见 [`reference-agent-audit/00-unified-agent-flow.md`](reference-agent-audit/00-unified-agent-flow.md) 与 [`reference-agent-audit/99-kiana-mapping.md`](reference-agent-audit/99-kiana-mapping.md)。
+
+### 4.4 Run 与 Invocation 的合法转移（新增）
+
+**基数**：`Session 1 ── * Turn 1 ── * Run 1 ── * Invocation`（§4.1）；`Invocation 1 ── * CapabilityExecution`——Invocation 是可恢复的逻辑调用（稳定 `invocation_id`），每次重试/重派产生一个新的 `CapabilityExecution` attempt（`execution_id` + 递增 `attempt`）。`invocation_id` 与 `execution_id` 不得混用（[`company-os-design.md`](company-os-design.md) §5.2）。
+
+**Run 合法转移**：
+
+```text
+queued           → running | cancel_requested
+running          → paused | cancel_requested | completed | failed | result_unknown
+paused           → running | cancel_requested
+cancel_requested → cancelled | result_unknown
+```
+
+- 只有 `running` 可以进入 `completed` / `failed` / `result_unknown`；终态无隐式出边。
+- `cancel_requested` 是唯一的取消中间态 wire 名；`cancelling` 只是 UI 投影名，不是终态。取消的终态是 `cancelled`，若副作用无法确认则是 `result_unknown`（design §10.2）。
+- `paused` 的恢复是同一 Run 的 continuation，不是新 Run；retry 产生新 attempt 或新 Run，不复活终态 Run。
+- `result_unknown` 语义：可能已有副作用、事实未确认；禁止自动重试，也禁止隐式转 `completed`（design §9.4）。它没有自动出边；只能由显式 reconciliation 依据新证据产生 correction event，或由新的授权发起补偿/重试（那是新的 Run/Invocation，不改变原 Run 的终态）。
+
+**Invocation.status 与 `company-os-design.md` §9.3 CapabilityExecution 的映射**：两者是同一状态机的逻辑调用/具体尝试两层，不是两套枚举；状态名与转移 canonical owner 是 design §9.3。
+
+```text
+Invocation.status（投影）   CapabilityExecution（attempt）
+Requested                   Requested
+PolicyChecked               PolicyChecked
+AwaitingApproval            AwaitingApproval
+Authorized                  Authorized
+Dispatching                 Dispatching
+Executing                   Executing
+Succeeded                   Succeeded
+Failed                      Failed
+Cancelled                   Cancelled
+result_unknown              design §9.3 的 Unknown（wire/终态名以 result_unknown 为准）
+```
+
+- Invocation 的终态取最近一次 attempt 的终态；只要存在一个副作用未确认的 attempt，Invocation 必须为 `result_unknown`，不得报 `Succeeded` / `Failed` / `Cancelled`。
+- `attempt` 单调递增，旧 attempt 的事件不可改写；重试必须携带新的 `idempotency_key` 或复用同一幂等键，按 capability 的 `idempotency_policy` 决定。
 
 ## 5. Context / Memory 平面
 
@@ -196,18 +244,18 @@ ContextPlan {
 }
 ```
 
-建议的组装顺序：
+Section 清单（本节只登记“必须有哪些 section”，不定义渲染顺序）：
 
-```text
-1. 固定系统宪法和安全边界
-2. 固定 Role / AgentTemplate prompt
-3. 固定且排序稳定的能力目录摘要
-4. Project / workspace / repo map 稳定快照
-5. 历史压缩摘要和 checkpoint
-6. 当前 WorkPacket、acceptance 和约束
-7. 按 ACL 检索的 Memory 结果
-8. 当前工具结果、时间敏感状态和用户输入
-```
+- system / security constitution；
+- role / AgentTemplate prompt；
+- capability catalog 摘要；
+- project / workspace / repo map 快照；
+- 历史压缩摘要与 checkpoint；
+- 当前 WorkPacket、acceptance 和约束；
+- 按 ACL 检索的 Memory 结果；
+- 当前工具结果、时间敏感状态和用户输入。
+
+**渲染顺序以 §6.2 的 cache 友好序为准**（tools / capability catalog → stable system / security constitution → role prompt → …）；本节不再维护第二份顺序。
 
 身份、Policy、Grant 和 Approval 由服务端强制；ContextPlan 中的文本只是模型输入，不能作为安全边界。
 
@@ -296,6 +344,41 @@ Intent parse
 
 向量相似度只能决定候选排序，不能决定授权、事实优先级或 Memory promotion。
 
+**Promotion（新增规范）**：
+
+```text
+promotion 是跨层/跨 collection 的显式、可审计跃迁，不是检索排序的结果。
+```
+
+- **授权主体**：由目标层的 owner（HumanPrincipal）或该层 policy 明确授权的 approver 批准；写入者不得自批。`Project/User/Role → Department/Company` 的晋升必须由目标层授权主体批准，跨组织晋升默认禁止。
+- **门槛（全部满足才可晋升）**：`source_ref` 可验证且未被 revoke；`confidence` ≥ 目标层阈值；`sensitivity` 允许进入目标层；`purpose` 与目标层用途匹配；未过期；去重/冲突检查通过。敏感数据与 PII 默认不晋升，除非存在显式 `ProcessingGrant`（operations §9.2）。
+- **记录**：append `PromotionDecision { memory_id, from_layer, to_layer, target_collection, approver, policy_snapshot, evidence_refs }`，并产生新的 `MemoryRecord` 版本（`supersedes` 原记录），不原地改写；原记录保留 provenance。
+- **禁止**：promotion 扩大 ACL；低 `authority` 覆盖高 `authority`；扩展把私有 Memory 晋升到 Company 层（quality §9.2）；把 promotion 当作授权或事实优先级来源。
+
+**Expiry 与清理责任（新增规范）**：
+
+- `expires_at` 到达：`status: active → stale`；检索默认排除 `stale`，除非请求显式要求历史证据并带 provenance。
+- `revoked`：立即从检索与索引排除；`deleted`：写 tombstone，不复活，不参与去重之外的任何用途。
+- 清理责任：daemon / `kiana-query` 的 memory service 执行确定性 sweep，并 append `MemoryExpired` / `MemoryStale` 事件；删除传播范围以 [`company-os-operations-governance.md`](company-os-operations-governance.md) §9.3 为准（primary record → event projection → artifact index → vector index → graph index → compaction summary → provider-bound cache policy → search result cache）。
+- Memory 的过期与删除不得改写历史 Event/Receipt；只改变可检索性与派生索引。
+
+**Collection 分类学与六层 ACL（新增规范，最小第一版枚举）**：
+
+- `collection` 是存储与检索分区，恰好属于一个 ACL 层，必须声明 `layer`、`subject`、`purpose`、`retention`；一个 collection 不得跨两个 ACL 层。
+- 最小第一版枚举与六层一一对应：
+
+```text
+company/<organization_id>/
+department/<department_id>/
+role/<role_id>/
+project/<project_id>/
+user/<principal_id>/
+instance/<session_id>/scratch
+```
+
+- ACL 判定以 collection 声明的 `layer + subject` 为准；跨 collection 检索必须逐层授权，不能因为同一用户而自动 union 全部 Memory（operations §3.3）。
+- promotion 是显式的跨 collection 迁移；仅修改 collection 字段而不走 promotion 属于违规。
+
 ### 5.4 Memory 参考设计
 
 | 参考项目/材料 | 可吸收能力 | Kiana 约束 |
@@ -304,7 +387,7 @@ Intent parse
 | Aider | repo map、按任务选择上下文、context budget | repo map 只提供检索上下文，不授予写权限 |
 | MemPalace / memorix Git Memory | diary、lessons、按项目沉淀经验 | 写入必须有 collection、source 和 retention |
 | Agent Framework / Agno | 可序列化 run state、requirements/checkpoint | 不以 callback 或内存 Map 代替 durable memory |
-| 本仓 `kiana-query` | repo map、token budget、停止 hook、索引 | 需要补 provenance、promotion、expiry 和统一 catalog |
+| 本仓 `kiana-query` | repo map、token budget、停止 hook、索引 | promotion / expiry 的规范规则见 §5.3；provenance 与统一 catalog 见 §5.3、§7 |
 
 ## 6. Prompt Cache、Compaction 与 Context Editing
 
@@ -348,8 +431,8 @@ tools / capability catalog
 
 ```text
 input_tokens
-cache_creation_input_tokens
-cache_read_input_tokens
+cache_write_tokens
+cache_read_tokens
 output_tokens
 context_tokens_before / after
 memory_tokens
@@ -365,16 +448,18 @@ invalidation_reason?
 
 ```text
 prefix_reuse_ratio
-  = cache_read_input_tokens
-    / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)
+  = cache_read_tokens
+    / (input_tokens + cache_write_tokens + cache_read_tokens)
 
 uncached_input_ratio
   = input_tokens
-    / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)
+    / (input_tokens + cache_write_tokens + cache_read_tokens)
 
-accepted_delivery_cost
+cost_per_accepted_delivery
   = total_provider_cost / accepted_delivery_count
 ```
+
+字段命名以 [`company-os-operations-governance.md`](company-os-operations-governance.md) §7.2 的 `UsageRecord` 为准（`cache_read_tokens` / `cache_write_tokens`）；成本指标统一为 `cost_per_accepted_delivery`。
 
 缓存命中率必须按 `model + provider + prompt_version + catalog_version + workload` 分桶，不能只报全局平均值。
 
@@ -462,6 +547,8 @@ Approval preview
 Receipt / provenance
 ```
 
+`source_type` 与 [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §9.1 的 `extension_type` 不是同一枚举，映射关系为：`built_in` 对应 Kiana 内置、不来自 ExtensionManifest；`skill` ↔ `skill`；`workflow` ↔ `workflow`；`mcp` 与 `capability` 都来自 `extension_type: capability`；`extension_type` 的 `memory` / `provider` / `ui` 不新增 `source_type`，它们暴露的可调用项仍须归入上述四种之一。
+
 ### 7.2 Tool Search pipeline
 
 ```text
@@ -534,6 +621,27 @@ redacted error/provenance
 
 MCP 返回值、tool description 和 server log 都是不可信输入，不能修改 Role、Grant、Budget 或 Project 状态。
 
+失败与恢复转移（新增规范）：
+
+```text
+Handshake 失败   → HandshakeFailed（不得进入 Discoverable）；按 retry_policy 退避，
+                   超过上限 → Quarantined / Revoked
+crash（进程退出） → Crashed → Reconnecting → 重新 Handshake + SchemaSnapshot
+schema drift     → SchemaDrifted；旧 trust decision 与 catalog 缓存失效，
+                   必须重新 trust decision 后才能回到 Discoverable
+Revoked          → 停止接受新 invocation；in-flight 进入 Quiescing
+```
+
+- **in-flight 收敛**：crash、`Revoked` 或 `Quiescing` 时不得假定调用成功或失败；结果未确认一律 `result_unknown`，禁止自动重放非幂等调用（[`company-os-operations-governance.md`](company-os-operations-governance.md) §8.4）；只有幂等且 `idempotency_key` 一致的调用才可重试。
+- **schema drift 的连带失效**：descriptor/schema 缓存、进行中的 approval 和未 dispatch 的授权必须失效并重新走 verdict；已 dispatch 的调用按上一条收敛。
+- **Revoked 的收尾**：释放子进程与 spawn 配额、撤销 Grant、从 catalog 移除、使缓存失效，并保留 redacted 证据。
+
+**Trust decision 来源（新增规范）**：
+
+- **谁批准**：HumanPrincipal，或 Company policy 明确授权的 approver；模型输出、server 自述和安装脚本不能自行批准。
+- **存哪**：记录在 `McpServerDescriptor.trust_decision`，至少包含 `approver`、`policy_snapshot`、`schema_snapshot_hash`、`scope`、`expiry`、`decided_at`；持久化在 daemon 的信任账本中，不进入 prompt、transcript 或模型上下文。
+- **何时失效**：schema drift、version/hash 变化、scope 扩大、expiry 到达或 revoke；失效后必须重新批准才能回到 `Discoverable`。
+
 ### 7.4 参考项目
 
 | 参考项目 | 设计 | Kiana 吸收方式 |
@@ -594,9 +702,11 @@ SubWorkflow       调用版本固定的子流程
 ```text
 Created → Validating → Ready → Running
 Running → WaitingApproval / WaitingSignal / Paused
-Running → Retrying / Compensating / Cancelling
-Running → Succeeded / Failed / Cancelled / Unknown
+Running → Retrying / Compensating / cancel_requested
+Running → Succeeded / Failed / Cancelled / result_unknown
 ```
+
+终态名与 §4.2 Run 终态统一：`cancel_requested` 是取消中间态的 wire 名，`cancelling` 只是 UI 投影名，不是终态；design §9.3 的 `Unknown` 在本规范中写作 `result_unknown`。
 
 每个 NodeExecution 必须有：
 
@@ -623,7 +733,14 @@ child_run_refs[]
 - 运行中改变验收或 scope 必须产生 ChangeRequest；
 - workflow completion 不自动代表 Project 或 Objective success。
 
-### 8.5 参考项目
+### 8.5 确定性合同（新增）
+
+- **replay 合同**：相同 `WorkflowDefinition` version、相同 initial state fixture 和相同输入，必须重产出相同的 `NodeExecution` 序列（`node_id`、`attempt` 顺序一致）以及相同的 `input_digest` / `output_ref`。
+- **模型输出的入口**：模型输出只能作为候选参数，经 ApprovalGate（Approval 节点或等价 policy gate）后才写入 `NodeExecution` 参数；模型不能直接改变 `WorkflowInstance` 或 `NodeExecution` 状态（§8.4）。
+- **replay divergence 的计算**：逐项比对基准与重放的 `(node_id, attempt, input_digest, output_ref, error_code)` 序列，首个不一致项即 divergence point；结果必须写入 Receipt/Eval，并按 [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §5.1 阻断 Promote。
+- **非确定输入**：时间、随机数、request id、进程 id 等必须来自可注入的 deterministic source，并纳入 `input_digest`；否则 replay 结果不成立。
+
+### 8.6 参考项目
 
 | 参考项目 | 可吸收设计 | 不直接复制 |
 |---|---|---|
@@ -698,9 +815,43 @@ validate plan
   → retire children
 ```
 
-Child failure、timeout、cancel 或 Unknown 必须向 parent 和 Workflow 汇报；不能只在一个共享 transcript 中留下文字。
+Child failure、timeout、cancel 或 `result_unknown` 必须向 parent 和 Workflow 汇报；不能只在一个共享 transcript 中留下文字。
 
-### 9.4 Swarm 参考项目
+### 9.4 Partition 与 MergeDecision（新增）
+
+```text
+Partition {
+  partition_id
+  swarm_plan_id
+  partition_key
+  input_refs[]
+  owned_paths[] / data_scope[]
+  output_contract
+  child_cell_id?
+  status
+}
+
+MergeDecision {
+  merge_decision_id
+  workflow_instance_id
+  parent_cell_id
+  merge_strategy
+  accepted_child_outputs[]
+  rejected_child_outputs[]   # 附 reason_code
+  conflict_refs[]
+  reviewer / acceptor
+  policy_snapshot
+  evidence_refs[]
+  created_at
+}
+```
+
+- `SwarmPlan.partition_strategy` 必须物化为互斥、可验证的 `Partition`；每个 Partition 只归属一个 child Cell，不得重叠写集。
+- **MergeDecision 与 design §5.6 MergeReceipt 的关系**：MergeDecision 是“是否合并”的授权决定；MergeReceipt 是该决定的回执投影——一个决定至多产生一个回执，回执必须引用 `merge_decision_id` 并携带 reviewer/acceptor 与 provenance（[`company-os-design.md`](company-os-design.md) §5.6、§6.5）。
+- **SwarmPlan 生命周期与 SupervisionLease**：validate/authorize → 原子预留 `BudgetLease` / Grant / 锁 → 创建 child Cell → 每个 child Cell 绑定 design §5.6 的 `SupervisionLease`（heartbeat、checkpoint、stall threshold、retry limit）→ 收集 typed result → MergeDecision → 释放 lease/grant/未用预算 → retire。
+- `result_unknown` 的 child 不得被合并进父输出；必须先 reconciliation 或按补偿规则收敛。
+
+### 9.5 Swarm 参考项目
 
 | 参考项目 | 设计 | Kiana 吸收方式 |
 |---|---|---|
@@ -755,6 +906,8 @@ error
 - provider request 与 Invocation correlation；
 - `refusal`、`pause`、`tool_use` 和 terminal reason 的版本化映射。
 
+本节只定义 Provider 归一化事件；`RuntimeEvent` 的最低字段以 [`company-os-design.md`](company-os-design.md) §11 为 canonical，本文不重复定义。
+
 ### 10.2 客户端事件桥
 
 CLI、Web、Desktop 和未来 SDK 使用：
@@ -774,6 +927,20 @@ subscribe before load
 ```
 
 断线重连不能靠“重新打印当前 transcript”修复；必须使用 cursor、sequence 和 terminal receipt。
+
+**epoch（新增规范）**：客户端事件桥的 fence 版本，用于拒绝跨代重放、乱序事件和过期快照。
+
+```text
+递增条件（任一满足即递增）：
+  - authority_epoch 变化（operations §3.3：Membership / RoleAssignment 撤销或降权）；
+  - daemon 重启或 Run ownership 转移（进程内 cursor 与 in-flight 状态失效）；
+  - Capability catalog / ToolSnapshot 的 schema_hash 集合变化；
+  - policy/gate snapshot 或 WorkflowDefinition version 发生影响本次 Run 的变化。
+```
+
+- **作用域**：epoch 绑定 `(daemon instance, run_id)`；同一 Run 内 `sequence` 单调递增。
+- **失效行为**：epoch 变化后旧 cursor 失效，客户端必须重新拉取 snapshot，再合并新 epoch 的事件；不得把旧 epoch 的事件拼进新 snapshot。
+- **与 operations §3.3 `authority_epoch` 的关系**：桥 epoch 必须携带 `authority_epoch`；`authority_epoch` 变化必然使桥 epoch 递增，反之不成立（重启、catalog 变化也可独立递增）。
 
 ### 10.3 参考项目
 
@@ -807,12 +974,14 @@ Objective
 
 每一层都应能通过 `correlation_id`、`causation_id` 和 parent reference 回溯。
 
+**Trace 对象定义（新增）**：Trace 是从 `RuntimeEvent` / `Artifact` / `Receipt` 派生出的只读关联视图，不是新的事实源；它可以被重放重建，但不能反向修改事件，也不能替代 Receipt 的证据断言。
+
 ### 11.2 必须观测的指标
 
 | 维度 | 指标 |
 |---|---|
 | 交付 | accepted delivery rate、rework rate、time to acceptance |
-| Runtime | run duration、step count、retry、pause、cancel、Unknown |
+| Runtime | run duration、step count、retry、pause、cancel、result_unknown |
 | Context | context utilization、compaction frequency、dropped result count |
 | Memory | retrieval hit、authority mix、stale-hit、promotion、deletion |
 | Tool Search | candidate top-k、selected rate、schema load、unknown tool rate |
@@ -820,7 +989,7 @@ Objective
 | Workflow | node success、blocked time、compensation、replay divergence |
 | Swarm | fan-out count、duplicate fingerprint、queue wait、merge conflict |
 | Provider | latency、rate limit、malformed stream、usage、cost |
-| Cache | cache read/create tokens、prefix reuse、invalidation reason |
+| Cache | cache_read_tokens / cache_write_tokens、prefix reuse、invalidation reason |
 | Security | deny、approval、expired、scope violation、secret redaction |
 
 ### 11.3 Eval 结构
@@ -842,6 +1011,8 @@ fake model stream
 - tool call → result → final answer；
 - malformed arguments、unknown tool、schema drift；
 - approval deny / approve / expire / replay；
+- pre-tool hook deny：hook `Block` 后 Broker 不得执行、无副作用，事件与 Receipt 出现稳定 `hook_blocked:<reason>`；
+- hook 失败可见：hook 端口错误或配置损坏必须 fail-closed 为 `failed` 且错误可观测，不得静默放行；hook `Ask` 的审批归宿按 §4.2（实现差距见 §16）；
 - compaction、checkpoint、fresh-process resume；
 - cancellation race、orphan process、partial effect；
 - concurrent turn、stale response、duplicate request；
@@ -849,6 +1020,8 @@ fake model stream
 - tool search visibility、risk filter、MCP reconnect；
 - Workflow retry、compensation、signal、replay；
 - Swarm partition、budget exhaustion、merge conflict、child failure。
+
+已登记的局部证据：`CURRENT_STATUS.md` 的 G0-02 slice evidence（`PreToolHookPort` 注入）与 P1-02 证据块；`docs/coding-pack-matrix.md` P0-HOOK 行（`hook_blocked` 在 broker 执行前阻断）。这些只覆盖已实现部分；hook `Ask` 到 daemon 产品路径的审批回归仍缺。
 
 ## 12. 参考能力总表
 
@@ -865,7 +1038,7 @@ fake model stream
 | tool catalog/search | DeepSeek ToolRuntime | OpenCode permission、Goose extensions | P1 |
 | MCP lifecycle | Cline host | Goose extensions | P1 |
 | deterministic workflow | Pydantic AI Graph | CrewAI Flow、Archon YAML/DAG | P2 |
-| controlled multi-agent | AutoGen / Agency Swarm | MetaGPT、ChatDev、CrewAI | P3 |
+| controlled multi-agent | AutoGen / Agency Swarm | MetaGPT、ChatDev、CrewAI | P4 |
 | normalized provider stream | Cline / DeepSeek | Letta、Crush | P1 |
 | client replay/cursor | OpenCode / Crush | Letta、Cline | P1 |
 | observability/eval | Agno / DeepSeek fixtures | OpenCode、CrewAI checkpoints | P1 |
@@ -901,20 +1074,22 @@ fake model stream
 
 ## 14. 实施依赖和发布门
 
+全局阶段序列以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 为唯一 canonical；本节只登记与本平台平面相关的阶段门。
+
 ```text
-P0 Runtime ledger + normalized events + authority boundary
+P0 事实基线、Identity、Runtime ledger、Event/Receipt 和负向测试
   ↓
-P1 ContextPlan + cache telemetry + capability catalog + memory lifecycle
+P1 ContextPlan、Memory、Cache telemetry、Capability Catalog、Cost、Eval
   ↓
-P2 deterministic Workflow + durable projector + client cursor
+P2 Durable Workflow、Human Inbox、Recovery、Artifact、Client cursor
   ↓
-P3 bounded Swarm + Planner/Builder/Reviewer/Closer workflow
+P3 Objective → Project → Packet → Builder → Review → Acceptance → Close
   ↓
-P4 provider streaming + scheduler + plugin/skill ecosystem
+P4 有界 Swarm、Scheduler、Provider streaming、Skill/Plugin ecosystem
   ↓
 P5 Office / Commerce / Travel / IoT bounded contexts
   ↓
-P6 team / remote / enterprise
+P6 Team / Remote / Enterprise
 ```
 
 阶段门：
@@ -922,11 +1097,21 @@ P6 team / remote / enterprise
 - P0 未通过前，不得以“有 Tool/Memory 类型”宣称平台完成；
 - P1 未通过前，不得以“有向量索引”宣称可用 Memory；
 - P2 未通过前，不得以“有 YAML/DAG”宣称 durable Workflow；
-- P3 未通过前，不得以“能创建多个 Agent”宣称 Swarm；
-- P4 未通过前，不得宣称 token streaming 或 Provider parity；
+- P3 未通过前，不得以“跑通一次 Builder 闭环”宣称 CompanyOS 交付生命周期完成；
+- P4 未通过前，不得以“能创建多个 Agent”宣称 Swarm，也不得宣称 token streaming、Scheduler 或 Provider parity；
 - P5 未完成身份、审批、幂等、对账和真实 adapter 证据前，不得打开外部副作用；
 - P6 未重新设计 authenticated identity、租户、网络和运营安全前，不得宣称企业能力。
 
 ## 15. 当前诚实产品描述
 
 > **Kiana 已形成以 `DaemonHost → ControlPlane → Broker/KianaHarness` 为核心的本地 Agent 治理骨架，并有局部的查询、记忆 ACL、WorkPacket、EventLog、Approval、Review 和 Receipt 实现；Context/Cache、统一 Capability Discovery/MCP、durable Workflow、受控 Swarm、Provider streaming 和跨进程恢复仍是分阶段建设目标。**
+
+## 16. 开放决策（规范 vs 代码冲突，待 ADR）
+
+以下冲突只登记，不在本文放宽规范迁就代码；解决前相关路径保持 fail-closed。
+
+1. **hook `Ask` 与 Approval 通路未打通**：§4.2 要求 `Ask` 进入 PendingInvocation/ApprovalChallenge（design §10.1）；当前 harness 产品路径在无人值守时把 `Ask` fail-closed 为 `hook_ask_unattended`，两条“要人确认”的通路尚未接通（`docs/features/05-approvals.md` 记载；`CURRENT_STATUS.md` 的 P1-02 证据块显示 continuation 仍为 process-local partial）。需要 ADR 决定 `Ask` 的规范归宿与过渡语义。
+2. **epoch / authority_epoch 的持久化载体未定**：§10.2 要求 epoch 在 daemon 重启后仍能 fence 旧 cursor；当前 session/run/lock/approval 仍有进程内状态，`CURRENT_STATUS.md` 记“跨进程完整 resume = deferred”。需要 ADR 决定两者的持久化位置与迁移方式。
+3. **MCP trust decision 的持久化位置未定**：§7.3 要求存放在 daemon 持久信任账本；是扩展 `ProjectTrust` 还是新增独立账本，需要 ADR。
+4. **本地单用户版的 Memory promotion 审批主体未定**：§5.3 要求由目标层 owner 批准；本地版是否允许 HumanPrincipal 自批（以及如何与 Company policy 区分）需要 ADR。
+5. **Invocation 与 CapabilityExecution 的最终形态**：本文采用 `1 Invocation : N CapabilityExecution attempt` 的映射；若未来选择合一，必须先修改 [`company-os-design.md`](company-os-design.md) §5.2 的“`execution_id` 与 `invocation_id` 不得混用”约束。

@@ -22,9 +22,39 @@ Canonical domain schema 定义业务对象的字段、版本和兼容边界；Ru
 
 ## 2. 当前文件
 
-当前目录主要包含 `kiana-app-server-*.v1.schema.json`。这些文件是 app-server envelope 或 endpoint 形状，必须结合源码和测试理解，不能仅凭 envelope 的 `schema` 字段推导完整业务能力。
+当前目录包含 21 个 `kiana-app-server-*.v1.schema.json`。这些文件是 app-server envelope 或 endpoint 形状（见 §2.1 索引），必须结合源码和测试理解，不能仅凭 envelope 的 `schema` 字段推导完整业务能力。
+
+### 2.1 最低限度元数据索引
+
+21 个文件的 canonical owner 均为 `kiana-entrypoints`（direct-connect app contract；运行时数据投影来自 `kiana-daemon`），unknown-field policy 一律为宽松（`additionalProperties: true`，仅 `schema` 常量必填），当前证明等级一律为 `source`（envelope 壳，不是完整业务 schema）。依据见 §4 现状说明和 [`CURRENT_STATUS.md`](../../CURRENT_STATUS.md) 的「App-server schema 与 approval actor 修复证据（2026-08-29）」。
+
+| schema 文件 | canonical owner | unknown-field policy | 当前证明等级 |
+|---|---|---|---|
+| `kiana-app-server-approval-decision.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-command-run.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-commands.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-config-resolved.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-contract.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-conversation-files.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-conversations.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-distribution-review.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-doctor.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-events.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-git-status.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-live-provider-smoke.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-model-current.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-permissions-status.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-plugins.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-prompt-history.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-sandbox.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-secrets.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-settings.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-team-status.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
+| `kiana-app-server-trust-status.v1.schema.json` | `kiana-entrypoints` | `additionalProperties: true`；仅 `schema` 必填 | `source`（壳） |
 
 ## 3. 目标目录
+
+本目录规划为 schema registry 的唯一目标位置；[`company-os-domain-contracts.md`](../company-os-domain-contracts.md) §9 的 registry 引用本节（其早期 `docs/schemas/company-os/` 写法以本节为准）。
 
 后续建议按以下结构扩展：
 
@@ -67,7 +97,9 @@ schemas/
     └── extension-manifest.v1.schema.json
 ```
 
-## 4. 每个 Schema 必须说明
+## 4. 目标契约：每个 Schema 必须说明（当前 app-server 壳未满足）
+
+**现状**：现有 21 个 `kiana-app-server-*.v1.schema.json` 只校验 envelope 的 `schema` 常量标签（`required: ["schema"]`、`additionalProperties: true`），不校验任何业务字段；下面 13 项是目标契约，不是当前完成度。标识一致性是健康的：每个文件的 `$id` 与文件名一一对应，并与 `kiana-entrypoints` 中 advertised endpoint 的 schema 字符串一致，由 `direct_connect_app_contract_schemas_match_packaged_schema_files` 守住。证明等级不高于 [`CURRENT_STATUS.md`](../../CURRENT_STATUS.md) 的 2026-08-29 证据块：该证据只到 schema parity 的 `local_behavior`，并明确 schema files 是 minimal envelope contracts，不是完整 endpoint payload schemas。
 
 ```text
 schema id and version
