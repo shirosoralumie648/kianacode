@@ -1037,8 +1037,10 @@ smoke_context_index_search_json() {
   local path_pack_output
   local root_pack_output
   local python_bin
+  local artifact_source
   local artifact_dir
   local artifacts_output
+  local unapproved_cached_artifacts_output
   local cached_artifacts_output
   local artifact_ingest_output
   local cached_artifact_store_output
@@ -1047,7 +1049,8 @@ smoke_context_index_search_json() {
     binary_path="$PWD/${binary_path#./}"
   fi
   project_dir="$(mktemp -d "$tmp_root/context-project.XXXXXX")"
-  artifact_dir="$(mktemp -d "$tmp_root/context-artifacts.XXXXXX")"
+  artifact_source=".release-context-artifacts"
+  artifact_dir="$project_dir/$artifact_source"
   mkdir -p "$project_dir/src"
   mkdir -p "$project_dir/docs"
   mkdir -p "$project_dir/tests"
@@ -1058,20 +1061,36 @@ smoke_context_index_search_json() {
   printf '%s\n' 'first module summary referencing src/lib.rs' > "$project_dir/docs/path-only.md"
   printf '%s\n' 'first artifact line' > "$artifact_dir/bundle/notes.md"
 
+  # Context queries are product capabilities and require an explicit project trust decision.
+  (cd "$project_dir" && run_clean_kiana "$binary_path" trust trust >/dev/null)
+
   index_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context index --json 2>&1)"
   artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json 2>&1)"
-  cached_artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json --cache .kiana/context-artifacts.json 2>&1)"
-  artifact_ingest_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context ingest --source "$artifact_dir" --json 2>&1)"
+  if unapproved_cached_artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifacts --json --cache .kiana/context-artifacts.json 2>&1)"; then
+    echo "context artifacts cache unexpectedly succeeded without local-write approval" >&2
+    return 1
+  fi
+  if ! grep -Fq -- "control_plane_command_awaiting_approval" <<<"$unapproved_cached_artifacts_output"; then
+    echo "context artifacts cache did not return the expected approval challenge" >&2
+    echo "$unapproved_cached_artifacts_output" >&2
+    return 1
+  fi
+  if [[ -e "$project_dir/.kiana/context-artifacts.json" ]]; then
+    echo "context artifacts cache was created before approval" >&2
+    return 1
+  fi
+  cached_artifacts_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" --approve-local-write context artifacts --json --cache .kiana/context-artifacts.json 2>&1)"
+  artifact_ingest_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" --approve-local-write context ingest --source "$artifact_source" --json 2>&1)"
   artifact_graph_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-graph --json 2>&1)"
   artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-store --json 2>&1)"
   artifact_readiness_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-readiness --json 2>&1)"
-  cached_artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context artifact-store --json --cache .kiana/context-artifact-store.json 2>&1)"
+  cached_artifact_store_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" --approve-local-write context artifact-store --json --cache .kiana/context-artifact-store.json 2>&1)"
   search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search release --json --limit 1 2>&1)"
   path_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context search docs/path-only.md --json --limit 1 2>&1)"
   vector_search_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context vector-search release flow --json --limit 1 2>&1)"
   pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack release --json --limit 1 --max-snippet-lines 1 2>&1)"
   path_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack docs/path-only.md --json --limit 1 --max-snippet-lines 1 2>&1)"
-  root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_dir" --json --limit 1 --max-snippet-lines 1 2>&1)"
+  root_pack_output="$(cd "$project_dir" && run_clean_kiana "$binary_path" context pack bundle/notes.md --root "$artifact_source" --json --limit 1 --max-snippet-lines 1 2>&1)"
   python_bin="$(doctor_json_python)"
   CONTEXT_INDEX_JSON="$index_output" CONTEXT_ARTIFACTS_JSON="$artifacts_output" CONTEXT_CACHED_ARTIFACTS_JSON="$cached_artifacts_output" CONTEXT_ARTIFACT_INGEST_JSON="$artifact_ingest_output" CONTEXT_ARTIFACT_GRAPH_JSON="$artifact_graph_output" CONTEXT_ARTIFACT_STORE_JSON="$artifact_store_output" CONTEXT_ARTIFACT_READINESS_JSON="$artifact_readiness_output" CONTEXT_CACHED_ARTIFACT_STORE_JSON="$cached_artifact_store_output" CONTEXT_SEARCH_JSON="$search_output" CONTEXT_PATH_SEARCH_JSON="$path_search_output" CONTEXT_VECTOR_SEARCH_JSON="$vector_search_output" CONTEXT_PACK_JSON="$pack_output" CONTEXT_PATH_PACK_JSON="$path_pack_output" CONTEXT_ROOT_PACK_JSON="$root_pack_output" "$python_bin" - <<'PY'
 import json
@@ -1319,14 +1338,20 @@ smoke_version() {
 
 smoke_mcp_config() {
   local binary="$1"
+  local binary_path="$binary"
+  local project_dir
   local output
 
-  output="$(KIANA_MCP_SERVERS_JSON='{"docs":{"url":"http://127.0.0.1:9000/mcp"},"shell":{"command":"node","args":["server.js"]}}' run_clean_kiana "$binary" mcp list)"
+  if [[ "$binary_path" != /* ]]; then
+    binary_path="$PWD/${binary_path#./}"
+  fi
+  project_dir="$(mktemp -d "$tmp_root/mcp-env.XXXXXX")"
+  output="$(cd "$project_dir" && KIANA_MCP_SERVERS_JSON='{"docs":{"url":"http://127.0.0.1:9000/mcp"},"shell":{"command":"node","args":["server.js"]}}' run_clean_kiana "$binary_path" mcp list)"
   grep -q "2 MCP server(s)" <<<"$output"
   grep -q "docs" <<<"$output"
   grep -q "node server.js" <<<"$output"
 
-  output="$(KIANA_MCP_SERVERS_JSON='{"docs":{"url":"http://127.0.0.1:9000/mcp"}}' run_clean_kiana "$binary" mcp get docs)"
+  output="$(cd "$project_dir" && KIANA_MCP_SERVERS_JSON='{"docs":{"url":"http://127.0.0.1:9000/mcp"}}' run_clean_kiana "$binary_path" mcp get docs)"
   grep -q '"name": "docs"' <<<"$output"
   grep -q '"url": "http://127.0.0.1:9000/mcp"' <<<"$output"
 }

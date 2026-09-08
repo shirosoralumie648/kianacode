@@ -1,4 +1,4 @@
-.PHONY: build install test clean dev release package install-compliance-tools compliance-audit sbom schema-contract-smoke release-preflight release-preflight-local commercial-blockers release-smoke live-smoke provider-live-smoke remote-live-smoke verify-commercial-artifacts native-computer-mcp test-native-computer-mcp help
+.PHONY: build install test test-fast clean dev release package install-compliance-tools compliance-audit sbom schema-contract-smoke release-preflight release-preflight-local commercial-blockers release-smoke live-smoke provider-live-smoke remote-live-smoke verify-commercial-artifacts native-computer-mcp test-native-computer-mcp help
 
 CARGO ?= cargo
 INSTALL_DIR ?= $(HOME)/.local/bin
@@ -20,6 +20,7 @@ help:
 	@echo "  make live-smoke     运行可选远程真实服务 smoke（需要 token）"
 	@echo "  make install     安装到 ~/.local/bin"
 	@echo "  make test        运行测试"
+	@echo "  make test-fast   运行产品主路径的快速测试"
 	@echo "  make native-computer-mcp       构建电脑控制 MCP native 后端"
 	@echo "  make test-native-computer-mcp  测试电脑控制 MCP native 后端"
 	@echo "  make clean       清理构建产物"
@@ -90,6 +91,20 @@ install: release
 test:
 	@echo "🧪 运行测试..."
 	$(CARGO) test --workspace
+
+test-fast:
+	@echo "🧪 运行产品主路径快速测试..."
+	$(CARGO) test -p kiana-domain --locked --offline
+	$(CARGO) test -p kiana-protocol --locked --offline
+	$(CARGO) test -p kiana-ports --locked --offline
+	$(CARGO) test -p kiana-policy --locked --offline
+	$(CARGO) test -p kiana-gates --locked --offline
+	$(CARGO) test -p kiana-core --locked --offline -- --test-threads=1
+	$(CARGO) test -p kiana-eventlog --locked --offline
+	$(CARGO) test -p kiana-capability-broker --locked --offline
+	$(CARGO) test -p kiana-runner --locked --offline
+	$(CARGO) test -p kiana-daemon --locked --offline -- --test-threads=1
+	$(CARGO) test -p kiana-client --locked --offline
 
 native-computer-mcp:
 	@echo "🖥️ 构建带电脑控制 MCP native 后端的 kiana 二进制..."

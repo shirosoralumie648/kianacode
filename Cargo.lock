@@ -2791,7 +2791,9 @@ dependencies = [
  "async-trait",
  "kiana-domain",
  "kiana-runner-protocol",
+ "serde_json",
  "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -3036,6 +3038,7 @@ version = "0.1.0"
 dependencies = [
  "kiana-domain",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 
