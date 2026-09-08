@@ -1,3 +1,14 @@
+//! Kiana 进程级初始化、清理和本地配置缓存。
+//!
+//! `init` 只负责准备入口进程需要的环境、信号处理、远程设置缓存、首次启动标记和
+//! scratchpad；它不创建模型执行循环，也不授予工具能力。真正的请求授权与生命周期仍由
+//! `DaemonHost`/`ControlPlane` 处理。这里使用的环境变量是启动期间的配置投影，不能把它们
+//! 当作 EventLog、审批记录或持久运行状态。
+//!
+//! 远程设置采用“缓存先行、网络可选”的策略：读取和保存缓存失败会被记录为状态文字，
+//! 但不会伪造已加载的设置；首次启动文件使用 create-new 和 owner-only 权限，尽量避免
+//! 并发初始化覆盖用户记录。清理处理器只运行一次，单个处理器失败会汇总后返回。
+
 use anyhow::{anyhow, Result};
 use reqwest::StatusCode;
 use serde_json::{json, Value};
@@ -30,10 +41,14 @@ fn cleanup_handlers() -> &'static Mutex<Vec<(u64, CleanupFn)>> {
 
 #[derive(Debug, Clone)]
 pub struct CleanupRegistration {
+    /// 注册表中的单调递增 ID，用于精确移除本次注册。
     id: u64,
 }
 
 impl CleanupRegistration {
+    /// 注销该清理处理器；重复调用是幂等的。
+    ///
+    /// 注销不会取消已经开始运行的处理器，也不会影响其他注册。
     pub fn unregister(&self) {
         cleanup_handlers()
             .lock()
@@ -42,6 +57,10 @@ impl CleanupRegistration {
     }
 }
 
+/// 注册一个进程退出前运行的异步清理处理器。
+///
+/// 注册顺序决定运行顺序。闭包会被保存为 `Arc`，因此必须是 `Send + Sync + 'static`；
+/// 返回的句柄可在退出前注销。注册本身不执行清理，也不保证跨进程或崩溃场景一定运行。
 pub fn register_cleanup<F, Fut>(cleanup: F) -> CleanupRegistration
 where
     F: Fn() -> Fut + Send + Sync + 'static,
@@ -55,6 +74,11 @@ where
     CleanupRegistration { id }
 }
 
+/// 按注册顺序运行所有尚未执行的清理处理器。
+///
+/// 使用一次性原子闸门保证整个进程最多执行一轮；即使某个处理器失败，也会继续运行其余
+/// 处理器并在最后汇总错误。成功返回只表示处理器返回了 `Ok(())`，不证明外部资源已被
+/// 对方系统释放。
 pub async fn run_cleanup_handlers() -> Result<()> {
     if CLEANUP_RAN.swap(true, Ordering::SeqCst) {
         return Ok(());
@@ -80,6 +104,11 @@ pub async fn run_cleanup_handlers() -> Result<()> {
     }
 }
 
+/// 执行 CLI 入口所需的初始化顺序。
+///
+/// 顺序刻意先准备安全环境和信号处理，再加载远程设置/首次启动状态，最后注册清理和
+/// scratchpad。若某个当前实现为空的兼容钩子未来获得副作用，应继续保持它不绕过
+/// ControlPlane 的约束；本函数本身不启动 harness。
 pub async fn init() -> Result<()> {
     enable_configs();
     apply_safe_env_vars();
@@ -101,6 +130,10 @@ pub async fn init() -> Result<()> {
     Ok(())
 }
 
+/// 在项目 trust 已确认后异步初始化遥测。
+///
+/// 当前实现只设置一次进程内闸门；调用方不得把该函数的返回视为远程上报成功，也不应在
+/// trust 之前调用它来加载项目本地资源。
 pub fn init_telemetry_after_trust() {
     tokio::spawn(async {
         let _ = init_telemetry().await;
@@ -118,6 +151,10 @@ async fn set_meter_state() -> Result<()> {
     Ok(())
 }
 
+/// 运行清理处理器后以给定退出码终止当前进程。
+///
+/// 清理失败只写入标准错误，不覆盖调用方指定的退出码；该函数永不返回，适合信号处理
+/// 协程使用。它不保证操作系统已回收所有子进程或网络连接。
 pub async fn graceful_shutdown(exit_code: i32) -> ! {
     if let Err(error) = run_cleanup_handlers().await {
         eprintln!("cleanup error: {error}");
@@ -142,6 +179,8 @@ fn populate_oauth_if_needed() {}
 fn init_jetbrains_detection() {}
 fn detect_repository() {}
 async fn init_remote_settings() {
+    // 先应用本地缓存，再尝试网络刷新。这样网络不可用时仍能保持上一次明确写入的
+    // 配置，但状态变量会标记来源，避免把 cache 当作 live fetch 证据。
     if env_truthy("KIANA_DISABLE_REMOTE_SETTINGS") {
         set_remote_settings_status("disabled");
         return;
@@ -218,6 +257,8 @@ enum FirstStartRecordResult {
 }
 
 pub fn first_start_path() -> PathBuf {
+    // 显式路径只用于本地引导记录；空值回退到 KIANA_HOME，避免把空字符串当成当前目录
+    // 下的隐藏状态文件。
     if let Ok(path) = std::env::var(FIRST_START_FILE_ENV) {
         let path = path.trim();
         if !path.is_empty() {
@@ -227,6 +268,10 @@ pub fn first_start_path() -> PathBuf {
     kiana_home_dir().join("first-start.json")
 }
 
+/// 读取首次启动 JSON 状态。
+///
+/// 文件不存在返回 `Ok(None)`；存在但无法读取或不是合法 JSON 时返回错误，避免把损坏的
+/// onboarding 记录静默当作“从未启动”。返回值是原始 JSON，具体字段演进由 schema 决定。
 pub fn load_first_start_state() -> Result<Option<Value>> {
     let path = first_start_path();
     if !path.is_file() {
@@ -263,6 +308,8 @@ fn record_first_start_at(path: &Path) -> Result<FirstStartRecordResult> {
             ]
         }
     });
+    // create_new 让并发初始化中的胜者只有一个；AlreadyExists 被视为正常的 Existing，
+    // 不覆盖先写入者的 onboarding 状态。
     let mut file = match std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -332,6 +379,8 @@ async fn fetch_remote_settings(
     endpoint: &str,
     cached_checksum: Option<String>,
 ) -> Result<RemoteSettingsFetch> {
+    // 远程设置请求有固定超时，并只从环境中读取已有认证材料。响应必须是 JSON 对象，
+    // 其他形状拒绝缓存，避免后续配置加载把任意标量解释成合法设置。
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
@@ -395,6 +444,8 @@ fn set_remote_settings_status(status: &str) {
 }
 
 fn save_remote_settings_cache(path: &Path, settings: &Value, checksum: Option<&str>) -> Result<()> {
+    // 设置主体与 checksum 元数据分开保存，便于 If-None-Match 只使用明确的校验值；文件
+    // 写入后收紧权限，降低本地缓存泄露凭据或组织策略的风险。
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

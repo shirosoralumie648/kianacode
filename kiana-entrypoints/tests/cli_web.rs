@@ -215,6 +215,282 @@ async fn web_cassette_writes_through_daemon_host() {
     let _ = child.kill().await;
 }
 
+#[tokio::test]
+async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
+    let root = git_fixture();
+    let home = isolated_home();
+    let mut child = TokioCommand::from(kiana_base(&root, &home))
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+
+    let stdout = child.stdout.take().expect("stdout");
+    let url = wait_for_url(stdout).await;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+    let page = client.get(&url).send().await.unwrap().text().await.unwrap();
+    let token = page
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("web token");
+    let bound_port = reqwest::Url::parse(&url)
+        .unwrap()
+        .port()
+        .expect("ephemeral web port");
+    let wrong_port = if bound_port == 1 { 2 } else { 1 };
+
+    let wrong_loopback_index = client
+        .get(&url)
+        .header("host", format!("127.0.0.1:{wrong_port}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        wrong_loopback_index.status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+
+    let wrong_loopback_origin = client
+        .post(format!("{url}/api/trust"))
+        .header("x-kiana-web-token", token)
+        .header("origin", format!("http://127.0.0.1:{wrong_port}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        wrong_loopback_origin.status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+
+    let wrong_loopback_host = client
+        .post(format!("{url}/api/trust"))
+        .header("x-kiana-web-token", token)
+        .header("host", format!("127.0.0.1:{wrong_port}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        wrong_loopback_host.status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+
+    let wrong_origin = client
+        .post(format!("{url}/api/trust"))
+        .header("x-kiana-web-token", token)
+        .header("origin", "https://attacker.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong_origin.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let wrong_host = client
+        .post(format!("{url}/api/trust"))
+        .header("x-kiana-web-token", token)
+        .header("host", "attacker.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong_host.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let state: Value = client
+        .get(format!("{url}/api/state"))
+        .header("x-kiana-web-token", token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(state["trusted"], false, "{state}");
+
+    let trusted: Value = client
+        .post(format!("{url}/api/trust"))
+        .header("x-kiana-web-token", token)
+        .header("origin", &url)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(trusted["trusted"], true, "{trusted}");
+    let _ = child.kill().await;
+}
+
+#[tokio::test]
+async fn web_rejects_foreign_bearers_and_sessions_without_mutation() {
+    let root_a = git_fixture();
+    let home_a = isolated_home();
+    let mut child_a = TokioCommand::from(kiana_base(&root_a, &home_a))
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root_a)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let url_a = wait_for_url(child_a.stdout.take().expect("first web stdout")).await;
+
+    let root_b = git_fixture();
+    let home_b = isolated_home();
+    let mut child_b = TokioCommand::from(kiana_base(&root_b, &home_b))
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root_b)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let url_b = wait_for_url(child_b.stdout.take().expect("second web stdout")).await;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+    let page_a = client
+        .get(&url_a)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let token_a = page_a
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("first web token")
+        .to_owned();
+    let page_b = client
+        .get(&url_b)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let token_b = page_b
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("second web token")
+        .to_owned();
+    assert_ne!(token_a, token_b);
+
+    let state_a: Value = client
+        .get(format!("{url_a}/api/state"))
+        .header("x-kiana-web-token", &token_a)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let session_a = state_a["session_id"]
+        .as_str()
+        .expect("first session id")
+        .to_owned();
+    let state_b: Value = client
+        .get(format!("{url_b}/api/state"))
+        .header("x-kiana-web-token", &token_b)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let session_b = state_b["session_id"]
+        .as_str()
+        .expect("second session id")
+        .to_owned();
+    assert_ne!(session_a, session_b);
+
+    let no_token = client
+        .post(format!("{url_a}/api/trust"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(no_token.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let wrong_token = client
+        .post(format!("{url_a}/api/trust"))
+        .header("x-kiana-web-token", "wrong-token")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong_token.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let foreign_bearer = client
+        .post(format!("{url_b}/api/trust"))
+        .header("x-kiana-web-token", &token_a)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(foreign_bearer.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let foreign_session = client
+        .post(format!("{url_b}/api/run"))
+        .header("x-kiana-web-token", &token_b)
+        .json(&serde_json::json!({
+            "prompt": "write SHOULD_NOT_EXIST.txt",
+            "session_id": session_a,
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(foreign_session.status(), reqwest::StatusCode::BAD_REQUEST);
+    let foreign_session: Value = foreign_session.json().await.unwrap();
+    assert_eq!(foreign_session["error"], "session_unknown");
+
+    let final_a: Value = client
+        .get(format!("{url_a}/api/state"))
+        .header("x-kiana-web-token", &token_a)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let final_b: Value = client
+        .get(format!("{url_b}/api/state"))
+        .header("x-kiana-web-token", &token_b)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(final_a["trusted"], false, "{final_a}");
+    assert_eq!(final_b["trusted"], false, "{final_b}");
+    assert_eq!(
+        final_a["sessions"].as_array().unwrap().len(),
+        1,
+        "{final_a}"
+    );
+    assert_eq!(
+        final_b["sessions"].as_array().unwrap().len(),
+        1,
+        "{final_b}"
+    );
+    assert_eq!(final_a["session_id"], session_a, "{final_a}");
+    assert_eq!(final_b["session_id"], session_b, "{final_b}");
+    assert!(!root_a.join("SHOULD_NOT_EXIST.txt").exists());
+    assert!(!root_b.join("SHOULD_NOT_EXIST.txt").exists());
+
+    let _ = child_a.kill().await;
+    let _ = child_b.kill().await;
+}
+
 async fn wait_for_url(stdout: impl tokio::io::AsyncRead + Unpin) -> String {
     let mut lines = BufReader::new(stdout).lines();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(20);

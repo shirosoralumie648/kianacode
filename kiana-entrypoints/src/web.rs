@@ -1,8 +1,12 @@
-//! Loopback Web workbench over the same `DaemonHost` as `kiana run`.
+//! 基于 loopback HTTP 的 Web Workbench 入口。
 //!
-//! Shape is DeepSeek Harness `dsh web`: folder workspace, sidebar + transcript
-//! + composer + details. The worker is still KianaHarness. Token streaming is
-//! not claimed. Bind is loopback-only.
+//! Web 服务器只提供同一个 [`DaemonHost`] 的本地展示与命令路由：每个 session 的 run、
+//! continue、cancel 和 receipt 均复用 `harness_run`。它不自行执行工具、不创建额外模型
+//! 循环，也不把浏览器内存状态升级为执行事实；正式授权、信任、审批和收据仍在产品脊柱中。
+//!
+//! 服务强制绑定 loopback，并对每次 API 状态/变更请求检查进程启动时随机生成的 token、
+//! Host 以及可选 Origin。这里没有承诺 token streaming，Web 视图只是响应到达后的投影。
+//! 这些防护用于本地 UI 暴露面，不能替代系统级网络、浏览器或项目资源信任边界。
 
 use anyhow::{anyhow, Context, Result};
 use axum::extract::{DefaultBodyLimit, State};
@@ -28,6 +32,9 @@ use crate::web_thread::{self, ThreadView, TurnView};
 use crate::web_ui::PAGE;
 use crate::workbench_chat;
 
+/// Web 子命令的人工可读用法文本。
+///
+/// 实际 bind、角色和沙箱合法性由解析函数及控制平面共同验证，帮助文本本身不产生配置。
 pub const WEB_USAGE: &str = "\
 Usage: kiana web [--workdir DIR] [--bind 127.0.0.1:3080] [--sandbox read-only|workspace-write] [--role builder] [--no-open]
 
@@ -49,11 +56,17 @@ const MAX_WEB_FILE_PATH_BYTES: usize = 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebLaunch {
+    /// 可选工作目录；缺失时使用调用进程当前目录。
     pub workdir: Option<PathBuf>,
+    /// 将作为统一 harness 选项传递的已请求沙箱档位。
     pub sandbox: String,
+    /// 可选角色标识；启动前会检查该角色是否存在。
     pub role: Option<String>,
+    /// 用户提供的监听地址文字，后续必须解析为 loopback socket。
     pub bind: String,
+    /// 是否禁止启动后尝试打开浏览器。
     pub no_open: bool,
+    /// 是否只输出帮助并返回。
     pub help: bool,
 }
 
@@ -79,6 +92,7 @@ struct WebApp {
     sessions: Arc<Mutex<HashMap<String, WebSession>>>,
     active: Arc<Mutex<String>>,
     web_token: String,
+    bound_addr: SocketAddr,
 }
 
 #[derive(Clone, Debug)]
@@ -159,11 +173,16 @@ impl IntoResponse for ApiError {
     }
 }
 
+/// 解析 Web 参数并启动本地 Web Workbench。
 pub async fn main_from_args(args: &[String]) -> Result<()> {
     let launch = parse_web_args(args)?;
     run_web(launch).await
 }
 
+/// 从 CLI 词元解析并进行本地语法级验证。
+///
+/// 解析阶段会规范化沙箱名并验证可选角色是否存在，未知选项立即失败。工作目录可用性、
+/// 项目 trust、监听端口绑定和实际能力授权不在此函数中完成。
 pub fn parse_web_args(args: &[String]) -> Result<WebLaunch> {
     let mut launch = WebLaunch::default();
     let mut index = 0;
@@ -226,6 +245,11 @@ pub fn parse_web_args(args: &[String]) -> Result<WebLaunch> {
     Ok(launch)
 }
 
+/// 解析并强制校验只允许 loopback 的监听地址。
+///
+/// 接受完整 `SocketAddr` 或常用 host:port 形式，其中 `localhost`、`127.0.0.1` 与 `::1`
+/// 会归一为对应 IP。任何非本地地址均返回 `bind_loopback_only`，防止默认 Web Workbench
+/// 因参数误用暴露到局域网或公网。
 pub fn parse_bind(value: &str) -> Result<SocketAddr> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -263,6 +287,11 @@ fn ensure_loopback(addr: SocketAddr) -> Result<()> {
     }
 }
 
+/// 绑定 loopback 监听器、创建 Web 状态并运行 Axum 服务。
+///
+/// 每次启动会生成内存中的随机 token，并将其嵌入首页供同一页面后续请求使用；token 不会
+/// 被持久化，也不应被视为跨进程认证机制。实际会话工作仍委派给本地 `DaemonHost`，所以
+/// 即使 Web 侧状态丢失，授权与事件事实也不应依赖它恢复。
 pub async fn run_web(launch: WebLaunch) -> Result<()> {
     if launch.help {
         print!("{WEB_USAGE}");
@@ -278,7 +307,7 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
         .local_addr()
         .context("failed to read bind address")?;
     let host = Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?);
-    let app = WebApp::new(host, workdir.clone(), launch.sandbox.clone(), role);
+    let app = WebApp::new(host, workdir.clone(), launch.sandbox.clone(), role, addr);
     let url = format!("http://{addr}");
     let trusted = harness_run::project_trusted(&workdir.to_string_lossy())?;
     println!("Kiana web");
@@ -314,7 +343,15 @@ fn router(app: WebApp) -> Router {
 }
 
 impl WebApp {
-    fn new(host: Arc<DaemonHost>, workdir: PathBuf, sandbox: String, role: String) -> Self {
+    // 初始化一个活动 session 和进程内 token。该状态只服务于当前 Web 进程，不能作为
+    // EventLog、审批记录或跨重启会话恢复的替代品。
+    fn new(
+        host: Arc<DaemonHost>,
+        workdir: PathBuf,
+        sandbox: String,
+        role: String,
+        bound_addr: SocketAddr,
+    ) -> Self {
         let session_id = new_session_id();
         let mut sessions = HashMap::new();
         sessions.insert(session_id.clone(), WebSession::default());
@@ -326,9 +363,12 @@ impl WebApp {
             sessions: Arc::new(Mutex::new(sessions)),
             active: Arc::new(Mutex::new(session_id)),
             web_token: uuid::Uuid::new_v4().to_string(),
+            bound_addr,
         }
     }
 
+    // 汇集 UI 所需的即时状态。Mutex 中的数据可能与 daemon 已持久化的状态不同步，
+    // 因此只作为展示快照返回，不用于授权结论。
     fn snapshot(&self) -> Result<Value, ApiError> {
         let trusted = harness_run::project_trusted(&self.workdir.to_string_lossy())
             .map_err(|error| ApiError::fail(error.to_string()))?;
@@ -375,6 +415,7 @@ impl WebApp {
         }))
     }
 
+    // 为每次 daemon 调用重建显式选项，避免把可变 Web 状态隐式散落到 handler 中。
     fn options(&self) -> Result<HashMap<String, Value>, ApiError> {
         let mut options = HashMap::new();
         options.insert(
@@ -402,8 +443,14 @@ impl Default for WebSession {
     }
 }
 
-async fn index(State(app): State<Arc<WebApp>>) -> Html<String> {
-    Html(PAGE.replace("__KIANA_WEB_TOKEN_VALUE__", &app.web_token))
+async fn index(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+) -> Result<Html<String>, ApiError> {
+    authorize_host(&app, &headers)?;
+    Ok(Html(
+        PAGE.replace("__KIANA_WEB_TOKEN_VALUE__", &app.web_token),
+    ))
 }
 
 async fn health(State(app): State<Arc<WebApp>>) -> Json<Value> {
@@ -581,32 +628,47 @@ fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError>
     if supplied != Some(app.web_token.as_str()) {
         return Err(ApiError::unauthorized());
     }
-    let host = headers
-        .get("host")
-        .and_then(|value| value.to_str().ok())
-        .filter(|value| is_loopback_host(value));
-    if host.is_none() {
-        return Err(ApiError::unauthorized());
-    }
+    authorize_host(app, headers)?;
     if let Some(origin) = headers.get("origin").and_then(|value| value.to_str().ok()) {
-        let valid = url::Url::parse(origin).is_ok_and(|origin| {
-            origin.scheme() == "http"
-                && origin
-                    .host_str()
-                    .is_some_and(|host| matches!(host, "127.0.0.1" | "localhost" | "::1"))
-        });
-        if !valid {
+        if !origin_matches_bound_addr(origin, app.bound_addr) {
             return Err(ApiError::unauthorized());
         }
     }
     Ok(())
 }
 
-fn is_loopback_host(host: &str) -> bool {
-    url::Url::parse(&format!("http://{host}"))
+fn authorize_host(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
+    let host = headers
+        .get("host")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| authority_matches_bound_addr(value, app.bound_addr));
+    if host.is_none() {
+        return Err(ApiError::unauthorized());
+    }
+    Ok(())
+}
+
+fn authority_matches_bound_addr(authority: &str, bound_addr: SocketAddr) -> bool {
+    url::Url::parse(&format!("http://{authority}"))
         .ok()
-        .and_then(|url| url.host_str().map(str::to_owned))
-        .is_some_and(|host| matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1"))
+        .is_some_and(|url| url_matches_bound_addr(&url, bound_addr))
+}
+
+fn origin_matches_bound_addr(origin: &str, bound_addr: SocketAddr) -> bool {
+    url::Url::parse(origin)
+        .ok()
+        .is_some_and(|url| url_matches_bound_addr(&url, bound_addr))
+}
+
+fn url_matches_bound_addr(url: &url::Url, bound_addr: SocketAddr) -> bool {
+    url.scheme() == "http"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.path() == "/"
+        && url.query().is_none()
+        && url.fragment().is_none()
+        && url.host_str().and_then(|host| host.parse::<IpAddr>().ok()) == Some(bound_addr.ip())
+        && url.port_or_known_default() == Some(bound_addr.port())
 }
 
 fn resolve_session(app: &WebApp, requested: Option<&str>) -> Result<String, ApiError> {
@@ -942,6 +1004,7 @@ mod tests {
             root.clone(),
             "read-only".to_owned(),
             ROLE_BUILDER.to_owned(),
+            "127.0.0.1:0".parse().unwrap(),
         );
         let active = lock_string(&app.active).unwrap();
         let other = new_session_id();
@@ -1007,15 +1070,16 @@ mod tests {
         std::env::remove_var("OPENAI_API_KEY");
         write_project_trust(&root, ProjectTrust::Trusted).unwrap();
 
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
         let host = Arc::new(DaemonHost::with_env_harness().unwrap());
         let app = WebApp::new(
             host,
             root.clone(),
             "workspace-write".to_owned(),
             ROLE_BUILDER.to_owned(),
+            addr,
         );
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
         tokio::spawn(async move {
             axum::serve(listener, router(app)).await.unwrap();
         });

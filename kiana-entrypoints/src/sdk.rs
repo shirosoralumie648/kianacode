@@ -202,12 +202,16 @@ async fn prompt_with_persistence_at(
     permission_handler: Option<&dyn kiana_tools::tool_execution::PermissionPromptHandler>,
 ) -> Result<SdkResultMessage> {
     if should_execute_model(&options) {
-        let _ = permission_handler;
         let session = build_user_prompt_session(&root, message, &options)?;
         let options = prompt_options_with_session_file_sets(&session, options);
-        let run =
-            execute_owned_harness_turn(&session.session_id, &session.messages, &options, None)
-                .await?;
+        let run = execute_owned_harness_turn(
+            &session.session_id,
+            &session.messages,
+            &options,
+            permission_handler,
+            None,
+        )
+        .await?;
         return persist_completed_harness_prompt(&root, session, run);
     }
 
@@ -473,11 +477,11 @@ where
     if should_execute_model(&options) {
         let session = build_user_prompt_session(&root, message, &options)?;
         let options = prompt_options_with_session_file_sets(&session, options);
-        let _ = permission_handler;
         let run = execute_owned_harness_turn(
             &session.session_id,
             &session.messages,
             &options,
+            permission_handler,
             abort_signal,
         )
         .await?;
@@ -515,8 +519,9 @@ async fn prompt_without_persistence(
     }));
 
     if should_execute_model(&options) {
-        let _ = permission_handler;
-        let run = execute_owned_harness_turn(&session_id, &messages, &options, None).await?;
+        let run =
+            execute_owned_harness_turn(&session_id, &messages, &options, permission_handler, None)
+                .await?;
         return Ok(sdk_completed_result(
             &session_id,
             messages.len() + 1,
@@ -560,9 +565,14 @@ where
     }));
 
     if should_execute_model(&options) {
-        let _ = permission_handler;
-        let run =
-            execute_owned_harness_turn(&session_id, &messages, &options, abort_signal).await?;
+        let run = execute_owned_harness_turn(
+            &session_id,
+            &messages,
+            &options,
+            permission_handler,
+            abort_signal,
+        )
+        .await?;
         emit_harness_stream_text(&mut on_stream_event, &run.text)?;
         return Ok(sdk_completed_result(
             &session_id,
@@ -1069,14 +1079,50 @@ async fn execute_owned_harness_turn(
     session_id: &str,
     messages: &[Value],
     options: &HashMap<String, Value>,
+    permission_handler: Option<&dyn kiana_tools::tool_execution::PermissionPromptHandler>,
     abort_signal: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<crate::harness_run::HarnessRunResult> {
     if abort_signal.as_ref().is_some_and(|signal| *signal.borrow()) {
         return Err(anyhow!(AbortError));
     }
-    let prompt =
-        crate::harness_run::prompt_from_session_messages(messages, options.get("json_schema"));
-    crate::harness_run::run_owned_harness(session_id, prompt, options).await
+    let (current, prior) = messages
+        .split_last()
+        .ok_or_else(|| anyhow!("prompt cannot be empty"))?;
+    let prompt = crate::harness_run::prompt_from_session_messages(
+        std::slice::from_ref(current),
+        options.get("json_schema"),
+    );
+    let history = prior
+        .iter()
+        .filter_map(|message| {
+            let role = match message.get("role").and_then(Value::as_str)? {
+                "user" => kiana_protocol::ConversationRole::User,
+                "assistant" => kiana_protocol::ConversationRole::Assistant,
+                "tool" => kiana_protocol::ConversationRole::Tool,
+                _ => return None,
+            };
+            Some(kiana_protocol::ConversationMessage {
+                role,
+                text: crate::harness_run::message_text(message),
+                tool_call_id: message
+                    .get("tool_call_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+            })
+        })
+        .collect();
+    match permission_handler {
+        Some(handler) => {
+            crate::harness_run::run_owned_harness_with_history_and_permission_handler(
+                session_id, prompt, history, options, handler,
+            )
+            .await
+        }
+        None => {
+            crate::harness_run::run_owned_harness_with_history(session_id, prompt, history, options)
+                .await
+        }
+    }
 }
 
 fn emit_harness_stream_text<F>(on_stream_event: &mut F, text: &str) -> Result<()>

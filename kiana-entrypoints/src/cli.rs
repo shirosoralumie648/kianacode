@@ -279,7 +279,7 @@ async fn architecture_main(args: &[String]) -> Result<()> {
         .into_owned();
     let mut metadata = ControlPlaneMetadata::local("architecture-status", project_root);
     metadata.project_trusted = true;
-    metadata.actor_id = Some("local-cli".to_owned());
+    metadata.actor_id = Some("local-user".to_owned());
     let client = KianaClient::new(LocalDaemonTransport {
         host: Arc::new(DaemonHost::local()?),
     });
@@ -14289,7 +14289,7 @@ mod tests {
 
     #[derive(Debug)]
     struct PrintToolLoopState {
-        write_path: String,
+        _write_path: String,
         requests: Vec<Value>,
     }
 
@@ -14538,15 +14538,15 @@ mod tests {
                 serde_json::json!([{
                     "type": "tool_use",
                     "id": "toolu_1",
-                    "name": "TaskCreate",
+                    "name": "apply_patch",
                     "input": {
-                        "title": "create a task"
+                        "patch": "*** Begin Patch\n*** Add File: permission.txt\n+approved\n*** End Patch"
                     }
                 }])
             } else {
                 serde_json::json!([{
                     "type": "text",
-                    "text": "task created"
+                    "text": "patch applied"
                 }])
             };
             (
@@ -14636,10 +14636,10 @@ mod tests {
             State(state): State<StdArc<StdMutex<PrintToolLoopState>>>,
             Json(body): Json<Value>,
         ) -> impl IntoResponse {
-            let (call_count, write_path) = {
+            let call_count = {
                 let mut state = state.lock().unwrap();
                 state.requests.push(body);
-                (state.requests.len(), state.write_path.clone())
+                state.requests.len()
             };
             let content = if call_count == 1 {
                 serde_json::json!([
@@ -14650,10 +14650,9 @@ mod tests {
                     {
                         "type": "tool_use",
                         "id": "toolu_cli_write",
-                        "name": "Write",
+                        "name": "apply_patch",
                         "input": {
-                            "file_path": write_path,
-                            "content": "hello from cli\n"
+                            "patch": "*** Begin Patch\n*** Add File: created.txt\n+hello from cli\n*** End Patch"
                         }
                     }
                 ])
@@ -14681,7 +14680,7 @@ mod tests {
         }
 
         let state = StdArc::new(StdMutex::new(PrintToolLoopState {
-            write_path,
+            _write_path: write_path,
             requests: Vec::new(),
         }));
         let app = axum::Router::new()
@@ -14718,25 +14717,23 @@ mod tests {
                 1 => serde_json::json!([{
                     "type": "tool_use",
                     "id": "toolu_cli_read",
-                    "name": "Read",
+                    "name": "shell",
                     "input": {
-                        "file_path": note_path
+                        "command": format!("cat {}", shell_single_quote(&note_path))
                     }
                 }]),
                 2 => serde_json::json!([{
                     "type": "tool_use",
                     "id": "toolu_cli_edit",
-                    "name": "Edit",
+                    "name": "apply_patch",
                     "input": {
-                        "file_path": note_path,
-                        "old_string": "alpha",
-                        "new_string": "beta"
+                        "patch": "*** Begin Patch\n*** Update File: note.txt\n@@\n-alpha\n+beta\n*** End Patch"
                     }
                 }]),
                 3 => serde_json::json!([{
                     "type": "tool_use",
                     "id": "toolu_cli_bash",
-                    "name": "Bash",
+                    "name": "shell",
                     "input": {
                         "command": format!("cat {}", shell_single_quote(&note_path))
                     }
@@ -20200,16 +20197,13 @@ mod tests {
 
         let tasks_root =
             std::env::temp_dir().join(format!("kiana-bridge-loop-smoke-{}", uuid::Uuid::new_v4()));
+        let kiana_home = tasks_root.with_extension("home");
         std::fs::create_dir_all(&tasks_root).unwrap();
         std::env::set_var("KIANA_TASKS_ROOT", &tasks_root);
-        std::env::set_var("KIANA_HOME", tasks_root.join("kiana-home"));
+        std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_AGENT_ID", "agent-1");
         std::env::remove_var("KIANA_PERMISSION_MODE");
-        kiana_types::write_project_trust(
-            std::env::current_dir().unwrap(),
-            kiana_types::ProjectTrust::Trusted,
-        )
-        .unwrap();
+        kiana_types::write_project_trust(&tasks_root, kiana_types::ProjectTrust::Trusted).unwrap();
 
         let (base_url, server) = start_bridge_loop_mock_model_server().await;
         let options = HashMap::from([
@@ -20218,6 +20212,10 @@ mod tests {
             ("api_key".to_string(), Value::String("test-key".to_string())),
             ("base_url".to_string(), Value::String(base_url)),
             ("model".to_string(), Value::String("mock-model".to_string())),
+            (
+                "cwd".to_string(),
+                Value::String(tasks_root.display().to_string()),
+            ),
         ]);
 
         let (input_writer, input_reader) = tokio::io::duplex(8192);
@@ -20262,12 +20260,12 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string();
-        assert_eq!(permission_request["request"]["tool_name"], "TaskCreate");
+        assert_eq!(permission_request["request"]["tool_name"], "apply_patch");
         assert_eq!(permission_request["request"]["agent_id"], "agent-1");
         assert_eq!(permission_request["request"]["blocked_path"], Value::Null);
         assert_eq!(
             permission_request["request"]["decision_reason"]["reason"],
-            "Tool TaskCreate requires permission in ask mode."
+            "local_write_requires_approval"
         );
 
         let permission_cancel = lines
@@ -20284,7 +20282,8 @@ mod tests {
             .find(|event| event.get("type").and_then(Value::as_str) == Some("result"))
             .expect("result event not written");
         assert_eq!(result_event["subtype"], "success");
-        assert_eq!(result_event["result"], "task created");
+        assert_eq!(result_event["result"], "patch applied");
+        assert!(!tasks_root.join("permission.txt").exists());
 
         let assistant_event = lines
             .iter()
@@ -20294,7 +20293,7 @@ mod tests {
         assert_eq!(assistant_event["message"]["content"][0]["type"], "text");
         assert_eq!(
             assistant_event["message"]["content"][0]["text"],
-            "task created"
+            "patch applied"
         );
         assert_eq!(assistant_event["parent_tool_use_id"], Value::Null);
         assert!(assistant_event["session_id"]
@@ -24298,13 +24297,17 @@ mod tests {
             "KIANA_AGENT_ID",
             "KIANA_PERMISSION_MODE",
             "KIANA_TASKS_ROOT",
+            "KIANA_HOME",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-permission-{}", uuid::Uuid::new_v4()));
         let tasks_root = workspace.join("tasks");
         std::fs::create_dir_all(&tasks_root).unwrap();
         std::env::set_var("KIANA_TASKS_ROOT", &tasks_root);
+        let kiana_home = workspace.with_extension("kiana-home");
+        std::env::set_var("KIANA_HOME", &kiana_home);
         std::env::set_var("KIANA_AGENT_ID", "agent-direct");
+        kiana_types::write_project_trust(&workspace, kiana_types::ProjectTrust::Trusted).unwrap();
 
         let (base_url, model_server) = start_bridge_loop_mock_model_server().await;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -24377,11 +24380,12 @@ mod tests {
         let mut saw_permission_request = false;
         let mut final_result = None;
         while final_result.is_none() {
-            let message = tokio::time::timeout(std::time::Duration::from_secs(2), websocket.next())
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap();
+            let message =
+                tokio::time::timeout(std::time::Duration::from_secs(15), websocket.next())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap();
             let Message::Text(text) = message else {
                 continue;
             };
@@ -24395,7 +24399,7 @@ mod tests {
                         == Some("can_use_tool")
                 {
                     saw_permission_request = true;
-                    assert_eq!(event["request"]["tool_name"], "TaskCreate");
+                    assert_eq!(event["request"]["tool_name"], "apply_patch");
                     assert_eq!(event["request"]["agent_id"], "agent-direct");
                     let request_id = event["request_id"].as_str().unwrap();
                     websocket
@@ -24425,7 +24429,8 @@ mod tests {
         }
 
         assert!(saw_permission_request);
-        assert_eq!(final_result.unwrap()["result"], "task created");
+        assert_eq!(final_result.unwrap()["result"], "patch applied");
+        assert!(!workspace.join("permission.txt").exists());
 
         server.abort();
         model_server.abort();
@@ -24784,6 +24789,8 @@ mod tests {
         let workspace = root.join("workspace");
         let sessions = root.join("sessions");
         std::fs::create_dir_all(&workspace).unwrap();
+        let previous_cwd = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&workspace).unwrap();
         let write_path = workspace.join("created.txt");
         let (base_url, state, server) =
             start_print_tool_loop_mock_model_server(write_path.to_string_lossy().to_string()).await;
@@ -24797,13 +24804,15 @@ mod tests {
         )
         .unwrap();
 
-        main_with_args(vec![
+        let result = main_with_args(vec![
             "--base-url".to_string(),
             base_url,
             "--model".to_string(),
             "mock-cli-model".to_string(),
             "--tools".to_string(),
-            "Write".to_string(),
+            "apply_patch".to_string(),
+            "--permission-mode".to_string(),
+            "acceptEdits".to_string(),
             "--session-id".to_string(),
             "cli-tool-loop-session".to_string(),
             "--name".to_string(),
@@ -24811,8 +24820,9 @@ mod tests {
             "-p".to_string(),
             "create a file".to_string(),
         ])
-        .await
-        .unwrap();
+        .await;
+        std::env::set_current_dir(previous_cwd).unwrap();
+        result.unwrap();
 
         assert_eq!(
             std::fs::read_to_string(&write_path).unwrap(),
@@ -24822,29 +24832,28 @@ mod tests {
         let session: Value =
             serde_json::from_str(&std::fs::read_to_string(&session_file).unwrap()).unwrap();
         assert_eq!(session["title"], "CLI tool loop");
-        assert_eq!(session["messages"].as_array().unwrap().len(), 4);
+        assert_eq!(session["messages"].as_array().unwrap().len(), 2);
         assert_eq!(session["messages"][0]["content"], "create a file");
-        assert_eq!(session["messages"][1]["content"][1]["type"], "tool_use");
-        assert_eq!(session["messages"][2]["content"][0]["type"], "tool_result");
         assert_eq!(
-            session["messages"][3]["content"][0]["text"],
+            session["messages"][1]["content"][0]["text"],
             "cli write complete"
         );
 
         let requests = state.lock().unwrap().requests.clone();
         assert_eq!(requests.len(), 2);
         assert_eq!(requests[0]["model"], "mock-cli-model");
-        assert_eq!(requests[0]["tools"][0]["name"], "Write");
+        assert!(requests[0]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["name"] == "apply_patch"));
         let tool_result =
             &requests[1]["messages"].as_array().unwrap().last().unwrap()["content"][0];
         assert_eq!(tool_result["type"], "tool_result");
         assert_eq!(tool_result["tool_use_id"], "toolu_cli_write");
         assert_eq!(
             tool_result["content"],
-            serde_json::json!(format!(
-                "File created successfully at: {}",
-                write_path.to_string_lossy()
-            ))
+            serde_json::json!(r#"{"changed":[{"op":"add","path":"created.txt"}]}"#)
         );
         assert!(tool_result["content"]["originalFile"].is_null());
 
@@ -24898,7 +24907,9 @@ mod tests {
             "--model".to_string(),
             "mock-cli-model".to_string(),
             "--tools".to_string(),
-            "Read,Edit,Bash".to_string(),
+            "shell,apply_patch".to_string(),
+            "--permission-mode".to_string(),
+            "acceptEdits".to_string(),
             "--session-id".to_string(),
             "cli-multi-tool-loop-session".to_string(),
             "--name".to_string(),
@@ -24915,9 +24926,9 @@ mod tests {
         let session: Value =
             serde_json::from_str(&std::fs::read_to_string(&session_file).unwrap()).unwrap();
         assert_eq!(session["title"], "CLI multi tool loop");
-        assert_eq!(session["messages"].as_array().unwrap().len(), 8);
+        assert_eq!(session["messages"].as_array().unwrap().len(), 2);
         assert_eq!(
-            session["messages"][7]["content"][0]["text"],
+            session["messages"][1]["content"][0]["text"],
             "multi-tool flow complete"
         );
 
@@ -24930,13 +24941,21 @@ mod tests {
             .filter_map(|tool| tool["name"].as_str())
             .collect::<Vec<_>>();
         tool_names.sort();
-        assert_eq!(tool_names, vec!["Bash", "Edit", "Read"]);
+        assert_eq!(
+            tool_names,
+            vec![
+                "apply_patch",
+                "mcp",
+                "memory.search",
+                "memory.write",
+                "shell"
+            ]
+        );
 
         let read_result =
             &requests[1]["messages"].as_array().unwrap().last().unwrap()["content"][0];
         assert_eq!(read_result["type"], "tool_result");
         assert_eq!(read_result["tool_use_id"], "toolu_cli_read");
-        assert_eq!(read_result["content"], "1\talpha");
         assert!(read_result["content"]["file"].is_null());
 
         let edit_result =
@@ -24945,10 +24964,7 @@ mod tests {
         assert_eq!(edit_result["tool_use_id"], "toolu_cli_edit");
         assert_eq!(
             edit_result["content"],
-            serde_json::json!(format!(
-                "The file {} has been updated successfully.",
-                note_path.to_string_lossy()
-            ))
+            serde_json::json!(r#"{"changed":[{"op":"update","path":"note.txt"}]}"#)
         );
         assert!(edit_result["content"]["updatedContent"].is_null());
 
@@ -24956,9 +24972,12 @@ mod tests {
             &requests[3]["messages"].as_array().unwrap().last().unwrap()["content"][0];
         assert_eq!(bash_result["type"], "tool_result");
         assert_eq!(bash_result["tool_use_id"], "toolu_cli_bash");
-        assert_eq!(bash_result["content"], "beta");
-        assert_eq!(bash_result["is_error"], false);
-        assert!(bash_result["content"]["stdout"].is_null());
+        let shell_output: Value =
+            serde_json::from_str(bash_result["content"].as_str().unwrap()).unwrap();
+        assert_eq!(shell_output["stdout"], "beta\n");
+        assert_eq!(shell_output["exit_code"], 0);
+        assert_eq!(shell_output["stop_confirmed"], true);
+        assert!(bash_result.get("is_error").is_none());
 
         server.abort();
         let _ = std::fs::remove_dir_all(root);

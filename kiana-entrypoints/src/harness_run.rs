@@ -6,11 +6,14 @@
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
-use kiana_daemon::DaemonHost;
+use kiana_daemon::{DaemonHost, LocalModelConfig};
 use kiana_protocol::{
-    normalize_role_path, ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata,
-    ResponseEnvelope, RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM,
-    ROLE_REVIEWER,
+    normalize_role_path, ApprovalChallenge, ApprovalDecision, CapabilityRequest, ExecutionStatus,
+    PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RoleSpec, RunId,
+    Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+};
+use kiana_tools::tool_execution::{
+    PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -43,7 +46,13 @@ pub async fn run_envelope(
     prompt: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    run_envelope_on_host(new_local_host()?, session_id, prompt, options).await
+    run_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        prompt,
+        options,
+    )
+    .await
 }
 
 pub async fn run_envelope_on_host(
@@ -65,18 +74,130 @@ pub async fn run_owned_harness(
     prompt: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<HarnessRunResult> {
-    completed_harness_result(run_envelope(session_id, prompt, options).await?)
+    let prompt = prompt.into();
+    run_owned_harness_with_history(session_id, prompt, Vec::new(), options).await
 }
 
-fn new_local_host() -> Result<Arc<DaemonHost>> {
-    Ok(Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?))
+pub async fn run_owned_harness_with_history(
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    history: Vec<kiana_protocol::ConversationMessage>,
+    options: &HashMap<String, Value>,
+) -> Result<HarnessRunResult> {
+    let response = run_envelope_with_history_and_permission_handler(
+        session_id, prompt, history, options, None,
+    )
+    .await?;
+    completed_harness_result(response)
+}
+
+pub async fn run_owned_harness_with_history_and_permission_handler(
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    history: Vec<kiana_protocol::ConversationMessage>,
+    options: &HashMap<String, Value>,
+    permission_handler: &dyn PermissionPromptHandler,
+) -> Result<HarnessRunResult> {
+    let response = run_envelope_with_history_and_permission_handler(
+        session_id,
+        prompt,
+        history,
+        options,
+        Some(permission_handler),
+    )
+    .await?;
+    completed_harness_result(response)
+}
+
+pub async fn run_envelope_with_history(
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    history: Vec<kiana_protocol::ConversationMessage>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    run_envelope_with_history_and_permission_handler(session_id, prompt, history, options, None)
+        .await
+}
+
+async fn run_envelope_with_history_and_permission_handler(
+    session_id: impl Into<String>,
+    prompt: impl Into<String>,
+    history: Vec<kiana_protocol::ConversationMessage>,
+    options: &HashMap<String, Value>,
+    permission_handler: Option<&dyn PermissionPromptHandler>,
+) -> Result<ResponseEnvelope> {
+    let host = new_local_host_with_options(options)?;
+    let policy = sandbox_policy_from_options(options)?;
+    let (client, metadata) = client_on_host(host, session_id, options)?;
+    let response = client
+        .run_with_history(metadata.clone(), prompt.into(), history, policy.sandbox)
+        .await
+        .map_err(anyhow::Error::msg)?;
+    if response.status != ExecutionStatus::AwaitingApproval {
+        return Ok(response);
+    }
+    let Some(handler) = permission_handler else {
+        return Ok(response);
+    };
+    let challenge: ApprovalChallenge = serde_json::from_value(response.output["approval"].clone())
+        .context("approval_challenge_invalid")?;
+    let capability: CapabilityRequest =
+        serde_json::from_value(response.output["capability"].clone())
+            .context("approval_capability_invalid")?;
+    let prompt_request = PermissionPromptRequest {
+        request_id: challenge.approval_id.to_string(),
+        tool_name: capability.operation.clone(),
+        input: capability.arguments.clone(),
+        tool_use_id: capability.arguments["call_id"]
+            .as_str()
+            .unwrap_or("tool")
+            .to_owned(),
+        permission_suggestions: Value::Array(Vec::new()),
+        blocked_path: None,
+        decision_reason: serde_json::json!({
+            "type": "other",
+            "reason": challenge.reason,
+        }),
+        agent_id: std::env::var("KIANA_AGENT_ID").ok(),
+    };
+    let decision = match handler
+        .prompt(prompt_request)
+        .await
+        .map_err(anyhow::Error::msg)?
+    {
+        PermissionPromptDecision::Allow => ApprovalDecision::Approve,
+        PermissionPromptDecision::Deny(_) => ApprovalDecision::Deny,
+    };
+    client
+        .approval_decision_with_proof(
+            metadata,
+            challenge.approval_id,
+            decision,
+            Some(challenge.request_hash),
+            Some(challenge.nonce),
+        )
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+fn new_local_host_with_options(options: &HashMap<String, Value>) -> Result<Arc<DaemonHost>> {
+    let string_option = |key| options.get(key).and_then(Value::as_str).map(str::to_owned);
+    Ok(Arc::new(
+        DaemonHost::local_with_model_config(LocalModelConfig {
+            provider: string_option("provider"),
+            api_key: string_option("api_key"),
+            base_url: string_option("base_url"),
+            model: string_option("model"),
+        })
+        .map_err(anyhow::Error::msg)?,
+    ))
 }
 
 fn local_client(
     session_id: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<(KianaClient<LocalDaemonTransport>, RequestMetadata)> {
-    client_on_host(new_local_host()?, session_id, options)
+    client_on_host(new_local_host_with_options(options)?, session_id, options)
 }
 
 pub fn client_on_host(
@@ -88,7 +209,7 @@ pub fn client_on_host(
     let trusted = project_trusted(&project_root)?;
     let policy = sandbox_policy_from_options(options)?;
     let mut metadata = RequestMetadata::local(session_id.into(), project_root);
-    metadata.actor_id = Some("local-cli".to_owned());
+    metadata.actor_id = Some("local-user".to_owned());
     metadata.project_trusted = trusted;
     metadata.permission_profile = policy.permission_profile;
     if let Some(role_id) = string_option(options, "role") {
@@ -104,7 +225,14 @@ pub async fn continue_envelope(
     run_id: Option<RunId>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    continue_envelope_on_host(new_local_host()?, session_id, prompt, run_id, options).await
+    continue_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        prompt,
+        run_id,
+        options,
+    )
+    .await
 }
 
 pub async fn continue_envelope_on_host(
@@ -129,7 +257,14 @@ pub async fn cancel_envelope(
     reason: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    cancel_envelope_on_host(new_local_host()?, session_id, run_id, reason, options).await
+    cancel_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        run_id,
+        reason,
+        options,
+    )
+    .await
 }
 
 pub async fn cancel_envelope_on_host(
@@ -151,7 +286,13 @@ pub async fn receipt_envelope(
     run_id: Option<RunId>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    receipt_envelope_on_host(new_local_host()?, session_id, run_id, options).await
+    receipt_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        run_id,
+        options,
+    )
+    .await
 }
 
 pub async fn receipt_envelope_on_host(

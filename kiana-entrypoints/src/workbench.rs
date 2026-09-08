@@ -1,7 +1,13 @@
-//! Folder workbench: Codex / pi / dsh-style "open a directory and work".
+//! 面向文件夹的 Workbench 入口。
 //!
-//! Product spine is the same `DaemonHost` used by `kiana run`.
-//! `kiana tui` stays parked on the legacy SDK stream.
+//! 该模块负责把命令行参数和终端交互转换为同一个 [`DaemonHost`] 上的 run、continue、
+//! cancel 与 receipt 请求。它不在入口层重建模型循环、权限判断或工具执行：无论是一次性
+//! 提示还是交互回合，都会复用 `harness_run` 的协议适配路径。`kiana tui` 仍是历史 SDK
+//! 流，不应被当作本模块的等价执行脊柱。
+//!
+//! Workbench 只维护进程内的 session/run 游标以便继续会话；持久事实和是否真正完成仍由
+//! EventLog 与响应回执决定。终端显示到的文本、文件列表和“已完成”状态均是回执投影，
+//! 不能单独证明外部副作用正确。
 
 use anyhow::{anyhow, Context, Result};
 use kiana_daemon::DaemonHost;
@@ -14,6 +20,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 
+/// Workbench 子命令的人工可读用法文本。
+///
+/// 该文本是交互帮助，不参与参数解析和授权决策；实际可接受的档位仍由
+/// `normalize_sandbox` 与控制平面共同约束。
 pub const WORKBENCH_USAGE: &str = "\
 Usage: kiana workbench [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer] [--workdir DIR | --pick-folder] [--] [<prompt>]
        kiana --workdir DIR [--sandbox workspace-write] [--] [<prompt>]
@@ -28,12 +38,19 @@ kiana tui stays parked.";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkbenchLaunch {
+    /// 用户显式选择的工作目录；缺失时稍后解析为当前目录。
     pub workdir: Option<PathBuf>,
+    /// 请求使用的 runner 沙箱名称，默认是项目内可写档位。
     pub sandbox: String,
+    /// 可选的角色标识，作为运行选项传给统一 harness 路径。
     pub role: Option<String>,
+    /// 非空时以一次性方式提交给 daemon 的原始提示。
     pub prompt: Option<String>,
+    /// 是否将响应以 JSON 输出，而不是终端友好文本。
     pub json: bool,
+    /// 是否在启动前要求图形或外部目录选择器选择工作目录。
     pub pick_folder: bool,
+    /// 是否只打印帮助后返回。
     pub help: bool,
 }
 
@@ -51,6 +68,10 @@ impl Default for WorkbenchLaunch {
     }
 }
 
+/// 判断参数序列是否应由 Workbench 路由处理。
+///
+/// 这是入口分流的语法判断，不会访问 daemon；路径形态的参数还会确认它当前解析为目录，
+/// 以避免把普通提示词误判为工作目录。
 pub fn is_workbench_invocation(args: &[String]) -> bool {
     match args.first().map(String::as_str) {
         Some("workbench" | "wb" | "gui" | "--pick-folder") => true,
@@ -63,6 +84,10 @@ pub fn is_workbench_invocation(args: &[String]) -> bool {
     }
 }
 
+/// 判断一个词元是否具有目录路径的明显形态。
+///
+/// 结果仅是启发式，不能代替 `resolve_existing_dir` 的规范化和目录检查。它特意拒绝
+/// 空字符串与选项形式，避免参数解析把未知 flag 误收进工作目录。
 pub fn looks_like_workdir_path(value: &str) -> bool {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.starts_with('-') {
@@ -78,15 +103,24 @@ pub fn looks_like_workdir_path(value: &str) -> bool {
         || trimmed.contains('\\')
 }
 
+/// 解析 Workbench 参数并进入相应的一次性或交互运行模式。
 pub async fn main_from_args(args: &[String]) -> Result<()> {
     let launch = parse_workbench_args(args)?;
     run_workbench(launch).await
 }
 
+/// 以当前目录和默认设置启动交互 Workbench。
+///
+/// 此便捷入口仍会经过 [`run_workbench`]，因此不会跳过工作目录信任检查或统一 harness。
 pub async fn run_cwd_interactive() -> Result<()> {
     run_workbench(WorkbenchLaunch::default()).await
 }
 
+/// 从 CLI 词元解析 Workbench 启动配置。
+///
+/// `--` 之后的所有词元都属于提示词；此前的路径形态词元只在尚未指定工作目录时被视为
+/// 目录，其余普通词元会拼接为提示。未知选项直接失败，避免拼写错误静默改变模型输入。
+/// 该函数只完成语法解析，目录存在性、信任状态和沙箱执行由后续路径处理。
 pub fn parse_workbench_args(args: &[String]) -> Result<WorkbenchLaunch> {
     let mut launch = WorkbenchLaunch::default();
     let mut index = 0;
@@ -160,6 +194,12 @@ pub fn parse_workbench_args(args: &[String]) -> Result<WorkbenchLaunch> {
     Ok(launch)
 }
 
+/// 运行 Workbench 的完整入口流程。
+///
+/// 函数先处理帮助和目录选择，再规范化并切换到工作目录；随后构造统一 harness 选项并创建
+/// 一个本地 [`DaemonHost`]。交互终端使用 `workbench_chat`，非终端或 JSON 模式则按回合
+/// 调用 `run_envelope_on_host` / `continue_envelope_on_host`。工作目录未受信任时，写入型
+/// 请求仍由下游 fail-closed 策略拒绝，本函数不会因为 UI 提示而自行授予信任。
 pub async fn run_workbench(mut launch: WorkbenchLaunch) -> Result<()> {
     if launch.help {
         print!("{WORKBENCH_USAGE}");
@@ -193,9 +233,9 @@ pub async fn run_workbench(mut launch: WorkbenchLaunch) -> Result<()> {
                 );
             }
         } else if launch.prompt.is_some() {
-            // One-shot still goes through the harness so the fail-closed code is
-            // the same `workspace_write_requires_trusted_non_safe_profile`
-            // users already get from `kiana run --sandbox workspace-write`.
+            // 一次性请求也必须走相同 harness，因此它获得的拒绝码与
+            // `kiana run --sandbox workspace-write` 一致，而不会因入口不同
+            // 意外放宽为可写执行。
         }
     }
 
@@ -459,6 +499,11 @@ fn expand_user(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
+/// 通过受控顺序调用目录选择器，并返回已经存在的规范化目录。
+///
+/// 优先使用用户显式配置的 `KIANA_FOLDER_PICKER_CMD`，其次只在图形会话中尝试常见选择器。
+/// 选择器输出最终仍交由 `resolve_existing_dir` 检查，因此空输出、失败状态和文件路径
+/// 都会被拒绝。该函数只选择本地目录，不会自动写入 trust 配置。
 pub fn pick_folder() -> Result<PathBuf> {
     if let Ok(command) = std::env::var("KIANA_FOLDER_PICKER_CMD") {
         let trimmed = command.trim();

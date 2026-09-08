@@ -5,7 +5,7 @@ use kiana_commands::{Command, CommandContext, CommandResult, CommandRoute};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, PermissionProfile,
-    RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    RequestEnvelope, RequestMetadata, ResponseEnvelope, RiskLevel,
 };
 use serde_json::Value;
 use std::sync::{Arc, OnceLock};
@@ -37,7 +37,9 @@ pub async fn execute_command(
     let approval_context = context.clone();
     match dispatch_command(command, context).await? {
         CommandDispatchOutcome::Completed(result) => Ok(result),
-        CommandDispatchOutcome::AwaitingApproval(challenge) if approve_local_write => {
+        CommandDispatchOutcome::AwaitingApproval(challenge)
+            if should_auto_approve_local_write(approve_local_write, &challenge) =>
+        {
             resolve_command_approval_with_challenge(
                 &approval_context,
                 &challenge,
@@ -50,6 +52,13 @@ pub async fn execute_command(
             serde_json::to_string(&challenge)?
         )),
     }
+}
+
+fn should_auto_approve_local_write(
+    approve_local_write: bool,
+    challenge: &ApprovalChallenge,
+) -> bool {
+    approve_local_write && challenge.risk == RiskLevel::LocalWrite
 }
 
 #[derive(Clone, Debug)]
@@ -179,7 +188,7 @@ fn request_metadata(context: &CommandContext) -> anyhow::Result<RequestMetadata>
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|actor| !actor.is_empty())
-            .unwrap_or("local-command")
+            .unwrap_or("local-user")
             .to_owned(),
     );
     metadata.project_trusted =
@@ -327,8 +336,46 @@ mod tests {
         assert_eq!(error.to_string(), "control_plane_project_root_required");
     }
 
+    #[test]
+    fn request_metadata_defaults_to_the_authenticated_local_actor() {
+        let root = fixture_root("metadata");
+        let metadata = request_metadata(&CommandContext {
+            args: String::new(),
+            app_state: HashMap::from([(
+                "cwd".to_owned(),
+                Value::String(root.display().to_string()),
+            )]),
+        })
+        .unwrap();
+
+        assert_eq!(metadata.actor_id.as_deref(), Some("local-user"));
+    }
+
+    #[test]
+    fn approve_local_write_auto_approval_is_limited_to_local_write_challenges() {
+        assert!(should_auto_approve_local_write(
+            true,
+            &approval_challenge(RiskLevel::LocalWrite),
+        ));
+        assert!(!should_auto_approve_local_write(
+            false,
+            &approval_challenge(RiskLevel::LocalWrite),
+        ));
+        for risk in [
+            RiskLevel::ReadOnly,
+            RiskLevel::ExternalSideEffect,
+            RiskLevel::Critical,
+        ] {
+            assert!(!should_auto_approve_local_write(
+                true,
+                &approval_challenge(risk),
+            ));
+        }
+    }
+
     #[tokio::test]
     async fn context_repo_map_uses_client_daemon_core_and_query_handler() {
+        let _guard = crate::test_support::env_lock().lock().unwrap();
         let root = fixture_root("repo-map");
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(root.join("src/lib.rs"), "pub struct RoutedContext;\n").unwrap();
@@ -354,6 +401,7 @@ mod tests {
 
     #[tokio::test]
     async fn context_repo_map_does_not_promote_unknown_project_trust() {
+        let _guard = crate::test_support::env_lock().lock().unwrap();
         let root = fixture_root("untrusted");
         fs::create_dir_all(&root).unwrap();
         let error = execute_command(
@@ -377,6 +425,7 @@ mod tests {
 
     #[tokio::test]
     async fn context_read_queries_use_the_same_dispatcher() {
+        let _guard = crate::test_support::env_lock().lock().unwrap();
         let root = fixture_root("read-queries");
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(
@@ -429,5 +478,19 @@ mod tests {
             "kiana-command-dispatch-{label}-{}-{nanos}",
             std::process::id()
         ))
+    }
+
+    fn approval_challenge(risk: RiskLevel) -> ApprovalChallenge {
+        ApprovalChallenge {
+            schema: "kiana.approval-challenge.v1".to_owned(),
+            approval_id: ApprovalId::new(),
+            request_id: kiana_protocol::RequestId::new(),
+            request_hash: "sha256:challenge".to_owned(),
+            risk,
+            expires_at_unix_ms: u64::MAX,
+            reason: "approval_required".to_owned(),
+            nonce: "nonce".to_owned(),
+            policy_version: "kiana.policy.v1".to_owned(),
+        }
     }
 }

@@ -1,3 +1,13 @@
+//! Kiana 各种本地入口的模块注册表。
+//!
+//! 入口模块负责参数解析、终端/Web 展示和协议适配，但产品执行仍必须汇聚到
+//! `DaemonHost`。这里的 `pub mod` 只暴露模块边界，不代表每个历史入口都属于当前
+//! CompanyOS 产品路径；`tui`、旧 `sdk`、旧 `runner` 与兼容命令面应按各自文档中的
+//! proof level 使用，不能拿它们的输出替代 ControlPlane/EventLog 证据。
+//!
+//! 测试辅助模块只在测试构建中提供环境变量锁和恢复工具，避免并发测试互相污染进程级
+//! 环境；它不会进入生产二进制，也不参与运行时授权。
+
 pub mod bg;
 pub mod cli;
 pub mod command_dispatch;
