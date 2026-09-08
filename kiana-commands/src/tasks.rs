@@ -5582,6 +5582,10 @@ fn swarm_monitor(context: &CommandContext, rest: &str) -> Result<CommandResult> 
         let telemetry = read_worker_telemetry(&worker_dir.join("telemetry.json"))?;
         let commands_run = telemetry.commands_run.clone();
         let exit_code = read_optional_i32(&worker_dir.join("exit_code"))?;
+        // The runner writes finished_at_ms immediately before the exit marker.
+        // Treat an exit marker without that completion metadata as an
+        // incomplete observation so it cannot produce a moving result packet.
+        let finished_at_file = read_optional_u64(&worker_dir.join("finished_at_ms"))?;
         let previous_status = state["status"].as_str().unwrap_or("running").to_string();
         let alive = matches!(process_identity_status, ProcessIdentityStatus::Verified);
         let elapsed_ms = now_ms().saturating_sub(started_at_ms);
@@ -5622,12 +5626,17 @@ fn swarm_monitor(context: &CommandContext, rest: &str) -> Result<CommandResult> 
             reason = Some("timeout".to_string());
             "timeout".to_string()
         } else if let Some(code) = exit_code {
-            if code == 0 {
+            if finished_at_file.is_some() && code == 0 {
                 reason = Some("completed".to_string());
                 "completed".to_string()
-            } else {
+            } else if finished_at_file.is_some() {
                 reason = Some("worker_failed".to_string());
                 "failed".to_string()
+            } else if alive {
+                "running".to_string()
+            } else {
+                reason = Some("completion_marker_missing".to_string());
+                "lost".to_string()
             }
         } else if alive {
             "running".to_string()
@@ -5668,7 +5677,7 @@ fn swarm_monitor(context: &CommandContext, rest: &str) -> Result<CommandResult> 
             continue;
         }
 
-        let finished_at_ms = read_optional_u64(&worker_dir.join("finished_at_ms"))?
+        let finished_at_ms = finished_at_file
             .or_else(|| state["finished_at_ms"].as_u64())
             .unwrap_or_else(now_ms);
         let retry_reason = reason.as_deref();
@@ -7447,7 +7456,7 @@ fn build_swarm_runner_script(
         )
     };
     Ok(format!(
-        "#!/usr/bin/env bash\nset +e\numask 077\nprintf '%s\\n' \"$$\" > {pid}\ndate +%s%3N > {started}\n{command} >> {stdout} 2>> {stderr}\ncode=$?\nprintf '%s\\n' \"$code\" > {exit}\ndate +%s%3N > {finished}\nexit \"$code\"\n",
+        "#!/usr/bin/env bash\nset +e\numask 077\nprintf '%s\\n' \"$$\" > {pid}\ndate +%s%3N > {started}\n{command} >> {stdout} 2>> {stderr}\ncode=$?\n# Write completion metadata before the exit marker; the marker is the final\n# signal that a monitor may consume as a complete worker result.\ndate +%s%3N > {finished}\nprintf '%s\\n' \"$code\" > {exit}\nexit \"$code\"\n",
         pid = shell_quote_path(&worker_dir.join("pid")),
         started = shell_quote_path(&worker_dir.join("started_at_ms")),
         stdout = shell_quote_path(&worker_dir.join("stdout.log")),

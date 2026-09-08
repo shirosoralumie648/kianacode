@@ -2867,6 +2867,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_symbols_and_todo_diagnostics() {
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("symbols");
         fs::create_dir_all(&root).unwrap();
         let source_path = root.join("lib.rs");
@@ -2907,6 +2908,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_definition_and_references_across_workspace() {
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("workspace");
         let src = root.join("src");
         fs::create_dir_all(&src).unwrap();
@@ -2967,6 +2969,7 @@ mod tests {
 
     #[tokio::test]
     async fn definitions_scan_added_access_roots() {
+        let _guard = crate::test_support::lock_env();
         let root = temp_root("root");
         let extra = temp_root("extra");
         fs::create_dir_all(&root).unwrap();
