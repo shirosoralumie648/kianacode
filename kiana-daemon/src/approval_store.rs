@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use kiana_domain::{
-    APPROVAL_CHALLENGE_SCHEMA, ApprovalChallenge, ApprovalId, ApprovalState, CapabilityRequest,
-    PendingApproval, PermissionProfile, RequestContext, SessionId,
+    ApprovalChallenge, ApprovalId, ApprovalState, CapabilityRequest, PendingApproval,
+    PermissionProfile, RequestContext, SessionId, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_ports::{ApprovalStorePort, PortError};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
 const DEFAULT_APPROVAL_TTL: Duration = Duration::from_secs(5 * 60);
+const APPROVAL_TEMP_ATTEMPTS: usize = 16;
 
 pub(crate) struct MemoryApprovalStore {
     records: Mutex<HashMap<ApprovalId, ApprovalRecord>>,
@@ -175,6 +176,7 @@ impl ApprovalStorePort for MemoryApprovalStore {
             approval_id,
             request_id: request.request_id,
             request_hash,
+            risk: request.risk,
             expires_at_unix_ms,
             reason: reason.to_owned(),
             nonce: approval_id.to_string(),
@@ -346,6 +348,74 @@ impl ApprovalStorePort for MemoryApprovalStore {
             return Err(error);
         }
         Ok(pending)
+    }
+
+    async fn validate_with_proof(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+    ) -> Result<(), PortError> {
+        let records = self.records.lock().await;
+        let previous = records
+            .get(&approval_id)
+            .ok_or_else(|| PortError::Failed("approval_not_found".to_owned()))?;
+        if previous.state == ApprovalState::Consumed {
+            return Err(PortError::Conflict("approval_already_consumed".to_owned()));
+        }
+        if previous.state == ApprovalState::Expired {
+            return Err(PortError::Failed("approval_expired".to_owned()));
+        }
+        if previous.state == ApprovalState::Cancelled {
+            return Err(PortError::Conflict("approval_already_consumed".to_owned()));
+        }
+        if previous.state != ApprovalState::Active {
+            return Err(PortError::Failed("approval_not_active".to_owned()));
+        }
+        if Instant::now() >= previous.expires_at {
+            return Err(PortError::Failed("approval_expired".to_owned()));
+        }
+        let actor_id = context
+            .actor_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|actor| !actor.is_empty())
+            .ok_or_else(|| PortError::Failed("approval_actor_required".to_owned()))?;
+        if previous.binding.session_id != context.session_id
+            || previous.binding.actor_id != actor_id
+            || previous.binding.project_root != context.project_root
+            || previous.binding.project_trusted != context.project_trusted
+            || previous.binding.permission_profile != context.permission_profile
+            || previous.binding.role_id != context.role_id
+            || previous.binding.department_id != context.department_id
+            || previous.binding.path_allow != context.path_allow
+        {
+            return Err(PortError::Failed("approval_context_mismatch".to_owned()));
+        }
+        if request_hash.is_some() != nonce.is_some() {
+            return Err(PortError::Failed("approval_proof_incomplete".to_owned()));
+        }
+        if let Some(expected_hash) = request_hash {
+            if expected_hash != previous.pending.challenge.request_hash {
+                return Err(PortError::Failed(
+                    "approval_request_hash_mismatch".to_owned(),
+                ));
+            }
+        }
+        if let Some(expected_nonce) = nonce {
+            if expected_nonce != previous.pending.challenge.nonce {
+                return Err(PortError::Failed("approval_nonce_mismatch".to_owned()));
+            }
+        }
+        if capability_request_hash(context, &previous.pending.request)?
+            != previous.pending.challenge.request_hash
+        {
+            return Err(PortError::Failed(
+                "approval_request_integrity_mismatch".to_owned(),
+            ));
+        }
+        Ok(())
     }
 
     async fn invalidate(
@@ -596,20 +666,7 @@ fn persist_record(
         );
         encoded.push('\n');
     }
-    let temporary = path.with_file_name(format!(
-        ".{}.tmp-{}-{}",
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("records"),
-        std::process::id(),
-        unix_time_ms()
-    ));
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&temporary)
-        .map_err(|error| PortError::Failed(format!("approval_store_write_failed:{error}")))?;
+    let (temporary, mut file) = create_approval_temp_sibling(path)?;
     let write_result = file
         .write_all(encoded.as_bytes())
         .and_then(|_| file.flush())
@@ -637,6 +694,54 @@ fn persist_record(
             .map_err(|error| PortError::Failed(format!("approval_store_sync_failed:{error}")))?;
     }
     Ok(())
+}
+
+fn create_approval_temp_sibling(path: &Path) -> Result<(PathBuf, std::fs::File), PortError> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    create_approval_temp_sibling_with_stamp(path, stamp)
+}
+
+fn create_approval_temp_sibling_with_stamp(
+    path: &Path,
+    stamp: u128,
+) -> Result<(PathBuf, std::fs::File), PortError> {
+    for attempt in 0..APPROVAL_TEMP_ATTEMPTS {
+        let temporary = approval_temp_sibling_path(path, stamp, attempt)?;
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+        {
+            Ok(file) => return Ok((temporary, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(PortError::Failed(format!(
+                    "approval_store_write_failed:{error}"
+                )))
+            }
+        }
+    }
+    Err(PortError::Failed(
+        "approval_store_temp_unavailable".to_owned(),
+    ))
+}
+
+fn approval_temp_sibling_path(
+    path: &Path,
+    stamp: u128,
+    attempt: usize,
+) -> Result<PathBuf, PortError> {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("records");
+    Ok(path.with_file_name(format!(
+        ".{name}.tmp-{}-{stamp}-{attempt}",
+        std::process::id()
+    )))
 }
 
 fn unix_time_ms() -> u64 {
@@ -719,6 +824,7 @@ mod tests {
         assert_eq!(challenge.request_id, context.request_id);
         assert!(challenge.request_hash.starts_with("sha256:"));
         assert_eq!(challenge.request_hash.len(), "sha256:".len() + 64);
+        assert_eq!(challenge.risk, kiana_domain::RiskLevel::LocalWrite);
         assert_eq!(
             store
                 .consume(&context, challenge.approval_id)
@@ -852,7 +958,7 @@ mod tests {
         store.activate(challenge.approval_id).await.unwrap();
         assert_eq!(
             store
-                .consume_with_proof(
+                .validate_with_proof(
                     &context,
                     challenge.approval_id,
                     Some("wrong-hash"),
@@ -862,17 +968,24 @@ mod tests {
                 .unwrap_err(),
             PortError::Failed("approval_request_hash_mismatch".to_owned())
         );
-        assert!(
-            store
-                .consume_with_proof(
-                    &context,
-                    challenge.approval_id,
-                    Some(&challenge.request_hash),
-                    Some(&challenge.nonce),
-                )
-                .await
-                .is_ok()
-        );
+        assert!(store
+            .validate_with_proof(
+                &context,
+                challenge.approval_id,
+                Some(&challenge.request_hash),
+                Some(&challenge.nonce),
+            )
+            .await
+            .is_ok());
+        assert!(store
+            .consume_with_proof(
+                &context,
+                challenge.approval_id,
+                Some(&challenge.request_hash),
+                Some(&challenge.nonce),
+            )
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
@@ -908,24 +1021,20 @@ mod tests {
         let reopened = MemoryApprovalStore::open(&path).unwrap();
         let persisted = fs::read_to_string(&path).unwrap();
         assert_eq!(persisted.lines().count(), 2);
-        assert!(
-            reopened
-                .consume_with_proof(
-                    &second_context,
-                    second_challenge.approval_id,
-                    Some(&second_challenge.request_hash),
-                    Some(&second_challenge.nonce),
-                )
-                .await
-                .is_ok()
-        );
+        assert!(reopened
+            .consume_with_proof(
+                &second_context,
+                second_challenge.approval_id,
+                Some(&second_challenge.request_hash),
+                Some(&second_challenge.nonce),
+            )
+            .await
+            .is_ok());
         let first_reopened = MemoryApprovalStore::open(&path).unwrap();
-        assert!(
-            first_reopened
-                .consume(&first_context, first_challenge.approval_id)
-                .await
-                .is_ok()
-        );
+        assert!(first_reopened
+            .consume(&first_context, first_challenge.approval_id)
+            .await
+            .is_ok());
         let _ = fs::remove_file(&path);
     }
 
@@ -994,16 +1103,35 @@ mod tests {
             challenge
         };
         let reopened = MemoryApprovalStore::open(&path).unwrap();
-        assert!(
+        assert!(reopened
+            .validate_with_proof(
+                &context,
+                challenge.approval_id,
+                Some(&challenge.request_hash),
+                Some(&challenge.nonce),
+            )
+            .await
+            .is_ok());
+        assert!(reopened
+            .consume_with_proof(
+                &context,
+                challenge.approval_id,
+                Some(&challenge.request_hash),
+                Some(&challenge.nonce),
+            )
+            .await
+            .is_ok());
+        assert_eq!(
             reopened
-                .consume_with_proof(
+                .validate_with_proof(
                     &context,
                     challenge.approval_id,
                     Some(&challenge.request_hash),
                     Some(&challenge.nonce),
                 )
                 .await
-                .is_ok()
+                .unwrap_err(),
+            PortError::Conflict("approval_already_consumed".to_owned())
         );
         assert_eq!(
             reopened
@@ -1015,5 +1143,81 @@ mod tests {
         let persisted = fs::read_to_string(&path).unwrap();
         assert!(persisted.contains("consumed"), "{persisted}");
         let _ = fs::remove_file(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn approval_temp_collision_does_not_follow_existing_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-approval-temp-collision-{}-{nonce}",
+            std::process::id(),
+        ));
+        let outside = std::env::temp_dir().join(format!(
+            "kiana-approval-temp-outside-{}-{nonce}",
+            std::process::id(),
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let path = root.join("records.jsonl");
+        let outside_target = outside.join("records.txt");
+        fs::write(&outside_target, "outside\n").unwrap();
+        let stamp = 42;
+        let planted = approval_temp_sibling_path(&path, stamp, 0).unwrap();
+        symlink(&outside_target, &planted).unwrap();
+
+        let (temporary, mut file) = create_approval_temp_sibling_with_stamp(&path, stamp).unwrap();
+        assert_eq!(
+            temporary,
+            approval_temp_sibling_path(&path, stamp, 1).unwrap(),
+            "an occupied first candidate must be skipped"
+        );
+        file.write_all(b"temporary\n").unwrap();
+        drop(file);
+
+        assert_eq!(fs::read_to_string(&outside_target).unwrap(), "outside\n");
+        assert_eq!(fs::read_to_string(&temporary).unwrap(), "temporary\n");
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
+    fn exhausted_approval_temp_names_fail_without_reusing_a_file() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "kiana-approval-temp-exhausted-{}-{nonce}",
+            std::process::id(),
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("records.jsonl");
+        let stamp = 43;
+        for attempt in 0..APPROVAL_TEMP_ATTEMPTS {
+            fs::write(
+                approval_temp_sibling_path(&path, stamp, attempt).unwrap(),
+                "occupied\n",
+            )
+            .unwrap();
+        }
+
+        assert_eq!(
+            create_approval_temp_sibling_with_stamp(&path, stamp).unwrap_err(),
+            PortError::Failed("approval_store_temp_unavailable".to_owned())
+        );
+        for attempt in 0..APPROVAL_TEMP_ATTEMPTS {
+            assert_eq!(
+                fs::read_to_string(approval_temp_sibling_path(&path, stamp, attempt).unwrap())
+                    .unwrap(),
+                "occupied\n"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
     }
 }

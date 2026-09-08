@@ -5,16 +5,18 @@
 
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, MEMORY_LAYER_COMPANY,
-    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
-    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_SEARCH_SCHEMA,
-    MEMORY_WRITE_SCHEMA, MemoryCollection, RoleSpec,
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, MemoryCollection, RoleSpec,
+    MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH,
+    MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA,
+    MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::PortError;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -309,10 +311,15 @@ fn confined_project_root(project_root: &str) -> Result<PathBuf, PortError> {
 }
 
 fn read_records(path: &Path) -> Result<Vec<MemoryRecord>, PortError> {
-    if !path.exists() {
+    if !path_is_present(path)? {
         return Ok(Vec::new());
     }
-    let file = fs::File::open(path)
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    let file = options
+        .open(path)
         .map_err(|error| PortError::Failed(format!("memory_read_failed:{error}")))?;
     let mut records = Vec::new();
     for line in BufReader::new(file).lines() {
@@ -333,9 +340,11 @@ fn append_record(path: &Path, record: &MemoryRecord) -> Result<(), PortError> {
         fs::create_dir_all(parent)
             .map_err(|error| PortError::Failed(format!("memory_write_failed:{error}")))?;
     }
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    let mut file = options
         .open(path)
         .map_err(|error| PortError::Failed(format!("memory_write_failed:{error}")))?;
     let mut encoded = serde_json::to_string(record)
@@ -344,6 +353,14 @@ fn append_record(path: &Path, record: &MemoryRecord) -> Result<(), PortError> {
     file.write_all(encoded.as_bytes())
         .map_err(|error| PortError::Failed(format!("memory_write_failed:{error}")))?;
     Ok(())
+}
+
+fn path_is_present(path: &Path) -> Result<bool, PortError> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(PortError::Failed(format!("memory_read_failed:{error}"))),
+    }
 }
 
 fn text_matches(text: &str, query: &str) -> bool {
@@ -379,6 +396,15 @@ mod tests {
     use super::*;
     use kiana_domain::MEMORY_LAYERS;
 
+    #[cfg(unix)]
+    fn temp_memory_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "kiana-memory-{label}-{}-{}",
+            std::process::id(),
+            now_ms()
+        ))
+    }
+
     #[test]
     fn six_layers_are_catalogued() {
         assert_eq!(
@@ -407,5 +433,57 @@ mod tests {
         assert!(project_path.starts_with(project.join(".kiana").join("memory")));
         assert_ne!(user_path, project_path);
         std::env::remove_var(KIANA_HOME_ENV);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn memory_read_rejects_existing_symlink_without_reading_target() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_memory_path("read-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let outside = root.join("outside.jsonl");
+        let linked = root.join("memory.jsonl");
+        let original = "outside-memory\n";
+        fs::write(&outside, original).unwrap();
+        symlink(&outside, &linked).unwrap();
+
+        let error = read_records(&linked).unwrap_err();
+        assert!(error.to_string().contains("memory_read_failed"));
+        assert_eq!(fs::read_to_string(&outside).unwrap(), original);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn memory_write_rejects_existing_symlink_without_mutating_target() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_memory_path("write-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let outside = root.join("outside.jsonl");
+        let linked = root.join("memory.jsonl");
+        let original = "outside-memory\n";
+        fs::write(&outside, original).unwrap();
+        symlink(&outside, &linked).unwrap();
+        let record = MemoryRecord {
+            schema: MEMORY_RECORD_SCHEMA.to_owned(),
+            id: "mem-test".to_owned(),
+            layer: MEMORY_LAYER_PROJECT.to_owned(),
+            collection: MEMORY_LAYER_PROJECT.to_owned(),
+            text: "should not write".to_owned(),
+            source: "test".to_owned(),
+            role_id: "builder".to_owned(),
+            department_id: "executing".to_owned(),
+            session_id: "session-1".to_owned(),
+            created_at_ms: 1,
+        };
+
+        let error = append_record(&linked, &record).unwrap_err();
+        assert!(error.to_string().contains("memory_write_failed"));
+        assert_eq!(fs::read_to_string(&outside).unwrap(), original);
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

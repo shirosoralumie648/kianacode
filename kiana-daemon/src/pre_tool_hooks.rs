@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use kiana_domain::{CapabilityRequest, RequestContext};
 use kiana_ports::{PortError, PreToolHookDecision, PreToolHookPort};
-use kiana_query::{PreToolUseHookContext, ToolHookDecision, run_pre_tool_use_hooks};
+use kiana_query::{run_pre_tool_use_hooks, PreToolUseHookContext, ToolHookDecision};
 use kiana_types::ProjectTrust;
 use std::path::PathBuf;
 use std::sync::Arc;

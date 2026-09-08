@@ -8,7 +8,7 @@
 use async_trait::async_trait;
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
-use kiana_skills::{Command as Skill, load_all_skills_with_trust};
+use kiana_skills::{load_all_skills_with_trust, Command as Skill};
 use kiana_types::ProjectTrust;
 use std::sync::Arc;
 
@@ -38,6 +38,7 @@ async fn with_skill_instructions(command: RunnerCommand) -> RunnerCommand {
         RunnerCommand::Start {
             run_id,
             prompt,
+            history,
             project_root,
             sandbox,
             instructions,
@@ -45,6 +46,7 @@ async fn with_skill_instructions(command: RunnerCommand) -> RunnerCommand {
         } if instructions.trim().is_empty() => RunnerCommand::Start {
             run_id,
             prompt,
+            history,
             project_root: project_root.clone(),
             sandbox,
             instructions: load_skill_pack(&project_root, project_trusted).await,

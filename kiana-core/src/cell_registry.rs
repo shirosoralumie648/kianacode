@@ -7,9 +7,9 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AgentTemplate, BudgetLease, BudgetLeaseId, CellId, CellLifecycle, CellSpec, RequestId,
-    RetirementRecord, RoleSpec, RunId, SpawnPlanId, SpawnPlanStatus, WorkFingerprint,
-    allow_list_covers, builder_lock_paths,
+    allow_list_covers, builder_lock_paths, AgentTemplate, BudgetLease, BudgetLeaseId, CellId,
+    CellLifecycle, CellSpec, RequestId, RetirementRecord, RoleSpec, RunId, SpawnPlanId,
+    SpawnPlanStatus, WorkFingerprint,
 };
 use kiana_ports::{
     CapabilityLease, CapabilityOutcome, CellRegistryPort, PortError, SpawnReservation,

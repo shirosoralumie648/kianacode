@@ -1,26 +1,34 @@
-//! Codex-style token-budget compaction for the owned harness.
+//! Owned harness 使用的 Codex 风格 token 压缩器。
 //!
-//! Derived from OpenAI Codex (Apache-2.0) `codex-rs/core/src/compact.rs`:
-//! `build_compacted_history`, `is_summary_message`, and the token-budget path
-//! that skips model/server summarization and installs a fresh context window.
-//! Copied into `kiana-runner`; `reference/` is audit-only.
+//! 当对话历史超过本地触发阈值时，本模块只保留最近的用户消息，并在末尾插入固定摘要
+//! 标记，建立一个较小的新上下文窗口。它不调用模型生成摘要，也不修改 EventLog 或真实
+//! 会话事实；摘要只是可丢弃的 Runner 上下文视图。token 估算按字节近似，不能当作供应商
+//! tokenizer、计费或硬预算证明。
+//!
+//! 实现形状参考 OpenAI Codex 的公开压缩逻辑；`reference/` 仍然只是审计输入，当前代码
+//! 不依赖其中的源码。
 
 use crate::model::{ModelMessage, ModelRole};
 
-/// Marker Codex uses so compacted summaries can be recognized later.
+/// 压缩摘要使用的固定前缀，用于后续识别并避免把摘要当作真实用户轮次。
 pub const SUMMARY_PREFIX: &str = r#"Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:"#;
 
 const APPROX_BYTES_PER_TOKEN: usize = 4;
-/// Codex `COMPACT_USER_MESSAGE_MAX_TOKENS` for retained user turns after compact.
+/// 压缩后保留的用户消息 token 上限（当前为 20,000）。
 pub const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 20_000;
-/// Auto-compact trigger when no model context window is configured.
+/// 未配置模型上下文窗口时采用的自动压缩触发值（当前为 32,000）。
 pub const DEFAULT_COMPACT_TRIGGER_TOKENS: usize = 32_000;
 
+/// 以约 4 字节/token 的固定比例估算文本 token 数。
+///
+/// 该函数只服务于压缩的确定性上限；非 ASCII 文本、代码和真实模型 tokenizer 的结果可能
+/// 差异很大，因此不能用它判断供应商请求是否一定不会超限。
 pub fn approx_token_count(text: &str) -> usize {
     let len = text.len();
     len.saturating_add(APPROX_BYTES_PER_TOKEN.saturating_sub(1)) / APPROX_BYTES_PER_TOKEN
 }
 
+/// 汇总消息文本的近似 token 数。
 pub fn history_tokens(messages: &[ModelMessage]) -> usize {
     messages
         .iter()
@@ -28,19 +36,31 @@ pub fn history_tokens(messages: &[ModelMessage]) -> usize {
         .sum()
 }
 
+/// 判断一段文本是否已经带有压缩摘要前缀。
 pub fn is_summary_message(message: &str) -> bool {
     message.starts_with(&format!("{SUMMARY_PREFIX}\n"))
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// 一次压缩检查的结果和前后 token 估算。
 pub struct CompactOutcome {
+    /// 压缩后要交给模型的消息列表。
     pub messages: Vec<ModelMessage>,
+    /// 是否实际替换了历史。
     pub applied: bool,
+    /// 压缩前的近似 token 数。
     pub tokens_before: usize,
+    /// 压缩后的近似 token 数。
     pub tokens_after: usize,
+    /// 结果中是否包含摘要消息。
     pub summary_present: bool,
 }
 
+/// 在历史超过触发阈值时构建压缩上下文。
+///
+/// `trigger_tokens == 0` 或历史未超限时原样返回消息；超限后调用
+/// [`build_compacted_history`]，不会尝试部分修改原向量。调用方应把 `applied` 和 token
+/// 统计写入展示/收据，但不要把摘要当成新的业务事实。
 pub fn compact_if_needed(
     messages: Vec<ModelMessage>,
     trigger_tokens: usize,
@@ -71,8 +91,11 @@ pub fn compact_if_needed(
     }
 }
 
-/// Codex `build_compacted_history`: keep recent real user messages under a
-/// token budget, then append a summary user message last.
+/// 只保留最近真实用户消息并在末尾追加固定摘要消息。
+///
+/// Assistant、Tool 和已有摘要消息不会被保留；从后往前选择可以优先保住最新上下文，
+/// 最后再恢复时间顺序。最后一条过长用户消息会做中间截断，保留开头和结尾以减少关键
+/// 目标/结果同时丢失的概率。`max_user_tokens == 0` 时只生成摘要消息。
 pub fn build_compacted_history(
     messages: &[ModelMessage],
     max_user_tokens: usize,
@@ -86,6 +109,7 @@ pub fn build_compacted_history(
     let mut selected = Vec::new();
     if max_user_tokens > 0 {
         let mut remaining = max_user_tokens;
+        // 逆序选择最新消息；预算不足时仅截断当前最靠近末尾的一条。
         for message in user_messages.iter().rev() {
             if remaining == 0 {
                 break;
@@ -123,6 +147,7 @@ fn truncate_middle_tokens(text: &str, max_tokens: usize) -> String {
     while start < text.len() && !text.is_char_boundary(start) {
         start += 1;
     }
+    // 使用 ASCII "..."，避免再次引入一个可能改变字节预算的 Unicode 字符。
     format!("{}...{}", prefix, &text[start..])
 }
 

@@ -8,15 +8,21 @@
 //! via a same-directory temp file and rename.
 
 use kiana_ports::PortError;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 #[cfg(unix)]
 use std::os::fd::AsRawFd;
+#[cfg(target_os = "linux")]
+use std::os::fd::FromRawFd;
+#[cfg(target_os = "linux")]
+use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Component, Path, PathBuf};
 use std::time::SystemTime;
 
@@ -27,6 +33,7 @@ const DELETE_FILE: &str = "*** Delete File: ";
 const UPDATE_FILE: &str = "*** Update File: ";
 const MOVE_TO: &str = "*** Move to: ";
 const EOF_MARKER: &str = "*** End of File";
+const TEMP_SIBLING_ATTEMPTS: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Hunk {
@@ -83,6 +90,12 @@ struct PlannedPatch {
     preconditions: Vec<PathPrecondition>,
 }
 
+#[cfg(target_os = "linux")]
+type CommitDirectories = Vec<(PathBuf, File)>;
+
+#[cfg(not(target_os = "linux"))]
+type CommitDirectories = ();
+
 #[derive(Debug)]
 struct ProjectPatchLock {
     _file: File,
@@ -92,13 +105,10 @@ impl ProjectPatchLock {
     fn acquire(project_root: &Path) -> Result<Self, PortError> {
         let lock_dir = std::env::var_os("KIANA_HOME")
             .map(PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".kiana"))
-            })
+            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".kiana")))
             .unwrap_or_else(|| PathBuf::from(".kiana"))
             .join("locks");
-        fs::create_dir_all(&lock_dir)
-            .map_err(|_| failed("apply_patch_lock_unavailable"))?;
+        fs::create_dir_all(&lock_dir).map_err(|_| failed("apply_patch_lock_unavailable"))?;
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         project_root.display().to_string().hash(&mut hasher);
         let path = lock_dir.join(format!("patch-{:#016x}.lock", hasher.finish()));
@@ -108,9 +118,7 @@ impl ProjectPatchLock {
             .write(true)
             .open(path)
             .map_err(|_| failed("apply_patch_lock_unavailable"))?;
-        if !try_lock_project_patch(&file) {
-            return Err(PortError::Conflict("apply_patch_lock_unavailable".to_owned()));
-        }
+        lock_project_patch(&file)?;
         Ok(Self { _file: file })
     }
 }
@@ -155,19 +163,24 @@ pub fn apply_codex_patch(project_root: &Path, patch: &str) -> Result<Value, Port
     if hunks.is_empty() {
         return Err(failed("apply_patch_empty"));
     }
-    let planned = plan_hunks(&project_root, hunks)?;
     let _lock = ProjectPatchLock::acquire(&project_root)?;
+    let planned = plan_hunks(&project_root, hunks)?;
     commit_planned(&project_root, &planned)
 }
 
 #[cfg(unix)]
-fn try_lock_project_patch(file: &File) -> bool {
-    unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) == 0 }
+fn lock_project_patch(file: &File) -> Result<(), PortError> {
+    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(failed("apply_patch_lock_unavailable"))
+    }
 }
 
 #[cfg(not(unix))]
-fn try_lock_project_patch(_file: &File) -> bool {
-    false
+fn lock_project_patch(_file: &File) -> Result<(), PortError> {
+    Err(failed("apply_patch_lock_unavailable"))
 }
 
 fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {
@@ -458,11 +471,47 @@ fn overlay_present(path: PathBuf, file: &OverlayFile) -> Result<(PathBuf, String
     }
 }
 
+#[cfg(target_os = "linux")]
+fn open_commit_directories(
+    preconditions: &[PathPrecondition],
+) -> Result<CommitDirectories, PortError> {
+    let mut directories = Vec::new();
+    for precondition in preconditions {
+        let PathSnapshot::Present { fingerprint, .. } = &precondition.snapshot else {
+            continue;
+        };
+        if !fingerprint.is_dir {
+            continue;
+        }
+        let name = std::ffi::CString::new(precondition.path.as_os_str().as_bytes())
+            .map_err(|_| failed("apply_patch_path_invalid"))?;
+        let fd = unsafe {
+            libc::open(
+                name.as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        };
+        if fd < 0 {
+            return Err(io_failed(std::io::Error::last_os_error()));
+        }
+        directories.push((precondition.path.clone(), unsafe { File::from_raw_fd(fd) }));
+    }
+    Ok(directories)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn open_commit_directories(
+    _preconditions: &[PathPrecondition],
+) -> Result<CommitDirectories, PortError> {
+    Ok(())
+}
+
 fn commit_planned(project_root: &Path, planned: &PlannedPatch) -> Result<Value, PortError> {
+    let directories = open_commit_directories(&planned.preconditions)?;
     verify_preconditions(&planned.preconditions)?;
     let mut changed = Vec::new();
     for operation in &planned.operations {
-        match commit_op(project_root, operation) {
+        match commit_op(project_root, operation, &directories) {
             Ok(change) => changed.push(change),
             Err(error) => {
                 return match rollback_preconditions(&planned.preconditions) {
@@ -621,32 +670,97 @@ fn restore_snapshot(path: &Path, snapshot: &PathSnapshot) -> Result<(), PortErro
     }
 }
 
-fn commit_op(project_root: &Path, op: &PlannedOp) -> Result<Value, PortError> {
+fn commit_op(
+    project_root: &Path,
+    op: &PlannedOp,
+    directories: &CommitDirectories,
+) -> Result<Value, PortError> {
     match op {
-        PlannedOp::Add { target, contents } => commit_add(project_root, target, contents),
-        PlannedOp::Delete { target } => commit_delete(project_root, target),
-        PlannedOp::Update { target, contents } => commit_update(project_root, target, contents),
+        PlannedOp::Add { target, contents } => {
+            commit_add(project_root, target, contents, directories)
+        }
+        PlannedOp::Delete { target } => commit_delete(project_root, target, directories),
+        PlannedOp::Update { target, contents } => {
+            commit_update(project_root, target, contents, directories)
+        }
         PlannedOp::Move {
             source,
             destination,
             contents,
-        } => commit_move(project_root, source, destination, contents),
+        } => commit_move(project_root, source, destination, contents, directories),
     }
 }
 
-fn commit_add(project_root: &Path, target: &Path, contents: &str) -> Result<Value, PortError> {
-    ensure_parent(target)?;
-    create_new_file(target, contents)?;
+fn commit_add(
+    project_root: &Path,
+    target: &Path,
+    contents: &str,
+    directories: &CommitDirectories,
+) -> Result<Value, PortError> {
+    #[cfg(target_os = "linux")]
+    if let Some(parent) = target
+        .parent()
+        .and_then(|path| directories.iter().find(|(candidate, _)| candidate == path))
+        .map(|(_, file)| file)
+    {
+        create_new_file_at(target, contents, parent)?;
+    } else {
+        ensure_parent(target)?;
+        create_new_file(target, contents)?;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = directories;
+        ensure_parent(target)?;
+        create_new_file(target, contents)?;
+    }
     Ok(json!({ "op": "add", "path": display_relative(project_root, target) }))
 }
 
-fn commit_delete(project_root: &Path, target: &Path) -> Result<Value, PortError> {
-    fs::remove_file(target).map_err(io_failed)?;
+fn commit_delete(
+    project_root: &Path,
+    target: &Path,
+    directories: &CommitDirectories,
+) -> Result<Value, PortError> {
+    #[cfg(target_os = "linux")]
+    if let Some(parent) = target
+        .parent()
+        .and_then(|path| directories.iter().find(|(candidate, _)| candidate == path))
+        .map(|(_, file)| file)
+    {
+        remove_file_at(target, parent)?;
+    } else {
+        fs::remove_file(target).map_err(io_failed)?;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = directories;
+        fs::remove_file(target).map_err(io_failed)?;
+    }
     Ok(json!({ "op": "delete", "path": display_relative(project_root, target) }))
 }
 
-fn commit_update(project_root: &Path, target: &Path, contents: &str) -> Result<Value, PortError> {
-    atomic_replace(target, contents)?;
+fn commit_update(
+    project_root: &Path,
+    target: &Path,
+    contents: &str,
+    directories: &CommitDirectories,
+) -> Result<Value, PortError> {
+    #[cfg(target_os = "linux")]
+    if let Some(parent) = target
+        .parent()
+        .and_then(|path| directories.iter().find(|(candidate, _)| candidate == path))
+        .map(|(_, file)| file)
+    {
+        atomic_replace_bytes_at(target, contents.as_bytes(), parent)?;
+    } else {
+        atomic_replace_bytes(target, contents.as_bytes())?;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = directories;
+        atomic_replace(target, contents)?;
+    }
     Ok(json!({ "op": "update", "path": display_relative(project_root, target) }))
 }
 
@@ -655,10 +769,37 @@ fn commit_move(
     source: &Path,
     destination: &Path,
     contents: &str,
+    directories: &CommitDirectories,
 ) -> Result<Value, PortError> {
-    ensure_parent(destination)?;
-    create_new_file(destination, contents)?;
-    fs::remove_file(source).map_err(io_failed)?;
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(parent) = destination
+            .parent()
+            .and_then(|path| directories.iter().find(|(candidate, _)| candidate == path))
+            .map(|(_, file)| file)
+        {
+            create_new_file_at(destination, contents, parent)?;
+        } else {
+            ensure_parent(destination)?;
+            create_new_file(destination, contents)?;
+        }
+        if let Some(parent) = source
+            .parent()
+            .and_then(|path| directories.iter().find(|(candidate, _)| candidate == path))
+            .map(|(_, file)| file)
+        {
+            remove_file_at(source, parent)?;
+        } else {
+            fs::remove_file(source).map_err(io_failed)?;
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = directories;
+        ensure_parent(destination)?;
+        create_new_file(destination, contents)?;
+        fs::remove_file(source).map_err(io_failed)?;
+    }
     Ok(json!({ "op": "update", "path": display_relative(project_root, destination) }))
 }
 
@@ -687,41 +828,228 @@ fn create_new_file(path: &Path, contents: &str) -> Result<(), PortError> {
     })
 }
 
+#[cfg(target_os = "linux")]
+fn create_new_file_at(path: &Path, contents: &str, parent_file: &File) -> Result<(), PortError> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| failed("apply_patch_path_required"))?;
+    let name =
+        std::ffi::CString::new(name.as_bytes()).map_err(|_| failed("apply_patch_path_invalid"))?;
+    let fd = unsafe {
+        libc::openat(
+            parent_file.as_raw_fd(),
+            name.as_ptr(),
+            libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            0o666,
+        )
+    };
+    if fd < 0 {
+        let error = std::io::Error::last_os_error();
+        return if error.kind() == std::io::ErrorKind::AlreadyExists {
+            Err(failed("apply_patch_add_exists"))
+        } else {
+            Err(io_failed(error))
+        };
+    }
+    let mut file = unsafe { File::from_raw_fd(fd) };
+    if let Err(error) = file.write_all(contents.as_bytes()) {
+        drop(file);
+        unsafe {
+            libc::unlinkat(parent_file.as_raw_fd(), name.as_ptr(), 0);
+        }
+        return Err(io_failed(error));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn remove_file_at(path: &Path, parent_file: &File) -> Result<(), PortError> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| failed("apply_patch_path_required"))?;
+    let name =
+        std::ffi::CString::new(name.as_bytes()).map_err(|_| failed("apply_patch_path_invalid"))?;
+    let result = unsafe { libc::unlinkat(parent_file.as_raw_fd(), name.as_ptr(), 0) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io_failed(std::io::Error::last_os_error()))
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
 fn atomic_replace(path: &Path, contents: &str) -> Result<(), PortError> {
     atomic_replace_bytes(path, contents.as_bytes())
 }
 
+#[cfg(target_os = "linux")]
 fn atomic_replace_bytes(path: &Path, contents: &[u8]) -> Result<(), PortError> {
-    let tmp = temp_sibling(path)?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| failed("apply_patch_path_required"))?;
+    let parent_name = std::ffi::CString::new(parent.as_os_str().as_bytes())
+        .map_err(|_| failed("apply_patch_path_invalid"))?;
+    let parent_fd = unsafe {
+        libc::open(
+            parent_name.as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if parent_fd < 0 {
+        return Err(io_failed(std::io::Error::last_os_error()));
+    }
+    let parent_file = unsafe { File::from_raw_fd(parent_fd) };
+    atomic_replace_bytes_at(path, contents, &parent_file)
+}
+
+#[cfg(target_os = "linux")]
+fn atomic_replace_bytes_at(
+    path: &Path,
+    contents: &[u8],
+    parent_file: &File,
+) -> Result<(), PortError> {
+    let target_name = path
+        .file_name()
+        .ok_or_else(|| failed("apply_patch_path_required"))?;
+    let target_name = std::ffi::CString::new(target_name.as_bytes())
+        .map_err(|_| failed("apply_patch_path_invalid"))?;
+    let stamp = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let permissions = {
+        let mut metadata = unsafe { std::mem::zeroed::<libc::stat>() };
+        let result = unsafe {
+            libc::fstatat(
+                parent_file.as_raw_fd(),
+                target_name.as_ptr(),
+                &mut metadata,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result == 0 {
+            Some(fs::Permissions::from_mode(metadata.st_mode as u32 & 0o7777))
+        } else {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::NotFound {
+                None
+            } else {
+                return Err(io_failed(error));
+            }
+        }
+    };
+
+    for attempt in 0..TEMP_SIBLING_ATTEMPTS {
+        let temporary = temp_sibling_path(path, stamp, attempt)?;
+        let temporary_name = std::ffi::CString::new(
+            temporary
+                .file_name()
+                .ok_or_else(|| failed("apply_patch_path_required"))?
+                .as_bytes(),
+        )
+        .map_err(|_| failed("apply_patch_path_invalid"))?;
+        let temporary_fd = unsafe {
+            libc::openat(
+                parent_file.as_raw_fd(),
+                temporary_name.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                0o600,
+            )
+        };
+        if temporary_fd < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                continue;
+            }
+            return Err(io_failed(error));
+        }
+        let mut file = unsafe { File::from_raw_fd(temporary_fd) };
+        let write_result = (|| {
+            file.write_all(contents).map_err(io_failed)?;
+            if let Some(permissions) = permissions.clone() {
+                file.set_permissions(permissions).map_err(io_failed)?;
+            }
+            Ok(())
+        })();
+        drop(file);
+        if let Err(error) = write_result {
+            unsafe {
+                libc::unlinkat(parent_file.as_raw_fd(), temporary_name.as_ptr(), 0);
+            }
+            return Err(error);
+        }
+        let renamed = unsafe {
+            libc::renameat(
+                parent_file.as_raw_fd(),
+                temporary_name.as_ptr(),
+                parent_file.as_raw_fd(),
+                target_name.as_ptr(),
+            )
+        };
+        if renamed == 0 {
+            return Ok(());
+        }
+        unsafe {
+            libc::unlinkat(parent_file.as_raw_fd(), temporary_name.as_ptr(), 0);
+        }
+        return Err(io_failed(std::io::Error::last_os_error()));
+    }
+    Err(failed("apply_patch_temp_unavailable"))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn atomic_replace_bytes(path: &Path, contents: &[u8]) -> Result<(), PortError> {
+    let (tmp, mut file) = create_temp_sibling(path)?;
     let permissions = fs::metadata(path)
         .ok()
         .map(|metadata| metadata.permissions());
-    let result = (|| {
-        fs::write(&tmp, contents).map_err(io_failed)?;
+    let write_result = (|| {
+        file.write_all(contents).map_err(io_failed)?;
         if let Some(permissions) = permissions {
-            fs::set_permissions(&tmp, permissions).map_err(io_failed)?;
+            file.set_permissions(permissions).map_err(io_failed)?;
         }
-        fs::rename(&tmp, path).map_err(io_failed)
+        Ok(())
     })();
+    drop(file);
+    let result = write_result.and_then(|()| fs::rename(&tmp, path).map_err(io_failed));
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
     }
     result
 }
 
-fn temp_sibling(path: &Path) -> Result<PathBuf, PortError> {
-    let name = path
-        .file_name()
-        .ok_or_else(|| failed("apply_patch_path_required"))?;
-    let stamp = std::time::SystemTime::now()
+#[cfg(not(target_os = "linux"))]
+fn create_temp_sibling(path: &Path) -> Result<(PathBuf, File), PortError> {
+    let stamp = SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or(0);
+    create_temp_sibling_with_stamp(path, stamp)
+}
+
+#[cfg(any(not(target_os = "linux"), test))]
+fn create_temp_sibling_with_stamp(path: &Path, stamp: u128) -> Result<(PathBuf, File), PortError> {
+    for attempt in 0..TEMP_SIBLING_ATTEMPTS {
+        let tmp = temp_sibling_path(path, stamp, attempt)?;
+        match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(file) => return Ok((tmp, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(io_failed(error)),
+        }
+    }
+    Err(failed("apply_patch_temp_unavailable"))
+}
+
+fn temp_sibling_path(path: &Path, stamp: u128, attempt: usize) -> Result<PathBuf, PortError> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| failed("apply_patch_path_required"))?;
     Ok(path.with_file_name(format!(
-        ".{}.kiana-patch-{}-{}",
+        ".{}.kiana-patch-{}-{}-{}",
         name.to_string_lossy(),
         std::process::id(),
-        stamp
+        stamp,
+        attempt
     )))
 }
 
@@ -954,6 +1282,141 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn committed_update_keeps_the_preflighted_parent_after_path_replacement() {
+        let root = temp_root();
+        let directory = root.join("nested");
+        let target = directory.join("file.txt");
+        let moved_directory = root.join("nested-original");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(&target, "before\n").unwrap();
+        let mut permissions = fs::metadata(&target).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&target, permissions).unwrap();
+        let operations = vec![PlannedOp::Update {
+            target: target.clone(),
+            contents: "after\n".to_owned(),
+        }];
+        let preconditions = capture_preconditions(&root, &operations).unwrap();
+        let directories = open_commit_directories(&preconditions).unwrap();
+        verify_preconditions(&preconditions).unwrap();
+
+        fs::rename(&directory, &moved_directory).unwrap();
+        fs::create_dir(&directory).unwrap();
+        commit_update(&root, &target, "after\n", &directories).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(moved_directory.join("file.txt")).unwrap(),
+            "after\n"
+        );
+        assert!(
+            fs::metadata(moved_directory.join("file.txt"))
+                .unwrap()
+                .permissions()
+                .readonly(),
+            "descriptor-relative replacement must preserve the original mode"
+        );
+        assert!(
+            !target.exists(),
+            "replacement parent must not receive the write"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn committed_add_keeps_the_preflighted_parent_after_path_replacement() {
+        let root = temp_root();
+        let directory = root.join("nested");
+        let target = directory.join("new.txt");
+        let moved_directory = root.join("nested-original");
+        fs::create_dir_all(&directory).unwrap();
+        let operations = vec![PlannedOp::Add {
+            target: target.clone(),
+            contents: "added\n".to_owned(),
+        }];
+        let preconditions = capture_preconditions(&root, &operations).unwrap();
+        let directories = open_commit_directories(&preconditions).unwrap();
+        verify_preconditions(&preconditions).unwrap();
+
+        fs::rename(&directory, &moved_directory).unwrap();
+        fs::create_dir(&directory).unwrap();
+        commit_add(&root, &target, "added\n", &directories).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(moved_directory.join("new.txt")).unwrap(),
+            "added\n"
+        );
+        assert!(
+            !target.exists(),
+            "replacement parent must not receive the descriptor-relative add"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn committed_delete_keeps_the_preflighted_parent_after_path_replacement() {
+        let root = temp_root();
+        let directory = root.join("nested");
+        let target = directory.join("gone.txt");
+        let moved_directory = root.join("nested-original");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(&target, "delete-me\n").unwrap();
+        let operations = vec![PlannedOp::Delete {
+            target: target.clone(),
+        }];
+        let preconditions = capture_preconditions(&root, &operations).unwrap();
+        let directories = open_commit_directories(&preconditions).unwrap();
+        verify_preconditions(&preconditions).unwrap();
+
+        fs::rename(&directory, &moved_directory).unwrap();
+        fs::create_dir(&directory).unwrap();
+        commit_delete(&root, &target, &directories).unwrap();
+
+        assert!(
+            !moved_directory.join("gone.txt").exists(),
+            "descriptor-relative delete must affect the preflighted parent"
+        );
+        assert!(
+            !target.exists(),
+            "replacement parent must not retain a path-visible target"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn committed_move_keeps_the_preflighted_parent_after_path_replacement() {
+        let root = temp_root();
+        let directory = root.join("nested");
+        let source = directory.join("before.txt");
+        let destination = directory.join("after.txt");
+        let moved_directory = root.join("nested-original");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(&source, "before\n").unwrap();
+        let operations = vec![PlannedOp::Move {
+            source: source.clone(),
+            destination: destination.clone(),
+            contents: "after\n".to_owned(),
+        }];
+        let preconditions = capture_preconditions(&root, &operations).unwrap();
+        let directories = open_commit_directories(&preconditions).unwrap();
+        verify_preconditions(&preconditions).unwrap();
+
+        fs::rename(&directory, &moved_directory).unwrap();
+        fs::create_dir(&directory).unwrap();
+        commit_move(&root, &source, &destination, "after\n", &directories).unwrap();
+
+        assert!(!moved_directory.join("before.txt").exists());
+        assert_eq!(
+            fs::read_to_string(moved_directory.join("after.txt")).unwrap(),
+            "after\n"
+        );
+        assert!(
+            !destination.exists(),
+            "replacement parent must not receive the descriptor-relative move"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn symlink_target_is_rejected_without_following_it() {
@@ -973,6 +1436,59 @@ mod tests {
             fs::read_to_string(outside.join("outside.txt")).unwrap(),
             "outside\n"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn temp_sibling_collision_does_not_follow_existing_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root();
+        let outside = temp_root();
+        let target = root.join("file.txt");
+        let outside_target = outside.join("outside.txt");
+        fs::write(&outside_target, "outside\n").unwrap();
+        let stamp = 42;
+        let planted = temp_sibling_path(&target, stamp, 0).unwrap();
+        symlink(&outside_target, &planted).unwrap();
+
+        let (temporary, mut file) = create_temp_sibling_with_stamp(&target, stamp).unwrap();
+        assert_eq!(
+            temporary,
+            temp_sibling_path(&target, stamp, 1).unwrap(),
+            "an occupied first candidate must be skipped"
+        );
+        file.write_all(b"temporary\n").unwrap();
+        drop(file);
+
+        assert_eq!(fs::read_to_string(&outside_target).unwrap(), "outside\n");
+        assert_eq!(fs::read_to_string(&temporary).unwrap(), "temporary\n");
+        fs::remove_file(temporary).unwrap();
+    }
+
+    #[test]
+    fn exhausted_temp_sibling_names_fail_without_reusing_a_file() {
+        let root = temp_root();
+        let target = root.join("file.txt");
+        let stamp = 43;
+        for attempt in 0..TEMP_SIBLING_ATTEMPTS {
+            fs::write(
+                temp_sibling_path(&target, stamp, attempt).unwrap(),
+                "occupied\n",
+            )
+            .unwrap();
+        }
+
+        assert_eq!(
+            create_temp_sibling_with_stamp(&target, stamp).unwrap_err(),
+            failed("apply_patch_temp_unavailable")
+        );
+        for attempt in 0..TEMP_SIBLING_ATTEMPTS {
+            assert_eq!(
+                fs::read_to_string(temp_sibling_path(&target, stamp, attempt).unwrap()).unwrap(),
+                "occupied\n"
+            );
+        }
     }
 
     #[cfg(unix)]

@@ -5,30 +5,40 @@ mod cell_registry;
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{
     builder_lock_paths, path_locks_conflict, ApprovalDecision, ApprovalId,
-    AuthorizedCapabilityRequest, BudgetLease, CapabilityGrant, CapabilityGrantId,
-    CapabilityKind, CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec,
-    ClosingReceipt, CommandIntent, CoreResponse,
-    DecisionRecord, ExecutionStatus, GateDecision, MergeReceipt, PendingInvocation,
-    PermissionProfile, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
-    RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus, SupervisionLease, SupervisionLeaseId,
-    Symposium, SymposiumClaim,
-    WorkFingerprint, WorkPacket, CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA, DEPARTMENT_PLANNING,
-    MEMORY_SEARCH_SCHEMA, MONITORING_PATH_GATE, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA,
-    ROLE_BUILDER, ROLE_CLOSER, ROLE_REVIEWER, SPAWN_PLAN_SCHEMA, SUPERVISION_LEASE_SCHEMA,
-    SYMPOSIUM_RESULT_SCHEMA, WORK_PACKET_PATH,
+    AuthorizedCapabilityRequest, BudgetLease, CapabilityGrant, CapabilityGrantId, CapabilityKind,
+    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, ClosingReceipt,
+    CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision, MergeReceipt,
+    PendingInvocation, PermissionProfile, PolicyDecision, RequestContext, RequestId, ReviewPacket,
+    RiskLevel, RoleSpec, RunId, RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus,
+    SupervisionLease, SupervisionLeaseId, Symposium, SymposiumClaim, WorkFingerprint, WorkPacket,
+    CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING,
+    MEMORY_SEARCH_SCHEMA, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_CLOSER,
+    ROLE_REVIEWER, SPAWN_PLAN_SCHEMA, SUPERVISION_LEASE_SCHEMA, SYMPOSIUM_RESULT_SCHEMA,
+    WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
-use kiana_policy::PolicyEngine;
+use kiana_policy::{capability_risk_violation, PolicyEngine};
 use kiana_ports::{
     AllowAllPreToolHooks, ApprovalStorePort, CapabilityBrokerPort, CapabilityLease,
-    CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision, PreToolHookPort,
-    RunnerPort, SpawnReservationRequest,
+    CapabilityOutcome, EventStorePort, PortError, PreToolHookDecision, PreToolHookPort, RunnerPort,
+    SpawnReservationRequest,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+#[cfg(target_os = "linux")]
+use std::ffi::{CString, OsString};
 use std::fs::{self, File, OpenOptions};
 use std::hash::{Hash, Hasher};
+use std::io::{Read, Write};
+#[cfg(target_os = "linux")]
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+#[cfg(target_os = "linux")]
+use std::os::unix::ffi::OsStrExt;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::sync::{Mutex, PoisonError};
@@ -79,6 +89,16 @@ struct SessionBinding {
     run_id: RunId,
     actor_id: Option<String>,
     project_root: String,
+    role_id: String,
+    department_id: String,
+}
+
+#[derive(Clone, Copy)]
+struct PersistedApprovalCursor {
+    run_id: RunId,
+    event_request_id: RequestId,
+    event_sequence: u64,
+    continuation_recorded: bool,
 }
 
 pub struct ControlPlane {
@@ -284,8 +304,8 @@ impl ControlPlane {
         )
         .await?;
 
-        let policy = self.policy.evaluate(context, &request);
-        let gate = self.gates.evaluate(&policy);
+        let policy = self.evaluate_policy(context, &request);
+        let gate = self.evaluate_gate(&request, &policy);
         self.append_event(
             request_id,
             2,
@@ -351,7 +371,45 @@ impl ControlPlane {
         request_hash: Option<&str>,
         nonce: Option<&str>,
     ) -> Result<CoreResponse, CoreError> {
-        let persisted_run_id = self.approval_run_id(approval_id).await?;
+        let persisted_approval = self.approval_cursor(approval_id).await?;
+        let has_live_invocation = self
+            .pending_invocations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains_key(&approval_id);
+        if decision == ApprovalDecision::Approve
+            && persisted_approval.is_some()
+            && !has_live_invocation
+        {
+            // A restarted host can authenticate and preserve the approval while
+            // it lacks the Runner continuation needed to execute it. Do not
+            // consume the durable approval before that continuation exists.
+            if let Err(error) = self
+                .approvals
+                .validate_with_proof(context, approval_id, request_hash, nonce)
+                .await
+            {
+                return Ok(CoreResponse::blocked(context.request_id, error.to_string()));
+            }
+            let persisted_approval = persisted_approval.expect("checked above");
+            if !persisted_approval.continuation_recorded {
+                self.append_event(
+                    persisted_approval.event_request_id,
+                    persisted_approval.event_sequence.saturating_add(1),
+                    "approval.continuation_unavailable",
+                    json!({
+                        "approval_id": approval_id,
+                        "run_id": persisted_approval.run_id,
+                        "error": "approval_continuation_unavailable",
+                    }),
+                )
+                .await?;
+            }
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "approval_continuation_unavailable",
+            ));
+        }
         let pending = match self
             .approvals
             .consume_with_proof(context, approval_id, request_hash, nonce)
@@ -391,27 +449,6 @@ impl ControlPlane {
         }
         self.append_event(event_request_id, event_sequence, event_kind, approval_event)
             .await?;
-
-        if invocation.is_none()
-            && decision == ApprovalDecision::Approve
-            && persisted_run_id.is_some()
-        {
-            self.append_event(
-                event_request_id,
-                event_sequence.saturating_add(1),
-                "approval.continuation_unavailable",
-                json!({
-                    "approval_id": approval_id,
-                    "run_id": persisted_run_id,
-                    "error": "approval_continuation_unavailable",
-                }),
-            )
-            .await?;
-            return Ok(CoreResponse::blocked(
-                context.request_id,
-                "approval_continuation_unavailable",
-            ));
-        }
 
         if let Some(invocation) = invocation {
             return self
@@ -455,8 +492,43 @@ impl ControlPlane {
             });
         }
 
+        if let Some(reason) = capability_risk_violation(&invocation.request) {
+            self.append_event(
+                invocation.event_request_id,
+                invocation.event_sequence + 1,
+                "run.capability_blocked",
+                json!({
+                    "run_id": invocation.run_id,
+                    "reason": reason,
+                }),
+            )
+            .await?;
+            let _ = self
+                .runner
+                .send(RunnerCommand::CapabilityResult {
+                    run_id: invocation.run_id,
+                    result: CapabilityResult::failure(
+                        invocation.request_id,
+                        format!("capability_blocked:{reason}"),
+                    ),
+                })
+                .await;
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Blocked,
+                output: run_identity(&invocation.context, invocation.run_id, &invocation.sandbox),
+                error: Some(reason.to_owned()),
+            });
+        }
+
         let mut request = invocation.request.clone();
-        if let Err(error) = self.bind_cell_scope(&invocation.context, &mut request).await {
+        if let Some(object) = request.arguments.as_object_mut() {
+            object.insert("sandbox".to_owned(), json!(invocation.sandbox));
+        }
+        if let Err(error) = self
+            .bind_cell_scope(&invocation.context, &mut request)
+            .await
+        {
             let reason = error.to_string();
             let _ = self
                 .runner
@@ -482,8 +554,12 @@ impl ControlPlane {
             .await
         {
             Ok(result) => result,
-            Err(error) => CapabilityResult::failure(invocation.request_id, error.to_string()),
+            Err(error) => CapabilityResult::failure(
+                invocation.request_id,
+                redact_event_text(&error.to_string()),
+            ),
         };
+        let result = redact_capability_result(result);
         let outcome = if result.success {
             CapabilityOutcome::Succeeded
         } else {
@@ -539,6 +615,7 @@ impl ControlPlane {
         {
             Ok(events) => events,
             Err(error) => {
+                let error = redact_event_text(&error.to_string());
                 return Ok(CoreResponse {
                     request_id,
                     status: ExecutionStatus::Failed,
@@ -547,7 +624,7 @@ impl ControlPlane {
                         invocation.run_id,
                         &invocation.sandbox,
                     ),
-                    error: Some(error.to_string()),
+                    error: Some(error),
                 });
             }
         };
@@ -569,10 +646,21 @@ impl ControlPlane {
         result_sequence: u64,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = request.request_id;
+        if let Some(reason) = capability_risk_violation(&request) {
+            self.append_event(
+                request_id,
+                result_sequence,
+                "capability.blocked",
+                json!({ "error": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
+        }
         let cell_lease = self.begin_cell_capability_from_request(&request).await?;
         let authorized = AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
         match self.capabilities.execute(authorized).await {
             Ok(result) => {
+                let result = redact_capability_result(result);
                 let outcome = if result.request_id != request_id {
                     CapabilityOutcome::Unknown
                 } else if result.success {
@@ -625,7 +713,7 @@ impl ControlPlane {
                         } else {
                             "capability.failed"
                         },
-                        redact_event_value(&output),
+                        direct_capability_event_payload(&output, &request),
                     )
                     .await
                     .is_err()
@@ -649,12 +737,15 @@ impl ControlPlane {
                     self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
                         .await?;
                 }
-                let reason = error.to_string();
+                let reason = redact_event_text(&error.to_string());
                 self.append_event(
                     request_id,
                     result_sequence,
                     "capability.failed",
-                    json!({ "error": redact_event_text(&reason) }),
+                    direct_capability_event_payload(
+                        &json!({ "error": redact_event_text(&reason) }),
+                        &request,
+                    ),
                 )
                 .await?;
                 Ok(CoreResponse {
@@ -665,6 +756,34 @@ impl ControlPlane {
                 })
             }
         }
+    }
+
+    /// Apply server-owned operation invariants before consulting the replaceable policy engine.
+    ///
+    /// Policy implementations may vary by deployment, but no policy is allowed to turn a
+    /// malformed MCP request into an executable low-risk capability.
+    fn evaluate_policy(
+        &self,
+        context: &RequestContext,
+        request: &CapabilityRequest,
+    ) -> PolicyDecision {
+        if let Some(reason) = capability_risk_violation(request) {
+            return PolicyDecision::Deny {
+                reason: reason.to_owned(),
+            };
+        }
+        self.policy.evaluate(context, request)
+    }
+
+    /// Keep server-owned operation invariants authoritative even if a deployment supplies a
+    /// custom Gate implementation that would otherwise widen a policy decision.
+    fn evaluate_gate(&self, request: &CapabilityRequest, policy: &PolicyDecision) -> GateDecision {
+        if let Some(reason) = capability_risk_violation(request) {
+            return GateDecision::Denied {
+                reason: reason.to_owned(),
+            };
+        }
+        self.gates.evaluate(policy)
     }
 
     pub async fn spawn_from_packet(
@@ -726,11 +845,9 @@ impl ControlPlane {
         context.path_allow = packet.path_allow.clone();
         let session_id = context.session_id.as_str().to_owned();
         let project_root = context.project_root.clone();
-        if let Err(reason) = self.acquire_builder_path_locks(
-            &project_root,
-            &session_id,
-            &context.path_allow,
-        ) {
+        if let Err(reason) =
+            self.acquire_builder_path_locks(&project_root, &session_id, &context.path_allow)
+        {
             self.append_event(
                 request_id,
                 1,
@@ -870,7 +987,13 @@ impl ControlPlane {
             .await?;
         }
         let response = self
-            .start_run_with_id(context.clone(), packet.as_prompt(), sandbox, Some(run_id))
+            .start_run_with_id(
+                context.clone(),
+                packet.as_prompt(),
+                Vec::new(),
+                sandbox,
+                Some(run_id),
+            )
             .await;
         let mut response = match response {
             Ok(response) => response,
@@ -1874,19 +1997,33 @@ impl ControlPlane {
         prompt: String,
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
-        self.start_run_with_id(context, prompt, sandbox, None).await
+        self.start_run_with_id(context, prompt, Vec::new(), sandbox, None)
+            .await
+    }
+
+    pub async fn start_run_with_history(
+        &self,
+        context: RequestContext,
+        prompt: String,
+        history: Vec<kiana_domain::ConversationMessage>,
+        sandbox: Option<String>,
+    ) -> Result<CoreResponse, CoreError> {
+        self.start_run_with_id(context, prompt, history, sandbox, None)
+            .await
     }
 
     async fn start_run_with_id(
         &self,
         context: RequestContext,
         prompt: String,
+        history: Vec<kiana_domain::ConversationMessage>,
         sandbox: Option<String>,
         requested_run_id: Option<RunId>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
-        let run_id = requested_run_id
-            .unwrap_or_else(|| RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new));
+        let run_id = requested_run_id.unwrap_or_else(|| {
+            RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new)
+        });
         let mut sequence = 1u64;
         self.record_event(
             request_id,
@@ -1915,7 +2052,7 @@ impl ControlPlane {
             return Ok(CoreResponse::blocked(request_id, "prompt_required"));
         }
 
-        if RoleSpec::lookup(&context.role_id).is_none() {
+        let Some(role) = RoleSpec::lookup(&context.role_id) else {
             self.record_event(
                 request_id,
                 &mut sequence,
@@ -1924,6 +2061,19 @@ impl ControlPlane {
             )
             .await?;
             return Ok(CoreResponse::blocked(request_id, "role_unknown"));
+        };
+        if !context.department_id.trim().is_empty() && context.department_id != role.department_id {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "role_department_mismatch" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "role_department_mismatch",
+            ));
         }
 
         let sandbox = match authorized_harness_sandbox(&context, sandbox.as_deref()) {
@@ -1950,6 +2100,7 @@ impl ControlPlane {
                 "actor_id": context.actor_id,
                 "project_root": context.project_root,
                 "role_id": context.role_id,
+                "department_id": context.department_id,
                 "harness": HARNESS_ID,
                 "sandbox": sandbox,
                 "capability_mode": "brokered",
@@ -1964,9 +2115,10 @@ impl ControlPlane {
 
         let pending_events = match self
             .runner
-            .send(RunnerCommand::start_in_with_instructions(
+            .send(RunnerCommand::start_in_with_history(
                 run_id,
                 prompt,
+                history,
                 context.project_root.clone(),
                 sandbox.to_owned(),
                 String::new(),
@@ -1978,7 +2130,7 @@ impl ControlPlane {
             Err(error) => {
                 self.forget_session(context.session_id.as_str(), run_id);
                 self.clear_cancel(run_id);
-                let reason = error.to_string();
+                let reason = redact_event_text(&error.to_string());
                 self.record_event(
                     request_id,
                     &mut sequence,
@@ -2073,7 +2225,7 @@ impl ControlPlane {
         {
             Ok(events) => events,
             Err(error) => {
-                let reason = error.to_string();
+                let reason = redact_event_text(&error.to_string());
                 self.record_event(
                     request_id,
                     &mut sequence,
@@ -2107,6 +2259,9 @@ impl ControlPlane {
         } else {
             reason
         };
+        // Cancellation reasons cross the runner and direct-response boundaries, so sanitize
+        // them once at ingress instead of relying only on the event-log redaction boundary.
+        let reason = redact_event_text(&reason);
         let run_id = match self.resolve_run_id(&context, run_id) {
             Ok(run_id) => run_id,
             Err(code) => {
@@ -2153,7 +2308,7 @@ impl ControlPlane {
                 .invalidate(&context, approval_id, &reason)
                 .await
             {
-                let error = error.to_string();
+                let error = redact_event_text(&error.to_string());
                 self.record_event(
                     request_id,
                     &mut sequence,
@@ -2179,7 +2334,7 @@ impl ControlPlane {
                 .remove(&approval_id);
         }
 
-        let inflight = self.signal_cancel(run_id);
+        self.signal_cancel(run_id);
         let events = match self
             .runner
             .send(RunnerCommand::Cancel {
@@ -2190,59 +2345,99 @@ impl ControlPlane {
         {
             Ok(events) => events,
             Err(error) => {
-                let reason = error.to_string();
+                let error = redact_event_text(&error.to_string());
+                let error = format!("result_unknown:{error}");
                 self.record_event(
                     request_id,
                     &mut sequence,
-                    "run.failed",
-                    json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
+                    "run.result_unknown",
+                    json!({ "run_id": run_id, "error": &error }),
                 )
                 .await?;
                 return Ok(CoreResponse {
                     request_id,
-                    status: ExecutionStatus::Failed,
+                    status: ExecutionStatus::ResultUnknown,
                     output: run_identity(&context, run_id, "read-only"),
-                    error: Some(reason),
+                    error: Some(error),
                 });
             }
         };
 
-        let error = events
+        let response_run_ids_match = events.iter().all(|event| event.run_id() == run_id);
+        let matching_failure_errors = events
             .iter()
-            .find_map(|event| match event {
-                RunnerEvent::Failed { error, .. } => Some(error.clone()),
+            .filter_map(|event| match event {
+                RunnerEvent::Failed {
+                    run_id: event_run_id,
+                    error,
+                } if *event_run_id == run_id => Some(error.as_str()),
                 _ => None,
             })
-            .unwrap_or_else(|| format!("cancelled:{reason}"));
-        if error == "run_not_found" && !inflight {
+            .collect::<Vec<_>>();
+        let matching_non_cancel_error = matching_failure_errors
+            .iter()
+            .copied()
+            .find(|error| !error.starts_with("cancelled:"));
+        let has_matching_completion = events.iter().any(|event| {
+            matches!(
+                event,
+                RunnerEvent::Completed {
+                    run_id: event_run_id,
+                    ..
+                } if *event_run_id == run_id
+            )
+        });
+        let cancelled = response_run_ids_match
+            && matching_failure_errors
+                .iter()
+                .any(|error| error.starts_with("cancelled:"))
+            && matching_non_cancel_error.is_none()
+            && !has_matching_completion;
+        if cancelled {
+            let cancelled = matching_failure_errors
+                .iter()
+                .copied()
+                .find(|error| error.starts_with("cancelled:"))
+                .map(redact_event_text)
+                .expect("cancelled response was checked above");
+            self.forget_session(context.session_id.as_str(), run_id);
             self.record_event(
                 request_id,
                 &mut sequence,
-                "run.rejected",
-                json!({ "reason": "run_not_found" }),
+                "run.cancelled",
+                json!({ "run_id": run_id, "error": &cancelled }),
             )
             .await?;
-            return Ok(CoreResponse::blocked(request_id, "run_not_found"));
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Cancelled,
+                output: run_identity(&context, run_id, "read-only"),
+                error: Some(cancelled),
+            });
         }
 
-        self.forget_session(context.session_id.as_str(), run_id);
-        let cancelled = if error == "run_not_found" {
-            format!("cancelled:{reason}")
+        let runner_error = if !response_run_ids_match {
+            "cancel_response_run_id_mismatch".to_owned()
+        } else if has_matching_completion {
+            "cancel_confirmation_inconsistent".to_owned()
+        } else if let Some(error) = matching_non_cancel_error {
+            redact_event_text(error)
         } else {
-            error
+            "cancel_confirmation_missing".to_owned()
         };
+        let error = format!("result_unknown:{runner_error}");
         self.record_event(
             request_id,
             &mut sequence,
-            "run.cancelled",
-            json!({ "run_id": run_id, "error": redact_event_text(&cancelled) }),
+            "run.result_unknown",
+            json!({ "run_id": run_id, "error": &error }),
         )
         .await?;
         Ok(CoreResponse {
             request_id,
-            status: ExecutionStatus::Cancelled,
+            status: ExecutionStatus::ResultUnknown,
             output: run_identity(&context, run_id, "read-only"),
-            error: Some(cancelled),
+            error: Some(error),
         })
     }
 
@@ -2261,6 +2456,10 @@ impl ControlPlane {
         let mut completed = false;
         while !pending_events.is_empty() {
             let event = pending_events.remove(0);
+            if event.run_id() != run_id {
+                failed = Some("result_unknown:runner_event_run_id_mismatch".to_owned());
+                break;
+            }
             match event {
                 RunnerEvent::Started { run_id } => {
                     self.record_event(
@@ -2304,7 +2503,11 @@ impl ControlPlane {
                             return Ok(CoreResponse {
                                 request_id,
                                 status: ExecutionStatus::AwaitingApproval,
-                                output: json!({ "approval": pending.challenge, "run_id": run_id }),
+                                output: json!({
+                                    "approval": pending.challenge,
+                                    "capability": pending.request,
+                                    "run_id": run_id
+                                }),
                                 error: Some("approval_required".to_owned()),
                             });
                         }
@@ -2321,18 +2524,19 @@ impl ControlPlane {
                     if let Some(object) = harness_output.as_object_mut() {
                         object.insert("run_id".to_owned(), json!(run_id));
                     }
-                    output = harness_output;
+                    output = redact_event_value(&harness_output);
                     completed = true;
                     self.record_event(request_id, sequence, "run.completed", output.clone())
                         .await?;
                 }
                 RunnerEvent::Failed { run_id, error } => {
+                    let error = redact_event_text(&error);
                     failed = Some(error.clone());
                     self.record_event(
                         request_id,
                         sequence,
                         "run.failed",
-                        json!({ "run_id": run_id, "error": redact_event_text(&error) }),
+                        json!({ "run_id": run_id, "error": error }),
                     )
                     .await?;
                 }
@@ -2398,13 +2602,13 @@ impl ControlPlane {
             self.record_event(
                 request_id,
                 sequence,
-                "run.failed",
+                "run.result_unknown",
                 json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
             )
             .await?;
             return Ok(CoreResponse {
                 request_id,
-                status: ExecutionStatus::Failed,
+                status: ExecutionStatus::ResultUnknown,
                 output: run_identity(context, run_id, sandbox),
                 error: Some(reason.to_owned()),
             });
@@ -2440,7 +2644,7 @@ impl ControlPlane {
                 Err(reason) => return Ok(CoreResponse::blocked(request_id, reason)),
             },
         };
-        let events = self.events_for_run(&context, run_id).await?;
+        let events = self.events_for_persisted_run(run_id).await?;
         if events.is_empty() {
             return Ok(CoreResponse::blocked(request_id, "receipt_not_found"));
         }
@@ -2452,17 +2656,34 @@ impl ControlPlane {
             .rev()
             .find_map(|event| event.data.get("sandbox").and_then(Value::as_str))
             .unwrap_or("read-only");
-        if let Some(error) = events.iter().rev().find_map(|event| {
-            if event.kind == "run.result_unknown" {
-                event
-                    .data
-                    .get("error")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
+        let terminal_error = |kind: &str, fallback: &str| {
+            events
+                .iter()
+                .rev()
+                .find(|event| event.kind == kind)
+                .and_then(|event| event.data.get("error").and_then(Value::as_str))
+                .map(redact_event_text)
+                .unwrap_or_else(|| fallback.to_owned())
+        };
+        let has_completed = events.iter().any(|event| event.kind == "run.completed");
+        let has_failed = events.iter().any(|event| event.kind == "run.failed");
+        let has_cancelled = events.iter().any(|event| event.kind == "run.cancelled");
+        let has_result_unknown = events
+            .iter()
+            .any(|event| event.kind == "run.result_unknown");
+        let terminal_count = has_completed as usize
+            + has_failed as usize
+            + has_cancelled as usize
+            + has_result_unknown as usize;
+
+        // A replay may not invent success from an incomplete or contradictory event stream.
+        // There is no reconciliation authority here, so either condition remains unknown.
+        if has_result_unknown || terminal_count > 1 {
+            let error = if has_result_unknown {
+                terminal_error("run.result_unknown", "result_unknown")
             } else {
-                None
-            }
-        }) {
+                "run_terminal_conflict".to_owned()
+            };
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::ResultUnknown,
@@ -2470,29 +2691,29 @@ impl ControlPlane {
                 error: Some(error),
             });
         }
-        if let Some(error) = events.iter().rev().find_map(|event| {
-            if event.kind == "run.failed" || event.kind == "run.cancelled" {
-                event
-                    .data
-                    .get("error")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-            } else {
-                None
-            }
-        }) {
-            if !events.iter().any(|event| event.kind == "run.completed") {
-                return Ok(CoreResponse {
-                    request_id,
-                    status: if events.iter().any(|event| event.kind == "run.cancelled") {
-                        ExecutionStatus::Cancelled
-                    } else {
-                        ExecutionStatus::Failed
-                    },
-                    output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
-                    error: Some(error),
-                });
-            }
+        if has_cancelled {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Cancelled,
+                output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
+                error: Some(terminal_error("run.cancelled", "run_cancelled")),
+            });
+        }
+        if has_failed {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Failed,
+                output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
+                error: Some(terminal_error("run.failed", "run_failed")),
+            });
+        }
+        if !has_completed {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::ResultUnknown,
+                output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
+                error: Some("run_result_missing".to_owned()),
+            });
         }
         let output = events
             .iter()
@@ -2513,16 +2734,20 @@ impl ControlPlane {
         sandbox: &str,
         output: Value,
     ) -> Result<Value, CoreError> {
-        let events = self.events_for_run(context, run_id).await?;
+        let events = self.events_for_current_run(context, run_id).await?;
         Ok(receipt_from_events(
             context, run_id, sandbox, output, &events,
         ))
     }
 
-    async fn approval_run_id(&self, approval_id: ApprovalId) -> Result<Option<RunId>, CoreError> {
-        let events = match self.events.read_all().await {
-            Ok(events) => events,
-            Err(_) => return Ok(None),
+    async fn approval_cursor(
+        &self,
+        approval_id: ApprovalId,
+    ) -> Result<Option<PersistedApprovalCursor>, CoreError> {
+        let Some(events) = self.read_all_events().await? else {
+            // A legacy adapter may intentionally expose only read_request. That is a
+            // capability limitation, not evidence that a persisted Run association is absent.
+            return Ok(None);
         };
         let approval_id = approval_id.to_string();
         Ok(events.iter().rev().find_map(|event| {
@@ -2532,22 +2757,51 @@ impl ControlPlane {
             {
                 return None;
             }
-            event
+            let run_id = event
                 .data
                 .get("run_id")
                 .and_then(Value::as_str)
-                .and_then(RunId::parse_str)
+                .and_then(RunId::parse_str)?;
+            Some(PersistedApprovalCursor {
+                run_id,
+                event_request_id: event.request_id,
+                event_sequence: event.sequence,
+                continuation_recorded: events.iter().any(|candidate| {
+                    candidate.kind == "approval.continuation_unavailable"
+                        && candidate.data.get("approval_id").and_then(Value::as_str)
+                            == Some(approval_id.as_str())
+                }),
+            })
         }))
     }
 
-    async fn events_for_run(
+    async fn events_for_persisted_run(
+        &self,
+        run_id: RunId,
+    ) -> Result<Vec<RuntimeEvent>, CoreError> {
+        match self.read_all_events().await? {
+            Some(all) => Ok(filter_run_events(&all, run_id)),
+            None => {
+                let events = self.events.read_stream("run", &run_id.to_string()).await?;
+                Ok(filter_run_events(&events, run_id))
+            }
+        }
+    }
+
+    /// Build an immediate receipt for the command that just produced this run.
+    /// This is the sole request-scoped compatibility path: a later public receipt
+    /// has no trustworthy request-to-run association to use as a fallback.
+    async fn events_for_current_run(
         &self,
         context: &RequestContext,
         run_id: RunId,
     ) -> Result<Vec<RuntimeEvent>, CoreError> {
-        match self.events.read_all().await {
-            Ok(all) => Ok(filter_run_events(&all, run_id, context.session_id.as_str())),
-            Err(_) => Ok(self.events.read_request(&context.request_id).await?),
+        match self.read_all_events().await? {
+            Some(all) => Ok(filter_run_events(&all, run_id)),
+            None => {
+                let events = self.events.read_request(&context.request_id).await?;
+                Ok(filter_run_events(&events, run_id))
+            }
         }
     }
 
@@ -2560,9 +2814,22 @@ impl ControlPlane {
         let run_id = author_run_id
             .or_else(|| RunId::parse_str(author_session_id))
             .or_else(|| self.session_run_id(author_session_id));
-        let events = match self.events.read_all().await {
-            Ok(all) => filter_session_events(&all, run_id, author_session_id),
-            Err(_) => Vec::new(),
+        let events = match self.read_all_events().await? {
+            Some(all) => match run_id {
+                Some(run_id) => filter_run_events(&all, run_id),
+                None => unique_authorized_run_id(&all, reviewer, author_session_id)
+                    .map(|run_id| filter_run_events(&all, run_id))
+                    .unwrap_or_default(),
+            },
+            None => {
+                let run_id = run_id.ok_or_else(|| {
+                    CoreError::Port(PortError::Failed(
+                        "event_store_read_all_unsupported".to_owned(),
+                    ))
+                })?;
+                let events = self.events.read_stream("run", &run_id.to_string()).await?;
+                filter_run_events(&events, run_id)
+            }
         };
         let identity = events.iter().find(|event| event.kind == "run.authorized");
         if let Some(identity) = identity {
@@ -2591,6 +2858,18 @@ impl ControlPlane {
             }
         }
         Ok(events)
+    }
+
+    /// `None` is reserved for the explicit legacy capability limit documented on
+    /// `EventStorePort::read_all`; every actual read failure must reach the caller.
+    async fn read_all_events(&self) -> Result<Option<Vec<RuntimeEvent>>, CoreError> {
+        match self.events.read_all().await {
+            Ok(events) => Ok(Some(events)),
+            Err(PortError::Failed(reason)) if reason == "event_store_read_all_unsupported" => {
+                Ok(None)
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     async fn bind_cell_scope(
@@ -2630,10 +2909,14 @@ impl ControlPlane {
             return Ok(None);
         };
         let grant_id = request.capability_grant_id.ok_or_else(|| {
-            CoreError::Port(PortError::Failed("cell_capability_scope_incomplete".to_owned()))
+            CoreError::Port(PortError::Failed(
+                "cell_capability_scope_incomplete".to_owned(),
+            ))
         })?;
         let budget_id = request.budget_lease_id.ok_or_else(|| {
-            CoreError::Port(PortError::Failed("cell_capability_scope_incomplete".to_owned()))
+            CoreError::Port(PortError::Failed(
+                "cell_capability_scope_incomplete".to_owned(),
+            ))
         })?;
         Ok(Some(
             self.cell_registry
@@ -2693,8 +2976,19 @@ impl ControlPlane {
         )
         .await?;
 
-        let policy = self.policy.evaluate(context, &request);
-        let gate = self.gates.evaluate(&policy);
+        if *cancel_rx.borrow() {
+            self.record_event(
+                request_id,
+                sequence,
+                "run.cancelled",
+                json!({ "run_id": run_id, "error": "cancelled:user" }),
+            )
+            .await?;
+            return Ok(Err("cancelled:user".to_owned()));
+        }
+
+        let policy = self.evaluate_policy(context, &request);
+        let gate = self.evaluate_gate(&request, &policy);
         self.record_event(
             request_id,
             sequence,
@@ -2743,6 +3037,7 @@ impl ControlPlane {
                     let authorized =
                         AuthorizedCapabilityRequest::new(authorization_id, request.clone())?;
                     tokio::select! {
+                        biased;
                         _ = wait_until_cancelled(cancel_rx) => {
                             if let Some(lease) = cell_lease {
                                 self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
@@ -2760,6 +3055,7 @@ impl ControlPlane {
                         executed = self.capabilities.execute(authorized) => {
                             match executed {
                                 Ok(result) => {
+                                    let result = redact_capability_result(result);
                                     let outcome = if result.request_id != request.request_id {
                                         CapabilityOutcome::Unknown
                                     } else if result.success {
@@ -2811,7 +3107,7 @@ impl ControlPlane {
                                         self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
                                             .await?;
                                     }
-                                    let reason = error.to_string();
+                                    let reason = redact_event_text(&error.to_string());
                                     if reason.starts_with("shell_result_unknown:") {
                                         self.record_event(
                                             request_id,
@@ -2915,6 +3211,7 @@ impl ControlPlane {
             }
         };
 
+        let result = redact_capability_result(result);
         match self
             .runner
             .send(RunnerCommand::CapabilityResult { run_id, result })
@@ -2922,7 +3219,7 @@ impl ControlPlane {
         {
             Ok(events) => Ok(Ok(Some(events))),
             Err(error) => {
-                let reason = error.to_string();
+                let reason = redact_event_text(&error.to_string());
                 self.record_event(
                     request_id,
                     sequence,
@@ -2989,6 +3286,8 @@ impl ControlPlane {
                     run_id,
                     actor_id: context.actor_id.clone(),
                     project_root: context.project_root.clone(),
+                    role_id: context.role_id.clone(),
+                    department_id: context.department_id.clone(),
                 },
             );
     }
@@ -3007,6 +3306,8 @@ impl ControlPlane {
         binding.actor_id == context.actor_id
             && Self::canonical_project_root(&binding.project_root)
                 == Self::canonical_project_root(&context.project_root)
+            && binding.role_id == context.role_id
+            && binding.department_id == context.department_id
     }
 
     fn canonical_project_root(root: &str) -> std::path::PathBuf {
@@ -3114,21 +3415,20 @@ impl ControlPlane {
         kind: &str,
         data: Value,
     ) -> Result<(), CoreError> {
+        // EventLog is the canonical boundary: generic runner output must be redacted before it
+        // can become durable fact or feed a receipt projection.
+        let data = redact_event_value(&data);
         let (aggregate_type, aggregate_id) = aggregate_for_event(request_id, &data);
         let idempotency_key =
             format!("{request_id}:{aggregate_type}:{aggregate_id}:{sequence}:{kind}");
-        let current_version = match self
+        let current_version = self
             .events
             .read_stream(&aggregate_type, &aggregate_id)
-            .await
-        {
-            Ok(events) => events
-                .iter()
-                .map(|event| event.stream_version.unwrap_or(event.sequence))
-                .max()
-                .unwrap_or(0),
-            Err(_) => sequence.saturating_sub(1),
-        };
+            .await?
+            .iter()
+            .map(|event| event.stream_version.unwrap_or(event.sequence))
+            .max()
+            .unwrap_or(0);
         self.events
             .append_idempotent_expected(
                 RuntimeEvent::new(request_id, sequence, kind, data)?
@@ -3189,7 +3489,7 @@ fn receipt_from_events(
     events: &[RuntimeEvent],
 ) -> Value {
     let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
-    with_work_packet(
+    let receipt = with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
             "run_id": run_id,
@@ -3207,7 +3507,10 @@ fn receipt_from_events(
             "output": output,
         }),
         context,
-    )
+    );
+    // Re-apply the boundary while projecting so legacy events written before centralized
+    // redaction cannot reintroduce a credential into a restart receipt.
+    redact_event_value(&receipt)
 }
 
 fn with_work_packet(mut receipt: Value, context: &RequestContext) -> Value {
@@ -3224,7 +3527,11 @@ fn with_work_packet(mut receipt: Value, context: &RequestContext) -> Value {
 }
 
 fn path_lock_session_key(project_root: &str, session_id: &str) -> String {
-    format!("{}\0{}", ControlPlane::canonical_project_root(project_root).display(), session_id)
+    format!(
+        "{}\0{}",
+        ControlPlane::canonical_project_root(project_root).display(),
+        session_id
+    )
 }
 
 fn durable_path_lock_root() -> PathBuf {
@@ -3290,10 +3597,7 @@ fn spawn_error_reason(error: &CoreError) -> String {
     error.to_string()
 }
 
-fn cell_event_payload(
-    reservation: &kiana_ports::SpawnReservation,
-    lifecycle: &str,
-) -> Value {
+fn cell_event_payload(reservation: &kiana_ports::SpawnReservation, lifecycle: &str) -> Value {
     json!({
         "schema": CELL_SCHEMA,
         "cell_id": reservation.cell.cell_id,
@@ -3377,55 +3681,76 @@ fn receipt_owner_mismatch(events: &[RuntimeEvent], context: &RequestContext) -> 
         (Some(actor), Some(expected)) => actor == expected,
         _ => true,
     };
-    !(session_matches && project_matches && actor_matches)
+    let role_matches = identity
+        .data
+        .get("role_id")
+        .and_then(Value::as_str)
+        .is_none_or(|role| role == context.role_id);
+    let department_matches = identity
+        .data
+        .get("department_id")
+        .and_then(Value::as_str)
+        .is_none_or(|department| department == context.department_id);
+    !(session_matches && project_matches && actor_matches && role_matches && department_matches)
 }
 
-fn filter_run_events(
-    events: &[RuntimeEvent],
-    run_id: RunId,
-    session_id: &str,
-) -> Vec<RuntimeEvent> {
+fn filter_run_events(events: &[RuntimeEvent], run_id: RunId) -> Vec<RuntimeEvent> {
     let run_id_str = run_id.to_string();
-    let request_ids: HashSet<_> = events
+    events
         .iter()
         .filter(|event| {
+            let stream = (
+                event.aggregate_type.as_deref(),
+                event.aggregate_id.as_deref(),
+            );
+            let exact_run_stream = stream == (Some("run"), Some(run_id_str.as_str()));
+            let conflicting_run_stream =
+                matches!(stream, (Some("run"), Some(_))) && !exact_run_stream;
+            match event.data.get("run_id") {
+                Some(Value::String(value)) => value == &run_id_str && !conflicting_run_stream,
+                Some(_) => false,
+                // Legacy events without a payload run ID are only usable when their
+                // durable aggregate metadata identifies this exact run.
+                None => exact_run_stream,
+            }
+        })
+        .cloned()
+        .collect()
+}
+
+fn unique_authorized_run_id(
+    events: &[RuntimeEvent],
+    reviewer: &RequestContext,
+    author_session_id: &str,
+) -> Option<RunId> {
+    let reviewer_actor_id = reviewer.actor_id.as_deref()?;
+    let reviewer_project_root = ControlPlane::canonical_project_root(&reviewer.project_root);
+    let candidates: HashSet<_> = events
+        .iter()
+        .filter_map(|event| {
+            if event.kind != "run.authorized"
+                || event.data.get("session_id").and_then(Value::as_str) != Some(author_session_id)
+                || event.data.get("actor_id").and_then(Value::as_str) != Some(reviewer_actor_id)
+                || event.data.get("role_id").and_then(Value::as_str) != Some(ROLE_BUILDER)
+                || event.data.get("department_id").and_then(Value::as_str)
+                    != Some(DEPARTMENT_EXECUTING)
+            {
+                return None;
+            }
+            let project_root = event.data.get("project_root").and_then(Value::as_str)?;
+            if ControlPlane::canonical_project_root(project_root) != reviewer_project_root {
+                return None;
+            }
             event
                 .data
                 .get("run_id")
                 .and_then(Value::as_str)
-                .is_some_and(|value| value == run_id_str || value == session_id)
+                .and_then(RunId::parse_str)
         })
-        .map(|event| event.request_id)
         .collect();
-    events
-        .iter()
-        .filter(|event| request_ids.contains(&event.request_id))
-        .cloned()
-        .collect()
-}
-
-fn filter_session_events(
-    events: &[RuntimeEvent],
-    run_id: Option<RunId>,
-    session_id: &str,
-) -> Vec<RuntimeEvent> {
-    if let Some(run_id) = run_id {
-        return filter_run_events(events, run_id, session_id);
-    }
-    let request_ids: HashSet<_> = events
-        .iter()
-        .filter(|event| {
-            let run = event.data.get("run_id").and_then(Value::as_str);
-            let session = event.data.get("session_id").and_then(Value::as_str);
-            run == Some(session_id) || session == Some(session_id)
-        })
-        .map(|event| event.request_id)
-        .collect();
-    events
-        .iter()
-        .filter(|event| request_ids.contains(&event.request_id))
-        .cloned()
-        .collect()
+    (candidates.len() == 1)
+        .then(|| candidates.into_iter().next())
+        .flatten()
 }
 
 fn capability_event_payload(
@@ -3435,26 +3760,60 @@ fn capability_event_payload(
     run_id: RunId,
 ) -> Value {
     let mut payload = redact_event_value(output);
-    if let Some(object) = payload.as_object_mut() {
-        object.insert("run_id".to_owned(), json!(run_id));
-        object.insert("session_id".to_owned(), json!(context.session_id));
-        object.insert("capability".to_owned(), json!(request.capability));
-        object.insert("operation".to_owned(), json!(request.operation));
-        object.insert("cell_id".to_owned(), json!(request.cell_id));
-        object.insert(
-            "capability_grant_id".to_owned(),
-            json!(request.capability_grant_id),
-        );
-        object.insert("budget_lease_id".to_owned(), json!(request.budget_lease_id));
-        object.insert(
-            "capability_request_id".to_owned(),
-            json!(request.request_id),
-        );
+    if !payload.is_object() {
+        payload = json!({ "output": payload });
     }
+    let object = payload
+        .as_object_mut()
+        .expect("capability event payload is normalized to an object");
+    object.insert("run_id".to_owned(), json!(run_id));
+    object.insert("session_id".to_owned(), json!(context.session_id));
+    object.insert("capability".to_owned(), json!(request.capability));
+    object.insert("operation".to_owned(), json!(request.operation));
+    object.insert("cell_id".to_owned(), json!(request.cell_id));
+    object.insert(
+        "capability_grant_id".to_owned(),
+        json!(request.capability_grant_id),
+    );
+    object.insert("budget_lease_id".to_owned(), json!(request.budget_lease_id));
+    object.insert(
+        "capability_request_id".to_owned(),
+        json!(request.request_id),
+    );
+    payload
+}
+
+fn direct_capability_event_payload(output: &Value, request: &CapabilityRequest) -> Value {
+    let mut payload = redact_event_value(output);
+    if !payload.is_object() {
+        payload = json!({ "output": payload });
+    }
+    let object = payload
+        .as_object_mut()
+        .expect("direct capability payload is normalized to an object");
+    object.insert("capability".to_owned(), json!(request.capability));
+    object.insert("operation".to_owned(), json!(request.operation));
+    object.insert("cell_id".to_owned(), json!(request.cell_id));
+    object.insert(
+        "capability_grant_id".to_owned(),
+        json!(request.capability_grant_id),
+    );
+    object.insert("budget_lease_id".to_owned(), json!(request.budget_lease_id));
+    object.insert(
+        "capability_request_id".to_owned(),
+        json!(request.request_id),
+    );
     payload
 }
 
 fn redact_event_text(text: &str) -> String {
+    let trimmed = text.trim();
+    if matches!(trimmed.as_bytes().first(), Some(b'{') | Some(b'[')) {
+        if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+            return redact_event_value(&value).to_string();
+        }
+    }
+
     const SENSITIVE_MARKERS: &[&str] = &[
         "token=",
         "password=",
@@ -3464,6 +3823,8 @@ fn redact_event_text(text: &str) -> String {
         "secret=",
         "bearer ",
         "authorization: bearer ",
+        "authorization: basic ",
+        "x-api-key:",
         "\"token\":\"",
         "\"password\":\"",
         "\"api_key\":\"",
@@ -3483,23 +3844,33 @@ fn redact_event_text(text: &str) -> String {
                 break;
             };
             let start = search_from + relative_start + marker.len();
-            let end = if quoted {
-                redacted[start..]
-                    .find('\"')
-                    .map_or(redacted.len(), |relative_end| start + relative_end)
+            let value_start = if quoted {
+                start
             } else {
-                redacted[start..]
+                start
+                    + redacted[start..]
+                        .chars()
+                        .take_while(|character| character.is_whitespace())
+                        .map(char::len_utf8)
+                        .sum::<usize>()
+            };
+            let end = if quoted {
+                redacted[value_start..]
+                    .find('\"')
+                    .map_or(redacted.len(), |relative_end| value_start + relative_end)
+            } else {
+                redacted[value_start..]
                     .find(|character: char| {
                         character.is_whitespace()
                             || matches!(character, '&' | ',' | ';' | '\"' | '}')
                     })
-                    .map_or(redacted.len(), |relative_end| start + relative_end)
+                    .map_or(redacted.len(), |relative_end| value_start + relative_end)
             };
-            if end <= start {
+            if end <= value_start {
                 break;
             }
-            redacted.replace_range(start..end, "[REDACTED]");
-            search_from = start + "[REDACTED]".len();
+            redacted.replace_range(value_start..end, "[REDACTED]");
+            search_from = value_start + "[REDACTED]".len();
         }
     }
     redacted
@@ -3513,8 +3884,25 @@ fn redact_event_value(value: &Value) -> Value {
                 .iter()
                 .map(|(key, value)| {
                     let normalized = key.to_ascii_lowercase();
+                    let token_metric =
+                        matches!(
+                            normalized.as_str(),
+                            "tokens_before"
+                                | "tokens_after"
+                                | "input_tokens"
+                                | "output_tokens"
+                                | "total_tokens"
+                                | "cached_tokens"
+                                | "reasoning_tokens"
+                                | "max_tokens"
+                                | "min_tokens"
+                                | "token_count"
+                                | "token_budget"
+                                | "estimated_tokens"
+                                | "token_overlap"
+                        ) && matches!(value, Value::Number(_) | Value::Bool(_) | Value::Null);
                     let sensitive = normalized != "secret_ref"
-                        && (normalized.contains("token")
+                        && ((normalized.contains("token") && !token_metric)
                             || normalized.contains("password")
                             || normalized.contains("api_key")
                             || normalized.contains("access_key")
@@ -3531,6 +3919,19 @@ fn redact_event_value(value: &Value) -> Value {
         ),
         Value::String(text) => Value::String(redact_event_text(text)),
         _ => value.clone(),
+    }
+}
+
+fn redact_capability_result(result: CapabilityResult) -> CapabilityResult {
+    CapabilityResult {
+        request_id: result.request_id,
+        success: result.success,
+        output: redact_event_value(&result.output),
+        evidence_refs: result
+            .evidence_refs
+            .iter()
+            .map(|reference| redact_event_text(reference))
+            .collect(),
     }
 }
 
@@ -3645,27 +4046,23 @@ fn write_symposium_artifacts(
         return Err("symposium_artifact_write_failed");
     }
     let decision_path = Path::new(meeting.decision_path());
-    if let Some(parent) = decision_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(root.join(parent))
-                .map_err(|_| "symposium_artifact_write_failed")?;
-        }
-    }
     let decision_json =
         serde_json::to_string_pretty(decision).map_err(|_| "symposium_artifact_write_failed")?;
-    std::fs::write(root.join(decision_path), decision_json)
-        .map_err(|_| "symposium_artifact_write_failed")?;
+    write_project_artifact(
+        root,
+        decision_path,
+        decision_json.as_bytes(),
+        "symposium_artifact_write_failed",
+    )?;
     if let Some(packet) = packet {
-        if let Some(parent) = Path::new(WORK_PACKET_PATH).parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(root.join(parent))
-                    .map_err(|_| "symposium_artifact_write_failed")?;
-            }
-        }
         let packet_json =
             serde_json::to_string_pretty(packet).map_err(|_| "symposium_artifact_write_failed")?;
-        std::fs::write(root.join(WORK_PACKET_PATH), packet_json)
-            .map_err(|_| "symposium_artifact_write_failed")?;
+        write_project_artifact(
+            root,
+            Path::new(WORK_PACKET_PATH),
+            packet_json.as_bytes(),
+            "symposium_artifact_write_failed",
+        )?;
     }
     Ok(())
 }
@@ -3675,8 +4072,11 @@ fn read_review_artifact(project_root: &str) -> Result<ReviewPacket, &'static str
     if !root.is_dir() {
         return Err("close_project_not_found");
     }
-    let raw = std::fs::read_to_string(root.join(REVIEW_PACKET_PATH))
-        .map_err(|_| "close_review_not_found")?;
+    let raw = read_project_artifact(
+        root,
+        Path::new(REVIEW_PACKET_PATH),
+        "close_review_not_found",
+    )?;
     let review: ReviewPacket = serde_json::from_str(&raw).map_err(|_| "close_review_invalid")?;
     review.validate().map_err(|_| "close_review_invalid")?;
     Ok(review)
@@ -3690,20 +4090,14 @@ fn write_closing_artifact(
     if project_root.trim().is_empty() || !root.is_dir() {
         return Err("closing_artifact_write_failed");
     }
-    let lessons = root.join("lessons");
-    std::fs::create_dir_all(&lessons).map_err(|_| "closing_artifact_write_failed")?;
     let receipt_json =
         serde_json::to_string_pretty(receipt).map_err(|_| "closing_artifact_write_failed")?;
-    std::fs::write(
-        lessons.join(
-            kiana_domain::CLOSING_RECEIPT_PATH
-                .rsplit('/')
-                .next()
-                .unwrap(),
-        ),
-        receipt_json,
-    )
-    .map_err(|_| "closing_artifact_write_failed")?;
+    write_project_artifact(
+        root,
+        Path::new(kiana_domain::CLOSING_RECEIPT_PATH),
+        receipt_json.as_bytes(),
+        "closing_artifact_write_failed",
+    )?;
     let mut learned = String::from("# Closing lessons\n\n");
     learned.push_str("The Builder output passed independent Review and was accepted by Closing.\n");
     if !receipt.files_verified.is_empty() {
@@ -3714,13 +4108,21 @@ fn write_closing_artifact(
             learned.push('\n');
         }
     }
-    std::fs::write(lessons.join("LEARNED.md"), learned).map_err(|_| "closing_artifact_write_failed")
+    write_project_artifact(
+        root,
+        Path::new("lessons/LEARNED.md"),
+        learned.as_bytes(),
+        "closing_artifact_write_failed",
+    )
 }
 
 fn read_merge_artifact(project_root: &str) -> Result<MergeReceipt, &'static str> {
     let root = Path::new(project_root);
-    let raw = std::fs::read_to_string(root.join(kiana_domain::MERGE_RECEIPT_PATH))
-        .map_err(|_| "close_merge_receipt_not_found")?;
+    let raw = read_project_artifact(
+        root,
+        Path::new(kiana_domain::MERGE_RECEIPT_PATH),
+        "close_merge_receipt_not_found",
+    )?;
     let merge: MergeReceipt =
         serde_json::from_str(&raw).map_err(|_| "close_merge_receipt_invalid")?;
     merge
@@ -3734,12 +4136,14 @@ fn write_merge_artifact(project_root: &str, receipt: &MergeReceipt) -> Result<()
     if project_root.trim().is_empty() || !root.is_dir() {
         return Err("merge_artifact_write_failed");
     }
-    std::fs::create_dir_all(root.join(MONITORING_PATH_GATE))
-        .map_err(|_| "merge_artifact_write_failed")?;
     let receipt_json =
         serde_json::to_string_pretty(receipt).map_err(|_| "merge_artifact_write_failed")?;
-    std::fs::write(root.join(kiana_domain::MERGE_RECEIPT_PATH), receipt_json)
-        .map_err(|_| "merge_artifact_write_failed")
+    write_project_artifact(
+        root,
+        Path::new(kiana_domain::MERGE_RECEIPT_PATH),
+        receipt_json.as_bytes(),
+        "merge_artifact_write_failed",
+    )
 }
 
 fn write_review_artifact(project_root: &str, packet: &ReviewPacket) -> Result<(), &'static str> {
@@ -3747,13 +4151,563 @@ fn write_review_artifact(project_root: &str, packet: &ReviewPacket) -> Result<()
     if project_root.trim().is_empty() || !root.is_dir() {
         return Err("review_artifact_write_failed");
     }
-    std::fs::create_dir_all(root.join(MONITORING_PATH_GATE))
-        .map_err(|_| "review_artifact_write_failed")?;
     let packet_json =
         serde_json::to_string_pretty(packet).map_err(|_| "review_artifact_write_failed")?;
-    std::fs::write(root.join(REVIEW_PACKET_PATH), packet_json)
-        .map_err(|_| "review_artifact_write_failed")?;
+    write_project_artifact(
+        root,
+        Path::new(REVIEW_PACKET_PATH),
+        packet_json.as_bytes(),
+        "review_artifact_write_failed",
+    )?;
     Ok(())
+}
+
+const ARTIFACT_TEMP_ATTEMPTS: usize = 16;
+#[cfg(target_os = "linux")]
+const LINUX_RENAME_NOREPLACE: u32 = 1;
+#[cfg(target_os = "linux")]
+const LINUX_RENAME_EXCHANGE: u32 = 2;
+
+#[cfg(target_os = "linux")]
+fn read_project_artifact(
+    root: &Path,
+    relative: &Path,
+    error: &'static str,
+) -> Result<String, &'static str> {
+    read_project_artifact_linux(root, relative, error)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn read_project_artifact(
+    root: &Path,
+    relative: &Path,
+    error: &'static str,
+) -> Result<String, &'static str> {
+    let path = confined_artifact_path(root, relative, error)?;
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    let mut file = options.open(path).map_err(|_| error)?;
+    let mut raw = String::new();
+    file.read_to_string(&mut raw).map_err(|_| error)?;
+    Ok(raw)
+}
+
+#[cfg(target_os = "linux")]
+fn write_project_artifact(
+    root: &Path,
+    relative: &Path,
+    contents: &[u8],
+    error: &'static str,
+) -> Result<(), &'static str> {
+    prepare_project_artifact_linux(root, relative, contents, error)?.commit()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn write_project_artifact(
+    root: &Path,
+    relative: &Path,
+    contents: &[u8],
+    error: &'static str,
+) -> Result<(), &'static str> {
+    let path = confined_artifact_path(root, relative, error)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|_| error)?;
+    }
+    confined_artifact_path(root, relative, error)?;
+    let (temporary, mut file) = create_artifact_temp_sibling(&path, error)?;
+    let write_result = (|| {
+        file.write_all(contents).map_err(|_| error)?;
+        file.flush().map_err(|_| error)?;
+        file.sync_all().map_err(|_| error)
+    })();
+    drop(file);
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temporary);
+        return write_result;
+    }
+    if confined_artifact_path(root, relative, error).is_err() {
+        let _ = fs::remove_file(&temporary);
+        return Err(error);
+    }
+    if fs::rename(&temporary, &path).is_err() {
+        let _ = fs::remove_file(&temporary);
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn confined_artifact_path(
+    root: &Path,
+    relative: &Path,
+    error: &'static str,
+) -> Result<PathBuf, &'static str> {
+    if relative.as_os_str().is_empty()
+        || relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(error);
+    }
+    let path = root.join(relative);
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            return Err(error);
+        };
+        current.push(name);
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => return Err(error),
+            Ok(_) => {}
+            Err(io_error) if io_error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err(error),
+        }
+    }
+    Ok(path)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn create_artifact_temp_sibling(
+    path: &Path,
+    error: &'static str,
+) -> Result<(PathBuf, File), &'static str> {
+    let name = path.file_name().ok_or(error)?.to_string_lossy();
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    for attempt in 0..ARTIFACT_TEMP_ATTEMPTS {
+        let temporary = path.with_file_name(format!(
+            ".{name}.kiana-artifact-{}-{stamp}-{attempt}",
+            std::process::id()
+        ));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+        {
+            Ok(file) => return Ok((temporary, file)),
+            Err(io_error) if io_error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err(error),
+        }
+    }
+    Err(error)
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LinuxArtifactTargetState {
+    Missing,
+    Regular {
+        device: u64,
+        inode: u64,
+        mode: u32,
+        links: u64,
+        size: u64,
+        modified_seconds: i64,
+        modified_nanoseconds: i64,
+        changed_seconds: i64,
+        changed_nanoseconds: i64,
+    },
+}
+
+#[cfg(target_os = "linux")]
+struct LinuxArtifactLocation {
+    root_path: PathBuf,
+    root: File,
+    parent: File,
+    parent_components: Vec<OsString>,
+    target: CString,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxArtifactLocation {
+    fn open(
+        root_path: &Path,
+        relative: &Path,
+        create_parents: bool,
+        error: &'static str,
+    ) -> Result<Self, &'static str> {
+        let mut components = validated_artifact_components(relative, error)?;
+        let target = components.pop().ok_or(error)?;
+        let root = linux_open_artifact_root(root_path).map_err(|_| error)?;
+        let mut parent = root.try_clone().map_err(|_| error)?;
+        for component in &components {
+            parent =
+                linux_open_artifact_directory_at(parent.as_raw_fd(), component, create_parents)
+                    .map_err(|_| error)?;
+        }
+        Ok(Self {
+            root_path: root_path.to_path_buf(),
+            root,
+            parent,
+            parent_components: components,
+            target: linux_artifact_cstring(&target).map_err(|_| error)?,
+        })
+    }
+
+    fn is_current(&self) -> bool {
+        let Ok(root) = linux_open_artifact_root(&self.root_path) else {
+            return false;
+        };
+        if !linux_same_directory(&self.root, &root) {
+            return false;
+        }
+        let mut parent = root;
+        for component in &self.parent_components {
+            let Ok(next) = linux_open_artifact_directory_at(parent.as_raw_fd(), component, false)
+            else {
+                return false;
+            };
+            parent = next;
+        }
+        linux_same_directory(&self.parent, &parent)
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct PreparedLinuxArtifactWrite {
+    location: LinuxArtifactLocation,
+    temporary: CString,
+    expected: LinuxArtifactTargetState,
+    temporary_present: bool,
+    error: &'static str,
+}
+
+#[cfg(target_os = "linux")]
+impl PreparedLinuxArtifactWrite {
+    fn commit(mut self) -> Result<(), &'static str> {
+        if !self.location.is_current() {
+            return Err(self.error);
+        }
+        let current =
+            linux_artifact_target_state(self.location.parent.as_raw_fd(), &self.location.target)
+                .map_err(|_| self.error)?;
+        if current != self.expected {
+            return Err(self.error);
+        }
+
+        match self.expected {
+            LinuxArtifactTargetState::Missing => {
+                linux_artifact_renameat2(
+                    self.location.parent.as_raw_fd(),
+                    &self.temporary,
+                    &self.location.target,
+                    LINUX_RENAME_NOREPLACE,
+                )
+                .map_err(|_| self.error)?;
+                self.temporary_present = false;
+            }
+            LinuxArtifactTargetState::Regular { .. } => {
+                linux_artifact_renameat2(
+                    self.location.parent.as_raw_fd(),
+                    &self.temporary,
+                    &self.location.target,
+                    LINUX_RENAME_EXCHANGE,
+                )
+                .map_err(|_| self.error)?;
+                let displaced =
+                    linux_artifact_target_state(self.location.parent.as_raw_fd(), &self.temporary);
+                if !matches!(displaced, Ok(state) if state == self.expected) {
+                    if linux_artifact_renameat2(
+                        self.location.parent.as_raw_fd(),
+                        &self.temporary,
+                        &self.location.target,
+                        LINUX_RENAME_EXCHANGE,
+                    )
+                    .is_err()
+                    {
+                        self.temporary_present = false;
+                    }
+                    return Err(self.error);
+                }
+                linux_artifact_unlinkat(self.location.parent.as_raw_fd(), &self.temporary)
+                    .map_err(|_| self.error)?;
+                self.temporary_present = false;
+            }
+        }
+        let _ = linux_artifact_sync_directory(self.location.parent.as_raw_fd());
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for PreparedLinuxArtifactWrite {
+    fn drop(&mut self) {
+        if self.temporary_present {
+            let _ = linux_artifact_unlinkat(self.location.parent.as_raw_fd(), &self.temporary);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_project_artifact_linux(
+    root: &Path,
+    relative: &Path,
+    error: &'static str,
+) -> Result<String, &'static str> {
+    let location = LinuxArtifactLocation::open(root, relative, false, error)?;
+    let expected = linux_artifact_target_state(location.parent.as_raw_fd(), &location.target)
+        .map_err(|_| error)?;
+    if matches!(expected, LinuxArtifactTargetState::Missing) {
+        return Err(error);
+    }
+    let fd = unsafe {
+        libc::openat(
+            location.parent.as_raw_fd(),
+            location.target.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if fd < 0 {
+        return Err(error);
+    }
+    let mut file = unsafe { File::from_raw_fd(fd) };
+    if linux_artifact_file_state(&file).map_err(|_| error)? != expected {
+        return Err(error);
+    }
+    let mut raw = String::new();
+    file.read_to_string(&mut raw).map_err(|_| error)?;
+    if linux_artifact_file_state(&file).map_err(|_| error)? != expected
+        || !location.is_current()
+        || linux_artifact_target_state(location.parent.as_raw_fd(), &location.target)
+            .map_err(|_| error)?
+            != expected
+    {
+        return Err(error);
+    }
+    Ok(raw)
+}
+
+#[cfg(target_os = "linux")]
+fn prepare_project_artifact_linux(
+    root: &Path,
+    relative: &Path,
+    contents: &[u8],
+    error: &'static str,
+) -> Result<PreparedLinuxArtifactWrite, &'static str> {
+    let location = LinuxArtifactLocation::open(root, relative, true, error)?;
+    let expected = linux_artifact_target_state(location.parent.as_raw_fd(), &location.target)
+        .map_err(|_| error)?;
+    let (temporary, mut file) =
+        linux_create_artifact_temp(location.parent.as_raw_fd()).map_err(|_| error)?;
+    let result = (|| {
+        file.write_all(contents).map_err(|_| error)?;
+        file.flush().map_err(|_| error)?;
+        file.sync_all().map_err(|_| error)
+    })();
+    drop(file);
+    if let Err(write_error) = result {
+        let _ = linux_artifact_unlinkat(location.parent.as_raw_fd(), &temporary);
+        return Err(write_error);
+    }
+    Ok(PreparedLinuxArtifactWrite {
+        location,
+        temporary,
+        expected,
+        temporary_present: true,
+        error,
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn validated_artifact_components(
+    relative: &Path,
+    error: &'static str,
+) -> Result<Vec<OsString>, &'static str> {
+    if relative.as_os_str().is_empty() || relative.is_absolute() {
+        return Err(error);
+    }
+    relative
+        .components()
+        .map(|component| match component {
+            Component::Normal(value) => Ok(value.to_os_string()),
+            _ => Err(error),
+        })
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn linux_open_artifact_root(path: &Path) -> std::io::Result<File> {
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+}
+
+#[cfg(target_os = "linux")]
+fn linux_open_artifact_directory_at(
+    parent: RawFd,
+    component: &std::ffi::OsStr,
+    create: bool,
+) -> std::io::Result<File> {
+    let component = linux_artifact_cstring(component)?;
+    let open = || unsafe {
+        libc::openat(
+            parent,
+            component.as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    let mut fd = open();
+    if fd < 0 && create && std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT) {
+        let mkdir = unsafe { libc::mkdirat(parent, component.as_ptr(), 0o755) };
+        if mkdir != 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::EEXIST) {
+            return Err(std::io::Error::last_os_error());
+        }
+        fd = open();
+    }
+    if fd < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(unsafe { File::from_raw_fd(fd) })
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_artifact_target_state(
+    parent: RawFd,
+    name: &CString,
+) -> std::io::Result<LinuxArtifactTargetState> {
+    let fd = unsafe {
+        libc::openat(
+            parent,
+            name.as_ptr(),
+            libc::O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if fd < 0 {
+        let error = std::io::Error::last_os_error();
+        return if error.raw_os_error() == Some(libc::ENOENT) {
+            Ok(LinuxArtifactTargetState::Missing)
+        } else {
+            Err(error)
+        };
+    }
+    let file = unsafe { File::from_raw_fd(fd) };
+    linux_artifact_file_state(&file)
+}
+
+#[cfg(target_os = "linux")]
+fn linux_artifact_file_state(file: &File) -> std::io::Result<LinuxArtifactTargetState> {
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() || metadata.nlink() != 1 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "artifact target is not a single-link regular file",
+        ));
+    }
+    Ok(LinuxArtifactTargetState::Regular {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        mode: metadata.mode(),
+        links: metadata.nlink(),
+        size: metadata.size(),
+        modified_seconds: metadata.mtime(),
+        modified_nanoseconds: metadata.mtime_nsec(),
+        changed_seconds: metadata.ctime(),
+        changed_nanoseconds: metadata.ctime_nsec(),
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn linux_same_directory(left: &File, right: &File) -> bool {
+    match (left.metadata(), right.metadata()) {
+        (Ok(left), Ok(right)) => left.dev() == right.dev() && left.ino() == right.ino(),
+        _ => false,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_create_artifact_temp(parent: RawFd) -> std::io::Result<(CString, File)> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    for attempt in 0..ARTIFACT_TEMP_ATTEMPTS {
+        let name = CString::new(format!(
+            ".kiana-artifact-{}-{stamp}-{attempt}",
+            std::process::id()
+        ))
+        .expect("generated artifact name cannot contain NUL");
+        let fd = unsafe {
+            libc::openat(
+                parent,
+                name.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                0o600,
+            )
+        };
+        if fd >= 0 {
+            return Ok((name, unsafe { File::from_raw_fd(fd) }));
+        }
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() != Some(libc::EEXIST) {
+            return Err(error);
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "artifact temporary name attempts exhausted",
+    ))
+}
+
+#[cfg(target_os = "linux")]
+fn linux_artifact_renameat2(
+    parent: RawFd,
+    source: &CString,
+    target: &CString,
+    flags: u32,
+) -> std::io::Result<()> {
+    let result = unsafe {
+        libc::syscall(
+            libc::SYS_renameat2,
+            parent,
+            source.as_ptr(),
+            parent,
+            target.as_ptr(),
+            flags,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_artifact_unlinkat(parent: RawFd, name: &CString) -> std::io::Result<()> {
+    if unsafe { libc::unlinkat(parent, name.as_ptr(), 0) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_artifact_sync_directory(parent: RawFd) -> std::io::Result<()> {
+    if unsafe { libc::fsync(parent) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_artifact_cstring(value: &std::ffi::OsStr) -> std::io::Result<CString> {
+    CString::new(value.as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "artifact path contains NUL",
+        )
+    })
 }
 
 fn authorized_harness_sandbox(
@@ -4077,9 +5031,145 @@ pub enum CoreError {
     Port(#[from] PortError),
 }
 
+#[cfg(all(test, target_os = "linux"))]
+mod artifact_path_tests {
+    use super::{prepare_project_artifact_linux, write_project_artifact};
+    use std::fs;
+    use std::os::unix::fs::symlink;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temporary_root(label: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time is after epoch")
+            .as_nanos();
+        for attempt in 0..16 {
+            let root = std::env::temp_dir().join(format!(
+                "kiana-core-artifact-{label}-{}-{stamp}-{attempt}",
+                std::process::id()
+            ));
+            if fs::create_dir(&root).is_ok() {
+                return root;
+            }
+        }
+        panic!("could not create temporary artifact test root");
+    }
+
+    #[test]
+    fn prepared_artifact_write_rejects_parent_rename_before_commit() {
+        let root = temporary_root("parent-rename");
+        let outside = temporary_root("parent-rename-outside");
+        fs::create_dir(root.join("gate")).unwrap();
+        let prepared = prepare_project_artifact_linux(
+            &root,
+            Path::new("gate/REVIEW.json"),
+            b"replacement",
+            "artifact_write_failed",
+        )
+        .unwrap();
+
+        fs::rename(root.join("gate"), root.join("gate-before-rename")).unwrap();
+        symlink(&outside, root.join("gate")).unwrap();
+
+        assert_eq!(prepared.commit(), Err("artifact_write_failed"));
+        assert!(!outside.join("REVIEW.json").exists());
+        assert!(!root.join("gate-before-rename/REVIEW.json").exists());
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+    }
+
+    #[test]
+    fn prepared_artifact_write_rejects_final_symlink_replacement_before_commit() {
+        let root = temporary_root("target-symlink");
+        let outside = temporary_root("target-symlink-outside");
+        fs::create_dir(root.join("gate")).unwrap();
+        let outside_target = outside.join("outside-target");
+        fs::write(&outside_target, "outside sentinel").unwrap();
+        let prepared = prepare_project_artifact_linux(
+            &root,
+            Path::new("gate/REVIEW.json"),
+            b"replacement",
+            "artifact_write_failed",
+        )
+        .unwrap();
+
+        symlink(&outside_target, root.join("gate/REVIEW.json")).unwrap();
+
+        assert_eq!(prepared.commit(), Err("artifact_write_failed"));
+        assert_eq!(
+            fs::read_to_string(&outside_target).unwrap(),
+            "outside sentinel"
+        );
+        assert!(fs::symlink_metadata(root.join("gate/REVIEW.json"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+    }
+
+    #[test]
+    fn prepared_artifact_write_rejects_target_version_replacement_before_commit() {
+        let root = temporary_root("target-version");
+        fs::create_dir(root.join("gate")).unwrap();
+        let target = root.join("gate/REVIEW.json");
+        fs::write(&target, "original").unwrap();
+        let prepared = prepare_project_artifact_linux(
+            &root,
+            Path::new("gate/REVIEW.json"),
+            b"replacement",
+            "artifact_write_failed",
+        )
+        .unwrap();
+
+        fs::write(&target, "changed after prepare").unwrap();
+
+        assert_eq!(prepared.commit(), Err("artifact_write_failed"));
+        assert_eq!(
+            fs::read_to_string(&target).unwrap(),
+            "changed after prepare"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn artifact_write_rejects_hardlinked_target_without_mutating_source() {
+        let root = temporary_root("hardlink");
+        let outside = temporary_root("hardlink-outside");
+        fs::create_dir(root.join("gate")).unwrap();
+        let outside_target = outside.join("outside-target");
+        fs::write(&outside_target, "outside sentinel").unwrap();
+        fs::hard_link(&outside_target, root.join("gate/REVIEW.json")).unwrap();
+
+        assert_eq!(
+            write_project_artifact(
+                &root,
+                Path::new("gate/REVIEW.json"),
+                b"replacement",
+                "artifact_write_failed",
+            ),
+            Err("artifact_write_failed")
+        );
+        assert_eq!(
+            fs::read_to_string(&outside_target).unwrap(),
+            "outside sentinel"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+    }
+}
+
 #[cfg(test)]
 mod event_redaction_tests {
-    use super::{capability_event_payload, redact_event_text, redact_event_value};
+    use super::{
+        capability_event_payload, direct_capability_event_payload, redact_event_text,
+        redact_event_value,
+    };
     use kiana_domain::{CapabilityKind, CapabilityRequest, RequestContext, RequestId, RunId};
     use serde_json::json;
 
@@ -4096,19 +5186,44 @@ mod event_redaction_tests {
         request.budget_lease_id = Some(kiana_domain::BudgetLeaseId::new());
         let context = RequestContext::local("session-1", "/repo");
         let run_id = RunId::new();
-        let payload = capability_event_payload(
-            &json!({ "changed": true }),
-            &request,
-            &context,
-            run_id,
-        );
+        let payload =
+            capability_event_payload(&json!({ "changed": true }), &request, &context, run_id);
 
         assert_eq!(payload["run_id"], json!(run_id));
         assert_eq!(payload["session_id"], "session-1");
         assert_eq!(payload["cell_id"], json!(request.cell_id));
-        assert_eq!(payload["capability_grant_id"], json!(request.capability_grant_id));
+        assert_eq!(
+            payload["capability_grant_id"],
+            json!(request.capability_grant_id)
+        );
         assert_eq!(payload["budget_lease_id"], json!(request.budget_lease_id));
         assert_eq!(payload["capability_request_id"], json!(request.request_id));
+    }
+
+    #[test]
+    fn scalar_capability_result_is_wrapped_with_scope_correlation() {
+        let request =
+            CapabilityRequest::new(RequestId::new(), CapabilityKind::Query, "search", json!({}));
+        let context = RequestContext::local("session-1", "/repo");
+        let run_id = RunId::new();
+        let payload = capability_event_payload(&json!(["one", "two"]), &request, &context, run_id);
+
+        assert_eq!(payload["output"], json!(["one", "two"]));
+        assert_eq!(payload["run_id"], json!(run_id));
+        assert_eq!(payload["capability_request_id"], json!(request.request_id));
+        assert_eq!(payload["operation"], "search");
+    }
+
+    #[test]
+    fn direct_capability_result_keeps_request_scope_correlation() {
+        let request =
+            CapabilityRequest::new(RequestId::new(), CapabilityKind::Query, "search", json!({}));
+        let payload = direct_capability_event_payload(&json!("found"), &request);
+
+        assert_eq!(payload["output"], "found");
+        assert_eq!(payload["capability_request_id"], json!(request.request_id));
+        assert_eq!(payload["capability"], "query");
+        assert_eq!(payload["operation"], "search");
     }
 
     #[test]
@@ -4133,14 +5248,39 @@ mod event_redaction_tests {
     }
 
     #[test]
+    fn event_redaction_masks_standard_header_and_spaced_json_secrets() {
+        let redacted = redact_event_value(&json!({
+            "basic": "Authorization: Basic basic-secret",
+            "header": "X-Api-Key:  header-secret",
+            "json": "{\"api_key\": \"json-secret\", \"secret_ref\": \"vault://kept\"}",
+        }));
+        let text = redacted.to_string();
+        for sentinel in ["basic-secret", "header-secret", "json-secret"] {
+            assert!(!text.contains(sentinel), "leaked {sentinel}: {text}");
+        }
+        assert!(text.contains("[REDACTED]"), "{text}");
+        assert!(text.contains("vault://kept"), "{text}");
+    }
+
+    #[test]
     fn event_redaction_preserves_references_and_non_sensitive_results() {
         let redacted = redact_event_value(&json!({
             "secret_ref": "provider/anthropic",
             "api_key": "do-not-record",
+            "numeric_api_key": 123456,
+            "tokens_before": 4096,
+            "token_budget": 1000,
+            "estimated_tokens": 42,
+            "token_overlap": 2,
             "nested": [{"access_token": "also-private", "path": "src/lib.rs"}],
         }));
         assert_eq!(redacted["secret_ref"], "provider/anthropic");
         assert_eq!(redacted["api_key"], "[REDACTED]");
+        assert_eq!(redacted["numeric_api_key"], "[REDACTED]");
+        assert_eq!(redacted["tokens_before"], 4096);
+        assert_eq!(redacted["token_budget"], 1000);
+        assert_eq!(redacted["estimated_tokens"], 42);
+        assert_eq!(redacted["token_overlap"], 2);
         assert_eq!(redacted["nested"][0]["access_token"], "[REDACTED]");
         assert_eq!(redacted["nested"][0]["path"], "src/lib.rs");
     }

@@ -12,13 +12,15 @@ use kiana_runner::{
 };
 use kiana_services::api::messages::{Message, MessagesRequest};
 use kiana_services::api::provider::{
-    ANTHROPIC_PROVIDER_ID, AnthropicProvider, FAKE_PROVIDER_ID, FakeProvider, OLLAMA_PROVIDER_ID,
-    OPENAI_COMPATIBLE_PROVIDER_ID, OllamaProvider, OpenAiCompatibleProvider, Provider,
-    ProviderError, provider_registry_entry,
+    provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
+    OpenAiCompatibleProvider, Provider, ProviderError, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
+    OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
+
+use crate::LocalModelConfig;
 
 const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
 const ENV_PROVIDER: &str = "KIANA_PROVIDER";
@@ -26,12 +28,16 @@ const DEFAULT_MAX_TOKENS: u32 = 4096;
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub(crate) fn from_env() -> Arc<dyn ModelClient> {
+    from_config(LocalModelConfig::default())
+}
+
+pub(crate) fn from_config(config: LocalModelConfig) -> Arc<dyn ModelClient> {
     match std::env::var(ENV_HARNESS_SCRIPT) {
         Ok(path) if !path.trim().is_empty() => match ScriptedModel::from_json_path(path.trim()) {
             Ok(model) => Arc::new(model),
             Err(error) => Arc::new(UnavailableModel::new(error)),
         },
-        _ => match provider_from_env() {
+        _ => match provider_from_env(config) {
             Ok(Some(model)) => model,
             Ok(None) => Arc::new(UnavailableModel::default()),
             Err(error) => Arc::new(UnavailableModel::new(error)),
@@ -39,35 +45,58 @@ pub(crate) fn from_env() -> Arc<dyn ModelClient> {
     }
 }
 
-fn provider_from_env() -> Result<Option<Arc<dyn ModelClient>>, String> {
-    let provider_id = std::env::var(ENV_PROVIDER)
-        .ok()
+fn provider_from_env(config: LocalModelConfig) -> Result<Option<Arc<dyn ModelClient>>, String> {
+    let provider_id = config
+        .provider
+        .or_else(|| std::env::var(ENV_PROVIDER).ok())
         .map(|value| value.trim().to_ascii_lowercase())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| ANTHROPIC_PROVIDER_ID.to_owned());
     let Some(entry) = provider_registry_entry(&provider_id) else {
         return Err(format!("unknown_provider:{provider_id}"));
     };
-    let model_id = first_env(&entry.model_env_vars).unwrap_or(entry.default_model_id);
+    let model_id = config
+        .model
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| first_env(&entry.model_env_vars))
+        .unwrap_or(entry.default_model_id);
     let provider: Box<dyn Provider> = match provider_id.as_str() {
         FAKE_PROVIDER_ID => Box::new(
             FakeProvider::from_script_value(model_id.clone(), None)
                 .map_err(|error| error.to_string())?,
         ),
         id if id == ANTHROPIC_PROVIDER_ID => {
-            let Some(api_key) = first_env(&entry.api_key_env_vars) else {
+            let Some(api_key) = config
+                .api_key
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| first_env(&entry.api_key_env_vars))
+            else {
                 return Ok(None);
             };
-            let base_url = first_env(&entry.base_url_env_vars)
+            let base_url = config
+                .base_url
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| first_env(&entry.base_url_env_vars))
                 .or(entry.default_base_url)
                 .unwrap_or_default();
             Box::new(AnthropicProvider::new(api_key, base_url, PROVIDER_TIMEOUT))
         }
         id if id == OPENAI_COMPATIBLE_PROVIDER_ID => {
-            let Some(api_key) = first_env(&entry.api_key_env_vars) else {
+            let Some(api_key) = config
+                .api_key
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| first_env(&entry.api_key_env_vars))
+            else {
                 return Ok(None);
             };
-            let base_url = first_env(&entry.base_url_env_vars)
+            let base_url = config
+                .base_url
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| first_env(&entry.base_url_env_vars))
                 .or(entry.default_base_url)
                 .unwrap_or_default();
             Box::new(
@@ -76,7 +105,10 @@ fn provider_from_env() -> Result<Option<Arc<dyn ModelClient>>, String> {
             )
         }
         id if id == OLLAMA_PROVIDER_ID => {
-            let base_url = first_env(&entry.base_url_env_vars)
+            let base_url = config
+                .base_url
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| first_env(&entry.base_url_env_vars))
                 .or(entry.default_base_url)
                 .unwrap_or_default();
             Box::new(
@@ -264,7 +296,7 @@ fn output_from_content(content: &[Value]) -> ModelOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiana_services::api::provider::{FAKE_TEXT_ONLY_MODEL_ID, FakeProviderStep};
+    use kiana_services::api::provider::{FakeProviderStep, FAKE_TEXT_ONLY_MODEL_ID};
 
     #[tokio::test]
     async fn provider_wrapper_maps_tool_calls_and_final_text() {

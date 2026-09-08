@@ -178,12 +178,13 @@ impl KianaHarness {
             RunnerCommand::Start {
                 run_id,
                 prompt,
+                history,
                 project_root,
                 sandbox,
                 instructions,
                 project_trusted: _,
             } => {
-                self.start(run_id, prompt, sandbox, project_root, instructions)
+                self.start(run_id, prompt, history, sandbox, project_root, instructions)
                     .await
             }
             RunnerCommand::CapabilityResult { run_id, result } => {
@@ -198,6 +199,7 @@ impl KianaHarness {
         &self,
         run_id: RunId,
         prompt: String,
+        history: Vec<kiana_domain::ConversationMessage>,
         sandbox: String,
         project_root: String,
         instructions: String,
@@ -222,6 +224,15 @@ impl KianaHarness {
         if !instructions.trim().is_empty() {
             run.messages.push(ModelMessage::system(instructions));
         }
+        run.messages
+            .extend(history.into_iter().map(|message| match message.role {
+                kiana_domain::ConversationRole::User => ModelMessage::user(message.text),
+                kiana_domain::ConversationRole::Assistant => ModelMessage::assistant(message.text),
+                kiana_domain::ConversationRole::Tool => ModelMessage::tool(
+                    message.tool_call_id.unwrap_or_else(|| "history".to_owned()),
+                    message.text,
+                ),
+            }));
         run.inbox
             .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
         for message in run.inbox.claim(InboxTarget::NextTurn) {

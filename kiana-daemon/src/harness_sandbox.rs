@@ -1,24 +1,32 @@
-//! Codex-style Linux confinement for harness `shell.exec`.
+//! Harness 的 Linux `bwrap` 沙箱启动计划。
 //!
-//! Derived from OpenAI Codex (Apache-2.0):
-//! - `codex-rs/linux-sandbox` bubblewrap flags (`--new-session`, `--cap-drop ALL`)
-//! - `codex-rs/core/spawn.rs` `env_clear` plus
-//!   `codex-rs/protocol/shell_environment.rs` Core inherit + default
-//!   `*KEY*`/`*SECRET*`/`*TOKEN*` excludes
+//! 本模块只负责把已确定的沙箱档位转换为 `bubblewrap` 参数和受限环境变量；它不执行
+//! 命令、不判断模型请求是否获批，也不产生授权。真正的能力请求仍要先经过
+//! `ControlPlane` 与 capability broker。本模块因此是 daemon 在调用 runner 前的一个
+//! 收敛边界，而不是可被入口层绕过的第二条执行循环。
 //!
-//! Filesystem plan keeps Kiana's `--ro-bind / /` + optional writable project
-//! bind. Copied into the daemon; `reference/` is audit-only.
+//! 参数设计参考了 Codex 的公开 Apache-2.0 实现中的会话隔离、能力清空和核心环境变量
+//! 筛选做法，但这里的文件系统规则以 Kiana 自己的项目根目录为权威：先将宿主根目录
+//! 只读绑定，再只读或可写地重新绑定获准的项目根目录。`reference/` 仅是审计输入，
+//! 不会在运行时加载为实现。
 
 use kiana_ports::PortError;
 use kiana_runner_protocol::{DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+/// Receipt 和子进程环境中标识当前实际采用的 Linux 沙箱后端名称。
+///
+/// 这个常量描述实现选择，不表示宿主机一定安装了该程序；安装检查由
+/// [`bwrap_plan`] 中的路径解析完成，缺失时返回结构化失败而非退化为非沙箱执行。
 pub const SANDBOX_BACKEND: &str = "bwrap";
 const ENV_BWRAP: &str = "KIANA_BWRAP";
 const NETWORK_DISABLED_ENV: &str = "KIANA_SANDBOX_NETWORK_DISABLED";
 
-/// Codex `UNIX_CORE_ENV_VARS` for `ShellEnvironmentPolicyInherit::Core`.
+/// 可从宿主继承的最小 Unix 核心环境变量白名单。
+///
+/// 白名单比黑名单更容易审计：未列出的变量默认不会传给沙箱。随后仍会按名称排除
+/// 可能承载凭据的变量，并删除临时目录变量以保证它们指向沙箱内的 `/tmp`。
 const UNIX_CORE_ENV_VARS: &[&str] = &[
     "PATH", "SHELL", "TMPDIR", "TEMP", "TMP", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "LOGNAME",
     "USER",
@@ -30,12 +38,29 @@ const KIANA_LAUNCH_ENV_VARS: &[&str] = &[
     "KIANA_APPEND_SYSTEM_PROMPT",
 ];
 
+/// 已解析、但尚未启动的 `bubblewrap` 进程计划。
+///
+/// 调用方应把 [`program`](Self::program) 作为可执行文件、按顺序传入
+/// [`args`](Self::args)。参数末尾的 `--` 是 bwrap 与被执行命令的边界；计划本身没有
+/// 副作用，因此可以在测试和审批路径中检查其内容。
 #[derive(Debug, Clone)]
 pub struct BwrapPlan {
+    /// 已规范化且确认为普通文件的 `bubblewrap` 可执行文件路径。
     pub program: PathBuf,
+    /// 传给 `bubblewrap` 的完整参数，不含最终由调用者附加的待执行命令。
     pub args: Vec<OsString>,
 }
 
+/// 为某次 harness shell 调用构造 fail-closed 的 `bubblewrap` 启动计划。
+///
+/// `project_root` 与 `workdir` 都会先规范化，以消除符号链接和相对路径造成的目录逃逸；
+/// 工作目录必须位于项目根目录之内。当前只支持只读与项目内可写两种 runner 协议定义的
+/// 档位。未知档位、缺失 bwrap、不可用目录或目录越界都会返回 [`PortError::Failed`]，
+/// 调用者不得据此回退到未沙箱化进程。
+///
+/// 返回值固定包含新会话、父进程退出联动、网络命名空间隔离、能力清空和显式环境清空。
+/// 它不保证内核、bubblewrap 版本或宿主挂载策略没有漏洞，因此只能说明本进程请求了
+/// 这些限制，不能把它当作现实世界副作用已被完全隔离的证据。
 pub fn bwrap_plan(
     project_root: &Path,
     workdir: &Path,
@@ -67,8 +92,8 @@ pub fn bwrap_plan(
 
     match sandbox {
         DEFAULT_HARNESS_SANDBOX => {
-            // Re-publish the project after `/tmp` tmpfs so `/tmp/...` workspaces
-            // remain visible and stay read-only.
+            // `/tmp` 被挂成新的 tmpfs 后，需要重新发布项目根；这样位于
+            // `/tmp/...` 的工作区不会消失，同时保持对项目内容的只读约束。
             args.extend([
                 OsString::from("--ro-bind"),
                 project_root.as_os_str().to_os_string(),
@@ -109,7 +134,15 @@ pub fn bwrap_plan(
     })
 }
 
-/// Codex Core inherit + default excludes, then Kiana sandbox markers.
+/// 从宿主环境产生可传入沙箱的最小环境变量集合。
+///
+/// 处理顺序很重要：先保留核心白名单，再删除凭据模式和 Kiana 启动控制变量，最后覆盖
+/// 临时目录并附加沙箱标记。名称中包含 `KEY`、`SECRET` 或 `TOKEN` 的变量会被拒绝；
+/// 这是防御性启发式，不能证明其他名称的变量不含敏感信息，因此新敏感变量不应依赖
+/// 该函数自动安全地传递。
+///
+/// `KIANA_SANDBOX_NETWORK_DISABLED=1` 是对子进程的声明和审计线索；实际网络隔离依赖
+/// 上层计划中的 `--unshare-all` 以及宿主内核行为。
 pub fn sandbox_env(
     inherited: impl IntoIterator<Item = (String, String)>,
     sandbox: &str,
@@ -153,6 +186,8 @@ fn is_kiana_launch_env(name: &str) -> bool {
 }
 
 fn find_bwrap() -> Result<PathBuf, PortError> {
+    // 显式配置优先于 PATH 搜索，便于受控部署固定二进制来源；两条路径都会
+    // canonicalize，避免把不存在或目录目标误当成可执行后端。
     if let Ok(explicit) = std::env::var(ENV_BWRAP) {
         let explicit = explicit.trim();
         if !explicit.is_empty() {

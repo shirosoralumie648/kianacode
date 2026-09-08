@@ -3,7 +3,7 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::{DaemonHost, ProjectTrustAuthority};
 use kiana_protocol::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, ExecutionStatus, RequestEnvelope,
-    RequestMetadata, ResponseEnvelope,
+    RequestMetadata, ResponseEnvelope, RiskLevel,
 };
 use serde_json::{json, Value};
 use std::fs;
@@ -33,9 +33,20 @@ impl ProjectTrustAuthority for FixedProjectTrustAuthority {
     }
 }
 
+struct FailingProjectTrustAuthority;
+
+impl ProjectTrustAuthority for FailingProjectTrustAuthority {
+    fn project_trusted(&self, _project_root: &Path) -> Result<bool, String> {
+        Err("trust lookup failed".to_owned())
+    }
+}
+
 fn local_host_with_trust(trusted: bool) -> DaemonHost {
-    DaemonHost::local_with_project_authority(Arc::new(FixedProjectTrustAuthority { trusted }))
-        .unwrap()
+    // 命令路由测试复用同一个 DaemonHost 和隔离存储；持久化适配器行为由磁盘 daemon 测试覆盖。
+    DaemonHost::with_env_harness_and_project_authority(Arc::new(FixedProjectTrustAuthority {
+        trusted,
+    }))
+    .unwrap()
 }
 
 fn trusted_local_host() -> DaemonHost {
@@ -107,6 +118,24 @@ async fn unknown_and_untrusted_commands_are_blocked() {
         .unwrap();
     assert_eq!(untrusted_query.status, ExecutionStatus::Denied);
     assert_eq!(untrusted_query.error.as_deref(), Some("project_untrusted"));
+}
+
+#[tokio::test]
+async fn project_trust_lookup_failure_is_rejected_before_core_dispatch() {
+    // 信任权威不可用时必须先拒绝请求，不能把错误上下文交给核心或继续执行。
+    let host =
+        DaemonHost::with_env_harness_and_project_authority(Arc::new(FailingProjectTrustAuthority))
+            .unwrap();
+    let response = host
+        .handle(RequestEnvelope::command(
+            trusted_metadata(),
+            "system.architecture",
+            Value::Null,
+        ))
+        .await;
+
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert_eq!(response.error.as_deref(), Some("project_trust_unavailable"));
 }
 
 #[tokio::test]
@@ -314,6 +343,12 @@ async fn read_only_context_queries_preserve_json_and_text_contracts() {
     assert_eq!(vectors["schema"], "kiana.context-vector-search.v1");
     assert_eq!(vectors["dimensions"], 64);
     assert_eq!(vectors["hits"][0]["path"], "src/lib.rs");
+    assert!(
+        vectors["hits"][0]["token_overlap"]
+            .as_u64()
+            .is_some_and(|overlap| overlap >= 1),
+        "{vectors}"
+    );
 
     let pack = context_query(
         &root,
@@ -404,6 +439,7 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
         assert!(!root.join(cache).exists());
         let challenge: ApprovalChallenge =
             serde_json::from_value(response.output["approval"].clone()).unwrap();
+        assert_eq!(challenge.risk, RiskLevel::LocalWrite);
         let approved = client
             .approval_decision_with_proof(
                 trusted_metadata_for(&root, "materialization-write"),

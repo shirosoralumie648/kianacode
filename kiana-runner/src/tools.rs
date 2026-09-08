@@ -1,19 +1,29 @@
-//! Tool catalog and capability mapping derived from OpenAI Codex (Apache-2.0)
-//! `codex-rs/exec` item shapes and `codex-rs/protocol` shell/apply_patch tools.
+//! 模型可见工具目录及其能力请求映射。
 //!
-//! The harness owns the model-visible tool names. Execution stays on the
-//! control plane: each call becomes a `CapabilityRequest` for the broker.
+//! 工具名和部分 item 形状参考 OpenAI Codex 的公开协议；Kiana 的安全边界仍由自身
+//! ControlPlane 和 Broker 定义。Harness 只暴露五个固定工具：`shell`、`apply_patch`、
+//! `mcp`、`memory.search`、`memory.write`。模型调用在这里仅被转换为
+//! [`CapabilityRequest`]，不会直接执行命令、写文件、访问 MCP 或读写记忆。
 
 use crate::model::ModelToolCall;
 use kiana_domain::{CapabilityKind, CapabilityRequest, RequestId, RiskLevel};
 use serde_json::{json, Value};
 
+/// 模型可见的 shell 工具名称。
 pub const TOOL_SHELL: &str = "shell";
+/// 模型可见的补丁工具名称。
 pub const TOOL_APPLY_PATCH: &str = "apply_patch";
+/// 模型可见的 MCP 工具名称。
 pub const TOOL_MCP: &str = "mcp";
+/// 记忆搜索工具名称。
 pub const TOOL_MEMORY_SEARCH: &str = "memory.search";
+/// 记忆写入工具名称。
 pub const TOOL_MEMORY_WRITE: &str = "memory.write";
 
+/// 返回五个固定模型工具的 JSON schema。
+///
+/// schema 只约束模型输出形状；每个字段仍会在能力映射、策略、审批和 Broker 中再次
+/// 校验。新增工具必须同时更新角色目录、策略映射和拒绝测试，不能只在这里追加 schema。
 pub fn tool_schemas() -> Vec<Value> {
     vec![
         json!({
@@ -90,6 +100,12 @@ pub fn tool_schemas() -> Vec<Value> {
     ]
 }
 
+/// 将一次模型工具调用映射成带风险等级的能力请求。
+///
+/// 只接受固定工具名及少量兼容别名；未知名称返回 `tool_unsupported`。映射会把 sandbox
+/// 和 project_root 作为参数上下文带下去，但这两个字段不是授权凭证，真实边界仍由
+/// ControlPlane/Broker 再次验证。shell 的风险只按 sandbox 粗分为只读或本地写，不能
+/// 由此推断命令内部一定没有外部副作用。
 pub fn capability_for_tool(
     call: &ModelToolCall,
     sandbox: &str,
@@ -168,10 +184,15 @@ pub fn capability_for_tool(
             }),
         )
         .with_risk(RiskLevel::LocalWrite)),
+        // 未知工具不做模糊匹配或通用回退，保持固定工具面和 fail-closed 行为。
         other => Err(format!("tool_unsupported:{other}")),
     }
 }
 
+/// 将 sandbox 字符串转换为 shell 的初步风险等级。
+///
+/// 只有精确的 `workspace-write` 视为 LocalWrite，其他值按只读处理；这只是请求构造时的
+/// 初步分类，ControlPlane、grant 和实际执行器必须继续验证 sandbox 是否有效。
 fn shell_risk(sandbox: &str) -> RiskLevel {
     match sandbox {
         "workspace-write" => RiskLevel::LocalWrite,
@@ -297,5 +318,46 @@ mod tests {
         assert_eq!(request.capability, CapabilityKind::Filesystem);
         assert_eq!(request.operation, TOOL_MEMORY_WRITE);
         assert_eq!(request.risk, RiskLevel::LocalWrite);
+    }
+
+    #[test]
+    fn unknown_tool_names_fail_closed_without_alias_or_shell_fallback() {
+        // 固定工具面拒绝近似名和注入式名称，不能把未知输入降级成 shell 或其他能力。
+        for name in [
+            "shell.exec",
+            "shell;rm -rf /",
+            "memory.search.extra",
+            "unknown",
+        ] {
+            let call = ModelToolCall {
+                id: "unknown-call".to_owned(),
+                name: name.to_owned(),
+                arguments: json!({ "command": "echo should-not-run" }),
+            };
+            assert_eq!(
+                capability_for_tool(&call, "read-only", "/repo").unwrap_err(),
+                format!("tool_unsupported:{name}")
+            );
+        }
+    }
+
+    #[test]
+    fn tool_schema_exposes_exactly_the_five_fixed_names() {
+        // schema 列表是模型可见面的边界，名称数量和集合都必须保持冻结。
+        let mut names = tool_schemas()
+            .into_iter()
+            .map(|schema| schema["name"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        names.sort();
+        assert_eq!(
+            names,
+            [
+                TOOL_APPLY_PATCH,
+                TOOL_MCP,
+                TOOL_MEMORY_SEARCH,
+                TOOL_MEMORY_WRITE,
+                TOOL_SHELL,
+            ]
+        );
     }
 }

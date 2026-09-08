@@ -15,6 +15,8 @@ use kiana_runner::{KianaHarness, ScriptedModel};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,6 +28,180 @@ struct UnavailableRunner;
 impl RunnerPort for UnavailableRunner {
     async fn send(&self, _command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
         Err(PortError::Unavailable("runner_unavailable".to_owned()))
+    }
+}
+
+struct CountingRunner {
+    calls: Arc<Mutex<usize>>,
+}
+
+#[async_trait]
+impl RunnerPort for CountingRunner {
+    async fn send(&self, _command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        *self.calls.lock().await += 1;
+        Err(PortError::Unavailable(
+            "runner_should_not_be_called".to_owned(),
+        ))
+    }
+}
+
+struct SecretDeltaRunner;
+
+#[async_trait]
+impl RunnerPort for SecretDeltaRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        let RunnerCommand::Start { run_id, .. } = command else {
+            return Err(PortError::Failed("unexpected_runner_command".to_owned()));
+        };
+        Ok(vec![
+            RunnerEvent::Started { run_id },
+            RunnerEvent::Delta {
+                run_id,
+                text: "Authorization: Bearer delta-secret token=delta-token".to_owned(),
+            },
+            RunnerEvent::Completed {
+                run_id,
+                output: json!({
+                    "text": "done api_key=completion-secret",
+                    "secret_ref": "vault://completion"
+                }),
+            },
+        ])
+    }
+}
+
+struct SecretResultObservingRunner {
+    observed: Arc<Mutex<Vec<CapabilityResult>>>,
+}
+
+#[async_trait]
+impl RunnerPort for SecretResultObservingRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::CapabilityRequested {
+                    run_id,
+                    request: CapabilityRequest::new(
+                        RequestId::new(),
+                        CapabilityKind::Query,
+                        "search",
+                        json!({ "query": "architecture" }),
+                    ),
+                },
+            ]),
+            RunnerCommand::CapabilityResult { run_id, result } => {
+                self.observed.lock().await.push(result);
+                Ok(vec![RunnerEvent::Completed {
+                    run_id,
+                    output: json!({ "text": "result observed" }),
+                }])
+            }
+            other => Ok(vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ForeignRunEventKind {
+    CapabilityRequested,
+    Completed,
+}
+
+struct ForeignRunEventRunner {
+    event: ForeignRunEventKind,
+    foreign_run_id: RunId,
+}
+
+#[async_trait]
+impl RunnerPort for ForeignRunEventRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        let run_id = command.run_id();
+        match command {
+            RunnerCommand::Start { .. } => {
+                let event = match self.event {
+                    ForeignRunEventKind::CapabilityRequested => RunnerEvent::CapabilityRequested {
+                        run_id: self.foreign_run_id,
+                        request: CapabilityRequest::new(
+                            RequestId::new(),
+                            CapabilityKind::Query,
+                            "search",
+                            json!({ "query": "foreign" }),
+                        ),
+                    },
+                    ForeignRunEventKind::Completed => RunnerEvent::Completed {
+                        run_id: self.foreign_run_id,
+                        output: json!({ "text": "foreign completion" }),
+                    },
+                };
+                Ok(vec![RunnerEvent::Started { run_id }, event])
+            }
+            _ => Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum IncompleteRunnerResponse {
+    Empty,
+    Started,
+    StartedWithDelta,
+}
+
+struct IncompleteRunner {
+    response: IncompleteRunnerResponse,
+}
+
+#[async_trait]
+impl RunnerPort for IncompleteRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        let RunnerCommand::Start { run_id, .. } = command else {
+            return Err(PortError::Failed("unexpected_runner_command".to_owned()));
+        };
+        Ok(match self.response {
+            IncompleteRunnerResponse::Empty => Vec::new(),
+            IncompleteRunnerResponse::Started => vec![RunnerEvent::Started { run_id }],
+            IncompleteRunnerResponse::StartedWithDelta => vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::Delta {
+                    run_id,
+                    text: "runner stopped before terminal result".to_owned(),
+                },
+            ],
+        })
+    }
+}
+
+struct CapabilityResultMissingRunner;
+
+#[async_trait]
+impl RunnerPort for CapabilityResultMissingRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::CapabilityRequested {
+                    run_id,
+                    request: CapabilityRequest::new(
+                        RequestId::new(),
+                        CapabilityKind::Query,
+                        "search",
+                        json!({ "query": "architecture" }),
+                    ),
+                },
+            ]),
+            RunnerCommand::CapabilityResult { .. } => Ok(Vec::new()),
+            other => Err(PortError::Failed(format!(
+                "unexpected_runner_command:{}",
+                other.run_id()
+            ))),
+        }
     }
 }
 
@@ -72,6 +248,20 @@ impl CapabilityBrokerPort for SuccessfulBroker {
     }
 }
 
+struct FailingBroker;
+
+#[async_trait]
+impl CapabilityBrokerPort for FailingBroker {
+    async fn execute(
+        &self,
+        _request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        Err(PortError::Failed(
+            "provider_failed token=broker-error-secret".to_owned(),
+        ))
+    }
+}
+
 struct MismatchedResultBroker;
 
 #[async_trait]
@@ -105,6 +295,7 @@ impl ApprovalStorePort for TestApprovalStore {
             approval_id: ApprovalId::new(),
             request_id: context.request_id,
             request_hash: "a".repeat(64),
+            risk: request.risk,
             expires_at_unix_ms: u64::MAX,
             reason: reason.to_owned(),
             nonce: String::new(),
@@ -155,6 +346,44 @@ impl ApprovalStorePort for TestApprovalStore {
         Ok(pending.clone())
     }
 
+    async fn validate_with_proof(
+        &self,
+        _context: &RequestContext,
+        approval_id: ApprovalId,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+    ) -> Result<(), PortError> {
+        let pending = self.pending.lock().await;
+        let Some((pending, active, consumed)) = pending.as_ref() else {
+            return Err(PortError::Failed("approval_not_found".to_owned()));
+        };
+        if pending.challenge.approval_id != approval_id {
+            return Err(PortError::Failed("approval_not_found".to_owned()));
+        }
+        if !*active {
+            return Err(PortError::Failed("approval_not_active".to_owned()));
+        }
+        if *consumed {
+            return Err(PortError::Conflict("approval_already_consumed".to_owned()));
+        }
+        if request_hash.is_some() != nonce.is_some() {
+            return Err(PortError::Failed("approval_proof_incomplete".to_owned()));
+        }
+        if let Some(request_hash) = request_hash {
+            if request_hash != pending.challenge.request_hash {
+                return Err(PortError::Failed(
+                    "approval_request_hash_mismatch".to_owned(),
+                ));
+            }
+        }
+        if let Some(nonce) = nonce {
+            if nonce != pending.challenge.nonce {
+                return Err(PortError::Failed("approval_nonce_mismatch".to_owned()));
+            }
+        }
+        Ok(())
+    }
+
     async fn invalidate(
         &self,
         _context: &RequestContext,
@@ -201,6 +430,14 @@ impl EventStorePort for FailResultEventStore {
     async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
         self.inner.read_request(request_id).await
     }
+
+    async fn read_stream(
+        &self,
+        aggregate_type: &str,
+        aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_stream(aggregate_type, aggregate_id).await
+    }
 }
 
 #[derive(Default)]
@@ -229,6 +466,145 @@ impl EventStorePort for FailHarnessResultEventStore {
 
     async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
         self.inner.read_request(request_id).await
+    }
+
+    async fn read_stream(
+        &self,
+        aggregate_type: &str,
+        aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_stream(aggregate_type, aggregate_id).await
+    }
+}
+
+#[derive(Default)]
+struct FailReadAllEventStore {
+    inner: MemoryEventLog,
+}
+
+#[async_trait]
+impl EventStorePort for FailReadAllEventStore {
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event).await
+    }
+
+    async fn append_expected(
+        &self,
+        event: RuntimeEvent,
+        expected_version: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.inner.append_expected(event, expected_version).await
+    }
+
+    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_request(request_id).await
+    }
+
+    async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_read_unavailable".to_owned(),
+        ))
+    }
+
+    async fn read_stream(
+        &self,
+        aggregate_type: &str,
+        aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_stream(aggregate_type, aggregate_id).await
+    }
+}
+
+#[derive(Default)]
+struct FailReadStreamEventStore {
+    appended: Mutex<Vec<RuntimeEvent>>,
+}
+
+#[async_trait]
+impl EventStorePort for FailReadStreamEventStore {
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.appended.lock().await.push(event);
+        Ok(())
+    }
+
+    async fn append_expected(
+        &self,
+        event: RuntimeEvent,
+        _expected_version: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.append(event).await
+    }
+
+    async fn read_request(&self, _request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        Ok(Vec::new())
+    }
+
+    async fn read_stream(
+        &self,
+        _aggregate_type: &str,
+        _aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        Err(PortError::Unavailable(
+            "event_stream_read_unavailable".to_owned(),
+        ))
+    }
+}
+
+#[derive(Default)]
+struct UnsupportedReadAllEventStore {
+    inner: MemoryEventLog,
+}
+
+#[async_trait]
+impl EventStorePort for UnsupportedReadAllEventStore {
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event).await
+    }
+
+    async fn append_expected(
+        &self,
+        event: RuntimeEvent,
+        expected_version: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.inner.append_expected(event, expected_version).await
+    }
+
+    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_request(request_id).await
+    }
+}
+
+/// Models an adapter that cannot scan the complete event history but does retain
+/// an independently addressable run aggregate stream.
+#[derive(Default)]
+struct StreamOnlyEventStore {
+    inner: MemoryEventLog,
+}
+
+#[async_trait]
+impl EventStorePort for StreamOnlyEventStore {
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event).await
+    }
+
+    async fn append_expected(
+        &self,
+        event: RuntimeEvent,
+        expected_version: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.inner.append_expected(event, expected_version).await
+    }
+
+    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_request(request_id).await
+    }
+
+    async fn read_stream(
+        &self,
+        aggregate_type: &str,
+        aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_stream(aggregate_type, aggregate_id).await
     }
 }
 
@@ -293,6 +669,67 @@ fn trusted_context_in(root: &PathBuf, session: &str) -> RequestContext {
     context.project_trusted = true;
     context.permission_profile = PermissionProfile::Balanced;
     context
+}
+
+#[tokio::test]
+async fn start_run_rejects_role_department_mismatch_before_runner() {
+    let calls = Arc::new(Mutex::new(0));
+    let harness = CoreHarness::with_runner(Arc::new(CountingRunner {
+        calls: calls.clone(),
+    }));
+    let mut context = trusted_context();
+    context.role_id = "pm".to_owned();
+    context.department_id = "executing".to_owned();
+    let request_id = context.request_id;
+
+    let response = harness
+        .core
+        .start_run(context, "should be rejected".to_owned(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("role_department_mismatch"));
+    assert_eq!(*calls.lock().await, 0);
+
+    let events = harness.events.read_request(&request_id).await.unwrap();
+    let rejection = events
+        .iter()
+        .find(|event| event.kind == "run.rejected")
+        .expect("run rejection event");
+    assert_eq!(rejection.data["reason"], "role_department_mismatch");
+}
+
+#[tokio::test]
+async fn event_stream_read_failure_prevents_append_and_runner_dispatch() {
+    let events = Arc::new(FailReadStreamEventStore::default());
+    let calls = Arc::new(Mutex::new(0));
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(CountingRunner {
+            calls: calls.clone(),
+        }),
+    );
+
+    let error = core
+        .start_run(
+            trusted_context(),
+            "must not write after a stream read failure".to_owned(),
+            None,
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "port_unavailable:event_stream_read_unavailable"
+    );
+    assert!(events.appended.lock().await.is_empty());
+    assert_eq!(*calls.lock().await, 0);
 }
 
 #[tokio::test]
@@ -434,10 +871,7 @@ async fn incomplete_cell_capability_scope_is_rejected_before_broker() {
     let broker = Arc::new(CountingBroker {
         calls: Mutex::new(0),
     });
-    let harness = CoreHarness::with_runner_and_broker(
-        Arc::new(UnavailableRunner),
-        broker.clone(),
-    );
+    let harness = CoreHarness::with_runner_and_broker(Arc::new(UnavailableRunner), broker.clone());
     let context = trusted_context();
     let mut request = CapabilityRequest::new(
         context.request_id,
@@ -453,8 +887,45 @@ async fn incomplete_cell_capability_scope_is_rejected_before_broker() {
         .authorize_and_execute(&context, request)
         .await
         .unwrap_err();
-    assert_eq!(error.to_string(), "port_failed:cell_capability_scope_incomplete");
+    assert_eq!(
+        error.to_string(),
+        "port_failed:cell_capability_scope_incomplete"
+    );
     assert_eq!(*broker.calls.lock().await, 0);
+}
+
+#[tokio::test]
+async fn forged_low_risk_mcp_call_is_denied_before_broker() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(Arc::new(UnavailableRunner), broker.clone());
+    let context = trusted_context();
+    let request = CapabilityRequest::new(
+        context.request_id,
+        CapabilityKind::Network,
+        "mcp.call",
+        json!({ "server": "local", "tool": "echo", "arguments": {} }),
+    );
+
+    let response = harness
+        .core
+        .authorize_and_execute(&context, request)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Denied);
+    assert_eq!(response.error.as_deref(), Some("mcp_risk_downgrade"));
+    assert_eq!(*broker.calls.lock().await, 0);
+
+    let events = harness
+        .events
+        .read_request(&context.request_id)
+        .await
+        .unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[1].kind, "capability.decision");
+    assert_eq!(events[1].data["policy"]["decision"], "deny");
+    assert_eq!(events[1].data["policy"]["reason"], "mcp_risk_downgrade");
 }
 
 #[tokio::test]
@@ -524,6 +995,9 @@ async fn approval_resumes_the_stored_request_once_with_monotonic_events() {
         .unwrap();
     assert_eq!(completed.status, ExecutionStatus::Completed);
     assert_eq!(completed.request_id, context.request_id);
+    assert_eq!(completed.output["api_key"], "[REDACTED]");
+    assert_eq!(completed.output["secret_ref"], "vault://capability");
+    assert!(!completed.output.to_string().contains("broker-secret"));
     let events = events.read_request(&context.request_id).await.unwrap();
     assert_eq!(
         events
@@ -544,6 +1018,12 @@ async fn approval_resumes_the_stored_request_once_with_monotonic_events() {
         .unwrap();
     assert_eq!(completed_event.data["api_key"], "[REDACTED]");
     assert_eq!(completed_event.data["secret_ref"], "vault://capability");
+    assert_eq!(
+        completed_event.data["capability_request_id"],
+        json!(context.request_id)
+    );
+    assert_eq!(completed_event.data["capability"], "filesystem");
+    assert_eq!(completed_event.data["operation"], "write");
 
     let replay = core
         .decide_approval(
@@ -559,6 +1039,53 @@ async fn approval_resumes_the_stored_request_once_with_monotonic_events() {
         .as_deref()
         .unwrap_or_default()
         .contains("approval_already_consumed"));
+}
+
+#[tokio::test]
+async fn approval_deny_returns_denied_without_broker_execution() {
+    // 审批明确拒绝时，控制面应记录拒绝事实并保证 Broker 从未被调用。
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(Arc::new(UnavailableRunner), broker.clone());
+    let context = trusted_context();
+    let request = CapabilityRequest::new(
+        context.request_id,
+        CapabilityKind::Filesystem,
+        "write",
+        json!({ "path": "denied.txt" }),
+    )
+    .with_risk(kiana_domain::RiskLevel::LocalWrite);
+    let awaiting = harness
+        .core
+        .authorize_and_execute(&context, request)
+        .await
+        .unwrap();
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+
+    let denied = harness
+        .core
+        .decide_approval(&context, challenge.approval_id, ApprovalDecision::Deny)
+        .await
+        .unwrap();
+    assert_eq!(denied.status, ExecutionStatus::Denied);
+    assert_eq!(denied.error.as_deref(), Some("approval_denied"));
+    assert_eq!(*broker.calls.lock().await, 0);
+
+    // 事件流必须包含审批拒绝，且不能伪造能力完成事件。
+    let events = harness
+        .events
+        .read_request(&context.request_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        events.last().map(|event| event.kind.as_str()),
+        Some("approval.denied")
+    );
+    assert!(!events
+        .iter()
+        .any(|event| event.kind == "capability.completed"));
 }
 
 #[tokio::test]
@@ -625,7 +1152,66 @@ async fn receipt_replays_result_unknown_without_claiming_success() {
                 context.request_id,
                 2,
                 "run.result_unknown",
-                json!({ "run_id": run_id, "error": "result_unknown:provider_timeout" }),
+                json!({
+                    "run_id": run_id,
+                    "error": "result_unknown:provider_timeout token=legacy-unknown-secret"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
+    assert_eq!(
+        receipt.status,
+        ExecutionStatus::ResultUnknown,
+        "{receipt:?}"
+    );
+    assert_eq!(
+        receipt.error.as_deref(),
+        Some("result_unknown:provider_timeout token=[REDACTED]")
+    );
+    assert!(!receipt.output.to_string().contains("legacy-unknown-secret"));
+}
+
+#[tokio::test]
+async fn receipt_without_a_terminal_event_is_result_unknown() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                1,
+                "run.authorized",
+                json!({
+                    "run_id": run_id,
+                    "session_id": context.session_id,
+                    "actor_id": context.actor_id,
+                    "project_root": context.project_root,
+                    "sandbox": "read-only"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                2,
+                "run.started",
+                json!({ "run_id": run_id }),
             )
             .unwrap(),
         )
@@ -633,11 +1219,602 @@ async fn receipt_replays_result_unknown_without_claiming_success() {
         .unwrap();
 
     let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
-    assert_eq!(receipt.status, ExecutionStatus::ResultUnknown, "{receipt:?}");
     assert_eq!(
-        receipt.error.as_deref(),
-        Some("result_unknown:provider_timeout")
+        receipt.status,
+        ExecutionStatus::ResultUnknown,
+        "{receipt:?}"
     );
+    assert_eq!(receipt.error.as_deref(), Some("run_result_missing"));
+    assert!(receipt.output["output"].is_null());
+}
+
+#[tokio::test]
+async fn receipt_replays_errorless_failure_and_cancellation() {
+    for (terminal_kind, expected_status, expected_error) in [
+        (
+            "run.result_unknown",
+            ExecutionStatus::ResultUnknown,
+            "result_unknown",
+        ),
+        ("run.failed", ExecutionStatus::Failed, "run_failed"),
+        ("run.cancelled", ExecutionStatus::Cancelled, "run_cancelled"),
+    ] {
+        let events = Arc::new(MemoryEventLog::new());
+        let core = ControlPlane::new(
+            Arc::new(DefaultPolicyEngine),
+            Arc::new(DefaultGateEngine),
+            events.clone(),
+            Arc::new(CapabilityBroker::new()),
+            Arc::new(TestApprovalStore::default()),
+            Arc::new(UnavailableRunner),
+        );
+        let context = trusted_context();
+        let run_id = RunId::new();
+        events
+            .append(
+                RuntimeEvent::new(
+                    context.request_id,
+                    1,
+                    "run.authorized",
+                    json!({
+                        "run_id": run_id,
+                        "session_id": context.session_id,
+                        "actor_id": context.actor_id,
+                        "project_root": context.project_root,
+                        "sandbox": "read-only"
+                    }),
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        events
+            .append(
+                RuntimeEvent::new(
+                    context.request_id,
+                    2,
+                    terminal_kind,
+                    json!({ "run_id": run_id }),
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
+        assert_eq!(
+            receipt.status, expected_status,
+            "{terminal_kind}: {receipt:?}"
+        );
+        assert_eq!(receipt.error.as_deref(), Some(expected_error));
+        assert!(receipt.output["output"].is_null());
+    }
+}
+
+#[tokio::test]
+async fn receipt_with_conflicting_terminal_events_is_result_unknown() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
+                "sandbox": "read-only"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": run_id, "text": "done" }),
+        ),
+        (
+            3,
+            "run.cancelled",
+            json!({ "run_id": run_id, "error": "cancelled:user" }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(context.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+
+    let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
+    assert_eq!(
+        receipt.status,
+        ExecutionStatus::ResultUnknown,
+        "{receipt:?}"
+    );
+    assert_eq!(receipt.error.as_deref(), Some("run_terminal_conflict"));
+    assert!(receipt.output["output"].is_null());
+}
+
+#[tokio::test]
+async fn receipt_does_not_project_foreign_run_events_from_the_same_request() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let target_run_id = RunId::new();
+    let foreign_run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": target_run_id,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
+                "sandbox": "read-only"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": foreign_run_id, "text": "foreign-output" }),
+        ),
+        (
+            3,
+            "capability.completed",
+            json!({
+                "run_id": foreign_run_id,
+                "changed": [{ "path": "FOREIGN.txt" }]
+            }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(context.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+
+    let receipt = core
+        .read_receipt(context, Some(target_run_id))
+        .await
+        .unwrap();
+    assert_eq!(
+        receipt.status,
+        ExecutionStatus::ResultUnknown,
+        "{receipt:?}"
+    );
+    assert_eq!(receipt.error.as_deref(), Some("run_result_missing"));
+    assert!(receipt.output["output"].is_null());
+    assert_eq!(receipt.output["files_changed"], json!([]));
+}
+
+#[tokio::test]
+async fn receipt_read_all_failure_fails_closed_instead_of_using_request_fallback() {
+    let events = Arc::new(FailReadAllEventStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
+                "sandbox": "read-only"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": run_id, "text": "done" }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(context.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+
+    let error = core.read_receipt(context, Some(run_id)).await.unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "port_unavailable:event_store_read_unavailable"
+    );
+}
+
+#[tokio::test]
+async fn public_receipt_does_not_relabel_request_events_when_global_scan_is_unsupported() {
+    let events = Arc::new(UnsupportedReadAllEventStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let recorded_run_id = RunId::new();
+    let requested_run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": recorded_run_id,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
+                "sandbox": "read-only"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": recorded_run_id, "text": "done" }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(context.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+
+    let error = core
+        .read_receipt(context, Some(requested_run_id))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "port_failed:event_store_read_all_unsupported"
+    );
+}
+
+#[tokio::test]
+async fn public_receipt_uses_exact_run_stream_when_global_scan_is_unsupported() {
+    let events = Arc::new(StreamOnlyEventStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
+                "sandbox": "read-only"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": run_id, "text": "done" }),
+        ),
+    ] {
+        events
+            .append(
+                RuntimeEvent::new(context.request_id, sequence, kind, data)
+                    .unwrap()
+                    .with_stream_metadata("run", run_id.to_string(), sequence),
+            )
+            .await
+            .unwrap();
+    }
+
+    let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Completed, "{receipt:?}");
+    assert_eq!(receipt.output["output"]["text"], "done");
+}
+
+#[tokio::test]
+async fn current_run_receipt_uses_filtered_request_fallback_when_global_scan_is_unsupported() {
+    let events = Arc::new(StreamOnlyEventStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events,
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        scripted_runner(json!([{ "text": "done" }])),
+    );
+
+    let response = core
+        .start_run(trusted_context(), "complete this run".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["output"]["text"], "done");
+}
+
+#[tokio::test]
+async fn review_author_lookup_read_failure_propagates_instead_of_claiming_missing_author() {
+    let root = temp_project();
+    let events = Arc::new(FailReadAllEventStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let author = trusted_context_in(&root, "builder-1");
+    let run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "session_id": author.session_id,
+                "actor_id": author.actor_id,
+                "project_root": author.project_root,
+                "role_id": "builder",
+                "department_id": "executing"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": run_id, "text": "done" }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(author.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+
+    let error = core
+        .review_author_run(reviewer, "builder-1".to_owned(), Some(run_id))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "port_unavailable:event_store_read_unavailable"
+    );
+    assert!(!root.join("gate").join("REVIEW.json").exists());
+}
+
+#[tokio::test]
+async fn review_author_lookup_without_global_or_run_stream_fails_closed() {
+    let root = temp_project();
+    let events = Arc::new(UnsupportedReadAllEventStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let author = trusted_context_in(&root, "builder-1");
+    let run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "session_id": author.session_id,
+                "actor_id": author.actor_id,
+                "project_root": author.project_root,
+                "role_id": "builder",
+                "department_id": "executing"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": run_id, "text": "done" }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(author.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+
+    let error = core
+        .review_author_run(reviewer, "builder-1".to_owned(), Some(run_id))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "port_failed:event_store_read_all_unsupported"
+    );
+    assert!(!root.join("gate").join("REVIEW.json").exists());
+}
+
+#[tokio::test]
+async fn review_without_run_id_does_not_project_foreign_run_events_from_the_same_request() {
+    let root = temp_project();
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let author = trusted_context_in(&root, "builder-1");
+    let target_run_id = RunId::new();
+    let foreign_run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": target_run_id,
+                "session_id": author.session_id,
+                "actor_id": author.actor_id,
+                "project_root": author.project_root,
+                "role_id": "builder",
+                "department_id": "executing"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": foreign_run_id, "text": "foreign-output" }),
+        ),
+        (
+            3,
+            "capability.completed",
+            json!({
+                "run_id": foreign_run_id,
+                "changed": [{ "path": "FOREIGN.txt" }]
+            }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(author.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+
+    let reviewed = core
+        .review_author_run(reviewer, "builder-1".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(reviewed.error.as_deref(), Some("review_author_not_found"));
+    assert!(!root.join("gate").join("REVIEW.json").exists());
+    assert!(!root.join("gate").join("MERGE.json").exists());
+}
+
+#[tokio::test]
+async fn review_recovers_a_unique_persisted_author_run_without_a_session_binding() {
+    let root = temp_project();
+    let events = Arc::new(MemoryEventLog::new());
+    let builder_core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        scripted_runner(json!([{ "text": "done" }])),
+    );
+    let built = builder_core
+        .start_run(
+            trusted_context_in(&root, "builder-1"),
+            "finish the task".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+
+    let reviewer_core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events,
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let mut reviewer = trusted_context_in(&root, "reviewer-1");
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let reviewed = reviewer_core
+        .review_author_run(reviewer, "builder-1".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(reviewed.status, ExecutionStatus::Completed, "{reviewed:?}");
+    assert_eq!(reviewed.output["author_session_id"], "builder-1");
+    assert!(root.join("gate").join("REVIEW.json").exists());
+}
+
+#[tokio::test]
+async fn close_without_run_id_does_not_accept_a_foreign_run_completion() {
+    let root = temp_project();
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let author = trusted_context_in(&root, "builder-1");
+    let target_run_id = RunId::new();
+    let foreign_run_id = RunId::new();
+    for (sequence, kind, data) in [
+        (
+            1,
+            "run.authorized",
+            json!({
+                "run_id": target_run_id,
+                "session_id": author.session_id,
+                "actor_id": author.actor_id,
+                "project_root": author.project_root,
+                "role_id": "builder",
+                "department_id": "executing"
+            }),
+        ),
+        (
+            2,
+            "run.completed",
+            json!({ "run_id": foreign_run_id, "text": "foreign-output" }),
+        ),
+    ] {
+        events
+            .append(RuntimeEvent::new(author.request_id, sequence, kind, data).unwrap())
+            .await
+            .unwrap();
+    }
+    let mut closer = trusted_context_in(&root, "closer-1");
+    closer.assign_role(&RoleSpec::closer());
+
+    let closed = core
+        .close_author_run(closer, "builder-1".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(closed.status, ExecutionStatus::Blocked, "{closed:?}");
+    assert_eq!(closed.error.as_deref(), Some("close_author_not_completed"));
+    assert!(!root.join("lessons").join("CLOSING.json").exists());
 }
 
 #[tokio::test]
@@ -684,7 +1861,13 @@ async fn persisted_run_approval_without_pending_invocation_fails_closed() {
         .unwrap();
 
     let approved = core
-        .decide_approval(&context, challenge.approval_id, ApprovalDecision::Approve)
+        .decide_approval_with_proof(
+            &context,
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(&challenge.request_hash),
+            Some(&challenge.nonce),
+        )
         .await
         .unwrap();
     assert_eq!(approved.status, ExecutionStatus::Blocked, "{approved:?}");
@@ -693,6 +1876,100 @@ async fn persisted_run_approval_without_pending_invocation_fails_closed() {
         Some("approval_continuation_unavailable")
     );
     assert_eq!(*broker.calls.lock().await, 0);
+
+    // The proof was valid, but the durable Run has no live continuation. The
+    // approval must remain retryable for a later recovery-capable host rather
+    // than becoming consumed by this fail-closed response.
+    let retry = core
+        .decide_approval_with_proof(
+            &context,
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(&challenge.request_hash),
+            Some(&challenge.nonce),
+        )
+        .await
+        .unwrap();
+    assert_eq!(retry.status, ExecutionStatus::Blocked, "{retry:?}");
+    assert_eq!(
+        retry.error.as_deref(),
+        Some("approval_continuation_unavailable")
+    );
+    assert_eq!(*broker.calls.lock().await, 0);
+}
+
+#[tokio::test]
+async fn approval_run_lookup_failure_fails_closed_before_consumption_or_execution() {
+    let events = Arc::new(FailReadAllEventStore::default());
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let approvals = Arc::new(TestApprovalStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events,
+        broker.clone(),
+        approvals.clone(),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let request = CapabilityRequest::new(
+        context.request_id,
+        CapabilityKind::Filesystem,
+        "write",
+        json!({ "path": "approved.txt" }),
+    )
+    .with_risk(kiana_domain::RiskLevel::LocalWrite);
+    let awaiting = core.authorize_and_execute(&context, request).await.unwrap();
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+
+    let error = core
+        .decide_approval(&context, challenge.approval_id, ApprovalDecision::Approve)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "port_unavailable:event_store_read_unavailable"
+    );
+    let pending = approvals.pending.lock().await;
+    assert!(matches!(pending.as_ref(), Some((_, true, false))));
+    assert_eq!(*broker.calls.lock().await, 0);
+}
+
+#[tokio::test]
+async fn unsupported_approval_run_lookup_preserves_legacy_direct_approval() {
+    let events = Arc::new(StreamOnlyEventStore::default());
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events,
+        broker.clone(),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let request = CapabilityRequest::new(
+        context.request_id,
+        CapabilityKind::Filesystem,
+        "write",
+        json!({ "path": "approved.txt" }),
+    )
+    .with_risk(kiana_domain::RiskLevel::LocalWrite);
+    let awaiting = core.authorize_and_execute(&context, request).await.unwrap();
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+
+    let approved = core
+        .decide_approval(&context, challenge.approval_id, ApprovalDecision::Approve)
+        .await
+        .unwrap();
+    assert_eq!(approved.status, ExecutionStatus::Completed, "{approved:?}");
+    assert_eq!(*broker.calls.lock().await, 1);
 }
 
 #[tokio::test]
@@ -771,6 +2048,165 @@ async fn mismatched_harness_capability_result_is_unknown() {
     assert!(!events.iter().any(|event| event.kind == "run.completed"));
 }
 
+async fn assert_foreign_runner_event_is_result_unknown(event: ForeignRunEventKind) {
+    let foreign_run_id = RunId::new();
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        Arc::new(ForeignRunEventRunner {
+            event,
+            foreign_run_id,
+        }),
+        broker.clone(),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let receipt_context = context.clone();
+
+    let response = harness
+        .core
+        .start_run(context, "inspect".to_owned(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
+    assert_eq!(
+        response.error.as_deref(),
+        Some("result_unknown:runner_event_run_id_mismatch")
+    );
+    assert_eq!(*broker.calls.lock().await, 0);
+
+    let receipt = harness
+        .core
+        .read_receipt(receipt_context, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        receipt.status,
+        ExecutionStatus::ResultUnknown,
+        "{receipt:?}"
+    );
+    assert_eq!(
+        receipt.error.as_deref(),
+        Some("result_unknown:runner_event_run_id_mismatch")
+    );
+
+    let events = harness.events.read_request(&request_id).await.unwrap();
+    assert!(events
+        .iter()
+        .any(|event| event.kind == "run.result_unknown"));
+    assert!(!events.iter().any(|event| {
+        event.kind == "run.completed"
+            || event.kind == "run.receipt"
+            || event.kind.starts_with("capability.")
+    }));
+    assert!(!events
+        .iter()
+        .any(|event| event.data["run_id"] == json!(foreign_run_id)));
+}
+
+#[tokio::test]
+async fn foreign_runner_capability_request_is_unknown_before_broker() {
+    assert_foreign_runner_event_is_result_unknown(ForeignRunEventKind::CapabilityRequested).await;
+}
+
+#[tokio::test]
+async fn foreign_runner_completion_is_unknown_without_receipt_projection() {
+    assert_foreign_runner_event_is_result_unknown(ForeignRunEventKind::Completed).await;
+}
+
+#[tokio::test]
+async fn missing_runner_terminal_event_is_result_unknown_and_replays_as_unknown() {
+    for response_kind in [
+        IncompleteRunnerResponse::Empty,
+        IncompleteRunnerResponse::Started,
+        IncompleteRunnerResponse::StartedWithDelta,
+    ] {
+        let harness = CoreHarness::with_runner(Arc::new(IncompleteRunner {
+            response: response_kind,
+        }));
+        let context = trusted_context();
+        let request_id = context.request_id;
+        let receipt_context = context.clone();
+        let response = harness
+            .core
+            .start_run(context, "inspect".to_owned(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status,
+            ExecutionStatus::ResultUnknown,
+            "{response:?}"
+        );
+        assert_eq!(response.error.as_deref(), Some("run_result_missing"));
+
+        let receipt = harness
+            .core
+            .read_receipt(receipt_context, None)
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.status,
+            ExecutionStatus::ResultUnknown,
+            "{receipt:?}"
+        );
+        assert_eq!(receipt.error.as_deref(), Some("run_result_missing"));
+
+        let events = harness.events.read_request(&request_id).await.unwrap();
+        assert!(events
+            .iter()
+            .any(|event| event.kind == "run.result_unknown"));
+        assert!(!events.iter().any(|event| {
+            event.kind == "run.failed"
+                || event.kind == "run.completed"
+                || event.kind == "run.receipt"
+        }));
+    }
+}
+
+#[tokio::test]
+async fn missing_runner_terminal_after_broker_effect_is_result_unknown() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        Arc::new(CapabilityResultMissingRunner),
+        broker.clone(),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = harness
+        .core
+        .start_run(context, "inspect".to_owned(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
+    assert_eq!(response.error.as_deref(), Some("run_result_missing"));
+    assert_eq!(*broker.calls.lock().await, 1);
+
+    let events = harness.events.read_request(&request_id).await.unwrap();
+    assert!(events
+        .iter()
+        .any(|event| event.kind == "capability.completed"));
+    assert!(events
+        .iter()
+        .any(|event| event.kind == "run.result_unknown"));
+    assert!(!events.iter().any(|event| {
+        event.kind == "run.failed" || event.kind == "run.completed" || event.kind == "run.receipt"
+    }));
+}
+
 #[tokio::test]
 async fn harness_effect_without_result_event_is_result_unknown() {
     let events = Arc::new(FailHarnessResultEventStore::default());
@@ -813,6 +2249,289 @@ async fn harness_effect_without_result_event_is_result_unknown() {
         .iter()
         .any(|event| event.kind == "run.result_unknown"));
     assert!(!events.iter().any(|event| event.kind == "run.completed"));
+}
+
+#[tokio::test]
+async fn runner_delta_completion_and_receipt_are_redacted_at_the_event_boundary() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(SecretDeltaRunner),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .start_run(context, "inspect".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+
+    let event_text =
+        serde_json::to_string(&events.read_request(&request_id).await.unwrap()).unwrap();
+    let response_text = response.output.to_string();
+    for sentinel in ["delta-secret", "delta-token", "completion-secret"] {
+        assert!(
+            !event_text.contains(sentinel),
+            "event leaked {sentinel}: {event_text}"
+        );
+        assert!(
+            !response_text.contains(sentinel),
+            "receipt leaked {sentinel}: {response_text}"
+        );
+    }
+    assert!(event_text.contains("[REDACTED]"));
+    assert_eq!(
+        response.output["output"]["secret_ref"],
+        "vault://completion"
+    );
+}
+
+#[tokio::test]
+async fn broker_result_is_redacted_before_runner_observes_it() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(SecretResultObservingRunner {
+            observed: observed.clone(),
+        }),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .start_run(context, "inspect".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let observed = observed.lock().await;
+    assert_eq!(observed.len(), 1);
+    assert!(observed[0].success);
+    assert_eq!(observed[0].output["api_key"], "[REDACTED]");
+    assert_eq!(observed[0].output["secret_ref"], "vault://capability");
+    drop(observed);
+
+    let event_text =
+        serde_json::to_string(&events.read_request(&request_id).await.unwrap()).unwrap();
+    assert!(!event_text.contains("broker-secret"), "{event_text}");
+    assert!(!response.output.to_string().contains("broker-secret"));
+}
+
+#[tokio::test]
+async fn broker_error_is_redacted_and_returned_to_runner_for_recovery() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(FailingBroker),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(SecretResultObservingRunner {
+            observed: observed.clone(),
+        }),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .start_run(context, "inspect".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let observed = observed.lock().await;
+    assert_eq!(observed.len(), 1);
+    assert!(!observed[0].success);
+    assert_eq!(
+        observed[0].output["error"],
+        "port_failed:provider_failed token=[REDACTED]"
+    );
+    drop(observed);
+
+    let event_text =
+        serde_json::to_string(&events.read_request(&request_id).await.unwrap()).unwrap();
+    assert!(!event_text.contains("broker-error-secret"), "{event_text}");
+    assert!(!response.output.to_string().contains("broker-error-secret"));
+}
+
+#[tokio::test]
+async fn legacy_persisted_completion_is_redacted_when_receipt_is_projected() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                1,
+                "run.authorized",
+                json!({
+                    "run_id": run_id,
+                    "session_id": context.session_id,
+                    "actor_id": context.actor_id,
+                    "project_root": context.project_root,
+                    "sandbox": "read-only"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                2,
+                "run.completed",
+                json!({
+                    "run_id": run_id,
+                    "text": "api_key=legacy-persisted-secret",
+                    "secret_ref": "vault://legacy"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let raw =
+        serde_json::to_string(&events.read_request(&context.request_id).await.unwrap()).unwrap();
+    assert!(raw.contains("legacy-persisted-secret"));
+
+    let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Completed, "{receipt:?}");
+    let receipt_text = receipt.output.to_string();
+    assert!(!receipt_text.contains("legacy-persisted-secret"));
+    assert!(receipt_text.contains("[REDACTED]"));
+    assert_eq!(receipt.output["output"]["secret_ref"], "vault://legacy");
+}
+
+#[tokio::test]
+async fn persisted_receipt_rejects_role_department_mismatch() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                1,
+                "run.authorized",
+                json!({
+                    "run_id": run_id,
+                    "session_id": context.session_id,
+                    "actor_id": context.actor_id,
+                    "project_root": context.project_root,
+                    "role_id": "builder",
+                    "department_id": "executing",
+                    "sandbox": "read-only"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                2,
+                "run.completed",
+                json!({ "run_id": run_id, "text": "done" }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let mut forged = context;
+    forged.role_id = "pm".to_owned();
+    forged.department_id = "planning".to_owned();
+    let receipt = core.read_receipt(forged, Some(run_id)).await.unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Blocked, "{receipt:?}");
+    assert_eq!(receipt.error.as_deref(), Some("run_owner_mismatch"));
+    assert!(receipt.output.is_null());
+}
+
+#[tokio::test]
+async fn legacy_persisted_failure_error_is_redacted_in_receipt_response() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let context = trusted_context();
+    let run_id = RunId::new();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                1,
+                "run.authorized",
+                json!({
+                    "run_id": run_id,
+                    "session_id": context.session_id,
+                    "actor_id": context.actor_id,
+                    "project_root": context.project_root,
+                    "sandbox": "read-only"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    events
+        .append(
+            RuntimeEvent::new(
+                context.request_id,
+                2,
+                "run.failed",
+                json!({
+                    "run_id": run_id,
+                    "error": "provider_failed token=legacy-failure-secret"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let receipt = core.read_receipt(context, Some(run_id)).await.unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Failed, "{receipt:?}");
+    assert_eq!(
+        receipt.error.as_deref(),
+        Some("provider_failed token=[REDACTED]")
+    );
+    let receipt_text = serde_json::to_string(&receipt).unwrap();
+    assert!(!receipt_text.contains("legacy-failure-secret"));
+    assert!(receipt_text.contains("[REDACTED]"));
 }
 
 #[tokio::test]
@@ -958,12 +2677,12 @@ async fn start_run_brokers_apply_patch_when_trusted_workspace_write() {
 
 #[tokio::test]
 async fn spawn_from_packet_starts_a_fresh_builder_session() {
+    let root = temp_project();
     let harness = CoreHarness::with_runner(scripted_runner(json!([
         {"text": "planned"},
         {"text": "spawned from packet"}
     ])));
-    let mut planner = trusted_context();
-    planner.session_id = kiana_domain::SessionId::new("planner-1");
+    let mut planner = trusted_context_in(&root, "planner-1");
     planner.permission_profile = PermissionProfile::Balanced;
     let planned = harness
         .core
@@ -976,8 +2695,7 @@ async fn spawn_from_packet_starts_a_fresh_builder_session() {
         .unwrap();
     assert_eq!(planned.status, ExecutionStatus::Completed);
 
-    let mut worker = trusted_context();
-    worker.session_id = kiana_domain::SessionId::new("builder-1");
+    let mut worker = trusted_context_in(&root, "builder-1");
     worker.permission_profile = PermissionProfile::Balanced;
     worker.assign_role(&kiana_domain::RoleSpec::pm());
     let packet = WorkPacket::builder_task("wp-1", "create GOLDEN_PATH.txt containing hello");
@@ -1096,15 +2814,14 @@ impl RunnerPort for HoldingRunner {
 
 #[tokio::test]
 async fn overlapping_live_spawns_fail_closed_on_path_locks() {
+    let root = temp_project();
     let entered = Arc::new(Notify::new());
     let release = Arc::new(Notify::new());
     let harness = CoreHarness::with_runner(Arc::new(HoldingRunner {
         entered: entered.clone(),
         release: release.clone(),
     }));
-    let mut first = trusted_context();
-    first.session_id = kiana_domain::SessionId::new("builder-a");
-    first.permission_profile = PermissionProfile::Balanced;
+    let first = trusted_context_in(&root, "builder-a");
     let first_packet =
         WorkPacket::builder_task("wp-a", "create ALPHA.txt").with_path_allow(["ALPHA.txt"]);
     let first_core = Arc::new(harness.core);
@@ -1118,9 +2835,7 @@ async fn overlapping_live_spawns_fail_closed_on_path_locks() {
     };
     entered_wait.await;
 
-    let mut second = trusted_context();
-    second.session_id = kiana_domain::SessionId::new("builder-b");
-    second.permission_profile = PermissionProfile::Balanced;
+    let second = trusted_context_in(&root, "builder-b");
     let overlapping =
         WorkPacket::builder_task("wp-b", "also ALPHA.txt").with_path_allow(["ALPHA.txt"]);
     let blocked = first_core
@@ -1153,8 +2868,8 @@ async fn independent_control_planes_share_builder_path_locks() {
     let second_core = Arc::new(second.core);
 
     let first_context = trusted_context_in(&root, "builder-a");
-    let first_packet = WorkPacket::builder_task("wp-a", "create ALPHA.txt")
-        .with_path_allow(["ALPHA.txt"]);
+    let first_packet =
+        WorkPacket::builder_task("wp-a", "create ALPHA.txt").with_path_allow(["ALPHA.txt"]);
     let entered_wait = entered.notified();
     let first_task = {
         let core = first_core.clone();
@@ -1170,8 +2885,8 @@ async fn independent_control_planes_share_builder_path_locks() {
     entered_wait.await;
 
     let second_context = trusted_context_in(&root, "builder-b");
-    let second_packet = WorkPacket::builder_task("wp-b", "also ALPHA.txt")
-        .with_path_allow(["ALPHA.txt"]);
+    let second_packet =
+        WorkPacket::builder_task("wp-b", "also ALPHA.txt").with_path_allow(["ALPHA.txt"]);
     let blocked = second_core
         .spawn_from_packet(
             second_context,
@@ -1185,7 +2900,11 @@ async fn independent_control_planes_share_builder_path_locks() {
 
     release.notify_one();
     let completed = first_task.await.unwrap().unwrap();
-    assert_eq!(completed.status, ExecutionStatus::Completed, "{completed:?}");
+    assert_eq!(
+        completed.status,
+        ExecutionStatus::Completed,
+        "{completed:?}"
+    );
 }
 
 struct CancellableRunner {
@@ -1223,6 +2942,193 @@ impl RunnerPort for CancellableRunner {
     }
 }
 
+struct UnconfirmedCancelRunner {
+    cancel_error: &'static str,
+}
+
+#[async_trait]
+impl RunnerPort for UnconfirmedCancelRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::Completed {
+                    run_id,
+                    output: json!({ "text": "started" }),
+                },
+            ]),
+            RunnerCommand::Cancel { run_id, .. } => Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: self.cancel_error.to_owned(),
+            }]),
+            other => Ok(vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CancelResponseAmbiguity {
+    ForeignRun,
+    Completed,
+}
+
+struct AmbiguousCancelRunner {
+    ambiguity: CancelResponseAmbiguity,
+}
+
+#[async_trait]
+impl RunnerPort for AmbiguousCancelRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::Completed {
+                    run_id,
+                    output: json!({ "text": "started" }),
+                },
+            ]),
+            RunnerCommand::Cancel { run_id, .. } => match self.ambiguity {
+                CancelResponseAmbiguity::ForeignRun => Ok(vec![
+                    RunnerEvent::Failed {
+                        run_id,
+                        error: "cancelled:user".to_owned(),
+                    },
+                    RunnerEvent::Failed {
+                        run_id: RunId::new(),
+                        error: "cancelled:user".to_owned(),
+                    },
+                ]),
+                CancelResponseAmbiguity::Completed => Ok(vec![
+                    RunnerEvent::Failed {
+                        run_id,
+                        error: "cancelled:user".to_owned(),
+                    },
+                    RunnerEvent::Completed {
+                        run_id,
+                        output: json!({ "text": "conflicting completion" }),
+                    },
+                ]),
+            },
+            other => Ok(vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
+struct ContinueCancelRaceRunner {
+    continue_entered: Arc<Notify>,
+    continue_release: Arc<Notify>,
+}
+
+#[async_trait]
+impl RunnerPort for ContinueCancelRaceRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::Completed {
+                    run_id,
+                    output: json!({ "text": "started" }),
+                },
+            ]),
+            RunnerCommand::Continue { run_id, .. } => {
+                self.continue_entered.notify_one();
+                self.continue_release.notified().await;
+                Ok(vec![RunnerEvent::CapabilityRequested {
+                    run_id,
+                    request: CapabilityRequest::new(
+                        RequestId::new(),
+                        CapabilityKind::Query,
+                        "search",
+                        json!({ "query": "must not execute" }),
+                    ),
+                }])
+            }
+            RunnerCommand::Cancel { run_id, .. } => Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: "run_not_found".to_owned(),
+            }]),
+            RunnerCommand::CapabilityResult { run_id, .. } => Ok(vec![RunnerEvent::Completed {
+                run_id,
+                output: json!({ "text": "capability result" }),
+            }]),
+        }
+    }
+}
+
+struct CancelBoundaryRunner {
+    entered: Arc<Notify>,
+    release: Arc<Notify>,
+    observed_reason: Arc<Mutex<Option<String>>>,
+    send_error: bool,
+}
+
+struct ContinueErrorRunner;
+
+#[async_trait]
+impl RunnerPort for ContinueErrorRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::Completed {
+                    run_id,
+                    output: json!({ "text": "started" }),
+                },
+            ]),
+            RunnerCommand::Continue { .. } => Err(PortError::Failed(
+                "continue_failed token=continue-secret".to_owned(),
+            )),
+            other => Ok(vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
+#[async_trait]
+impl RunnerPort for CancelBoundaryRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => {
+                self.entered.notify_one();
+                self.release.notified().await;
+                Ok(vec![
+                    RunnerEvent::Started { run_id },
+                    RunnerEvent::Failed {
+                        run_id,
+                        error: "cancelled:token=start-secret".to_owned(),
+                    },
+                ])
+            }
+            RunnerCommand::Cancel { run_id, reason } => {
+                *self.observed_reason.lock().await = Some(reason);
+                self.release.notify_one();
+                if self.send_error {
+                    Err(PortError::Failed(
+                        "runner_failed token=cancel-send-secret".to_owned(),
+                    ))
+                } else {
+                    Ok(vec![RunnerEvent::Failed {
+                        run_id,
+                        error: "cancelled:token=cancel-event-secret".to_owned(),
+                    }])
+                }
+            }
+            other => Ok(vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }]),
+        }
+    }
+}
+
 #[tokio::test]
 async fn cancelled_packet_transitions_cell_and_packet_to_cancelled() {
     let root = temp_project();
@@ -1235,8 +3141,8 @@ async fn cancelled_packet_transitions_cell_and_packet_to_cancelled() {
     let events = harness.events.clone();
     let core = Arc::new(harness.core);
     let spawn_context = trusted_context_in(&root, "builder-cancel");
-    let packet = WorkPacket::builder_task("wp-cancel", "cancel this packet")
-        .with_path_allow(["ALPHA.txt"]);
+    let packet =
+        WorkPacket::builder_task("wp-cancel", "cancel this packet").with_path_allow(["ALPHA.txt"]);
     let entered_wait = entered.notified();
     let spawn_task = {
         let core = core.clone();
@@ -1253,7 +3159,11 @@ async fn cancelled_packet_transitions_cell_and_packet_to_cancelled() {
         .cancel_run(cancel_context, None, "user".to_owned())
         .await
         .unwrap();
-    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::Cancelled,
+        "{cancelled:?}"
+    );
 
     let spawned = spawn_task.await.unwrap().unwrap();
     assert_eq!(spawned.status, ExecutionStatus::Cancelled, "{spawned:?}");
@@ -1266,21 +3176,407 @@ async fn cancelled_packet_transitions_cell_and_packet_to_cancelled() {
 }
 
 #[tokio::test]
+async fn cancel_reason_is_redacted_for_runner_response_and_events() {
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let observed_reason = Arc::new(Mutex::new(None));
+    let harness = CoreHarness::with_runner(Arc::new(CancelBoundaryRunner {
+        entered: entered.clone(),
+        release: release.clone(),
+        observed_reason: observed_reason.clone(),
+        send_error: false,
+    }));
+    let events = harness.events.clone();
+    let core = Arc::new(harness.core);
+    let entered_wait = entered.notified();
+    let start_task = {
+        let core = core.clone();
+        tokio::spawn(async move {
+            core.start_run(trusted_context(), "hold".to_owned(), None)
+                .await
+        })
+    };
+    entered_wait.await;
+
+    let mut cancel_context = trusted_context();
+    cancel_context.request_id = RequestId::new();
+    let response = core
+        .cancel_run(
+            cancel_context,
+            None,
+            "token=cancel-reason-secret".to_owned(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Cancelled, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("cancelled:token=[REDACTED]")
+    );
+    assert_eq!(
+        observed_reason.lock().await.as_deref(),
+        Some("token=[REDACTED]")
+    );
+
+    let _ = start_task.await.unwrap().unwrap();
+    let event_text = serde_json::to_string(&events.read_all().await.unwrap()).unwrap();
+    for sentinel in [
+        "cancel-reason-secret",
+        "cancel-event-secret",
+        "start-secret",
+    ] {
+        assert!(
+            !event_text.contains(sentinel),
+            "event leaked {sentinel}: {event_text}"
+        );
+    }
+    assert!(event_text.contains("[REDACTED]"), "{event_text}");
+}
+
+#[tokio::test]
+async fn unconfirmed_cancel_result_is_unknown_without_cancelling_or_forgetting_the_run() {
+    let harness = CoreHarness::with_runner(Arc::new(UnconfirmedCancelRunner {
+        cancel_error: "cancel_transport_failed",
+    }));
+    let events = harness.events.clone();
+    let context = trusted_context();
+    let started = harness
+        .core
+        .start_run(context.clone(), "hold".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = RunId::parse_str(started.output["run_id"].as_str().unwrap()).unwrap();
+
+    let mut cancel_context = context.clone();
+    cancel_context.request_id = RequestId::new();
+    let cancelled = harness
+        .core
+        .cancel_run(cancel_context, Some(run_id), "user".to_owned())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::ResultUnknown,
+        "{cancelled:?}"
+    );
+    assert_eq!(
+        cancelled.error.as_deref(),
+        Some("result_unknown:cancel_transport_failed")
+    );
+    let all_events = events.read_all().await.unwrap();
+    assert!(all_events.iter().any(|event| {
+        event.kind == "run.result_unknown"
+            && event.data["run_id"] == json!(run_id)
+            && event.data["error"] == "result_unknown:cancel_transport_failed"
+    }));
+    assert!(!all_events
+        .iter()
+        .any(|event| { event.kind == "run.cancelled" && event.data["run_id"] == json!(run_id) }));
+
+    let mut retry_context = context;
+    retry_context.request_id = RequestId::new();
+    let retry = harness
+        .core
+        .cancel_run(retry_context, None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(retry.status, ExecutionStatus::ResultUnknown, "{retry:?}");
+}
+
+#[tokio::test]
+async fn runner_not_found_cancel_is_unknown_and_retains_the_fencing() {
+    let harness = CoreHarness::with_runner(Arc::new(UnconfirmedCancelRunner {
+        cancel_error: "run_not_found",
+    }));
+    let events = harness.events.clone();
+    let context = trusted_context();
+    let started = harness
+        .core
+        .start_run(context.clone(), "hold".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = RunId::parse_str(started.output["run_id"].as_str().unwrap()).unwrap();
+
+    let mut cancel_context = context.clone();
+    cancel_context.request_id = RequestId::new();
+    let cancelled = harness
+        .core
+        .cancel_run(cancel_context, Some(run_id), "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::ResultUnknown,
+        "{cancelled:?}"
+    );
+    assert_eq!(
+        cancelled.error.as_deref(),
+        Some("result_unknown:run_not_found")
+    );
+
+    let all_events = events.read_all().await.unwrap();
+    assert!(all_events.iter().any(|event| {
+        event.kind == "run.result_unknown"
+            && event.data["run_id"] == json!(run_id)
+            && event.data["error"] == "result_unknown:run_not_found"
+    }));
+    assert!(!all_events
+        .iter()
+        .any(|event| { event.kind == "run.cancelled" && event.data["run_id"] == json!(run_id) }));
+
+    let mut retry_context = context;
+    retry_context.request_id = RequestId::new();
+    let retry = harness
+        .core
+        .cancel_run(retry_context, None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(retry.status, ExecutionStatus::ResultUnknown, "{retry:?}");
+    assert_eq!(retry.error.as_deref(), Some("result_unknown:run_not_found"));
+}
+
+#[tokio::test]
+async fn concurrent_continue_cancel_runner_not_found_preserves_fencing_before_dispatch() {
+    let continue_entered = Arc::new(Notify::new());
+    let continue_release = Arc::new(Notify::new());
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        Arc::new(ContinueCancelRaceRunner {
+            continue_entered: continue_entered.clone(),
+            continue_release: continue_release.clone(),
+        }),
+        broker.clone(),
+    );
+    let context = trusted_context();
+    let started = harness
+        .core
+        .start_run(context.clone(), "start".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = RunId::parse_str(started.output["run_id"].as_str().unwrap()).unwrap();
+
+    let entered_wait = continue_entered.notified();
+    let core = Arc::new(harness.core);
+    let continue_task = {
+        let core = core.clone();
+        let mut continue_context = context.clone();
+        continue_context.request_id = RequestId::new();
+        tokio::spawn(async move {
+            core.continue_run(continue_context, "continue".to_owned(), None, Some(run_id))
+                .await
+        })
+    };
+    entered_wait.await;
+
+    let mut cancel_context = context;
+    cancel_context.request_id = RequestId::new();
+    let cancelled = core
+        .cancel_run(cancel_context, Some(run_id), "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::ResultUnknown,
+        "{cancelled:?}"
+    );
+    assert_eq!(
+        cancelled.error.as_deref(),
+        Some("result_unknown:run_not_found")
+    );
+
+    continue_release.notify_one();
+    let continued = continue_task.await.unwrap().unwrap();
+    assert_eq!(
+        continued.status,
+        ExecutionStatus::Cancelled,
+        "{continued:?}"
+    );
+    assert_eq!(*broker.calls.lock().await, 0, "broker must not execute");
+}
+
+async fn assert_ambiguous_cancel_response_is_unknown(
+    ambiguity: CancelResponseAmbiguity,
+    expected_error: &str,
+) {
+    let harness = CoreHarness::with_runner(Arc::new(AmbiguousCancelRunner { ambiguity }));
+    let events = harness.events.clone();
+    let context = trusted_context();
+    let started = harness
+        .core
+        .start_run(context.clone(), "hold".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = RunId::parse_str(started.output["run_id"].as_str().unwrap()).unwrap();
+
+    let mut cancel_context = context.clone();
+    cancel_context.request_id = RequestId::new();
+    let cancelled = harness
+        .core
+        .cancel_run(cancel_context, Some(run_id), "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::ResultUnknown,
+        "{cancelled:?}"
+    );
+    assert_eq!(
+        cancelled.error.as_deref(),
+        Some(expected_error),
+        "{cancelled:?}"
+    );
+
+    let all_events = events.read_all().await.unwrap();
+    assert!(all_events.iter().any(|event| {
+        event.kind == "run.result_unknown"
+            && event.data["run_id"] == json!(run_id)
+            && event.data["error"] == expected_error
+    }));
+    assert!(!all_events
+        .iter()
+        .any(|event| { event.kind == "run.cancelled" && event.data["run_id"] == json!(run_id) }));
+
+    let mut retry_context = context;
+    retry_context.request_id = RequestId::new();
+    let retry = harness
+        .core
+        .cancel_run(retry_context, None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(retry.status, ExecutionStatus::ResultUnknown, "{retry:?}");
+    assert_eq!(retry.error.as_deref(), Some(expected_error), "{retry:?}");
+}
+
+#[tokio::test]
+async fn ambiguous_cancel_response_never_projects_cancelled_or_forgets_the_run() {
+    assert_ambiguous_cancel_response_is_unknown(
+        CancelResponseAmbiguity::ForeignRun,
+        "result_unknown:cancel_response_run_id_mismatch",
+    )
+    .await;
+    assert_ambiguous_cancel_response_is_unknown(
+        CancelResponseAmbiguity::Completed,
+        "result_unknown:cancel_confirmation_inconsistent",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn cancel_runner_send_error_is_redacted_in_direct_response() {
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let observed_reason = Arc::new(Mutex::new(None));
+    let harness = CoreHarness::with_runner(Arc::new(CancelBoundaryRunner {
+        entered: entered.clone(),
+        release: release.clone(),
+        observed_reason: observed_reason.clone(),
+        send_error: true,
+    }));
+    let events = harness.events.clone();
+    let core = Arc::new(harness.core);
+    let entered_wait = entered.notified();
+    let start_task = {
+        let core = core.clone();
+        tokio::spawn(async move {
+            core.start_run(trusted_context(), "hold".to_owned(), None)
+                .await
+        })
+    };
+    entered_wait.await;
+
+    let mut cancel_context = trusted_context();
+    cancel_context.request_id = RequestId::new();
+    let response = core
+        .cancel_run(
+            cancel_context,
+            None,
+            "token=cancel-send-reason-secret".to_owned(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
+    assert_eq!(
+        response.error.as_deref(),
+        Some("result_unknown:port_failed:runner_failed token=[REDACTED]")
+    );
+    assert_eq!(
+        observed_reason.lock().await.as_deref(),
+        Some("token=[REDACTED]")
+    );
+
+    let _ = start_task.await.unwrap().unwrap();
+    let event_text = serde_json::to_string(&events.read_all().await.unwrap()).unwrap();
+    for sentinel in ["cancel-send-reason-secret", "cancel-send-secret"] {
+        assert!(
+            !event_text.contains(sentinel),
+            "event leaked {sentinel}: {event_text}"
+        );
+    }
+    assert!(event_text.contains("run.result_unknown"), "{event_text}");
+    assert!(!event_text.contains("run.cancelled"), "{event_text}");
+}
+
+#[tokio::test]
+async fn continue_runner_send_error_is_redacted_in_direct_response() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(ContinueErrorRunner),
+    );
+    let started = core
+        .start_run(trusted_context(), "start".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+
+    let response = core
+        .continue_run(trusted_context(), "continue".to_owned(), None, None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:continue_failed token=[REDACTED]")
+    );
+    let event_text = serde_json::to_string(&events.read_all().await.unwrap()).unwrap();
+    assert!(!event_text.contains("continue-secret"), "{event_text}");
+    assert!(event_text.contains("[REDACTED]"), "{event_text}");
+}
+
+#[tokio::test]
 async fn failed_cell_reservation_releases_builder_path_lock() {
     let root = temp_project();
     let harness = CoreHarness::with_runner(scripted_runner(json!([{"text": "second packet"}])));
     let first_core = Arc::new(harness.core);
     let mut expired = trusted_context_in(&root, "builder-expired");
     expired.permission_profile = PermissionProfile::Balanced;
-    let mut expired_packet = WorkPacket::builder_task("wp-expired", "expired packet")
-        .with_path_allow(["ALPHA.txt"]);
+    let mut expired_packet =
+        WorkPacket::builder_task("wp-expired", "expired packet").with_path_allow(["ALPHA.txt"]);
     expired_packet.deadline_unix_ms = Some(1);
     let rejected = first_core
         .spawn_from_packet(expired, expired_packet, Some("workspace-write".to_owned()))
         .await
         .unwrap();
     assert_eq!(rejected.status, ExecutionStatus::Blocked, "{rejected:?}");
-    assert_eq!(rejected.error.as_deref(), Some("port_failed:spawn_deadline_expired"));
+    assert_eq!(
+        rejected.error.as_deref(),
+        Some("port_failed:spawn_deadline_expired")
+    );
 
     let retry = first_core
         .spawn_from_packet(
@@ -1295,6 +3591,7 @@ async fn failed_cell_reservation_releases_builder_path_lock() {
 
 #[tokio::test]
 async fn spawn_packet_path_allow_fails_closed_outside_the_packet() {
+    let root = temp_project();
     let broker = Arc::new(CountingBroker {
         calls: Mutex::new(0),
     });
@@ -1314,9 +3611,7 @@ async fn spawn_packet_path_allow_fails_closed_outside_the_packet() {
         ])),
         broker.clone(),
     );
-    let mut worker = trusted_context();
-    worker.session_id = kiana_domain::SessionId::new("builder-a");
-    worker.permission_profile = PermissionProfile::Balanced;
+    let worker = trusted_context_in(&root, "builder-a");
     let denied = harness
         .core
         .spawn_from_packet(
@@ -1334,13 +3629,12 @@ async fn spawn_packet_path_allow_fails_closed_outside_the_packet() {
 
 #[tokio::test]
 async fn sequential_empty_packets_still_spawn() {
+    let root = temp_project();
     let harness = CoreHarness::with_runner(scripted_runner(json!([
         {"text": "one"},
         {"text": "two"}
     ])));
-    let mut first = trusted_context();
-    first.session_id = kiana_domain::SessionId::new("builder-a");
-    first.permission_profile = PermissionProfile::Balanced;
+    let first = trusted_context_in(&root, "builder-a");
     let first_done = harness
         .core
         .spawn_from_packet(
@@ -1356,9 +3650,7 @@ async fn sequential_empty_packets_still_spawn() {
         "{first_done:?}"
     );
 
-    let mut second = trusted_context();
-    second.session_id = kiana_domain::SessionId::new("builder-b");
-    second.permission_profile = PermissionProfile::Balanced;
+    let second = trusted_context_in(&root, "builder-b");
     let second_done = harness
         .core
         .spawn_from_packet(
@@ -1429,6 +3721,50 @@ async fn continue_run_reuses_the_same_run_id() {
     assert_eq!(continued.output["run_id"], run_id);
     assert_eq!(continued.output["output"]["text"], "continued");
     assert_eq!(continued.output["session_id"], "session-1");
+}
+
+#[tokio::test]
+async fn session_role_and_department_are_immutable_for_continue_cancel_and_receipt() {
+    let harness = CoreHarness::with_runner(Arc::new(ContinueErrorRunner));
+    let started = harness
+        .core
+        .start_run(trusted_context(), "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = RunId::parse_str(started.output["run_id"].as_str().unwrap()).unwrap();
+
+    let mut forged = trusted_context();
+    forged.request_id = RequestId::new();
+    forged.role_id = "pm".to_owned();
+    forged.department_id = "planning".to_owned();
+
+    let continued = harness
+        .core
+        .continue_run(forged.clone(), "keep going".to_owned(), None, Some(run_id))
+        .await
+        .unwrap();
+    assert_eq!(continued.status, ExecutionStatus::Blocked, "{continued:?}");
+    assert_eq!(continued.error.as_deref(), Some("session_owner_mismatch"));
+
+    forged.request_id = RequestId::new();
+    let cancelled = harness
+        .core
+        .cancel_run(forged.clone(), Some(run_id), "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status, ExecutionStatus::Blocked, "{cancelled:?}");
+    assert_eq!(cancelled.error.as_deref(), Some("session_owner_mismatch"));
+
+    forged.request_id = RequestId::new();
+    let receipt = harness
+        .core
+        .read_receipt(forged, Some(run_id))
+        .await
+        .unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Blocked, "{receipt:?}");
+    assert_eq!(receipt.error.as_deref(), Some("run_owner_mismatch"));
+    assert!(receipt.output.is_null());
 }
 
 #[tokio::test]
@@ -1504,7 +3840,11 @@ async fn cancel_after_awaiting_approval_does_not_resume_the_pending_invocation()
         .cancel_run(trusted_context(), None, "user".to_owned())
         .await
         .unwrap();
-    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::Cancelled,
+        "{cancelled:?}"
+    );
     assert!(
         cancelled
             .error
@@ -1824,6 +4164,111 @@ async fn review_author_run_uses_a_fresh_reviewer_session() {
     assert!(packet.contains("kiana.review-packet.v1"), "{packet}");
     assert!(packet.contains("builder-1"), "{packet}");
     assert!(packet.contains("reviewer-1"), "{packet}");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn review_artifact_symlink_is_rejected_without_mutating_target() {
+    let root = temp_project();
+    let outside = temp_project().join("outside-review.json");
+    fs::write(&outside, "outside-sentinel\n").unwrap();
+    fs::create_dir_all(root.join("gate")).unwrap();
+    symlink(&outside, root.join("gate").join("REVIEW.json")).unwrap();
+
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "created GOLDEN_PATH.txt"}
+    ])));
+    let built = harness
+        .core
+        .start_run(
+            trusted_context_in(&root, "builder-symlink"),
+            "create GOLDEN_PATH.txt".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+
+    let mut reviewer = trusted_context_in(&root, "reviewer-symlink");
+    reviewer.request_id = RequestId::new();
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let review_request_id = reviewer.request_id;
+    let reviewed = harness
+        .core
+        .review_author_run(reviewer, "builder-symlink".to_owned(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(
+        reviewed.error.as_deref(),
+        Some("review_artifact_write_failed")
+    );
+    assert_eq!(fs::read_to_string(&outside).unwrap(), "outside-sentinel\n");
+    assert!(fs::symlink_metadata(root.join("gate").join("REVIEW.json"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+
+    let events = harness
+        .events
+        .read_request(&review_request_id)
+        .await
+        .unwrap();
+    assert!(events.iter().any(|event| {
+        event.kind == "run.rejected" && event.data["reason"] == "review_artifact_write_failed"
+    }));
+    assert!(!events.iter().any(|event| event.kind == "review.closed"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn review_artifact_symlinked_parent_is_rejected_without_writing_outside() {
+    let root = temp_project();
+    let outside = temp_project();
+    symlink(&outside, root.join("gate")).unwrap();
+
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "created GOLDEN_PATH.txt"}
+    ])));
+    let built = harness
+        .core
+        .start_run(
+            trusted_context_in(&root, "builder-parent-symlink"),
+            "create GOLDEN_PATH.txt".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(built.status, ExecutionStatus::Completed, "{built:?}");
+
+    let mut reviewer = trusted_context_in(&root, "reviewer-parent-symlink");
+    reviewer.request_id = RequestId::new();
+    reviewer.assign_role(&RoleSpec::reviewer());
+    let review_request_id = reviewer.request_id;
+    let reviewed = harness
+        .core
+        .review_author_run(reviewer, "builder-parent-symlink".to_owned(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
+    assert_eq!(
+        reviewed.error.as_deref(),
+        Some("review_artifact_write_failed")
+    );
+    assert!(!outside.join("REVIEW.json").exists());
+    assert!(!outside.join("MERGE.json").exists());
+
+    let events = harness
+        .events
+        .read_request(&review_request_id)
+        .await
+        .unwrap();
+    assert!(events.iter().any(|event| {
+        event.kind == "run.rejected" && event.data["reason"] == "review_artifact_write_failed"
+    }));
+    assert!(!events.iter().any(|event| event.kind == "review.closed"));
 }
 
 #[tokio::test]

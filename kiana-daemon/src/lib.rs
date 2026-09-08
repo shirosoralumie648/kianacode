@@ -81,6 +81,14 @@ impl DaemonHost {
         )
     }
 
+    pub fn local_with_model_config(config: LocalModelConfig) -> Result<Self, PortError> {
+        Self::with_runner_events_and_approval(
+            Arc::new(KianaHarness::new(model_client::from_config(config))),
+            Arc::new(JsonlEventLog::open_default()?),
+            Arc::new(JsonlApprovalStore::open_default()?),
+        )
+    }
+
     pub fn local_with_project_authority(
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
@@ -288,7 +296,11 @@ impl DaemonHost {
                     )
                     .await
             }
-            RequestBody::Run(run) => self.core.start_run(context, run.prompt, run.sandbox).await,
+            RequestBody::Run(run) => {
+                self.core
+                    .start_run_with_history(context, run.prompt, run.history, run.sandbox)
+                    .await
+            }
             RequestBody::Continue(run) => {
                 self.core
                     .continue_run(context, run.prompt, run.sandbox, run.run_id)
@@ -338,6 +350,14 @@ impl DaemonHost {
             },
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LocalModelConfig {
+    pub provider: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
 }
 
 fn effective_permission_profile(
