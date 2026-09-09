@@ -7,7 +7,9 @@
 //! 服务强制绑定 loopback，并对每次 API 状态/变更请求检查进程启动时随机生成的 token、
 //! Host 以及可选 Origin；`/api/events` 额外提供只读 SSE 增量投影。delta 只用于展示，
 //! 终态和事实仍以响应/Receipt 为准。这些防护用于本地 UI 暴露面，不能替代系统级网络、
-//! 浏览器或项目资源信任边界。
+//! 浏览器或项目资源信任边界。`/api/state` 还会合并由同一 `DaemonHost` 的
+//! `EventStorePort` 事件账本投影出的只读历史会话；历史会话不能进入
+//! run/continue/cancel 等变更路径。
 
 use anyhow::{anyhow, Context, Result};
 use axum::extract::{DefaultBodyLimit, Query, State};
@@ -18,7 +20,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
 use futures_util::Stream;
-use kiana_daemon::DaemonHost;
+use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_protocol::{
     ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent, ROLE_BUILDER,
 };
@@ -120,6 +122,39 @@ struct TurnSummary {
     text: String,
     files_changed: Vec<String>,
     run_id: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct LedgerSession {
+    id: String,
+    run_id: String,
+    role_id: String,
+    department_id: String,
+    project_root: String,
+    name: String,
+    last_event_sequence: u64,
+    last_event_kind: String,
+    terminal_status: String,
+    order: usize,
+}
+
+#[derive(Clone, Debug)]
+struct LedgerThread {
+    session: LedgerSession,
+    turns: Vec<TurnView>,
+    last: Option<TurnSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct LedgerEvent {
+    #[serde(default)]
+    event_id: Option<String>,
+    #[serde(default)]
+    request_id: Option<String>,
+    sequence: u64,
+    kind: String,
+    #[serde(default)]
+    data: Value,
 }
 
 #[derive(Deserialize)]
@@ -351,6 +386,7 @@ fn router(app: WebApp) -> Router {
         .route("/", get(index))
         .route("/api/health", get(health))
         .route("/api/state", get(state))
+        .route("/api/sessions", get(list_sessions))
         .route("/api/events", get(events))
         .route("/api/run", post(run_turn))
         .route("/api/cancel", post(cancel_turn))
@@ -388,30 +424,91 @@ impl WebApp {
     }
 
     // 汇集 UI 所需的即时状态。Mutex 中的数据可能与 daemon 已持久化的状态不同步，
-    // 因此只作为展示快照返回，不用于授权结论。
-    fn snapshot(&self, session_id: &str) -> Result<Value, ApiError> {
+    // 因此只作为展示快照返回，不用于授权结论。历史会话只从事件账本投影，且永远
+    // 标记为 read_only，不能通过该快照进入 run/continue/cancel 路径。
+    async fn snapshot(&self, session_id: &str) -> Result<Value, ApiError> {
         let trusted = harness_run::project_trusted(&self.workdir.to_string_lossy())
             .map_err(|error| ApiError::fail(error.to_string()))?;
         let sandbox = lock_string(&self.sandbox)?;
         let role_id = lock_string(&self.role)?;
         let role = RoleSpec::lookup(&role_id).ok_or_else(|| ApiError::bad("role_unknown"))?;
-        let sessions = self
-            .sessions
-            .lock()
-            .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-        let current = sessions
-            .get(session_id)
-            .cloned()
-            .ok_or_else(|| ApiError::bad("session_unknown"))?;
-        let threads: Vec<ThreadView> = sessions
-            .iter()
-            .map(|(id, session)| ThreadView {
-                id: id.clone(),
-                name: session.name.clone(),
-                running: session.running,
-                turns: session.turns.clone(),
-            })
-            .collect();
+        let (events, history) = self.read_session_ledger().await?;
+        let (active_id, current, threads, memory_sessions) = {
+            let sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+            let active_id = lock_string(&self.active)?;
+            let current = sessions.get(session_id).cloned();
+            let mut threads = Vec::with_capacity(sessions.len());
+            if let Some(session) = sessions.get(&active_id) {
+                threads.push(ThreadView {
+                    id: active_id.clone(),
+                    name: session.name.clone(),
+                    running: session.running,
+                    turns: session.turns.clone(),
+                });
+            }
+            for (id, session) in sessions.iter() {
+                if id != &active_id {
+                    threads.push(ThreadView {
+                        id: id.clone(),
+                        name: session.name.clone(),
+                        running: session.running,
+                        turns: session.turns.clone(),
+                    });
+                }
+            }
+            (
+                active_id,
+                current,
+                threads,
+                sessions
+                    .iter()
+                    .map(|(id, session)| (id.clone(), session.clone()))
+                    .collect::<HashMap<_, _>>(),
+            )
+        };
+
+        let historical = if current.is_none() {
+            ledger_thread_for_session(&events, &history, session_id)
+        } else {
+            None
+        };
+        if current.is_none() && historical.is_none() {
+            return Err(ApiError::bad("session_unknown"));
+        }
+        let read_only = historical.is_some();
+        let running = current.as_ref().is_some_and(|session| session.running);
+        let last = current
+            .as_ref()
+            .and_then(|session| session.last.clone())
+            .or_else(|| historical.as_ref().and_then(|thread| thread.last.clone()));
+
+        let mut session_views = Vec::with_capacity(memory_sessions.len() + history.len());
+        if let Some(session) = memory_sessions.get(&active_id) {
+            session_views.push(memory_session_view(&active_id, session));
+        }
+        for (id, session) in &memory_sessions {
+            if id != &active_id {
+                session_views.push(memory_session_view(id, session));
+            }
+        }
+        for session in &history {
+            if !memory_sessions.contains_key(&session.id) {
+                session_views.push(historical_session_view(session));
+            }
+        }
+
+        let thread = if let Some(thread) = &historical {
+            historical_thread_view(thread)
+        } else {
+            threads
+                .iter()
+                .find(|thread| thread.id == session_id)
+                .and_then(|thread| serde_json::to_value(thread).ok())
+                .unwrap_or(Value::Null)
+        };
         Ok(json!({
             "harness": harness_run::HARNESS_ID,
             "folder": self.workdir.display().to_string(),
@@ -420,19 +517,49 @@ impl WebApp {
             "role": role.role_id,
             "department": role.department_id,
             "session_id": session_id,
-            "running": current.running,
-            "sessions": threads.iter().map(|thread| json!({
-                "id": thread.id,
-                "running": thread.running,
-                "name": thread.name,
-            })).collect::<Vec<_>>(),
+            "running": running,
+            "read_only": read_only,
+            "sessions": session_views,
             "threads": threads,
-            "thread": threads.iter().find(|thread| thread.id == session_id),
-            "last": current.last,
+            "thread": thread,
+            "last": last,
             "streaming": true,
             "streaming_transport": "sse",
             "shape": "codex-app",
         }))
+    }
+
+    async fn read_session_ledger(
+        &self,
+    ) -> Result<(Vec<LedgerEvent>, Vec<LedgerSession>), ApiError> {
+        let events: Vec<LedgerEvent> = match self.host.persisted_events().await {
+            Ok(Some(events)) => events
+                .into_iter()
+                .map(|event| LedgerEvent {
+                    event_id: Some(event.event_id.to_string()),
+                    request_id: Some(event.request_id.to_string()),
+                    sequence: event.sequence,
+                    kind: event.kind,
+                    data: event.data,
+                })
+                .collect(),
+            Ok(None) => {
+                return Err(ApiError::fail("web_session_history_unsupported"));
+            }
+            Err(error) => {
+                return Err(ApiError::fail(format!(
+                    "web_session_history_unreadable:{error}"
+                )));
+            }
+        };
+        let sessions = ledger_sessions_for_root(&events, &self.workdir);
+        Ok((events, sessions))
+    }
+
+    async fn history_sessions(&self) -> Result<Vec<LedgerSession>, ApiError> {
+        self.read_session_ledger()
+            .await
+            .map(|(_, sessions)| sessions)
     }
 
     // 为每次 daemon 调用重建显式选项，避免把可变 Web 状态隐式散落到 handler 中。
@@ -490,8 +617,34 @@ async fn state(
     Query(query): Query<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let session_id = resolve_session(&app, query.session_id.as_deref())?;
-    Ok(Json(app.snapshot(&session_id)?))
+    let session_id = match query
+        .session_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(session_id) => session_id.to_owned(),
+        None => lock_string(&app.active)?,
+    };
+    Ok(Json(app.snapshot(&session_id).await?))
+}
+
+async fn list_sessions(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let sessions = app
+        .history_sessions()
+        .await?
+        .iter()
+        .map(historical_session_view)
+        .collect::<Vec<_>>();
+    Ok(Json(json!({
+        "source": "event_log",
+        "read_only": true,
+        "sessions": sessions,
+    })))
 }
 
 struct EventStreamState {
@@ -511,7 +664,7 @@ async fn events(
     Query(query): Query<EventsQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>> + Send + 'static>, ApiError> {
     authorize_sse(&app, &headers, query.token.as_deref())?;
-    let session_id = resolve_session(&app, query.session_id.as_deref())?;
+    let session_id = resolve_mutable_session(&app, query.session_id.as_deref()).await?;
     let attach = stream_attach_state(&app, &session_id)?;
     // Subscribe before returning the SSE response headers. The browser waits for
     // EventSource.onopen before issuing /api/run, so the first delta is not lost.
@@ -614,7 +767,7 @@ async fn run_turn(
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
     let prompt = validate_web_prompt(body.prompt)?;
-    let session_id = resolve_session(&app, body.session_id.as_deref())?;
+    let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
     mark_running(&app, &session_id, true)?;
@@ -643,7 +796,7 @@ async fn run_turn(
     match result {
         Ok(response) => {
             store_turn(&app, &session_id, &prompt, &response)?;
-            let mut payload = app.snapshot(&session_id)?;
+            let mut payload = app.snapshot(&session_id).await?;
             payload["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
             Ok(Json(payload))
         }
@@ -660,7 +813,7 @@ async fn cancel_turn(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let session_id = resolve_session(&app, body.session_id.as_deref())?;
+    let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
     let response = harness_run::cancel_envelope_on_host(
@@ -673,7 +826,7 @@ async fn cancel_turn(
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
     store_turn(&app, &session_id, "(cancel)", &response)?;
-    Ok(Json(app.snapshot(&session_id)?))
+    Ok(Json(app.snapshot(&session_id).await?))
 }
 
 async fn trust_folder(
@@ -685,9 +838,9 @@ async fn trust_folder(
     let requested = body
         .as_ref()
         .and_then(|Json(body)| body.session_id.as_deref());
-    let session_id = resolve_session(&app, requested)?;
+    let session_id = resolve_mutable_session(&app, requested).await?;
     write_project_trust(&app.workdir, ProjectTrust::Trusted).map_err(ApiError::fail)?;
-    Ok(Json(app.snapshot(&session_id)?))
+    Ok(Json(app.snapshot(&session_id).await?))
 }
 
 async fn set_sandbox(
@@ -696,13 +849,13 @@ async fn set_sandbox(
     Json(body): Json<SandboxBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let session_id = resolve_session(&app, body.session_id.as_deref())?;
+    let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
         .map_err(|error| ApiError::bad(error.to_string()))?;
     *app.sandbox
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = sandbox;
-    Ok(Json(app.snapshot(&session_id)?))
+    Ok(Json(app.snapshot(&session_id).await?))
 }
 
 async fn new_session(
@@ -722,7 +875,7 @@ async fn new_session(
     *app.active
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = session_id.clone();
-    Ok(Json(app.snapshot(&session_id)?))
+    Ok(Json(app.snapshot(&session_id).await?))
 }
 
 async fn read_receipt(
@@ -731,7 +884,7 @@ async fn read_receipt(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let session_id = resolve_session(&app, body.session_id.as_deref())?;
+    let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
     let response = harness_run::receipt_envelope_on_host(
@@ -743,9 +896,427 @@ async fn read_receipt(
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
     Ok(Json(json!({
-        "state": app.snapshot(&session_id)?,
+        "state": app.snapshot(&session_id).await?,
         "receipt": response,
     })))
+}
+
+fn memory_session_view(id: &str, session: &WebSession) -> Value {
+    json!({
+        "id": id,
+        "running": session.running,
+        "name": session.name,
+        "historical": false,
+        "read_only": false,
+    })
+}
+
+fn historical_session_view(session: &LedgerSession) -> Value {
+    json!({
+        "id": session.id,
+        "running": false,
+        "name": session.name,
+        "historical": true,
+        "read_only": true,
+        "run_id": session.run_id,
+        "role_id": session.role_id,
+        "department_id": session.department_id,
+        "project_root": session.project_root,
+        "last_event_sequence": session.last_event_sequence,
+        "last_event_kind": session.last_event_kind,
+        "terminal_status": session.terminal_status,
+    })
+}
+
+fn historical_thread_view(thread: &LedgerThread) -> Value {
+    json!({
+        "id": thread.session.id,
+        "name": thread.session.name,
+        "running": false,
+        "turns": thread.turns,
+        "historical": true,
+        "read_only": true,
+        "run_id": thread.session.run_id,
+        "role_id": thread.session.role_id,
+        "department_id": thread.session.department_id,
+        "last_event_sequence": thread.session.last_event_sequence,
+        "last_event_kind": thread.session.last_event_kind,
+        "terminal_status": thread.session.terminal_status,
+    })
+}
+
+fn ledger_sessions_for_root(events: &[LedgerEvent], root: &Path) -> Vec<LedgerSession> {
+    let mut sessions = HashMap::<String, LedgerSession>::new();
+    let mut run_to_session = HashMap::<String, String>::new();
+    for (index, event) in events.iter().enumerate() {
+        if event.kind == "run.authorized" {
+            let Some(session_id) = event.data.get("session_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(run_id) = event.data.get("run_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(project_root) = event.data.get("project_root").and_then(Value::as_str) else {
+                continue;
+            };
+            if !history_project_root_matches(project_root, root) {
+                continue;
+            }
+            let Some(role_id) = event.data.get("role_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(department_id) = event.data.get("department_id").and_then(Value::as_str)
+            else {
+                continue;
+            };
+            let session = sessions
+                .entry(session_id.to_owned())
+                .or_insert_with(|| LedgerSession {
+                    id: session_id.to_owned(),
+                    run_id: run_id.to_owned(),
+                    role_id: role_id.to_owned(),
+                    department_id: department_id.to_owned(),
+                    project_root: project_root.to_owned(),
+                    name: "New thread".to_owned(),
+                    last_event_sequence: event.sequence,
+                    last_event_kind: event.kind.clone(),
+                    terminal_status: "unknown".to_owned(),
+                    order: index,
+                });
+            session.run_id = run_id.to_owned();
+            session.role_id = role_id.to_owned();
+            session.department_id = department_id.to_owned();
+            session.project_root = project_root.to_owned();
+            session.last_event_sequence = event.sequence;
+            session.last_event_kind = event.kind.clone();
+            session.order = index;
+            run_to_session.insert(run_id.to_owned(), session_id.to_owned());
+            continue;
+        }
+
+        let Some(run_id) = event.data.get("run_id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(session_id) = run_to_session.get(run_id) else {
+            continue;
+        };
+        let Some(session) = sessions.get_mut(session_id) else {
+            continue;
+        };
+        session.last_event_sequence = event.sequence;
+        session.last_event_kind = event.kind.clone();
+        session.order = index;
+        if let Some(status) = terminal_status_for_kind(&event.kind) {
+            session.terminal_status = status.to_owned();
+        } else if event.kind == "run.receipt" && session.terminal_status == "unknown" {
+            session.terminal_status = "completed".to_owned();
+        }
+        if event.kind == "run.prompt" && session.name == "New thread" {
+            if let Some(text) = event.data.get("text").and_then(Value::as_str) {
+                session.name = web_thread::thread_name(&redact_history_text(text));
+            }
+        }
+    }
+    let mut sessions = sessions.into_values().collect::<Vec<_>>();
+    sessions.sort_by(|left, right| right.order.cmp(&left.order));
+    sessions.truncate(MAX_WEB_SESSIONS);
+    sessions
+}
+
+fn ledger_thread_for_session(
+    events: &[LedgerEvent],
+    sessions: &[LedgerSession],
+    session_id: &str,
+) -> Option<LedgerThread> {
+    let session = sessions.iter().find(|session| session.id == session_id)?;
+    let mut turns = Vec::new();
+    let mut current: Option<HistoryTurnBuilder> = None;
+    for event in events {
+        if event.data.get("run_id").and_then(Value::as_str) != Some(session.run_id.as_str()) {
+            continue;
+        }
+        match event.kind.as_str() {
+            "run.prompt" => {
+                if let Some(turn) = current.take() {
+                    push_history_turn(&mut turns, turn);
+                }
+                let prompt = event
+                    .data
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                current = Some(HistoryTurnBuilder::new(event, prompt));
+            }
+            "run.delta" => {
+                if let Some(turn) = current.as_mut() {
+                    if let Some(text) = event.data.get("text").and_then(Value::as_str) {
+                        append_history_text(&mut turn.delta_text, text, MAX_WEB_ITEM_BODY_BYTES);
+                    }
+                }
+            }
+            "run.completed" => {
+                if let Some(turn) = current.as_mut() {
+                    turn.status = "completed".to_owned();
+                    turn.final_text = event
+                        .data
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .or_else(|| {
+                            event
+                                .data
+                                .get("output")
+                                .and_then(|output| output.get("text"))
+                                .and_then(Value::as_str)
+                        })
+                        .unwrap_or_default()
+                        .to_owned();
+                    turn.files = history_string_list(
+                        &event.data,
+                        "files_changed",
+                        MAX_WEB_FILES_PER_TURN,
+                        MAX_WEB_FILE_PATH_BYTES,
+                    );
+                    turn.capabilities = history_capabilities(&event.data);
+                }
+            }
+            "run.receipt" => {
+                if let Some(turn) = current.as_mut() {
+                    if turn.status == "unknown" {
+                        turn.status = "completed".to_owned();
+                    }
+                    if turn.final_text.is_empty() {
+                        turn.final_text = event
+                            .data
+                            .get("output")
+                            .and_then(|output| output.get("text"))
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned();
+                    }
+                    if turn.files.is_empty() {
+                        turn.files = history_string_list(
+                            &event.data,
+                            "files_changed",
+                            MAX_WEB_FILES_PER_TURN,
+                            MAX_WEB_FILE_PATH_BYTES,
+                        );
+                    }
+                    if turn.capabilities.is_empty() {
+                        turn.capabilities = history_capabilities(&event.data);
+                    }
+                }
+            }
+            kind => {
+                if let Some(status) = terminal_status_for_kind(kind) {
+                    if let Some(turn) = current.as_mut() {
+                        turn.status = status.to_owned();
+                        turn.error = event
+                            .data
+                            .get("error")
+                            .and_then(Value::as_str)
+                            .map(redact_history_text);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(turn) = current {
+        push_history_turn(&mut turns, turn);
+    }
+    let last = turns.last().map(|turn| TurnSummary {
+        status: turn.status.clone(),
+        error: turn
+            .items
+            .iter()
+            .rev()
+            .find(|item| item.kind == "error")
+            .map(|item| item.body.clone()),
+        text: turn
+            .items
+            .iter()
+            .rev()
+            .find(|item| item.kind == "agentMessage")
+            .map(|item| item.body.clone())
+            .unwrap_or_default(),
+        files_changed: turn
+            .items
+            .iter()
+            .rev()
+            .find(|item| item.kind == "fileChange")
+            .map(|item| item.body.lines().map(str::to_owned).collect())
+            .unwrap_or_default(),
+        run_id: Some(session.run_id.clone()),
+    });
+    Some(LedgerThread {
+        session: session.clone(),
+        turns,
+        last,
+    })
+}
+
+struct HistoryTurnBuilder {
+    id: String,
+    status: String,
+    prompt: String,
+    delta_text: String,
+    final_text: String,
+    files: Vec<String>,
+    capabilities: Vec<String>,
+    error: Option<String>,
+}
+
+impl HistoryTurnBuilder {
+    fn new(event: &LedgerEvent, prompt: &str) -> Self {
+        Self {
+            id: event.event_id.clone().unwrap_or_else(|| {
+                format!(
+                    "{}:{}:{}",
+                    event.request_id.as_deref().unwrap_or_default(),
+                    event.sequence,
+                    event.kind
+                )
+            }),
+            status: "unknown".to_owned(),
+            prompt: prompt.to_owned(),
+            delta_text: String::new(),
+            final_text: String::new(),
+            files: Vec::new(),
+            capabilities: Vec::new(),
+            error: None,
+        }
+    }
+
+    fn into_turn(self) -> TurnView {
+        let text = if self.final_text.is_empty() {
+            redact_history_text(&self.delta_text)
+        } else {
+            redact_history_text(&self.final_text)
+        };
+        let mut items = vec![web_thread::ItemView {
+            kind: "userMessage".to_owned(),
+            status: "completed".to_owned(),
+            title: "You".to_owned(),
+            body: redact_history_text(&self.prompt),
+        }];
+        for capability in self.capabilities {
+            items.push(web_thread::ItemView {
+                kind: "commandExecution".to_owned(),
+                status: self.status.clone(),
+                title: format!("tool · {capability}"),
+                body: capability,
+            });
+        }
+        if !self.files.is_empty() {
+            items.push(web_thread::ItemView {
+                kind: "fileChange".to_owned(),
+                status: self.status.clone(),
+                title: format!(
+                    "{} file{}",
+                    self.files.len(),
+                    if self.files.len() == 1 { "" } else { "s" }
+                ),
+                body: self.files.join("\n"),
+            });
+        }
+        if !text.trim().is_empty() {
+            items.push(web_thread::ItemView {
+                kind: "agentMessage".to_owned(),
+                status: self.status.clone(),
+                title: "Builder".to_owned(),
+                body: text,
+            });
+        }
+        if let Some(error) = self.error.filter(|error| !error.trim().is_empty()) {
+            items.push(web_thread::ItemView {
+                kind: "error".to_owned(),
+                status: self.status.clone(),
+                title: "blocked".to_owned(),
+                body: redact_history_text(&error),
+            });
+        }
+        TurnView {
+            id: self.id,
+            status: self.status,
+            items,
+        }
+    }
+}
+
+fn push_history_turn(turns: &mut Vec<TurnView>, turn: HistoryTurnBuilder) {
+    push_turn_bounded(turns, turn.into_turn());
+}
+
+fn append_history_text(buffer: &mut String, text: &str, max_bytes: usize) {
+    if buffer.len() >= max_bytes {
+        return;
+    }
+    let remaining = max_bytes - buffer.len();
+    let mut end = remaining.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    buffer.push_str(&text[..end]);
+}
+
+fn history_string_list(data: &Value, key: &str, max_items: usize, max_bytes: usize) -> Vec<String> {
+    data.get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .take(max_items)
+                .map(|item| {
+                    let mut item = redact_history_text(item);
+                    truncate_utf8(&mut item, max_bytes);
+                    item
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn history_capabilities(data: &Value) -> Vec<String> {
+    data.get("capabilities")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    item.get("operation")
+                        .and_then(Value::as_str)
+                        .or_else(|| item.as_str())
+                })
+                .take(MAX_WEB_ITEMS_PER_TURN)
+                .map(redact_history_text)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn terminal_status_for_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "run.completed" => Some("completed"),
+        "run.cancelled" => Some("cancelled"),
+        "run.failed" => Some("failed"),
+        "run.result_unknown" => Some("result_unknown"),
+        _ => None,
+    }
+}
+
+fn redact_history_text(text: &str) -> String {
+    let mut redactor = StreamingRedactor::new();
+    let mut redacted = redactor.push(text);
+    redacted.push_str(&redactor.finish());
+    redacted
+}
+
+fn history_project_root_matches(recorded: &str, root: &Path) -> bool {
+    canonical_history_path(Path::new(recorded)) == canonical_history_path(root)
+}
+
+fn canonical_history_path(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn ensure_session_capacity(sessions: &HashMap<String, WebSession>) -> Result<(), ApiError> {
@@ -840,16 +1411,30 @@ fn url_matches_bound_addr(url: &url::Url, bound_addr: SocketAddr) -> bool {
         && url.port_or_known_default() == Some(bound_addr.port())
 }
 
-fn resolve_session(app: &WebApp, requested: Option<&str>) -> Result<String, ApiError> {
+async fn resolve_mutable_session(
+    app: &WebApp,
+    requested: Option<&str>,
+) -> Result<String, ApiError> {
     let id = match requested.map(str::trim).filter(|value| !value.is_empty()) {
         Some(id) => id.to_owned(),
         None => lock_string(&app.active)?,
     };
-    let sessions = app
-        .sessions
-        .lock()
-        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-    if !sessions.contains_key(&id) {
+    let known_session = {
+        let sessions = app
+            .sessions
+            .lock()
+            .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+        sessions.contains_key(&id)
+    };
+    if !known_session {
+        if app
+            .history_sessions()
+            .await?
+            .iter()
+            .any(|session| session.id == id)
+        {
+            return Err(ApiError::conflict("session_read_only"));
+        }
         return Err(ApiError::bad("session_unknown"));
     }
     Ok(id)
@@ -1050,6 +1635,85 @@ mod tests {
         fs::canonicalize(&dir).unwrap()
     }
 
+    fn ledger_event(sequence: u64, kind: &str, data: Value) -> Value {
+        json!({
+            "event_id": uuid::Uuid::new_v4().to_string(),
+            "request_id": uuid::Uuid::new_v4().to_string(),
+            "sequence": sequence,
+            "kind": kind,
+            "data": data,
+        })
+    }
+
+    fn write_ledger(home: &Path, events: &[Value]) -> PathBuf {
+        let path = home.join("sessions").join("events.jsonl");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let body = events
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        fs::write(&path, body).unwrap();
+        path
+    }
+
+    fn parse_ledger(events: &[Value]) -> Vec<LedgerEvent> {
+        events
+            .iter()
+            .cloned()
+            .map(|event| serde_json::from_value(event).unwrap())
+            .collect()
+    }
+
+    fn historical_events(root: &Path, session_id: &str, run_id: &str) -> Vec<Value> {
+        vec![
+            ledger_event(
+                1,
+                "run.authorized",
+                json!({
+                    "run_id": run_id,
+                    "session_id": session_id,
+                    "actor_id": "local-user",
+                    "project_root": root.to_string_lossy(),
+                    "role_id": ROLE_BUILDER,
+                    "department_id": kiana_protocol::DEPARTMENT_EXECUTING,
+                    "sandbox": "read-only",
+                }),
+            ),
+            ledger_event(
+                2,
+                "run.prompt",
+                json!({
+                    "run_id": run_id,
+                    "session_id": session_id,
+                    "text": "historical task",
+                }),
+            ),
+            ledger_event(
+                3,
+                "run.delta",
+                json!({ "run_id": run_id, "text": "historical " }),
+            ),
+            ledger_event(
+                4,
+                "run.completed",
+                json!({ "run_id": run_id, "text": "historical response" }),
+            ),
+            ledger_event(
+                5,
+                "run.receipt",
+                json!({
+                    "run_id": run_id,
+                    "session_id": session_id,
+                    "output": { "text": "historical response" },
+                    "files_changed": ["src/history.rs"],
+                    "capabilities": [{"operation": "shell"}],
+                }),
+            ),
+        ]
+    }
+
     #[test]
     fn web_projection_output_limits_are_bounded() {
         let response = ResponseEnvelope {
@@ -1165,8 +1829,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn explicit_session_resolution_does_not_change_global_active_thread() {
+    #[tokio::test]
+    async fn explicit_session_resolution_does_not_change_global_active_thread() {
         let env = crate::test_support::scoped_env(&["KIANA_HOME"]);
         let home = unique_dir("session-isolation-home");
         env.set_var("KIANA_HOME", &home);
@@ -1186,14 +1850,320 @@ mod tests {
             .unwrap()
             .insert(other.clone(), WebSession::default());
 
-        assert_eq!(resolve_session(&app, Some(&other)).unwrap(), other);
+        assert_eq!(
+            resolve_mutable_session(&app, Some(&other)).await.unwrap(),
+            other
+        );
         assert_eq!(lock_string(&app.active).unwrap(), active);
-        let snapshot = app.snapshot(&other).unwrap();
+        let snapshot = app.snapshot(&other).await.unwrap();
         assert_eq!(snapshot["session_id"].as_str(), Some(other.as_str()));
         assert_eq!(snapshot["thread"]["id"].as_str(), Some(other.as_str()));
         assert_eq!(lock_string(&app.active).unwrap(), active);
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(home);
+    }
+
+    #[tokio::test]
+    async fn fresh_web_app_lists_previous_sessions_from_the_event_ledger() {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("history-restart-home");
+        let root = unique_dir("history-restart-root");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script = unique_dir("history-restart-script").join("script.json");
+        fs::write(&script, r#"[{"text":"first response"}]"#).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        env.set_var("KIANA_PROVIDER", "");
+        env.set_var("KIANA_STREAMING", "off");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+
+        let address = "127.0.0.1:0".parse().unwrap();
+        let host = Arc::new(DaemonHost::local().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            address,
+        );
+        let historical_session = "history-session-from-ledger".to_owned();
+        let response = harness_run::run_envelope_on_host(
+            Arc::clone(&host),
+            historical_session.clone(),
+            "first task",
+            &app.options().unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            response.status,
+            kiana_protocol::ExecutionStatus::Completed,
+            "{response:?}"
+        );
+        let historical_run = response.output["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_owned();
+        let runtime_events = host.persisted_events().await.unwrap().unwrap();
+        let ledger_events = app.read_session_ledger().await.unwrap().0;
+        assert_eq!(ledger_events.len(), runtime_events.len());
+        for (runtime, ledger) in runtime_events.iter().zip(&ledger_events) {
+            assert_eq!(ledger.event_id, Some(runtime.event_id.to_string()));
+            assert_eq!(ledger.request_id, Some(runtime.request_id.to_string()));
+            assert_eq!(ledger.sequence, runtime.sequence);
+            assert_eq!(ledger.kind, runtime.kind);
+            assert_eq!(ledger.data, runtime.data);
+        }
+        drop(app);
+        drop(host);
+
+        let restarted = WebApp::new(
+            Arc::new(DaemonHost::local().unwrap()),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            address,
+        );
+        let active = lock_string(&restarted.active).unwrap();
+        let snapshot = restarted.snapshot(&active).await.unwrap();
+        let sessions = snapshot["sessions"].as_array().unwrap();
+        assert_eq!(sessions[0]["id"], active);
+        let previous = sessions
+            .iter()
+            .find(|session| session["id"] == historical_session)
+            .expect("historical session");
+        assert_eq!(previous["running"], false);
+        assert_eq!(previous["read_only"], true);
+        assert_eq!(previous["run_id"], historical_run);
+        assert_eq!(previous["role_id"], ROLE_BUILDER);
+        assert_eq!(
+            previous["department_id"],
+            kiana_protocol::DEPARTMENT_EXECUTING
+        );
+        assert_eq!(previous["terminal_status"], "completed");
+        assert!(previous["last_event_sequence"].as_u64().unwrap() > 0);
+
+        let historical = restarted.snapshot(&historical_session).await.unwrap();
+        assert_eq!(historical["read_only"], true);
+        assert_eq!(historical["thread"]["id"], historical_session);
+        assert_eq!(historical["thread"]["read_only"], true);
+        let turns = historical["thread"]["turns"].as_array().unwrap();
+        assert_eq!(turns.len(), 1);
+        let items = turns[0]["items"].as_array().unwrap();
+        assert!(items
+            .iter()
+            .any(|item| { item["kind"] == "userMessage" && item["body"] == "first task" }));
+        assert!(items
+            .iter()
+            .any(|item| { item["kind"] == "agentMessage" && item["body"] == "first response" }));
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[tokio::test]
+    async fn opening_historical_session_does_not_append_events_or_allow_execution() {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+        ]);
+        let home = unique_dir("history-readonly-home");
+        let root = unique_dir("history-readonly-root");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let session_id = "historical-readonly-session";
+        let run_id = RunId::new().to_string();
+        let ledger = write_ledger(&home, &historical_events(&root, session_id, &run_id));
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var(
+            "KIANA_HARNESS_SCRIPT",
+            home.join("missing-history-script.json"),
+        );
+        env.set_var("KIANA_PROVIDER", "");
+
+        let before = fs::read(&ledger).unwrap();
+        let app = WebApp::new(
+            Arc::new(DaemonHost::local().unwrap()),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            "127.0.0.1:0".parse().unwrap(),
+        );
+        let snapshot = app.snapshot(session_id).await.unwrap();
+        assert_eq!(snapshot["read_only"], true);
+        assert_eq!(snapshot["thread"]["turns"].as_array().unwrap().len(), 1);
+        let rejected = resolve_mutable_session(&app, Some(session_id))
+            .await
+            .unwrap_err();
+        assert_eq!(rejected.status, StatusCode::CONFLICT);
+        assert_eq!(rejected.error, "session_read_only");
+        assert_eq!(fs::read(&ledger).unwrap(), before);
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[tokio::test]
+    async fn empty_event_ledger_lists_no_historical_sessions() {
+        let env = crate::test_support::scoped_env(&["KIANA_HOME", "HOME", "KIANA_HARNESS_SCRIPT"]);
+        let home = unique_dir("history-empty-home");
+        let root = unique_dir("history-empty-root");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", "");
+
+        let app = WebApp::new(
+            Arc::new(DaemonHost::with_env_harness().unwrap()),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            "127.0.0.1:0".parse().unwrap(),
+        );
+        let active = lock_string(&app.active).unwrap();
+        let snapshot = app.snapshot(&active).await.unwrap();
+        let sessions = snapshot["sessions"].as_array().unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0]["id"], active);
+        assert!(app.history_sessions().await.unwrap().is_empty());
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[tokio::test]
+    async fn unreadable_event_ledger_fails_closed() {
+        let env = crate::test_support::scoped_env(&["KIANA_HOME", "HOME", "KIANA_HARNESS_SCRIPT"]);
+        let home = unique_dir("history-unreadable-home");
+        let root = unique_dir("history-unreadable-root");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", "");
+
+        let host = Arc::new(DaemonHost::local().unwrap());
+        let ledger = home.join("sessions").join("events.jsonl");
+        fs::create_dir_all(ledger.parent().unwrap()).unwrap();
+        fs::write(&ledger, b"{not-json}\n").unwrap();
+
+        let app = WebApp::new(
+            host,
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            "127.0.0.1:0".parse().unwrap(),
+        );
+        let active = lock_string(&app.active).unwrap();
+        let error = app.snapshot(&active).await.unwrap_err();
+        assert_eq!(error.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(
+            error.error.starts_with("web_session_history_unreadable"),
+            "{error:?}"
+        );
+
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn web_page_renders_historical_sessions_as_read_only() {
+        assert!(PAGE.contains("(s.sessions || s.threads || [])"));
+        assert!(PAGE.contains("readOnly = !!s.read_only;"));
+        assert!(PAGE.contains("promptEl.disabled = readOnly;"));
+        assert!(PAGE.contains("document.getElementById('trustBtn').disabled = readOnly;"));
+        assert!(PAGE.contains("历史会话只读；新建 Thread 后才能继续。"));
+        assert!(PAGE.contains("if (readOnly)"));
+    }
+
+    #[test]
+    fn historical_ledger_projection_redacts_recorded_secrets() {
+        let root = unique_dir("history-redaction-root");
+        let session_id = "history-redaction-session";
+        let run_id = RunId::new().to_string();
+        let events = vec![
+            ledger_event(
+                1,
+                "run.authorized",
+                json!({
+                    "run_id": run_id.as_str(),
+                    "session_id": session_id,
+                    "project_root": root.to_string_lossy(),
+                    "role_id": ROLE_BUILDER,
+                    "department_id": kiana_protocol::DEPARTMENT_EXECUTING,
+                }),
+            ),
+            ledger_event(
+                2,
+                "run.prompt",
+                json!({
+                    "run_id": run_id.as_str(),
+                    "session_id": session_id,
+                    "text": "token=history-secret",
+                }),
+            ),
+            ledger_event(
+                3,
+                "run.completed",
+                json!({ "run_id": run_id.as_str(), "text": "api_key=history-secret" }),
+            ),
+        ];
+        let events = parse_ledger(&events);
+        let sessions = ledger_sessions_for_root(&events, &root);
+        assert!(!sessions[0].name.contains("history-secret"));
+        let thread = ledger_thread_for_session(&events, &sessions, session_id).unwrap();
+        let rendered = serde_json::to_string(&thread.turns).unwrap();
+        assert!(!rendered.contains("history-secret"), "{rendered}");
+        assert!(rendered.contains("[REDACTED]"), "{rendered}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ledger_history_maps_completed_cancelled_failed_result_unknown_and_missing_states() {
+        let root = Path::new("/tmp/kiana-history-status-root");
+        for (kind, expected) in [
+            ("run.completed", "completed"),
+            ("run.cancelled", "cancelled"),
+            ("run.failed", "failed"),
+            ("run.result_unknown", "result_unknown"),
+            ("run.delta", "unknown"),
+        ] {
+            let run_id = RunId::new().to_string();
+            let events = parse_ledger(&[
+                ledger_event(
+                    1,
+                    "run.authorized",
+                    json!({
+                        "run_id": run_id.as_str(),
+                        "session_id": "history-status-session",
+                        "project_root": root.to_string_lossy(),
+                        "role_id": ROLE_BUILDER,
+                        "department_id": kiana_protocol::DEPARTMENT_EXECUTING,
+                    }),
+                ),
+                ledger_event(
+                    2,
+                    kind,
+                    json!({ "run_id": run_id.as_str(), "error": "terminal" }),
+                ),
+            ]);
+            let sessions = ledger_sessions_for_root(&events, root);
+            assert_eq!(sessions[0].terminal_status, expected, "{kind}");
+        }
     }
 
     #[test]

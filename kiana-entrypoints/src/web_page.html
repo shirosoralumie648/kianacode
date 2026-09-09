@@ -128,6 +128,7 @@
     const coach = document.getElementById('coach');
     let sessionId = null;
     let running = false;
+    let readOnly = false;
     let runPending = false;
     let pollTimer = null;
     let started = false;
@@ -349,7 +350,10 @@
     function renderBusyStatus() {
       const busy = running || runPending;
       const st = document.getElementById('status');
-      if (busy) {
+      if (readOnly) {
+        st.textContent = 'read-only';
+        st.className = 'pill';
+      } else if (busy) {
         st.textContent = 'running';
         st.className = 'pill run';
       } else if (streamIncomplete) {
@@ -365,8 +369,9 @@
     }
     function syncPolling() {
       const streamActive = eventSource && eventSource.readyState === EventSource.OPEN;
+      const listed = (stateCache && (stateCache.sessions || stateCache.threads)) || [];
       const anyRunning = !streamActive && (runPending || running ||
-        ((stateCache && stateCache.threads) || []).some(item => item.running));
+        listed.some(item => item.running));
       if (anyRunning && pollTimer === null) {
         pollTimer = setInterval(() => { refresh().catch(() => {}); }, 1000);
       } else if (!anyRunning && pollTimer !== null) {
@@ -378,6 +383,15 @@
       stateCache = s;
       sessionId = s.session_id;
       running = !!s.running;
+      readOnly = !!s.read_only;
+      promptEl.disabled = readOnly;
+      document.getElementById('send').disabled = readOnly;
+      document.getElementById('cancel').disabled = readOnly;
+      document.getElementById('trustBtn').disabled = readOnly;
+      document.getElementById('sandbox').disabled = readOnly;
+      promptEl.placeholder = readOnly
+        ? '历史会话只读；新建 Thread 后才能继续。'
+        : 'Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。';
       document.getElementById('folder').textContent = s.folder;
       const trust = document.getElementById('trust');
       trust.textContent = s.trusted ? 'trusted' : 'untrusted';
@@ -403,10 +417,11 @@
         'transport streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
       const box = document.getElementById('sessions');
       box.innerHTML = '';
-      (s.threads || s.sessions || []).forEach(item => {
+      (s.sessions || s.threads || []).forEach(item => {
         const b = document.createElement('button');
         b.className = 'ghost' + (item.id === s.session_id ? ' active' : '');
-        b.textContent = (item.name || item.id.slice(0,8)) + (item.running ? ' · running' : '');
+        b.textContent = (item.name || item.id.slice(0,8)) +
+          (item.read_only ? ' · history' : (item.running ? ' · running' : ''));
         b.onclick = () => { clearStreamProjection(); sessionId = item.id; refresh().catch(() => {}); };
         box.appendChild(b);
       });
@@ -424,6 +439,10 @@
     async function sendPrompt(prompt) {
       const text = String(prompt || '').trim();
       if (!text || running || runPending) return;
+      if (readOnly) {
+        addItem({ kind:'error', title:'read-only', body:'历史会话只读；新建 Thread 后才能继续。' });
+        return;
+      }
       if (stateCache && !stateCache.trusted) {
         addItem({ kind:'error', title:'blocked', body:'还没信任这个文件夹。Codex 会弹审批；Kiana 直接 fail-closed。' });
         return;
