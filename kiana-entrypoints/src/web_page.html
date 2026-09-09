@@ -139,6 +139,9 @@
     let streamText = '';
     let streamRunId = null;
     let streamTerminal = null;
+    let streamComplete = false;
+    let streamIncomplete = false;
+    let streamInterruption = null;
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -169,12 +172,13 @@
       if ((thread.turns || []).length) emptyGuide.remove();
       const terminalTurnPresent = !!streamRunId && (thread.turns || []).some(turn => turn.id === streamRunId);
       if (streamItem) {
-        if (streamTerminal && streamTerminal.status === 'completed' && terminalTurnPresent) {
+        if (!streamIncomplete && streamTerminal && streamTerminal.status === 'completed' && terminalTurnPresent) {
           streamItem.remove();
           streamItem = null;
           streamText = '';
           streamRunId = null;
           streamTerminal = null;
+          streamComplete = false;
         } else {
           chat.appendChild(streamItem);
           emptyGuide.remove();
@@ -182,8 +186,10 @@
         }
       }
     }
-    function showStreamBanner(show) {
-      document.getElementById('streamBanner').classList.toggle('show', show);
+    function showStreamBanner(show, message) {
+      const banner = document.getElementById('streamBanner');
+      if (message) banner.textContent = message;
+      banner.classList.toggle('show', show);
     }
     function closeEventStream() {
       if (eventSource) eventSource.close();
@@ -198,6 +204,9 @@
       streamText = '';
       streamRunId = null;
       streamTerminal = null;
+      streamComplete = false;
+      streamIncomplete = false;
+      streamInterruption = null;
       showStreamBanner(false);
     }
     function streamBody() {
@@ -217,6 +226,16 @@
       streamItem.appendChild(body);
       chat.appendChild(streamItem);
     }
+    function markStreamIncomplete(reason) {
+      streamIncomplete = true;
+      streamComplete = false;
+      streamInterruption = reason || 'stream_incomplete';
+      ensureStreamItem();
+      const who = streamItem && streamItem.querySelector('.who');
+      if (who) who.textContent = 'Builder · 不完整 / 已中断';
+      showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
+      renderBusyStatus();
+    }
     function handleStreamDelta(message) {
       let envelope;
       try { envelope = JSON.parse(message.data); } catch (_) { return; }
@@ -234,8 +253,17 @@
       const terminal = envelope.event;
       if (!terminal || terminal.type !== 'terminal' || terminal.run_id !== streamRunId) return;
       streamTerminal = terminal.response || {};
+      streamComplete = false;
       const status = streamTerminal.status || 'unknown';
-      if (streamItem) {
+      if (streamIncomplete) {
+        ensureStreamItem();
+        const who = streamItem.querySelector('.who');
+        const body = streamBody();
+        if (who) who.textContent = 'Builder · 不完整 / 已中断';
+        if (body) {
+          body.textContent = streamText + '\n\n（流式不完整或已中断；本轮不标记完成，请以 receipt 为准。终态：' + status + '）';
+        }
+      } else if (streamItem) {
         const who = streamItem.querySelector('.who');
         const body = streamBody();
         if (status === 'completed') {
@@ -250,14 +278,28 @@
           if (body) body.textContent = streamText + '\n\n（已中断：' + status + '）';
         }
       }
+      if (!streamIncomplete && status === 'completed') streamComplete = true;
       closeEventStream();
-      showStreamBanner(false);
+      if (streamIncomplete) {
+        showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
+      } else {
+        showStreamBanner(false);
+      }
       running = false;
       renderBusyStatus();
       refresh().catch(() => {});
     }
-    function handleStreamError() {
-      showStreamBanner(true);
+    function handleStreamGap(message) {
+      let gap = {};
+      try { gap = JSON.parse(message.data); } catch (_) {}
+      if (gap.run_id && streamRunId && gap.run_id !== streamRunId) return;
+      markStreamIncomplete(gap.reason || 'stream_gap');
+      refresh().catch(() => {});
+    }
+    function handleStreamError(message) {
+      let payload = {};
+      try { payload = JSON.parse(message.data); } catch (_) {}
+      markStreamIncomplete(payload.error || 'stream_error');
       refresh().catch(() => {});
     }
     function ensureEventStream(session) {
@@ -280,7 +322,11 @@
         source.onopen = () => {
           opened = true;
           clearTimeout(timer);
-          showStreamBanner(false);
+          if (streamIncomplete) {
+            showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
+          } else {
+            showStreamBanner(false);
+          }
           resolve();
           refresh().catch(() => {});
         };
@@ -289,11 +335,13 @@
             clearTimeout(timer);
             reject(new Error('stream_connect_failed'));
           }
-          showStreamBanner(true);
+          markStreamIncomplete('stream_connect_failed');
+          showStreamBanner(true, '流式连接不完整或已中断；正在重连，请以 receipt 为准。');
           refresh().catch(() => {});
         };
         source.addEventListener('delta', handleStreamDelta);
         source.addEventListener('terminal', handleStreamTerminal);
+        source.addEventListener('stream_gap', handleStreamGap);
         source.addEventListener('stream_error', handleStreamError);
       });
       return eventSourceOpen;
@@ -301,8 +349,19 @@
     function renderBusyStatus() {
       const busy = running || runPending;
       const st = document.getElementById('status');
-      st.textContent = busy ? 'running' : 'idle';
-      st.className = 'pill ' + (busy ? 'run' : 'ok');
+      if (busy) {
+        st.textContent = 'running';
+        st.className = 'pill run';
+      } else if (streamIncomplete) {
+        st.textContent = 'incomplete';
+        st.className = 'pill bad';
+      } else if (streamComplete) {
+        st.textContent = 'complete';
+        st.className = 'pill ok';
+      } else {
+        st.textContent = 'idle';
+        st.className = 'pill ok';
+      }
     }
     function syncPolling() {
       const streamActive = eventSource && eventSource.readyState === EventSource.OPEN;
@@ -330,11 +389,18 @@
       document.getElementById('files').textContent = files.length ? files.join('\n') : '还没有 fileChange。';
       const thread = s.thread || { turns: [], name: 'New thread' };
       const lastTurn = (thread.turns || []).slice(-1)[0];
+      const lastTurnStatus = streamIncomplete && streamRunId && lastTurn && lastTurn.id === streamRunId
+        ? 'incomplete / interrupted (receipt authoritative)'
+        : (lastTurn ? lastTurn.status : 'idle');
+      const streamState = streamIncomplete
+        ? 'incomplete / interrupted (' + (streamInterruption || 'unknown') + '; receipt authoritative)'
+        : (streamComplete ? 'complete' : 'not complete');
       document.getElementById('progress').textContent =
         'thread ' + (thread.name || 'New thread') + '\n' +
         'turns ' + ((thread.turns || []).length) + '\n' +
-        'status ' + (lastTurn ? lastTurn.status : 'idle') + '\n' +
-        'streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
+        'status ' + lastTurnStatus + '\n' +
+        'stream ' + streamState + '\n' +
+        'transport streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
       const box = document.getElementById('sessions');
       box.innerHTML = '';
       (s.threads || s.sessions || []).forEach(item => {
@@ -363,6 +429,7 @@
         return;
       }
       promptEl.value = '';
+      if (streamTerminal || streamIncomplete) clearStreamProjection();
       runPending = true;
       renderBusyStatus();
       syncPolling();

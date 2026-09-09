@@ -1,3 +1,4 @@
+use futures_util::StreamExt;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -356,6 +357,207 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
     let _ = child.kill().await;
 }
 
+#[tokio::test]
+async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
+    let root = git_fixture();
+    let home = isolated_home();
+    let script = unique_dir("reconnect-script").join("script.json");
+    fs::write(
+        &script,
+        r#"[{"text":"first chunk","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"sleep 2"}}]},{"text":" second chunk"}]"#,
+    )
+    .unwrap();
+    let mut child = TokioCommand::from(kiana_base(&root, &home))
+        .env("KIANA_HARNESS_SCRIPT", &script)
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+
+    let url = wait_for_url(child.stdout.take().expect("stdout")).await;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+    let page = client.get(&url).send().await.unwrap().text().await.unwrap();
+    let token = page
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("web token")
+        .to_owned();
+    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+
+    let state: Value = auth(client.get(format!("{url}/api/state")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let session_id = state["session_id"].as_str().expect("session id").to_owned();
+    let events_url = format!(
+        "{url}/api/events?session_id={}&token={}",
+        urlencoding_encode(&session_id),
+        urlencoding_encode(&token)
+    );
+    let trusted: Value = auth(
+        client
+            .post(format!("{url}/api/trust"))
+            .json(&serde_json::json!({ "session_id": session_id })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(trusted["trusted"], true, "{trusted}");
+
+    let first_response = client.get(&events_url).send().await.unwrap();
+    assert_eq!(first_response.status(), reqwest::StatusCode::OK);
+    let mut first_stream = first_response.bytes_stream();
+    let mut first_buffer = Vec::new();
+
+    let run_task = tokio::spawn({
+        let client = client.clone();
+        let url = url.clone();
+        let token = token.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .post(format!("{url}/api/run"))
+                .header("x-kiana-web-token", token)
+                .json(&serde_json::json!({
+                    "prompt": "stream then sleep",
+                    "session_id": session_id,
+                }))
+                .send()
+                .await
+                .unwrap()
+                .json::<Value>()
+                .await
+                .unwrap()
+        }
+    });
+
+    let (first_name, first_event) = tokio::time::timeout(
+        Duration::from_secs(10),
+        next_sse_event(&mut first_stream, &mut first_buffer),
+    )
+    .await
+    .expect("first SSE delta timeout");
+    assert_eq!(first_name, "delta", "{first_event}");
+    assert_eq!(first_event["event"]["text"], "first chunk", "{first_event}");
+    drop(first_stream);
+
+    let second_response = client.get(&events_url).send().await.unwrap();
+    assert_eq!(second_response.status(), reqwest::StatusCode::OK);
+    let mut second_stream = second_response.bytes_stream();
+    let mut second_buffer = Vec::new();
+    let mut second_events = Vec::new();
+    loop {
+        let event = tokio::time::timeout(
+            Duration::from_secs(10),
+            next_sse_event(&mut second_stream, &mut second_buffer),
+        )
+        .await
+        .expect("reconnected SSE event timeout");
+        let terminal = event.0 == "terminal";
+        second_events.push(event);
+        if terminal {
+            break;
+        }
+    }
+
+    let run = run_task.await.unwrap();
+    assert_eq!(run["response"]["status"], "completed", "{run}");
+    assert_eq!(
+        second_events.first().map(|event| event.0.as_str()),
+        Some("stream_gap"),
+        "{second_events:?}"
+    );
+    assert_eq!(
+        second_events[0].1["run_id"], session_id,
+        "{second_events:?}"
+    );
+    assert_eq!(
+        second_events[0].1["reason"], "subscription_attached_after_run_started",
+        "{second_events:?}"
+    );
+    let replayed_first_chunks = second_events
+        .iter()
+        .filter(|(name, data)| name == "delta" && data["event"]["text"] == "first chunk")
+        .count();
+    assert_eq!(
+        replayed_first_chunks, 0,
+        "reconnect must not replay already-delivered delta items: {second_events:?}"
+    );
+    let reconnected_deltas = second_events
+        .iter()
+        .filter(|(name, _)| name == "delta")
+        .map(|(_, data)| data["event"]["text"].as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        reconnected_deltas,
+        vec![" second chunk".to_owned()],
+        "{second_events:?}"
+    );
+    let (terminal_name, terminal) = second_events.last().expect("terminal event");
+    assert_eq!(terminal_name, "terminal", "{second_events:?}");
+    assert_eq!(
+        terminal["event"]["response"]["status"], "completed",
+        "{terminal}"
+    );
+
+    let _ = child.kill().await;
+}
+
+#[tokio::test]
+async fn web_sse_unknown_session_connection_fails_closed_with_explicit_error() {
+    let root = git_fixture();
+    let home = isolated_home();
+    let mut child = TokioCommand::from(kiana_base(&root, &home))
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+
+    let url = wait_for_url(child.stdout.take().expect("stdout")).await;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+    let page = client.get(&url).send().await.unwrap().text().await.unwrap();
+    let token = page
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("web token");
+
+    let response = client
+        .get(format!(
+            "{url}/api/events?session_id=missing-session&token={}",
+            urlencoding_encode(token)
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["error"], "session_unknown", "{body}");
+
+    let _ = child.kill().await;
+}
+
 fn urlencoding_encode(value: &str) -> String {
     value
         .bytes()
@@ -390,6 +592,55 @@ fn parse_sse_events(body: &str) -> Vec<(String, Value)> {
         }
     }
     events
+}
+
+async fn next_sse_event<S, B, E>(stream: &mut S, buffer: &mut Vec<u8>) -> (String, Value)
+where
+    S: futures_util::Stream<Item = Result<B, E>> + Unpin,
+    B: AsRef<[u8]>,
+    E: std::fmt::Debug,
+{
+    loop {
+        if let Some(event) = take_sse_event(buffer) {
+            return event;
+        }
+        let chunk = stream
+            .next()
+            .await
+            .expect("SSE stream ended before the next event")
+            .expect("SSE chunk");
+        buffer.extend_from_slice(chunk.as_ref());
+    }
+}
+
+fn take_sse_event(buffer: &mut Vec<u8>) -> Option<(String, Value)> {
+    let boundary = buffer.windows(4).position(|window| window == b"\r\n\r\n");
+    let (boundary, width) = match boundary {
+        Some(boundary) => (boundary, 4),
+        None => (buffer.windows(2).position(|window| window == b"\n\n")?, 2),
+    };
+    let block = buffer.drain(..boundary + width).collect::<Vec<_>>();
+    let block = String::from_utf8_lossy(&block);
+    let mut name = None;
+    let mut data = String::new();
+    for line in block.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.starts_with(':') {
+            continue;
+        }
+        if let Some(value) = line.strip_prefix("event:") {
+            name = Some(value.trim().to_owned());
+        } else if let Some(value) = line.strip_prefix("data:") {
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(value.trim_start());
+        }
+    }
+    match (name, data.is_empty()) {
+        (Some(name), false) => serde_json::from_str(&data).ok().map(|data| (name, data)),
+        _ => None,
+    }
 }
 
 #[tokio::test]

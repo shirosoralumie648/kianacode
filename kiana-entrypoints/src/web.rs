@@ -61,6 +61,7 @@ const MAX_WEB_ITEMS_PER_TURN: usize = 128;
 const MAX_WEB_SUMMARY_TEXT_BYTES: usize = 16 * 1024;
 const MAX_WEB_FILES_PER_TURN: usize = 256;
 const MAX_WEB_FILE_PATH_BYTES: usize = 1024;
+const STREAM_GAP_RUN_IN_PROGRESS: &str = "subscription_attached_after_run_started";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebLaunch {
@@ -495,7 +496,13 @@ async fn state(
 
 struct EventStreamState {
     subscription: kiana_daemon::RunStreamSubscription,
+    gap: Option<Event>,
     done: bool,
+}
+
+struct StreamAttachState {
+    run_id: RunId,
+    gap_reason: Option<&'static str>,
 }
 
 async fn events(
@@ -505,18 +512,25 @@ async fn events(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>> + Send + 'static>, ApiError> {
     authorize_sse(&app, &headers, query.token.as_deref())?;
     let session_id = resolve_session(&app, query.session_id.as_deref())?;
-    let run_id = stream_run_id(&app, &session_id)?;
+    let attach = stream_attach_state(&app, &session_id)?;
     // Subscribe before returning the SSE response headers. The browser waits for
     // EventSource.onopen before issuing /api/run, so the first delta is not lost.
-    let subscription = app.host.subscribe_run(run_id);
+    let subscription = app.host.subscribe_run(attach.run_id);
+    let gap = attach
+        .gap_reason
+        .map(|reason| stream_gap_sse_event(attach.run_id, reason));
     let stream = stream::unfold(
         EventStreamState {
             subscription,
+            gap,
             done: false,
         },
         |mut state| async move {
             if state.done {
                 return None;
+            }
+            if let Some(gap) = state.gap.take() {
+                return Some((Ok(gap), state));
             }
             loop {
                 match state.subscription.recv().await {
@@ -552,11 +566,39 @@ async fn events(
     Ok(Sse::new(Box::pin(stream)).keep_alive(KeepAlive::default()))
 }
 
+fn stream_attach_state(app: &WebApp, session_id: &str) -> Result<StreamAttachState, ApiError> {
+    let sessions = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+    let session = sessions
+        .get(session_id)
+        .ok_or_else(|| ApiError::bad("session_unknown"))?;
+    let run_id = session
+        .run_id
+        .or_else(|| RunId::parse_str(session_id))
+        .ok_or_else(|| ApiError::bad("web_stream_run_id_unavailable"))?;
+    Ok(StreamAttachState {
+        run_id,
+        gap_reason: session.running.then_some(STREAM_GAP_RUN_IN_PROGRESS),
+    })
+}
+
 fn run_stream_sse_event(name: &str, envelope: &RunStreamEnvelope) -> Event {
     let data = serde_json::to_string(envelope).unwrap_or_else(|error| {
         json!({ "error": format!("stream_serialize_failed:{error}") }).to_string()
     });
     Event::default().event(name).data(data)
+}
+
+fn stream_gap_sse_event(run_id: RunId, reason: &str) -> Event {
+    Event::default().event("stream_gap").data(
+        json!({
+            "run_id": run_id.to_string(),
+            "reason": reason,
+        })
+        .to_string(),
+    )
 }
 
 fn stream_error_sse_event(error: &str) -> Event {
@@ -762,20 +804,6 @@ fn authorize_web_request(
         }
     }
     Ok(())
-}
-
-fn stream_run_id(app: &WebApp, session_id: &str) -> Result<RunId, ApiError> {
-    let sessions = app
-        .sessions
-        .lock()
-        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-    let session = sessions
-        .get(session_id)
-        .ok_or_else(|| ApiError::bad("session_unknown"))?;
-    session
-        .run_id
-        .or_else(|| RunId::parse_str(session_id))
-        .ok_or_else(|| ApiError::bad("web_stream_run_id_unavailable"))
 }
 
 fn authorize_host(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
@@ -1186,6 +1214,76 @@ mod tests {
         assert_eq!(launch.sandbox, "workspace-write");
         assert!(launch.no_open);
         assert_eq!(launch.bind, DEFAULT_BIND);
+    }
+
+    #[test]
+    fn web_page_does_not_mark_turn_complete_before_terminal_event() {
+        let delta_handler = PAGE
+            .find("function handleStreamDelta")
+            .expect("delta handler");
+        let terminal_handler = PAGE
+            .find("function handleStreamTerminal")
+            .expect("terminal handler");
+        let gap_handler = PAGE.find("function handleStreamGap").expect("gap handler");
+        assert!(delta_handler < terminal_handler);
+        assert!(!PAGE[delta_handler..terminal_handler].contains("streamComplete = true"));
+        assert!(PAGE[terminal_handler..gap_handler]
+            .contains("if (!streamIncomplete && status === 'completed') streamComplete = true;"));
+        assert!(PAGE.contains("let streamComplete = false;"));
+        assert!(PAGE.contains("streamComplete ? 'complete' : 'not complete'"));
+    }
+
+    #[test]
+    fn web_page_marks_stream_gap_and_stream_error_as_incomplete_receipt_authoritative() {
+        let gap_handler = PAGE.find("function handleStreamGap").expect("gap handler");
+        let error_handler = PAGE
+            .find("function handleStreamError")
+            .expect("error handler");
+        let event_stream = PAGE
+            .find("function ensureEventStream")
+            .expect("event stream");
+        assert!(gap_handler < error_handler);
+        assert!(error_handler < event_stream);
+        assert!(PAGE[gap_handler..error_handler]
+            .contains("markStreamIncomplete(gap.reason || 'stream_gap')"));
+        assert!(PAGE[error_handler..event_stream]
+            .contains("markStreamIncomplete(payload.error || 'stream_error')"));
+        assert!(PAGE.contains("source.addEventListener('stream_gap', handleStreamGap);"));
+        assert!(PAGE.contains("source.addEventListener('stream_error', handleStreamError);"));
+        assert!(PAGE.contains("'Builder · 不完整 / 已中断'"));
+        assert!(PAGE.contains("请以 receipt 为准"));
+        assert!(PAGE.contains("markStreamIncomplete('stream_connect_failed')"));
+    }
+
+    async fn sse_event_body(event: Event) -> String {
+        let response =
+            Sse::new(futures_util::stream::iter(vec![Ok::<_, Infallible>(event)])).into_response();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(body.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn web_sse_gap_event_is_machine_readable_with_run_id_and_reason() {
+        let run_id = RunId::new();
+        let body = sse_event_body(stream_gap_sse_event(run_id, STREAM_GAP_RUN_IN_PROGRESS)).await;
+        assert!(body.contains("event: stream_gap"), "{body}");
+        assert!(body.contains(&format!("\"run_id\":\"{run_id}\"")), "{body}");
+        assert!(
+            body.contains("\"reason\":\"subscription_attached_after_run_started\""),
+            "{body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn web_sse_connection_failure_emits_explicit_stream_error_event() {
+        let body = sse_event_body(stream_error_sse_event("stream_closed_before_terminal")).await;
+        assert!(body.contains("event: stream_error"), "{body}");
+        assert!(
+            body.contains("\"error\":\"stream_closed_before_terminal\""),
+            "{body}"
+        );
     }
 
     #[tokio::test]
