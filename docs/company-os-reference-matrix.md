@@ -6,10 +6,10 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：外部 Agent 项目"学什么、不学什么"的速查表，对照 [`reference-agent-audit/`](reference-agent-audit/README.md) 的 26 项目审计清单——每项能力的首选参考项目、可吸收的具体设计、Kiana 的边界约束，以及明确排除的模式（自由消息总线、无限 Swarm 等）。
-> - **覆盖**：§3 小结覆盖 24 个结构化审计项目；MemPalace、memorix 仅目录级参考，未做结构化审计。
+> - **讲什么**：外部 Agent 项目"学什么、不学什么"的速查表，对照 [`reference-agent-audit/`](reference-agent-audit/README.md) 的 26 份结构化审计，以及 `reference/` 中尚未结构化审计的目录级参考——每项能力的首选参考项目、可吸收的具体设计、Kiana 的边界约束，以及明确排除的模式（自由消息总线、无限 Swarm 等）。
+> - **覆盖**：§3 按项目小结并标注审计状态与最后核验日；26 份结构化审计的逐项目覆盖状态、最后核验日与基准 commit 以审计 README 的覆盖状态表为准。grok-build、temporal、beads、claude-task-master、graphiti、mem0、container-use、gastown、a2a、spec-kit、OpenSpec 等目前只做目录级参考，补审计是待办（本轮不执行）。
 > - **回答的问题**："这个功能别人是怎么做的、我们学哪部分、坚决不学哪部分。"
-> - **注意**：参考项目里存在某个实现，不等于 Kiana 已实现或应该照抄。
+> - **注意**：参考项目里存在某个实现，不等于 Kiana 已实现或应该照抄；**目录里有不等于已审计**。
 > - **什么时候读**：设计新能力前找参考时；配合 [`reference-agent-audit/`](reference-agent-audit/README.md) 的逐项目审计使用。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
@@ -50,6 +50,7 @@
 | History/UI 分离 | Roo Code | model history 与 UI timeline 分开，恢复补齐悬空 tool result | 不从 transcript 推断 Invocation 状态 | P1 |
 | History tree | Pi | append-only JSONL tree、fork/resume/compaction | 增加 CAS、ACL、provenance 和 Receipt | P1 |
 | Versioned RunState / resume | openai-agents-python | 版本化 RunState 覆盖 approval、trace、sandbox、max turns、pending input，未知版本 fail fast；resume 不重复写 tool | Kiana durable RunSnapshot + 迁移/拒绝策略；跨进程恢复仍是 deferred | P1 |
+| 隔离 / 检查点 | container-use、gastown | environment 状态机与「所有副作用经 environment」、checkpoint 字段、estop 熔断 | 首发状态层 + 编辑级 undo（复用 apply_patch 前置快照），文件层 shadow git 列为第二阶段；只取本地形状，不引入 Dagger / town-mail | P1 |
 | Prompt/context compression | OpenCode、Goose | context processor、checkpoint、重试和压缩边界 | compaction 不覆盖原始事件 | P1 |
 | Prompt cache | Claude API cache pattern | stable prefix、deterministic tool order、usage telemetry | 当前无真实 Provider 命中证明 | P1 |
 | Tool runtime | DeepSeek Harness | Central ToolRuntime、schema/approval/执行集中 | 搜索、Policy、Broker、Executor 仍分层 | P1 |
@@ -62,19 +63,32 @@
 | Agent loop 设计检查表（factor 1–8） | 12-factor-agents | 结构化下一步选择、源码自有 prompt/context、统一执行状态、start-pause-resume、human-as-tool | 教育性示例，不是运行时；Kiana 仍需 ControlPlane 状态机和持久事件 | P2 |
 | 审批暂停 / 恢复演示 | 12-factor-agents | divide 需审批时返回调用方，`/thread/:id/response` 恢复同一 thread | 示例端点无认证、无幂等、无重启恢复，禁止照搬 | P2 |
 | YAML/DAG process | Archon | fresh context、确定性节点、人工 Gate、worktree | YAML 是配置，不是权限和事实源 | P2 |
+| Workflow 确定性 / 重放 | grok-build、Temporal Python SDK | journal（req_hash + 稠密 seq + Divergence fail-closed）、history replay、可注入时钟与 logic_version 分支 | 只取本地重放语义，不引入服务端 / 第二运行时；未知版本 fail-closed；重放只做只读投影 | P0/P1 |
+| Spec 工件 / validate 门禁 | spec-kit、OpenSpec | 工件模板链、ArtifactGraph（generates / requires）、validate --strict / --json、Constitution Check 门禁 | 工件图由 ControlPlane 拥有；validate 是只读门禁，不新增模型可见工具 | P1 |
 | Workflow graph | ChatDev 2 / MacNet | node 可连接 memory/human/tool | 不复用共享 ChatChain 作为状态 | P2 |
 | Runtime/team separation | AutoGen | RequestToSpeak、progress ledger、有界 turns | 不采用无限 group chat | P2 |
 | Role-based team | MetaGPT | PM/Architect/Engineer/QA 角色与工件 | 不采用全员广播 Environment | P3 |
 | Directed handoff | Agency Swarm | communication flows、handoff 与 orchestrator-worker | 使用 WorkPacket/DelegationPacket，不使用自由 SendMessage | P3 |
+| 协议 / Task 状态机 | a2a | Task / TaskState / Message 的字段形状与 Kiana 状态映射 | 只取字段形状与状态映射；对外声明 push_notifications=false / streaming=false，不做远程 transport | P1 |
 | Fan-out/fan-in | AutoGen、Agency Swarm | 定向分工、结果聚合、max turns | 必须有 partition、budget、TTL、merge 和 retire | P3 |
 | Project task state | gpt-pilot | task/command state chain | 文件与事件事务边界必须显式 | P1/P2 |
+| 任务图 / 依赖就绪 | beads、claude-task-master | 单一 `ready_packets` 谓词、blocked 不动点、环检测、claim / lease 心跳回收 | 依赖用显式 `WorkPacket.dependencies` 字段，不从 packet 文本解析；`ready_packets` 与 PathLock 写死「规划期检查 + 运行期兜底」；ready 只是查询，许可仍由 ControlPlane 产生 | P0 |
 | Code repository map | Aider | 结构化 repo map、相关文件选择 | stale index 必须带 freshness，不能伪装最新 | P1 |
 | Client replay | Letta Code、Crush | cursor、seq/epoch、terminal result 必达 | 当前 Web 不宣称 token streaming | P2/P4 |
 | Golden lifecycle tests | DeepSeek、Cline、OpenCode | fake model、effect test、dispatch race | 失败/拒绝/Unknown 和成功都要覆盖 | P0 |
 | Cost/usage | Agno、DeepSeek | run usage、token/cost/step 计量 | 成本不能抵消安全或证据失败 | P1 |
 | Lessons/memory | MemPalace、memorix（仅目录级参考，未做结构化审计） | diary、retro、lessons 写回 | 需要 ACL、purpose、retention 和 provenance | P1/P2 |
+| 记忆时间维度 | graphiti、mem0 | valid_from / valid_to / expired_at、新事实失效旧边并保留历史、内容 hash 去重与 ADD/UPDATE/DELETE 生命周期 | 检索分数只进排序、不参与授权；来源服务端派生、模型写默认 candidate；instance-scratch 默认可见、持久层默认不可检索 | P1 |
 
 ## 3. 按项目总结
+
+> **审计状态与核验口径**：本节「已审计」严格指 [`reference-agent-audit/`](reference-agent-audit/README.md) 中存在结构化源码审计报告；**目录里有不等于已审计**。逐项目的覆盖状态、最后核验日与基准 commit 以审计 README 的覆盖状态表为准。维护口径（决策记录 #8）：结构化审计 + 最后核验日 + 只核对被引用路径，不做每次全量重审。
+>
+> - **已核验仍有效**（自审计日 2026-08-25/26 以来 0 提交）：roo-code、aider、continue、claude-code-rust、gpt-pilot、autogen、ChatDev、MetaGPT、12-factor-agents。
+> - **边缘漂移，只核对被引用路径**：crush、opencode。
+> - **已过时，待重审**：codex、deepseek-harness、adk-python、goose、agent-framework；顺序见审计 README 待办。
+> - **目录级参考，未结构化审计**：本节的 grok-build、Temporal、beads、claude-task-master、graphiti、mem0、container-use、gastown、a2a、spec-kit、OpenSpec，只用于提出可验证假设，采用前必须回 Kiana 的 ControlPlane / EventLog / fixture 重新验证。
+> - **明确排除**：`promptfoo-full` 的远程地址配置指向本仓自身，无法核对上游，不作为参考来源。
 
 ### DeepSeek Harness
 
@@ -224,6 +238,62 @@
 
 不直接复制：全员广播、自由私聊和把自然语言消息当正式交接。
 
+### grok-build（目录级参考，未结构化审计）
+
+适合借鉴：xai-workflow 的 journal（req_hash、稠密 seq、Divergence fail-closed 与 replay）、xai-hunk-tracker 的 Agent vs External hunk 归因、CoW / btrfs 快照与 worktree pool、Landlock / Seatbelt + 子进程 seccomp、events.jsonl 与 EventTracker。
+
+不直接复制：其 provider、voice、dashboard、遥测与远程服务。
+
+审计状态：目录级参考；新增 `27-grok-build.md` 结构化审计是待办（S-2，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
+### Temporal Python SDK（目录级参考，未结构化审计）
+
+适合借鉴：本地 history-replay 语义、activity / workflow 边界、确定性限制、Replayer 差分检测、可持久化的 RetryPolicy / TimeoutPolicy。
+
+不直接复制：服务端 / 集群运行时；Kiana 只取本地重放与策略形状。
+
+审计状态：目录级参考；结构化审计待办（S-3，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
+### beads、claude-task-master（目录级参考，未结构化审计）
+
+适合借鉴：beads 的单一 ready 谓词、blocked 不动点、环检测、claim / lease 冲突类型；claude-task-master 的 eligibility = 状态合法 + 全部依赖 done、DFS 找环。
+
+不直接复制：Dolt 后端、模型驱动规划；依赖边必须来自 `WorkPacket.dependencies` 显式字段。
+
+审计状态：目录级参考；结构化审计待办（beads 见 S-3、claude-task-master 见 S-6，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
+### graphiti、mem0（目录级参考，未结构化审计）
+
+适合借鉴：graphiti 的 valid_at / invalid_at / expired_at 双时间与「新事实失效旧边、保留历史」；mem0 的内容 hash 去重与 ADD / UPDATE / DELETE 生命周期。
+
+不直接复制：Neo4j / 向量库依赖、模型驱动的 add / update / delete；检索分数只进排序、来源由服务端派生。
+
+审计状态：目录级参考；结构化审计待办（S-3，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
+### container-use、gastown（目录级参考，未结构化审计）
+
+适合借鉴：container-use 的 environment 状态机与「所有副作用经 environment」；gastown 的 checkpoint 字段与 estop 熔断。
+
+不直接复制：Dagger；gastown 的 mail / nudge / mayor 属于冻结的自由消息总线，只取 checkpoint / estop。
+
+审计状态：目录级参考；结构化审计待办（container-use 见 S-3、gastown 见 S-6，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
+### a2a（目录级参考，未结构化审计）
+
+适合借鉴：Task / TaskState / Message 的字段形状与 Kiana 状态映射。
+
+不直接复制：push notification、streaming、SubscribeToTask 等远程传输层（冻结项）；对外声明 push_notifications=false / streaming=false，取消不写 CANCELED 终态。
+
+审计状态：目录级参考；结构化审计待办（S-3，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
+### spec-kit、OpenSpec（目录级参考，未结构化审计）
+
+适合借鉴：spec-kit 的工件模板链、Constitution Check 门禁；OpenSpec 的 ArtifactGraph（generates / requires）、validate --strict / --json、需求级 diff。
+
+不直接复制：把编排权交给模型；工件图只能由 ControlPlane 拥有，validate 是只读门禁。
+
+审计状态：目录级参考；结构化审计待办（S-3，本轮不执行）。最后核验日：2026-09-08（仅确认目录与引用路径，未审计）。
+
 未单列小节的审计项目：`claude-code-rust`（反面教材，见 [`coding-pack-matrix.md`](coding-pack-matrix.md) §8）与 `gpt-pilot`（见 §2 的 Project task state 行）。
 
 ## 4. 推荐吸收顺序
@@ -253,7 +323,9 @@ P3  AutoGen + Agency Swarm + MetaGPT + ChatDev
 - 让 Markdown transcript、UI timeline 或缓存取代 Event Store；
 - 把普通 shell 或自动安装依赖作为无条件能力；
 - 在未有真实 adapter、幂等、对账和人工安全控制前实现支付、IoT 或物理动作；
-- 用参考目录的代码规模推断 CompanyOS 功能完整度。
+- 用参考目录的代码规模推断 CompanyOS 功能完整度；
+- 把 `promptfoo-full` 当作参考来源——其远程地址配置指向本仓自身，无法核对上游，明确排除；
+- 把「目录里有」当成「已审计」——审计状态只以 [`reference-agent-audit/README.md`](reference-agent-audit/README.md) 的覆盖状态表为准。
 
 ## 6. Reference 使用记录
 
