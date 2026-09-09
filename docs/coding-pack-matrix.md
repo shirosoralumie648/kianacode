@@ -165,7 +165,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 | FZ-JOINT | JointSymposium（五部门联合会议） | §6 SYMP-04 只开部门会，规划会仍排除 Builder；联合会议不是产品总线 | 仍冻结，重开需书面决定 |
 | FZ-SWARM | ruflo Queen / 15–100 agent / 共享 swarm memory | 同核 path lock 已绿（ORCH-04）；Queen/worktree 仍后开 | v0.6 later |
 | FZ-MCP-HTTP | HTTP MCP transport | 产品边界是 stdio（CODE-02 已绿仅 stdio）；HTTP 返回 `mcp_transport_unsupported` | 冻结到有传输安全、审批绑定和 daemon 回归证据；重开需书面决定 |
-| FZ-LIVE | live provider 接入 / token streaming 当完成 | 证明上限仍是 `local_behavior`（§0.4 第 6 条）；P0-PROV 只到 fake text-only / `unsupported_tools`，harness 仍 `stream: Some(false)` | 冻结到有真实 provider adapter、对账和证据块；重开需书面决定 |
+| FZ-LIVE | live provider 接入 / token streaming 当完成 | 证明上限仍是 `local_behavior`（§0.4 第 6 条）；P0-PROV 只到 fake text-only / `unsupported_tools`，harness 仍 `stream: Some(false)` | **2026-09-09 已按书面决定解冻**：范围＝token streaming 全链路（三个界面）、证明上限＝必须到 `live`（真实 provider adapter + 对账 + 证据块）；见 [`streaming-unfreeze-plan.md`](streaming-unfreeze-plan.md) §8。其余 live provider 能力（批处理、文件接口等）继续冻结 |
 | FZ-ENT | 租户 / SSO / 托管策略 / 官方云 | git 里没有「先企业再写盘」 | v1.x |
 | FZ-104 | 恢复旧 104 req 语料 | 已删；本矩阵替代 | 永远不 |
 

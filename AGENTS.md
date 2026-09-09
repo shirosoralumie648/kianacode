@@ -163,8 +163,8 @@ kiana-entrypoints
   只在它真的挡住主路径时才拆，且需要先说明。
 - **不许把 `kiana-tools` 的 50+ 工具接到 harness**（FZ-TOOLS）。
 - **不许实现 TeamCreate / SendMessage 自由消息总线**（FZ-TEAM，永久）。
-- **不许打开** HTTP MCP（当前返回 `mcp_transport_unsupported`）、live provider、
-  token streaming、支付/外卖/打车/订票/IoT、企业租户与远程执行。
+- **不许打开** HTTP MCP（当前返回 `mcp_transport_unsupported`）、支付/外卖/打车/订票/IoT、企业租户与远程执行。
+- **live provider 与 token streaming 已于 2026-09-09 按书面决定解冻**（范围＝流式全链路、三个界面；证明上限必须到 `live`；开发期 opt-in、默认关闭）。条件与切片见 [`docs/streaming-unfreeze-plan.md`](docs/streaming-unfreeze-plan.md) §8–§9；其余 provider 能力（批处理、文件接口等）仍冻结。
 - **不许让 Builder 列席规划会或监控会**；这两条 attendee 边界已冻结。
 - **不许把 `reference/claude-code-rev-main`、`claude-code-main` 的源码复制进来**——
   前者许可证不明，后者是 Anthropic 专有；只允许模块名与公开行为对照。
