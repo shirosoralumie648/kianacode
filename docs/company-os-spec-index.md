@@ -146,8 +146,19 @@
 | `ArtifactGraph` / `workflow validate` | 版本化工件图（`id` / `generates` / `template` / `requires`）；apply 只认 requires 传递闭包，缺依赖 blocked；`kiana workflow validate --json` 只读门禁 | `kiana-workflow` | `kiana-workflow` / `kiana-core` | target |
 | `MemoryRecord` 扩展字段 | 服务端派生 `origin`、`review_state`、`admission_state`（candidate / qualified / ephemeral，与 `status` 正交）；instance-scratch 默认可见，持久层 candidate 默认不可检索 | `kiana-query` / ports | `kiana-query` / `kiana-daemon` | target |
 | `ExtensionManifest` 扩展字段 | `effect`（read-only / read-write）、`required_capabilities`、`content_hash` / `signature`；声明 ≠ 授权，安装时校验 | `kiana-skills` / `kiana-types` | broker / `kiana-daemon` | target |
+| `ReplayContract`（`logic_version` / patch marker / `kiana replay`） | 只读折叠该 Run 的事件，比对 `(invocation_id, attempt, input_digest, 状态, error_code)` 序列，首个不一致即 divergence point 并阻断发布；未知 `logic_version` fail-closed 拒绝重放；`kiana replay` 只是 CI / 测试入口，**不是模型可见工具**，不重跑副作用、不调用模型 | `kiana-workflow` / `kiana-domain` | `kiana-core` / `kiana-eventlog` | target |
+| `ConstrainedValue` / `RequirementSource`（档位与来源） | approval policy 与 permission profile / sandbox 档位是「受约束的值 + 来源」；更严格来源存在时放宽被拒；界面只投影 `can_set` / `disabled_reason` | `kiana-policy` | `kiana-core` / `kiana-entrypoints` | target |
 
 字段与状态机分别见 [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.10–§4.13、[`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4.1 / §5.3 / §8.2、[`company-os-design.md`](company-os-design.md) §10.4、[`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §9.1 / §9.5。
+
+**重复机制的单一权威**：以下机制在多份文档中都有描述，但权威定义只有一个，其余文档只引用：
+
+| 机制 | 唯一权威 | 只引用不重定义的文档 |
+|---|---|---|
+| 就绪谓词 `ready_packets(graph, now)` 与依赖图不变量 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) | design §5.1 / §9.2、platform §9.2、implementation-outline Slice D |
+| 重试 / 超时字段（`RetryPolicy` / `TimeoutPolicy`） | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4.4 | operations §8.5 |
+| 可恢复事件桥参数（尾页锚点 / `after_event_id` / 退避） | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §10.2 | ui-ux §7.2 |
+| 审批作用域四级阶梯（once / turn / session / policy） | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.13 | ui-ux §5.3、design §10.1、implementation-outline Slice F |
 
 ## 5. 入口与依赖边界
 

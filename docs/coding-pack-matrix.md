@@ -155,7 +155,7 @@ P0 搜索策略（锁死）：Claude Code 教程把「按文件名 / 正则搜�
 
 | ID | 行为 / 目录 | 为什么冻 | 直到 |
 |---|---|---|---|
-| FZ-TEAM | dump `TeamCreateTool` `SendMessageTool`；本仓 `kiana-coordinator` | 自由群聊总线。跨部门只交 packet | **永远**不当产品总线 |
+| FZ-TEAM | dump `TeamCreateTool` `SendMessageTool`；本仓 `kiana-coordinator` | 自由群聊总线。跨部门只交 packet；委派是 ControlPlane 的 assign / handoff 操作（不是第六个模型工具），且受 `max_turns` / `max_messages` / `termination_predicate` / `handoff_allowlist` 约束 | **永远**不当产品总线 |
 | FZ-TOOLS | 把 `kiana-tools` 50+ 接到 harness | 完成定义会变成工具数。owned harness 是 Codex 形 broker 工具面（`shell` + `apply_patch` + `mcp` + `memory.search` / `memory.write`） | 永远不按「接上」完成；单点能力走 broker |
 | FZ-DUMP | `reference/claude-code-rev-main/src/**` 当实现 | 无 git 的还原树；许可证不清 | 永远只许模块名对照 |
 | FZ-CCMAIN | `reference/claude-code-main (2)` 源码复用 | Anthropic Commercial ToS | 永远只许公开 README/插件叙事 |

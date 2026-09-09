@@ -10,7 +10,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：Agent 平台的九个"平面"——运行时（Session/Turn/Run/Invocation，含 pre-tool hook 位置、合法转移、可重建运行态、续跑材料与重试/超时策略、编辑后验证）、上下文与记忆（ContextPlan/Memory，含 promotion/expiry/collection、服务端派生 origin、admission/证据/双时态与 can_read/can_manage）、缓存与压缩（Prompt Cache/Compaction）、工具发现（CapabilityDescriptor/Tool Search/MCP，含失败恢复与 trust decision）、工作流（Workflow 确定性合同、replay divergence、ArtifactGraph 与 validate 门禁）、有界多 Agent（Swarm，含 Partition/MergeDecision、有界委派与 typed child failure）、Provider 网关（NormalizedEvent、客户端 epoch 与可恢复事件桥）、可观测与评测——每个平面的对象合同、硬性不变量和参考项目取舍。
+> - **讲什么**：Agent 平台的九个"平面"——运行时（Session/Turn/Run/Invocation，含 pre-tool hook 位置、合法转移、可重建运行态、续跑材料与重试/超时策略、编辑后验证、受约束档位与来源）、上下文与记忆（ContextPlan/Memory，含 promotion/expiry/collection、服务端派生 origin、admission/证据/双时态与 can_read/can_manage）、缓存与压缩（Prompt Cache/Compaction）、工具发现（CapabilityDescriptor/Tool Search/MCP，含失败恢复与 trust decision）、工作流（Workflow 确定性合同、replay divergence、ArtifactGraph 与 validate 门禁）、有界多 Agent（Swarm，含 Partition/MergeDecision、有界委派与 typed child failure）、Provider 网关（NormalizedEvent、客户端 epoch 与可恢复事件桥）、可观测与评测——每个平面的对象合同、硬性不变量和参考项目取舍。
 > - **回答的问题**："模型每次应该看到什么、工具怎么被发现和授权、并行怎么不失控、不同模型服务商的输出怎么统一、失败与重放凭什么可复现、重启后系统凭什么知道哪些 Run 在跑或在等审批。"
 > - **什么时候读**：实现运行时、记忆、MCP、工作流、Swarm 相关能力时按章节查阅；§3 的十条硬不变量值得所有人先通读一遍；规范与代码的已知冲突集中在 §16 开放决策。
 >
@@ -192,7 +192,7 @@ Pre-tool hook 合同（新增规范）：
 
 - workspace-write 类能力成功后，runner / daemon 可执行项目配置的 verify 命令（lint / test），把输出作为一条 observation 追加。
 - verify 命令必须走既有 capability broker / ControlPlane 通道并受 policy / sandbox 约束，**不是第二条执行路径**；不新增模型可见工具。
-- 失败时回灌并限次重试（例如 3 次），超限记事件并停止；`verify_commands` 由工作台 / Web 配置和开关。
+- 失败时回灌并限次重试（例如 3 次），超限记事件并停止；`verify_commands` 由工作台 / Web 配置和开关。**该重试属于模型反思回灌层，不消耗 §4.4 的 capability attempt 额度，也不改变「能力级默认单次尝试、非幂等禁止重试」的规则**——两者是不同层的重试，不得混为一谈。
 
 ### 4.3 参考项目与吸收决策
 
@@ -263,6 +263,17 @@ result_unknown              design §9.3 的 Unknown（wire/终态名以 result_
 - **单一写入者**：每次推进模型步之前，先把事件与状态 delta 作为一个持久化单元写入，runner await 到回执才继续；partial 输出不参与阻塞。
 
 **Per-session 运行状态（新增规范）**：运行状态是 ControlPlane 投影的一等可观察对象，至少包含 `idle` / `running` / `awaiting_approval` / `cancelling` / `retry`；`cancelling` 只是 UI 投影名，wire 名仍是 §4.4 的 `cancel_requested`。`retry` 状态必须带结构化信息（`attempt`、下一次时间戳、可读原因、可选行动），时间戳来自服务端而非本地计数。会话列表与状态栏据此渲染，不得用多个布尔量拼状态。
+
+### 4.5 受约束的档位与来源（新增）
+
+approval policy 与 permission profile / sandbox 档位是「受约束的值 + 来源」，不是可以随便设的自由字符串：
+
+- 每个档位携带来源（用户配置 / 项目配置 / 托管策略）；更严格的来源存在时，放宽策略的变更必须被拒绝；
+- 界面用 `can_set` 判定渲染 `disabled_reason`：被 trust / policy 钉死的档位显示原因，而不是隐藏或显示成可选；
+- 选择无沙箱 / full-access 档时必须二次确认，正文逐条写明后果（可修改任意文件、联网且不再逐次批准），默认焦点在 Cancel；
+- 确认只影响 UX；授权仍由 ControlPlane 判定，界面不得因此获得任何授权能力。
+
+档位取值与来源模型由 policy 层拥有（`kiana-policy`）；界面只投影 `can_set` / `disabled_reason`。
 
 ## 5. Context / Memory 平面
 

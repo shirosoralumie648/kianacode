@@ -602,6 +602,8 @@ cancel_requested → cancelled / result_unknown
 
 终态集合：`completed`、`failed`、`cancelled`、`denied`、`result_unknown`。
 
+`denied` 与 `cancelled` 的边界：`denied` 表示「这个请求被拒绝，但 Run 另有出路或继续」（例如非审批类的策略拒绝、能力被拒后模型换路）；`cancelled` 表示「取消已确认、Run 终止」。审批的「拒绝并继续」产生 `denied`，审批的「拒绝并中止」经 `cancel_requested` 产生 `cancelled`。两者不得互相代替，也不得把 `denied` 当作 Run 终止。
+
 非法转移包括：任何终态回到运行态；`cancel_requested → completed`；`awaiting_approval → running` 而未经有效审批决定；`result_unknown` 原地改判为 `completed`/`failed`/`cancelled`（只能经 reconciliation 追加新事实）。
 
 > **开放决策（实现缺口）**：当前 `kiana-domain::ExecutionStatus` 没有 `cancel_requested` 中间态，取消确认与 Unknown 的区分仍在 P1-02/P1-03 的 `partial` 范围内（见 `CURRENT_STATUS.md`）。

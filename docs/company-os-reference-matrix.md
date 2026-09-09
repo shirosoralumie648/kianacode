@@ -49,7 +49,7 @@
 | Context provider | Continue | 多入口共享 Core、history 和 context provider | 所有入口复用同一 ControlPlane | P1 |
 | History/UI 分离 | Roo Code | model history 与 UI timeline 分开，恢复补齐悬空 tool result | 不从 transcript 推断 Invocation 状态 | P1 |
 | History tree | Pi | append-only JSONL tree、fork/resume/compaction | 增加 CAS、ACL、provenance 和 Receipt | P1 |
-| Versioned RunState / resume | openai-agents-python | 版本化 RunState 覆盖 approval、trace、sandbox、max turns、pending input，未知版本 fail fast；resume 不重复写 tool | Kiana durable RunSnapshot + 迁移/拒绝策略；跨进程恢复仍是 deferred | P1 |
+| Versioned RunState / resume | openai-agents-python | 版本化 RunState 覆盖 approval、trace、sandbox、max turns、pending input，未知版本 fail fast；resume 不重复写 tool | Kiana 规范已定义 durable `RunSnapshot` + 调用账本 + 迁移/拒绝策略（见 [`company-os-spec-index.md`](company-os-spec-index.md) §4.4）；**实现层的跨进程恢复仍为 deferred** | P1 |
 | 隔离 / 检查点 | container-use、gastown | environment 状态机与「所有副作用经 environment」、checkpoint 字段、estop 熔断 | 首发状态层 + 编辑级 undo（复用 apply_patch 前置快照），文件层 shadow git 列为第二阶段；只取本地形状，不引入 Dagger / town-mail | P1 |
 | Prompt/context compression | OpenCode、Goose | context processor、checkpoint、重试和压缩边界 | compaction 不覆盖原始事件 | P1 |
 | Prompt cache | Claude API cache pattern | stable prefix、deterministic tool order、usage telemetry | 当前无真实 Provider 命中证明 | P1 |
