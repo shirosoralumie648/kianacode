@@ -147,18 +147,18 @@ fn run_routes_through_kiana_harness_and_reports_brokered_result() {
 }
 
 #[test]
-fn run_stream_flushes_each_delta_before_terminal_receipt() {
+fn run_streams_each_delta_by_default_before_terminal_receipt() {
     let script = harness_script(
         r#"[{"text":"first chunk","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"sleep 1"}}]},{"text":" second chunk"}]"#,
     );
     let cwd = unique_dir("stream-cwd");
     let home = isolated_home();
-    let mut child =
-        kiana_command_with_script(&cwd, &home, &script, &["run", "--stream", "stream it"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+    // 不传 --stream：覆盖 §8 决定的默认流式路径。
+    let mut child = kiana_command_with_script(&cwd, &home, &script, &["run", "stream it"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
 
     let mut stdout = child.stdout.take().unwrap();
     let (sender, receiver) = mpsc::channel();
@@ -233,7 +233,7 @@ fn run_without_stream_keeps_final_only_human_output() {
         &unique_dir("no-stream-cwd"),
         &isolated_home(),
         &script,
-        &["run", "hello"],
+        &["run", "--no-stream", "hello"],
     );
 
     assert!(output.status.success(), "{}", combined(&output));
