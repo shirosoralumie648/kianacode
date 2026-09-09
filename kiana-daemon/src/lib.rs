@@ -16,7 +16,9 @@ use approval_store::{JsonlApprovalStore, MemoryApprovalStore};
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
 pub use kiana_domain::StreamingRedactor;
-use kiana_domain::{CommandIntent, PermissionProfile, RequestContext, RoleSpec, RunId};
+use kiana_domain::{
+    CommandIntent, PermissionProfile, RequestContext, RoleSpec, RunId, RuntimeEvent,
+};
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
@@ -93,6 +95,18 @@ impl DaemonHost {
     /// usable until the terminal event or until the receiver is dropped.
     pub fn subscribe_run(&self, run_id: RunId) -> RunStreamSubscription {
         self.run_stream.subscribe(run_id)
+    }
+
+    /// 只读地读取本实例账本里的全部事件，供展示层做只读投影。
+    ///
+    /// 展示层不得自己解析账本文件：路径推导、torn-tail 容忍和 symlink 拒绝都由
+    /// `EventStorePort` 的实现负责。`Ok(None)` 表示该存储不支持全量读取；读取失败
+    /// 照原样返回，调用方不得把它当成空账本。
+    pub async fn persisted_events(&self) -> Result<Option<Vec<RuntimeEvent>>, PortError> {
+        self.core
+            .persisted_events()
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 
     pub fn local() -> Result<Self, PortError> {

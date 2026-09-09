@@ -215,6 +215,15 @@ impl ControlPlane {
             Err(error) => Err(error.into()),
         }
     }
+
+    /// 只读地把账本全量事件交给宿主，供展示层做只读投影。
+    ///
+    /// 展示层不得自己解析账本文件：路径推导、torn-tail 容忍和 symlink 拒绝都由
+    /// `EventStorePort` 的实现负责，这里只转发同一次读取。`None` 表示该存储不支持
+    /// 全量读取（见 [`Self::read_all_events`]）。
+    pub async fn persisted_events(&self) -> Result<Option<Vec<RuntimeEvent>>, CoreError> {
+        self.read_all_events().await
+    }
 }
 
 pub(crate) fn receipt_from_events(
