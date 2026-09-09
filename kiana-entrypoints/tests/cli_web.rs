@@ -131,7 +131,8 @@ async fn web_cassette_writes_through_daemon_host() {
         .await
         .unwrap();
     assert_eq!(health["harness"], "kiana-harness");
-    assert_eq!(health["streaming"], false);
+    assert_eq!(health["streaming"], true);
+    assert_eq!(health["streaming_transport"], "sse");
 
     let page = client
         .get(format!("{url}/"))
@@ -213,6 +214,182 @@ async fn web_cassette_writes_through_daemon_host() {
         "hello"
     );
     let _ = child.kill().await;
+}
+
+#[tokio::test]
+async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
+    let root = git_fixture();
+    let home = isolated_home();
+    let script = harness_script();
+    let mut child = TokioCommand::from(kiana_base(&root, &home))
+        .env("KIANA_HARNESS_SCRIPT", &script)
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+
+    let url = wait_for_url(child.stdout.take().expect("stdout")).await;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+    let page = client.get(&url).send().await.unwrap().text().await.unwrap();
+    let token = page
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("web token")
+        .to_owned();
+    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+
+    let state: Value = auth(client.get(format!("{url}/api/state")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let session_id = state["session_id"].as_str().expect("session id").to_owned();
+    let events_base = format!(
+        "{url}/api/events?session_id={}",
+        urlencoding_encode(&session_id)
+    );
+    let events_url = format!("{events_base}&token={}", urlencoding_encode(&token));
+
+    let unauthorized = client.get(&events_base).send().await.unwrap();
+    assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let wrong_host = client
+        .get(&events_url)
+        .header("host", "attacker.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong_host.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let wrong_origin = client
+        .get(&events_url)
+        .header("origin", "https://attacker.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong_origin.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let (sse_ready_tx, sse_ready_rx) = tokio::sync::oneshot::channel();
+    let sse_task = tokio::spawn({
+        let client = client.clone();
+        let events_url = events_url.clone();
+        async move {
+            let response = client.get(events_url).send().await.unwrap();
+            assert_eq!(response.status(), reqwest::StatusCode::OK);
+            assert!(response
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.starts_with("text/event-stream")));
+            let _ = sse_ready_tx.send(());
+            response.text().await.unwrap()
+        }
+    });
+    sse_ready_rx.await.expect("SSE headers");
+
+    let trusted: Value = auth(
+        client
+            .post(format!("{url}/api/trust"))
+            .json(&serde_json::json!({ "session_id": session_id })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(trusted["trusted"], true, "{trusted}");
+
+    let run: Value = auth(
+        client
+            .post(format!("{url}/api/run"))
+            .json(&serde_json::json!({
+                "prompt": "create GOLDEN_PATH.txt containing hello",
+                "session_id": session_id,
+            })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(run["response"]["status"], "completed", "{run}");
+
+    let body = tokio::time::timeout(Duration::from_secs(10), sse_task)
+        .await
+        .expect("SSE terminal timeout")
+        .unwrap();
+    let events = parse_sse_events(&body);
+    let deltas = events
+        .iter()
+        .filter(|(name, _)| name == "delta")
+        .map(|(_, data)| {
+            data["event"]["text"]
+                .as_str()
+                .expect("delta text")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        deltas,
+        vec!["writing".to_owned(), "created GOLDEN_PATH.txt".to_owned()],
+        "{events:?}"
+    );
+    let (terminal_name, terminal) = events.last().expect("terminal event");
+    assert_eq!(terminal_name, "terminal", "{events:?}");
+    assert_eq!(
+        terminal["event"]["response"]["status"], "completed",
+        "{terminal}"
+    );
+
+    let _ = child.kill().await;
+}
+
+fn urlencoding_encode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            other => format!("%{other:02X}"),
+        })
+        .collect()
+}
+
+fn parse_sse_events(body: &str) -> Vec<(String, Value)> {
+    let mut events = Vec::new();
+    let mut name = None;
+    let mut data = String::new();
+    for line in body.lines().chain(std::iter::once("")) {
+        if line.is_empty() {
+            if let (Some(name), false) = (name.take(), data.is_empty()) {
+                if let Ok(data) = serde_json::from_str(&data) {
+                    events.push((name, data));
+                }
+            }
+            data.clear();
+        } else if let Some(value) = line.strip_prefix("event:") {
+            name = Some(value.trim().to_owned());
+        } else if let Some(value) = line.strip_prefix("data:") {
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(value.trim_start());
+        }
+    }
+    events
 }
 
 #[tokio::test]

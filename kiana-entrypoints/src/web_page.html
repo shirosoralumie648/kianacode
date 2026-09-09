@@ -31,6 +31,7 @@
     .pill.ok { color:var(--ok); } .pill.run { color:var(--warn); } .pill.bad { color:var(--err); }
     .banner { margin:10px 0; padding:10px; border-radius:8px; border:1px solid var(--warn); color:var(--warn); font-size:12px; display:none; }
     .banner.show { display:block; }
+    .center > .banner { margin:10px 24px 0; }
     .chat { flex:1; overflow:auto; padding:20px 24px; }
     .item { max-width:760px; margin:0 auto 12px; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel); white-space:pre-wrap; }
     .item.userMessage { background:var(--user); }
@@ -75,10 +76,11 @@
       <div class="sessions" id="sessions"></div>
     </aside>
     <main class="center">
+      <div class="banner" id="streamBanner">正在重连…</div>
       <div class="chat" id="chat">
         <div class="guide" id="emptyGuide">
           <h1>Ask Kiana</h1>
-          <p class="muted">对照 Codex App：左边是 Thread 列表，中间是 Turn 里的 Item（你的话、工具、改文件、回答），右边是 diff / 状态。工人仍是 DaemonHost，不声称 token 流式。</p>
+          <p class="muted">对照 Codex App：左边是 Thread 列表，中间是 Turn 里的 Item（你的话、工具、改文件、回答），右边是 diff / 状态。工人仍是 DaemonHost；delta 经 SSE 增量展示，终态仍以回执为准。</p>
           <div class="chips">
             <button data-prompt="列出这个工作区里有哪些文件，并总结各自用途">先看看仓库</button>
             <button data-prompt="在当前文件夹创建一个 README.md，用三句话介绍这个项目">写一份 README</button>
@@ -103,7 +105,7 @@
       <h2>Capabilities</h2>
       <p class="muted">模型面：shell + apply_patch。审批：信任 × 沙箱。不是 50-tool 克隆，也不是 live ChatGPT 登录。</p>
       <h2>诚实边界</h2>
-      <p class="muted">没有 token 流式、没有 inline command 弹窗（未信任直接拦）、没有 Codex 云线程。关窗口可留托盘。</p>
+      <p class="muted">SSE 只做增量展示，不替代 EventLog / Receipt；没有 inline command 弹窗（未信任直接拦）、没有 Codex 云线程。关窗口可留托盘。</p>
     </aside>
   </div>
   <div class="coach" id="coach">
@@ -130,6 +132,13 @@
     let pollTimer = null;
     let started = false;
     let stateCache = null;
+    let eventSource = null;
+    let eventSourceSession = null;
+    let eventSourceOpen = null;
+    let streamItem = null;
+    let streamText = '';
+    let streamRunId = null;
+    let streamTerminal = null;
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -158,6 +167,136 @@
       if (!emptyGuide.parentNode) chat.prepend(emptyGuide);
       (thread.turns || []).forEach(turn => (turn.items || []).forEach(addItem));
       if ((thread.turns || []).length) emptyGuide.remove();
+      const terminalTurnPresent = !!streamRunId && (thread.turns || []).some(turn => turn.id === streamRunId);
+      if (streamItem) {
+        if (streamTerminal && streamTerminal.status === 'completed' && terminalTurnPresent) {
+          streamItem.remove();
+          streamItem = null;
+          streamText = '';
+          streamRunId = null;
+          streamTerminal = null;
+        } else {
+          chat.appendChild(streamItem);
+          emptyGuide.remove();
+          started = true;
+        }
+      }
+    }
+    function showStreamBanner(show) {
+      document.getElementById('streamBanner').classList.toggle('show', show);
+    }
+    function closeEventStream() {
+      if (eventSource) eventSource.close();
+      eventSource = null;
+      eventSourceSession = null;
+      eventSourceOpen = null;
+    }
+    function clearStreamProjection() {
+      closeEventStream();
+      if (streamItem) streamItem.remove();
+      streamItem = null;
+      streamText = '';
+      streamRunId = null;
+      streamTerminal = null;
+      showStreamBanner(false);
+    }
+    function streamBody() {
+      return streamItem && streamItem.querySelector('.stream-body');
+    }
+    function ensureStreamItem() {
+      if (streamItem) return;
+      if (!started) { emptyGuide.remove(); started = true; }
+      streamItem = document.createElement('div');
+      streamItem.className = 'item agentMessage streaming';
+      const who = document.createElement('div');
+      who.className = 'who';
+      who.textContent = 'Builder · streaming';
+      const body = document.createElement('div');
+      body.className = 'stream-body';
+      streamItem.appendChild(who);
+      streamItem.appendChild(body);
+      chat.appendChild(streamItem);
+    }
+    function handleStreamDelta(message) {
+      let envelope;
+      try { envelope = JSON.parse(message.data); } catch (_) { return; }
+      const delta = envelope.event;
+      if (!delta || delta.type !== 'delta' || delta.run_id !== streamRunId) return;
+      streamText += delta.text || '';
+      ensureStreamItem();
+      const body = streamBody();
+      if (body) body.textContent = streamText;
+      chat.scrollTop = chat.scrollHeight;
+    }
+    function handleStreamTerminal(message) {
+      let envelope;
+      try { envelope = JSON.parse(message.data); } catch (_) { return; }
+      const terminal = envelope.event;
+      if (!terminal || terminal.type !== 'terminal' || terminal.run_id !== streamRunId) return;
+      streamTerminal = terminal.response || {};
+      const status = streamTerminal.status || 'unknown';
+      if (streamItem) {
+        const who = streamItem.querySelector('.who');
+        const body = streamBody();
+        if (status === 'completed') {
+          const finalText = streamTerminal.output && streamTerminal.output.output && streamTerminal.output.output.text;
+          if (typeof finalText === 'string' && finalText.length) {
+            streamText = finalText;
+            if (body) body.textContent = finalText;
+          }
+          if (who) who.textContent = 'Builder · completed';
+        } else {
+          if (who) who.textContent = 'Builder · 已中断';
+          if (body) body.textContent = streamText + '\n\n（已中断：' + status + '）';
+        }
+      }
+      closeEventStream();
+      showStreamBanner(false);
+      running = false;
+      renderBusyStatus();
+      refresh().catch(() => {});
+    }
+    function handleStreamError() {
+      showStreamBanner(true);
+      refresh().catch(() => {});
+    }
+    function ensureEventStream(session) {
+      if (!session) return Promise.reject(new Error('session_required'));
+      if (eventSource && eventSourceSession === session && eventSource.readyState !== EventSource.CLOSED) {
+        return eventSourceOpen || Promise.resolve();
+      }
+      closeEventStream();
+      eventSourceSession = session;
+      streamRunId = (stateCache && stateCache.last && stateCache.last.run_id) || session;
+      const url = '/api/events?session_id=' + encodeURIComponent(session) +
+        '&token=' + encodeURIComponent(window.__KIANA_WEB_TOKEN__);
+      const source = new EventSource(url);
+      eventSource = source;
+      eventSourceOpen = new Promise((resolve, reject) => {
+        let opened = false;
+        const timer = setTimeout(() => {
+          if (!opened) reject(new Error('stream_open_timeout'));
+        }, 5000);
+        source.onopen = () => {
+          opened = true;
+          clearTimeout(timer);
+          showStreamBanner(false);
+          resolve();
+          refresh().catch(() => {});
+        };
+        source.onerror = () => {
+          if (!opened) {
+            clearTimeout(timer);
+            reject(new Error('stream_connect_failed'));
+          }
+          showStreamBanner(true);
+          refresh().catch(() => {});
+        };
+        source.addEventListener('delta', handleStreamDelta);
+        source.addEventListener('terminal', handleStreamTerminal);
+        source.addEventListener('stream_error', handleStreamError);
+      });
+      return eventSourceOpen;
     }
     function renderBusyStatus() {
       const busy = running || runPending;
@@ -166,8 +305,9 @@
       st.className = 'pill ' + (busy ? 'run' : 'ok');
     }
     function syncPolling() {
-      const anyRunning = runPending || running ||
-        ((stateCache && stateCache.threads) || []).some(item => item.running);
+      const streamActive = eventSource && eventSource.readyState === EventSource.OPEN;
+      const anyRunning = !streamActive && (runPending || running ||
+        ((stateCache && stateCache.threads) || []).some(item => item.running));
       if (anyRunning && pollTimer === null) {
         pollTimer = setInterval(() => { refresh().catch(() => {}); }, 1000);
       } else if (!anyRunning && pollTimer !== null) {
@@ -194,14 +334,14 @@
         'thread ' + (thread.name || 'New thread') + '\n' +
         'turns ' + ((thread.turns || []).length) + '\n' +
         'status ' + (lastTurn ? lastTurn.status : 'idle') + '\n' +
-        'streaming ' + s.streaming;
+        'streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
       const box = document.getElementById('sessions');
       box.innerHTML = '';
       (s.threads || s.sessions || []).forEach(item => {
         const b = document.createElement('button');
         b.className = 'ghost' + (item.id === s.session_id ? ' active' : '');
         b.textContent = (item.name || item.id.slice(0,8)) + (item.running ? ' · running' : '');
-        b.onclick = () => { sessionId = item.id; refresh().catch(() => {}); };
+        b.onclick = () => { clearStreamProjection(); sessionId = item.id; refresh().catch(() => {}); };
         box.appendChild(b);
       });
       renderThread(s);
@@ -227,6 +367,11 @@
       renderBusyStatus();
       syncPolling();
       try {
+        try {
+          await ensureEventStream(sessionId);
+        } catch (_) {
+          showStreamBanner(true);
+        }
         const data = await api('/api/run', { prompt: text, session_id: sessionId });
         runPending = false;
         renderState(data);
@@ -238,13 +383,19 @@
         runPending = false;
         renderBusyStatus();
         syncPolling();
+        setTimeout(() => {
+          if (eventSource && !streamTerminal) {
+            refresh().catch(() => {});
+            closeEventStream();
+          }
+        }, 1000);
       }
     }
     document.getElementById('send').onclick = () => sendPrompt(promptEl.value);
     document.getElementById('cancel').onclick = async () => { renderState(await api('/api/cancel', { session_id: sessionId })); };
     document.getElementById('trustBtn').onclick = async () => { renderState(await api('/api/trust', { session_id: sessionId })); };
     document.getElementById('sandbox').onchange = async (e) => { renderState(await api('/api/sandbox', { sandbox: e.target.value, session_id: sessionId })); };
-    document.getElementById('newSession').onclick = async () => { renderState(await api('/api/session', {})); };
+    document.getElementById('newSession').onclick = async () => { clearStreamProjection(); renderState(await api('/api/session', {})); };
     document.querySelectorAll('.chips button').forEach(btn => {
       btn.onclick = () => { promptEl.value = btn.getAttribute('data-prompt'); promptEl.focus(); };
     });

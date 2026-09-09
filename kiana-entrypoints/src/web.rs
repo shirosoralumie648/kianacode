@@ -5,24 +5,32 @@
 //! 循环，也不把浏览器内存状态升级为执行事实；正式授权、信任、审批和收据仍在产品脊柱中。
 //!
 //! 服务强制绑定 loopback，并对每次 API 状态/变更请求检查进程启动时随机生成的 token、
-//! Host 以及可选 Origin。这里没有承诺 token streaming，Web 视图只是响应到达后的投影。
-//! 这些防护用于本地 UI 暴露面，不能替代系统级网络、浏览器或项目资源信任边界。
+//! Host 以及可选 Origin；`/api/events` 额外提供只读 SSE 增量投影。delta 只用于展示，
+//! 终态和事实仍以响应/Receipt 为准。这些防护用于本地 UI 暴露面，不能替代系统级网络、
+//! 浏览器或项目资源信任边界。
 
 use anyhow::{anyhow, Context, Result};
 use axum::extract::{DefaultBodyLimit, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use futures_util::stream;
+use futures_util::Stream;
 use kiana_daemon::DaemonHost;
-use kiana_protocol::{ResponseEnvelope, RoleSpec, RunId, ROLE_BUILDER};
+use kiana_protocol::{
+    ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent, ROLE_BUILDER,
+};
 use kiana_types::{write_project_trust, ProjectTrust};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
@@ -39,7 +47,7 @@ pub const WEB_USAGE: &str = "\
 Usage: kiana web [--workdir DIR] [--bind 127.0.0.1:3080] [--sandbox read-only|workspace-write] [--role builder] [--no-open]
 
 Local-only Web workbench on DaemonHost (dsh-shaped: sidebar / chat / details).
-Loopback bind only. Token streaming is not claimed. kiana tui stays parked.
+Loopback bind only. SSE streams display deltas; receipts remain authoritative. kiana tui stays parked.
 ";
 
 const DEFAULT_BIND: &str = "127.0.0.1:3080";
@@ -124,6 +132,14 @@ struct RunBody {
 struct SessionBody {
     #[serde(default)]
     session_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct EventsQuery {
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -316,7 +332,7 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
     println!("folder: {}", workdir.display());
     println!("trusted: {}", if trusted { "yes" } else { "no" });
     println!("sandbox: {}", launch.sandbox);
-    println!("loopback only. Token streaming is not claimed.");
+    println!("loopback only. SSE display stream; receipts remain authoritative.");
     println!("KIANA_WEB_URL={url}");
     println!("{url}");
     let _ = io::stdout().flush();
@@ -334,6 +350,7 @@ fn router(app: WebApp) -> Router {
         .route("/", get(index))
         .route("/api/health", get(health))
         .route("/api/state", get(state))
+        .route("/api/events", get(events))
         .route("/api/run", post(run_turn))
         .route("/api/cancel", post(cancel_turn))
         .route("/api/trust", post(trust_folder))
@@ -411,7 +428,8 @@ impl WebApp {
             "threads": threads,
             "thread": threads.iter().find(|thread| thread.id == session_id),
             "last": current.last,
-            "streaming": false,
+            "streaming": true,
+            "streaming_transport": "sse",
             "shape": "codex-app",
         }))
     }
@@ -460,7 +478,8 @@ async fn health(State(app): State<Arc<WebApp>>) -> Json<Value> {
         "harness": harness_run::HARNESS_ID,
         "loopback": true,
         "folder": app.workdir.display().to_string(),
-        "streaming": false,
+        "streaming": true,
+        "streaming_transport": "sse",
     }))
 }
 
@@ -472,6 +491,78 @@ async fn state(
     authorize_mutation(&app, &headers)?;
     let session_id = resolve_session(&app, query.session_id.as_deref())?;
     Ok(Json(app.snapshot(&session_id)?))
+}
+
+struct EventStreamState {
+    subscription: kiana_daemon::RunStreamSubscription,
+    done: bool,
+}
+
+async fn events(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<EventsQuery>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>> + Send + 'static>, ApiError> {
+    authorize_sse(&app, &headers, query.token.as_deref())?;
+    let session_id = resolve_session(&app, query.session_id.as_deref())?;
+    let run_id = stream_run_id(&app, &session_id)?;
+    // Subscribe before returning the SSE response headers. The browser waits for
+    // EventSource.onopen before issuing /api/run, so the first delta is not lost.
+    let subscription = app.host.subscribe_run(run_id);
+    let stream = stream::unfold(
+        EventStreamState {
+            subscription,
+            done: false,
+        },
+        |mut state| async move {
+            if state.done {
+                return None;
+            }
+            loop {
+                match state.subscription.recv().await {
+                    Ok(envelope) => {
+                        let (name, terminal) = match &envelope.event {
+                            RunStreamEvent::Delta { .. } => ("delta", false),
+                            RunStreamEvent::Terminal { .. } => ("terminal", true),
+                            RunStreamEvent::Unknown => continue,
+                        };
+                        state.done = terminal;
+                        return Some((Ok(run_stream_sse_event(name, &envelope)), state));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        state.done = true;
+                        return Some((
+                            Ok(stream_error_sse_event(&format!(
+                                "stream_subscription_lagged:{skipped}"
+                            ))),
+                            state,
+                        ));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        state.done = true;
+                        return Some((
+                            Ok(stream_error_sse_event("stream_closed_before_terminal")),
+                            state,
+                        ));
+                    }
+                }
+            }
+        },
+    );
+    Ok(Sse::new(Box::pin(stream)).keep_alive(KeepAlive::default()))
+}
+
+fn run_stream_sse_event(name: &str, envelope: &RunStreamEnvelope) -> Event {
+    let data = serde_json::to_string(envelope).unwrap_or_else(|error| {
+        json!({ "error": format!("stream_serialize_failed:{error}") }).to_string()
+    });
+    Event::default().event(name).data(data)
+}
+
+fn stream_error_sse_event(error: &str) -> Event {
+    Event::default()
+        .event("stream_error")
+        .data(json!({ "error": error }).to_string())
 }
 
 async fn run_turn(
@@ -634,11 +725,33 @@ fn validate_web_prompt(prompt: String) -> Result<String, ApiError> {
 }
 
 fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
-    let supplied = headers
+    let supplied = web_token_from_header(headers);
+    authorize_web_request(app, headers, supplied)
+}
+
+fn authorize_sse(
+    app: &WebApp,
+    headers: &HeaderMap,
+    query_token: Option<&str>,
+) -> Result<(), ApiError> {
+    let supplied = web_token_from_header(headers)
+        .or_else(|| query_token.map(str::trim).filter(|value| !value.is_empty()));
+    authorize_web_request(app, headers, supplied)
+}
+
+fn web_token_from_header(headers: &HeaderMap) -> Option<&str> {
+    headers
         .get("x-kiana-web-token")
         .and_then(|value| value.to_str().ok())
         .map(str::trim)
-        .filter(|value| !value.is_empty());
+        .filter(|value| !value.is_empty())
+}
+
+fn authorize_web_request(
+    app: &WebApp,
+    headers: &HeaderMap,
+    supplied: Option<&str>,
+) -> Result<(), ApiError> {
     if supplied != Some(app.web_token.as_str()) {
         return Err(ApiError::unauthorized());
     }
@@ -649,6 +762,20 @@ fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError>
         }
     }
     Ok(())
+}
+
+fn stream_run_id(app: &WebApp, session_id: &str) -> Result<RunId, ApiError> {
+    let sessions = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+    let session = sessions
+        .get(session_id)
+        .ok_or_else(|| ApiError::bad("session_unknown"))?;
+    session
+        .run_id
+        .or_else(|| RunId::parse_str(session_id))
+        .ok_or_else(|| ApiError::bad("web_stream_run_id_unavailable"))
 }
 
 fn authorize_host(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
@@ -1118,7 +1245,8 @@ mod tests {
             .unwrap();
         assert_eq!(health["ok"], true);
         assert_eq!(health["harness"], "kiana-harness");
-        assert_eq!(health["streaming"], false);
+        assert_eq!(health["streaming"], true);
+        assert_eq!(health["streaming_transport"], "sse");
 
         let page = client
             .get(format!("http://{addr}/"))
