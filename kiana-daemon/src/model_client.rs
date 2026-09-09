@@ -26,6 +26,7 @@ const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
 const ENV_PROVIDER: &str = "KIANA_PROVIDER";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(60);
+const MODEL_UNAVAILABLE_HINT: &str = "没有可用的模型。请设置 ANTHROPIC_API_KEY；或设置 KIANA_PROVIDER=ollama（可用 KIANA_OLLAMA_BASE_URL 指定地址，默认 http://localhost:11434）；或设置 KIANA_HARNESS_SCRIPT=/path/to/cassette.json 运行本地 cassette。";
 
 pub(crate) fn from_env() -> Arc<dyn ModelClient> {
     from_config(LocalModelConfig::default())
@@ -35,14 +36,22 @@ pub(crate) fn from_config(config: LocalModelConfig) -> Arc<dyn ModelClient> {
     match std::env::var(ENV_HARNESS_SCRIPT) {
         Ok(path) if !path.trim().is_empty() => match ScriptedModel::from_json_path(path.trim()) {
             Ok(model) => Arc::new(model),
-            Err(error) => Arc::new(UnavailableModel::new(error)),
+            Err(error) => Arc::new(unavailable_model(Some(&error))),
         },
         _ => match provider_from_env(config) {
             Ok(Some(model)) => model,
-            Ok(None) => Arc::new(UnavailableModel::default()),
-            Err(error) => Arc::new(UnavailableModel::new(error)),
+            Ok(None) => Arc::new(unavailable_model(None)),
+            Err(error) => Arc::new(unavailable_model(Some(&error))),
         },
     }
+}
+
+fn unavailable_model(reason: Option<&str>) -> UnavailableModel {
+    let message = match reason.map(str::trim).filter(|reason| !reason.is_empty()) {
+        Some(reason) => format!("model_unavailable: {reason}. {MODEL_UNAVAILABLE_HINT}"),
+        None => format!("model_unavailable: {MODEL_UNAVAILABLE_HINT}"),
+    };
+    UnavailableModel::new(message)
 }
 
 fn provider_from_env(config: LocalModelConfig) -> Result<Option<Arc<dyn ModelClient>>, String> {
