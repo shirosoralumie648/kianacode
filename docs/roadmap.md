@@ -57,10 +57,11 @@
 | `P0-B-01` | P0 | B 正式状态机 | `P0-A-01` | Cell/WorkPacket/CapabilityExecution/Approval 四张转移表；非法转移与重复请求有断言 | ⏳ |
 | `P0-F-01` | P0 | F Approval | `P0-B-01` | TTY/Web/一次性 CLI 三处可列举同一 pending 并回复 | ⏳ |
 | `P0-F-02` | P0 | F Approval | `P0-F-01` | 每次批/拒都有 durable 记录；重复消费与过期被拒 | ⏳ |
-| `P0-F-03` | P0 | F Approval | `P0-G-02` | 重启后可续跑同一 Runner；缺材料返回 `approval_continuation_unavailable` | ⏳ |
+| `P0-F-03` | P0 | F Approval | `P0-G-02b` | 重启后可续跑同一 Runner；缺材料返回 `approval_continuation_unavailable` | ⏳ |
 | `P0-G-01` | P0 | G 事实源与恢复 | — | 内存未命中时只读回读重建；账本无记录仍 fail-closed | ✅ |
-| `P0-G-02` | P0 | G 事实源与恢复 | `P0-G-01` | 新增 `run.prompt`/`run.tool_call`/`run.tool_result`，全过 `redact_event_value` | 🔄 |
-| `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
+| `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
+| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | `run.tool_result` 落账；账本可重建 model-visible history | ⏳ |
+| `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
 | `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ⏳ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
@@ -122,9 +123,10 @@
 
 | 事项 | 单元 | 位置 | 卡在哪 |
 |---|---|---|---|
-| Codex 任务 4：账本记录可重放 history 字段 | `P0-G-02` | `kiana-core`（capabilities/lifecycle + 测试） | Codex 正在写，工作树未提交 |
+| 网页重启后列出历史会话（只读） | `P2-M5-02` | `kiana-entrypoints/src/web.rs`、`web_page.html` | 边界修正中：第一版在 web 里自己解析账本文件，正改走 `DaemonHost::persisted_events()`（`0a9a56b`） |
+| 账本补齐 `run.tool_result` 与 history 重建 | `P0-G-02b` | `kiana-core` | 未开工 |
 
-> 最近一次全绿：CI `34376675138`（tip `af38d47`）—— 覆盖 `P0-G-01`、`P0-J1-05`（重复调用部分）、`P0-J7-01` 的全部代码。
+> 最近一次全绿：CI `34378214555`（tip `40420bd`）—— 覆盖 `P0-G-01`、`P0-J7-01`，以及 `P0-G-02a`。
 
 ---
 
@@ -142,7 +144,8 @@
 | 2026-09-10 | 修正被默认翻转影响的 `cli_run` 测试（显式 `--no-stream` + 默认路径覆盖） | `d704add` |
 | 2026-09-10 | session 绑定可从事件账本重建（内存未命中时回读 `run.authorized`，仍走 owner 校验） | `e8d9346` |
 | 2026-09-10 | 0.4 / 0.5 / 1.1 / 4.1 经 `release-smoke` 全绿，状态置 ✅ | CI `34376675138` |
-| 2026-09-10 | 本文件改为 P0–P6 执行骨架：编号重编为 `P<阶段>-<切片>-<序号>`、总图扩到 63 个单元、补 P0 详细卡 | 待提交 |
+| 2026-09-10 | 本文件改为 P0–P6 执行骨架：编号重编为 `P<阶段>-<切片>-<序号>`、总图扩到 63 个单元、补 P0 详细卡 | `e5fc47f` |
+| 2026-09-10 | 账本记录 user prompt 与 tool_call 身份（`run.prompt` / `run.tool_call`），证据块「Ledger prompt and tool-call identity evidence (2026-09-10)」；`run.tool_result` 仍未做 | `40420bd` + `f08a1cf` |
 
 ---
 
@@ -199,7 +202,7 @@
 - **做什么**：审批暂存前先写 invocation 请求事件（含经 `redact_event_value` 的 CapabilityRequest、invocation_id、attempt、policy_snapshot、sandbox、事件游标）；domain 层定义 RunSnapshot，由 ControlPlane 写入、启动时 `resume_run` 重建。
 - **风险**：runner 若自己读盘恢复，就绕过了 ControlPlane 独占调用账本的约束。
 - **验收**：`fresh_process_resume_reconstructs_pending_approval`
-- **依赖 / 边界**：依赖 `P0-G-02`；缺材料返回 `approval_continuation_unavailable`，不假装成功。
+- **依赖 / 边界**：依赖 `P0-G-02b`；缺材料返回 `approval_continuation_unavailable`，不假装成功。
 - **依据**：`company-os-implementation-outline.md` §Slice F（A-1）
 
 ### P0-G-01 session→run 绑定从账本重建　✅
@@ -211,14 +214,23 @@
 - **依赖 / 边界**：无依赖；`PROTOCOL_SCHEMA` 未动。
 - **依据**：`company-os-implementation-outline.md` §Slice G｜证据：`e8d9346` + CI `34376675138`
 
-### P0-G-02 账本记录可重放 history　🔄
+### P0-G-02a 账本记录 prompt 与 tool_call 身份　✅
 
-- **现状**：账本不记 user prompt，也不记 provider 的 `tool_call_id`（`kiana-core/src/lifecycle.rs:40-54`、`capabilities.rs:94-107`）。
-- **做什么**：新增 `run.prompt` / `run.tool_call` / `run.tool_result` 事件 kind，全部过 `redact_event_value`。
-- **风险**：新事件增加 append 次数，必须沿用轮次聚合的合并语义。
+- **现状**：已落地——`run.prompt` 在 start/continue 两处记录并过 redaction，`run.tool_call` 记录 `call_id` / capability / operation。
+- **做什么**：保持现状；这是账本可重建 history 的前半。
+- **风险**：每轮新增 append，必须沿用轮次聚合的合并语义（粒度测试仍须通过）。
+- **验收**：`start_and_continue_prompts_are_recorded_and_redacted_in_the_ledger`
+- **依赖 / 边界**：依赖 `P0-G-01`；`call_id` 在 runner 未提供时为 `null`。
+- **依据**：`company-os-implementation-outline.md` §Slice G｜`40420bd` + CI `34378214555` + 证据块「Ledger prompt and tool-call identity evidence (2026-09-10)」（`f08a1cf`）
+
+### P0-G-02b 账本记录 tool_result 与 history 重建　⏳
+
+- **现状**：`run.tool_result` 未记录；证据块 limitations 明确「the ledger still cannot reconstruct history or resume a run」。
+- **做什么**：新增 `run.tool_result` 事件 kind（过 `redact_event_value`），使账本能重建 model-visible history。
+- **风险**：assistant tool_call 没有配对的 tool result，重建出的 history 不合法。
 - **验收**：`resume_rebuilds_model_visible_history_from_ledger`
-- **依赖 / 边界**：依赖 `P0-G-01`；不新增模型可见工具，不动 `PROTOCOL_SCHEMA`。
-- **依据**：`company-os-implementation-outline.md` §Slice G｜已提交 `40420bd`（`run.prompt` + `run.tool_call`），等 CI
+- **依赖 / 边界**：依赖 `P0-G-02a`；不新增模型可见工具，不动 `PROTOCOL_SCHEMA`。
+- **依据**：`company-os-implementation-outline.md` §Slice G
 
 ### P0-G-03 `resume_run` 与协议入口　⏳
 
@@ -226,7 +238,7 @@
 - **做什么**：`kiana-core` 新增 `resume_run`，复用同一条 `drive_run`；`kiana-protocol` 加 additive 的 `ResumeRequest`。
 - **风险**：新增入口若另起一条驱动路径，就形成了第二条执行循环。
 - **验收**：`resume_run_reuses_the_same_drive_run_path`
-- **依赖 / 边界**：依赖 `P0-G-02`；`PROTOCOL_SCHEMA` 不动。
+- **依赖 / 边界**：依赖 `P0-G-02b`；`PROTOCOL_SCHEMA` 不动。
 - **依据**：`company-os-implementation-outline.md` §Slice G
 
 ### P0-G-04 事件重建投影　⏳
@@ -576,7 +588,7 @@
 - **做什么**：只读列出持久会话（不含写入与续跑）。
 - **风险**：列表若暴露其他主体的会话，就是越权。
 - **验收**：`web_lists_persisted_sessions_after_restart`
-- **依赖 / 边界**：依赖 `P0-G-01`；只读，不提供续跑入口。
+- **依赖 / 边界**：依赖 `P0-G-01`；前置 enabler 是 `0a9a56b`（`DaemonHost::persisted_events()` 只读端口，避免展示层自己解析账本文件）；只读，不提供续跑入口。
 - **依据**：`company-os-implementation-outline.md` §Slice M5
 
 ### P2-M7-01 无障碍回退　⏳
