@@ -24,6 +24,7 @@
 | 身份、调度、成本、恢复、数据治理怎么管 | [`company-os-operations-governance.md`](company-os-operations-governance.md) | [`company-os-security-constitution.md`](company-os-security-constitution.md) |
 | 如何评测、防退步、扩展插件 | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) |
 | 现在该实现什么、验收标准是什么 | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) | [`../PHASES.md`](../PHASES.md)、[`../PROCESS.md`](../PROCESS.md) |
+| 接下来每一步做什么、谁做、怎么算做完 | [`roadmap.md`](roadmap.md) | [`company-os-implementation-outline.md`](company-os-implementation-outline.md)、[`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
 | 什么事绝对不能发生（安全底线） | [`company-os-security-constitution.md`](company-os-security-constitution.md) | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) |
 | Coding 能力哪些完成了、哪些冻结了 | [`coding-pack-matrix.md`](coding-pack-matrix.md) | [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
 | 参考项目为什么这样取舍 | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) | [`reference-agent-audit/README.md`](reference-agent-audit/README.md)、[`reference-agent-audit/00-unified-agent-flow.md`](reference-agent-audit/00-unified-agent-flow.md) |
@@ -57,6 +58,7 @@ docs/
 │   └── features/ ··················· 每篇讲一个功能的代码真实现状（01–10，索引见 features/README.md）
 │
 ├── 实施与审计（"下一步做什么、凭什么算完成"）
+│   ├── roadmap.md ·················· 逐步执行路线图：每步做什么/谁做/验收/门禁（可执行待办）
 │   ├── company-os-implementation-outline.md 工程切片 A–M、验收条件、Gate 0、90 天序列
 │   ├── coding-pack-matrix.md ········ v1.0 Coding pack 审计底表：逐行为的现状/owner/证据
 │   └── reference-agent-audit/ ······· 26 个外部 Agent 项目的源码审计（只作设计参考）
