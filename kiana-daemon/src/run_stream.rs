@@ -179,6 +179,42 @@ mod tests {
         }
     }
 
+    struct BackpressureRunner;
+
+    #[async_trait]
+    impl RunnerPort for BackpressureRunner {
+        async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+            Ok(vec![RunnerEvent::Started {
+                run_id: command.run_id(),
+            }])
+        }
+
+        async fn send_with_events(
+            &self,
+            command: RunnerCommand,
+            on_event: &mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send),
+        ) -> Result<Vec<RunnerEvent>, PortError> {
+            let events = vec![
+                RunnerEvent::Started {
+                    run_id: command.run_id(),
+                },
+                RunnerEvent::Delta {
+                    run_id: command.run_id(),
+                    text: "alpha".to_owned(),
+                },
+                RunnerEvent::Completed {
+                    run_id: command.run_id(),
+                    output: serde_json::json!({"text": "alpha"}),
+                },
+            ];
+            for event in &events {
+                on_event(event.clone())
+                    .map_err(|error| PortError::Failed(format!("test_sink_failed:{error}")))?;
+            }
+            Ok(events)
+        }
+    }
+
     #[tokio::test]
     async fn no_subscriber_keeps_the_plain_runner_send_path() {
         let inner = Arc::new(CountingRunner::default());
@@ -215,6 +251,74 @@ mod tests {
                 run_id,
                 text: "alpha".to_owned()
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn lagged_subscriber_is_reported_instead_of_implying_completion() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut subscription = bus.subscribe(run_id);
+
+        for index in 0..=RUN_STREAM_CAPACITY {
+            bus.publish_delta(run_id, format!("chunk-{index}"));
+        }
+
+        let error = subscription
+            .recv()
+            .await
+            .expect_err("a lagged subscriber must fail closed");
+        assert!(
+            matches!(error, broadcast::error::RecvError::Lagged(skipped) if skipped > 0),
+            "{error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn sink_backpressure_stops_before_completed_and_publishes_no_terminal() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut subscription = bus.subscribe(run_id);
+        let runner = RunStreamRunner::wrap(Arc::new(BackpressureRunner), bus);
+        let mut delivered = Vec::new();
+
+        let error = runner
+            .send_with_events(RunnerCommand::start(run_id, "stream it"), &mut |event| {
+                delivered.push(event.clone());
+                if matches!(event, RunnerEvent::Delta { .. }) {
+                    Err("backpressure".to_owned())
+                } else {
+                    Ok(())
+                }
+            })
+            .await
+            .expect_err("sink errors must fail the run");
+
+        assert!(
+            matches!(
+                error,
+                PortError::Failed(ref message)
+                    if message == "test_sink_failed:backpressure"
+            ),
+            "{error:?}"
+        );
+        assert!(!delivered
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+
+        let published = subscription.recv().await.expect("published delta");
+        assert_eq!(
+            published.event,
+            RunStreamEvent::Delta {
+                run_id,
+                text: "alpha".to_owned(),
+            }
+        );
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), subscription.recv())
+                .await
+                .is_err(),
+            "a failed sink must not publish a terminal completion"
         );
     }
 }

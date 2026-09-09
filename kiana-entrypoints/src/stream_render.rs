@@ -5,7 +5,7 @@
 //! terminal fact: only a `Terminal` envelope ends the command.
 
 use anyhow::{anyhow, Context, Result};
-use kiana_daemon::RunStreamSubscription;
+use kiana_daemon::{RunStreamSubscription, StreamingRedactor};
 use kiana_protocol::{ResponseEnvelope, RunId, RunStreamEvent};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -82,6 +82,7 @@ fn stream_recv_error(error: tokio::sync::broadcast::error::RecvError) -> anyhow:
 
 struct StreamRenderer<W: Write> {
     writer: W,
+    redactor: StreamingRedactor,
     streamed_text: bool,
 }
 
@@ -89,6 +90,7 @@ impl<W: Write> StreamRenderer<W> {
     fn new(writer: W) -> Self {
         Self {
             writer,
+            redactor: StreamingRedactor::new(),
             streamed_text: false,
         }
     }
@@ -106,6 +108,7 @@ impl<W: Write> StreamRenderer<W> {
             }
             RunStreamEvent::Terminal { run_id, response } => {
                 ensure_run_id(expected_run_id, run_id)?;
+                self.flush_redactor()?;
                 self.finish_line()?;
                 Ok(Some(response))
             }
@@ -114,9 +117,22 @@ impl<W: Write> StreamRenderer<W> {
     }
 
     fn write_delta(&mut self, text: &str) -> Result<()> {
+        let text = self.redactor.push(text);
         if text.is_empty() {
             return Ok(());
         }
+        self.write_redacted(&text)
+    }
+
+    fn flush_redactor(&mut self) -> Result<()> {
+        let tail = self.redactor.finish();
+        if tail.is_empty() {
+            return Ok(());
+        }
+        self.write_redacted(&tail)
+    }
+
+    fn write_redacted(&mut self, text: &str) -> Result<()> {
         self.writer
             .write_all(text.as_bytes())
             .context("stream_stdout_write_failed")?;
@@ -165,6 +181,21 @@ mod tests {
 
         fn flush(&mut self) -> io::Result<()> {
             self.flushes += 1;
+            Ok(())
+        }
+    }
+
+    struct BackpressureWriter;
+
+    impl Write for BackpressureWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "stdout backpressure",
+            ))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
             Ok(())
         }
     }
@@ -244,5 +275,54 @@ mod tests {
         assert_eq!(error.to_string(), "stream_run_id_mismatch");
         assert!(renderer.writer.bytes.is_empty());
         assert_eq!(renderer.writer.flushes, 0);
+    }
+
+    #[test]
+    fn split_secret_across_deltas_never_reaches_stdout() {
+        let run_id = RunId::new();
+        let mut renderer = StreamRenderer::new(RecordingWriter::default());
+
+        for text in ["Authorization: Bear", "er stdout-split-sentinel"] {
+            renderer
+                .handle_event(
+                    run_id,
+                    RunStreamEvent::Delta {
+                        run_id,
+                        text: text.to_owned(),
+                    },
+                )
+                .unwrap();
+        }
+
+        let stdout = String::from_utf8(renderer.writer.bytes).expect("stdout is UTF-8");
+        assert!(
+            !stdout.contains("stdout-split-sentinel"),
+            "split secret reached stdout: {stdout}"
+        );
+    }
+
+    #[test]
+    fn stdout_backpressure_fails_closed_without_completing() {
+        let run_id = RunId::new();
+        let mut renderer = StreamRenderer::new(BackpressureWriter);
+
+        let error = renderer
+            .handle_event(
+                run_id,
+                RunStreamEvent::Delta {
+                    run_id,
+                    text: "alpha".to_owned(),
+                },
+            )
+            .expect_err("stdout backpressure must fail closed");
+
+        assert_eq!(error.to_string(), "stream_stdout_write_failed");
+        assert!(!renderer.streamed_text);
+    }
+
+    #[test]
+    fn lagged_subscription_never_returns_a_completed_response() {
+        let error = stream_recv_error(tokio::sync::broadcast::error::RecvError::Lagged(3));
+        assert_eq!(error.to_string(), "stream_subscription_lagged:3");
     }
 }

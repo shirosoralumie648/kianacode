@@ -1101,6 +1101,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn streaming_env_on_rejects_fake_provider_and_auto_falls_back() {
+        let _lock = env_lock();
+        let _script = EnvGuard::remove(ENV_HARNESS_SCRIPT);
+        let _provider = EnvGuard::set(ENV_PROVIDER, FAKE_PROVIDER_ID);
+        let _fake_script = EnvGuard::set(
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            r#"[{"type":"assistant_text","text":"fallback text"}]"#,
+        );
+        let config = LocalModelConfig {
+            model: Some(FAKE_TEXT_ONLY_MODEL_ID.to_owned()),
+            ..LocalModelConfig::default()
+        };
+
+        let _streaming = EnvGuard::set(ENV_STREAMING, "on");
+        let on_client = from_config(config.clone());
+        let error = on_client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("hello")],
+                    tools: Vec::new(),
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |_| Ok(()),
+            )
+            .await
+            .expect_err("KIANA_STREAMING=on must not silently fall back");
+        assert_eq!(error, "unsupported_streaming");
+
+        let _streaming = EnvGuard::set(ENV_STREAMING, "auto");
+        let auto_client = from_config(config);
+        let mut deltas = Vec::new();
+        let output = auto_client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("hello")],
+                    tools: Vec::new(),
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |delta| {
+                    deltas.push(delta);
+                    Ok(())
+                },
+            )
+            .await
+            .expect("auto must fall back to the complete response");
+        assert_eq!(output.text, "fallback text");
+        assert_eq!(
+            deltas,
+            vec![ModelDelta::Text {
+                text: "fallback text".to_owned(),
+            }]
+        );
+    }
+
+    #[tokio::test]
     async fn streaming_retries_transient_connection_before_first_delta() {
         let event = |value: Value| serde_json::from_value::<StreamEvent>(value).unwrap();
         let attempts = Arc::new(AtomicU64::new(0));

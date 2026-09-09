@@ -108,9 +108,10 @@ impl ControlPlane {
         .await?;
 
         if *cancel_rx.borrow() {
-            self.record_event(
+            self.record_terminal_event(
                 request_id,
                 sequence,
+                run_id,
                 "run.cancelled",
                 json!({ "run_id": run_id, "error": "cancelled:user" }),
             )
@@ -174,9 +175,10 @@ impl ControlPlane {
                                 self.finish_cell_capability(lease, CapabilityOutcome::Unknown)
                                     .await?;
                             }
-                            self.record_event(
+                            self.record_terminal_event(
                                 request_id,
                                 sequence,
+                                run_id,
                                 "run.cancelled",
                                 json!({ "run_id": run_id, "error": "cancelled:user" }),
                             )
@@ -351,9 +353,10 @@ impl ControlPlane {
             Ok(events) => Ok(Ok(Some(events))),
             Err(error) => {
                 let reason = redact_event_text(&error.to_string());
-                self.record_event(
+                self.record_terminal_event(
                     request_id,
                     sequence,
+                    run_id,
                     "run.failed",
                     json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )

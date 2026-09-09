@@ -1,9 +1,9 @@
 //! Kiana ControlPlane 使用的稳定领域契约。
 //!
-//! 本 crate 位于依赖图底层，只定义 ID、角色/部门、WorkPacket、能力请求、审批、事件和
-//! 生命周期等值对象，不依赖 daemon、query 或具体执行器。结构体的序列化形状是跨模块
-//! 的契约，但“存在一个类型”不等于运行时已经强制：真正的授权顺序、CAS、lease 和持久
-//! 证据仍由 core 与 ports 的实现负责。
+//! 本 crate 位于依赖图底层，定义 ID、角色/部门、WorkPacket、能力请求、审批、事件和
+//! 生命周期等值对象，以及跨层共享的文本脱敏原语，不依赖 daemon、query 或具体执行器。
+//! 结构体的序列化形状是跨模块的契约，但“存在一个类型”不等于运行时已经强制：真正的
+//! 授权顺序、CAS、lease 和持久证据仍由 core 与 ports 的实现负责。
 //!
 //! 所有路径、能力和状态 helper 都采用收紧/拒绝优先的语义。调用方应把 `None`、拒绝和
 //! `ResultUnknown` 与“没有副作用”严格区分，并以 EventLog/Receipt 作为事实来源，不把
@@ -12,6 +12,7 @@
 mod capabilities;
 mod ids;
 mod paths;
+mod redaction;
 mod roles;
 mod states;
 mod symposiums;
@@ -22,6 +23,7 @@ mod work_packets;
 pub use capabilities::*;
 pub use ids::*;
 pub use paths::*;
+pub use redaction::*;
 pub use roles::*;
 pub use states::*;
 pub use symposiums::*;

@@ -63,6 +63,7 @@ impl ControlPlane {
             sessions: Mutex::new(HashMap::new()),
             pending_invocations: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
+            active_terminal_scopes: Mutex::new(HashMap::new()),
             path_locks: Mutex::new(HashMap::new()),
             durable_path_locks: Mutex::new(HashMap::new()),
         }

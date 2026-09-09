@@ -25,30 +25,110 @@ impl ControlPlane {
         // can become durable fact or feed a receipt projection.
         let data = redact_event_value(&data);
         let (aggregate_type, aggregate_id) = aggregate_for_event(request_id, &data);
-        let idempotency_key =
+        let base_idempotency_key =
             format!("{request_id}:{aggregate_type}:{aggregate_id}:{sequence}:{kind}");
-        let current_version = self
-            .events
-            .read_stream(&aggregate_type, &aggregate_id)
-            .await?
-            .iter()
-            .map(|event| event.stream_version.unwrap_or(event.sequence))
-            .max()
-            .unwrap_or(0);
-        self.events
-            .append_idempotent_expected(
-                RuntimeEvent::new(request_id, sequence, kind, data)?
-                    .with_stream_metadata(
-                        aggregate_type,
-                        aggregate_id,
-                        current_version.saturating_add(1),
-                    )
-                    .with_idempotency_key(idempotency_key),
-                Some(current_version),
-            )
-            .await?;
-        Ok(())
+        let payload_fingerprint = payload_fingerprint(&data);
+        let mut idempotency_key = base_idempotency_key.clone();
+        let mut payload_fallback = false;
+        for _ in 0..4 {
+            let current_version = self
+                .events
+                .read_stream(&aggregate_type, &aggregate_id)
+                .await?
+                .iter()
+                .map(|event| event.stream_version.unwrap_or(event.sequence))
+                .max()
+                .unwrap_or(0);
+            let event = RuntimeEvent::new(request_id, sequence, kind, data.clone())?
+                .with_stream_metadata(
+                    aggregate_type.clone(),
+                    aggregate_id.clone(),
+                    current_version.saturating_add(1),
+                )
+                .with_idempotency_key(idempotency_key.clone());
+            match self
+                .events
+                .append_idempotent_expected(event, Some(current_version))
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(PortError::Conflict(reason))
+                    if reason == "event_idempotency_key_payload_mismatch" && !payload_fallback =>
+                {
+                    payload_fallback = true;
+                    idempotency_key =
+                        format!("{base_idempotency_key}:payload:{payload_fingerprint:016x}");
+                }
+                Err(PortError::Conflict(reason))
+                    if reason == "event_stream_version_mismatch"
+                        || reason == "event_sequence_not_monotonic" => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(CoreError::Port(PortError::Conflict(
+            "event_append_contention".to_owned(),
+        )))
     }
+
+    pub(crate) async fn record_terminal_event(
+        &self,
+        request_id: kiana_domain::RequestId,
+        sequence: &mut u64,
+        run_id: RunId,
+        kind: &str,
+        data: Value,
+    ) -> Result<bool, CoreError> {
+        let scope = self
+            .active_terminal_scopes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&run_id)
+            .cloned();
+        if let Some(scope) = scope {
+            let mut recorded = scope.recorded.lock().await;
+            if *recorded {
+                return Ok(false);
+            }
+            self.record_event(request_id, sequence, kind, data).await?;
+            *recorded = true;
+        } else {
+            self.record_event(request_id, sequence, kind, data).await?;
+        }
+        Ok(true)
+    }
+
+    pub(crate) fn begin_terminal_scope(&self, run_id: RunId) -> TerminalScopeGuard<'_> {
+        self.active_terminal_scopes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(
+                run_id,
+                Arc::new(RunTerminalScope {
+                    recorded: AsyncMutex::new(false),
+                }),
+            );
+        TerminalScopeGuard {
+            control_plane: self,
+            run_id,
+        }
+    }
+
+    pub(crate) fn end_terminal_scope(&self, run_id: RunId) {
+        self.active_terminal_scopes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&run_id);
+    }
+}
+
+fn payload_fingerprint(data: &Value) -> u64 {
+    let bytes = serde_json::to_vec(data).unwrap_or_default();
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }
 
 pub(crate) fn aggregate_for_event(

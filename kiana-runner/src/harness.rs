@@ -19,7 +19,7 @@ use crate::model::{
 };
 use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
-use kiana_domain::{CapabilityResult, RunId};
+use kiana_domain::{redact_text, CapabilityResult, RunId, StreamingRedactor};
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
     RunnerCommand, RunnerEvent, DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE,
@@ -112,6 +112,39 @@ struct ActiveRun {
     pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
     steps: u32,
     last_text: String,
+    cancellation: Arc<RunCancellation>,
+}
+
+#[derive(Default)]
+struct RunCancellation {
+    error: Mutex<Option<String>>,
+}
+
+impl RunCancellation {
+    fn request(&self, error: String) -> Result<bool, KianaHarnessError> {
+        let mut state = self
+            .error
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?;
+        if state.is_some() {
+            return Ok(false);
+        }
+        *state = Some(error);
+        Ok(true)
+    }
+
+    fn error(&self) -> Result<Option<String>, KianaHarnessError> {
+        self.error
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))
+            .map(|state| state.clone())
+    }
+
+    fn lock(&self) -> Result<std::sync::MutexGuard<'_, Option<String>>, KianaHarnessError> {
+        self.error
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))
+    }
 }
 
 struct StartInput {
@@ -126,6 +159,7 @@ struct StartInput {
 pub struct KianaHarness {
     model: Arc<dyn ModelClient>,
     runs: Mutex<HashMap<RunId, ActiveRun>>,
+    in_flight: Mutex<HashMap<RunId, Arc<RunCancellation>>>,
     compact_trigger_tokens: usize,
     compact_user_message_max_tokens: usize,
     max_steps_per_turn: u32,
@@ -146,6 +180,7 @@ impl KianaHarness {
         Self {
             model,
             runs: Mutex::new(HashMap::new()),
+            in_flight: Mutex::new(HashMap::new()),
             compact_trigger_tokens: config.compact_trigger_tokens,
             compact_user_message_max_tokens: config.compact_user_message_max_tokens,
             max_steps_per_turn: config.max_steps_per_turn.max(1),
@@ -292,13 +327,14 @@ impl KianaHarness {
             project_root,
             instructions,
         } = input;
-        if self.has_run(run_id)? {
+        if self.has_run(run_id)? || self.has_in_flight(run_id)? {
             return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "run_already_exists".to_owned(),
             });
         }
         let sandbox = normalize_sandbox(&sandbox)?;
+        let cancellation = Arc::new(RunCancellation::default());
         let mut run = ActiveRun {
             run_id,
             sandbox: sandbox.to_owned(),
@@ -308,6 +344,7 @@ impl KianaHarness {
             pending_tools: VecDeque::new(),
             steps: 0,
             last_text: String::new(),
+            cancellation: cancellation.clone(),
         };
         if !instructions.trim().is_empty() {
             run.messages.push(ModelMessage::system(instructions));
@@ -327,8 +364,13 @@ impl KianaHarness {
             run.messages.push(ModelMessage::user(message.text));
         }
 
-        emitter.emit_event(RunnerEvent::Started { run_id })?;
-        self.model_step(&mut run, emitter).await?;
+        self.register_in_flight(run_id, cancellation)?;
+        let result = match emitter.emit_event(RunnerEvent::Started { run_id }) {
+            Ok(()) => self.model_step(&mut run, emitter).await,
+            Err(error) => Err(error),
+        };
+        self.unregister_in_flight(run_id)?;
+        result?;
         self.store_unless_terminal(run, &emitter.events)?;
         Ok(())
     }
@@ -358,12 +400,20 @@ impl KianaHarness {
 
         if let Some((request_id, next_call)) = run.pending_tools.front().cloned() {
             let _ = request_id;
+            let cancellation = run.cancellation.clone();
+            let state = cancellation.lock()?;
+            if let Some(error) = state.as_ref() {
+                let error = error.clone();
+                drop(state);
+                emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
+                return Ok(());
+            }
             match emit_tool_request(&mut run, &next_call) {
                 Ok(event) => emitter.emit_event(event)?,
                 Err(error) => emitter.emit_event(RunnerEvent::Failed { run_id, error })?,
             }
         } else {
-            self.model_step(&mut run, emitter).await?;
+            self.model_step_in_flight(&mut run, emitter).await?;
         }
         self.store_unless_terminal(run, &emitter.events)?;
         Ok(())
@@ -407,7 +457,7 @@ impl KianaHarness {
         for message in run.inbox.claim(InboxTarget::NextTurn) {
             run.messages.push(ModelMessage::user(message.text));
         }
-        self.model_step(&mut run, emitter).await?;
+        self.model_step_in_flight(&mut run, emitter).await?;
         self.store_unless_terminal(run, &emitter.events)?;
         Ok(())
     }
@@ -418,11 +468,19 @@ impl KianaHarness {
         reason: String,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
+        let error = format!("cancelled:{reason}");
+        let in_flight = self
+            .in_flight
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .get(&run_id)
+            .cloned();
+        if let Some(cancellation) = in_flight {
+            cancellation.request(error.clone())?;
+            return emitter.emit_event(RunnerEvent::Failed { run_id, error });
+        }
         match self.take_run(run_id) {
-            Ok(_) => emitter.emit_event(RunnerEvent::Failed {
-                run_id,
-                error: format!("cancelled:{reason}"),
-            }),
+            Ok(_) => emitter.emit_event(RunnerEvent::Failed { run_id, error }),
             Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => emitter
                 .emit_event(RunnerEvent::Failed {
                     run_id,
@@ -437,6 +495,13 @@ impl KianaHarness {
         run: &mut ActiveRun,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
+        if let Some(error) = run.cancellation.error()? {
+            emitter.emit_event(RunnerEvent::Failed {
+                run_id: run.run_id,
+                error,
+            })?;
+            return Ok(());
+        }
         let checkpoint = emitter.events.len();
         if run.steps >= self.max_steps_per_turn {
             emitter.emit_event(RunnerEvent::Failed {
@@ -468,8 +533,10 @@ impl KianaHarness {
         }
 
         let run_id = run.run_id;
+        let cancellation = run.cancellation.clone();
         let mut emitted_delta = false;
         let mut sink_error: Option<String> = None;
+        let mut delta_redactor = StreamingRedactor::new();
         let output = self
             .model
             .complete_streaming(
@@ -484,6 +551,15 @@ impl KianaHarness {
                     }
                     match delta {
                         ModelDelta::Text { text } => {
+                            let state = cancellation.lock().map_err(|error| error.to_string())?;
+                            if let Some(error) = state.as_ref() {
+                                sink_error = Some(error.clone());
+                                return Err(error.clone());
+                            }
+                            let text = delta_redactor.push(&text);
+                            if text.is_empty() {
+                                return Ok(());
+                            }
                             emitted_delta = true;
                             if let Err(error) = emitter.emit(RunnerEvent::Delta { run_id, text }) {
                                 sink_error = Some(error.clone());
@@ -495,8 +571,24 @@ impl KianaHarness {
                 },
             )
             .await;
+        if let Some(error) = cancellation.error()? {
+            emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
+            return Ok(());
+        }
         if let Some(error) = sink_error {
             return Err(KianaHarnessError::Failed(error));
+        }
+        let tail = delta_redactor.finish();
+        if !tail.is_empty() {
+            emitted_delta = true;
+            let state = cancellation.lock()?;
+            if let Some(error) = state.as_ref() {
+                let error = error.clone();
+                drop(state);
+                emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
+                return Ok(());
+            }
+            emitter.emit_event(RunnerEvent::Delta { run_id, text: tail })?;
         }
         let output = match output {
             Ok(output) => output,
@@ -506,17 +598,18 @@ impl KianaHarness {
             }
         };
         if !output.text.is_empty() {
-            run.last_text = output.text.clone();
+            let redacted_text = redact_text(&output.text);
+            run.last_text = redacted_text.clone();
             if !emitted_delta {
                 emitter.emit_event(RunnerEvent::Delta {
                     run_id,
-                    text: output.text.clone(),
+                    text: redacted_text,
                 })?;
             }
         }
         if !output.text.is_empty() || !output.tool_calls.is_empty() {
             run.messages.push(ModelMessage::assistant_with_tools(
-                output.text.clone(),
+                redact_text(&output.text),
                 output.tool_calls.clone(),
             ));
         }
@@ -549,6 +642,13 @@ impl KianaHarness {
                 if let Some(model_id) = model_id {
                     completed.insert("model_id".to_owned(), json!(model_id));
                 }
+                let state = cancellation.lock()?;
+                if let Some(error) = state.as_ref() {
+                    let error = error.clone();
+                    drop(state);
+                    emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
+                    return Ok(());
+                }
                 emitter.emit_event(RunnerEvent::Completed {
                     run_id: run.run_id,
                     output: completed_output,
@@ -559,6 +659,13 @@ impl KianaHarness {
             return Ok(());
         }
 
+        let state = cancellation.lock()?;
+        if let Some(error) = state.as_ref() {
+            let error = error.clone();
+            drop(state);
+            emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
+            return Ok(());
+        }
         run.pending_tools.clear();
         for call in output.tool_calls {
             match capability_for_tool(&call, &run.sandbox, &run.project_root) {
@@ -612,6 +719,49 @@ impl KianaHarness {
             .lock()
             .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
             .contains_key(&run_id))
+    }
+
+    fn has_in_flight(&self, run_id: RunId) -> Result<bool, KianaHarnessError> {
+        Ok(self
+            .in_flight
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .contains_key(&run_id))
+    }
+
+    fn register_in_flight(
+        &self,
+        run_id: RunId,
+        cancellation: Arc<RunCancellation>,
+    ) -> Result<(), KianaHarnessError> {
+        let mut in_flight = self
+            .in_flight
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?;
+        if in_flight.contains_key(&run_id) {
+            return Err(KianaHarnessError::Failed("run_already_exists".to_owned()));
+        }
+        in_flight.insert(run_id, cancellation);
+        Ok(())
+    }
+
+    fn unregister_in_flight(&self, run_id: RunId) -> Result<(), KianaHarnessError> {
+        self.in_flight
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .remove(&run_id);
+        Ok(())
+    }
+
+    async fn model_step_in_flight(
+        &self,
+        run: &mut ActiveRun,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
+        self.register_in_flight(run.run_id, run.cancellation.clone())?;
+        let result = self.model_step(run, emitter).await;
+        self.unregister_in_flight(run.run_id)?;
+        result
     }
 
     fn store_unless_terminal(
@@ -876,6 +1026,76 @@ mod tests {
 
         assert!(observed.load(Ordering::SeqCst));
         assert_eq!(delivered, events);
+    }
+
+    #[tokio::test]
+    async fn cancelling_an_in_flight_stream_rejects_late_deltas_and_completion() {
+        #[derive(Default)]
+        struct HoldingModel {
+            entered: Arc<tokio::sync::Notify>,
+            release: Arc<tokio::sync::Notify>,
+            late_delta_emitted: Arc<AtomicBool>,
+        }
+
+        #[async_trait]
+        impl ModelClient for HoldingModel {
+            async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+                Err("holding_model_complete_must_not_be_called".to_owned())
+            }
+
+            async fn complete_streaming(
+                &self,
+                _request: ModelRequest,
+                on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+            ) -> Result<ModelOutput, String> {
+                on_delta(ModelDelta::Text {
+                    text: "before".to_owned(),
+                })?;
+                self.entered.notify_one();
+                self.release.notified().await;
+                on_delta(ModelDelta::Text {
+                    text: "after".to_owned(),
+                })?;
+                self.late_delta_emitted.store(true, Ordering::SeqCst);
+                Ok(ModelOutput::text("beforeafter"))
+            }
+        }
+
+        let model = Arc::new(HoldingModel::default());
+        let harness = Arc::new(KianaHarness::new(model.clone()));
+        let run_id = RunId::new();
+        let entered = model.entered.notified();
+        let start_task = {
+            let harness = harness.clone();
+            tokio::spawn(async move { harness.send(RunnerCommand::start(run_id, "hold")).await })
+        };
+        entered.await;
+
+        let cancel = harness
+            .send(RunnerCommand::Cancel {
+                run_id,
+                reason: "user".to_owned(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            cancel.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "cancelled:user".to_owned(),
+            })
+        );
+
+        model.release.notify_one();
+        let events = start_task.await.unwrap().unwrap();
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(!events.iter().any(|event| matches!(
+            event,
+            RunnerEvent::Delta { text, .. } if text == "after"
+        )));
+        assert!(!model.late_delta_emitted.load(Ordering::SeqCst));
     }
 
     #[tokio::test]

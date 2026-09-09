@@ -328,6 +328,7 @@ impl ControlPlane {
             ),
         )
         .await?;
+        let _terminal_scope = self.begin_terminal_scope(invocation.run_id);
         let events = match self
             .runner
             .send(RunnerCommand::CapabilityResult {

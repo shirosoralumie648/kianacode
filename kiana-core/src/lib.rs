@@ -54,10 +54,25 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex as AsyncMutex};
 
 struct PathLockLease {
     _file: File,
+}
+
+struct RunTerminalScope {
+    recorded: AsyncMutex<bool>,
+}
+
+struct TerminalScopeGuard<'a> {
+    control_plane: &'a ControlPlane,
+    run_id: RunId,
+}
+
+impl Drop for TerminalScopeGuard<'_> {
+    fn drop(&mut self) {
+        self.control_plane.end_terminal_scope(self.run_id);
+    }
 }
 
 struct BuilderPathLockGuard<'a> {
@@ -124,6 +139,7 @@ pub struct ControlPlane {
     sessions: Mutex<HashMap<String, SessionBinding>>,
     pending_invocations: Mutex<HashMap<ApprovalId, PendingInvocation>>,
     cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
+    active_terminal_scopes: Mutex<HashMap<RunId, Arc<RunTerminalScope>>>,
     path_locks: Mutex<HashMap<String, String>>,
     durable_path_locks: Mutex<HashMap<String, Vec<PathLockLease>>>,
 }

@@ -182,6 +182,76 @@ impl ModelClient for ChunkedModel {
     }
 }
 
+struct SplitSecretStreamingModel {
+    seen: Mutex<Vec<ModelRequest>>,
+    step: Mutex<u32>,
+}
+
+#[async_trait]
+impl ModelClient for SplitSecretStreamingModel {
+    async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+        Err("split_secret_model_complete_must_not_be_called".to_owned())
+    }
+
+    async fn complete_streaming(
+        &self,
+        request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        self.seen.lock().unwrap().push(request);
+        let mut step = self.step.lock().unwrap();
+        *step += 1;
+        match *step {
+            1 => {
+                for text in ["Authorization: Bear", "er stream-split-sentinel"] {
+                    on_delta(ModelDelta::Text {
+                        text: text.to_owned(),
+                    })?;
+                }
+                Ok(ModelOutput {
+                    text: "Authorization: Bearer stream-split-sentinel".to_owned(),
+                    tool_calls: vec![ModelToolCall {
+                        id: "c1".to_owned(),
+                        name: "shell".to_owned(),
+                        arguments: json!({"command": "true"}),
+                    }],
+                    ..ModelOutput::default()
+                })
+            }
+            2 => Ok(ModelOutput::text("finished")),
+            other => Err(format!("unexpected_model_step:{other}")),
+        }
+    }
+}
+
+struct HoldMidStreamModel {
+    release: Notify,
+    late_delta_emitted: Mutex<bool>,
+}
+
+#[async_trait]
+impl ModelClient for HoldMidStreamModel {
+    async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+        Err("hold_mid_stream_complete_must_not_be_called".to_owned())
+    }
+
+    async fn complete_streaming(
+        &self,
+        _request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        on_delta(ModelDelta::Text {
+            text: "before".to_owned(),
+        })?;
+        self.release.notified().await;
+        on_delta(ModelDelta::Text {
+            text: "after".to_owned(),
+        })?;
+        *self.late_delta_emitted.lock().unwrap() = true;
+        Ok(ModelOutput::text("beforeafter"))
+    }
+}
+
 #[test]
 fn local_daemon_constructs_without_a_model() {
     let _env_lock = environment_lock();
@@ -313,6 +383,218 @@ async fn run_without_subscription_keeps_the_complete_response_path() {
 
     assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
     assert_eq!(response.output["output"]["text"], "alpha beta gamma");
+}
+
+#[tokio::test]
+async fn legacy_run_without_subscription_keeps_the_exact_response_shape() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let harness = KianaHarness::new(Arc::new(ChunkedModel {
+        chunks: vec!["legacy", " output"],
+    }));
+    let host = Arc::new(trusted_harness_host(harness).expect("legacy daemon"));
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let response = client
+        .run(trusted_metadata_in(&root), "stream it", None)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let mut keys = serde_json::to_value(&response)
+        .unwrap()
+        .as_object()
+        .expect("response object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec!["error", "output", "request_id", "schema", "status"]
+    );
+    assert_eq!(response.output["output"]["text"], "legacy output");
+}
+
+#[tokio::test]
+async fn split_secret_across_stream_deltas_never_reaches_stdout_events_receipt_or_model_context() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let events = root.join("sessions").join("events.jsonl");
+    let model = Arc::new(SplitSecretStreamingModel {
+        seen: Mutex::new(Vec::new()),
+        step: Mutex::new(0),
+    });
+    let host = Arc::new(
+        trusted_harness_host_on_disk(KianaHarness::new(model.clone()), &events)
+            .expect("disk daemon"),
+    );
+    let run_id = RunId::new();
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.session_id = SessionId::new(run_id.to_string());
+    let mut subscription = host.subscribe_run(run_id);
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let response = client
+        .run(metadata.clone(), "stream a split secret", None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let mut streamed = String::new();
+    loop {
+        let envelope = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+            .await
+            .expect("stream timeout")
+            .expect("stream event");
+        match envelope.event {
+            RunStreamEvent::Delta { text, .. } => streamed.push_str(&text),
+            RunStreamEvent::Terminal { .. } => break,
+            RunStreamEvent::Unknown => {}
+        }
+    }
+
+    let receipt = client.receipt(metadata, Some(run_id)).await.unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Completed, "{receipt:?}");
+    let event_log = fs::read_to_string(&events).expect("durable event log");
+    let model_context = model
+        .seen
+        .lock()
+        .unwrap()
+        .iter()
+        .flat_map(|request| request.messages.iter())
+        .map(|message| message.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let response_text = serde_json::to_string(&response).expect("serialized response");
+    let receipt_text = serde_json::to_string(&receipt).expect("serialized receipt");
+
+    let violations = [
+        ("stdout stream", streamed.as_str()),
+        ("event log", event_log.as_str()),
+        ("run response", response_text.as_str()),
+        ("receipt", receipt_text.as_str()),
+        ("next model request", model_context.as_str()),
+    ]
+    .into_iter()
+    .filter_map(|(surface, text)| {
+        text.contains("stream-split-sentinel")
+            .then_some(format!("{surface}: {text}"))
+    })
+    .collect::<Vec<_>>();
+    assert!(
+        violations.is_empty(),
+        "split secret reached: {}",
+        violations.join("\n")
+    );
+}
+
+#[tokio::test]
+async fn cancelling_mid_stream_never_completes_or_emits_a_late_delta() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let events = root.join("sessions").join("events.jsonl");
+    let model = Arc::new(HoldMidStreamModel {
+        release: Notify::new(),
+        late_delta_emitted: Mutex::new(false),
+    });
+    let host = Arc::new(
+        trusted_harness_host_on_disk(KianaHarness::new(model.clone()), &events)
+            .expect("disk daemon"),
+    );
+    let run_id = RunId::new();
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.session_id = SessionId::new(run_id.to_string());
+    let mut subscription = host.subscribe_run(run_id);
+    let run_client = KianaClient::new(InProcessTransport { host: host.clone() });
+    let cancel_client = KianaClient::new(InProcessTransport { host });
+    let run_metadata = metadata.clone();
+
+    let run_task = tokio::spawn(async move {
+        run_client
+            .run(run_metadata, "stream until cancelled", None)
+            .await
+            .unwrap()
+    });
+
+    let first = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+        .await
+        .expect("first delta timeout")
+        .expect("first delta");
+    assert_eq!(
+        first.event,
+        RunStreamEvent::Delta {
+            run_id,
+            text: "before".to_owned(),
+        }
+    );
+
+    let cancel = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        cancel_client.cancel_run(metadata, Some(run_id), "user"),
+    )
+    .await
+    .expect("cancel timeout")
+    .unwrap();
+    model.release.notify_one();
+
+    let response = tokio::time::timeout(std::time::Duration::from_secs(2), run_task)
+        .await
+        .expect("run timeout")
+        .expect("run task");
+    let mut late_stream = String::new();
+    while let Ok(Ok(envelope)) =
+        tokio::time::timeout(std::time::Duration::from_millis(50), subscription.recv()).await
+    {
+        match envelope.event {
+            RunStreamEvent::Delta { text, .. } => late_stream.push_str(&text),
+            RunStreamEvent::Terminal { .. } => break,
+            RunStreamEvent::Unknown => {}
+        }
+    }
+    let event_log = fs::read_to_string(&events).expect("durable event log");
+    let mut violations = Vec::new();
+    if cancel.status != ExecutionStatus::Cancelled {
+        violations.push(format!("cancel status was {}", cancel.status.as_str()));
+    }
+    if response.status != ExecutionStatus::Cancelled {
+        violations.push(format!(
+            "run status after cancellation was {}",
+            response.status.as_str()
+        ));
+    }
+    if *model.late_delta_emitted.lock().unwrap() {
+        violations.push("model emitted a delta after cancellation".to_owned());
+    }
+    if late_stream.contains("after") {
+        violations.push("late delta reached the stream".to_owned());
+    }
+    if response.output.to_string().contains("after") {
+        violations.push("late delta reached the run response".to_owned());
+    }
+    if event_log.contains("\"text\":\"after\"") {
+        violations.push("late delta reached the event log".to_owned());
+    }
+    let terminal_count = [
+        "\"kind\":\"run.completed\"",
+        "\"kind\":\"run.failed\"",
+        "\"kind\":\"run.cancelled\"",
+        "\"kind\":\"run.result_unknown\"",
+    ]
+    .into_iter()
+    .map(|needle| event_log.matches(needle).count())
+    .sum::<usize>();
+    if terminal_count != 1 {
+        violations.push(format!("event log wrote {terminal_count} terminal events"));
+    }
+    if !event_log.contains("\"kind\":\"run.cancelled\"") {
+        violations.push("event log did not write run.cancelled".to_owned());
+    }
+    assert!(
+        violations.is_empty(),
+        "mid-stream cancellation was not fail-closed: {}",
+        violations.join("; ")
+    );
 }
 
 #[tokio::test]

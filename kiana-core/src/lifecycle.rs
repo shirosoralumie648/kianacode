@@ -124,6 +124,7 @@ impl ControlPlane {
         // so an in-flight cancel can resolve session-1 and abort shell.exec.
         self.remember_session(&context, run_id);
         let _cancel_rx = self.watch_cancel(run_id);
+        let _terminal_scope = self.begin_terminal_scope(run_id);
 
         let pending_events = match self
             .runner
@@ -143,9 +144,10 @@ impl ControlPlane {
                 self.forget_session(context.session_id.as_str(), run_id);
                 self.clear_cancel(run_id);
                 let reason = redact_event_text(&error.to_string());
-                self.record_event(
+                self.record_terminal_event(
                     request_id,
                     &mut sequence,
+                    run_id,
                     "run.failed",
                     json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )
@@ -230,6 +232,7 @@ impl ControlPlane {
             }
         };
 
+        let _terminal_scope = self.begin_terminal_scope(run_id);
         let pending_events = match self
             .runner
             .send(RunnerCommand::continue_run(run_id, prompt))
@@ -238,9 +241,10 @@ impl ControlPlane {
             Ok(events) => events,
             Err(error) => {
                 let reason = redact_event_text(&error.to_string());
-                self.record_event(
+                self.record_terminal_event(
                     request_id,
                     &mut sequence,
+                    run_id,
                     "run.failed",
                     json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
                 )
@@ -321,9 +325,10 @@ impl ControlPlane {
                 .await
             {
                 let error = redact_event_text(&error.to_string());
-                self.record_event(
+                self.record_terminal_event(
                     request_id,
                     &mut sequence,
+                    run_id,
                     "run.failed",
                     json!({
                         "run_id": run_id,
@@ -359,9 +364,10 @@ impl ControlPlane {
             Err(error) => {
                 let error = redact_event_text(&error.to_string());
                 let error = format!("result_unknown:{error}");
-                self.record_event(
+                self.record_terminal_event(
                     request_id,
                     &mut sequence,
+                    run_id,
                     "run.result_unknown",
                     json!({ "run_id": run_id, "error": &error }),
                 )
@@ -413,9 +419,10 @@ impl ControlPlane {
                 .map(redact_event_text)
                 .expect("cancelled response was checked above");
             self.forget_session(context.session_id.as_str(), run_id);
-            self.record_event(
+            self.record_terminal_event(
                 request_id,
                 &mut sequence,
+                run_id,
                 "run.cancelled",
                 json!({ "run_id": run_id, "error": &cancelled }),
             )
@@ -438,9 +445,10 @@ impl ControlPlane {
             "cancel_confirmation_missing".to_owned()
         };
         let error = format!("result_unknown:{runner_error}");
-        self.record_event(
+        self.record_terminal_event(
             request_id,
             &mut sequence,
+            run_id,
             "run.result_unknown",
             json!({ "run_id": run_id, "error": &error }),
         )
@@ -538,16 +546,28 @@ impl ControlPlane {
                     }
                     output = redact_event_value(&harness_output);
                     completed = true;
-                    self.record_event(request_id, sequence, "run.completed", output.clone())
-                        .await?;
+                    self.record_terminal_event(
+                        request_id,
+                        sequence,
+                        run_id,
+                        "run.completed",
+                        output.clone(),
+                    )
+                    .await?;
                 }
                 RunnerEvent::Failed { run_id, error } => {
                     let error = redact_event_text(&error);
                     failed = Some(error.clone());
-                    self.record_event(
+                    let terminal_kind = if error.starts_with("cancelled:") {
+                        "run.cancelled"
+                    } else {
+                        "run.failed"
+                    };
+                    self.record_terminal_event(
                         request_id,
                         sequence,
-                        "run.failed",
+                        run_id,
+                        terminal_kind,
                         json!({ "run_id": run_id, "error": error }),
                     )
                     .await?;
@@ -586,9 +606,10 @@ impl ControlPlane {
             let result_unknown = error.strip_prefix("result_unknown:").is_some();
             if result_unknown {
                 let _ = self
-                    .record_event(
+                    .record_terminal_event(
                         request_id,
                         sequence,
+                        run_id,
                         "run.result_unknown",
                         json!({ "run_id": run_id, "error": redact_event_text(&error) }),
                     )
@@ -611,9 +632,10 @@ impl ControlPlane {
         }
         if !completed {
             let reason = "run_result_missing";
-            self.record_event(
+            self.record_terminal_event(
                 request_id,
                 sequence,
+                run_id,
                 "run.result_unknown",
                 json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
             )

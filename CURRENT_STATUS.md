@@ -91,6 +91,28 @@ limitations: subscription is process-local and must be established before the ru
 reviewer: focused protocol additive compatibility, subscription ordering, terminal receipt projection, and no-subscriber path review; no second execution loop, ledger granularity change, cassette schema change, UI change, or frozen-path change
 ```
 
+### P1-03 in-flight stream cancellation evidence (2026-09-09)
+
+```text
+source_snapshot: dirty checkout + uncommitted run-stream WIP; this slice changes kiana-runner/src/harness.rs, kiana-core/src/{events,lifecycle,capabilities,approvals,commands,lib}.rs, and kiana-daemon/tests/daemon_host.rs
+worktree_status: dirty checkout; existing user/WIP changes preserved; no commit/reset/push/merge/worktree deletion performed
+command_argv:
+  cargo fmt --all --check
+  cargo test -p kiana-runner --locked --offline -- --test-threads=1
+  cargo test -p kiana-core --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked --offline -- --test-threads=1
+  cargo test -p kiana-runner -p kiana-daemon --locked --offline
+  cargo clippy -p kiana-runner -p kiana-core -p kiana-daemon --all-targets --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; CARGO_BUILD_JOBS=2 and -j 2; locked/offline dependency resolution; daemon/core tests serialized; default sandbox forbids bwrap bind/loopback and HOME-level KIANA_HOME writes
+fixture or cassette: in-process HoldMidStreamModel emits `before`, waits, then attempts `after`; run-stream subscriber; disk JSONL EventLog; runner HoldingModel unit fixture; no protocol, cassette-schema, or UI change
+exit_code: fmt check=0; runner=0 (37 unit + 2 malicious-model tests); core control_plane=0 (86/86); focused daemon_host cancellation=0 (1/1); clippy=0 with existing non-fatal workspace warnings; diff check=0; requested `cargo test -p kiana-runner -p kiana-daemon --locked --offline`=101 in the default sandbox (kiana-daemon lib 59 passed/24 failed: 15 apply_patch_lock_unavailable due HOME-level lock writes, 9 bwrap loopback/NETLINK or local-socket EPERM). With KIANA_HOME set to a workspace path and --no-fail-fast --test-threads=1: runner=0, daemon control_plane=13/13, daemon_host=62/66, daemon lib=74/83; remaining 9 lib + 4 integration failures are the same bwrap/loopback/EPERM or HOME/trust environment fixtures
+status change: P1-03 remains partial; KianaHarness now registers an in-flight cancellation token before the model await, Cancel addresses that token, stream callbacks reject deltas after cancellation, returned model output/tool calls are discarded, and the active run-driver terminal scope permits only the first terminal event. Event append now retries bounded CAS/payload-key contention without weakening idempotent replay.
+proof-level change: local_behavior negative evidence for mid-stream cancellation: no `run.completed`, no late `after` delta in stream/response/event log, one `run.cancelled` terminal, and no late model delta; runner unit regression covers the same owner-crate boundary. No durable/live/physical promotion and no claim that token streaming is generally supported.
+limitations: cancellation state and terminal scopes are process-local; there is no durable cancel epoch, cross-process runner recovery, or restart reconciliation; the exact requested package command remains environment-red in this sandbox because bwrap cannot create NETLINK_ROUTE/loopback and default HOME/KIANA_HOME lock paths are unwritable. The daemon_host trust-fixture failure under workspace KIANA_HOME is likewise an environment/HOME artifact, not a cancellation assertion failure.
+reviewer: focused implementation plus core/runner/daemon regression review; no assertion was weakened, skipped, or deleted, and no second execution loop, protocol, cassette-schema, or UI change was made
+```
+
 ## 3. Gate 0 当前结果
 
 Gate 0 的历史证据块保留其当时结论；当前快照在 MCP 参数边界、completion-marker 与 JSONL 尾记录修复后重新验证为绿。S0 证据门已通过，但这不提升 S1-S4 的状态，也不把本地证据写成 durable/live/physical。

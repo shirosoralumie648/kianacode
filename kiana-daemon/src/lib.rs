@@ -15,6 +15,7 @@ mod run_stream;
 use approval_store::{JsonlApprovalStore, MemoryApprovalStore};
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
+pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{CommandIntent, PermissionProfile, RequestContext, RoleSpec, RunId};
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
