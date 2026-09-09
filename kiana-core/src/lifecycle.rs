@@ -120,6 +120,18 @@ impl ControlPlane {
         )
         .await?;
 
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "run.prompt",
+            json!({
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "text": &prompt,
+            }),
+        )
+        .await?;
+
         // Session index and cancel watch must exist before the first model step
         // so an in-flight cancel can resolve session-1 and abort shell.exec.
         self.remember_session(&context, run_id);
@@ -231,6 +243,18 @@ impl ControlPlane {
                 return Ok(CoreResponse::blocked(request_id, reason));
             }
         };
+
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "run.prompt",
+            json!({
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "text": &prompt,
+            }),
+        )
+        .await?;
 
         let _terminal_scope = self.begin_terminal_scope(run_id);
         let pending_events = match self

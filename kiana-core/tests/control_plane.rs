@@ -2390,6 +2390,63 @@ async fn runner_delta_completion_and_receipt_are_redacted_at_the_event_boundary(
 }
 
 #[tokio::test]
+async fn start_and_continue_prompts_are_recorded_and_redacted_in_the_ledger() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        { "text": "first response" },
+        { "text": "second response" }
+    ])));
+    let context = trusted_context();
+    let request_id = context.request_id;
+
+    let started = harness
+        .core
+        .start_run(
+            context.clone(),
+            "first api_key=start-prompt-secret".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+
+    let continued = harness
+        .core
+        .continue_run(
+            context,
+            "second token=continue-prompt-secret".to_owned(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        continued.status,
+        ExecutionStatus::Completed,
+        "{continued:?}"
+    );
+
+    let events = harness.events.read_request(&request_id).await.unwrap();
+    let prompts = events
+        .iter()
+        .filter(|event| event.kind == "run.prompt")
+        .collect::<Vec<_>>();
+    assert_eq!(prompts.len(), 2, "{prompts:?}");
+    assert_eq!(prompts[0].data["run_id"], started.output["run_id"]);
+    assert_eq!(prompts[0].data["session_id"], "session-1");
+    assert_eq!(prompts[0].data["text"], "first api_key=[REDACTED]");
+    assert_eq!(prompts[1].data["run_id"], started.output["run_id"]);
+    assert_eq!(prompts[1].data["session_id"], "session-1");
+    assert_eq!(prompts[1].data["text"], "second token=[REDACTED]");
+
+    let event_text = serde_json::to_string(&events).unwrap();
+    assert!(!event_text.contains("start-prompt-secret"), "{event_text}");
+    assert!(
+        !event_text.contains("continue-prompt-secret"),
+        "{event_text}"
+    );
+}
+
+#[tokio::test]
 async fn contiguous_stream_deltas_become_one_durable_run_delta() {
     let events = Arc::new(MemoryEventLog::new());
     let core = ControlPlane::new(
@@ -2440,11 +2497,18 @@ async fn stream_deltas_are_not_merged_across_turns() {
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
 
+    let events = events.read_request(&request_id).await.unwrap();
+    let tool_calls = events
+        .iter()
+        .filter(|event| event.kind == "run.tool_call")
+        .collect::<Vec<_>>();
+    assert_eq!(tool_calls.len(), 1, "{tool_calls:?}");
+    assert_eq!(tool_calls[0].data["call_id"], Value::Null);
+    assert_eq!(tool_calls[0].data["tool"], "query");
+    assert_eq!(tool_calls[0].data["operation"], "search");
+
     let texts = events
-        .read_request(&request_id)
-        .await
-        .unwrap()
-        .into_iter()
+        .iter()
         .filter(|event| event.kind == "run.delta")
         .map(|event| event.data["text"].as_str().unwrap_or_default().to_owned())
         .collect::<Vec<_>>();
@@ -2730,10 +2794,19 @@ async fn start_run_brokers_harness_tools() {
         .map(|event| event.kind.clone())
         .collect::<Vec<_>>();
     assert!(kinds.contains(&"run.authorized".to_owned()));
+    assert!(kinds.contains(&"run.tool_call".to_owned()));
     assert!(kinds.contains(&"run.capability_requested".to_owned()));
     assert!(kinds.contains(&"capability.completed".to_owned()));
     assert!(kinds.contains(&"run.completed".to_owned()));
     assert!(!kinds.iter().any(|kind| kind == "run.capability_observed"));
+    let tool_call = events
+        .iter()
+        .find(|event| event.kind == "run.tool_call")
+        .unwrap();
+    assert_eq!(tool_call.data["run_id"], response.output["run_id"]);
+    assert_eq!(tool_call.data["call_id"], "c1");
+    assert_eq!(tool_call.data["tool"], "process");
+    assert_eq!(tool_call.data["operation"], "shell.exec");
     let requested = events
         .iter()
         .find(|event| event.kind == "run.capability_requested")

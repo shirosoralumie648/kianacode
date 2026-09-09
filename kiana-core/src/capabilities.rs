@@ -78,6 +78,20 @@ impl ControlPlane {
         cancel_rx: &watch::Receiver<bool>,
     ) -> Result<Result<Option<Vec<RunnerEvent>>, String>, CoreError> {
         stamp_request_identity(&mut request, context);
+        // RunnerEvent::CapabilityRequested carries no model-visible tool name; retain the
+        // stable capability class and exact broker operation available to the control plane.
+        self.record_event(
+            request_id,
+            sequence,
+            "run.tool_call",
+            json!({
+                "run_id": run_id,
+                "call_id": request.arguments.get("call_id").cloned().unwrap_or(Value::Null),
+                "tool": request.capability.clone(),
+                "operation": request.operation.clone(),
+            }),
+        )
+        .await?;
         if let Err(error) = self.bind_cell_scope(context, &mut request).await {
             let reason = error.to_string();
             self.record_event(
