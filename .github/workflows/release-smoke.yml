@@ -21,19 +21,6 @@ jobs:
           export TOOLCHAIN_VERSION=$(rustc --version | awk '{print $2}')
           export CARGO_LOCK_HASH=$(sha256sum Cargo.lock | awk '{print $1}')
           export SOURCE_HASH=$(git rev-parse HEAD)
-          python3 - <<'PY'
-import json, os, datetime
-record = {
-    "schema": "kiana.build-inputs.v1",
-    "toolchain_channel": "stable",
-    "toolchain_version": os.environ["TOOLCHAIN_VERSION"],
-    "cargo_lock_hash": os.environ["CARGO_LOCK_HASH"],
-    "source_hash": os.environ["SOURCE_HASH"],
-    "build_timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "ci_run_id": os.environ.get("GITHUB_RUN_ID", ""),
-}
-open("dist/build-inputs.json", "w").write(json.dumps(record, indent=2, sort_keys=True) + "\n")
-print(f"build-inputs recorded: toolchain={record['toolchain_version']} source={record['source_hash'][:8]}")
-PY
+          python3 scripts/record-build-inputs.py
       - run: bash scripts/release-preflight.sh --local-rc
       - run: bash scripts/release-smoke.sh
