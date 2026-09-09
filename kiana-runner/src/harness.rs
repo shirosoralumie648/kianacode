@@ -27,15 +27,18 @@ use kiana_runner_protocol::{
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 pub const HARNESS_ID: &str = "kiana-harness";
 pub const HARNESS_RESULT_SCHEMA: &str = "kiana.harness-result.v1";
 const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
+const RUN_BUDGET_EXCEEDED_WALL_TIME: &str = "run_budget_exceeded:wall_time";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeConfig {
     pub max_steps_per_turn: u32,
     pub repeated_tool_call_threshold: u32,
+    pub wall_time_budget: Option<Duration>,
     pub compact_trigger_tokens: usize,
     pub compact_user_message_max_tokens: usize,
 }
@@ -45,6 +48,7 @@ impl Default for RuntimeConfig {
         Self {
             max_steps_per_turn: 32,
             repeated_tool_call_threshold: 3,
+            wall_time_budget: None,
             compact_trigger_tokens: DEFAULT_COMPACT_TRIGGER_TOKENS,
             compact_user_message_max_tokens: COMPACT_USER_MESSAGE_MAX_TOKENS,
         }
@@ -114,6 +118,7 @@ struct ActiveRun {
     pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
     last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
+    wall_time_started_at: Instant,
     last_text: String,
     cancellation: Arc<RunCancellation>,
 }
@@ -173,6 +178,7 @@ pub struct KianaHarness {
     compact_user_message_max_tokens: usize,
     max_steps_per_turn: u32,
     repeated_tool_call_threshold: u32,
+    wall_time_budget: Option<Duration>,
 }
 
 impl Default for KianaHarness {
@@ -195,6 +201,7 @@ impl KianaHarness {
             compact_user_message_max_tokens: config.compact_user_message_max_tokens,
             max_steps_per_turn: config.max_steps_per_turn.max(1),
             repeated_tool_call_threshold: config.repeated_tool_call_threshold.max(1),
+            wall_time_budget: config.wall_time_budget,
         }
     }
 
@@ -204,6 +211,7 @@ impl KianaHarness {
             repeated_tool_call_threshold: self.repeated_tool_call_threshold,
             compact_trigger_tokens: self.compact_trigger_tokens,
             compact_user_message_max_tokens: self.compact_user_message_max_tokens,
+            wall_time_budget: self.wall_time_budget,
         }
     }
 
@@ -220,6 +228,11 @@ impl KianaHarness {
 
     pub fn with_repeated_tool_call_threshold(mut self, threshold: u32) -> Self {
         self.repeated_tool_call_threshold = threshold.max(1);
+        self
+    }
+
+    pub fn with_wall_time_budget(mut self, wall_time_budget: impl Into<Option<Duration>>) -> Self {
+        self.wall_time_budget = wall_time_budget.into();
         self
     }
 
@@ -336,6 +349,7 @@ impl KianaHarness {
         input: StartInput,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
+        let wall_time_started_at = Instant::now();
         let StartInput {
             run_id,
             prompt,
@@ -361,6 +375,7 @@ impl KianaHarness {
             pending_tools: VecDeque::new(),
             last_tool_call: None,
             steps: 0,
+            wall_time_started_at,
             last_text: String::new(),
             cancellation: cancellation.clone(),
         };
@@ -469,6 +484,7 @@ impl KianaHarness {
             return Ok(());
         }
         run.steps = 0;
+        run.wall_time_started_at = Instant::now();
         run.last_text.clear();
         run.last_tool_call = None;
         run.inbox
@@ -526,6 +542,16 @@ impl KianaHarness {
             emitter.emit_event(RunnerEvent::Failed {
                 run_id: run.run_id,
                 error: "max_steps_per_turn".to_owned(),
+            })?;
+            return Ok(());
+        }
+        if self
+            .wall_time_budget
+            .is_some_and(|budget| run.wall_time_started_at.elapsed() >= budget)
+        {
+            emitter.emit_event(RunnerEvent::Failed {
+                run_id: run.run_id,
+                error: RUN_BUDGET_EXCEEDED_WALL_TIME.to_owned(),
             })?;
             return Ok(());
         }
@@ -788,10 +814,15 @@ impl KianaHarness {
         run: ActiveRun,
         events: &[RunnerEvent],
     ) -> Result<(), KianaHarnessError> {
-        if events
-            .iter()
-            .any(|event| matches!(event, RunnerEvent::Failed { .. }))
-        {
+        // A wall-time budget failure ends only the current turn. Continue
+        // starts a fresh budget, so keep the run for that explicit command.
+        let terminal_failure = events.iter().any(|event| {
+            matches!(
+                event,
+                RunnerEvent::Failed { error, .. } if error != RUN_BUDGET_EXCEEDED_WALL_TIME
+            )
+        });
+        if terminal_failure {
             return Ok(());
         }
         self.runs
@@ -957,9 +988,114 @@ mod tests {
             .unwrap()
     }
 
+    fn backdate_wall_time_start(harness: &KianaHarness, run_id: RunId, elapsed: Duration) {
+        let mut runs = harness.runs.lock().unwrap();
+        let run = runs.get_mut(&run_id).expect("run must be stored");
+        run.wall_time_started_at = Instant::now()
+            .checked_sub(elapsed)
+            .expect("test clock underflow");
+    }
+
     #[test]
     fn runtime_config_defaults_repeated_tool_call_threshold_to_three() {
         assert_eq!(RuntimeConfig::default().repeated_tool_call_threshold, 3);
+    }
+
+    #[test]
+    fn runtime_config_defaults_wall_time_budget_to_none() {
+        assert_eq!(RuntimeConfig::default().wall_time_budget, None);
+    }
+
+    #[tokio::test]
+    async fn sufficient_wall_time_budget_allows_normal_completion() {
+        let harness =
+            scripted(json!([{"text": "done"}])).with_wall_time_budget(Duration::from_secs(5));
+        let run_id = RunId::new();
+
+        let events = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Failed { .. })));
+    }
+
+    #[tokio::test]
+    async fn wall_time_budget_exceeded_between_model_steps_fails_closed() {
+        let harness = scripted(json!([
+            {"text": "running ls", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "must not run"}
+        ]))
+        .with_wall_time_budget(Duration::from_secs(1));
+        let run_id = RunId::new();
+
+        let started = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        backdate_wall_time_start(&harness, run_id, Duration::from_secs(2));
+        let events =
+            send_capability_success(&harness, run_id, capability_request_id(&started)).await;
+
+        assert_eq!(
+            events.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "run_budget_exceeded:wall_time".to_owned(),
+            })
+        );
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(!events.iter().any(|event| matches!(
+            event,
+            RunnerEvent::Delta { text, .. } if text == "must not run"
+        )));
+    }
+
+    #[tokio::test]
+    async fn continue_run_resets_wall_time_budget_after_timeout() {
+        let harness = scripted(json!([
+            {"text": "running ls", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "continued"}
+        ]))
+        .with_wall_time_budget(Duration::from_secs(1));
+        let run_id = RunId::new();
+
+        let started = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        backdate_wall_time_start(&harness, run_id, Duration::from_secs(2));
+        let timed_out =
+            send_capability_success(&harness, run_id, capability_request_id(&started)).await;
+        assert_eq!(
+            timed_out.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "run_budget_exceeded:wall_time".to_owned(),
+            })
+        );
+
+        let continued = harness
+            .send(RunnerCommand::continue_run(run_id, "keep going"))
+            .await
+            .unwrap();
+
+        assert!(continued
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Delta { text, .. } if text == "continued")));
+        assert!(continued
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(!continued
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Failed { .. })));
     }
 
     #[tokio::test]
