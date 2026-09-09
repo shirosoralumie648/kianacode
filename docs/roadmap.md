@@ -60,7 +60,7 @@
 | `P0-F-03` | P0 | F Approval | `P0-G-02b` | 重启后可续跑同一 Runner；缺材料返回 `approval_continuation_unavailable` | ⏳ |
 | `P0-G-01` | P0 | G 事实源与恢复 | — | 内存未命中时只读回读重建；账本无记录仍 fail-closed | ✅ |
 | `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
-| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | `run.tool_result` 落账；账本可重建 model-visible history | ⏳ |
+| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ⏳ |
 | `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
 | `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ⏳ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
@@ -223,14 +223,14 @@
 - **依赖 / 边界**：依赖 `P0-G-01`；`call_id` 在 runner 未提供时为 `null`。
 - **依据**：`company-os-implementation-outline.md` §Slice G｜`40420bd` + CI `34378214555` + 证据块「Ledger prompt and tool-call identity evidence (2026-09-10)」（`f08a1cf`）
 
-### P0-G-02b 账本记录 tool_result 与 history 重建　⏳
+### P0-G-02b 折叠账本重建 history　⏳
 
-- **现状**：`run.tool_result` 未记录；证据块 limitations 明确「the ledger still cannot reconstruct history or resume a run」。
-- **做什么**：新增 `run.tool_result` 事件 kind（过 `redact_event_value`），使账本能重建 model-visible history。
-- **风险**：assistant tool_call 没有配对的 tool result，重建出的 history 不合法。
+- **现状**：工具结果**已在**账本里——`capability_event_payload`（`events.rs:200-213`）把 redacted 结果与 `capability_request_id` 一并写入；请求事件带 `arguments.call_id`（`capabilities.rs:89`）。缺的是折叠函数。
+- **做什么**：新增只读折叠函数，把 `run.prompt`/`run.delta`/`capability.*` 按 `sequence` 折成 `Vec<ConversationMessage>`；**不新增事件 kind**（那会造重复事实源）。同时补齐三条预派发失败载荷缺失的 `capability_request_id`。
+- **风险**：`capabilities.rs:163`/`:176`/`:275` 的 `capability.failed` 只有 `run_id` + `error`，折叠会产出没有配对的 tool_call；assistant tool_call 缺配对结果时 history 不合法。
 - **验收**：`resume_rebuilds_model_visible_history_from_ledger`
 - **依赖 / 边界**：依赖 `P0-G-02a`；不新增模型可见工具，不动 `PROTOCOL_SCHEMA`。
-- **依据**：`company-os-implementation-outline.md` §Slice G
+- **依据**：`company-os-implementation-outline.md` §Slice G｜2026-09-10 复核：不新增 `run.tool_result`
 
 ### P0-G-03 `resume_run` 与协议入口　⏳
 
@@ -288,12 +288,12 @@
 
 ### P0-J1-05 有界循环三件套　🔄
 
-- **现状**：`RuntimeConfig` / `with_max_steps` 存在但产品路径从不调用（恒 32 步）；`RoleSpec.max_steps` 不生效；无 run 级 wall-time 预算。重复工具调用检测已落地（`d973ff6`）。
-- **做什么**：把 `max_steps` 按角色接到 harness；加 run 级 wall-time 预算 → fail-closed 并写 `run.budget_exceeded`。
-- **风险**：阈值写死在 harness 里会让角色配置形同虚设，必须进 `RuntimeConfig`。
+- **现状**：重复调用检测已落地（`d973ff6`）；`wall_time_budget` 字段与 `with_wall_time_budget` 已加（`409cfc7`）。但 `KianaHarness::new` 在 `kiana-daemon/src/lib.rs` 的 5 处调用都不传 `RuntimeConfig`，产品路径仍用默认值（32 步、无 wall-time）；`with_max_steps` 零调用点，`RoleSpec.max_steps` 不生效。
+- **做什么**：把 `RuntimeConfig` 接到 `DaemonHost` 的 harness 构造，按角色传 `max_steps`，并给产品路径设置 run 级 wall-time 预算。
+- **风险**：只加字段不接线等于配置存在但不生效；阈值必须在产品路径真正被读取。
 - **验收**：`role_max_steps_reaches_the_harness`、`run_wall_time_budget_fails_closed`
 - **依赖 / 边界**：无依赖；不同参数不算重复调用，不得误伤。
-- **依据**：`company-os-implementation-outline.md` §Slice J1
+- **依据**：`company-os-implementation-outline.md` §Slice J1｜`409cfc7` 等 CI + 证据块
 
 ### P0-J7-01 流式基线收尾　✅
 
