@@ -8,6 +8,7 @@ mod collaboration;
 mod commands;
 mod context_query;
 mod events;
+mod history;
 mod lifecycle;
 mod receipts;
 mod redaction;

@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
-use kiana_core::ControlPlane;
+use kiana_core::{ControlPlane, CoreError};
 use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
-    CapabilityRequest, CapabilityResult, CommandIntent, ExecutionStatus, PendingApproval,
-    PermissionProfile, RequestContext, RequestId, RoleSpec, RunId, RuntimeEvent, WorkPacket,
-    APPROVAL_CHALLENGE_SCHEMA,
+    CapabilityRequest, CapabilityResult, CommandIntent, ConversationMessage, ConversationRole,
+    ExecutionStatus, PendingApproval, PermissionProfile, RequestContext, RequestId, RoleSpec,
+    RunId, RuntimeEvent, WorkPacket, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -4986,5 +4986,268 @@ async fn malicious_tool_result_injection_cannot_widen_memory_grants() {
     assert!(
         event_text.contains("role_memory_write_denied"),
         "{event_text}"
+    );
+}
+
+#[tokio::test]
+async fn resume_rebuilds_model_visible_history_from_ledger() {
+    let events = Arc::new(MemoryEventLog::new());
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let first = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        scripted_runner(json!([
+            {
+                "text": "running ls",
+                "tool_calls": [{
+                    "id": "c1",
+                    "name": "shell",
+                    "arguments": {"command": "ls"}
+                }]
+            },
+            {"text": "architecture mapped"}
+        ])),
+        broker.clone(),
+    );
+    let response = first
+        .core
+        .start_run(trusted_context(), "map the architecture".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(*broker.calls.lock().await, 1);
+    let run_id = RunId::parse_str(response.output["run_id"].as_str().unwrap()).unwrap();
+
+    let resumed = CoreHarness::with_shared_events_and_runner_and_broker(
+        events,
+        Arc::new(UnavailableRunner),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let history = resumed
+        .core
+        .model_visible_history("session-1", Some(run_id))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        history,
+        vec![
+            ConversationMessage {
+                role: ConversationRole::User,
+                text: "map the architecture".to_owned(),
+                tool_call_id: None,
+            },
+            ConversationMessage {
+                role: ConversationRole::Assistant,
+                text: "running ls".to_owned(),
+                tool_call_id: None,
+            },
+            ConversationMessage {
+                role: ConversationRole::Tool,
+                text: r#"{"stdout":"listed"}"#.to_owned(),
+                tool_call_id: Some("c1".to_owned()),
+            },
+            ConversationMessage {
+                role: ConversationRole::Assistant,
+                text: "architecture mapped".to_owned(),
+                tool_call_id: None,
+            },
+        ]
+    );
+}
+
+#[tokio::test]
+async fn history_tool_result_without_call_id_uses_none_and_does_not_panic() {
+    let events = Arc::new(MemoryEventLog::new());
+    let first = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        Arc::new(TwoTurnDeltaRunner),
+        Arc::new(SuccessfulBroker),
+    );
+    let response = first
+        .core
+        .start_run(trusted_context(), "two turns".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let resumed = CoreHarness::with_shared_events_and_runner_and_broker(
+        events,
+        Arc::new(UnavailableRunner),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let history = resumed
+        .core
+        .model_visible_history("session-1", None)
+        .await
+        .unwrap();
+
+    assert_eq!(history.len(), 4, "{history:?}");
+    assert_eq!(history[2].role, ConversationRole::Tool);
+    assert_eq!(history[2].tool_call_id, None);
+}
+
+#[tokio::test]
+async fn unknown_event_kind_does_not_break_history_folding() {
+    let events = Arc::new(MemoryEventLog::new());
+    let first = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        scripted_runner(json!([{"text": "known response"}])),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let response = first
+        .core
+        .start_run(trusted_context(), "known prompt".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    let run_id = RunId::parse_str(response.output["run_id"].as_str().unwrap()).unwrap();
+
+    events
+        .append(
+            RuntimeEvent::new(
+                RequestId::new(),
+                1,
+                "future.unknown",
+                json!({
+                    "run_id": run_id,
+                    "session_id": "session-1",
+                    "text": "must be ignored"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let resumed = CoreHarness::with_shared_events_and_runner_and_broker(
+        events,
+        Arc::new(UnavailableRunner),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let history = resumed
+        .core
+        .model_visible_history("session-1", Some(run_id))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        history,
+        vec![
+            ConversationMessage {
+                role: ConversationRole::User,
+                text: "known prompt".to_owned(),
+                tool_call_id: None,
+            },
+            ConversationMessage {
+                role: ConversationRole::Assistant,
+                text: "known response".to_owned(),
+                tool_call_id: None,
+            },
+        ]
+    );
+}
+
+#[tokio::test]
+async fn empty_or_unsupported_ledger_rebuilds_empty_history() {
+    let empty = CoreHarness::new();
+    assert!(empty
+        .core
+        .model_visible_history("session-1", None)
+        .await
+        .unwrap()
+        .is_empty());
+
+    let unsupported = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        Arc::new(UnsupportedReadAllEventStore::default()),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    assert!(unsupported
+        .model_visible_history("session-1", None)
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn history_read_failure_is_returned_not_treated_as_empty() {
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        Arc::new(FailReadAllEventStore::default()),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+
+    let error = core
+        .model_visible_history("session-1", None)
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::Port(PortError::Unavailable(reason))
+            if reason == "event_store_read_unavailable"
+    ));
+}
+
+#[tokio::test]
+async fn history_duplicate_sequence_keeps_first_event() {
+    let events = Arc::new(MemoryEventLog::new());
+    let run_id = RunId::new();
+    events
+        .append(
+            RuntimeEvent::new(
+                RequestId::new(),
+                1,
+                "run.prompt",
+                json!({
+                    "run_id": run_id,
+                    "session_id": "session-1",
+                    "text": "first"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    events
+        .append(
+            RuntimeEvent::new(
+                RequestId::new(),
+                1,
+                "run.prompt",
+                json!({
+                    "run_id": run_id,
+                    "session_id": "session-1",
+                    "text": "second"
+                }),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events,
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+
+    let history = core.model_visible_history("session-1", None).await.unwrap();
+    assert_eq!(
+        history,
+        vec![ConversationMessage {
+            role: ConversationRole::User,
+            text: "first".to_owned(),
+            tool_call_id: None,
+        }]
     );
 }
