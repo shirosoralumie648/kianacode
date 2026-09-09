@@ -61,6 +61,54 @@ KIANA_BIN=target/debug/kiana bash scripts/package-desktop-deb.sh
 sudo dpkg -i dist/kiana-desktop_0.1.0_amd64.deb
 ```
 
+## 怎么接模型
+
+模型服务商由 `KIANA_PROVIDER` 选择，默认是 `anthropic`。配置入口已经存在；本版本的
+live provider 证明等级仍未完成，下面只说明怎么接线，能否跑通取决于你的本地服务、key
+和网络环境。
+
+| `KIANA_PROVIDER` | 怎么配 |
+|---|---|
+| `anthropic` | 必填 `ANTHROPIC_API_KEY`；可选 `ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL` |
+| `openai-compatible` | 必填 `KIANA_OPENAI_API_KEY` 或 `OPENAI_API_KEY`；可选 `KIANA_OPENAI_MODEL`/`OPENAI_MODEL`、`KIANA_OPENAI_BASE_URL`/`OPENAI_BASE_URL` |
+| `ollama` | 不需要 key；可选 `KIANA_OLLAMA_MODEL`/`OLLAMA_MODEL`、`KIANA_OLLAMA_BASE_URL`/`OLLAMA_BASE_URL`（默认 `http://localhost:11434`） |
+| `fake` | 不需要 key；可选 `KIANA_FAKE_MODEL`，用于确定性本地测试 |
+
+如果设置了 `KIANA_HARNESS_SCRIPT=/path/to/cassette.json`，它会优先于
+`KIANA_PROVIDER`，运行本地 cassette，不会访问网络。
+
+Ollama 本地例子：
+
+```bash
+ollama serve
+ollama pull llama3.1
+
+export KIANA_PROVIDER=ollama
+export KIANA_OLLAMA_MODEL=llama3.1
+# 可选；默认就是下面这个地址
+export KIANA_OLLAMA_BASE_URL=http://localhost:11434
+
+kiana trust .
+kiana run --sandbox read-only -- "用一句话打个招呼"
+```
+
+Anthropic 或 OpenAI 兼容服务使用同一入口：
+
+```bash
+# Anthropic
+export KIANA_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=your-key
+
+# 或 OpenAI 兼容服务
+export KIANA_PROVIDER=openai-compatible
+export OPENAI_API_KEY=your-key
+export OPENAI_BASE_URL=https://api.openai.com/v1
+export OPENAI_MODEL=gpt-4.1
+```
+
+不要把 key 写进仓库、README、日志或截图。临时覆盖模型可以用
+`kiana --model <name> -p <prompt>`。
+
 CI / local cassette eval (not a live provider):
 
 ```bash

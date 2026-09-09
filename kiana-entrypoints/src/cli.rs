@@ -14143,8 +14143,20 @@ fn print_help() {
     println!();
     println!("CONFIG:");
     println!(
-        "  Set ANTHROPIC_API_KEY or create ~/.kiana/config.toml before sending model prompts."
+        "  Model provider: KIANA_PROVIDER=anthropic|openai-compatible|ollama|fake (default: anthropic)"
     );
+    println!(
+        "    anthropic          ANTHROPIC_API_KEY; optional ANTHROPIC_MODEL, ANTHROPIC_BASE_URL"
+    );
+    println!(
+        "    openai-compatible  KIANA_OPENAI_API_KEY or OPENAI_API_KEY; optional KIANA_OPENAI_MODEL/OPENAI_MODEL, KIANA_OPENAI_BASE_URL/OPENAI_BASE_URL"
+    );
+    println!(
+        "    ollama             no API key; optional KIANA_OLLAMA_MODEL/OLLAMA_MODEL, KIANA_OLLAMA_BASE_URL/OLLAMA_BASE_URL (default http://localhost:11434)"
+    );
+    println!("    fake               no API key; optional KIANA_FAKE_MODEL");
+    println!("  KIANA_HARNESS_SCRIPT=/path/to/cassette.json takes precedence over KIANA_PROVIDER.");
+    println!("  kiana --model <name> -p <prompt> overrides the selected provider's model.");
 }
 
 fn print_print_help() {

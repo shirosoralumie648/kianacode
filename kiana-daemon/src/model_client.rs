@@ -306,6 +306,142 @@ fn output_from_content(content: &[Value]) -> ModelOutput {
 mod tests {
     use super::*;
     use kiana_services::api::provider::{FakeProviderStep, FAKE_TEXT_ONLY_MODEL_ID};
+    use std::ffi::{OsStr, OsString};
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    struct EnvGuard {
+        key: &'static str,
+        previous: Option<OsString>,
+    }
+
+    impl EnvGuard {
+        fn set(key: &'static str, value: impl AsRef<OsStr>) -> Self {
+            let previous = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, previous }
+        }
+
+        fn remove(key: &'static str) -> Self {
+            let previous = std::env::var_os(key);
+            std::env::remove_var(key);
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
+    struct TempScript {
+        path: PathBuf,
+    }
+
+    impl TempScript {
+        fn new(contents: &str) -> Self {
+            static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+            let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "kiana-model-client-test-{}-{id}.json",
+                std::process::id()
+            ));
+            std::fs::write(&path, contents).expect("write temporary harness script");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempScript {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    #[test]
+    fn provider_env_anthropic_with_key_selects_provider_client() {
+        let _lock = env_lock();
+        let _script = EnvGuard::remove(ENV_HARNESS_SCRIPT);
+        let _provider = EnvGuard::set(ENV_PROVIDER, ANTHROPIC_PROVIDER_ID);
+
+        let without_key = provider_from_env(LocalModelConfig::default())
+            .expect("anthropic provider configuration should be valid");
+        assert!(
+            without_key.is_none(),
+            "anthropic without ANTHROPIC_API_KEY should not select a provider client"
+        );
+
+        let _key = EnvGuard::set("ANTHROPIC_API_KEY", "test-key");
+        let with_key = provider_from_env(LocalModelConfig::default())
+            .expect("anthropic provider configuration should be valid");
+        assert!(
+            with_key.is_some(),
+            "KIANA_PROVIDER=anthropic with ANTHROPIC_API_KEY should select a provider client"
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_env_unknown_name_fails_closed() {
+        let _lock = env_lock();
+        let _script = EnvGuard::remove(ENV_HARNESS_SCRIPT);
+        let _provider = EnvGuard::set(ENV_PROVIDER, "definitely-unknown");
+
+        let error = provider_from_env(LocalModelConfig::default())
+            .err()
+            .expect("unknown provider should return an error");
+        assert_eq!(error, "unknown_provider:definitely-unknown");
+
+        let client = from_config(LocalModelConfig::default());
+        let error = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user("hello")],
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            error.starts_with("model_unavailable: unknown_provider:definitely-unknown"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn harness_script_takes_precedence_over_provider_env() {
+        let _lock = env_lock();
+        let script = TempScript::new(r#"[{"text":"from cassette"}]"#);
+        let _script = EnvGuard::set(ENV_HARNESS_SCRIPT, script.path().as_os_str());
+        let _provider = EnvGuard::set(ENV_PROVIDER, "definitely-unknown");
+
+        let client = from_config(LocalModelConfig::default());
+        let output = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user("hello")],
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            })
+            .await
+            .expect("KIANA_HARNESS_SCRIPT should be selected before provider validation");
+
+        assert_eq!(output.text, "from cassette");
+        assert!(output.tool_calls.is_empty());
+    }
 
     #[tokio::test]
     async fn provider_wrapper_maps_tool_calls_and_final_text() {
