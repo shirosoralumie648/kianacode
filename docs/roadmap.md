@@ -151,6 +151,7 @@
 | 2026-09-10 | 参数在映射到 capability 前校验（`invalid_arguments:<tool>:<field>`），证据块「Tool argument validation at capability mapping evidence (2026-09-10)」 | `9095ea7` + `e144d30` |
 | 2026-09-10 | 网页重启后只读列出历史会话，改走 `DaemonHost::persisted_events()` 端口；证据块「Read-only persisted web session history evidence (2026-09-10)」 | `1c504a0` + `e144d30` |
 | 2026-09-10 | run 级 wall-time 预算 + `RuntimeConfig` 接进 daemon harness（含 `KIANA_HARNESS_MAX_STEPS` / `KIANA_HARNESS_WALL_TIME_MS`）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` |
+| 2026-09-10 | 从账本折叠 model-visible history（不新增事件 kind）+ 预派发失败补 `capability_request_id` + ID 契约注册表；CI 修复 chrome apt 源抖动；证据块「Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)」 | `41bb971` + `9d255d1` + `d3f7601` + `5f9ce29` → CI `34386563396` ✅ |
 
 ---
 
