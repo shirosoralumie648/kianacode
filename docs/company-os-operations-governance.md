@@ -8,7 +8,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：让系统"长期跑而不出事"的运营保障——身份与授权（Principal/Membership/RoleAssignment/SharingGrant）、定时与触发（Trigger/Scheduler）、人类决策收件箱（Human Inbox；HumanTask 是 Approval/Acceptance/Review 决策请求的投影）、产物与交付（Artifact/Workspace/Git）、成本与背压（BudgetLease/CostLedger/RateCard）、故障恢复（Incident/RecoveryPlan）、数据治理与隐私（分类/留存/删除/Secret）。
+> - **讲什么**：让系统"长期跑而不出事"的运营保障——身份与授权（Principal/Membership/RoleAssignment/SharingGrant）、定时与触发（Trigger/Scheduler）、人类决策收件箱（Human Inbox；HumanTask 是 Approval/Acceptance/Review 决策请求的投影）、产物与交付（Artifact/Workspace/Git）、成本与背压（BudgetLease/CostLedger/RateCard）、故障恢复（Incident/RecoveryPlan；重启后按事件重建运行态、默认暂停等显式恢复）、重试与超时（RetryPolicy/TimeoutPolicy、错误分层、默认不重试）、数据治理与隐私（分类/留存/删除/Secret；记忆保留衰减、免疫排除 candidate/ephemeral、can_read/can_manage 读管分离）。
 > - **回答的问题**："不是跑通一次，而是天天跑——谁负责、怎么排队、坏了怎么办、钱花在哪、数据怎么删干净。"
 > - **什么时候读**：涉及身份、调度、成本、恢复、数据删除的实现时按章节查阅。
 > - **阶段编号**：本文的实施顺序用局部命名 `Ops-0`…`Ops-5`；全局实施阶段以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 为准。
@@ -655,6 +655,8 @@ DependencyUnavailable
 - 是否要进入 Reconciliation 而不是普通 retry；
 - CLI/HTTP/Receipt 的最终状态。
 
+错误分类是 §8.5 重试 / 超时判定的输入，不得被降级（例如把 `PolicyDenied`、`SecurityViolation` 当成瞬时错误重试）；分类本身不构成授权。
+
 ### 8.3 RecoveryPlan
 
 Incident 的字段与状态机以 [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.7 为准；RecoveryPlan 不复制 Incident 状态，只通过 `incident_id` 引用它。
@@ -706,6 +708,13 @@ Proposed / Approved → Abandoned
 - 执行（`Executing`）：每个有副作用的 action 需要新的授权和 idempotency key（见 §8.4）；同一 `target_aggregate` 同时只允许一个处于 `Executing` 的 plan；`forbidden_actions` 只增不减，执行前必须逐条校验；
 - 收敛：`Verified` 必须引用验证证据；`Failed` 必须产生新事件，并升级为新的或关联的 Incident。
 
+重启后的运行态重建（新增规范）：
+
+- 重启后不假设内存态可用：按 EventLog 折叠重建 Run / Invocation 投影与待审批集合（投影形状见 [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §8.4），`RecoveryPlan.observed_state` 与 `last_durable_cursor` 必须与该投影一致；
+- 重建出的 pending 项只回答"有哪些单子、在等什么"：必须重新经过 policy / gate / approval，不得直接交给 broker，也不得把重建本身当作授权；
+- 默认暂停（fail-closed）：重建完成后系统停留在暂停态，不自动续跑任何 Run；只有用户显式"恢复"才继续，恢复动作本身是一条可审计事件；
+- 重建与恢复只 append 事件，不改写历史事件或既有终态；无法从账本确定的状态一律 `result_unknown`。
+
 统一恢复流程：
 
 ```text
@@ -729,7 +738,21 @@ Detect
 - Recovery action 本身如果有副作用，也必须经过新的授权和 idempotency key；
 - Incident 关闭必须引用验证证据，不依赖模型说“已经恢复”。
 
-### 8.5 Reference 映射
+### 8.5 重试、超时与尝试记录
+
+`RetryPolicy` / `TimeoutPolicy` 是可持久化的一等策略：随 `CapabilityRequest` / Invocation / `WorkflowDefinition` 一起落盘并版本固定，不得写死为常量；字段形状与 [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4.4 统一。运营侧规则：
+
+- **fail-closed 默认不重试**（`maximum_attempts = 1`）：没有显式策略声明时一律单次尝试，非幂等操作禁止重试；
+- **错误分层**（由 §8.2 的分类派生，分类不得降级）：
+  1. 传输 / 模型瞬时错误：仅当尚无 capability 被真正执行时，才做有界退避重试；
+  2. 模型可纠正的工具错误：作为工具结果回灌模型，不判 Run 失败，也不消耗重试额度；
+  3. `PolicyDenied`、`SecurityViolation`、指纹不符、调用账本显示已执行：绝不重试；
+- **每次 attempt 写独立事件**，`attempt` 单调递增，旧 attempt 事件不可改写；Invocation 终态取最近一次 attempt 的终态，只要存在副作用未确认的 attempt 必须为 `result_unknown`；
+- 超时（`start_to_close` / `schedule_to_close` 到达）或结果未知一律收敛为 `result_unknown`，绝不自动重试；
+- 重试前必须查调用账本（[`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4.1）：已执行直接返回缓存结果或 fail-closed，指纹不一致立即拒绝；
+- 重试不提高能力风险等级、不跳过 Approval，也不得因换沙箱执行而绕过任何 deny 条目。
+
+### 8.6 Reference 映射
 
 | 参考项目 | 可吸收设计 |
 |---|---|
@@ -809,6 +832,13 @@ Primary record
 ```
 
 安全事件、法律留存和审计证据可以有不同 retention，但必须由显式 policy 决定。
+
+**记忆保留、衰减与授权谓词（新增规范）**：
+
+- 记忆的保留期到期与相关性衰减由确定性 sweep 决定：relevance 分数与衰减曲线必须是可注入时钟 / 输入摘要下的确定性函数，同样的输入重放得到同样的过期集合；sweep 只 append `MemoryExpired` / `MemoryStale` 事件并更新投影，不得原地改写或删除原始记录（清理责任见 [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §5.3）；
+- 免疫规则（豁免 sweep 的记录）必须显式排除 `candidate` / `ephemeral`：这两种准入状态永不免疫，必须参与过期与衰减；
+- 分层默认可见性：`instance/<session_id>/scratch` 层默认可见（临时草稿），持久层默认 `candidate` 不可检索，只有显式批准后才进入默认检索；
+- 检索与写入统一由两个独立谓词裁决：`can_read` 与 `can_manage`（能读 ≠ 能管），各自独立判定、默认拒绝、fail-closed；任何检索通道不得绕过 `can_read`，任何写入 / 晋级 / 失效路径不得绕过 `can_manage`；排序分数只进排序，不参与授权。
 
 ### 9.4 Secret 规则
 

@@ -8,9 +8,9 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：系统怎么"变好而不悄悄变坏"——可重放的评测（EvalSuite/EvalCase/GoldenTrace）、评分与质量门（`QualityGate` 与 Candidate 状态机）、人类反馈与漂移检测、模型/Prompt/路由的版本治理、代码知识索引（repo map/符号索引）、插件与 Skill 生态、供应链安全审查。
+> - **讲什么**：系统怎么"变好而不悄悄变坏"——可重放的评测（EvalSuite/EvalCase/GoldenTrace）、评分与质量门（`QualityGate` 与 Candidate 状态机、replay divergence 阻断 Promote）、人类反馈与漂移检测、模型/Prompt/路由的版本治理、代码知识索引（repo map/符号索引）、记忆生命周期与质量生态的接口、插件与 Skill 生态（声明≠授权）、Workflow Pack 的版本化 ArtifactGraph 与 `workflow validate` 门禁、供应链安全审查。
 > - **回答的问题**："换了模型、改了 Prompt、装了插件之后，怎么知道没有退步、没有引入安全问题。"
-> - **核心规则**：学习只能改版本化的配置（Prompt/路由/索引），永远不能自动改权限、安全策略或历史事实；代码知识查询服务于服务端上下文装配，不新增模型可见工具。
+> - **核心规则**：学习只能改版本化的配置（Prompt/路由/索引），永远不能自动改权限、安全策略或历史事实；代码知识查询服务于服务端上下文装配，不新增模型可见工具；扩展 / Skill 的声明只是声明，安装成功不等于授权，也不等于安全验证完成。
 > - **什么时候读**：做评测、改模型配置、接入插件或 Skill 时。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
@@ -238,12 +238,14 @@ QualityScore
 
 `replay_correctness` 是布尔 gate 维度（同一 EvalCase 重放与 baseline 是否一致，取 0/1），独立于 `recovery_correctness`：后者度量 crash/restart/Unknown 后的恢复能力，前者度量重放确定性。二者不合并，否则数值平均会掩盖 replay divergence。
 
+`replay_correctness` 的判定由确定性重放产生：`kiana replay --run <id>`（仅 CI / 测试入口，不是模型可见工具）只读折叠该 Run 的已记录事件，按 `(invocation_id, attempt, input_digest, 状态, error_code)` 序列逐项比对，**首个不一致即为 divergence point**，该项判 0 并直接阻断 Promote。重放只做只读投影，绝不重跑副作用或调用模型；遇到未知 `logic_version` / 未知 patch marker 一律 fail-closed 拒绝重放，而不是猜测走哪条分支。
+
 安全和事实完整性是阻断项，不得用文本质量或低成本抵消：
 
 ```text
 if policy_safety < threshold → reject
 if evidence_completeness < threshold → reject
-if replay_correctness == false → reject
+if replay_correctness == false → reject   # 含出现 divergence point
 if forbidden_effect != empty → reject
 ```
 
@@ -505,6 +507,7 @@ ExtensionManifest {
   content_hash
   signature?
   extension_type: skill | capability | workflow | memory | provider | ui
+  effect: read-only | read-write
   provided_capabilities[]
   required_capabilities[]
   supported_roles[]
@@ -515,6 +518,12 @@ ExtensionManifest {
   migration_ref?
   rollback_ref?
   compatibility
+  requires {
+    kiana_version
+    protocol_version
+    capability_versions[]
+    policy_features[]
+  }
 }
 ```
 
@@ -530,6 +539,12 @@ extension_type ui         → 不新增 source_type；若暴露可调用项，�
 ```
 
 `built_in` 是运行时来源类别（由 Kiana 内置执行器承载），不是 `extension_type` 的取值。
+
+**声明不等于授权。** `effect`、`required_capabilities`、`network_policy` 以及 skill frontmatter 的 `allowed-tools` 等声明字段，只用于预批准提示、展示和安装校验，**不构成执行边界**：
+
+- Skill 的 `allowed-tools` 只影响提示与展示，不进入 policy；技能想使用任何能力，都必须和其它模型工具一样经 broker + policy + approval。补一条 fail-closed 回归：声明 `allowed-tools: [shell]` 的 skill 不得导致任何未经批准的 shell 执行。
+- `effect: read-only` 的扩展，其写操作在 broker 层直接拒绝（不依赖扩展自律）；`effect: read-write` 同样不等于获得写授权，实际许可仍由 policy / grant / approval 产生。
+- 安装时校验 `content_hash` / `signature` 与 `requires` 兼容性（pack 级细项见 §9.3 的 `requires_*`），校验失败一律拒绝安装，不降级放行；**安装成功不等于安全验证完成**（供应链门见 §10）。
 
 ### 9.2 Extension 生命周期
 
@@ -593,6 +608,39 @@ Current
 | Agency Swarm | role/tool relationship 与定向通信 |
 | 本仓 `kiana-skills` / `kiana-tools` | 作为迁移素材，不自动视为新生态完成 |
 
+### 9.5 ArtifactGraph 与 `workflow validate` 门禁
+
+Workflow Pack 与规划产物链用一张**版本化** ArtifactGraph 声明「每个工件由谁生成、依赖什么才能进入实现」：
+
+```text
+ArtifactGraph {
+  graph_version
+  artifacts[] {
+    id
+    generates            # 该节点产出的工件
+    template?            # 生成模板引用
+    requires[]           # 进入该节点必须已存在的工件 id（显式字段）
+  }
+}
+```
+
+- `apply` 只认 `requires` 的**传递闭包**：缺依赖即 blocked，不得用 packet 文本或模型声明补齐依赖。
+- `kiana workflow validate --json` 是只读门禁：稳定 issue code + 退出码，不写盘、不派发、不新增模型可见工具，只做工件存在性、依赖边与跨产物一致性分析。
+- packet 绑定**冻结的 check 文件**（命令 + 期望退出码 / 输出）：Builder 执行后写进 EvidencePacket，Reviewer / Closer 只读结果判 pass / fail；冻结后任何改动即 FAIL。
+- 机器可读的 **Constitution Check 是必须通过的 GATE**：硬约束（五工具面、冻结项、单执行路径、fail-closed、审批不绕过）逐条给出 pass / violation，任何 violation 直接阻断（冲突自动 CRITICAL）。条款与校验契约见 [`company-os-security-constitution.md`](company-os-security-constitution.md)。
+- 上述命令仍经现有 shell 能力在 policy / sandbox 下执行，不新增第二条执行路径。
+
+### 9.6 Memory 生命周期与质量生态的接口
+
+记忆（含 `extension_type: memory` 与 `MemoryIndexSnapshot`）进入质量生态时必须携带生命周期与来源元数据；质量系统只读消费，不得据此扩大授权：
+
+- **来源**：`provenance` 由捕获通道在服务端派生（model / hook / git / user），不读模型传入的 source 字符串；评测按来源分桶统计命中。
+- **可信度**：证据记录（kind / referenceId / relation，含 contradicts）与由 provenance 派生的 confidence 只参与**排序**，不参与授权；晋级到 `qualified` 必须引用至少一条 supports / verifies。
+- **准入**：`admission_state`（candidate / qualified / ephemeral）与生命周期 `status` 正交。instance-scratch 层保持默认可见（它是临时草稿），持久层默认 candidate 不可检索；`MemoryIndexSnapshot` 的 EvalCase 必须显式声明它期望的准入集合，避免升级后现有 Builder scratch 写入在测试里突然消失。
+- **失效**：事实型记忆带 `valid_from` / `valid_to` / `expired_at`，冲突时旧记录标失效并 append 事件，检索默认过滤已失效；GoldenTrace 比较必须固定快照版本，避免失效时间造成假回归。
+- **读 / 管分离**：`can_read` 与 `can_manage` 是两个独立、fail-closed 的谓词（能读 ≠ 能管）；`memory_index` 作为 `changed_dimension` 的 Candidate 只改版本化索引配置，不能借评测结果放宽任一谓词。
+- **后续项 / 开放决策**：向量 / 图检索可作为后续项，但检索分数只进排序、不参与授权。
+
 ## 10. Security Review 与 Supply Chain
 
 每个模型、Provider、Skill、Plugin、MCP Server 和 Workflow Pack 在启用前必须有：
@@ -648,8 +696,9 @@ owner
 
 ### Q-3：扩展和变更治理
 
-- Skill/Plugin/Workflow Pack manifest；
+- Skill/Plugin/Workflow Pack manifest（含 `effect` / `requires`）；
 - trust/install/upgrade/rollback；
+- ArtifactGraph 与 `kiana workflow validate --json` 只读门禁、冻结 check 与 Constitution Check GATE；
 - MCP schema drift；
 - shadow route 和 canary；
 - feedback、drift 和 quality promotion。
@@ -672,6 +721,8 @@ owner
 - 安全失败、禁止效果和 replay divergence 都会阻断 Promote；
 - Cache、Memory、Tool Search 和 Workflow 指标可按版本分桶；
 - Plugin/Skill/MCP schema 变化有 trust、compatibility、migration 和 rollback；
+- Extension manifest 的 `effect` / `requires` 在安装时校验，`effect: read-only` 的写操作被 broker 拒绝，声明（含 skill `allowed-tools`）不扩大授权；
+- Workflow Pack 的 ArtifactGraph 缺依赖 / 成环、Constitution Check violation、冻结 check 被改动都会阻断 apply 或 promote；
 - 反馈不会直接修改权限、事实或安全策略；
 - 代码知识结果带 snapshot、来源和 freshness；
 - 生态扩展不会产生第二套 Runtime 或绕过 ControlPlane。
