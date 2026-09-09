@@ -41,7 +41,7 @@
 | **0.3** 文档与证据对齐 | ✅ | `99237ad` | `34372547148` ✅ | —（文档） |
 | **0.4** 命令行默认开启流式 | ✅ | `e2b15c1` + `d704add` | `34375303757` | `run_streams_each_delta_by_default_before_terminal_receipt` |
 | **0.5** 断线/重连负向路径 | 🔄 | `8b2aecb` | 等 CI | `web_sse_reconnect_emits_stream_gap_without_replaying_delta_items` |
-| **1.1** session 绑定从账本重建 | 🔄 | Codex 进行中 | — | `fresh_control_plane_rebuilds_session_binding_from_ledger` |
+| **1.1** session 绑定从账本重建 | 🔄 | `e8d9346` | 等 CI | `fresh_control_plane_rebuilds_session_binding_from_ledger` |
 | **1.2** 账本记录可重放 history 字段 | ⏳ | — | — | `resume_rebuilds_model_visible_history_from_ledger` |
 | **1.3** `resume_run` 与协议入口 | ⏳ | — | — | `fresh_process_resume_reconstructs_pending_approval` |
 | **1.4** 网页重启后列出历史会话 | ⏳ | — | — | `web_lists_persisted_sessions_after_restart` |
@@ -73,10 +73,9 @@
 
 | 事项 | 位置 | 卡在哪 |
 |---|---|---|
-| Codex 任务 3：session 绑定从账本重建 | `kiana-core`（sessions/receipts/lifecycle + 测试） | Codex 正在写 |
+| Codex 任务 4：账本记录可重放 history 字段 | `kiana-core` | Codex 正在写 |
 | CI `34375303757` | `d704add` | `release-smoke` 跑着 |
-| CI `8b2aecb`（断线重连） | — | 排队 |
-| CI `d973ff6`（doom-loop） | — | 排队 |
+| CI `8b2aecb`（断线重连）/ `d973ff6`（doom-loop）/ `e8d9346`（session 重建） | — | 排队 |
 
 ---
 
@@ -92,6 +91,7 @@
 | 2026-09-10 | SSE 断线发 `stream_gap`、不完整的轮次不标记完成 | `8b2aecb` |
 | 2026-09-10 | 连续重复工具调用 fail-closed（`repeated_tool_call:<name>`） | `d973ff6` |
 | 2026-09-10 | 修正被默认翻转影响的 `cli_run` 测试（显式 `--no-stream` + 默认路径覆盖） | `d704add` |
+| 2026-09-10 | session 绑定可从事件账本重建（内存未命中时回读 `run.authorized`，仍走 owner 校验） | `e8d9346` |
 
 ---
 
