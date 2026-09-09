@@ -65,6 +65,24 @@ reviewer: focused adversarial regression review
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
 
+### Ledger prompt and tool-call identity evidence (2026-09-10)
+
+```text
+source_snapshot: 40420bd (kiana-core/src/lifecycle.rs, kiana-core/src/capabilities.rs, kiana-core/tests/control_plane.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  bash scripts/release-smoke.sh        # GitHub Actions release-smoke job
+  cargo test -p kiana-core --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+cwd/environment: GitHub Actions release-smoke job, ubuntu-latest, stable toolchain, bubblewrap installed; local reproduction with rustc/cargo 1.97.1 and --locked --offline
+fixture or cassette: in-memory scripted runner over MemoryEventLog; sentinel secrets embedded in the prompt text
+exit_code: 0 (run 34378214555 completed/success); kiana-core 11 + 92 + 2
+status change: no capability status promotion. `run.prompt` is now recorded for start and continue with the prompt redacted at the event boundary, and `run.tool_call` records the model's tool-call identity (`call_id`, capability class, broker operation) next to the capability decision, so the ledger carries the fields needed to rebuild model-visible history.
+proof-level change: local_behavior evidence for the two new event kinds and their redaction.
+limitations: the ledger still cannot reconstruct history or resume a run; `call_id` is read from the capability request arguments and is `null` when the runner supplied none; every new event adds an append, so the per-turn `run.delta` aggregation recorded in the earlier evidence block must keep holding (the granularity test still passes).
+reviewer: Claude reviewed the Codex diff (no assertions deleted) and compiled the slice before pushing; by the product owner's instruction the full suite ran only on GitHub CI
+```
+
 ### Streaming default, SSE reconnect, tool-call repetition and ledger session rebuild evidence (2026-09-10)
 
 ```text
