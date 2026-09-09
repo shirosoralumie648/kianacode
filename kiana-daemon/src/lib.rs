@@ -24,11 +24,15 @@ use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{PortError, RunnerPort};
 use kiana_protocol::{RequestBody, RequestEnvelope, ResponseEnvelope, PROTOCOL_SCHEMA};
-use kiana_runner::KianaHarness;
+use kiana_runner::{KianaHarness, RuntimeConfig};
 use run_stream::RunStreamBus;
 pub use run_stream::RunStreamSubscription;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
+
+const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
+const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
 
 pub struct DaemonHost {
     core: Arc<ControlPlane>,
@@ -111,7 +115,7 @@ impl DaemonHost {
 
     pub fn local() -> Result<Self, PortError> {
         Self::with_runner_events_and_approval(
-            Arc::new(KianaHarness::new(model_client::from_env())),
+            Arc::new(configured_env_harness()?),
             Arc::new(JsonlEventLog::open_default()?),
             Arc::new(JsonlApprovalStore::open_default()?),
         )
@@ -119,7 +123,10 @@ impl DaemonHost {
 
     pub fn local_with_model_config(config: LocalModelConfig) -> Result<Self, PortError> {
         Self::with_runner_events_and_approval(
-            Arc::new(KianaHarness::new(model_client::from_config(config))),
+            Arc::new(KianaHarness::with_config(
+                model_client::from_config(config),
+                runtime_config_from_env()?,
+            )),
             Arc::new(JsonlEventLog::open_default()?),
             Arc::new(JsonlApprovalStore::open_default()?),
         )
@@ -129,7 +136,7 @@ impl DaemonHost {
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
         Self::with_runner_events_approval_and_authority(
-            Arc::new(KianaHarness::new(model_client::from_env())),
+            Arc::new(configured_env_harness()?),
             Arc::new(JsonlEventLog::open_default()?),
             Arc::new(JsonlApprovalStore::open_default()?),
             project_authority,
@@ -153,14 +160,14 @@ impl DaemonHost {
     }
 
     pub fn with_env_harness() -> Result<Self, PortError> {
-        Self::with_runner(Arc::new(KianaHarness::new(model_client::from_env())))
+        Self::with_runner(Arc::new(configured_env_harness()?))
     }
 
     pub fn with_env_harness_and_project_authority(
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
         Self::with_runner_events_approval_and_authority(
-            Arc::new(KianaHarness::new(model_client::from_env())),
+            Arc::new(configured_env_harness()?),
             Arc::new(MemoryEventLog::new()),
             Arc::new(MemoryApprovalStore::new()),
             project_authority,
@@ -410,6 +417,63 @@ pub struct LocalModelConfig {
     pub model: Option<String>,
 }
 
+fn configured_env_harness() -> Result<KianaHarness, PortError> {
+    let config = runtime_config_from_env()?;
+    Ok(KianaHarness::with_config(model_client::from_env(), config))
+}
+
+fn runtime_config_from_env() -> Result<RuntimeConfig, PortError> {
+    runtime_config_from_lookup(|name| std::env::var(name))
+}
+
+fn runtime_config_from_lookup(
+    mut lookup: impl FnMut(&str) -> Result<String, std::env::VarError>,
+) -> Result<RuntimeConfig, PortError> {
+    let mut config = RuntimeConfig::default();
+
+    match lookup(ENV_HARNESS_MAX_STEPS) {
+        Ok(raw) => {
+            let max_steps = raw
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| invalid_runtime_config(ENV_HARNESS_MAX_STEPS))?;
+            if max_steps == 0 {
+                return Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS));
+            }
+            config.max_steps_per_turn = max_steps;
+        }
+        Err(std::env::VarError::NotPresent) => {}
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS));
+        }
+    }
+
+    match lookup(ENV_HARNESS_WALL_TIME_MS) {
+        Ok(raw) => {
+            let wall_time_ms = raw
+                .trim()
+                .parse::<u64>()
+                .map_err(|_| invalid_runtime_config(ENV_HARNESS_WALL_TIME_MS))?;
+            if wall_time_ms == 0 {
+                return Err(invalid_runtime_config(ENV_HARNESS_WALL_TIME_MS));
+            }
+            config.wall_time_budget = Some(Duration::from_millis(wall_time_ms));
+        }
+        Err(std::env::VarError::NotPresent) => {}
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err(invalid_runtime_config(ENV_HARNESS_WALL_TIME_MS));
+        }
+    }
+
+    Ok(config)
+}
+
+fn invalid_runtime_config(name: &str) -> PortError {
+    PortError::Failed(format!(
+        "runtime_config_invalid:{name}:expected_positive_integer"
+    ))
+}
+
 fn effective_permission_profile(
     body: &RequestBody,
     declared: PermissionProfile,
@@ -435,5 +499,107 @@ fn permission_profile_for_sandbox(sandbox: Option<&str>) -> PermissionProfile {
     match sandbox.map(str::trim) {
         Some("workspace-write" | "workspace_write" | "workspace") => PermissionProfile::Balanced,
         _ => PermissionProfile::Safe,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kiana_runner::UnavailableModel;
+
+    fn harness_with_config(config: RuntimeConfig) -> KianaHarness {
+        KianaHarness::with_config(Arc::new(UnavailableModel::default()), config)
+    }
+
+    #[test]
+    fn unset_harness_environment_uses_default_runtime_config() {
+        let config = runtime_config_from_lookup(|_| Err(std::env::VarError::NotPresent)).unwrap();
+        let runtime_config = harness_with_config(config).config();
+
+        assert_eq!(runtime_config, RuntimeConfig::default());
+        assert_eq!(runtime_config.max_steps_per_turn, 32);
+        assert_eq!(runtime_config.wall_time_budget, None);
+    }
+
+    #[test]
+    fn harness_max_steps_environment_override_reaches_runtime_config() {
+        let config = runtime_config_from_lookup(|name| {
+            if name == ENV_HARNESS_MAX_STEPS {
+                Ok("5".to_owned())
+            } else {
+                Err(std::env::VarError::NotPresent)
+            }
+        })
+        .unwrap();
+
+        assert_eq!(
+            harness_with_config(config).config(),
+            RuntimeConfig {
+                max_steps_per_turn: 5,
+                ..RuntimeConfig::default()
+            }
+        );
+    }
+
+    #[test]
+    fn harness_wall_time_environment_override_reaches_runtime_config() {
+        let config = runtime_config_from_lookup(|name| {
+            if name == ENV_HARNESS_WALL_TIME_MS {
+                Ok("1000".to_owned())
+            } else {
+                Err(std::env::VarError::NotPresent)
+            }
+        })
+        .unwrap();
+
+        assert_eq!(
+            harness_with_config(config).config(),
+            RuntimeConfig {
+                wall_time_budget: Some(Duration::from_secs(1)),
+                ..RuntimeConfig::default()
+            }
+        );
+    }
+
+    #[test]
+    fn non_numeric_harness_environment_value_fails_closed() {
+        for name in [ENV_HARNESS_MAX_STEPS, ENV_HARNESS_WALL_TIME_MS] {
+            let error = runtime_config_from_lookup(|candidate| {
+                if candidate == name {
+                    Ok("abc".to_owned())
+                } else {
+                    Err(std::env::VarError::NotPresent)
+                }
+            })
+            .unwrap_err();
+
+            assert_eq!(
+                error,
+                PortError::Failed(format!(
+                    "runtime_config_invalid:{name}:expected_positive_integer"
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn zero_harness_environment_value_fails_closed() {
+        for name in [ENV_HARNESS_MAX_STEPS, ENV_HARNESS_WALL_TIME_MS] {
+            let error = runtime_config_from_lookup(|candidate| {
+                if candidate == name {
+                    Ok("0".to_owned())
+                } else {
+                    Err(std::env::VarError::NotPresent)
+                }
+            })
+            .unwrap_err();
+
+            assert_eq!(
+                error,
+                PortError::Failed(format!(
+                    "runtime_config_invalid:{name}:expected_positive_integer"
+                ))
+            );
+        }
     }
 }
