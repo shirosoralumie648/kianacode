@@ -3,11 +3,13 @@ autoexamples = false
 name = "kiana-tui"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 description = "Terminal UI for Kiana Code AI assistant"
+publish = false
 
 [[bin]]
 name = "kiana-tui"
