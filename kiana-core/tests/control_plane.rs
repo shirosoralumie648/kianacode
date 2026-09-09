@@ -993,7 +993,9 @@ async fn incomplete_cell_capability_scope_is_rejected_before_broker() {
     assert_eq!(*broker.calls.lock().await, 0);
 }
 
-/// 请求里带 grant/lease 但 scope 不完整：会在**派发前**被 cell 接纳拒绝。
+/// 请求本身合法（能通过策略、门、cell 绑定），但 broker 派发失败：
+/// `capability.failed` 必须带上 `capability_request_id`，history 才能把
+/// 失败结果配回它的 `call_id`。
 struct PreDispatchFailureRunner;
 
 #[async_trait]
@@ -1002,14 +1004,12 @@ impl RunnerPort for PreDispatchFailureRunner {
         let RunnerCommand::Start { run_id, .. } = command else {
             return Err(PortError::Failed("unexpected_runner_command".to_owned()));
         };
-        let mut request = CapabilityRequest::new(
+        let request = CapabilityRequest::new(
             RequestId::new(),
             CapabilityKind::Query,
             "search",
             json!({ "query": "architecture", "call_id": "call-1" }),
         );
-        request.capability_grant_id = Some(kiana_domain::CapabilityGrantId::new());
-        request.budget_lease_id = Some(kiana_domain::BudgetLeaseId::new());
         Ok(vec![
             RunnerEvent::Started { run_id },
             RunnerEvent::CapabilityRequested { run_id, request },
@@ -1024,7 +1024,7 @@ async fn pre_dispatch_failure_still_pairs_with_its_tool_call_in_the_ledger() {
         Arc::new(DefaultPolicyEngine),
         Arc::new(DefaultGateEngine),
         events.clone(),
-        Arc::new(CapabilityBroker::new()),
+        Arc::new(FailingBroker),
         Arc::new(TestApprovalStore::default()),
         Arc::new(PreDispatchFailureRunner),
     );
