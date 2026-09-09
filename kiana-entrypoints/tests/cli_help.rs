@@ -24,12 +24,12 @@ fn routed_help_flags_print_usage_instead_of_running_commands() {
         (
             &["mcp-server", "--help"][..],
             "Usage: kiana mcp-server",
-            "mcp-server-http",
+            "Run the Kiana MCP server over stdio",
         ),
         (
             &["mcp-server-http", "--help"][..],
             "Usage: kiana mcp-server",
-            "--port",
+            "Run the Kiana MCP server over stdio",
         ),
         (
             &["mcp", "serve", "--help"][..],
@@ -273,6 +273,33 @@ fn routed_help_flags_print_usage_instead_of_running_commands() {
             args.join(" "),
             output.stdout
         );
+    }
+}
+
+#[test]
+fn help_does_not_advertise_unsupported_http_mcp_entrypoints() {
+    for args in [
+        &["--help"][..],
+        &["mcp-server", "--help"][..],
+        &["mcp-server-http", "--help"][..],
+    ] {
+        let output = run_isolated_kiana(args);
+
+        assert!(
+            output.status.success(),
+            "kiana {} failed\nstdout:\n{}\nstderr:\n{}",
+            args.join(" "),
+            output.stdout,
+            output.stderr
+        );
+        for unsupported in ["mcp-server-http", "mcp-server-sse", "mcp-server-ws"] {
+            assert!(
+                !output.stdout.contains(unsupported),
+                "kiana {} advertised unsupported entrypoint {unsupported:?}\nstdout:\n{}",
+                args.join(" "),
+                output.stdout
+            );
+        }
     }
 }
 

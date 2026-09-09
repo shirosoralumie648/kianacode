@@ -11156,19 +11156,11 @@ async fn mcp_serve_main(args: &[String]) -> Result<()> {
 
 fn print_mcp_server_help() {
     println!("Usage: kiana mcp-server [--debug] [--verbose]");
-    println!("       kiana mcp-server-http [--host <host>] [--port <port>] [--debug] [--verbose]");
-    println!("       kiana mcp-server-sse [--host <host>] [--port <port>] [--debug] [--verbose]");
-    println!("       kiana mcp-server-ws [--host <host>] [--port <port>] [--debug] [--verbose]");
     println!();
     println!("Commands:");
     println!("  mcp-server          Run the Kiana MCP server over stdio");
-    println!("  mcp-server-http     Run HTTP, SSE, and WebSocket MCP endpoints");
-    println!("  mcp-server-sse      Alias for the HTTP/SSE/WS server");
-    println!("  mcp-server-ws       Alias for the HTTP/SSE/WS server");
     println!();
     println!("Options:");
-    println!("  --host <host>       HTTP/SSE/WS bind host (default: 127.0.0.1)");
-    println!("  --port <port>       HTTP/SSE/WS bind port (default: 8765)");
     println!("  --debug             Enable MCP debug logging");
     println!("  --verbose, -v       Enable verbose MCP logging");
 }
@@ -14115,9 +14107,6 @@ fn print_help() {
     println!("  kiana daemon enqueue <prompt>  Queue work for the resident daemon");
     println!("  kiana mcp serve       Start a stdio MCP server exposing local tools");
     println!("  kiana mcp-server      Legacy alias for kiana mcp serve");
-    println!("  kiana mcp-server-http Start an HTTP/SSE/WS MCP server exposing local tools");
-    println!("  kiana mcp-server-sse  Start an SSE MCP server exposing local tools");
-    println!("  kiana mcp-server-ws   Start a WebSocket MCP server exposing local tools");
     println!("  kiana --claude-in-chrome-mcp  Start a stdio browser automation MCP server");
     println!("  kiana computer-mcp    Start a stdio computer-use MCP server");
     println!("  kiana --chrome-native-host    Start the Chrome native messaging host");
