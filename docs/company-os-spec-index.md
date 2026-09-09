@@ -6,7 +6,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：全部规范的"注册表"——每个概念归哪份文档和哪个 crate 管（canonical owner）、文档权威层级、入口与依赖边界、schema 版本与迁移规则、实施切片总览和文档变更卡模板。
+> - **讲什么**：全部规范的"注册表"——每个概念归哪份文档和哪个 crate 管（canonical owner）、文档权威层级、入口与依赖边界、schema 版本与迁移规则、实施切片总览和文档变更卡模板；§4.4 汇总本轮新增的 canonical 合同（运行恢复与投影、调用账本、重试超时、检查点、审批决定、委派失败、工件图、记忆准入、扩展声明）。
 > - **回答的问题**："我要新增或修改一个概念，它的正式定义在哪、要同步更新哪些合同和测试。"
 > - **什么时候读**：写代码或改文档之前查表用；它是索引，不适合从头读到尾。
 >
@@ -128,6 +128,26 @@
 | UI/UX | `UiSnapshot`、`UiAction`、cursor、epoch、pending action | `kiana-protocol`（wire DTO）/ `kiana-daemon`（投影生成） |
 
 详见 [`company-os-platform-architecture.md`](company-os-platform-architecture.md)、[`company-os-operations-governance.md`](company-os-operations-governance.md)、[`company-os-ui-ux.md`](company-os-ui-ux.md) 和 [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md)。
+
+### 4.4 本轮新增 canonical 合同（2026-09-08）
+
+本节登记本轮规范增量。字段和状态机不在本索引重复，以各 canonical 文档为准；`deferred` 是第二阶段目标，不属于当前实施范围。
+
+| 合同 | 核心内容 | canonical owner | 运行时 owner | 状态 |
+|---|---|---|---|---|
+| `RunSnapshot` | 可序列化 durable pause / resume 边界（`run_id` / `session_id`、消息历史、`pending_capability{call_id, args_fingerprint}`、`approval_decisions`、`step_counter`、`schema_version`）；ControlPlane 独占写入，runner 不读盘恢复 | `kiana-domain` | `kiana-core`（写入 / `resume_run` 重建） | target |
+| `RunProjection` / `InvocationProjection` | 折叠 `run.*` / `capability.*` / `approval.*` 事件，得到 Run / Invocation 当前状态、待审批集和未决 capability 集；内存表降级为写穿缓存，按 run_id / session 惰性重建 | `kiana-core` / `kiana-domain` | `kiana-eventlog` / `kiana-daemon` | target |
+| 调用账本 `InvocationLedgerEntry` | 键为 `(run_id, call_id)`；dispatch 前查账，已 `executed` 返回缓存或 fail-closed，`args_fingerprint` 不符立即拒绝，`unknown` 不自动重试 | `kiana-domain` | `kiana-core`（独占写入）/ `kiana-eventlog` | target |
+| `RetryPolicy` / `TimeoutPolicy` | 可序列化重试（`initial_interval` / `backoff_coefficient` / `maximum_attempts` / `non_retryable_error_types`）与超时（`start_to_close` / `schedule_to_close`）；默认单次尝试，非幂等禁止重试，超时收敛 `result_unknown` | `kiana-domain` | `kiana-core` / broker | target |
+| `CheckpointService` / `Checkpoint` | 检查点绑定 transcript offset + workspace revision + `invocation_id`；写前快照，恢复走 ControlPlane 并作废旧 approval | `kiana-domain` | `kiana-core` / `kiana-daemon` | 状态层 + 编辑级 undo 为 target；文件层 shadow git 为 deferred |
+| `ApprovalDecision` | 审批决定事件：actor / scope / subject / expiry_at / result / feedback / decided_at；`denied` ≠ `cancelled`，拒绝只拒当前 invocation | `kiana-domain` | `kiana-core`（追加事件）/ `kiana-eventlog` | 首发三动作 + `once` 为 target；`turn` 随 A-4（P1）落地；`session` / `policy` 作用域为 deferred |
+| `DelegationPacket` 预算与终止字段 | `max_turns` / `max_messages` / `termination_predicate` / `handoff_allowlist`；委派是 ControlPlane 的 assign / handoff 操作，不是第六个模型工具 | `kiana-domain` | `kiana-core` | target |
+| `ChildFailureReport` | typed 子失败信封（`child_cell_id` / `reason_code` / `error_class` / `partial_output_refs` / `result_unknown` / `retryable` / `policy_snapshot`）；`result_unknown` 的 child 输出不得进 MergeDecision | `kiana-domain` | `kiana-core` / `kiana-eventlog` | target |
+| `ArtifactGraph` / `workflow validate` | 版本化工件图（`id` / `generates` / `template` / `requires`）；apply 只认 requires 传递闭包，缺依赖 blocked；`kiana workflow validate --json` 只读门禁 | `kiana-workflow` | `kiana-workflow` / `kiana-core` | target |
+| `MemoryRecord` 扩展字段 | 服务端派生 `origin`、`review_state`、`admission_state`（candidate / qualified / ephemeral，与 `status` 正交）；instance-scratch 默认可见，持久层 candidate 默认不可检索 | `kiana-query` / ports | `kiana-query` / `kiana-daemon` | target |
+| `ExtensionManifest` 扩展字段 | `effect`（read-only / read-write）、`required_capabilities`、`content_hash` / `signature`；声明 ≠ 授权，安装时校验 | `kiana-skills` / `kiana-types` | broker / `kiana-daemon` | target |
+
+字段与状态机分别见 [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.10–§4.13、[`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4.1 / §5.3 / §8.2、[`company-os-design.md`](company-os-design.md) §10.4、[`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §9.1 / §9.5。
 
 ## 5. 入口与依赖边界
 

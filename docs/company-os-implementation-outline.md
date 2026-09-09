@@ -6,7 +6,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：把所有规范拆成可认领的工程切片——模块责任地图（哪个 crate 管什么）、切片 A 到 M 各自的目标/实现位置/验收条件、切片实现卡登记位置、能力域实施顺序、证据与测试模板、Gate 0 命令入口、高优先级负向证据清单和 90 天工程序列。
+> - **讲什么**：把所有规范拆成可认领的工程切片——模块责任地图（哪个 crate 管什么）、切片 A 到 M 各自的目标/实现位置/验收条件（含本轮采纳条目的 P0 / 第二阶段退出条件）、切片实现卡登记位置、能力域实施顺序、证据与测试模板、Gate 0 命令入口、高优先级负向证据清单和 90 天工程序列。
 > - **回答的问题**："下一步该做什么、在哪个 crate 做、做到什么程度算过关。"
 > - **什么时候读**：认领开发任务时——它是"规范"到"代码"之间的桥；§6.1 列出当前已知负向证据，§6 只登记 Gate 0 命令，当前是否通过以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准。
 >
@@ -122,7 +122,13 @@ Schema 注册表必须区分 canonical domain schema 与 wire protocol schema；
 
 **必备字段**：目标、输入引用、依赖、写集、数据范围、验收测试、禁止事项、期限、预算和责任人。
 
-**验收**：只有接收 ACK 后责任才转移；未响应不等于成功；packet 路径冲突和依赖缺失 fail-closed。
+**验收**（A-3 任务图为本轮 P0；F-7 工件链与冻结检查为 P1，不在本轮 P0 内）：
+
+- 只有接收 ACK 后责任才转移；未响应不等于成功；packet 路径冲突和依赖缺失 fail-closed。
+- **单一 ready 谓词（P0）**：`kiana-domain` / `kiana-tasks` 只暴露一个 `ready_packets(graph, now)`；ControlPlane spawn 校验、`kiana project next`、Web / Desktop 看板必须调用同一实现，禁止各写一份。就绪 = 状态属于可派发集合、`dependencies` 全部处于成功终态、无未过期 lease 冲突；测试断言三处对同一 graph 结果一致。
+- **依赖缺失 / 成环 fail-closed（P0）**：依赖边用显式 `WorkPacket.dependencies` 字段，不从 packet 文本解析；spawn 前校验依赖，未满足返回 blocked 并记事件，不得推进 Draft→Approved→Assigned→Running。`validate_dependency_dag` 在 packet approve 与 workflow 模板注册时调用，输出确定性规范化环（两次运行字节一致），失败拒绝落盘；父 packet blocked 时子 packet 派生 blocked。测试覆盖缺依赖、自环、多节点环和传递 blocked。
+- **claim / lease 心跳回收（P0）**：`WorkPacket` 增加 claim(owner, lease_expires_at, heartbeat_at)；spawn / continue / 每个 turn 续租；后台确定性扫描过期 lease，把 packet 退回 ready 并记事件。ready 只是查询，真正的执行许可仍由 ControlPlane 的 policy / gates / approval 产生；测试断言 worker 死亡后 lease 到期可回收且不重复派发。
+- **工件链与冻结检查（F-7，P1）**：`kiana-workflow` 落版本化 ArtifactGraph（每个工件声明 id / generates / template / requires，canonical 合同归 Slice J5），apply 只认 `apply.requires` 的传递闭包，缺依赖即 blocked；硬约束（五工具、冻结项、单执行路径、fail-closed、审批不绕过）抽成机器可读 constitution，plan / analyze 节点逐条给出 pass / violation，violation 直接阻断；`kiana workflow validate --json` 是只读门禁（稳定 issue code + 退出码）；packet 绑定冻结的 check 文件（命令 + 期望退出码 / 输出），Builder 执行后写进 EvidencePacket，Reviewer / Closer 只读结果判 pass / fail，冻结后改动即 FAIL。这些命令仍经现有 shell 能力在 policy / sandbox 下执行，不新增模型可见工具；缺依赖 / 环 / 宪法 violation / 冻结后改动各有用例且均 fail-closed。
 
 ### Slice E：通信与问责
 
@@ -153,7 +159,15 @@ CapabilityRequest
   → same Runner continuation
 ```
 
-**验收**：approval 绑定 actor/session、精确 payload digest、目标资源、策略版本、TTL、nonce 和预算；并发批准、过期、取消和重放都有测试。
+**验收**（本节 P0）：
+
+- approval 绑定 actor/session、精确 payload digest、目标资源、策略版本、TTL、nonce 和预算；并发批准、过期、取消和重放都有测试。
+- **一等请求 / 应答（P0）**：`kiana-protocol` 定义审批请求 / 应答（单号、对象、available_decisions、有效期），由 DaemonHost 发出、TTY / Web / 一次性 CLI 三处渲染并回复，ControlPlane 负责 resolve；pending 列表三处共用。非交互场景默认暂停、必须显式恢复，不得自动批准；传输保持进程内。测试断言三处都能列举 pending 并回复。
+- **审批动作首发三个（P0）**：「批准这一次 / 拒绝并继续 / 拒绝并中止」；拒绝只拒绝当前 invocation，`cancel` 才是终止 run；拒绝可带一句理由，作为带 feedback 的 tool result 回灌模型。「本会话批准」「持久 prefix 规则」列为第二阶段；作用域四级（once / turn / session / policy，A-4）中 `turn` 随 A-4（P1）落地，`session` / `policy` 持久化为第二阶段。
+- **审批决定事件（P0）**：新增审批决定事件，字段含 actor、scope、subject、expiry 和结果（消费 / 拒绝 / 过期 / 取消），由 ControlPlane 追加进 EventLog 并投影到 transcript 与 Receipt；拒绝与中止是不同终态。测试断言每次批 / 拒都有 durable、重启后仍可读的记录。
+- **自动批准收窄（P0）**：只允许 LocalWrite 一档，开关默认关闭；每次自动批准必须追加一条带「自动批准」标记的事件，收据里可见；更高风险一律弹审批。
+- **续跑材料落盘（A-1，P0）**：审批暂存前先写 invocation 请求事件，携带经 `redact_event_value` 处理的 CapabilityRequest、invocation_id、attempt、policy_snapshot、sandbox 和事件游标；PendingInvocation 改为该事件的投影，decide_approval 从事件重建。domain 层定义 RunSnapshot（run_id / session_id、消息历史、pending_capability、approval_decisions、step_counter、schema_version），由 ControlPlane 写入、启动时调 resume_run 重建 harness 状态，runner 永不读盘恢复；ControlPlane 独占调用账本，键 (run_id, call_id)，派发前查账本，已执行直接返回缓存结果或 fail-closed，指纹不一致立即拒绝。测试断言重启后可续跑同一 Runner，缺材料时返回 `approval_continuation_unavailable` 而不是假装成功。
+- **跨进程默认暂停（P0）**：重启后重建待审批列表但不自动续跑，用户显式点「恢复」才继续；重建出的 pending 项必须重新过 policy / gate / approval，不能直接交给 broker。
 
 ### Slice G：事实源与恢复
 
@@ -175,7 +189,8 @@ schema_version, payload
 - crash/restart/kill-9 后可重建状态；
 - handler 已执行但结果事件丢失进入 `result_unknown`；
 - 损坏 JSONL、磁盘满和部分 artifact 不伪装成功；
-- Web transcript 不是事实源。
+- Web transcript 不是事实源；
+- **事件重建（A-2，本轮 P0）**：新增 RunProjection / InvocationProjection，用 `read_stream("run", run_id)` 与 `read_all` 折叠 `run.*` / `capability.*` / `approval.*` 事件，产出 Run / Invocation 当前状态、待审批集合和未决 capability 集合；DaemonHost 启动不主动全量恢复，首次按 run_id / session 访问时惰性重建；折叠遇矛盾终态保持 `run_terminal_conflict` / `result_unknown` fail-closed；内存 `Mutex<HashMap>` 降级为 projection 的写穿缓存，不再是权威。测试断言新进程仅凭事件即可重建状态，且重建出的 pending 项必须重新过 policy / gate / approval。
 
 ### Slice H：Capability Descriptor 与 Broker
 
@@ -285,7 +300,7 @@ record_outcome       → OutcomeRecorded
 **共同验收**：
 
 - Tool Search 只发现候选，不授予 Grant；
-- Memory 命中带 ACL、purpose、authority、freshness 和 provenance；
+- Memory 命中带 ACL、purpose、authority、freshness 和 provenance；J3（本轮 P0）：`memory.write` 由模型写入一律落 candidate + draft，`origin` 由服务端派生（model / hook / git / user，不读模型传的 source），默认检索排除，只有操作者 / 目标层 owner 显式批准才转 active；instance-scratch 层保持默认可见，持久层 candidate 默认不可检索（分层处理）；模型不能自批。测试断言 candidate 不出现在默认检索、批准后才可检索；
 - Prompt Cache 不被误当作 Session/Event 持久化，Cache hit 按 provider/model/prompt version 分桶；
 - Workflow definition 版本固定，重试、取消、Approval、补偿和恢复均可重放；
 - Swarm fan-out 有 parent、partition、预算、并发、TTL、WorkFingerprint 和 MergeDecision；
@@ -317,7 +332,7 @@ record_outcome       → OutcomeRecorded
 - role、project、session、approval 和 scheduler 都有服务端 ownership；
 - Trigger 只能创建 Workflow/Run，不能直接执行 Capability；
 - Approval、Review、Acceptance、Incident 和 Reconciliation 能进入 Human Inbox；
-- Artifact、Workspace、Patch、Delivery 可以追溯到 Event、Run 和 Receipt；
+- Artifact、Workspace、Patch、Delivery 可以追溯到 Event、Run 和 Receipt；K4 检查点（A-10，本轮 P1 首发）：首发只做状态层 + 编辑级 undo——复用现有 apply_patch 前置快照（capture_preconditions / restore_snapshot）提供编辑级 undo，CheckpointService 绑定 transcript offset + workspace revision + invocation，写工具前与用户输入前快照；恢复走 ControlPlane 并写事件 / Receipt，恢复后旧 approval 作废；preview 绝不写盘，undo 是受控操作、不作为模型可见工具；文件层 shadow git 列为第二阶段。测试断言恢复可回滚且恢复后旧 approval 失效；
 - RuntimeBudget、ProjectBudget 和 FinancialBudget 不混用；
 - crash、timeout、cancel、disk full、MCP failure 和 Provider Unknown 都有 Incident/Recovery；
 - 删除、过期和撤销能传播到 Memory、Artifact、Index、Compaction 和 cache policy；
@@ -348,7 +363,7 @@ record_outcome       → OutcomeRecorded
 - Cache、Memory、Tool Search、Workflow、Swarm 和 Provider 指标按版本分桶；
 - Feedback 只能产生候选改进，不能直接修改 Role、Grant、Policy 或历史事实；
 - Code intelligence 结果带 snapshot、来源和 freshness；
-- Skill/Plugin/MCP/Workflow Pack 的安装、升级、迁移、撤销和回滚可审计；
+- Skill/Plugin/MCP/Workflow Pack 的安装、升级、迁移、撤销和回滚可审计；L5（F-2，本轮 P0）：skill 的 `allowed-tools` 只影响提示 / 展示，不进入 policy，技能使用任何能力都必须经 broker + policy + approval；fail-closed 测试断言声明 `allowed-tools: [shell]` 的 skill 不能导致任何未经批准的 shell 执行。扩展 / 插件清单增加 effect（read-only / read-write）、required_capabilities、network_policy、content_hash / signature、requires，安装时校验摘要与兼容性，read-only 扩展的写操作在 broker 层直接拒绝；声明不等于授权，安装成功也不等于安全验证完成；
 - 生态扩展不能创建第二套 Runtime 或绕过 ControlPlane。
 
 **当前状态**：`target`。当前已有 cassette、focused regression、query/repo-map、skills 和 hooks 素材，但统一 EvalSuite、GoldenTrace、质量晋级、drift、extension supply chain 尚未形成完整闭环。

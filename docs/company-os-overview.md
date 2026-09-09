@@ -240,6 +240,7 @@ kiana run --close <builder会话ID>
 | ControlPlane | 控制面：所有请求的审批中枢（见上文对照表） | [`company-os-design.md`](company-os-design.md)；`kiana-core` |
 | Policy / Gate | 策略与关卡：机器自动判断"这个申请合不合规"的两道检查 | `kiana-policy` / `kiana-gates` |
 | Approval | 审批：需要人（或明确授权的规则）点头的申请；绑定精确内容摘要，一次性消费，过期作废 | [`company-os-design.md`](company-os-design.md) §10 |
+| 审批作用域（scope） | 一次批准管多大范围：`once` 只这一次、`turn` 管这一轮、`session` 管整个会话、`policy` 落成持久规则；范围越大风险越高，首发只做「这一次」和拒绝路径，`turn` 随 A-4 落地，`session` / `policy` 是第二阶段 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.13 |
 | CapabilityGrant | 能力授权：短期、精确、不可转借的"出入证" | [`company-os-design.md`](company-os-design.md) §5.6 |
 | BudgetLease | 预算租约：token/工具次数/时长/并发的硬配额 | 同上 |
 | RuntimeBudget | 运行级预算：一次 Run 的总配额，向下派生出各个 Cell 的 `BudgetLease`；两者不能互相替代 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §5.3 |
@@ -261,13 +262,17 @@ kiana run --close <builder会话ID>
 | Session | 会话：长期容器，绑定你、工作区和项目 | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4 |
 | Turn | 轮次：你一次输入到系统停下来的一个来回 | 同上 |
 | Run | 运行：一次执行生命周期，可排队/运行/暂停/取消 | 同上 |
+| RunSnapshot | 运行快照：把"跑到哪、在等什么审批、哪些调用还没结"存成一份可恢复的记录；跨进程恢复靠它，而且重启后默认暂停、等你显式点"恢复"才继续 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.10；[`company-os-platform-architecture.md`](company-os-platform-architecture.md) §4.1 |
 | Invocation | 能力调用：一次具体的工具/能力请求，有独立身份，可恢复、可追责 | 同上 |
+| 调用账本 | 调用账本：每个 `(run_id, call_id)` 只许真正执行一次；派发前先查账，执行过就返回缓存结果或直接拒绝，防止重启后重复产生副作用 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.10 |
+| 任务图与 ready 谓词 | 任务图：工单之间的依赖用显式字段写清楚；`ready_packets` 是唯一的"能不能开工"判断（状态可派发 + 依赖全部成功 + 没有过期占用），缺依赖或成环在开工前就拦下 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) §4.11 |
 | RuntimeEvent | 运行事件：流水账里的一条不可变记录 | `kiana-eventlog` |
 | Artifact | 产物：可版本化的文件/工件（区别于事件：事件是"事实"，产物是"东西"） | [`company-os-operations-governance.md`](company-os-operations-governance.md) §6 |
 | Receipt | 收据：从事件和证据汇总的报告（**证明"系统记录了什么"，不自动证明"现实世界发生了什么"**） | [`company-os-design.md`](company-os-design.md) §11 |
 | Transcript | 对话记录：只是给人看的视图，**不是**事实源，随时可丢弃 | 同上 |
 | result_unknown | 结果未知：可能已经产生副作用但确认不了（超时/崩溃/日志丢失）。它是一等状态，禁止自动重试，必须对账 | [`company-os-security-constitution.md`](company-os-security-constitution.md) SEC-09 |
 | PendingInvocation | 挂起的调用：等审批时把调用"冻结"起来，批准后原地续跑，而不是报错重来（目标设计，尚未完成） | [`company-os-design.md`](company-os-design.md) §10.1 |
+| 检查点 / 回滚 | 检查点：动手前先拍一张"此刻工作区长什么样"的快照，出错能退回来；首发只做状态层和单次编辑的 undo，文件层的 shadow git 是第二阶段 | [`company-os-design.md`](company-os-design.md) §10.4 |
 | cassette / fake-script | 模型录像带：预先录好的模型响应脚本（`KIANA_HARNESS_SCRIPT` 环境变量指定），让测试不依赖真模型、永远可复现 | [`../USER.md`](../USER.md) |
 | cancel_requested / cancelling | 取消中间态：`cancel_requested` 是 wire 状态名，`cancelling` 只是界面上的显示名、**不是状态也不是终态**；停止确认不了时只能进 `result_unknown` | [`company-os-design.md`](company-os-design.md) §10.2 |
 | HandoffReceipt | 交接回执：接收方确认收到工单的凭证（ACK）；它只证明"责任转移了"，不证明活干完了 | [`company-os-design.md`](company-os-design.md) §9.2 |
@@ -279,12 +284,15 @@ kiana run --close <builder会话ID>
 |---|---|---|
 | ContextPlan | 上下文计划：一次模型请求"应该看到什么"的可审计清单，不是随手拼接的字符串 | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §5 |
 | Memory | 分层记忆：六个访问层（公司 / 部门 / 角色 / 项目 / 用户 / 实例草稿 InstanceScratch）× 多种内容类型；检索结果必须带来源，且永远不能变成权限 | 同上 §5.3 |
+| 记忆候选与来源 | 记忆来源（`origin`）由服务端按写入通道判定，模型自己传的 source 不算；模型写进来的记忆默认只是候选（`candidate`），不能自己批准，持久层的候选默认搜不到（instance-scratch 草稿层除外） | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §5.3 |
 | Compaction | 历史压缩：长对话压成摘要接着聊；摘要是新产物，原始事件永远保留 | 同上 §6 |
 | Prompt Cache | 提示词缓存：模型服务商复用相同前缀省钱；**它只是省钱手段，不是持久化**（缓存命中不代表状态已保存） | 同上 §6 |
 | CapabilityDescriptor | 能力说明书：一个工具的身份证——版本、风险、参数结构、审批策略等，同时喂给模型、搜索、策略和审计 | 同上 §7 |
 | Tool Search | 工具搜索：工具多了不能全塞给模型，先按角色/风险过滤再检索出前几名候选；**搜到 ≠ 有权用** | 同上 §7.2 |
 | MCP | 外部工具协议：Kiana 作为客户端调外部工具服务器。当前只支持 stdio（本地子进程），HTTP 明确不支持 | 同上 §7.3；[`coding-pack-matrix.md`](coding-pack-matrix.md) |
 | Workflow | 工作流：确定性流程图——顺序、重试、超时、补偿由软件保证，模型只能提建议，不能改流程状态（目标设计） | 同上 §8 |
+| replay divergence | 重放分歧：拿事件账本重跑一遍历史时，第一次出现"记录和重跑结果对不上"的位置；一旦出现就阻断，绝不猜着往下走 | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) §8.5 |
+| ArtifactGraph / validate | 工件图与校验门禁：把"哪个产物由谁生成、要先有什么才能开工"声明成一张图；`kiana workflow validate` 只读检查缺依赖 / 成环 / 跨产物不一致，有问题直接拦下 | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §9.5 |
 | Swarm | 有界多 Agent：受控的"分头干活再合并"，必须有父级、分区、预算、深度、合并规则；不是自由群聊（目标设计） | 同上 §9 |
 | NormalizedEvent | 归一化事件：不同模型服务商的流式输出格式各异，先统一翻译成内部格式再进系统 | 同上 §10 |
 | EvalSuite / GoldenTrace | 评测集 / 黄金轨迹：可重放的测试用例和"标准答案录像"，改了模型/提示词之后跑一遍防退步（目标设计） | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §3 |
