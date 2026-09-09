@@ -333,11 +333,12 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--stream] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
     let mut json_output = false;
+    let mut stream_output = false;
     let mut sandbox: Option<String> = None;
     let mut role: Option<String> = None;
     let mut symposium = false;
@@ -354,6 +355,7 @@ async fn run_main(args: &[String]) -> Result<()> {
         let argument = &args[index];
         match argument.as_str() {
             "--json" => json_output = true,
+            "--stream" => stream_output = true,
             "--sandbox" => {
                 index += 1;
                 sandbox = Some(
@@ -468,6 +470,10 @@ async fn run_main(args: &[String]) -> Result<()> {
             "use only one of --symposium, --packet, --review, --continue, --cancel, or --receipt"
         ));
     }
+    if stream_output && exclusive > 0 {
+        return Err(anyhow!("stream_requires_run"));
+    }
+    stream_output = stream_output && !json_output;
     if anti_meeting && !symposium {
         return Err(anyhow!("anti_meeting_requires_symposium"));
     }
@@ -540,6 +546,9 @@ async fn run_main(args: &[String]) -> Result<()> {
     if let Some(role) = role {
         options.insert("role".to_string(), Value::String(role));
     }
+    if stream_output {
+        options.insert("stream".to_string(), Value::Bool(true));
+    }
     let response = if let Some(id) = cancel_id {
         let id = id.trim().to_owned();
         if id.is_empty() {
@@ -593,10 +602,12 @@ async fn run_main(args: &[String]) -> Result<()> {
             response.error.as_deref().unwrap_or("unknown")
         ));
     }
-    if let Some(text) = response.output["output"]["text"].as_str() {
-        println!("{text}");
-    } else {
-        println!("{}", serde_json::to_string_pretty(&response.output)?);
+    if !stream_output {
+        if let Some(text) = response.output["output"]["text"].as_str() {
+            println!("{text}");
+        } else {
+            println!("{}", serde_json::to_string_pretty(&response.output)?);
+        }
     }
     if let Some(session_id) = response.output["session_id"].as_str() {
         println!("session_id: {session_id}");
@@ -14087,7 +14098,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
-    println!("  kiana run [--json] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] <prompt>  Execute a prompt, symposium, work packet, or review through the Kiana harness");
+    println!("  kiana run [--json] [--stream] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] <prompt>  Execute a prompt, symposium, work packet, or review through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");
     println!("  kiana auto-mode defaults  Print default auto mode classifier rules");

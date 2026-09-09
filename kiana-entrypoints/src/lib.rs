@@ -18,6 +18,7 @@ pub mod repl;
 pub mod runner;
 pub mod sandbox;
 pub mod sdk;
+mod stream_render;
 pub mod tui;
 pub mod web;
 mod web_thread;

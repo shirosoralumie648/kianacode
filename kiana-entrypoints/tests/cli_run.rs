@@ -1,8 +1,10 @@
 use serde_json::Value;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Command, Output, Stdio};
+use std::sync::mpsc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn harness_script(outputs: &str) -> PathBuf {
     let stamp = SystemTime::now()
@@ -84,8 +86,9 @@ fn kiana_in(cwd: &Path, home: &Path, args: &[&str]) -> Output {
         .unwrap()
 }
 
-fn kiana_with_script(cwd: &Path, home: &Path, script: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_kiana"))
+fn kiana_command_with_script(cwd: &Path, home: &Path, script: &Path, args: &[&str]) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_kiana"));
+    command
         .current_dir(cwd)
         .env("KIANA_HOME", home)
         .env("HOME", home)
@@ -95,7 +98,12 @@ fn kiana_with_script(cwd: &Path, home: &Path, script: &Path, args: &[&str]) -> O
         .env_remove("ANTHROPIC_API_KEY")
         .env_remove("KIANA_OPENAI_API_KEY")
         .env_remove("OPENAI_API_KEY")
-        .args(args)
+        .args(args);
+    command
+}
+
+fn kiana_with_script(cwd: &Path, home: &Path, script: &Path, args: &[&str]) -> Output {
+    kiana_command_with_script(cwd, home, script, args)
         .output()
         .unwrap()
 }
@@ -136,6 +144,103 @@ fn run_routes_through_kiana_harness_and_reports_brokered_result() {
         "kiana.harness-result.v1"
     );
     assert_eq!(response["output"]["output"]["text"], "architecture mapped");
+}
+
+#[test]
+fn run_stream_flushes_each_delta_before_terminal_receipt() {
+    let script = harness_script(
+        r#"[{"text":"first chunk","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"sleep 1"}}]},{"text":" second chunk"}]"#,
+    );
+    let cwd = unique_dir("stream-cwd");
+    let home = isolated_home();
+    let mut child =
+        kiana_command_with_script(&cwd, &home, &script, &["run", "--stream", "stream it"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+    let mut stdout = child.stdout.take().unwrap();
+    let (sender, receiver) = mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        let mut chunks = Vec::new();
+        let mut buffer = [0_u8; 64];
+        loop {
+            match stdout.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => {
+                    let chunk = buffer[..read].to_vec();
+                    chunks.push(chunk.clone());
+                    if sender.send(chunk).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        chunks
+    });
+
+    let first = receiver
+        .recv_timeout(Duration::from_secs(10))
+        .expect("first streamed chunk");
+    assert_eq!(String::from_utf8_lossy(&first), "first chunk");
+    assert!(
+        child.try_wait().unwrap().is_none(),
+        "streamed chunk was buffered until process exit"
+    );
+
+    let status = child.wait().unwrap();
+    let chunks = reader.join().unwrap();
+    let stdout = String::from_utf8_lossy(&chunks.concat()).into_owned();
+    let mut stderr = String::new();
+    child
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut stderr)
+        .unwrap();
+
+    assert!(status.success(), "stderr: {stderr}");
+    assert_eq!(stdout.matches("first chunk").count(), 1, "{stdout}");
+    assert!(stdout.contains(" second chunk"), "{stdout}");
+    assert!(stdout.contains("session_id: "), "{stdout}");
+    assert!(stdout.contains("run_id: "), "{stdout}");
+}
+
+#[test]
+fn run_json_keeps_machine_output_clean_with_stream_flag() {
+    let script = harness_script(r#"[{"text":"machine output"}]"#);
+    let output = kiana_with_script(
+        &unique_dir("stream-json-cwd"),
+        &isolated_home(),
+        &script,
+        &["run", "--json", "--stream", "hello"],
+    );
+
+    assert!(output.status.success(), "{}", combined(&output));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["status"], "completed");
+    assert_eq!(response["output"]["output"]["text"], "machine output");
+}
+
+#[test]
+fn run_without_stream_keeps_final_only_human_output() {
+    let script = harness_script(
+        r#"[{"text":"interim","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"true"}}]},{"text":"final text"}]"#,
+    );
+    let output = kiana_with_script(
+        &unique_dir("no-stream-cwd"),
+        &isolated_home(),
+        &script,
+        &["run", "hello"],
+    );
+
+    assert!(output.status.success(), "{}", combined(&output));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("final text\n"), "{stdout}");
+    assert!(!stdout.contains("interim"), "{stdout}");
+    assert!(stdout.contains("session_id: "), "{stdout}");
 }
 
 #[test]

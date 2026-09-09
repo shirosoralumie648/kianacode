@@ -46,6 +46,13 @@ pub async fn run_envelope(
     prompt: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
+    if options
+        .get("stream")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return crate::stream_render::run_envelope(session_id.into(), prompt.into(), options).await;
+    }
     run_envelope_on_host(
         new_local_host_with_options(options)?,
         session_id,
@@ -180,7 +187,9 @@ async fn run_envelope_with_history_and_permission_handler(
         .map_err(anyhow::Error::msg)
 }
 
-fn new_local_host_with_options(options: &HashMap<String, Value>) -> Result<Arc<DaemonHost>> {
+pub(crate) fn new_local_host_with_options(
+    options: &HashMap<String, Value>,
+) -> Result<Arc<DaemonHost>> {
     let string_option = |key| options.get(key).and_then(Value::as_str).map(str::to_owned);
     Ok(Arc::new(
         DaemonHost::local_with_model_config(LocalModelConfig {
