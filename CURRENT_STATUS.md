@@ -65,6 +65,57 @@ reviewer: focused adversarial regression review
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
 
+### Read-only persisted web session history evidence (2026-09-10)
+
+```text
+source_snapshot: 1c504a0 (kiana-entrypoints/src/web.rs, kiana-entrypoints/src/web_page.html; read path added by 0a9a56b in kiana-core/src/receipts.rs and kiana-daemon/src/lib.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  bash scripts/release-smoke.sh        # GitHub Actions release-smoke job
+  cargo check -p kiana-entrypoints --all-targets --locked --offline
+cwd/environment: GitHub Actions release-smoke job, ubuntu-latest, stable toolchain, bubblewrap installed
+fixture or cassette: a real DaemonHost::local() run writes the ledger, the app and host are dropped, a fresh host and WebApp read it back
+exit_code: 0 (run 34380076942 completed/success)
+status change: no capability status promotion. A WebApp constructed over an existing ledger lists previously recorded sessions read-only; opening one performs no execution, appends no events and cannot mutate. The projection reads through `DaemonHost::persisted_events()` and never parses the ledger file itself.
+proof-level change: local_behavior evidence for the read-only history projection and its fail-closed paths.
+limitations: the listing is read-only and does not resume or re-run a session; `Ok(None)` (a store without full reads) returns `web_session_history_unsupported` rather than an empty list; the first version of this slice parsed the JSONL file inside the entrypoint and was corrected before commit.
+reviewer: Claude reviewed each Codex diff (no assertions deleted) and required the ledger read to move behind the daemon port; the full suite ran only on GitHub CI
+```
+
+### Tool argument validation at capability mapping evidence (2026-09-10)
+
+```text
+source_snapshot: 9095ea7 (kiana-runner/src/tools.rs, kiana-runner/src/harness.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  bash scripts/release-smoke.sh
+  cargo test -p kiana-runner --locked --offline
+cwd/environment: GitHub Actions release-smoke job; local reproduction with rustc/cargo 1.97.1 and --locked --offline
+fixture or cassette: scripted model emitting malformed tool arguments; existing cassette shapes with extra keys
+exit_code: 0 (run 34380323510 completed/success); kiana-runner 50 unit + 2 integration
+status change: no capability status promotion. `capability_for_tool` now validates the model's arguments against the existing schema table before building a capability request, and a malformed call fails with `invalid_arguments:<tool>:<field>` before any `CapabilityRequested` is emitted.
+proof-level change: local_behavior evidence for the mapping-time rejection path.
+limitations: the validator implements only the `type` / `required` / `minimum` / `enum` subset and is driven by the existing `tool_schemas()` table; `additionalProperties` is deliberately not denied, so undeclared keys still pass; the alias table added by this slice (`schema_name_for_tool`) duplicates the one in `capability_for_tool`, which the registry unit must collapse.
+reviewer: Claude reviewed the Codex diff (no assertions deleted) and compiled before pushing; the full suite ran only on GitHub CI
+```
+
+### Run-level wall-time budget evidence (2026-09-10)
+
+```text
+source_snapshot: 409cfc7 (kiana-runner/src/harness.rs) with the product wiring in 747ff8b (kiana-daemon/src/lib.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  bash scripts/release-smoke.sh
+  cargo test -p kiana-runner --locked --offline
+cwd/environment: GitHub Actions release-smoke job; local reproduction with rustc/cargo 1.97.1 and --locked --offline
+fixture or cassette: scripted model with a step between budget checks; env-driven config lookup in unit tests
+exit_code: 0 (run 34380542728 completed/success); kiana-runner 54 unit + 2 integration
+status change: no capability status promotion. `RuntimeConfig` gained `wall_time_budget`; exceeding it between model steps fails closed with `run_budget_exceeded:wall_time`; `continue_run` resets the clock.
+proof-level change: local_behavior evidence for the run-level time bound.
+limitations: the budget defaults to `None`, so the product path is unbounded unless `KIANA_HARNESS_WALL_TIME_MS` is set; `max_steps_per_turn` is still 32 on every product path and `RoleSpec.max_steps` remains unused, so the bounded-loop unit is only partially landed.
+reviewer: Claude reviewed the Codex diff (no assertions deleted) and compiled before pushing; the full suite ran only on GitHub CI
+```
+
 ### Ledger prompt and tool-call identity evidence (2026-09-10)
 
 ```text
