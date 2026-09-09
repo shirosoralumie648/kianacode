@@ -65,6 +65,27 @@ reviewer: focused adversarial regression review
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
 
+### Streaming default, SSE reconnect, tool-call repetition and ledger session rebuild evidence (2026-09-10)
+
+```text
+source_snapshot: af38d47 (kiana-entrypoints/src/{cli,web}.rs, kiana-entrypoints/src/web_page.html, kiana-entrypoints/tests/{cli_run,cli_help,cli_web}.rs, kiana-runner/src/harness.rs, kiana-core/src/{lifecycle,receipts,sessions}.rs, kiana-core/tests/control_plane.rs)
+worktree_status: clean; all four slices committed on master and pushed
+command_argv:
+  bash scripts/release-smoke.sh        # GitHub Actions release-smoke job, ubuntu-latest, stable toolchain, bubblewrap installed
+  cargo fmt --all --check
+  cargo check --workspace --locked --offline
+  cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1
+  cargo test -p kiana-core --locked --offline
+  cargo test -p kiana-runner --locked --offline
+cwd/environment: GitHub Actions release-smoke job; slices also reproduced locally with rustc/cargo 1.97.1 and --locked --offline
+fixture or cassette: cassette scripts with chunked text plus shell tool calls; in-process ChunkedModel; disk JSONL EventLog; mock Anthropic endpoints in cli.rs and cli_session.rs that answer SSE when the request carries stream=true
+exit_code: 0 (run 34376675138 completed/success); kiana-core 11 + 91 + 2, kiana-runner 43, kiana-entrypoints lib 444
+status change: no capability status promotion. Four slices landed: (1) `kiana run` streams by default with `--no-stream` / `--json` as the kill switch, and `--stream` with an exclusive mode still returns `stream_requires_run`; (2) an SSE subscription attached to a run already in progress emits `stream_gap` and the page never marks an incomplete turn complete; (3) consecutive identical tool calls fail closed with `repeated_tool_call:<name>`; (4) session→run bindings are rebuilt from `run.authorized` in the ledger when the in-memory cache misses, and still pass `same_session_principal`.
+proof-level change: local_behavior evidence for these four paths, verified by the repository's own release-smoke gate on GitHub.
+limitations: the CLI default flip first failed `run_without_stream_keeps_final_only_human_output` on CI (run 34373627747) and was corrected in d704add, where the test now states its path explicitly and a second test covers the default; `make test-fast` does not cover the entrypoints test targets, so this class of regression is only caught by CI. The ledger rebuild reads the whole event stream (`read_all`) on a cache miss and does not yet reconstruct model-visible history or pending work; no cross-process resume, no run-level cost/wall-time budget, and no `sequence`/`epoch` on the wire.
+reviewer: Claude reviewed each Codex diff for deleted assertions (zero deletions in the test files) and compiled every slice before pushing; by the product owner's instruction the full test suite runs only on GitHub CI
+```
+
 ### Incomplete provider stream fail-closed and CI hang correction evidence (2026-09-09)
 
 ```text

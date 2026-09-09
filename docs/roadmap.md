@@ -39,9 +39,9 @@
 | **0.1** 账本粒度修正 | ✅ | `e9df8b4` | — | `contiguous_stream_deltas_become_one_durable_run_delta` |
 | **0.2** 不完整流 fail-closed + CI 挂起修正 | ✅ | `3b65af2` | `34372274823` ✅ | `native_streaming_without_a_terminal_event_fails_closed` |
 | **0.3** 文档与证据对齐 | ✅ | `99237ad` | `34372547148` ✅ | —（文档） |
-| **0.4** 命令行默认开启流式 | ✅ | `e2b15c1` + `d704add` | `34375303757` | `run_streams_each_delta_by_default_before_terminal_receipt` |
-| **0.5** 断线/重连负向路径 | 🔄 | `8b2aecb` | 等 CI | `web_sse_reconnect_emits_stream_gap_without_replaying_delta_items` |
-| **1.1** session 绑定从账本重建 | 🔄 | `e8d9346` | 等 CI | `fresh_control_plane_rebuilds_session_binding_from_ledger` |
+| **0.4** 命令行默认开启流式 | ✅ | `e2b15c1` + `d704add` | `34375303757` ✅ | `run_streams_each_delta_by_default_before_terminal_receipt` |
+| **0.5** 断线/重连负向路径 | ✅ | `8b2aecb` | `34376675138` ✅ | `web_sse_reconnect_emits_stream_gap_without_replaying_delta_items` |
+| **1.1** session 绑定从账本重建 | ✅ | `e8d9346` | `34376675138` ✅ | `fresh_control_plane_rebuilds_session_binding_from_ledger` |
 | **1.2** 账本记录可重放 history 字段 | ⏳ | — | — | `resume_rebuilds_model_visible_history_from_ledger` |
 | **1.3** `resume_run` 与协议入口 | ⏳ | — | — | `fresh_process_resume_reconstructs_pending_approval` |
 | **1.4** 网页重启后列出历史会话 | ⏳ | — | — | `web_lists_persisted_sessions_after_restart` |
@@ -53,7 +53,7 @@
 | **3.2** 参数 schema 校验 | ⏳ | — | — | `malformed_arguments_are_rejected_before_capability_mapping` |
 | **3.3** 路径 containment 共享实现 | ⏳ | — | — | `path_containment_is_shared_by_every_side_effecting_tool` |
 | **3.4** 稳定错误码枚举 | ⏳ | — | — | `path_escape_uses_stable_error_code` |
-| **4.1** 连续重复工具调用检测 | 🔄 | `d973ff6` | 等 CI | `third_consecutive_identical_tool_call_fails_closed` |
+| **4.1** 连续重复工具调用检测 | ✅ | `d973ff6` | `34376675138` ✅ | `third_consecutive_identical_tool_call_fails_closed` |
 | **4.2** `max_steps` 按角色生效 | ⏳ | — | — | `role_max_steps_reaches_the_harness` |
 | **4.3** run 级 wall-time 预算 | ⏳ | — | — | `run_wall_time_budget_fails_closed` |
 | **5.1** wire 加 `sequence`/`epoch` | ⏳ | — | — | `run_stream_sequence_is_monotonic` |
@@ -74,8 +74,8 @@
 | 事项 | 位置 | 卡在哪 |
 |---|---|---|
 | Codex 任务 4：账本记录可重放 history 字段 | `kiana-core` | Codex 正在写 |
-| CI `34375303757` | `d704add` | `release-smoke` 跑着 |
-| CI `8b2aecb`（断线重连）/ `d973ff6`（doom-loop）/ `e8d9346`（session 重建） | — | 排队 |
+
+> 最近一次全绿：CI `34376675138`（tip `af38d47`）—— 覆盖 0.1–0.5、1.1、4.1 的全部代码。
 
 ---
 
@@ -92,6 +92,7 @@
 | 2026-09-10 | 连续重复工具调用 fail-closed（`repeated_tool_call:<name>`） | `d973ff6` |
 | 2026-09-10 | 修正被默认翻转影响的 `cli_run` 测试（显式 `--no-stream` + 默认路径覆盖） | `d704add` |
 | 2026-09-10 | session 绑定可从事件账本重建（内存未命中时回读 `run.authorized`，仍走 owner 校验） | `e8d9346` |
+| 2026-09-10 | 0.4 / 0.5 / 1.1 / 4.1 经 `release-smoke` 全绿，状态置 ✅ | CI `34376675138` |
 
 ---
 
@@ -118,10 +119,10 @@
 - **做了什么**：`kiana run` 普通路径默认流式；`--no-stream` / `--json` 关闭；`--stream` 与互斥模式仍报 `stream_requires_run`。
 - **代价**：第一次推送 CI 就抓到 `cli_run` 的默认行为断言失效，用 `d704add` 修正（显式 `--no-stream` + 新增默认路径覆盖）。
 
-### 0.5 断线/重连负向路径 🔄
+### 0.5 断线/重连负向路径 ✅
 
-- **做什么**：SSE 订阅到进行中的 run 时显式发 `stream_gap`；前端不得把不完整的轮次标成完成；重连不重放已送 delta。
-- **完成定义**：`streaming-unfreeze-plan.md` §6 最后一条负向项可以打勾。
+- **做了什么**：SSE 订阅到进行中的 run 时显式发 `stream_gap`；前端把该轮标成"不完整 / 已中断"，即使 terminal 到达也不标记完成；重连不重放已送 delta。
+- **完成定义**：`streaming-unfreeze-plan.md` §6 最后一条负向项已可打勾。
 
 ---
 
@@ -129,7 +130,7 @@
 
 **为什么最先**：`CURRENT_STATUS.md` 把"跨进程完整 resume"记为 `deferred`；session 绑定只写内存，重启后 `continue_run` / `cancel_run` / `read_receipt` 一律 `session_not_found`。
 
-### 1.1 session→run 绑定从事件账本重建 🔄
+### 1.1 session→run 绑定从事件账本重建 ✅
 
 - **现状**：绑定只在 `kiana-core/src/sessions.rs:48-62` 的内存 map；`run.authorized`（`lifecycle.rs:105-121`）字段恰好覆盖 binding。
 - **做什么**：内存未命中时从账本只读回读并重建；账本里确实没有时仍 fail-closed。
@@ -202,7 +203,7 @@
 
 ## 8. P4 — 有界循环与预算（SEC-12）
 
-### 4.1 连续重复工具调用检测 🔄
+### 4.1 连续重复工具调用检测 ✅
 
 - **做什么**：同一工具 + 相同 arguments 连续重复达阈值 → `repeated_tool_call:<name>`；阈值进 `RuntimeConfig`；不同参数不误伤。
 
