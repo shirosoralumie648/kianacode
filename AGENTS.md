@@ -109,7 +109,7 @@ kiana-entrypoints
 ### 兼容边界（**不要**把新能力放进去）
 
 `kiana-tools`、`kiana-commands`、`kiana-tasks`、`kiana-types`、`kiana-services`、
-`kiana-bridge`、`kiana-remote`、`kiana-tui`、旧 SDK/runner。
+`kiana-bridge`、`kiana-remote`、旧 SDK/runner。
 
 它们是历史遗留的第二套执行面，只保留兼容性。**旧 AGENTS.md 说的"新命令注册到
 `kiana-commands/src/registry.rs`、新工具注册到 `kiana-tools/src/registry.rs`"
@@ -117,9 +117,11 @@ kiana-entrypoints
 
 ### 其余
 
-`kiana-chrome-mcp`、`kiana-computer-mcp`、`kiana-screen-capture`：feature-gated，非产品路径。
-`legacy/`：已从 workspace 移除的零依赖死重 crate（当前：`kiana-computer-input`）；不参与编译，只保留历史。
-`kiana-screens`/`kiana-components`/`kiana-ink`/`kiana-color-diff`/`kiana-modifiers`：TUI 相关，已 park。
+`kiana-chrome-mcp`、`kiana-computer-mcp`：feature-gated，非产品路径。
+`legacy/`：已从 workspace 移除的旧 crate（当前：`kiana-computer-input`、`kiana-coordinator`、
+`kiana-ink`、`kiana-color-diff`、`kiana-screen-capture`、`kiana-tui`、`kiana-components`）；
+不参与编译，只保留历史。
+`kiana-screens`/`kiana-modifiers`：TUI 相关，已 park。
 `contrib/desktop/`：Electron 壳（Node）。`reference/`：只读审计输入，非 workspace 成员。
 
 ---

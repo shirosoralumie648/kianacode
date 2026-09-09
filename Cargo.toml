@@ -7,19 +7,15 @@ members = [
     "kiana-bridge",
     "kiana-chrome-mcp",
     "kiana-client",
-    "kiana-color-diff",
     "kiana-commands",
-    "kiana-components",
     "kiana-computer-mcp",
     "kiana-constants",
-    "kiana-coordinator",
     "kiana-core",
     "kiana-daemon",
     "kiana-domain",
     "kiana-entrypoints",
     "kiana-eventlog",
     "kiana-gates",
-    "kiana-ink",
     "kiana-modifiers",
     "kiana-policy",
     "kiana-ports",
@@ -28,13 +24,11 @@ members = [
     "kiana-remote",
     "kiana-runner",
     "kiana-runner-protocol",
-    "kiana-screen-capture",
     "kiana-screens",
     "kiana-services",
     "kiana-skills",
     "kiana-tasks",
     "kiana-tools",
-    "kiana-tui",
     "kiana-types",
     "kiana-url-handler",
     "kiana-workflow",
@@ -80,7 +74,6 @@ similar = "3.1"
 # 内部 crate
 kiana-types = { path = "kiana-types" }
 kiana-constants = { path = "kiana-constants" }
-kiana-coordinator = { path = "kiana-coordinator" }
 kiana-bootstrap = { path = "kiana-bootstrap" }
 kiana-capability-broker = { path = "kiana-capability-broker" }
 kiana-client = { path = "kiana-client" }
