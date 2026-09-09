@@ -23,6 +23,10 @@ jobs:
           # Ubuntu 24.04 默认限制非特权 user namespace，会让 bwrap 直接失败
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - run: cargo fetch --locked
+      - name: Install compliance tools (cargo-deny)
+        run: |
+          bash scripts/install-compliance-tools.sh
+          echo "$PWD/target/compliance-tools/bin" >> "$GITHUB_PATH"
       - name: Record build inputs
         shell: bash
         run: |

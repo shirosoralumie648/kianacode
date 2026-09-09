@@ -848,6 +848,16 @@ else
   fail "commercial release verifier smoke failed"
 fi
 
+if command -v cargo-deny >/dev/null 2>&1; then
+  if cargo deny check >/dev/null 2>&1; then
+    pass "cargo-deny check passed (advisories, bans, licenses, sources)"
+  else
+    fail "cargo-deny check failed (advisories, bans, licenses, or sources)"
+  fi
+else
+  fail "cargo-deny is not installed; run scripts/install-compliance-tools.sh"
+fi
+
 if (( failures > 0 )); then
   echo "release preflight failed with ${failures} issue(s)" >&2
   exit 1
