@@ -367,6 +367,35 @@ async fn run_subscription_receives_ordered_deltas_and_terminal_response() {
 }
 
 #[tokio::test]
+async fn streamed_run_writes_one_run_delta_per_turn_to_the_ledger() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let events = root.join("sessions").join("events.jsonl");
+    let harness = KianaHarness::new(Arc::new(ChunkedModel {
+        chunks: vec!["alpha", " beta", " gamma"],
+    }));
+    let host =
+        Arc::new(trusted_harness_host_on_disk(harness, &events).expect("streaming disk daemon"));
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let response = client
+        .run(trusted_metadata_in(&root), "stream it", None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let log = fs::read_to_string(&events).expect("durable event log");
+    let deltas = log
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event json"))
+        .filter(|event| event["kind"] == "run.delta")
+        .collect::<Vec<_>>();
+    assert_eq!(deltas.len(), 1, "{deltas:?}");
+    assert_eq!(deltas[0]["data"]["text"], "alpha beta gamma");
+}
+
+#[tokio::test]
 async fn run_without_subscription_keeps_the_complete_response_path() {
     let _environment_lock = environment_lock();
     let root = temp_project();

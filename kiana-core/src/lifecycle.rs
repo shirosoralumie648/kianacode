@@ -461,6 +461,30 @@ impl ControlPlane {
         })
     }
 
+    /// 把一轮内连续到达的模型增量合并成一条 `run.delta` 落账。
+    ///
+    /// 事件账本是事实源：按块落账会让每次 append 都付出全量 `read_stream` 算版本加 CAS 的
+    /// 代价（见 `docs/streaming-unfreeze-plan.md` §5）。细粒度增量只走易失的展示通道。
+    async fn flush_run_delta(
+        &self,
+        request_id: RequestId,
+        sequence: &mut u64,
+        run_id: RunId,
+        buffer: &mut String,
+    ) -> Result<(), CoreError> {
+        if buffer.is_empty() {
+            return Ok(());
+        }
+        let text = std::mem::take(buffer);
+        self.record_event(
+            request_id,
+            sequence,
+            "run.delta",
+            json!({ "run_id": run_id, "text": text }),
+        )
+        .await
+    }
+
     pub(crate) async fn drive_run(
         &self,
         context: &RequestContext,
@@ -474,11 +498,17 @@ impl ControlPlane {
         let mut output = Value::Null;
         let mut failed = None;
         let mut completed = false;
+        // 同一轮模型调用会连出多条增量；先攒起来，遇到非增量事件时再合并落账。
+        let mut delta_text = String::new();
         while !pending_events.is_empty() {
             let event = pending_events.remove(0);
             if event.run_id() != run_id {
                 failed = Some("result_unknown:runner_event_run_id_mismatch".to_owned());
                 break;
+            }
+            if !matches!(event, RunnerEvent::Delta { .. }) {
+                self.flush_run_delta(request_id, sequence, run_id, &mut delta_text)
+                    .await?;
             }
             match event {
                 RunnerEvent::Started { run_id } => {
@@ -490,14 +520,8 @@ impl ControlPlane {
                     )
                     .await?;
                 }
-                RunnerEvent::Delta { run_id, text } => {
-                    self.record_event(
-                        request_id,
-                        sequence,
-                        "run.delta",
-                        json!({ "run_id": run_id, "text": text }),
-                    )
-                    .await?;
+                RunnerEvent::Delta { text, .. } => {
+                    delta_text.push_str(&text);
                 }
                 RunnerEvent::CapabilityRequested { run_id, request } => {
                     match self
@@ -597,6 +621,9 @@ impl ControlPlane {
                 break;
             }
         }
+        // 末尾可能还有没被非增量事件触发的增量（例如事件列表直接结束）。
+        self.flush_run_delta(request_id, sequence, run_id, &mut delta_text)
+            .await?;
         self.clear_cancel(run_id);
 
         if let Some(error) = failed {

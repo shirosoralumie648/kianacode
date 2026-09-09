@@ -70,6 +70,79 @@ impl RunnerPort for SecretDeltaRunner {
     }
 }
 
+/// 按块吐字，模拟原生 provider 流式：一个模型轮次会产生多条 `RunnerEvent::Delta`。
+struct ChunkedDeltaRunner {
+    chunks: Vec<&'static str>,
+}
+
+#[async_trait]
+impl RunnerPort for ChunkedDeltaRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        let RunnerCommand::Start { run_id, .. } = command else {
+            return Err(PortError::Failed("unexpected_runner_command".to_owned()));
+        };
+        let mut events = vec![RunnerEvent::Started { run_id }];
+        events.extend(self.chunks.iter().map(|text| RunnerEvent::Delta {
+            run_id,
+            text: (*text).to_owned(),
+        }));
+        events.push(RunnerEvent::Completed {
+            run_id,
+            output: json!({ "text": self.chunks.concat() }),
+        });
+        Ok(events)
+    }
+}
+
+/// 两轮之间夹一个能力请求：增量必须按轮次分段落账，不能跨轮合并成一条。
+struct TwoTurnDeltaRunner;
+
+#[async_trait]
+impl RunnerPort for TwoTurnDeltaRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        Ok(match command {
+            RunnerCommand::Start { run_id, .. } => vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::Delta {
+                    run_id,
+                    text: "first".to_owned(),
+                },
+                RunnerEvent::Delta {
+                    run_id,
+                    text: " turn".to_owned(),
+                },
+                RunnerEvent::CapabilityRequested {
+                    run_id,
+                    request: CapabilityRequest::new(
+                        RequestId::new(),
+                        CapabilityKind::Query,
+                        "search",
+                        json!({ "query": "architecture" }),
+                    ),
+                },
+            ],
+            RunnerCommand::CapabilityResult { run_id, .. } => vec![
+                RunnerEvent::Delta {
+                    run_id,
+                    text: "second".to_owned(),
+                },
+                RunnerEvent::Delta {
+                    run_id,
+                    text: " turn".to_owned(),
+                },
+                RunnerEvent::Completed {
+                    run_id,
+                    output: json!({ "text": "first turnsecond turn" }),
+                },
+            ],
+            other => vec![RunnerEvent::Failed {
+                run_id: other.run_id(),
+                error: "unexpected_runner_command".to_owned(),
+            }],
+        })
+    }
+}
+
 struct SecretResultObservingRunner {
     observed: Arc<Mutex<Vec<CapabilityResult>>>,
 }
@@ -2288,6 +2361,68 @@ async fn runner_delta_completion_and_receipt_are_redacted_at_the_event_boundary(
         response.output["output"]["secret_ref"],
         "vault://completion"
     );
+}
+
+#[tokio::test]
+async fn contiguous_stream_deltas_become_one_durable_run_delta() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(ChunkedDeltaRunner {
+            chunks: vec!["alpha", " beta", " gamma"],
+        }),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .start_run(context, "stream it".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+
+    let deltas = events
+        .read_request(&request_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == "run.delta")
+        .collect::<Vec<_>>();
+    assert_eq!(deltas.len(), 1, "{deltas:?}");
+    assert_eq!(deltas[0].data["text"], "alpha beta gamma");
+}
+
+#[tokio::test]
+async fn stream_deltas_are_not_merged_across_turns() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(TwoTurnDeltaRunner),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .start_run(context, "two turns".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let texts = events
+        .read_request(&request_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == "run.delta")
+        .map(|event| event.data["text"].as_str().unwrap_or_default().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(texts, ["first turn", "second turn"]);
 }
 
 #[tokio::test]
