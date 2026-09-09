@@ -18,10 +18,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install bubblewrap for sandboxed shell tests
         run: |
-          # runner 镜像自带的第三方 chrome apt 源会在发布窗口出现 Hash Sum mismatch，
-          # 拖垮整次 run；测试只需要 Ubuntu 官方源里的 bubblewrap。
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update -qq
+          # runner 镜像自带的第三方源（如 chrome）在发布窗口会 Hash Sum mismatch，
+          # 但那只是"该源索引用旧版本"，官方源索引不受影响；测试只需要官方源里的
+          # bubblewrap。所以 update 失败不终止任务；真装不上时下面的 install 会
+          # 以明确错误失败（仍然 fail-closed）。
+          sudo apt-get update -qq || true
           sudo apt-get install -y -qq bubblewrap
           # Ubuntu 24.04 默认限制非特权 user namespace，会让 bwrap 直接失败
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
