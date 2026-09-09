@@ -460,6 +460,70 @@ struct SessionReplyMockState {
     requests: Vec<serde_json::Value>,
 }
 
+/// 真实 Anthropic 端点收到 `stream: true` 时回 SSE，mock 必须一样；否则流式客户端
+/// 会解析出零个事件，并以 `provider_stream_incomplete` fail-closed。
+/// 与 `cli.rs` 测试模块里的 `mock_model_response` 保持同一形状。
+fn session_reply_mock_response(
+    request: &serde_json::Value,
+    content: serde_json::Value,
+    stop_reason: &str,
+) -> axum::response::Response {
+    let model = "mock-session-reply-model";
+    if request.get("stream").and_then(serde_json::Value::as_bool) != Some(true) {
+        return (
+            StatusCode::OK,
+            Json(json!({
+                "id": "msg_session_reply",
+                "model": model,
+                "role": "assistant",
+                "content": content,
+                "stop_reason": stop_reason,
+                "usage": {"input_tokens": 1, "output_tokens": 1}
+            })),
+        )
+            .into_response();
+    }
+
+    let mut body = String::new();
+    let mut push = |value: serde_json::Value| {
+        body.push_str("data: ");
+        body.push_str(&value.to_string());
+        body.push_str("\n\n");
+    };
+    push(json!({
+        "type": "message_start",
+        "message": {
+            "id": "msg_session_reply",
+            "model": model,
+            "role": "assistant",
+            "usage": {"input_tokens": 1, "output_tokens": 0}
+        }
+    }));
+    for (index, block) in content.as_array().into_iter().flatten().enumerate() {
+        push(json!({
+            "type": "content_block_start",
+            "index": index,
+            "content_block": block
+        }));
+        push(json!({"type": "content_block_stop", "index": index}));
+    }
+    push(json!({
+        "type": "message_delta",
+        "delta": {"stop_reason": stop_reason},
+        "usage": {"input_tokens": 1, "output_tokens": 1}
+    }));
+    push(json!({"type": "message_stop"}));
+    (
+        StatusCode::OK,
+        [(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("text/event-stream"),
+        )],
+        body,
+    )
+        .into_response()
+}
+
 async fn start_session_reply_mock_model_server() -> (
     String,
     Arc<Mutex<SessionReplyMockState>>,
@@ -469,25 +533,15 @@ async fn start_session_reply_mock_model_server() -> (
         State(state): State<Arc<Mutex<SessionReplyMockState>>>,
         Json(body): Json<serde_json::Value>,
     ) -> impl IntoResponse {
-        state.lock().unwrap().requests.push(body);
-        (
-            StatusCode::OK,
-            Json(json!({
-                "id": "msg_session_reply",
-                "model": "mock-session-reply-model",
-                "role": "assistant",
-                "content": [{
-                    "type": "text",
-                    "text": "session reply complete"
-                }],
-                "stop_reason": "end_turn",
-                "usage": {
-                    "input_tokens": 1,
-                    "output_tokens": 1
-                }
-            })),
+        state.lock().unwrap().requests.push(body.clone());
+        session_reply_mock_response(
+            &body,
+            json!([{
+                "type": "text",
+                "text": "session reply complete"
+            }]),
+            "end_turn",
         )
-            .into_response()
     }
 
     let state = Arc::new(Mutex::new(SessionReplyMockState::default()));

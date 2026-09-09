@@ -14540,10 +14540,78 @@ mod tests {
         }
     }
 
+    /// 按请求里的 `stream` 字段回答：真实 Anthropic 端点收到 `stream: true` 时回 SSE，
+    /// mock 也必须一样，否则流式客户端会解析出零个事件（见 model_client 的
+    /// `provider_stream_incomplete`）。
+    fn mock_model_response(
+        request: &Value,
+        id: &str,
+        model: &str,
+        content: Value,
+        stop_reason: &str,
+    ) -> axum::response::Response {
+        if request.get("stream").and_then(Value::as_bool) != Some(true) {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "id": id,
+                    "model": model,
+                    "role": "assistant",
+                    "content": content,
+                    "stop_reason": stop_reason,
+                    "usage": {"input_tokens": 1, "output_tokens": 1}
+                })),
+            )
+                .into_response();
+        }
+
+        let mut body = String::new();
+        let mut push = |value: Value| {
+            body.push_str("data: ");
+            body.push_str(&value.to_string());
+            body.push_str("\n\n");
+        };
+        push(serde_json::json!({
+            "type": "message_start",
+            "message": {
+                "id": id,
+                "model": model,
+                "role": "assistant",
+                "usage": {"input_tokens": 1, "output_tokens": 0}
+            }
+        }));
+        for (index, block) in content.as_array().into_iter().flatten().enumerate() {
+            push(serde_json::json!({
+                "type": "content_block_start",
+                "index": index,
+                "content_block": block
+            }));
+            push(serde_json::json!({
+                "type": "content_block_stop",
+                "index": index
+            }));
+        }
+        push(serde_json::json!({
+            "type": "message_delta",
+            "delta": {"stop_reason": stop_reason},
+            "usage": {"input_tokens": 1, "output_tokens": 1}
+        }));
+        push(serde_json::json!({"type": "message_stop"}));
+        (
+            StatusCode::OK,
+            [(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("text/event-stream"),
+            )],
+            body,
+        )
+            .into_response()
+    }
+
     async fn start_bridge_loop_mock_model_server() -> (String, tokio::task::JoinHandle<()>) {
         async fn handle_bridge_loop_mock_model_request(
             State(calls): State<StdArc<AtomicUsize>>,
-            Json(_body): Json<Value>,
+            Json(body): Json<Value>,
         ) -> impl IntoResponse {
             let call = calls.fetch_add(1, Ordering::SeqCst);
             let content = if call == 0 {
@@ -14561,21 +14629,13 @@ mod tests {
                     "text": "patch applied"
                 }])
             };
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "id": "msg_bridge_smoke",
-                    "model": "mock-model",
-                    "role": "assistant",
-                    "content": content,
-                    "stop_reason": if call == 0 { "tool_use" } else { "end_turn" },
-                    "usage": {
-                        "input_tokens": 1,
-                        "output_tokens": 1
-                    }
-                })),
+            mock_model_response(
+                &body,
+                "msg_bridge_smoke",
+                "mock-model",
+                content,
+                if call == 0 { "tool_use" } else { "end_turn" },
             )
-                .into_response()
         }
 
         let app = axum::Router::new()
@@ -14601,25 +14661,17 @@ mod tests {
             State(requests): State<StdArc<StdMutex<Vec<Value>>>>,
             Json(body): Json<Value>,
         ) -> impl IntoResponse {
-            requests.lock().unwrap().push(body);
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "id": "msg_direct_connect_text",
-                    "model": "mock-model",
-                    "role": "assistant",
-                    "content": [{
-                        "type": "text",
-                        "text": "direct server done"
-                    }],
-                    "stop_reason": "end_turn",
-                    "usage": {
-                        "input_tokens": 1,
-                        "output_tokens": 1
-                    }
-                })),
+            requests.lock().unwrap().push(body.clone());
+            mock_model_response(
+                &body,
+                "msg_direct_connect_text",
+                "mock-model",
+                serde_json::json!([{
+                    "type": "text",
+                    "text": "direct server done"
+                }]),
+                "end_turn",
             )
-                .into_response()
         }
 
         let requests = StdArc::new(StdMutex::new(Vec::new()));
@@ -14650,7 +14702,7 @@ mod tests {
         ) -> impl IntoResponse {
             let call_count = {
                 let mut state = state.lock().unwrap();
-                state.requests.push(body);
+                state.requests.push(body.clone());
                 state.requests.len()
             };
             let content = if call_count == 1 {
@@ -14674,21 +14726,17 @@ mod tests {
                     "text": "cli write complete"
                 }])
             };
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "id": "msg_cli_tool_loop",
-                    "model": "mock-cli-model",
-                    "role": "assistant",
-                    "content": content,
-                    "stop_reason": if call_count == 1 { "tool_use" } else { "end_turn" },
-                    "usage": {
-                        "input_tokens": 1,
-                        "output_tokens": 1
-                    }
-                })),
+            mock_model_response(
+                &body,
+                "msg_cli_tool_loop",
+                "mock-cli-model",
+                content,
+                if call_count == 1 {
+                    "tool_use"
+                } else {
+                    "end_turn"
+                },
             )
-                .into_response()
         }
 
         let state = StdArc::new(StdMutex::new(PrintToolLoopState {
@@ -14722,7 +14770,7 @@ mod tests {
         ) -> impl IntoResponse {
             let (call_count, note_path) = {
                 let mut state = state.lock().unwrap();
-                state.requests.push(body);
+                state.requests.push(body.clone());
                 (state.requests.len(), state.note_path.clone())
             };
             let content = match call_count {
@@ -14755,21 +14803,17 @@ mod tests {
                     "text": "multi-tool flow complete"
                 }]),
             };
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "id": format!("msg_cli_multi_tool_{call_count}"),
-                    "model": "mock-cli-model",
-                    "role": "assistant",
-                    "content": content,
-                    "stop_reason": if call_count < 4 { "tool_use" } else { "end_turn" },
-                    "usage": {
-                        "input_tokens": 1,
-                        "output_tokens": 1
-                    }
-                })),
+            mock_model_response(
+                &body,
+                &format!("msg_cli_multi_tool_{call_count}"),
+                "mock-cli-model",
+                content,
+                if call_count < 4 {
+                    "tool_use"
+                } else {
+                    "end_turn"
+                },
             )
-                .into_response()
         }
 
         let state = StdArc::new(StdMutex::new(PrintMultiToolLoopState {
@@ -24958,8 +25002,9 @@ mod tests {
             vec![
                 "apply_patch",
                 "mcp",
-                "memory.search",
-                "memory.write",
+                // 模型可见名走线协议：内部名里的点号在这里换成下划线。
+                "memory_search",
+                "memory_write",
                 "shell"
             ]
         );

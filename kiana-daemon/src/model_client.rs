@@ -337,6 +337,7 @@ async fn aggregate_provider_stream(
     let mut input_tokens = 0_u32;
     let mut output_tokens = 0_u32;
     let mut stop_reason = None;
+    let mut message_stopped = false;
     let mut model_id = Some(fallback_model_id.to_owned());
 
     while let Some(event) = next_provider_stream_event(&mut stream).await {
@@ -390,8 +391,8 @@ async fn aggregate_provider_stream(
                 }
                 StreamDelta::ThinkingDelta { .. } | StreamDelta::SignatureDelta { .. } => {}
             },
-            StreamEvent::ContentBlockStop { .. } | StreamEvent::Ping | StreamEvent::MessageStop => {
-            }
+            StreamEvent::ContentBlockStop { .. } | StreamEvent::Ping => {}
+            StreamEvent::MessageStop => message_stopped = true,
             StreamEvent::MessageDelta { delta, usage } => {
                 output_tokens = usage.output_tokens;
                 stop_reason = delta.stop_reason;
@@ -414,6 +415,14 @@ async fn aggregate_provider_stream(
                 ));
             }
         }
+    }
+
+    // 流正常结束时必须带终止信号（`message_stop`，或至少一个 `stop_reason`）。
+    // 否则就是非 SSE 正文或被截断的流：宁可 fail-closed，也不能把它当成"成功且空白"。
+    if !message_stopped && stop_reason.is_none() {
+        return Err(model_error_from_service_error(ServiceError::Unknown(
+            "provider_stream_incomplete".to_owned(),
+        )));
     }
 
     let mut text = String::new();
@@ -1339,6 +1348,42 @@ mod tests {
                 text: "streamed".to_owned()
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn native_streaming_without_a_terminal_event_fails_closed() {
+        let event = |value: Value| serde_json::from_value::<StreamEvent>(value).unwrap();
+        // 端点回 200 但正文不是 SSE，或流在中途被截断：解析结果只有开头，没有 message_stop。
+        // 这种"成功但空白"的答案必须变成机器可读的错误。
+        let client = ProviderModelClient {
+            provider: Box::new(EventProvider {
+                events: vec![event(json!({
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_truncated",
+                        "model": "event-model",
+                        "role": "assistant",
+                        "usage": {"input_tokens": 9, "output_tokens": 0}
+                    }
+                }))],
+            }),
+            model: "event-model".to_owned(),
+            streaming_policy: StreamingPolicy::On,
+        };
+
+        let error = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("run pwd")],
+                    tools: vec![json!({"name": "shell"})],
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |_| Ok(()),
+            )
+            .await
+            .expect_err("a stream without a terminal event must fail closed");
+
+        assert_eq!(error, "provider_stream_incomplete");
     }
 
     #[tokio::test]
