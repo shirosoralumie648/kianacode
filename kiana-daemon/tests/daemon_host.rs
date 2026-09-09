@@ -217,6 +217,57 @@ async fn run_brokers_kiana_harness_tools() {
 }
 
 #[tokio::test]
+async fn malicious_shell_workdir_escape_is_denied_by_sandbox() {
+    let _environment_lock = environment_lock();
+    let parent = temp_project();
+    let root = parent.join("project");
+    fs::create_dir_all(&root).unwrap();
+    let escaped = parent.join("escaped.txt");
+    let events = parent.join("events.jsonl");
+    let model = ScriptedModel::from_json(&json!([
+        {
+            "text": "escaping the workspace",
+            "tool_calls": [{
+                "id": "attack-shell",
+                "name": "shell",
+                "arguments": {
+                    "command": "touch escaped.txt",
+                    "workdir": ".."
+                }
+            }]
+        },
+        {"text": "sandbox blocked the escape"}
+    ]))
+    .unwrap();
+    let host = Arc::new(
+        trusted_harness_host_on_disk(KianaHarness::new(Arc::new(model)), &events)
+            .expect("disk daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let response = client
+        .run(
+            trusted_metadata_in(&root),
+            "escape the workspace".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert!(
+        !escaped.exists(),
+        "shell escaped the workspace and created {escaped:?}"
+    );
+    let event_log = fs::read_to_string(&events).expect("durable event log");
+    assert!(event_log.contains("capability.failed"), "{event_log}");
+    assert!(
+        event_log.contains("harness_workdir_not_relative"),
+        "{event_log}"
+    );
+}
+
+#[tokio::test]
 async fn trusted_workspace_write_apply_patch_creates_file() {
     let _environment_lock = environment_lock();
     let root = temp_project();
