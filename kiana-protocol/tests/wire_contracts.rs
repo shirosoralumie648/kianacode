@@ -1,7 +1,7 @@
 use kiana_domain::{ConversationMessage, ConversationRole, ExecutionStatus, RequestId, RoleSpec};
 use kiana_protocol::{
-    RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, SymposiumRequest,
-    DEPARTMENT_EXECUTING, PROTOCOL_SCHEMA, ROLE_BUILDER,
+    RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunStreamEnvelope,
+    RunStreamEvent, SymposiumRequest, DEPARTMENT_EXECUTING, PROTOCOL_SCHEMA, ROLE_BUILDER,
 };
 use serde_json::json;
 
@@ -66,4 +66,43 @@ fn symposium_defaults_and_rejected_response_are_stable() {
     assert_eq!(response.output, serde_json::Value::Null);
     assert_eq!(response.error.as_deref(), Some("project_untrusted"));
     assert!(matches!(request.body, RequestBody::Symposium(_)));
+}
+
+#[test]
+fn run_stream_events_are_additive_and_unknown_events_are_ignored() {
+    let run_id = kiana_domain::RunId::new();
+    let envelope = RunStreamEnvelope::new(RunStreamEvent::Delta {
+        run_id,
+        text: "alpha".to_owned(),
+    });
+    let encoded = serde_json::to_value(&envelope).unwrap();
+    assert_eq!(encoded["schema"], PROTOCOL_SCHEMA);
+    assert_eq!(encoded["event"]["type"], "delta");
+    assert_eq!(encoded["event"]["run_id"], json!(run_id));
+    assert_eq!(encoded["event"]["text"], "alpha");
+
+    let decoded: RunStreamEnvelope = serde_json::from_value(json!({
+        "schema": PROTOCOL_SCHEMA,
+        "event": {
+            "type": "future_usage",
+            "run_id": run_id,
+            "input_tokens": 42
+        }
+    }))
+    .unwrap();
+    assert_eq!(decoded.schema, PROTOCOL_SCHEMA);
+    assert_eq!(decoded.event, RunStreamEvent::Unknown);
+
+    // 旧客户端仍只读取 output；新增字段不能改变原有 ResponseEnvelope 的语义。
+    let response: ResponseEnvelope = serde_json::from_value(json!({
+        "schema": PROTOCOL_SCHEMA,
+        "request_id": RequestId::new(),
+        "status": "completed",
+        "output": { "text": "legacy output" },
+        "error": null,
+        "future_field": { "ignored": true }
+    }))
+    .unwrap();
+    assert_eq!(response.output["text"], "legacy output");
+    assert_eq!(response.status, ExecutionStatus::Completed);
 }

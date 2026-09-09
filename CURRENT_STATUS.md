@@ -65,6 +65,32 @@ reviewer: focused adversarial regression review
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
 
+### Protocol additive run-stream subscription evidence (2026-09-09)
+
+```text
+source_snapshot: 3b6f31ae3584692fbcf656e310f0a41398db4fee + uncommitted run-stream WIP
+worktree_status: dirty checkout; modified kiana-protocol/src/lib.rs, kiana-protocol/tests/wire_contracts.rs, kiana-daemon/src/lib.rs, kiana-daemon/tests/daemon_host.rs; new untracked kiana-daemon/src/run_stream.rs; no commit/reset/push/merge performed
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo test -p kiana-protocol --locked --offline
+  cargo test -p kiana-daemon --lib run_stream --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host run_subscription_receives_ordered_deltas_and_terminal_response --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test daemon_host run_without_subscription_keeps_the_complete_response_path --locked --offline -- --test-threads=1
+  cargo test -p kiana-daemon --test control_plane --locked --offline -- --test-threads=1
+  cargo test -p kiana-protocol -p kiana-daemon --locked --offline
+  cargo test -p kiana-protocol -p kiana-daemon --locked --offline -- --test-threads=1
+  cargo check --workspace --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked/offline Cargo dependency resolution; daemon tests serialized; sandbox forbids bwrap bind/netlink and writes to HOME-level KIANA_HOME
+fixture or cassette: protocol RunStreamEnvelope serde fixture with unknown future event; chunked in-process model emitting alpha/beta/gamma; no-subscriber counting RunnerPort fixture; existing daemon control-plane fixtures; no cassette schema change
+exit_code: fmt=0; fmt check=0; kiana-protocol=0 (10 unit + 3 wire-contract tests); daemon run_stream lib=0 (2/2); focused daemon_host subscription=0 (1/1); focused daemon_host no-subscription=0 (1/1); daemon control_plane=0 (13/13); requested package test=101 in both parallel and serial runs (24 daemon lib failures: 14 apply_patch_lock_unavailable/HOME-lock fixtures, 10 bwrap/loopback-bind permission failures); workspace check=0; git diff check=0
+status change: additive RunStreamEnvelope/RunStreamEvent and DaemonHost::subscribe_run(run_id) are implemented; subscribers receive ordered Delta events and a Terminal ResponseEnvelope; no subscriber keeps the original RunnerPort::send path. Token streaming remains not_supported overall because CLI/TUI/Web, live provider, and cross-process transport are not wired.
+proof-level change: local_behavior evidence for the in-process protocol projection and subscription fan-out; no durable/live/physical promotion and no claim that the existing sandbox-dependent daemon tests pass in this sandbox.
+limitations: subscription is process-local and must be established before the run starts to observe deltas; no late-subscriber replay; no cross-process transport or reconnect; terminal is emitted only when the final ResponseEnvelope exposes a parseable run_id and terminal status; real-time delta redaction/backpressure/backpressure accounting remain for the later negative-path slices; the requested package test command is environment-blocked by bwrap/network/HOME permissions, not by a failing run-stream assertion; daemon_host full serial run was interrupted after the sandbox-dependent hang
+reviewer: focused protocol additive compatibility, subscription ordering, terminal receipt projection, and no-subscriber path review; no second execution loop, ledger granularity change, cassette schema change, UI change, or frozen-path change
+```
+
 ## 3. Gate 0 当前结果
 
 Gate 0 的历史证据块保留其当时结论；当前快照在 MCP 参数边界、completion-marker 与 JSONL 尾记录修复后重新验证为绿。S0 证据门已通过，但这不提升 S1-S4 的状态，也不把本地证据写成 durable/live/physical。

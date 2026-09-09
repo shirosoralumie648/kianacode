@@ -442,6 +442,55 @@ impl ResponseEnvelope {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// additive 的运行中事件 envelope；不改变请求/响应 envelope 的 required 字段。
+///
+/// 该通道只投影展示所需的增量，不能替代 EventLog 或 Receipt。老客户端可以继续只读取
+/// [`ResponseEnvelope::output`]；新事件类型和未知事件不会改变原有响应语义。
+pub struct RunStreamEnvelope {
+    /// 事件使用的协议 schema；与请求/响应保持同一个 `kiana.protocol.v1`。
+    pub schema: String,
+    /// 运行中事件。
+    pub event: RunStreamEvent,
+}
+
+impl RunStreamEnvelope {
+    /// 构造一个使用当前协议 schema 的运行中事件。
+    pub fn new(event: RunStreamEvent) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            event,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+/// additive 的运行中事件类型。
+///
+/// `delta` 是易失的展示投影；`terminal` 携带最终响应，调用方仍必须从其中的 receipt 读取
+/// 事实，不能把增量文本当作执行事实。未知类型反序列化为 [`Self::Unknown`]，供新老客户端
+/// 在协议演进时安全忽略。
+pub enum RunStreamEvent {
+    /// 模型文本增量。
+    Delta {
+        /// 对应 run ID。
+        run_id: RunId,
+        /// 本次新增文本。
+        text: String,
+    },
+    /// 运行终态；`response` 是最终协议响应及 receipt 投影。
+    Terminal {
+        /// 对应 run ID。
+        run_id: RunId,
+        /// 最终响应 envelope。
+        response: ResponseEnvelope,
+    },
+    /// 当前客户端不认识的未来事件类型；必须忽略而不是拒绝整个通道。
+    #[serde(other)]
+    Unknown,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

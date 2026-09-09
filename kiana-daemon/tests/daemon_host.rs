@@ -3,10 +3,11 @@ use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::{DaemonHost, ProjectTrustAuthority};
 use kiana_protocol::{
     ApprovalChallenge, ApprovalDecision, ExecutionStatus, PermissionProfile, RequestEnvelope,
-    RequestMetadata, ResponseEnvelope, RoleSpec, RunId, SessionId, WorkPacket,
+    RequestMetadata, ResponseEnvelope, RoleSpec, RunId, RunStreamEvent, SessionId, WorkPacket,
 };
 use kiana_runner::{
-    KianaHarness, ModelClient, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
+    KianaHarness, ModelClient, ModelDelta, ModelOutput, ModelRequest, ModelRole, ModelToolCall,
+    ScriptedModel,
 };
 use serde_json::json;
 use std::fs;
@@ -154,6 +155,33 @@ impl ModelClient for CapturingModel {
     }
 }
 
+#[derive(Debug)]
+struct ChunkedModel {
+    chunks: Vec<&'static str>,
+}
+
+#[async_trait]
+impl ModelClient for ChunkedModel {
+    async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+        Err("chunked_model_complete_must_not_be_called".to_owned())
+    }
+
+    async fn complete_streaming(
+        &self,
+        _request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        let mut text = String::new();
+        for chunk in &self.chunks {
+            text.push_str(chunk);
+            on_delta(ModelDelta::Text {
+                text: (*chunk).to_owned(),
+            })?;
+        }
+        Ok(ModelOutput::text(text))
+    }
+}
+
 #[test]
 fn local_daemon_constructs_without_a_model() {
     let _env_lock = environment_lock();
@@ -214,6 +242,77 @@ async fn run_brokers_kiana_harness_tools() {
         "kiana.harness-result.v1"
     );
     assert_eq!(response.output["output"]["text"], "architecture mapped");
+}
+
+#[tokio::test]
+async fn run_subscription_receives_ordered_deltas_and_terminal_response() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let harness = KianaHarness::new(Arc::new(ChunkedModel {
+        chunks: vec!["alpha", " beta", " gamma"],
+    }));
+    let host = Arc::new(trusted_harness_host(harness).expect("streaming daemon"));
+    let run_id = RunId::new();
+    let mut subscription = host.subscribe_run(run_id);
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.session_id = SessionId::new(run_id.to_string());
+
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client.run(metadata, "stream it", None).await.unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    for expected in ["alpha", " beta", " gamma"] {
+        let envelope = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+            .await
+            .expect("delta timeout")
+            .expect("delta event");
+        assert_eq!(
+            envelope.event,
+            RunStreamEvent::Delta {
+                run_id,
+                text: expected.to_owned(),
+            }
+        );
+    }
+
+    let terminal = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+        .await
+        .expect("terminal timeout")
+        .expect("terminal event");
+    match terminal.event {
+        RunStreamEvent::Terminal {
+            run_id: terminal_run_id,
+            response: terminal_response,
+        } => {
+            assert_eq!(terminal_run_id, run_id);
+            assert_eq!(terminal_response.status, ExecutionStatus::Completed);
+            assert_eq!(terminal_response.output["schema"], "kiana.run-result.v1");
+            assert_eq!(
+                terminal_response.output["output"]["text"],
+                "alpha beta gamma"
+            );
+        }
+        other => panic!("expected terminal event, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn run_without_subscription_keeps_the_complete_response_path() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let harness = KianaHarness::new(Arc::new(ChunkedModel {
+        chunks: vec!["alpha", " beta", " gamma"],
+    }));
+    let host = Arc::new(trusted_harness_host(harness).expect("non-streaming daemon"));
+    let client = KianaClient::new(InProcessTransport { host });
+
+    let response = client
+        .run(trusted_metadata_in(&root), "stream it", None)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["output"]["text"], "alpha beta gamma");
 }
 
 #[tokio::test]

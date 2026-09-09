@@ -10,17 +10,20 @@ mod harness_sandbox;
 mod harness_skills;
 mod model_client;
 mod pre_tool_hooks;
+mod run_stream;
 
 use approval_store::{JsonlApprovalStore, MemoryApprovalStore};
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::ControlPlane;
-use kiana_domain::{CommandIntent, PermissionProfile, RequestContext, RoleSpec};
+use kiana_domain::{CommandIntent, PermissionProfile, RequestContext, RoleSpec, RunId};
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{PortError, RunnerPort};
 use kiana_protocol::{RequestBody, RequestEnvelope, ResponseEnvelope, PROTOCOL_SCHEMA};
 use kiana_runner::KianaHarness;
+use run_stream::RunStreamBus;
+pub use run_stream::RunStreamSubscription;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -28,6 +31,7 @@ pub struct DaemonHost {
     core: Arc<ControlPlane>,
     principal: AuthenticatedPrincipal,
     project_authority: Arc<dyn ProjectTrustAuthority>,
+    run_stream: Arc<RunStreamBus>,
 }
 
 pub trait ProjectTrustAuthority: Send + Sync {
@@ -66,11 +70,28 @@ impl DaemonHost {
         core: Arc<ControlPlane>,
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Self {
+        Self::with_run_stream(core, project_authority, Arc::new(RunStreamBus::default()))
+    }
+
+    fn with_run_stream(
+        core: Arc<ControlPlane>,
+        project_authority: Arc<dyn ProjectTrustAuthority>,
+        run_stream: Arc<RunStreamBus>,
+    ) -> Self {
         Self {
             core,
             principal: AuthenticatedPrincipal::local(),
             project_authority,
+            run_stream,
         }
+    }
+
+    /// Subscribe to additive run-stream events for one run.
+    ///
+    /// The subscription must be created before the run starts to observe deltas. It remains
+    /// usable until the terminal event or until the receiver is dropped.
+    pub fn subscribe_run(&self, run_id: RunId) -> RunStreamSubscription {
+        self.run_stream.subscribe(run_id)
     }
 
     pub fn local() -> Result<Self, PortError> {
@@ -184,7 +205,9 @@ impl DaemonHost {
         approvals: Arc<dyn kiana_ports::ApprovalStorePort>,
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
+        let run_stream = Arc::new(RunStreamBus::default());
         let runner = harness_skills::SkillAwareRunner::wrap(runner);
+        let runner = run_stream::RunStreamRunner::wrap(runner, run_stream.clone());
         let mut capabilities = CapabilityBroker::new();
         context_query::register(&mut capabilities)?;
         harness_capabilities::register(&mut capabilities)?;
@@ -199,9 +222,10 @@ impl DaemonHost {
             runner,
             Arc::new(pre_tool_hooks::QueryPreToolHooks),
         );
-        Ok(Self::new_with_project_authority(
+        Ok(Self::with_run_stream(
             Arc::new(core),
             project_authority,
+            run_stream,
         ))
     }
 
@@ -335,7 +359,7 @@ impl DaemonHost {
                     .await
             }
         };
-        match response {
+        let response = match response {
             Ok(response) => {
                 let mut response = ResponseEnvelope::from_core(response);
                 response.request_id = request_id;
@@ -348,7 +372,18 @@ impl DaemonHost {
                 output: serde_json::Value::Null,
                 error: Some(error.to_string()),
             },
+        };
+        if response.status.is_terminal() {
+            if let Some(run_id) = response
+                .output
+                .get("run_id")
+                .and_then(|value| value.as_str())
+                .and_then(RunId::parse_str)
+            {
+                self.run_stream.publish_terminal(run_id, response.clone());
+            }
         }
+        response
     }
 }
 
