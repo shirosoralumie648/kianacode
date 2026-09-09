@@ -2594,16 +2594,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kiana-computer-input"
-version = "0.1.0"
-dependencies = [
- "enigo",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "kiana-computer-mcp"
 version = "0.1.0"
 dependencies = [

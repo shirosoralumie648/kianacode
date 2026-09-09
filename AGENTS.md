@@ -117,7 +117,8 @@ kiana-entrypoints
 
 ### 其余
 
-`kiana-chrome-mcp`、`kiana-computer-*`、`kiana-screen-capture`：feature-gated，非产品路径。
+`kiana-chrome-mcp`、`kiana-computer-mcp`、`kiana-screen-capture`：feature-gated，非产品路径。
+`legacy/`：已从 workspace 移除的零依赖死重 crate（当前：`kiana-computer-input`）；不参与编译，只保留历史。
 `kiana-screens`/`kiana-components`/`kiana-ink`/`kiana-color-diff`/`kiana-modifiers`：TUI 相关，已 park。
 `contrib/desktop/`：Electron 壳（Node）。`reference/`：只读审计输入，非 workspace 成员。
 

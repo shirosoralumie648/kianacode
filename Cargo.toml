@@ -10,7 +10,6 @@ members = [
     "kiana-color-diff",
     "kiana-commands",
     "kiana-components",
-    "kiana-computer-input",
     "kiana-computer-mcp",
     "kiana-constants",
     "kiana-coordinator",
@@ -40,6 +39,7 @@ members = [
     "kiana-url-handler",
     "kiana-workflow",
 ]
+exclude = ["legacy/*"]
 
 [workspace.package]
 version = "0.1.0"
