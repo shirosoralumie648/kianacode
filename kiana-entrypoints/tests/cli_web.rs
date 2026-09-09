@@ -491,6 +491,154 @@ async fn web_rejects_foreign_bearers_and_sessions_without_mutation() {
     let _ = child_b.kill().await;
 }
 
+#[tokio::test]
+async fn web_projects_each_run_to_its_requested_session() {
+    let root = git_fixture();
+    let home = isolated_home();
+    let script = unique_dir("script").join("script.json");
+    fs::write(
+        &script,
+        r#"[{"text":"first response"},{"text":"second response"}]"#,
+    )
+    .unwrap();
+    let mut child = TokioCommand::from(kiana_base(&root, &home))
+        .env("KIANA_HARNESS_SCRIPT", &script)
+        .args(["web", "--no-open", "--bind", "127.0.0.1:0"])
+        .arg("--workdir")
+        .arg(&root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+
+    let url = wait_for_url(child.stdout.take().expect("web stdout")).await;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+    let page = client.get(&url).send().await.unwrap().text().await.unwrap();
+    let token = page
+        .split("window.__KIANA_WEB_TOKEN__ = '")
+        .nth(1)
+        .and_then(|value| value.split('\'').next())
+        .expect("web token")
+        .to_owned();
+    let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+
+    let initial: Value = auth(client.get(format!("{url}/api/state")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let session_a = initial["session_id"]
+        .as_str()
+        .expect("initial session id")
+        .to_owned();
+    let second: Value = auth(client.post(format!("{url}/api/session")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let session_b = second["session_id"]
+        .as_str()
+        .expect("second session id")
+        .to_owned();
+    assert_ne!(session_a, session_b);
+
+    let trusted: Value = auth(
+        client
+            .post(format!("{url}/api/trust"))
+            .json(&serde_json::json!({ "session_id": session_a })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(trusted["session_id"], session_a, "{trusted}");
+
+    let sandbox: Value = auth(
+        client
+            .post(format!("{url}/api/sandbox"))
+            .json(&serde_json::json!({
+                "sandbox": "workspace-write",
+                "session_id": session_a,
+            })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(sandbox["session_id"], session_a, "{sandbox}");
+
+    let run_a: Value = auth(
+        client
+            .post(format!("{url}/api/run"))
+            .json(&serde_json::json!({
+                "prompt": "first task",
+                "session_id": session_a,
+            })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(run_a["session_id"], session_a, "{run_a}");
+    assert_eq!(run_a["thread"]["id"], session_a, "{run_a}");
+    assert_eq!(run_a["response"]["status"], "completed", "{run_a}");
+
+    let state_b: Value = auth(client.get(format!("{url}/api/state?session_id={session_b}")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(state_b["session_id"], session_b, "{state_b}");
+    assert_eq!(state_b["thread"]["turns"].as_array().unwrap().len(), 0);
+
+    let run_b: Value = auth(
+        client
+            .post(format!("{url}/api/run"))
+            .json(&serde_json::json!({
+                "prompt": "second task",
+                "session_id": session_b,
+            })),
+    )
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(run_b["session_id"], session_b, "{run_b}");
+    assert_eq!(run_b["thread"]["id"], session_b, "{run_b}");
+    assert_eq!(run_b["thread"]["turns"].as_array().unwrap().len(), 1);
+
+    let state_a: Value = auth(client.get(format!("{url}/api/state?session_id={session_a}")))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(state_a["session_id"], session_a, "{state_a}");
+    assert_eq!(state_a["thread"]["id"], session_a, "{state_a}");
+    assert_eq!(state_a["thread"]["turns"].as_array().unwrap().len(), 1);
+
+    let _ = child.kill().await;
+}
+
 async fn wait_for_url(stdout: impl tokio::io::AsyncRead + Unpin) -> String {
     let mut lines = BufReader::new(stdout).lines();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(20);

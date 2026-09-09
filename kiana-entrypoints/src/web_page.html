@@ -126,6 +126,8 @@
     const coach = document.getElementById('coach');
     let sessionId = null;
     let running = false;
+    let runPending = false;
+    let pollTimer = null;
     let started = false;
     let stateCache = null;
 
@@ -157,6 +159,22 @@
       (thread.turns || []).forEach(turn => (turn.items || []).forEach(addItem));
       if ((thread.turns || []).length) emptyGuide.remove();
     }
+    function renderBusyStatus() {
+      const busy = running || runPending;
+      const st = document.getElementById('status');
+      st.textContent = busy ? 'running' : 'idle';
+      st.className = 'pill ' + (busy ? 'run' : 'ok');
+    }
+    function syncPolling() {
+      const anyRunning = runPending || running ||
+        ((stateCache && stateCache.threads) || []).some(item => item.running);
+      if (anyRunning && pollTimer === null) {
+        pollTimer = setInterval(() => { refresh().catch(() => {}); }, 1000);
+      } else if (!anyRunning && pollTimer !== null) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
     function renderState(s) {
       stateCache = s;
       sessionId = s.session_id;
@@ -166,9 +184,7 @@
       trust.textContent = s.trusted ? 'trusted' : 'untrusted';
       trust.className = 'pill ' + (s.trusted ? 'ok' : 'bad');
       document.getElementById('trustBanner').classList.toggle('show', !s.trusted);
-      const st = document.getElementById('status');
-      st.textContent = running ? 'running' : 'idle';
-      st.className = 'pill ' + (running ? 'run' : 'ok');
+      renderBusyStatus();
       document.getElementById('sandbox').value = s.sandbox;
       const files = (s.last && s.last.files_changed) || [];
       document.getElementById('files').textContent = files.length ? files.join('\n') : '还没有 fileChange。';
@@ -185,32 +201,49 @@
         const b = document.createElement('button');
         b.className = 'ghost' + (item.id === s.session_id ? ' active' : '');
         b.textContent = (item.name || item.id.slice(0,8)) + (item.running ? ' · running' : '');
-        b.onclick = () => { sessionId = item.id; refresh(); };
+        b.onclick = () => { sessionId = item.id; refresh().catch(() => {}); };
         box.appendChild(b);
       });
       renderThread(s);
+      syncPolling();
     }
-    async function refresh() { renderState(await api('/api/state')); }
+    async function refresh() {
+      const requested = sessionId;
+      const path = requested
+        ? '/api/state?session_id=' + encodeURIComponent(requested)
+        : '/api/state';
+      const data = await api(path);
+      if (sessionId === requested) renderState(data);
+    }
     async function sendPrompt(prompt) {
       const text = String(prompt || '').trim();
-      if (!text || running) return;
+      if (!text || running || runPending) return;
       if (stateCache && !stateCache.trusted) {
         addItem({ kind:'error', title:'blocked', body:'还没信任这个文件夹。Codex 会弹审批；Kiana 直接 fail-closed。' });
         return;
       }
       promptEl.value = '';
+      runPending = true;
+      renderBusyStatus();
+      syncPolling();
       try {
         const data = await api('/api/run', { prompt: text, session_id: sessionId });
+        runPending = false;
         renderState(data);
       } catch (err) {
+        runPending = false;
         addItem({ kind:'error', title:'error', body: String(err.message || err) });
-        await refresh();
+        try { await refresh(); } catch (_) {}
+      } finally {
+        runPending = false;
+        renderBusyStatus();
+        syncPolling();
       }
     }
     document.getElementById('send').onclick = () => sendPrompt(promptEl.value);
     document.getElementById('cancel').onclick = async () => { renderState(await api('/api/cancel', { session_id: sessionId })); };
-    document.getElementById('trustBtn').onclick = async () => { renderState(await api('/api/trust', {})); };
-    document.getElementById('sandbox').onchange = async (e) => { renderState(await api('/api/sandbox', { sandbox: e.target.value })); };
+    document.getElementById('trustBtn').onclick = async () => { renderState(await api('/api/trust', { session_id: sessionId })); };
+    document.getElementById('sandbox').onchange = async (e) => { renderState(await api('/api/sandbox', { sandbox: e.target.value, session_id: sessionId })); };
     document.getElementById('newSession').onclick = async () => { renderState(await api('/api/session', {})); };
     document.querySelectorAll('.chips button').forEach(btn => {
       btn.onclick = () => { promptEl.value = btn.getAttribute('data-prompt'); promptEl.focus(); };

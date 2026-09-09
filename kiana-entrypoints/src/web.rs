@@ -9,7 +9,7 @@
 //! 这些防护用于本地 UI 暴露面，不能替代系统级网络、浏览器或项目资源信任边界。
 
 use anyhow::{anyhow, Context, Result};
-use axum::extract::{DefaultBodyLimit, State};
+use axum::extract::{DefaultBodyLimit, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -129,6 +129,8 @@ struct SessionBody {
 #[derive(Deserialize)]
 struct SandboxBody {
     sandbox: String,
+    #[serde(default)]
+    session_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -369,21 +371,20 @@ impl WebApp {
 
     // 汇集 UI 所需的即时状态。Mutex 中的数据可能与 daemon 已持久化的状态不同步，
     // 因此只作为展示快照返回，不用于授权结论。
-    fn snapshot(&self) -> Result<Value, ApiError> {
+    fn snapshot(&self, session_id: &str) -> Result<Value, ApiError> {
         let trusted = harness_run::project_trusted(&self.workdir.to_string_lossy())
             .map_err(|error| ApiError::fail(error.to_string()))?;
         let sandbox = lock_string(&self.sandbox)?;
         let role_id = lock_string(&self.role)?;
         let role = RoleSpec::lookup(&role_id).ok_or_else(|| ApiError::bad("role_unknown"))?;
-        let active = lock_string(&self.active)?;
         let sessions = self
             .sessions
             .lock()
             .map_err(|_| ApiError::fail("web_state_poisoned"))?;
         let current = sessions
-            .get(&active)
+            .get(session_id)
             .cloned()
-            .unwrap_or_else(WebSession::default);
+            .ok_or_else(|| ApiError::bad("session_unknown"))?;
         let threads: Vec<ThreadView> = sessions
             .iter()
             .map(|(id, session)| ThreadView {
@@ -400,7 +401,7 @@ impl WebApp {
             "sandbox": sandbox,
             "role": role.role_id,
             "department": role.department_id,
-            "session_id": active,
+            "session_id": session_id,
             "running": current.running,
             "sessions": threads.iter().map(|thread| json!({
                 "id": thread.id,
@@ -408,7 +409,7 @@ impl WebApp {
                 "name": thread.name,
             })).collect::<Vec<_>>(),
             "threads": threads,
-            "thread": threads.iter().find(|thread| thread.id == active),
+            "thread": threads.iter().find(|thread| thread.id == session_id),
             "last": current.last,
             "streaming": false,
             "shape": "codex-app",
@@ -466,9 +467,11 @@ async fn health(State(app): State<Arc<WebApp>>) -> Json<Value> {
 async fn state(
     State(app): State<Arc<WebApp>>,
     headers: HeaderMap,
+    Query(query): Query<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    Ok(Json(app.snapshot()?))
+    let session_id = resolve_session(&app, query.session_id.as_deref())?;
+    Ok(Json(app.snapshot(&session_id)?))
 }
 
 async fn run_turn(
@@ -507,7 +510,7 @@ async fn run_turn(
     match result {
         Ok(response) => {
             store_turn(&app, &session_id, &prompt, &response)?;
-            let mut payload = app.snapshot()?;
+            let mut payload = app.snapshot(&session_id)?;
             payload["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
             Ok(Json(payload))
         }
@@ -537,17 +540,21 @@ async fn cancel_turn(
     .await
     .map_err(|error| ApiError::fail(error.to_string()))?;
     store_turn(&app, &session_id, "(cancel)", &response)?;
-    Ok(Json(app.snapshot()?))
+    Ok(Json(app.snapshot(&session_id)?))
 }
 
 async fn trust_folder(
     State(app): State<Arc<WebApp>>,
     headers: HeaderMap,
+    body: Option<Json<SessionBody>>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    write_project_trust(&app.workdir, ProjectTrust::Trusted)
-        .map_err(|error| ApiError::fail(error))?;
-    Ok(Json(app.snapshot()?))
+    let requested = body
+        .as_ref()
+        .and_then(|Json(body)| body.session_id.as_deref());
+    let session_id = resolve_session(&app, requested)?;
+    write_project_trust(&app.workdir, ProjectTrust::Trusted).map_err(ApiError::fail)?;
+    Ok(Json(app.snapshot(&session_id)?))
 }
 
 async fn set_sandbox(
@@ -556,12 +563,13 @@ async fn set_sandbox(
     Json(body): Json<SandboxBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    let session_id = resolve_session(&app, body.session_id.as_deref())?;
     let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
         .map_err(|error| ApiError::bad(error.to_string()))?;
     *app.sandbox
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = sandbox;
-    Ok(Json(app.snapshot()?))
+    Ok(Json(app.snapshot(&session_id)?))
 }
 
 async fn new_session(
@@ -570,16 +578,18 @@ async fn new_session(
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
     let session_id = new_session_id();
-    let mut sessions = app
-        .sessions
-        .lock()
-        .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-    ensure_session_capacity(&sessions)?;
-    sessions.insert(session_id.clone(), WebSession::default());
+    {
+        let mut sessions = app
+            .sessions
+            .lock()
+            .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+        ensure_session_capacity(&sessions)?;
+        sessions.insert(session_id.clone(), WebSession::default());
+    }
     *app.active
         .lock()
-        .map_err(|_| ApiError::fail("web_state_poisoned"))? = session_id;
-    Ok(Json(app.snapshot()?))
+        .map_err(|_| ApiError::fail("web_state_poisoned"))? = session_id.clone();
+    Ok(Json(app.snapshot(&session_id)?))
 }
 
 async fn read_receipt(
@@ -591,12 +601,16 @@ async fn read_receipt(
     let session_id = resolve_session(&app, body.session_id.as_deref())?;
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
-    let response =
-        harness_run::receipt_envelope_on_host(Arc::clone(&app.host), session_id, run_id, &options)
-            .await
-            .map_err(|error| ApiError::fail(error.to_string()))?;
+    let response = harness_run::receipt_envelope_on_host(
+        Arc::clone(&app.host),
+        session_id.clone(),
+        run_id,
+        &options,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
     Ok(Json(json!({
-        "state": app.snapshot()?,
+        "state": app.snapshot(&session_id)?,
         "receipt": response,
     })))
 }
@@ -998,7 +1012,11 @@ mod tests {
 
     #[test]
     fn explicit_session_resolution_does_not_change_global_active_thread() {
+        let env = crate::test_support::scoped_env(&["KIANA_HOME"]);
+        let home = unique_dir("session-isolation-home");
+        env.set_var("KIANA_HOME", &home);
         let root = unique_dir("session-isolation");
+        fs::create_dir_all(root.join(".git")).unwrap();
         let app = WebApp::new(
             std::sync::Arc::new(DaemonHost::local().unwrap()),
             root.clone(),
@@ -1015,7 +1033,12 @@ mod tests {
 
         assert_eq!(resolve_session(&app, Some(&other)).unwrap(), other);
         assert_eq!(lock_string(&app.active).unwrap(), active);
+        let snapshot = app.snapshot(&other).unwrap();
+        assert_eq!(snapshot["session_id"].as_str(), Some(other.as_str()));
+        assert_eq!(snapshot["thread"]["id"].as_str(), Some(other.as_str()));
+        assert_eq!(lock_string(&app.active).unwrap(), active);
         let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
     }
 
     #[test]
