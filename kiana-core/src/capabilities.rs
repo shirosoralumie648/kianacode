@@ -161,7 +161,11 @@ impl ControlPlane {
                         request_id,
                         sequence,
                         "capability.failed",
-                        json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
+                        json!({
+                            "run_id": run_id,
+                            "capability_request_id": request.request_id,
+                            "error": redact_event_text(&reason),
+                        }),
                     )
                     .await?;
                     CapabilityResult::failure(request.request_id, reason)
@@ -174,7 +178,11 @@ impl ControlPlane {
                                 request_id,
                                 sequence,
                                 "capability.failed",
-                                json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
+                                json!({
+                                    "run_id": run_id,
+                                    "capability_request_id": request.request_id,
+                                    "error": redact_event_text(&reason),
+                                }),
                             )
                             .await?;
                             return Ok(Err(reason));
@@ -273,7 +281,11 @@ impl ControlPlane {
                                         request_id,
                                         sequence,
                                         "capability.failed",
-                                        json!({ "run_id": run_id, "error": redact_event_text(&reason) }),
+                                        json!({
+                                            "run_id": run_id,
+                                            "capability_request_id": request.request_id,
+                                            "error": redact_event_text(&reason),
+                                        }),
                                     )
                                     .await?;
                                     CapabilityResult::failure(request.request_id, reason)

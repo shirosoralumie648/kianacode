@@ -993,6 +993,70 @@ async fn incomplete_cell_capability_scope_is_rejected_before_broker() {
     assert_eq!(*broker.calls.lock().await, 0);
 }
 
+/// 请求里带 grant/lease 但 scope 不完整：会在**派发前**被 cell 接纳拒绝。
+struct PreDispatchFailureRunner;
+
+#[async_trait]
+impl RunnerPort for PreDispatchFailureRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        let RunnerCommand::Start { run_id, .. } = command else {
+            return Err(PortError::Failed("unexpected_runner_command".to_owned()));
+        };
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            "search",
+            json!({ "query": "architecture", "call_id": "call-1" }),
+        );
+        request.capability_grant_id = Some(kiana_domain::CapabilityGrantId::new());
+        request.budget_lease_id = Some(kiana_domain::BudgetLeaseId::new());
+        Ok(vec![
+            RunnerEvent::Started { run_id },
+            RunnerEvent::CapabilityRequested { run_id, request },
+        ])
+    }
+}
+
+#[tokio::test]
+async fn pre_dispatch_failure_still_pairs_with_its_tool_call_in_the_ledger() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(PreDispatchFailureRunner),
+    );
+    let context = trusted_context();
+    let request_id = context.request_id;
+    let response = core
+        .start_run(context.clone(), "go".to_owned(), None)
+        .await
+        .unwrap();
+    assert_ne!(response.status, ExecutionStatus::Completed, "{response:?}");
+
+    let recorded = events.read_request(&request_id).await.unwrap();
+    let failed = recorded
+        .iter()
+        .find(|event| event.kind == "capability.failed")
+        .expect("pre-dispatch failure must still be recorded");
+    assert!(
+        failed.data.get("capability_request_id").is_some(),
+        "pre-dispatch failure must carry the request id so history can pair it: {failed:?}"
+    );
+
+    let history = core
+        .model_visible_history(context.session_id.as_str(), None)
+        .await
+        .unwrap();
+    let tool = history
+        .iter()
+        .find(|message| message.role == ConversationRole::Tool)
+        .expect("the failed capability must appear as a tool message");
+    assert_eq!(tool.tool_call_id.as_deref(), Some("call-1"), "{history:?}");
+}
+
 #[tokio::test]
 async fn forged_low_risk_mcp_call_is_denied_before_broker() {
     let broker = Arc::new(CountingBroker {
