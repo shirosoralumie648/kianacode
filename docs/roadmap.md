@@ -78,7 +78,7 @@
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
-| `P1-H-02` | P1 | H Capability/Broker | `P1-H-01` | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ⏳ |
+| `P1-H-02` | P1 | H Capability/Broker | `P1-H-01` | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | 🔄 |
 | `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ⏳ |
 | `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ⏳ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
@@ -99,7 +99,7 @@
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
 | `P2-M4-01` | P2 | M4 Run/Artifact detail | `P2-M2-01` | Run timeline/Invocation/Diff/Evidence/Receipt 可相互定位 | ⏳ |
 | `P2-M5-01` | P2 | M5 Web sync | `P2-M2-01` | snapshot hydration + 事件订阅 + 重连不重放 delta | ⏳ |
-| `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | ⏳ |
+| `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | 🔄 |
 | `P2-M7-01` | P2 | M7 accessible fallback | `P2-M2-01` | 键盘、窄屏、文本状态、aria/高对比 | ⏳ |
 | `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01` | 十类业务对象定义与不变量 | ⏳ |
 | `P3-I-02` | P3 | I Company 生命周期 | `P3-I-01` | 九个命令/事件冻结 | ⏳ |
@@ -396,7 +396,7 @@
 - **风险**：`additionalProperties` 不能默认禁止，否则老 cassette 被误拒。
 - **验收**：`malformed_arguments_are_rejected_before_capability_mapping`
 - **依赖 / 边界**：依赖 `P1-H-01`；不改变已有工具的接受集。
-- **依据**：`company-os-implementation-outline.md` §Slice H
+- **依据**：`company-os-implementation-outline.md` §Slice H｜已提交 `9095ea7`，等 CI + 证据块
 
 ### P1-H-03 路径 containment 共享实现　⏳
 
@@ -582,14 +582,14 @@
 - **依赖 / 边界**：依赖 `P2-M2-01`；Web 保持 loopback-only。
 - **依据**：`company-os-implementation-outline.md` §Slice M5
 
-### P2-M5-02 重启后列出历史会话　⏳
+### P2-M5-02 重启后列出历史会话　🔄
 
-- **现状**：Web 重启后无法列出持久会话。
+- **现状**：Web 重启后无法列出持久会话；第一版曾在 web 层自己解析账本文件，已改走 daemon 端口。
 - **做什么**：只读列出持久会话（不含写入与续跑）。
-- **风险**：列表若暴露其他主体的会话，就是越权。
+- **风险**：列表若暴露其他主体的会话就是越权；存储不支持全量读取时返回 `web_session_history_unsupported`。
 - **验收**：`web_lists_persisted_sessions_after_restart`
-- **依赖 / 边界**：依赖 `P0-G-01`；前置 enabler 是 `0a9a56b`（`DaemonHost::persisted_events()` 只读端口，避免展示层自己解析账本文件）；只读，不提供续跑入口。
-- **依据**：`company-os-implementation-outline.md` §Slice M5
+- **依赖 / 边界**：依赖 `P0-G-01`；前置 enabler 是 `0a9a56b`（`DaemonHost::persisted_events()` 只读端口）；只读，不提供续跑入口。
+- **依据**：`company-os-implementation-outline.md` §Slice M5｜已提交 `1c504a0`，等 CI + 证据块
 
 ### P2-M7-01 无障碍回退　⏳
 
