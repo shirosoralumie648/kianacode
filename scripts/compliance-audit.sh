@@ -184,7 +184,8 @@ if command -v cargo-deny >/dev/null 2>&1; then
   if [[ "$mode" == "--local-rc" ]]; then
     cargo_deny_checks=(licenses bans sources)
   fi
-  if ! CARGO_HOME="$tool_cargo_home" cargo deny check --metadata-path "$metadata_file" "${cargo_deny_checks[@]}" > "$out_dir/cargo-deny.txt" 2>&1; then
+  # 注：cargo-deny 0.20+ 的 check 不再接受 --metadata-path，它会自行计算元数据。
+  if ! CARGO_HOME="$tool_cargo_home" cargo deny check "${cargo_deny_checks[@]}" > "$out_dir/cargo-deny.txt" 2>&1; then
     cat "$out_dir/cargo-deny.txt" >&2
     exit 1
   fi
