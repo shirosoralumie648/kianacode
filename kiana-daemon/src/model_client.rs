@@ -10,12 +10,15 @@ use kiana_runner::{
     ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
     UnavailableModel,
 };
+use kiana_services::api::errors::ApiErrorKind;
 use kiana_services::api::messages::{Message, MessagesRequest};
 use kiana_services::api::provider::{
     provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
     OpenAiCompatibleProvider, Provider, ProviderError, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
     OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
 };
+use kiana_services::api::retry::{with_retry, RetryConfig};
+use kiana_services::errors::ServiceError;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,6 +29,8 @@ const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
 const ENV_PROVIDER: &str = "KIANA_PROVIDER";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(60);
+const MODEL_MAX_RETRIES: u32 = 2;
+const MODEL_RETRY_BASE_DELAY: Duration = Duration::from_millis(100);
 const MODEL_UNAVAILABLE_HINT: &str = "没有可用的模型。请设置 ANTHROPIC_API_KEY；或设置 KIANA_PROVIDER=ollama（可用 KIANA_OLLAMA_BASE_URL 指定地址，默认 http://localhost:11434）；或设置 KIANA_HARNESS_SCRIPT=/path/to/cassette.json 运行本地 cassette。";
 
 pub(crate) fn from_env() -> Arc<dyn ModelClient> {
@@ -166,30 +171,132 @@ struct ProviderModelClient {
 #[async_trait]
 impl ModelClient for ProviderModelClient {
     async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+        let messages = map_messages(&request.messages)?;
         let tools = map_tools(&request.tools);
-        let response = self
-            .provider
-            .create_message(MessagesRequest {
-                model: self.model.clone(),
-                messages: map_messages(&request.messages)?,
-                max_tokens: DEFAULT_MAX_TOKENS,
-                system: Some(json!(provider_system_prompt())),
-                temperature: None,
-                tools: if tools.is_empty() { None } else { Some(tools) },
-                thinking: None,
-                stream: Some(false),
-            })
-            .await
-            .map_err(map_provider_complete_error)?;
+        let system = Some(json!(provider_system_prompt()));
+        let response = with_retry(
+            || {
+                let messages = messages.clone();
+                let tools = tools.clone();
+                let system = system.clone();
+                async move {
+                    self.provider
+                        .create_message(MessagesRequest {
+                            model: self.model.clone(),
+                            messages,
+                            max_tokens: DEFAULT_MAX_TOKENS,
+                            system,
+                            temperature: None,
+                            tools: if tools.is_empty() { None } else { Some(tools) },
+                            thinking: None,
+                            stream: Some(false),
+                        })
+                        .await
+                        .map_err(provider_error_to_service_error)
+                }
+            },
+            RetryConfig {
+                max_retries: MODEL_MAX_RETRIES,
+                base_delay: MODEL_RETRY_BASE_DELAY,
+            },
+        )
+        .await
+        .map_err(model_error_from_service_error)?;
         Ok(output_from_content(&response.content))
     }
 }
 
-fn map_provider_complete_error(error: ProviderError) -> String {
-    if matches!(error, ProviderError::UnsupportedCapability { .. }) {
-        error.code().to_owned()
-    } else {
-        error.to_string()
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProviderRetryClass {
+    None,
+    Timeout,
+    Connection,
+    RateLimit,
+    ServerUnavailable,
+}
+
+fn provider_error_to_service_error(error: ProviderError) -> ServiceError {
+    let retry_class = provider_error_retry_class(&error);
+    let original = error.to_string();
+    match retry_class {
+        ProviderRetryClass::RateLimit => ServiceError::RateLimit(original),
+        ProviderRetryClass::ServerUnavailable => ServiceError::Http {
+            status: 503,
+            body: original,
+        },
+        ProviderRetryClass::Timeout | ProviderRetryClass::Connection => {
+            ServiceError::Connection(original)
+        }
+        ProviderRetryClass::None => match error {
+            ProviderError::UnsupportedCapability { .. } => {
+                ServiceError::Unknown(error.code().to_owned())
+            }
+            _ => ServiceError::Unknown(original),
+        },
+    }
+}
+
+fn provider_error_retry_class(error: &ProviderError) -> ProviderRetryClass {
+    match error {
+        ProviderError::Api(error) => match error.kind {
+            ApiErrorKind::RateLimit => ProviderRetryClass::RateLimit,
+            ApiErrorKind::ApiTimeout => ProviderRetryClass::Timeout,
+            ApiErrorKind::Repeated529 | ApiErrorKind::ServerOverload => {
+                ProviderRetryClass::ServerUnavailable
+            }
+            ApiErrorKind::ConnectionError | ApiErrorKind::SslCertError => {
+                ProviderRetryClass::Connection
+            }
+            _ => ProviderRetryClass::None,
+        },
+        ProviderError::Provider { code, message, .. } => {
+            let code = code.to_ascii_lowercase();
+            let message = message.to_ascii_lowercase();
+            if code.contains("rate_limit")
+                || code == "429"
+                || code.contains("too_many_requests")
+                || message.contains("429")
+                || message.contains("rate limit")
+                || message.contains("too many requests")
+            {
+                ProviderRetryClass::RateLimit
+            } else if code.contains("server_overload")
+                || code.contains("overloaded")
+                || code == "503"
+                || code.contains("503")
+                || message.contains("503")
+                || message.contains("service unavailable")
+                || message.contains("overloaded")
+            {
+                ProviderRetryClass::ServerUnavailable
+            } else if code.contains("timeout")
+                || code == "408"
+                || message.contains("timeout")
+                || message.contains("timed out")
+            {
+                ProviderRetryClass::Timeout
+            } else if code.contains("connection")
+                || code == "request_failed"
+                || message.contains("connection")
+                || message.contains("connect error")
+            {
+                ProviderRetryClass::Connection
+            } else {
+                ProviderRetryClass::None
+            }
+        }
+        _ => ProviderRetryClass::None,
+    }
+}
+
+fn model_error_from_service_error(error: ServiceError) -> String {
+    match error {
+        ServiceError::Unknown(message)
+        | ServiceError::Auth(message)
+        | ServiceError::RateLimit(message)
+        | ServiceError::Connection(message) => message,
+        ServiceError::Http { body, .. } => body,
+        other => other.to_string(),
     }
 }
 
@@ -310,6 +417,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Mutex;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -517,5 +625,235 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error, "unsupported_tools");
+    }
+
+    #[tokio::test]
+    async fn provider_retries_transient_error_without_network() {
+        let provider = FakeProvider::new(
+            "fake-model".to_owned(),
+            vec![
+                FakeProviderStep::ProviderError {
+                    code: Some("rate_limit".to_owned()),
+                    message: "slow down".to_owned(),
+                },
+                FakeProviderStep::FinalAnswer {
+                    text: "recovered".to_owned(),
+                },
+            ],
+        );
+        let client = ProviderModelClient {
+            provider: Box::new(provider),
+            model: "fake-model".to_owned(),
+        };
+
+        let output = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user("hello")],
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            })
+            .await
+            .expect("transient provider errors should be retried");
+
+        assert_eq!(output.text, "recovered");
+    }
+
+    #[tokio::test]
+    async fn provider_does_not_retry_non_transient_error_without_network() {
+        let provider = FakeProvider::new(
+            "fake-model".to_owned(),
+            vec![
+                FakeProviderStep::ProviderError {
+                    code: Some("invalid_model".to_owned()),
+                    message: "model does not exist".to_owned(),
+                },
+                FakeProviderStep::FinalAnswer {
+                    text: "should not be consumed".to_owned(),
+                },
+            ],
+        );
+        let client = ProviderModelClient {
+            provider: Box::new(provider),
+            model: "fake-model".to_owned(),
+        };
+
+        let error = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user("hello")],
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            })
+            .await
+            .expect_err("non-transient provider errors must not be retried");
+
+        assert!(error.contains("invalid_model"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn provider_retries_rate_limit_then_succeeds() {
+        let (base_url, mut request_rx, server) = start_mock_openai_compatible_server(vec![
+            (
+                429,
+                json!({
+                    "error": {
+                        "code": "rate_limit",
+                        "message": "slow down"
+                    }
+                }),
+            ),
+            (
+                200,
+                json!({
+                    "id": "chatcmpl_retry",
+                    "model": "gpt-test",
+                    "choices": [{
+                        "message": {
+                            "role": "assistant",
+                            "content": "recovered"
+                        },
+                        "finish_reason": "stop"
+                    }],
+                    "usage": {
+                        "prompt_tokens": 1,
+                        "completion_tokens": 1
+                    }
+                }),
+            ),
+        ])
+        .await;
+        let provider =
+            OpenAiCompatibleProvider::new("test-key".to_owned(), base_url, Duration::from_secs(5))
+                .unwrap();
+        let client = ProviderModelClient {
+            provider: Box::new(provider),
+            model: "gpt-test".to_owned(),
+        };
+
+        let output = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user("hello")],
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            })
+            .await
+            .expect("429 should be retried");
+
+        assert_eq!(output.text, "recovered");
+        assert!(request_rx.recv().await.is_some());
+        assert!(request_rx.recv().await.is_some());
+        assert!(
+            request_rx.try_recv().is_err(),
+            "429 followed by success must use exactly two attempts"
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn provider_does_not_retry_auth_errors() {
+        let (base_url, mut request_rx, server) = start_mock_openai_compatible_server(vec![(
+            401,
+            json!({
+                "error": {
+                    "code": "invalid_api_key",
+                    "message": "bad key"
+                }
+            }),
+        )])
+        .await;
+        let provider =
+            OpenAiCompatibleProvider::new("bad-key".to_owned(), base_url, Duration::from_secs(5))
+                .unwrap();
+        let client = ProviderModelClient {
+            provider: Box::new(provider),
+            model: "gpt-test".to_owned(),
+        };
+
+        let error = client
+            .complete(ModelRequest {
+                messages: vec![ModelMessage::user("hello")],
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            })
+            .await
+            .expect_err("401 must fail immediately");
+
+        assert!(
+            error.contains("provider authentication error"),
+            "unexpected auth error: {error}"
+        );
+        assert!(error.contains("bad key"), "unexpected auth error: {error}");
+        assert!(request_rx.recv().await.is_some());
+        assert!(request_rx.try_recv().is_err(), "401 must not be retried");
+        server.await.unwrap();
+    }
+
+    async fn start_mock_openai_compatible_server(
+        responses: Vec<(u16, Value)>,
+    ) -> (
+        String,
+        tokio::sync::mpsc::UnboundedReceiver<String>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let server = tokio::spawn(async move {
+            for (status, response) in responses {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut socket).await;
+                request_tx.send(request).unwrap();
+                let body = serde_json::to_string(&response).unwrap();
+                let reason = match status {
+                    200 => "OK",
+                    401 => "Unauthorized",
+                    429 => "Too Many Requests",
+                    503 => "Service Unavailable",
+                    _ => "Error",
+                };
+                let raw = format!(
+                    "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(raw.as_bytes()).await.unwrap();
+            }
+        });
+        (format!("http://{addr}"), request_rx, server)
+    }
+
+    async fn read_http_request(socket: &mut tokio::net::TcpStream) -> String {
+        let mut buffer = Vec::new();
+        let mut chunk = [0_u8; 1024];
+        loop {
+            let read = socket.read(&mut chunk).await.unwrap();
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+            if let Some(expected_len) = expected_http_request_len(&buffer) {
+                if buffer.len() >= expected_len {
+                    break;
+                }
+            }
+        }
+        String::from_utf8(buffer).unwrap()
+    }
+
+    fn expected_http_request_len(buffer: &[u8]) -> Option<usize> {
+        let header_end = find_header_end(buffer)?;
+        let headers = std::str::from_utf8(&buffer[..header_end]).ok()?;
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().ok())
+                    .flatten()
+            })
+            .unwrap_or(0);
+        Some(header_end + 4 + content_length)
+    }
+
+    fn find_header_end(buffer: &[u8]) -> Option<usize> {
+        buffer.windows(4).position(|window| window == b"\r\n\r\n")
     }
 }
