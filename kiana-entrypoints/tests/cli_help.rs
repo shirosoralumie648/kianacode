@@ -303,6 +303,23 @@ fn help_does_not_advertise_unsupported_http_mcp_entrypoints() {
     }
 }
 
+#[test]
+fn run_help_advertises_the_streaming_kill_switch() {
+    let output = run_isolated_kiana(&["run", "--help"]);
+
+    assert!(
+        output.status.success(),
+        "kiana run --help failed\nstdout:\n{}\nstderr:\n{}",
+        output.stdout,
+        output.stderr
+    );
+    assert!(
+        output.stdout.contains("--no-stream"),
+        "run help must advertise the streaming kill switch\nstdout:\n{}",
+        output.stdout
+    );
+}
+
 struct KianaOutput {
     status: std::process::ExitStatus,
     stdout: String,

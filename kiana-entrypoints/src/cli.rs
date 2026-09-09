@@ -333,12 +333,13 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--stream] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--stream|--no-stream] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
         return Ok(());
     }
 
     let mut json_output = false;
-    let mut stream_output = false;
+    // 显式开关；`None` 表示走 §8 决定的默认值（普通 run 默认流式）。
+    let mut stream_requested: Option<bool> = None;
     let mut sandbox: Option<String> = None;
     let mut role: Option<String> = None;
     let mut symposium = false;
@@ -355,7 +356,8 @@ async fn run_main(args: &[String]) -> Result<()> {
         let argument = &args[index];
         match argument.as_str() {
             "--json" => json_output = true,
-            "--stream" => stream_output = true,
+            "--stream" => stream_requested = Some(true),
+            "--no-stream" => stream_requested = Some(false),
             "--sandbox" => {
                 index += 1;
                 sandbox = Some(
@@ -470,10 +472,11 @@ async fn run_main(args: &[String]) -> Result<()> {
             "use only one of --symposium, --packet, --review, --continue, --cancel, or --receipt"
         ));
     }
-    if stream_output && exclusive > 0 {
+    if stream_requested == Some(true) && exclusive > 0 {
         return Err(anyhow!("stream_requires_run"));
     }
-    stream_output = stream_output && !json_output;
+    // §8 决定：live 证据落地后，普通 run 默认流式；`--json` 与 `--no-stream` 关闭。
+    let stream_output = stream_requested.unwrap_or(exclusive == 0) && !json_output;
     if anti_meeting && !symposium {
         return Err(anyhow!("anti_meeting_requires_symposium"));
     }

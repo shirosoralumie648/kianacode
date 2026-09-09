@@ -157,6 +157,8 @@ sudo dpkg -i dist/kiana-desktop_0.1.0_amd64.deb
 
 仓库先 `kiana trust .`。`kiana run` 默认 sandbox 只读；写盘必须 `--sandbox workspace-write`。工作台默认已经是 workspace-write。
 
+`kiana run` 的普通路径默认流式：模型增量逐块写到 stdout，最终文本与一次性返回一致。`--no-stream` 或 `--json` 关闭渲染，`--stream` 可显式开启；`KIANA_STREAMING=off` 让模型侧也不走原生流式（`auto` 是默认，provider 不支持时退回整段）。
+
 ```bash
 kiana trust .
 
