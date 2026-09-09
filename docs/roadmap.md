@@ -60,14 +60,15 @@
 | `P0-F-03` | P0 | F Approval | `P0-G-02b` | 重启后可续跑同一 Runner；缺材料返回 `approval_continuation_unavailable` | ⏳ |
 | `P0-G-01` | P0 | G 事实源与恢复 | — | 内存未命中时只读回读重建；账本无记录仍 fail-closed | ✅ |
 | `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
-| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ⏳ |
+| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | 🔄 |
 | `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
 | `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ⏳ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ⏳ |
 | `P0-J1-04` | P0 | J1 Runtime | `P0-J1-01`–`03` | 保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 语义 | ⏳ |
-| `P0-J1-05` | P0 | J1 Runtime | — | 重复工具调用 / `max_steps` 按角色 / wall-time 预算均 fail-closed，阈值进 `RuntimeConfig` | 🔄 |
+| `P0-J1-05a` | P0 | J1 Runtime | — | 重复工具调用与 run 级 wall-time 预算 fail-closed，阈值进 `RuntimeConfig` 且在产品路径生效 | 🔄 |
+| `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | `RoleSpec.max_steps` 经 `RuntimeConfig` 到达 harness | ⏳ |
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
 | `P0-K1-01` | P0 | K1 Identity | `P0-A-01` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ⏳ |
 | `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ⏳ |
@@ -78,7 +79,7 @@
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
-| `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | 🔄 |
+| `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ✅ |
 | `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ⏳ |
 | `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ⏳ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
@@ -99,7 +100,7 @@
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
 | `P2-M4-01` | P2 | M4 Run/Artifact detail | `P2-M2-01` | Run timeline/Invocation/Diff/Evidence/Receipt 可相互定位 | ⏳ |
 | `P2-M5-01` | P2 | M5 Web sync | `P2-M2-01` | snapshot hydration + 事件订阅 + 重连不重放 delta | ⏳ |
-| `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | 🔄 |
+| `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | ✅ |
 | `P2-M7-01` | P2 | M7 accessible fallback | `P2-M2-01` | 键盘、窄屏、文本状态、aria/高对比 | ⏳ |
 | `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01` | 十类业务对象定义与不变量 | ⏳ |
 | `P3-I-02` | P3 | I Company 生命周期 | `P3-I-01` | 九个命令/事件冻结 | ⏳ |
@@ -123,10 +124,10 @@
 
 | 事项 | 单元 | 位置 | 卡在哪 |
 |---|---|---|---|
-| 网页重启后列出历史会话（只读） | `P2-M5-02` | `kiana-entrypoints/src/web.rs`、`web_page.html` | 边界修正中：第一版在 web 里自己解析账本文件，正改走 `DaemonHost::persisted_events()`（`0a9a56b`） |
-| 账本补齐 `run.tool_result` 与 history 重建 | `P0-G-02b` | `kiana-core` | 未开工 |
+| 折叠账本重建 history | `P0-G-02b` | `kiana-core/src/history.rs` | `41bb971` + `32692da` 已提交，等 CI + 证据块 |
+| `RuntimeConfig` 接线到产品路径 | `P0-J1-05a` | `kiana-daemon/src/lib.rs` | `747ff8b` 已提交，等 CI + 证据块 |
 
-> 最近一次全绿：CI `34378214555`（tip `40420bd`）—— 覆盖 `P0-G-01`、`P0-J7-01`，以及 `P0-G-02a`。
+> 最近一次全绿：CI `34380542728`（tip `409cfc7`）—— 覆盖 `P0-J1-05a` 的重复调用与 wall-time 部分。`P1-H-02`（`34380323510`）与 `P2-M5-02`（`34380076942`）各自 CI 亦绿且证据块已落。
 
 ---
 
@@ -146,6 +147,9 @@
 | 2026-09-10 | 0.4 / 0.5 / 1.1 / 4.1 经 `release-smoke` 全绿，状态置 ✅ | CI `34376675138` |
 | 2026-09-10 | 本文件改为 P0–P6 执行骨架：编号重编为 `P<阶段>-<切片>-<序号>`、总图扩到 63 个单元、补 P0 详细卡 | `e5fc47f` |
 | 2026-09-10 | 账本记录 user prompt 与 tool_call 身份（`run.prompt` / `run.tool_call`），证据块「Ledger prompt and tool-call identity evidence (2026-09-10)」；`run.tool_result` 仍未做 | `40420bd` + `f08a1cf` |
+| 2026-09-10 | 参数在映射到 capability 前校验（`invalid_arguments:<tool>:<field>`），证据块「Tool argument validation at capability mapping evidence (2026-09-10)」 | `9095ea7` + `e144d30` |
+| 2026-09-10 | 网页重启后只读列出历史会话，改走 `DaemonHost::persisted_events()` 端口；证据块「Read-only persisted web session history evidence (2026-09-10)」 | `1c504a0` + `e144d30` |
+| 2026-09-10 | run 级 wall-time 预算 + `RuntimeConfig` 接进 daemon harness（含 `KIANA_HARNESS_MAX_STEPS` / `KIANA_HARNESS_WALL_TIME_MS`）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` |
 
 ---
 
@@ -223,14 +227,14 @@
 - **依赖 / 边界**：依赖 `P0-G-01`；`call_id` 在 runner 未提供时为 `null`。
 - **依据**：`company-os-implementation-outline.md` §Slice G｜`40420bd` + CI `34378214555` + 证据块「Ledger prompt and tool-call identity evidence (2026-09-10)」（`f08a1cf`）
 
-### P0-G-02b 折叠账本重建 history　⏳
+### P0-G-02b 折叠账本重建 history　🔄
 
-- **现状**：工具结果**已在**账本里——`capability_event_payload`（`events.rs:200-213`）把 redacted 结果与 `capability_request_id` 一并写入；请求事件带 `arguments.call_id`（`capabilities.rs:89`）。缺的是折叠函数。
-- **做什么**：新增只读折叠函数，把 `run.prompt`/`run.delta`/`capability.*` 按 `sequence` 折成 `Vec<ConversationMessage>`；**不新增事件 kind**（那会造重复事实源）。同时补齐三条预派发失败载荷缺失的 `capability_request_id`。
-- **风险**：`capabilities.rs:163`/`:176`/`:275` 的 `capability.failed` 只有 `run_id` + `error`，折叠会产出没有配对的 tool_call；assistant tool_call 缺配对结果时 history 不合法。
+- **现状**：折叠函数已落地（`41bb971`），三条预派发失败载荷的 `capability_request_id` 已补（`32692da`）；等 CI 与证据块。
+- **做什么**：保持现状；只读折叠 `run.prompt`/`run.delta`/`capability.*` 为 `Vec<ConversationMessage>`，**不新增事件 kind**。
+- **风险**：待核对折叠对 `capability.result_unknown` 的配对处理，避免产出半配对的 history。
 - **验收**：`resume_rebuilds_model_visible_history_from_ledger`
 - **依赖 / 边界**：依赖 `P0-G-02a`；不新增模型可见工具，不动 `PROTOCOL_SCHEMA`。
-- **依据**：`company-os-implementation-outline.md` §Slice G｜2026-09-10 复核：不新增 `run.tool_result`
+- **依据**：`company-os-implementation-outline.md` §Slice G｜`41bb971` + `32692da`，等 CI + 证据块
 
 ### P0-G-03 `resume_run` 与协议入口　⏳
 
@@ -286,14 +290,23 @@
 - **依赖 / 边界**：依赖 `P0-J1-01`–`03`；必须保留 `daemon_host::cancelling_mid_stream_never_completes_or_emits_a_late_delta` 的语义。
 - **依据**：`company-os-implementation-outline.md` §Slice J1
 
-### P0-J1-05 有界循环三件套　🔄
+### P0-J1-05a 重复调用检测与 wall-time 预算接线　🔄
 
-- **现状**：重复调用检测已落地（`d973ff6`）；`wall_time_budget` 字段与 `with_wall_time_budget` 已加（`409cfc7`）。但 `KianaHarness::new` 在 `kiana-daemon/src/lib.rs` 的 5 处调用都不传 `RuntimeConfig`，产品路径仍用默认值（32 步、无 wall-time）；`with_max_steps` 零调用点，`RoleSpec.max_steps` 不生效。
-- **做什么**：把 `RuntimeConfig` 接到 `DaemonHost` 的 harness 构造，按角色传 `max_steps`，并给产品路径设置 run 级 wall-time 预算。
-- **风险**：只加字段不接线等于配置存在但不生效；阈值必须在产品路径真正被读取。
-- **验收**：`role_max_steps_reaches_the_harness`、`run_wall_time_budget_fails_closed`
+- **现状**：重复调用检测已落地（`d973ff6`）；`wall_time_budget` 与 `with_wall_time_budget` 已加（`409cfc7`）；`RuntimeConfig` 已接进 daemon 的 5 处 harness 构造，支持 `KIANA_HARNESS_MAX_STEPS` / `KIANA_HARNESS_WALL_TIME_MS`（`747ff8b`）。
+- **做什么**：保持现状；确认无环境变量时默认行为不变（32 步、无 wall-time）。
+- **风险**：环境变量非法值必须 fail-closed；只加字段不接线等于配置存在但不生效。
+- **验收**：`run_wall_time_budget_fails_closed`
 - **依赖 / 边界**：无依赖；不同参数不算重复调用，不得误伤。
-- **依据**：`company-os-implementation-outline.md` §Slice J1｜`409cfc7` 等 CI + 证据块
+- **依据**：`company-os-implementation-outline.md` §Slice J1｜`409cfc7` + `747ff8b`，等 CI + 证据块
+
+### P0-J1-05b 按角色的 max_steps　⏳
+
+- **现状**：`RoleSpec.max_steps`（`kiana-domain/src/roles.rs:140`）仍未被消费；`with_max_steps` 零调用点，产品路径恒 32 步。
+- **做什么**：把角色 `max_steps` 经 `RuntimeConfig` 传到 harness，并加断言。
+- **风险**：阈值写死在 harness 会让角色配置形同虚设。
+- **验收**：`role_max_steps_reaches_the_harness`
+- **依赖 / 边界**：依赖 `P0-J1-05a`；不改 `RoleSpec` 现有字段语义。
+- **依据**：`company-os-implementation-outline.md` §Slice J1
 
 ### P0-J7-01 流式基线收尾　✅
 
@@ -389,14 +402,14 @@
 - **依赖 / 边界**：依赖 `P0-A-01`；**不新增模型可见工具**，保持 5 个。
 - **依据**：`company-os-implementation-outline.md` §Slice H
 
-### P1-H-02 参数 schema 校验　⏳
+### P1-H-02 参数 schema 校验　✅
 
-- **现状**：`tool_schemas()` 只发给 provider，`call.arguments` 从不校验；`9095ea7` 已加 `validate_tool_arguments`（读现有 schema 表）。
-- **做什么**：在映射到 capability 之前拒绝非法参数，失败返回 `invalid_arguments:<tool>:<field>`。
-- **风险**：`additionalProperties` 不能默认禁止；本次新增的 `schema_name_for_tool` 别名表与 `tools.rs:234` 重复，`P1-H-01` 必须收敛到单一真源。
+- **现状**：`9095ea7` 已加 `validate_tool_arguments`，在映射到 capability 前按现有 schema 表校验。
+- **做什么**：保持现状；校验覆盖 `type` / `required` / `minimum` / `enum` 子集。
+- **风险**：`additionalProperties` 不拒绝（老 cassette 不被误拒）；`schema_name_for_tool` 与 `tools.rs:234` 的别名表重复，`P1-H-01` 必须收敛。
 - **验收**：`malformed_arguments_are_rejected_before_capability_mapping`
-- **依赖 / 边界**：无硬依赖（校验器读现有 `tool_schemas()`，`P1-H-01` 落地后只需替换数据源）；不改变已有工具的接受集。
-- **依据**：`company-os-implementation-outline.md` §Slice H｜已提交 `9095ea7`，等 CI + 证据块
+- **依赖 / 边界**：无硬依赖（`P1-H-01` 落地后只需替换数据源）；不改变已有工具的接受集。
+- **依据**：`company-os-implementation-outline.md` §Slice H｜`9095ea7` + CI `34380323510` + 证据块「Tool argument validation at capability mapping evidence (2026-09-10)」（`e144d30`）
 
 ### P1-H-03 路径 containment 共享实现　⏳
 
@@ -582,14 +595,14 @@
 - **依赖 / 边界**：依赖 `P2-M2-01`；Web 保持 loopback-only。
 - **依据**：`company-os-implementation-outline.md` §Slice M5
 
-### P2-M5-02 重启后列出历史会话　🔄
+### P2-M5-02 重启后列出历史会话　✅
 
-- **现状**：Web 重启后无法列出持久会话；第一版曾在 web 层自己解析账本文件，已改走 daemon 端口。
-- **做什么**：只读列出持久会话（不含写入与续跑）。
+- **现状**：`1c504a0` 已实现只读列出；数据源是 `DaemonHost::persisted_events()` 端口，web 层不再自己解析 JSONL。
+- **做什么**：保持现状；只读列出持久会话（不含写入与续跑）。
 - **风险**：列表若暴露其他主体的会话就是越权；存储不支持全量读取时返回 `web_session_history_unsupported`。
 - **验收**：`web_lists_persisted_sessions_after_restart`
-- **依赖 / 边界**：依赖 `P0-G-01`；前置 enabler 是 `0a9a56b`（`DaemonHost::persisted_events()` 只读端口）；只读，不提供续跑入口。
-- **依据**：`company-os-implementation-outline.md` §Slice M5｜已提交 `1c504a0`，等 CI + 证据块
+- **依赖 / 边界**：依赖 `P0-G-01`；前置 enabler 是 `0a9a56b`（只读端口）；只读，不提供续跑入口。
+- **依据**：`company-os-implementation-outline.md` §Slice M5｜`1c504a0` + CI `34380076942` + 证据块「Read-only persisted web session history evidence (2026-09-10)」（`e144d30`）
 
 ### P2-M7-01 无障碍回退　⏳
 
