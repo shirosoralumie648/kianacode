@@ -65,6 +65,24 @@ reviewer: focused adversarial regression review
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
 
+### Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)
+
+```text
+source_snapshot: 41bb971 (kiana-core/src/history.rs, kiana-core/src/lib.rs) + 32692da/9d255d1 (kiana-core/src/capabilities.rs, kiana-core/tests/control_plane.rs) + d3f7601 (kiana-domain/src/contracts.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  bash scripts/release-smoke.sh        # GitHub Actions release-smoke job, run 34386563396 completed/success
+  cargo test -p kiana-core --test control_plane pre_dispatch_failure_still_pairs_with_its_tool_call_in_the_ledger --locked --offline
+  cargo test -p kiana-domain --locked --offline
+cwd/environment: GitHub Actions release-smoke job (ubuntu-latest, stable, bubblewrap); local reproduction with rustc/cargo 1.97.1 and --locked --offline
+fixture or cassette: in-memory scripted runner over MemoryEventLog; FailingBroker hitting the dispatch-error branch; kiana-domain ID contract table with per-type round-trip tests
+exit_code: 0 (run 34386563396 completed/success); the three acceptance tests `resume_rebuilds_model_visible_history_from_ledger`, `pre_dispatch_failure_still_pairs_with_its_tool_call_in_the_ledger`, and `contracts::tests::every_public_type_has_one_owner_and_a_conversion_test` all pass in that run
+status change: no capability status promotion. (1) `ControlPlane::model_visible_history` folds `run.prompt` / `run.delta` / `capability.completed|failed` into `Vec<ConversationMessage>` with request-scoped deduplication, pairing tool results to their `call_id` via `capability_request_id`; no new event kind was added because the capability result already records the fact. (2) The three pre-dispatch `capability.failed` sites (hook error, cell admission, dispatch error) now carry `capability_request_id` so failed results still pair. (3) `kiana-domain` registers every canonical ID (18 uuid types + SessionId + WorkFingerprint) in one `ID_CONTRACTS` table with uniqueness assertions against the real workspace manifest.
+proof-level change: local_behavior evidence for history rebuild, failure pairing, and the ID contract registry.
+limitations: history rebuild is read-only and no resume entry exists yet; unknown event kinds are skipped, not interpreted; the registry asserts uniqueness and shape, it does not yet cover non-ID schemas or unknown-field/migration rules; run-level deduplication falls back to sequence-wide first-wins only for legacy events without stream metadata.
+reviewer: Claude reviewed the Codex diffs (no assertions deleted); the first hand-written pairing test reached the wrong failure site (cell admission instead of dispatch error) and was corrected after CI caught it; by the product owner's instruction the full suite ran only on GitHub CI
+```
+
 ### Read-only persisted web session history evidence (2026-09-10)
 
 ```text

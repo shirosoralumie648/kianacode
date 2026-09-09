@@ -52,7 +52,8 @@
 
 | 编号 | 阶段 | 切片 | 依赖 | 退出条件 | 状态 |
 |---|---|---|---|---|---|
-| `P0-A-01` | P0 | A 契约注册表 | — | 每个公开类型有唯一 owner、版本与转换测试 | ⏳ |
+| `P0-A-01a` | P0 | A 契约注册表 | — | ID 契约唯一登记 + 每类型转换测试 | ✅ |
+| `P0-A-01b` | P0 | A 契约注册表 | `P0-A-01a` | schema 注册表；unknown field / unknown event / migration 规则 | ⏳ |
 | `P0-A-02` | P0 | A 契约注册表 | `P0-A-01` | `CapabilityErrorCode` + `failure_code()`，每码有 CLI exit / HTTP status / 可重试映射 | ⏳ |
 | `P0-B-01` | P0 | B 正式状态机 | `P0-A-01` | Cell/WorkPacket/CapabilityExecution/Approval 四张转移表；非法转移与重复请求有断言 | ⏳ |
 | `P0-F-01` | P0 | F Approval | `P0-B-01` | TTY/Web/一次性 CLI 三处可列举同一 pending 并回复 | ⏳ |
@@ -60,7 +61,7 @@
 | `P0-F-03` | P0 | F Approval | `P0-G-02b` | 重启后可续跑同一 Runner；缺材料返回 `approval_continuation_unavailable` | ⏳ |
 | `P0-G-01` | P0 | G 事实源与恢复 | — | 内存未命中时只读回读重建；账本无记录仍 fail-closed | ✅ |
 | `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
-| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | 🔄 |
+| `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ✅ |
 | `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
 | `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ⏳ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
@@ -155,14 +156,16 @@
 
 ## 4. P0 — 事实基线、Identity、Runtime ledger、Event/Receipt
 
-### P0-A-01 契约注册表　⏳
+### P0-A-01a ID 契约注册表　✅
 
-- **现状**：多个 crate 各自定义同名对象与状态，没有统一注册表（`company-os-implementation-outline.md` §Slice A）。
-- **做什么**：注册 `request_id`/`session_id`/`run_id`/`turn_id`/`cell_id`/`work_packet_id`/`execution_id`/`invocation_id`/`approval_id`/`artifact_id`/`receipt_id` 与各层 schema，并定 unknown field / unknown event / migration 规则。
-- **风险**：注册表若只覆盖部分 crate 会形成第二真相；`kiana-tasks` 的 WorkPacket 必须明确降级为 projection。
+- **现状**：`kiana-domain/src/contracts.rs` 已登记全部 20 个 ID 类型（18 个 UUID 型 + `SessionId` + `WorkFingerprint`）；CI `34386563396` ✅，证据块「Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)」已落。
+- **做什么**：保持现状；`ID_CONTRACTS` 表（type_name / owner_crate / wire_name / wire_shape）+ 唯一性断言 + 每类型 serde 往返测试，对照真实 workspace manifest。
+- **风险（已核对关闭）**：未改任何 ID 的 serde 表示，线协议兼容保持。
 - **验收**：`every_public_type_has_one_owner_and_a_conversion_test`
-- **依赖 / 边界**：无依赖；不新增模型可见工具。
-- **依据**：`company-os-implementation-outline.md` §Slice A
+- **依赖 / 边界**：无依赖；只登记不断言 schema / unknown field / migration 规则（留给 `-01b`）。
+- **依据**：`company-os-implementation-outline.md` §Slice A｜`d3f7601` + CI `34386563396` ✅
+
+### P0-A-01b schema 注册表与 unknown field/migration 规则　⏳
 
 ### P0-A-02 稳定错误码枚举　⏳
 
@@ -227,14 +230,14 @@
 - **依赖 / 边界**：依赖 `P0-G-01`；`call_id` 在 runner 未提供时为 `null`。
 - **依据**：`company-os-implementation-outline.md` §Slice G｜`40420bd` + CI `34378214555` + 证据块「Ledger prompt and tool-call identity evidence (2026-09-10)」（`f08a1cf`）
 
-### P0-G-02b 折叠账本重建 history　🔄
+### P0-G-02b 折叠账本重建 history　✅
 
-- **现状**：折叠函数已落地（`41bb971`），三条预派发失败载荷的 `capability_request_id` 已补（`32692da`）；等 CI 与证据块。
+- **现状**：折叠函数已落地（`41bb971`），三条预派发失败载荷的 `capability_request_id` 已补（`32692da`/`9d255d1`）；CI `34386563396` ✅，证据块「Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)」已落。
 - **做什么**：保持现状；只读折叠 `run.prompt`/`run.delta`/`capability.*` 为 `Vec<ConversationMessage>`，**不新增事件 kind**。
-- **风险**：待核对折叠对 `capability.result_unknown` 的配对处理，避免产出半配对的 history。
+- **风险（已核对关闭）**：`capability.result_unknown` 会被折叠跳过、且其载荷本就带 `capability_request_id`，不会产出半配对的 history。
 - **验收**：`resume_rebuilds_model_visible_history_from_ledger`
 - **依赖 / 边界**：依赖 `P0-G-02a`；不新增模型可见工具，不动 `PROTOCOL_SCHEMA`。
-- **依据**：`company-os-implementation-outline.md` §Slice G｜`41bb971` + `32692da`，等 CI + 证据块
+- **依据**：`company-os-implementation-outline.md` §Slice G｜`41bb971` + `9d255d1` + CI `34386563396` ✅
 
 ### P0-G-03 `resume_run` 与协议入口　⏳
 
