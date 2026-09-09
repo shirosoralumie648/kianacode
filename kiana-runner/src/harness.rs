@@ -14,7 +14,7 @@ use crate::compact::{
 };
 use crate::inbox::{Inbox, InboxMessage, InboxTarget};
 use crate::model::{
-    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelToolCall, ScriptedModel,
+    ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelToolCall, ScriptedModel,
     UnavailableModel,
 };
 use crate::tools::{capability_for_tool, tool_schemas};
@@ -57,6 +57,52 @@ pub enum KianaHarnessError {
     Failed(String),
 }
 
+struct EventEmitter<'a> {
+    events: Vec<RunnerEvent>,
+    sink: Option<&'a mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send)>,
+}
+
+impl<'a> EventEmitter<'a> {
+    fn new(sink: Option<&'a mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send)>) -> Self {
+        Self {
+            events: Vec::new(),
+            sink,
+        }
+    }
+
+    fn emit(&mut self, event: RunnerEvent) -> Result<(), String> {
+        if let Some(sink) = self.sink.as_mut() {
+            sink(event.clone()).map_err(|error| format!("runner_event_sink_failed:{error}"))?;
+        }
+        self.events.push(event);
+        Ok(())
+    }
+
+    fn emit_event(&mut self, event: RunnerEvent) -> Result<(), KianaHarnessError> {
+        self.emit(event).map_err(KianaHarnessError::Failed)
+    }
+
+    fn replace_since(&mut self, checkpoint: usize, event: RunnerEvent) -> Result<(), String> {
+        if self.sink.is_none() {
+            self.events.truncate(checkpoint);
+        }
+        self.emit(event)
+    }
+
+    fn replace_event_since(
+        &mut self,
+        checkpoint: usize,
+        event: RunnerEvent,
+    ) -> Result<(), KianaHarnessError> {
+        self.replace_since(checkpoint, event)
+            .map_err(KianaHarnessError::Failed)
+    }
+
+    fn into_events(self) -> Vec<RunnerEvent> {
+        self.events
+    }
+}
+
 struct ActiveRun {
     run_id: RunId,
     sandbox: String,
@@ -66,6 +112,15 @@ struct ActiveRun {
     pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
     steps: u32,
     last_text: String,
+}
+
+struct StartInput {
+    run_id: RunId,
+    prompt: String,
+    history: Vec<kiana_domain::ConversationMessage>,
+    sandbox: String,
+    project_root: String,
+    instructions: String,
 }
 
 pub struct KianaHarness {
@@ -168,13 +223,27 @@ impl KianaHarness {
         &self,
         command: RunnerCommand,
     ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
-        self.dispatch(command).await
+        self.dispatch(command, None).await
+    }
+
+    /// 发送命令，并在每个协议事件产生时同步交付给 `sink`。
+    ///
+    /// 成功返回时，`sink` 收到的序列与返回值逐项一致。`sink` 返回错误表示下游取消或背压，
+    /// harness 会立即停止并返回 `runner_event_sink_failed:*`，不会继续产生后续事件。
+    pub async fn send_with_events(
+        &self,
+        command: RunnerCommand,
+        sink: &mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send),
+    ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        self.dispatch(command, Some(sink)).await
     }
 
     async fn dispatch(
         &self,
         command: RunnerCommand,
+        sink: Option<&mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send)>,
     ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        let mut emitter = EventEmitter::new(sink);
         match command {
             RunnerCommand::Start {
                 run_id,
@@ -185,31 +254,49 @@ impl KianaHarness {
                 instructions,
                 project_trusted: _,
             } => {
-                self.start(run_id, prompt, history, sandbox, project_root, instructions)
-                    .await
+                self.start(
+                    StartInput {
+                        run_id,
+                        prompt,
+                        history,
+                        sandbox,
+                        project_root,
+                        instructions,
+                    },
+                    &mut emitter,
+                )
+                .await
             }
             RunnerCommand::CapabilityResult { run_id, result } => {
-                self.on_capability_result(run_id, result).await
+                self.on_capability_result(run_id, result, &mut emitter)
+                    .await
             }
-            RunnerCommand::Continue { run_id, prompt } => self.continue_run(run_id, prompt).await,
-            RunnerCommand::Cancel { run_id, reason } => self.cancel(run_id, reason),
-        }
+            RunnerCommand::Continue { run_id, prompt } => {
+                self.continue_run(run_id, prompt, &mut emitter).await
+            }
+            RunnerCommand::Cancel { run_id, reason } => self.cancel(run_id, reason, &mut emitter),
+        }?;
+        Ok(emitter.into_events())
     }
 
     async fn start(
         &self,
-        run_id: RunId,
-        prompt: String,
-        history: Vec<kiana_domain::ConversationMessage>,
-        sandbox: String,
-        project_root: String,
-        instructions: String,
-    ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        input: StartInput,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
+        let StartInput {
+            run_id,
+            prompt,
+            history,
+            sandbox,
+            project_root,
+            instructions,
+        } = input;
         if self.has_run(run_id)? {
-            return Ok(vec![RunnerEvent::Failed {
+            return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "run_already_exists".to_owned(),
-            }]);
+            });
         }
         let sandbox = normalize_sandbox(&sandbox)?;
         let mut run = ActiveRun {
@@ -240,76 +327,78 @@ impl KianaHarness {
             run.messages.push(ModelMessage::user(message.text));
         }
 
-        let mut events = vec![RunnerEvent::Started { run_id }];
-        events.extend(self.model_step(&mut run).await);
-        self.store_unless_terminal(run, &events)?;
-        Ok(events)
+        emitter.emit_event(RunnerEvent::Started { run_id })?;
+        self.model_step(&mut run, emitter).await?;
+        self.store_unless_terminal(run, &emitter.events)?;
+        Ok(())
     }
 
     async fn on_capability_result(
         &self,
         run_id: RunId,
         result: CapabilityResult,
-    ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
         let mut run = self.take_run(run_id)?;
         let Some((expected_id, call)) = run.pending_tools.pop_front() else {
-            return Ok(vec![RunnerEvent::Failed {
+            return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "unexpected_capability_result".to_owned(),
-            }]);
+            });
         };
         if expected_id != result.request_id {
-            return Ok(vec![RunnerEvent::Failed {
+            return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "capability_result_mismatch".to_owned(),
-            }]);
+            });
         }
 
         run.messages
             .push(ModelMessage::tool(call.id, tool_result_text(&result)));
 
-        let events = if let Some((request_id, next_call)) = run.pending_tools.front().cloned() {
+        if let Some((request_id, next_call)) = run.pending_tools.front().cloned() {
             let _ = request_id;
             match emit_tool_request(&mut run, &next_call) {
-                Ok(event) => vec![event],
-                Err(error) => vec![RunnerEvent::Failed { run_id, error }],
+                Ok(event) => emitter.emit_event(event)?,
+                Err(error) => emitter.emit_event(RunnerEvent::Failed { run_id, error })?,
             }
         } else {
-            self.model_step(&mut run).await
-        };
-        self.store_unless_terminal(run, &events)?;
-        Ok(events)
+            self.model_step(&mut run, emitter).await?;
+        }
+        self.store_unless_terminal(run, &emitter.events)?;
+        Ok(())
     }
 
     async fn continue_run(
         &self,
         run_id: RunId,
         prompt: String,
-    ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
         if prompt.trim().is_empty() {
-            return Ok(vec![RunnerEvent::Failed {
+            return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: "prompt_required".to_owned(),
-            }]);
+            });
         }
         let mut run = match self.take_run(run_id) {
             Ok(run) => run,
             Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => {
-                return Ok(vec![RunnerEvent::Failed {
+                return emitter.emit_event(RunnerEvent::Failed {
                     run_id,
                     error: "run_not_found".to_owned(),
-                }]);
+                });
             }
             Err(error) => return Err(error),
         };
         if !run.pending_tools.is_empty() {
             let error = "run_busy".to_owned();
-            let events = vec![RunnerEvent::Failed {
+            emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: error.clone(),
-            }];
+            })?;
             self.store_unless_terminal(run, &[])?;
-            return Ok(events);
+            return Ok(());
         }
         run.steps = 0;
         run.last_text.clear();
@@ -318,33 +407,43 @@ impl KianaHarness {
         for message in run.inbox.claim(InboxTarget::NextTurn) {
             run.messages.push(ModelMessage::user(message.text));
         }
-        let events = self.model_step(&mut run).await;
-        self.store_unless_terminal(run, &events)?;
-        Ok(events)
+        self.model_step(&mut run, emitter).await?;
+        self.store_unless_terminal(run, &emitter.events)?;
+        Ok(())
     }
 
-    fn cancel(&self, run_id: RunId, reason: String) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
+    fn cancel(
+        &self,
+        run_id: RunId,
+        reason: String,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
         match self.take_run(run_id) {
-            Ok(_) => Ok(vec![RunnerEvent::Failed {
+            Ok(_) => emitter.emit_event(RunnerEvent::Failed {
                 run_id,
                 error: format!("cancelled:{reason}"),
-            }]),
-            Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => {
-                Ok(vec![RunnerEvent::Failed {
+            }),
+            Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => emitter
+                .emit_event(RunnerEvent::Failed {
                     run_id,
                     error: "run_not_found".to_owned(),
-                }])
-            }
+                }),
             Err(error) => Err(error),
         }
     }
 
-    async fn model_step(&self, run: &mut ActiveRun) -> Vec<RunnerEvent> {
+    async fn model_step(
+        &self,
+        run: &mut ActiveRun,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
+        let checkpoint = emitter.events.len();
         if run.steps >= self.max_steps_per_turn {
-            return vec![RunnerEvent::Failed {
+            emitter.emit_event(RunnerEvent::Failed {
                 run_id: run.run_id,
                 error: "max_steps_per_turn".to_owned(),
-            }];
+            })?;
+            return Ok(());
         }
         run.steps += 1;
 
@@ -359,40 +458,61 @@ impl KianaHarness {
         );
         run.messages = compact.messages;
 
-        let mut events = Vec::new();
         if compact.applied {
-            events.push(RunnerEvent::Compacted {
+            emitter.emit_event(RunnerEvent::Compacted {
                 run_id: run.run_id,
                 tokens_before: compact.tokens_before as u64,
                 tokens_after: compact.tokens_after as u64,
                 summary_present: compact.summary_present,
-            });
+            })?;
         }
 
-        let output = match self
+        let run_id = run.run_id;
+        let mut emitted_delta = false;
+        let mut sink_error: Option<String> = None;
+        let output = self
             .model
-            .complete(ModelRequest {
-                messages: run.messages.clone(),
-                tools: tool_schemas(),
-                sandbox: run.sandbox.clone(),
-            })
-            .await
-        {
+            .complete_streaming(
+                ModelRequest {
+                    messages: run.messages.clone(),
+                    tools: tool_schemas(),
+                    sandbox: run.sandbox.clone(),
+                },
+                &mut |delta| {
+                    if let Some(error) = sink_error.as_ref() {
+                        return Err(error.clone());
+                    }
+                    match delta {
+                        ModelDelta::Text { text } => {
+                            emitted_delta = true;
+                            if let Err(error) = emitter.emit(RunnerEvent::Delta { run_id, text }) {
+                                sink_error = Some(error.clone());
+                                return Err(error);
+                            }
+                        }
+                    }
+                    Ok(())
+                },
+            )
+            .await;
+        if let Some(error) = sink_error {
+            return Err(KianaHarnessError::Failed(error));
+        }
+        let output = match output {
             Ok(output) => output,
             Err(error) => {
-                events.push(RunnerEvent::Failed {
-                    run_id: run.run_id,
-                    error,
-                });
-                return events;
+                emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
+                return Ok(());
             }
         };
         if !output.text.is_empty() {
             run.last_text = output.text.clone();
-            events.push(RunnerEvent::Delta {
-                run_id: run.run_id,
-                text: output.text.clone(),
-            });
+            if !emitted_delta {
+                emitter.emit_event(RunnerEvent::Delta {
+                    run_id,
+                    text: output.text.clone(),
+                })?;
+            }
         }
         if !output.text.is_empty() || !output.tool_calls.is_empty() {
             run.messages.push(ModelMessage::assistant_with_tools(
@@ -429,14 +549,14 @@ impl KianaHarness {
                 if let Some(model_id) = model_id {
                     completed.insert("model_id".to_owned(), json!(model_id));
                 }
-                events.push(RunnerEvent::Completed {
+                emitter.emit_event(RunnerEvent::Completed {
                     run_id: run.run_id,
                     output: completed_output,
-                });
-                return events;
+                })?;
+                return Ok(());
             }
-            events.extend(Box::pin(self.model_step(run)).await);
-            return events;
+            Box::pin(self.model_step(run, emitter)).await?;
+            return Ok(());
         }
 
         run.pending_tools.clear();
@@ -444,30 +564,38 @@ impl KianaHarness {
             match capability_for_tool(&call, &run.sandbox, &run.project_root) {
                 Ok(request) => run.pending_tools.push_back((request.request_id, call)),
                 Err(error) => {
-                    return vec![RunnerEvent::Failed {
-                        run_id: run.run_id,
-                        error,
-                    }];
+                    emitter.replace_event_since(
+                        checkpoint,
+                        RunnerEvent::Failed {
+                            run_id: run.run_id,
+                            error,
+                        },
+                    )?;
+                    return Ok(());
                 }
             }
         }
 
         match run.pending_tools.front().cloned() {
             Some((_, call)) => match emit_tool_request(run, &call) {
-                Ok(event) => {
-                    events.push(event);
-                    events
-                }
-                Err(error) => vec![RunnerEvent::Failed {
-                    run_id: run.run_id,
-                    error,
-                }],
+                Ok(event) => emitter.emit_event(event)?,
+                Err(error) => emitter.replace_event_since(
+                    checkpoint,
+                    RunnerEvent::Failed {
+                        run_id: run.run_id,
+                        error,
+                    },
+                )?,
             },
-            None => vec![RunnerEvent::Failed {
-                run_id: run.run_id,
-                error: "tool_queue_empty".to_owned(),
-            }],
+            None => emitter.replace_event_since(
+                checkpoint,
+                RunnerEvent::Failed {
+                    run_id: run.run_id,
+                    error: "tool_queue_empty".to_owned(),
+                },
+            )?,
         }
+        Ok(())
     }
 
     fn take_run(&self, run_id: RunId) -> Result<ActiveRun, KianaHarnessError> {
@@ -517,7 +645,17 @@ impl From<KianaHarnessError> for PortError {
 #[async_trait]
 impl RunnerPort for KianaHarness {
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
-        self.dispatch(command).await.map_err(PortError::from)
+        self.dispatch(command, None).await.map_err(PortError::from)
+    }
+
+    async fn send_with_events(
+        &self,
+        command: RunnerCommand,
+        on_event: &mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send),
+    ) -> Result<Vec<RunnerEvent>, PortError> {
+        self.dispatch(command, Some(on_event))
+            .await
+            .map_err(PortError::from)
     }
 }
 
@@ -555,9 +693,37 @@ mod tests {
     use kiana_domain::CapabilityKind;
     use kiana_runner_protocol::RunnerCommand;
     use serde_json::Value;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     fn scripted(outputs: Value) -> KianaHarness {
         KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()))
+    }
+
+    #[derive(Debug)]
+    struct ChunkedModel {
+        chunks: Vec<&'static str>,
+    }
+
+    #[async_trait]
+    impl ModelClient for ChunkedModel {
+        async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+            Err("chunked_model_complete_must_not_be_called".to_owned())
+        }
+
+        async fn complete_streaming(
+            &self,
+            _request: ModelRequest,
+            on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        ) -> Result<ModelOutput, String> {
+            let mut text = String::new();
+            for chunk in &self.chunks {
+                text.push_str(chunk);
+                on_delta(ModelDelta::Text {
+                    text: (*chunk).to_owned(),
+                })?;
+            }
+            Ok(ModelOutput::text(text))
+        }
     }
 
     #[derive(Default)]
@@ -626,6 +792,129 @@ mod tests {
         assert!(!events
             .iter()
             .any(|event| matches!(event, RunnerEvent::CapabilityRequested { .. })));
+    }
+
+    #[tokio::test]
+    async fn sink_receives_each_streamed_delta_in_order() {
+        let harness = KianaHarness::new(Arc::new(ChunkedModel {
+            chunks: vec!["alpha", " beta", " gamma"],
+        }));
+        let run_id = RunId::new();
+        let mut delivered = Vec::new();
+
+        let events = harness
+            .send_with_events(RunnerCommand::start(run_id, "stream it"), &mut |event| {
+                delivered.push(event);
+                Ok(())
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(delivered, events);
+        let deltas = events
+            .iter()
+            .filter_map(|event| match event {
+                RunnerEvent::Delta { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(deltas, vec!["alpha", " beta", " gamma"]);
+        assert!(matches!(events.last(), Some(RunnerEvent::Completed { .. })));
+    }
+
+    #[tokio::test]
+    async fn sink_is_called_before_the_model_step_finishes() {
+        #[derive(Debug)]
+        struct ObservingModel {
+            observed: Arc<AtomicBool>,
+        }
+
+        #[async_trait]
+        impl ModelClient for ObservingModel {
+            async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+                Err("observing_model_complete_must_not_be_called".to_owned())
+            }
+
+            async fn complete_streaming(
+                &self,
+                _request: ModelRequest,
+                on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+            ) -> Result<ModelOutput, String> {
+                on_delta(ModelDelta::Text {
+                    text: "first".to_owned(),
+                })?;
+                assert!(
+                    self.observed.load(Ordering::SeqCst),
+                    "the sink must observe the delta before the model step continues"
+                );
+                on_delta(ModelDelta::Text {
+                    text: " second".to_owned(),
+                })?;
+                Ok(ModelOutput::text("first second"))
+            }
+        }
+
+        let observed = Arc::new(AtomicBool::new(false));
+        let harness = KianaHarness::new(Arc::new(ObservingModel {
+            observed: Arc::clone(&observed),
+        }));
+        let mut delivered = Vec::new();
+
+        let events = harness
+            .send_with_events(
+                RunnerCommand::start(RunId::new(), "stream it"),
+                &mut |event| {
+                    if matches!(event, RunnerEvent::Delta { .. }) {
+                        observed.store(true, Ordering::SeqCst);
+                    }
+                    delivered.push(event);
+                    Ok(())
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(observed.load(Ordering::SeqCst));
+        assert_eq!(delivered, events);
+    }
+
+    #[tokio::test]
+    async fn sink_error_stops_the_run_without_completed() {
+        let harness = KianaHarness::new(Arc::new(ChunkedModel {
+            chunks: vec!["first", "second"],
+        }));
+        let run_id = RunId::new();
+        let mut delivered = Vec::new();
+
+        let error = harness
+            .send_with_events(RunnerCommand::start(run_id, "stream it"), &mut |event| {
+                let is_delta = matches!(event, RunnerEvent::Delta { .. });
+                delivered.push(event);
+                if is_delta {
+                    Err("backpressure".to_owned())
+                } else {
+                    Ok(())
+                }
+            })
+            .await
+            .unwrap_err();
+
+        match error {
+            KianaHarnessError::Failed(message) => {
+                assert_eq!(message, "runner_event_sink_failed:backpressure");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        assert_eq!(
+            delivered
+                .iter()
+                .filter(|event| matches!(event, RunnerEvent::Delta { .. }))
+                .count(),
+            1
+        );
+        assert!(!delivered
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
     }
 
     #[tokio::test]

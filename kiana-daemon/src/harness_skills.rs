@@ -31,6 +31,16 @@ impl RunnerPort for SkillAwareRunner {
             .send(with_skill_instructions(command).await)
             .await
     }
+
+    async fn send_with_events(
+        &self,
+        command: RunnerCommand,
+        on_event: &mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send),
+    ) -> Result<Vec<RunnerEvent>, PortError> {
+        self.inner
+            .send_with_events(with_skill_instructions(command).await, on_event)
+            .await
+    }
 }
 
 async fn with_skill_instructions(command: RunnerCommand) -> RunnerCommand {

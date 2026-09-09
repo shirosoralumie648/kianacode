@@ -502,6 +502,26 @@ pub trait RunnerPort: Send + Sync {
     /// 适配器不可在协议之外另起第二个执行循环。运行时不可用应使用
     /// [`PortError::Unavailable`]，协议状态冲突使用 [`PortError::Conflict`]。
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError>;
+
+    /// 发送一条版本化 Runner 命令，并在事件产生时交给 `on_event`。
+    ///
+    /// 默认实现为保持现有适配器零改动，先调用 [`RunnerPort::send`]，再按返回顺序重放事件。
+    /// 支持实时增量的实现可以覆写本方法；无论实现方式如何，成功返回的事件必须与
+    /// `on_event` 收到的序列一致。回调返回错误表示下游取消或背压，Runner 必须停止并
+    /// fail-closed，不能静默丢弃该错误。默认重放发生在 `send` 完成后，无法撤回已经结束的
+    /// run；需要中途停止能力的适配器必须覆写本方法。
+    async fn send_with_events(
+        &self,
+        command: RunnerCommand,
+        on_event: &mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send),
+    ) -> Result<Vec<RunnerEvent>, PortError> {
+        let events = self.send(command).await?;
+        for event in &events {
+            on_event(event.clone())
+                .map_err(|error| PortError::Failed(format!("runner_event_sink_failed:{error}")))?;
+        }
+        Ok(events)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
