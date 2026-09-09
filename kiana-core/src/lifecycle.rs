@@ -174,7 +174,7 @@ impl ControlPlane {
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
         let mut sequence = 1u64;
-        let run_id = match self.resolve_run_id(&context, run_id) {
+        let run_id = match self.resolve_run_id(&context, run_id).await? {
             Ok(run_id) => run_id,
             Err(reason) => {
                 self.record_event(
@@ -278,7 +278,7 @@ impl ControlPlane {
         // Cancellation reasons cross the runner and direct-response boundaries, so sanitize
         // them once at ingress instead of relying only on the event-log redaction boundary.
         let reason = redact_event_text(&reason);
-        let run_id = match self.resolve_run_id(&context, run_id) {
+        let run_id = match self.resolve_run_id(&context, run_id).await? {
             Ok(run_id) => run_id,
             Err(code) => {
                 self.record_event(

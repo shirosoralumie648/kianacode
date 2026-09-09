@@ -31,6 +31,21 @@ impl RunnerPort for UnavailableRunner {
     }
 }
 
+struct ContinueCompletingRunner;
+
+#[async_trait]
+impl RunnerPort for ContinueCompletingRunner {
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        let RunnerCommand::Continue { run_id, .. } = command else {
+            return Err(PortError::Failed("unexpected_runner_command".to_owned()));
+        };
+        Ok(vec![RunnerEvent::Completed {
+            run_id,
+            output: json!({ "text": "continued from ledger" }),
+        }])
+    }
+}
+
 struct CountingRunner {
     calls: Arc<Mutex<usize>>,
 }
@@ -708,7 +723,18 @@ impl CoreHarness {
         runner: Arc<dyn RunnerPort>,
         broker: Arc<dyn CapabilityBrokerPort>,
     ) -> Self {
-        let events = Arc::new(MemoryEventLog::new());
+        Self::with_shared_events_and_runner_and_broker(
+            Arc::new(MemoryEventLog::new()),
+            runner,
+            broker,
+        )
+    }
+
+    fn with_shared_events_and_runner_and_broker(
+        events: Arc<MemoryEventLog>,
+        runner: Arc<dyn RunnerPort>,
+        broker: Arc<dyn CapabilityBrokerPort>,
+    ) -> Self {
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
@@ -3890,6 +3916,134 @@ async fn continue_run_reuses_the_same_run_id() {
     assert_eq!(continued.output["run_id"], run_id);
     assert_eq!(continued.output["output"]["text"], "continued");
     assert_eq!(continued.output["session_id"], "session-1");
+}
+
+#[tokio::test]
+async fn fresh_control_plane_rebuilds_session_binding_from_ledger() {
+    let events = Arc::new(MemoryEventLog::new());
+    let first = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        scripted_runner(json!([{ "text": "first turn" }])),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let started = first
+        .core
+        .start_run(trusted_context(), "hello".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    let run_id = started.output["run_id"].clone();
+
+    let receipt_reader = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        Arc::new(UnavailableRunner),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let receipt = receipt_reader
+        .core
+        .read_receipt(trusted_context(), None)
+        .await
+        .unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Completed, "{receipt:?}");
+    assert_eq!(receipt.output["run_id"], run_id);
+
+    let forged_reader = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        Arc::new(UnavailableRunner),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let mut forged = trusted_context();
+    forged.role_id = "pm".to_owned();
+    forged.department_id = "planning".to_owned();
+    let denied = forged_reader
+        .core
+        .continue_run(forged, "keep going".to_owned(), None, None)
+        .await
+        .unwrap();
+    assert_eq!(denied.status, ExecutionStatus::Blocked, "{denied:?}");
+    assert_eq!(denied.error.as_deref(), Some("session_owner_mismatch"));
+
+    let continue_reader = CoreHarness::with_shared_events_and_runner_and_broker(
+        events,
+        Arc::new(ContinueCompletingRunner),
+        Arc::new(CapabilityBroker::new()),
+    );
+    let continued = continue_reader
+        .core
+        .continue_run(trusted_context(), "keep going".to_owned(), None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        continued.status,
+        ExecutionStatus::Completed,
+        "{continued:?}"
+    );
+    assert_eq!(continued.output["run_id"], run_id);
+    assert_eq!(continued.output["output"]["text"], "continued from ledger");
+}
+
+#[tokio::test]
+async fn missing_session_still_fails_closed() {
+    let harness = CoreHarness::with_runner(Arc::new(UnavailableRunner));
+
+    let continued = harness
+        .core
+        .continue_run(trusted_context(), "keep going".to_owned(), None, None)
+        .await
+        .unwrap();
+    assert_eq!(continued.status, ExecutionStatus::Blocked, "{continued:?}");
+    assert_eq!(continued.error.as_deref(), Some("session_not_found"));
+
+    let cancelled = harness
+        .core
+        .cancel_run(trusted_context(), None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status, ExecutionStatus::Blocked, "{cancelled:?}");
+    assert_eq!(cancelled.error.as_deref(), Some("session_not_found"));
+
+    let receipt = harness
+        .core
+        .read_receipt(trusted_context(), None)
+        .await
+        .unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Blocked, "{receipt:?}");
+    assert_eq!(receipt.error.as_deref(), Some("session_not_found"));
+}
+
+#[tokio::test]
+async fn rebuild_does_not_replay_completed_capability() {
+    let events = Arc::new(MemoryEventLog::new());
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let first = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        Arc::new(TwoTurnDeltaRunner),
+        broker.clone(),
+    );
+    let started = first
+        .core
+        .start_run(trusted_context(), "two turns".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
+    assert_eq!(*broker.calls.lock().await, 1);
+    let event_count = events.read_all().await.unwrap().len();
+
+    let receipt_reader = CoreHarness::with_shared_events_and_runner_and_broker(
+        events.clone(),
+        Arc::new(UnavailableRunner),
+        broker.clone(),
+    );
+    let receipt = receipt_reader
+        .core
+        .read_receipt(trusted_context(), None)
+        .await
+        .unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Completed, "{receipt:?}");
+    assert_eq!(*broker.calls.lock().await, 1);
+    assert_eq!(events.read_all().await.unwrap().len(), event_count);
 }
 
 #[tokio::test]

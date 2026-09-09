@@ -1,3 +1,4 @@
+use super::redaction::redact_event_value;
 use super::*;
 
 impl ControlPlane {
@@ -5,24 +6,106 @@ impl ControlPlane {
         Ok(self.runner.send(command).await?)
     }
 
-    pub(crate) fn resolve_run_id(
+    pub(crate) async fn resolve_run_id(
         &self,
         context: &RequestContext,
         run_id: Option<RunId>,
-    ) -> Result<RunId, &'static str> {
-        let sessions = self.sessions.lock().unwrap_or_else(PoisonError::into_inner);
-        let binding = sessions
-            .get(context.session_id.as_str())
-            .ok_or("session_not_found")?;
-        if !Self::same_session_principal(binding, context) {
-            return Err("session_owner_mismatch");
+    ) -> Result<Result<RunId, &'static str>, CoreError> {
+        let binding = match self.session_binding(context.session_id.as_str()) {
+            Some(binding) => binding,
+            None => {
+                let Some(binding) = self
+                    .rebuild_session_binding(context.session_id.as_str())
+                    .await?
+                else {
+                    return Ok(Err("session_not_found"));
+                };
+                if !Self::same_session_principal(&binding, context) {
+                    return Ok(Err("session_owner_mismatch"));
+                }
+                self.cache_rebuilt_session_if_absent(context.session_id.as_str(), binding)
+            }
+        };
+        if !Self::same_session_principal(&binding, context) {
+            return Ok(Err("session_owner_mismatch"));
         }
         if let Some(requested) = run_id {
             if requested != binding.run_id {
-                return Err("run_owner_mismatch");
+                return Ok(Err("run_owner_mismatch"));
             }
         }
-        Ok(binding.run_id)
+        Ok(Ok(binding.run_id))
+    }
+
+    async fn rebuild_session_binding(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<SessionBinding>, CoreError> {
+        let Some(events) = self.read_all_events().await? else {
+            return Ok(None);
+        };
+        let Some(data) = events.iter().rev().find_map(|event| {
+            if event.kind != "run.authorized" {
+                return None;
+            }
+            let data = redact_event_value(&event.data);
+            (data.get("session_id").and_then(Value::as_str) == Some(session_id)).then_some(data)
+        }) else {
+            return Ok(None);
+        };
+        let Some(run_id) = data
+            .get("run_id")
+            .and_then(Value::as_str)
+            .and_then(RunId::parse_str)
+        else {
+            return Ok(None);
+        };
+        let Some(project_root) = data
+            .get("project_root")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            return Ok(None);
+        };
+        let Some(role_id) = data
+            .get("role_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            return Ok(None);
+        };
+        let Some(department_id) = data
+            .get("department_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            return Ok(None);
+        };
+        let actor_id = match data.get("actor_id") {
+            Some(Value::String(actor_id)) => Some(actor_id.clone()),
+            Some(Value::Null) | None => None,
+            Some(_) => return Ok(None),
+        };
+        Ok(Some(SessionBinding {
+            run_id,
+            actor_id,
+            project_root,
+            role_id,
+            department_id,
+        }))
+    }
+
+    fn cache_rebuilt_session_if_absent(
+        &self,
+        session_id: &str,
+        binding: SessionBinding,
+    ) -> SessionBinding {
+        self.sessions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(session_id.to_owned())
+            .or_insert(binding)
+            .clone()
     }
 
     pub(crate) fn session_binding(&self, session_id: &str) -> Option<SessionBinding> {

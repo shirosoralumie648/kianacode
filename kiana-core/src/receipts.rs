@@ -19,7 +19,7 @@ impl ControlPlane {
                 }
                 run_id
             }
-            None => match self.resolve_run_id(&context, None) {
+            None => match self.resolve_run_id(&context, None).await? {
                 Ok(run_id) => run_id,
                 Err(reason) => return Ok(CoreResponse::blocked(request_id, reason)),
             },
