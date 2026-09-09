@@ -14,7 +14,8 @@ use crate::compact::{
 };
 use crate::inbox::{Inbox, InboxMessage, InboxTarget};
 use crate::model::{
-    ModelClient, ModelMessage, ModelRequest, ModelToolCall, ScriptedModel, UnavailableModel,
+    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelToolCall, ScriptedModel,
+    UnavailableModel,
 };
 use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
@@ -403,15 +404,34 @@ impl KianaHarness {
         if output.tool_calls.is_empty() {
             // DeepSeek: a text-only step ends the turn only when next-step is empty.
             if run.inbox.next_step.is_empty() {
+                let ModelOutput {
+                    usage,
+                    stop_reason,
+                    model_id,
+                    ..
+                } = output;
+                let mut completed_output = json!({
+                    "schema": HARNESS_RESULT_SCHEMA,
+                    "source": HARNESS_ID,
+                    "text": run.last_text,
+                    "steps": run.steps,
+                    "sandbox": run.sandbox,
+                });
+                let completed = completed_output
+                    .as_object_mut()
+                    .expect("harness result is a JSON object");
+                if let Some(usage) = usage {
+                    completed.insert("usage".to_owned(), json!(usage));
+                }
+                if let Some(stop_reason) = stop_reason {
+                    completed.insert("stop_reason".to_owned(), json!(stop_reason));
+                }
+                if let Some(model_id) = model_id {
+                    completed.insert("model_id".to_owned(), json!(model_id));
+                }
                 events.push(RunnerEvent::Completed {
                     run_id: run.run_id,
-                    output: json!({
-                        "schema": HARNESS_RESULT_SCHEMA,
-                        "source": HARNESS_ID,
-                        "text": run.last_text,
-                        "steps": run.steps,
-                        "sandbox": run.sandbox,
-                    }),
+                    output: completed_output,
                 });
                 return events;
             }
@@ -532,7 +552,6 @@ fn tool_result_text(result: &CapabilityResult) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ModelOutput;
     use kiana_domain::CapabilityKind;
     use kiana_runner_protocol::RunnerCommand;
     use serde_json::Value;
@@ -607,6 +626,29 @@ mod tests {
         assert!(!events
             .iter()
             .any(|event| matches!(event, RunnerEvent::CapabilityRequested { .. })));
+    }
+
+    #[tokio::test]
+    async fn completed_event_records_optional_model_metadata() {
+        let harness = scripted(json!([{
+            "text": "architecture mapped",
+            "usage": {"input_tokens": 12, "output_tokens": 4},
+            "stop_reason": "end_turn",
+            "model_id": "test-model"
+        }]));
+        let run_id = RunId::new();
+        let events = harness
+            .send(RunnerCommand::start(run_id, "map it"))
+            .await
+            .unwrap();
+
+        let RunnerEvent::Completed { output, .. } = events.last().unwrap() else {
+            panic!("expected completed");
+        };
+        assert_eq!(output["usage"]["input_tokens"], 12);
+        assert_eq!(output["usage"]["output_tokens"], 4);
+        assert_eq!(output["stop_reason"], "end_turn");
+        assert_eq!(output["model_id"], "test-model");
     }
 
     #[tokio::test]
@@ -828,6 +870,7 @@ mod tests {
                         name: "shell".to_owned(),
                         arguments: json!({ "command": "ls" }),
                     }],
+                    ..ModelOutput::default()
                 },
                 ModelOutput::text("steered"),
             ])),

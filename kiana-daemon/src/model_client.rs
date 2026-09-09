@@ -7,11 +7,11 @@
 use async_trait::async_trait;
 use kiana_domain::RoleSpec;
 use kiana_runner::{
-    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
-    UnavailableModel,
+    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ModelUsage,
+    ScriptedModel, UnavailableModel,
 };
 use kiana_services::api::errors::ApiErrorKind;
-use kiana_services::api::messages::{Message, MessagesRequest};
+use kiana_services::api::messages::{Message, MessagesRequest, MessagesResponse};
 use kiana_services::api::provider::{
     provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
     OpenAiCompatibleProvider, Provider, ProviderError, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
@@ -202,7 +202,7 @@ impl ModelClient for ProviderModelClient {
         )
         .await
         .map_err(model_error_from_service_error)?;
-        Ok(output_from_content(&response.content))
+        Ok(output_from_response(&response))
     }
 }
 
@@ -375,10 +375,10 @@ fn map_messages(messages: &[ModelMessage]) -> Result<Vec<Message>, String> {
     Ok(mapped)
 }
 
-fn output_from_content(content: &[Value]) -> ModelOutput {
+fn output_from_response(response: &MessagesResponse) -> ModelOutput {
     let mut text = String::new();
     let mut tool_calls = Vec::new();
-    for block in content {
+    for block in &response.content {
         match block.get("type").and_then(Value::as_str) {
             Some("text") => {
                 if let Some(chunk) = block.get("text").and_then(Value::as_str) {
@@ -406,7 +406,16 @@ fn output_from_content(content: &[Value]) -> ModelOutput {
             _ => {}
         }
     }
-    ModelOutput { text, tool_calls }
+    ModelOutput {
+        text,
+        tool_calls,
+        usage: Some(ModelUsage {
+            input_tokens: u64::from(response.usage.input_tokens),
+            output_tokens: u64::from(response.usage.output_tokens),
+        }),
+        stop_reason: response.stop_reason.clone(),
+        model_id: Some(response.model.clone()),
+    }
 }
 
 #[cfg(test)]
@@ -582,6 +591,15 @@ mod tests {
         assert_eq!(first.text, "running ls");
         assert_eq!(first.tool_calls[0].id, "c1");
         assert_eq!(first.tool_calls[0].name, "shell");
+        assert_eq!(first.stop_reason.as_deref(), Some("tool_use"));
+        assert_eq!(first.model_id.as_deref(), Some("fake-model"));
+        assert_eq!(
+            first.usage,
+            Some(ModelUsage {
+                input_tokens: 0,
+                output_tokens: 0,
+            })
+        );
 
         let second = client
             .complete(ModelRequest {
@@ -597,6 +615,7 @@ mod tests {
             .unwrap();
         assert_eq!(second.text, "architecture mapped");
         assert!(second.tool_calls.is_empty());
+        assert_eq!(second.stop_reason.as_deref(), Some("end_turn"));
     }
 
     #[tokio::test]
@@ -714,8 +733,8 @@ mod tests {
                         "finish_reason": "stop"
                     }],
                     "usage": {
-                        "prompt_tokens": 1,
-                        "completion_tokens": 1
+                        "prompt_tokens": 11,
+                        "completion_tokens": 3
                     }
                 }),
             ),
@@ -739,6 +758,15 @@ mod tests {
             .expect("429 should be retried");
 
         assert_eq!(output.text, "recovered");
+        assert_eq!(output.model_id.as_deref(), Some("gpt-test"));
+        assert_eq!(output.stop_reason.as_deref(), Some("stop"));
+        assert_eq!(
+            output.usage,
+            Some(ModelUsage {
+                input_tokens: 11,
+                output_tokens: 3,
+            })
+        );
         assert!(request_rx.recv().await.is_some());
         assert!(request_rx.recv().await.is_some());
         assert!(

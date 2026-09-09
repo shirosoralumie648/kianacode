@@ -122,6 +122,28 @@ pub struct ModelOutput {
     /// 需要外层转成能力请求的工具调用。
     #[serde(default)]
     pub tool_calls: Vec<ModelToolCall>,
+    /// provider 报告的 token 用量；旧 cassette 或缺省响应为 `None`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<ModelUsage>,
+    /// provider 报告的停止原因。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop_reason: Option<String>,
+    /// provider 实际使用的模型 ID。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+/// 单次模型响应报告的 token 用量。
+///
+/// 这是 provider 回执的记录，不是计费证明；缺失或为零时不能推断实际费用。
+pub struct ModelUsage {
+    /// 输入 token 数。
+    #[serde(default)]
+    pub input_tokens: u64,
+    /// 输出 token 数。
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 
 impl ModelOutput {
@@ -130,6 +152,9 @@ impl ModelOutput {
         Self {
             text: text.into(),
             tool_calls: Vec::new(),
+            usage: None,
+            stop_reason: None,
+            model_id: None,
         }
     }
 
@@ -142,6 +167,9 @@ impl ModelOutput {
                 name: name.into(),
                 arguments,
             }],
+            usage: None,
+            stop_reason: None,
+            model_id: None,
         }
     }
 }
@@ -275,5 +303,36 @@ mod tests {
             .unwrap();
         assert_eq!(second.text, "done");
         assert!(second.tool_calls.is_empty());
+    }
+
+    #[test]
+    fn legacy_cassette_output_without_metadata_still_deserializes() {
+        let output: ModelOutput =
+            serde_json::from_value(json!({"text": "legacy", "tool_calls": []})).unwrap();
+        assert_eq!(output, ModelOutput::text("legacy"));
+        assert_eq!(output.usage, None);
+        assert_eq!(output.stop_reason, None);
+        assert_eq!(output.model_id, None);
+    }
+
+    #[test]
+    fn model_output_round_trips_usage_metadata() {
+        let output = ModelOutput {
+            text: "done".to_owned(),
+            tool_calls: Vec::new(),
+            usage: Some(ModelUsage {
+                input_tokens: 12,
+                output_tokens: 4,
+            }),
+            stop_reason: Some("end_turn".to_owned()),
+            model_id: Some("test-model".to_owned()),
+        };
+
+        let encoded = serde_json::to_value(&output).unwrap();
+        assert_eq!(encoded["usage"]["input_tokens"], 12);
+        assert_eq!(
+            serde_json::from_value::<ModelOutput>(encoded).unwrap(),
+            output
+        );
     }
 }

@@ -2635,6 +2635,40 @@ async fn untrusted_read_only_run_is_allowed_but_workspace_write_is_blocked() {
 }
 
 #[tokio::test]
+async fn completed_receipt_and_event_record_model_usage_metadata() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([{
+        "text": "done",
+        "usage": {"input_tokens": 12, "output_tokens": 4},
+        "stop_reason": "end_turn",
+        "model_id": "test-model"
+    }])));
+    let context = trusted_context();
+    let request_id = context.request_id;
+
+    let response = harness
+        .core
+        .start_run(context, "complete this run".to_owned(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.output["output"]["usage"]["input_tokens"], 12);
+    assert_eq!(response.output["output"]["usage"]["output_tokens"], 4);
+    assert_eq!(response.output["output"]["stop_reason"], "end_turn");
+    assert_eq!(response.output["output"]["model_id"], "test-model");
+
+    let events = harness.events.read_request(&request_id).await.unwrap();
+    let completed = events
+        .iter()
+        .find(|event| event.kind == "run.completed")
+        .expect("run.completed event");
+    assert_eq!(completed.data["usage"]["input_tokens"], 12);
+    assert_eq!(completed.data["usage"]["output_tokens"], 4);
+    assert_eq!(completed.data["stop_reason"], "end_turn");
+    assert_eq!(completed.data["model_id"], "test-model");
+}
+
+#[tokio::test]
 async fn start_run_brokers_apply_patch_when_trusted_workspace_write() {
     let broker = Arc::new(CountingBroker {
         calls: Mutex::new(0),

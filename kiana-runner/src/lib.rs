@@ -21,7 +21,7 @@ pub use harness::{
 };
 pub use inbox::{Inbox, InboxMessage, InboxTarget};
 pub use model::{
-    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ScriptedModel,
-    UnavailableModel,
+    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ModelUsage,
+    ScriptedModel, UnavailableModel,
 };
 pub use protocol_runner::ProtocolRunner;

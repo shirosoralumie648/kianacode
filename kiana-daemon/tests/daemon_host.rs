@@ -648,6 +648,7 @@ impl ModelClient for RecordingModel {
                     name: "shell".to_owned(),
                     arguments: json!({ "command": "ls" }),
                 }],
+                ..ModelOutput::default()
             }),
             2 => {
                 let tool = request
@@ -798,6 +799,7 @@ impl ModelClient for TimeoutModel {
                     name: "shell".to_owned(),
                     arguments: json!({ "command": "sleep 8", "timeout_ms": 250 }),
                 }],
+                ..ModelOutput::default()
             }),
             2 => {
                 let tool = request
@@ -905,6 +907,7 @@ impl ModelClient for CancelProbeModel {
                     "timeout_ms": 20000
                 }),
             }],
+            ..ModelOutput::default()
         })
     }
 }
