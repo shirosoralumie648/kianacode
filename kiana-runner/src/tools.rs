@@ -100,17 +100,136 @@ pub fn tool_schemas() -> Vec<Value> {
     ]
 }
 
+/// 按当前工具 schema 校验一次模型工具调用参数。
+///
+/// 只实现当前 schema 使用的子集：`type`、`required`、`minimum`、`enum`，并支持 shell
+/// `command` 的 `anyOf` 分支和数组 `items`。未声明的额外字段默认允许，避免拒绝既有
+/// cassette 携带的扩展字段。
+pub fn validate_tool_arguments(name: &str, arguments: &Value) -> Result<(), String> {
+    let schema_name = schema_name_for_tool(name)
+        .ok_or_else(|| format!("invalid_arguments:{name}:<arguments>"))?;
+    let schemas = tool_schemas();
+    let Some(parameters) = schemas
+        .iter()
+        .find(|schema| schema.get("name").and_then(Value::as_str) == Some(schema_name))
+        .and_then(|schema| schema.get("parameters"))
+    else {
+        return Err(format!("invalid_arguments:{name}:<arguments>"));
+    };
+
+    validate_schema_value(arguments, parameters)
+        .map_err(|field| format!("invalid_arguments:{name}:{field}"))
+}
+
+fn schema_name_for_tool(name: &str) -> Option<&'static str> {
+    match name {
+        TOOL_SHELL | "bash" | "exec" | "command_execution" => Some(TOOL_SHELL),
+        TOOL_APPLY_PATCH | "file_change" => Some(TOOL_APPLY_PATCH),
+        TOOL_MCP | "mcp.call" => Some(TOOL_MCP),
+        TOOL_MEMORY_SEARCH => Some(TOOL_MEMORY_SEARCH),
+        TOOL_MEMORY_WRITE => Some(TOOL_MEMORY_WRITE),
+        _ => None,
+    }
+}
+
+fn validate_schema_value(value: &Value, schema: &Value) -> Result<(), String> {
+    if let Some(branches) = schema.get("anyOf").and_then(Value::as_array) {
+        if branches
+            .iter()
+            .any(|branch| validate_schema_value(value, branch).is_ok())
+        {
+            return Ok(());
+        }
+        return Err("<arguments>".to_owned());
+    }
+
+    if let Some(expected_type) = schema.get("type").and_then(Value::as_str) {
+        if !value_matches_type(value, expected_type) {
+            return Err("<arguments>".to_owned());
+        }
+    }
+
+    if let Some(minimum) = schema.get("minimum") {
+        let Some(value_number) = value.as_f64() else {
+            return Err("<arguments>".to_owned());
+        };
+        let Some(minimum_number) = minimum.as_f64() else {
+            return Err("<arguments>".to_owned());
+        };
+        if value_number < minimum_number {
+            return Err("<arguments>".to_owned());
+        }
+    }
+
+    if let Some(options) = schema.get("enum").and_then(Value::as_array) {
+        if !options.iter().any(|option| option == value) {
+            return Err("<arguments>".to_owned());
+        }
+    }
+
+    if let (Some(items), Some(values)) = (schema.get("items"), value.as_array()) {
+        if values
+            .iter()
+            .any(|item| validate_schema_value(item, items).is_err())
+        {
+            return Err("<arguments>".to_owned());
+        }
+    }
+
+    let Value::Object(object) = value else {
+        return Ok(());
+    };
+
+    if let Some(required) = schema.get("required").and_then(Value::as_array) {
+        for field in required.iter().filter_map(Value::as_str) {
+            if !object.contains_key(field) {
+                return Err(field.to_owned());
+            }
+        }
+    }
+
+    if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+        for (field, property_schema) in properties {
+            if let Some(property_value) = object.get(field) {
+                if validate_schema_value(property_value, property_schema).is_err() {
+                    return Err(field.clone());
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn value_matches_type(value: &Value, expected: &str) -> bool {
+    match expected {
+        "object" => value.is_object(),
+        "array" => value.is_array(),
+        "string" => value.is_string(),
+        "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
+        "number" => value.is_number(),
+        "boolean" => value.is_boolean(),
+        "null" => value.is_null(),
+        _ => false,
+    }
+}
+
 /// 将一次模型工具调用映射成带风险等级的能力请求。
 ///
 /// 只接受固定工具名及少量兼容别名；未知名称返回 `tool_unsupported`。映射会把 sandbox
 /// 和 project_root 作为参数上下文带下去，但这两个字段不是授权凭证，真实边界仍由
 /// ControlPlane/Broker 再次验证。shell 的风险只按 sandbox 粗分为只读或本地写，不能
-/// 由此推断命令内部一定没有外部副作用。
+/// 由此推断命令内部一定没有外部副作用。参数在构造请求前先按工具 schema 校验，失败
+/// 返回 `invalid_arguments:<tool>:<field>`。
 pub fn capability_for_tool(
     call: &ModelToolCall,
     sandbox: &str,
     project_root: &str,
 ) -> Result<CapabilityRequest, String> {
+    if schema_name_for_tool(&call.name).is_some() {
+        validate_tool_arguments(&call.name, &call.arguments)?;
+    }
+
     match call.name.as_str() {
         TOOL_SHELL | "bash" | "exec" | "command_execution" => Ok(CapabilityRequest::new(
             RequestId::new(),
@@ -318,6 +437,98 @@ mod tests {
         assert_eq!(request.capability, CapabilityKind::Filesystem);
         assert_eq!(request.operation, TOOL_MEMORY_WRITE);
         assert_eq!(request.risk, RiskLevel::LocalWrite);
+    }
+
+    #[test]
+    fn missing_required_tool_argument_fails_during_mapping_with_stable_error() {
+        let call = ModelToolCall {
+            id: "missing-command".to_owned(),
+            name: TOOL_SHELL.to_owned(),
+            arguments: json!({}),
+        };
+
+        assert_eq!(
+            capability_for_tool(&call, "read-only", "/repo").unwrap_err(),
+            "invalid_arguments:shell:command"
+        );
+    }
+
+    #[test]
+    fn wrong_tool_argument_type_fails_during_mapping_with_stable_error() {
+        let call = ModelToolCall {
+            id: "numeric-command".to_owned(),
+            name: TOOL_SHELL.to_owned(),
+            arguments: json!({ "command": 42 }),
+        };
+
+        assert_eq!(
+            capability_for_tool(&call, "read-only", "/repo").unwrap_err(),
+            "invalid_arguments:shell:command"
+        );
+    }
+
+    #[test]
+    fn extra_tool_argument_is_allowed_for_existing_cassette_compatibility() {
+        let call = ModelToolCall {
+            id: "extra-field".to_owned(),
+            name: TOOL_SHELL.to_owned(),
+            arguments: json!({
+                "command": "ls",
+                "cassette_extension": { "metadata": true }
+            }),
+        };
+
+        let request = capability_for_tool(&call, "read-only", "/repo").unwrap();
+        assert_eq!(request.arguments["command"], "ls");
+        assert!(request.arguments.get("cassette_extension").is_none());
+    }
+
+    #[test]
+    fn all_five_model_visible_tools_accept_minimal_arguments() {
+        let cases = [
+            (TOOL_SHELL, json!({ "command": "ls" })),
+            (
+                TOOL_APPLY_PATCH,
+                json!({ "patch": "*** Begin Patch\n*** End Patch\n" }),
+            ),
+            (TOOL_MCP, json!({ "tool": "echo" })),
+            (TOOL_MEMORY_SEARCH, json!({ "query": "acceptance" })),
+            (
+                TOOL_MEMORY_WRITE,
+                json!({
+                    "collection": "instance-scratch",
+                    "text": "draft",
+                    "source": "explicit:test"
+                }),
+            ),
+        ];
+
+        for (name, arguments) in cases {
+            validate_tool_arguments(name, &arguments)
+                .unwrap_or_else(|error| panic!("{name} minimal arguments rejected: {error}"));
+        }
+    }
+
+    #[test]
+    fn minimum_constraint_rejects_out_of_range_tool_argument() {
+        assert_eq!(
+            validate_tool_arguments(TOOL_SHELL, &json!({ "command": "ls", "timeout_ms": 0 })),
+            Err("invalid_arguments:shell:timeout_ms".to_owned())
+        );
+    }
+
+    #[test]
+    fn schema_validator_supports_enum_constraints() {
+        let schema = json!({
+            "type": "string",
+            "enum": ["read-only", "workspace-write"]
+        });
+
+        assert!(validate_schema_value(&json!("read-only"), &schema).is_ok());
+        assert_eq!(
+            validate_schema_value(&json!("danger-full-access"), &schema),
+            Err("<arguments>".to_owned())
+        );
     }
 
     #[test]

@@ -1525,6 +1525,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invalid_tool_arguments_fail_before_any_capability_request() {
+        let harness = scripted(json!([
+            {"text": "bad shell call", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": 42}}]}
+        ]));
+        let run_id = RunId::new();
+
+        let events = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            events.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "invalid_arguments:shell:command".to_owned(),
+            })
+        );
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::CapabilityRequested { .. })));
+    }
+
+    #[tokio::test]
     async fn serial_tools_in_one_model_step_request_one_capability_at_a_time() {
         let harness = scripted(json!([
             {"text": "two tools", "tool_calls": [
