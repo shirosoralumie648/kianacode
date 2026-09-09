@@ -58,8 +58,8 @@ reviewer: focused adversarial regression review
 | WorkPacket / Symposium / Review 领域对象 | partial | source/local_behavior | 现有 schema 较窄，独立 Reviewer 和完整生命周期尚未完成 |
 | JSONL EventLog / 基础 Receipt | partial | local_behavior | 当前按 request sequence；不是 aggregate/CAS durable authority |
 | Desktop Web 壳 | partial | local_behavior | 安装、升级、worker 崩溃恢复和供应链证据未达生产级 |
-| live provider | not_supported | source | provider/cassette 存在不等于 live 证明 |
-| token streaming | not_supported | source | 当前 Web 明确不提供 token streaming |
+| live provider | partial | live | 已用 DeepSeek 的 Anthropic 兼容端点实跑（见 2026-09-09 证据块）；单 provider / 单模型，未验证原生 OpenAI/Anthropic 凭据 |
+| token streaming | partial | live | CLI / 文件夹工作台 / 网页 SSE 均已接入并逐块交付；实跑逐字节时间戳见 2026-09-09 证据块；断线重连、配额、跨进程传输未覆盖 |
 | 跨进程完整 resume | deferred | source | session/run/lock/approval 仍有进程内状态 |
 | 支付、外卖、打车、旅行预订 | not_supported | source | 尚无满足身份、审批、幂等、对账和证据要求的 adapter |
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
@@ -116,6 +116,25 @@ reviewer: focused implementation plus core/runner/daemon regression review; no a
 ## 3. Gate 0 当前结果
 
 Gate 0 的历史证据块保留其当时结论；当前快照在 MCP 参数边界、completion-marker 与 JSONL 尾记录修复后重新验证为绿。S0 证据门已通过，但这不提升 S1-S4 的状态，也不把本地证据写成 durable/live/physical。
+
+### Live provider and token streaming evidence via DeepSeek (2026-09-09)
+
+```text
+source_snapshot: 4a479a4 + uncommitted live-smoke tool-name mapping fix in kiana-daemon/src/model_client.rs
+worktree_status: dirty at capture time; the wire tool-name mapping fix and this evidence block land in the same commit
+command_argv:
+  kiana run --stream --sandbox read-only -- "用 shell 工具跑 pwd，然后告诉我当前目录"
+  kiana run --receipt <session_id> --json
+  kiana run --stream --sandbox read-only -- "从 1 数到 20，每个数字之间用逗号隔开"   # 每读到一个字节打时间戳
+cwd/environment: temp project /tmp/kiana-live3 + KIANA_HOME /tmp/kiana-home3; Linux x86_64; rustc 1.97.1; KIANA_PROVIDER=anthropic; ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic; ANTHROPIC_MODEL=deepseek-v4-flash
+fixture or cassette: none (real provider); artifacts under target/live-smoke/
+exit_code: 0 for both runs; receipt status=completed
+artifact paths and SHA-256: target/live-smoke/{environment.txt,run-tool.txt,receipt.json,stream-timing.txt}; no SHA-256 generated
+status change: live provider not_supported -> partial; token streaming not_supported -> partial. Evidence: a real DeepSeek call returned "1+1等于2。"; a tool-using run called shell.exec through the broker and answered with the real cwd; the receipt records model_id=deepseek-v4-flash, steps=2, stop_reason=end_turn, usage{input_tokens=30, output_tokens=13}; per-byte arrival timestamps in stream-timing.txt show incremental delivery (~9ms apart), not a single buffered flush
+proof-level change: live for this exercised path (real external provider + brokered tool call + receipt projection). No durable claim
+limitations: one provider (DeepSeek via its Anthropic-compatible endpoint) and one model; no native OpenAI/Anthropic credentials exercised; no disconnect/reconnect, quota/backpressure, or cross-process transport evidence; workbench and web were not run against a real provider; tool names containing dots require the new wire mapping (memory.search -> memory_search) and that mapping is currently a two-entry table, not a general scheme
+reviewer: Claude-run live smoke with captured artifacts; no independent reviewer
+```
 
 ### CompanyOS spec alignment and design-gap fill (2026-09-08)
 

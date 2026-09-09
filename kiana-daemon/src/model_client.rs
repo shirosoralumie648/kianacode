@@ -435,7 +435,7 @@ async fn aggregate_provider_stream(
                 };
                 tool_calls.push(ModelToolCall {
                     id,
-                    name,
+                    name: tool_name_from_wire(&name),
                     arguments,
                 });
             }
@@ -548,6 +548,29 @@ fn model_error_from_service_error(error: ServiceError) -> String {
     }
 }
 
+/// 服务商的工具名只允许 `[A-Za-z0-9_-]`；Kiana 内部名里的点号在线协议上换成下划线。
+/// 内部名始终是唯一真源，映射只发生在这条边界上。
+const WIRE_TOOL_NAME_MAP: &[(&str, &str)] = &[
+    ("memory.search", "memory_search"),
+    ("memory.write", "memory_write"),
+];
+
+fn tool_name_to_wire(name: &str) -> String {
+    WIRE_TOOL_NAME_MAP
+        .iter()
+        .find(|(internal, _)| *internal == name)
+        .map(|(_, wire)| (*wire).to_owned())
+        .unwrap_or_else(|| name.to_owned())
+}
+
+fn tool_name_from_wire(name: &str) -> String {
+    WIRE_TOOL_NAME_MAP
+        .iter()
+        .find(|(_, wire)| *wire == name)
+        .map(|(internal, _)| (*internal).to_owned())
+        .unwrap_or_else(|| name.to_owned())
+}
+
 fn map_tools(tools: &[Value]) -> Vec<Value> {
     tools
         .iter()
@@ -563,7 +586,7 @@ fn map_tools(tools: &[Value]) -> Vec<Value> {
                 .cloned()
                 .unwrap_or_else(|| json!({ "type": "object", "properties": {} }));
             Some(json!({
-                "name": name,
+                "name": tool_name_to_wire(name),
                 "description": description,
                 "input_schema": parameters,
             }))
@@ -592,7 +615,7 @@ fn map_messages(messages: &[ModelMessage]) -> Result<Vec<Message>, String> {
                     content.push(json!({
                         "type": "tool_use",
                         "id": call.id,
-                        "name": call.name,
+                        "name": tool_name_to_wire(&call.name),
                         "input": call.arguments,
                     }));
                 }
@@ -647,7 +670,7 @@ fn output_from_response(response: &MessagesResponse) -> ModelOutput {
                 let arguments = block.get("input").cloned().unwrap_or(Value::Null);
                 tool_calls.push(ModelToolCall {
                     id,
-                    name,
+                    name: tool_name_from_wire(&name),
                     arguments,
                 });
             }
