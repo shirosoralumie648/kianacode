@@ -174,6 +174,22 @@ impl ModelOutput {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
+/// 模型轮次中逐步交付的增量。
+///
+/// 当前只定义文本增量；后续可新增工具调用参数、usage、stop_reason 等变体，调用方应保留
+/// 通配分支。无论交付多少增量，`complete_streaming` 返回的 [`ModelOutput`] 始终是该轮次的
+/// 完整聚合结果。
+pub enum ModelDelta {
+    /// 一段自然语言文本增量。
+    Text {
+        /// 本次新增的文本。
+        text: String,
+    },
+}
+
 #[async_trait]
 /// Runner 使用的异步模型客户端端口。
 ///
@@ -183,6 +199,28 @@ pub trait ModelClient: Send + Sync {
     ///
     /// 返回错误时 Runner 应按 `model_unavailable`/脚本错误处理，不应伪造空的成功结果。
     async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String>;
+
+    /// 完成一次模型轮次，并在文本生成时交付增量。
+    ///
+    /// 默认实现保持所有现有客户端的对象安全兼容性：先调用 [`ModelClient::complete`]，
+    /// 再把完整文本作为一条 [`ModelDelta::Text`] 交给 `on_delta`；文本为空时不调用回调。
+    ///
+    /// `on_delta` 是同步回调，不创建后台任务。调用方可在回调中转发到自己的 channel，并通过
+    /// 返回错误表达背压或取消。将来原生流式实现可沿用该回调交付工具调用、usage 和
+    /// stop_reason 增量，最终仍返回完整聚合的 [`ModelOutput`]。
+    async fn complete_streaming(
+        &self,
+        request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        let output = self.complete(request).await?;
+        if !output.text.is_empty() {
+            on_delta(ModelDelta::Text {
+                text: output.text.clone(),
+            })?;
+        }
+        Ok(output)
+    }
 }
 
 #[derive(Debug)]
@@ -276,6 +314,47 @@ impl ModelClient for ScriptedModel {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::sync::Arc;
+
+    fn text_request() -> ModelRequest {
+        ModelRequest {
+            messages: vec![ModelMessage::user("hi")],
+            tools: Vec::new(),
+            sandbox: "read-only".to_owned(),
+        }
+    }
+
+    #[tokio::test]
+    async fn default_streaming_emits_complete_text_as_single_delta() {
+        let model: Arc<dyn ModelClient> =
+            Arc::new(ScriptedModel::new(vec![ModelOutput::text("hello world")]));
+        let mut deltas = Vec::new();
+
+        let output = model
+            .complete_streaming(text_request(), &mut |delta| {
+                deltas.push(delta);
+                Ok(())
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(output, ModelOutput::text("hello world"));
+        assert_eq!(
+            deltas,
+            vec![ModelDelta::Text {
+                text: "hello world".to_owned()
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn complete_behavior_is_unchanged_by_streaming_default() {
+        let model = ScriptedModel::new(vec![ModelOutput::text("unchanged")]);
+
+        let output = model.complete(text_request()).await.unwrap();
+
+        assert_eq!(output, ModelOutput::text("unchanged"));
+    }
 
     #[tokio::test]
     async fn scripted_model_consumes_outputs_in_order() {
