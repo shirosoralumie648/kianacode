@@ -8,7 +8,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：CLI/TTY、Web 工作台、Desktop 壳怎么呈现和操作系统状态——五条设计原则（状态优先于对话、解释优先于自动化…）、统一的状态与颜色表（标注 wire 来源与适用对象）、审批卡/取消/评审/验收的交互流程、当前审批呈现的诚实描述与开放决策、稳定错误码到 UI 错误类的映射、非 streaming 进度反馈、TTY 布局与斜杠命令分层、Web 事件同步与多标签页规则、无障碍要求和 UI 状态协议（UiSnapshot/UiAction，owner 为 kiana-protocol + kiana-daemon）。
+> - **讲什么**：CLI/TTY、Web 工作台、Desktop 壳怎么呈现和操作系统状态——五条设计原则（状态优先于对话、解释优先于自动化…）、统一的状态与颜色表（标注 wire 来源与适用对象）、审批卡/取消/评审/验收的交互流程（含审批一等请求与动作分层、全屏 diff/多文件聚合、跨会话挂起审批提示、两段式取消、工具调用五态、检查点时间线、受约束档位与无沙箱二次确认）、当前审批呈现的诚实描述与已决策的自动批准收窄、稳定错误码到 UI 错误类的映射、非 streaming 进度反馈与 per-session 运行状态/重试倒计时、TTY 布局与斜杠命令分层、可恢复 Web 事件桥（尾页锚点 + after_event_id 增量 + 去重 + 退避重连）与多标签页规则、无障碍要求和 UI 状态协议（UiSnapshot/UiAction，owner 为 kiana-protocol + kiana-daemon）。
 > - **回答的问题**："用户怎么一眼看懂 Agent 在干嘛、为什么被卡住、以及怎么安全地批准/拒绝/取消。"
 > - **核心规则**：UI 只是服务端事实的投影——不能自己维护第二套状态，不能因为模型说"完成了"就显示绿色。
 > - **什么时候读**：改任何用户界面（终端/网页/桌面）之前。
@@ -83,6 +83,10 @@ Approval、外部发送、写盘、合并、删除、取消和恢复必须有明
 
 不能使用含糊的“继续”“允许全部”“自动处理剩余问题”作为高风险确认文案。
 
+审批卡采用固定解剖：紧凑摘要（目标文件 / 命令 / 原因 / 风险 / 有效期）打底，一键展开全屏查看完整 unified diff（行号、增删符号、语法高亮）或完整命令；多文件补丁聚合成一张卡，逐文件折叠 diff 与 +/− 统计。风险等级必须来自 policy / gates 的投影，界面不得自行猜测；全屏只是对已 stage payload 的只读投影，不额外执行任何东西。
+
+档位（approval policy / permission profile）是“受约束的值 + 来源”：被 trust / policy / 托管来源钉死而不可用的档位必须显示 disabled_reason 而不是隐藏，更严格来源存在时放宽变更被拒绝；选择无沙箱 / full-access 档必须弹出二次确认（正文写明“可修改任意文件、联网且不再逐次批准”，默认焦点在 Cancel）。二次确认只影响 UX，授权仍由 ControlPlane 判定。
+
 ### 2.4 同一事实，多种投影
 
 ```text
@@ -152,6 +156,8 @@ UI 的导航和面包屑应保留这条关系。用户从一条 Tool Event 能�
 - UI 造词/目标词清单：`idle`、`needs_change` 是投影或裁决词，`queued`、`ready_for_review` 是目标词；它们不得被当作 wire 状态回传、持久化或用于授权判断。
 - `completed` 是执行层的成功终态名；Cell/WorkPacket 聚合上的成功名是 `succeeded`，二者语义对应但不得互换或形成第二个成功状态（`company-os-design.md` §9.0）。
 - 本表是 UI 呈现子集；完整状态集合与合法转移以 domain/design/platform-architecture 为准，UI 不得自行扩展或合并状态。
+- **工具 / 能力调用的五态渲染**：等待审批 / 执行中 / 成功 / 失败 / 取消。渲染状态必须由该枚举 + 调用结果派生，并与 domain 的 `ExecutionStatus` 保持映射（`awaiting_approval` / `running` / `completed` / `failed` / `cancelled`），不得另造一套状态或用多个布尔量拼凑，避免出现“转圈但早已失败”“已取消还显示进行中”。
+- **per-session 运行状态**：会话列表与状态栏按 `idle / running / awaiting_approval / cancelling / retry` 渲染；`retry` 必须携带结构化信息（第几次 attempt、下一次时间戳、可读原因、可选行动），倒计时以服务端时间戳为准、不由客户端本地累计。会话导航徽标（在跑 / 等你审批 / 刚完成未读）来自 ControlPlane 投影，进入会话即清除未读。
 
 ### 3.3 状态卡最低内容
 
@@ -168,6 +174,8 @@ last event time
 ```
 
 详细内容从 Event/State/Artifact projection 加载，不由 UI 自己计算一个平行状态。
+
+对改动类对象额外要求 DiffArtifact 投影：后端计算逐文件 +/− 统计，前端逐文件折叠、带行号并可跳转，会话级聚合总 +/−。diff 只读展示，路径越界必须在展示前 fail-closed；Reviewer 的裁决输入是带统计的逐文件 diff，而不是文件名清单。
 
 ## 4. 信息架构
 
@@ -307,6 +315,8 @@ Sandbox
 
 不要在每个普通只读请求前打断用户；需要确认的是实际风险，不是所有模型思考。
 
+用户消息提交后先插入一条 `sending` 气泡，超时或失败翻成 `error` 并提供重试；服务端接受后翻成已送达。运行的结束条件统一为“`run_id` 匹配的单一终局信封 `run.finished`（含 run_id / status / error / cancelled / 最终 assistant 文本）”，并用信封内嵌文本与已渲染内容对账，不能凭转圈停止就判定完成。
+
 ### 5.3 Tool/Capability Approval
 
 > **本节整节为 target 设计。** 下列审批卡内容、按钮分层和消费语义是目标规范；当前三个界面都没有完整的审批交互，现状与降级要求见 §5.3.1。
@@ -327,15 +337,25 @@ Approval 卡片必须包含：
 拒绝后会发生什么
 ```
 
-按钮文案应按风险变化：
+按钮文案应按风险与作用域变化，每个选项标签写清后果与范围，并绑定独立快捷键：
 
 ```text
-拒绝
 批准这一次
-批准此项目内同类请求（仅当 policy 明确允许）
+拒绝并继续        （拒绝当前 invocation，模型可换办法继续；可附一句理由回灌）
+拒绝并中止        （拒绝并终止本 run）
 ```
 
+首发只上这三个动作。「本会话批准」「持久 prefix 规则」涉及持久化与撤销，列为第二阶段（见 §5.3.2 的作用域说明），在落定前不得以其他文案变相提供。拒绝只拒绝当前 invocation，**拒绝 ≠ 终止 run**；只有取消才是终止。带理由的拒绝必须作为带 feedback 的 tool result 回灌模型，而不是把 run 打死。运行中的 shell 另给「继续 / 终止」两个动作。
+
 不提供默认的“批准所有未来请求”。批准结果必须显示已消费、拒绝、过期或取消，不把按钮点击直接渲染成成功。
+
+**审批是一等请求 / 应答（I-1 落点）**：审批在协议里是 server→client 的一等请求，带 `approval_id`（单号）、对象（命令 / 路径 / host）、`available_decisions` 与有效期；由 `DaemonHost` 发出，TTY / Web / Desktop 三个界面渲染并回复，`ControlPlane` 负责 resolve。pending 列表由三个界面共用同一份投影。重启后只从落盘的审批单恢复 pending 列表，**不恢复内存执行态**，并在卡片上明确标注“需重新发起”；非交互场景（管道、非 TTY、无 owner 的客户端）默认暂停、必须显式恢复，禁止自动通过。传输保持进程内即可，只改协议形状。
+
+**审批卡解剖（I-4 落点）**：紧凑摘要（目标文件 / 命令 / 原因 / 风险 / 有效期）+ 一键全屏查看完整 unified diff 或完整命令；多文件补丁聚合成一张卡，逐文件折叠 diff 与 +/− 统计。风险等级来自 policy / gates 投影；全屏只读复用已 stage 的 payload，不额外执行任何东西。
+
+**档位与来源（A-5 落点）**：approval policy / permission profile 是带来源（用户配置 / 项目 / 托管）的受约束值；界面用 `can_set` 渲染 `disabled_reason`（被 trust / policy 钉死的档位显示原因而不是隐藏），更严格来源存在时放宽变更被拒绝；选择无沙箱 / full-access 档必须二次确认，确认只影响 UX、授权仍由 ControlPlane 判定。
+
+**检查点时间线（A-10 落点）**：checkpoint 是时间线里的一等对象，绑定 transcript offset + workspace revision + invocation；提供「预览 diff」「只恢复文件」「文件 + 对话」三个动作。预览绝不写盘；破坏性恢复二次确认并显著标注不可撤销；恢复走 ControlPlane 并写事件 / Receipt，恢复后旧 approval 必须作废。首发范围是状态层 + 编辑级 undo（复用 apply_patch 前置快照），文件层 shadow git 列为第二阶段。
 
 #### 5.3.1 当前审批呈现（诚实描述）
 
@@ -361,13 +381,20 @@ Web workbench   无审批路由：kiana-entrypoints/src/web.rs 只有
 - 任何自动批准都不得让用户失去“发生过审批”的事实感知；
 - 在 UI 补齐 approve/deny 入口之前，等待审批的 Run 不得显示为终态或“已完成”。
 
-#### 5.3.2 开放决策（规范空白）
+**目标补落点（本次规范更新）**：pending 列表三个界面共用同一份投影；重启只从落盘审批单恢复列表、不恢复内存执行态，卡片标注“需重新发起”；非交互默认暂停、必须显式恢复。
 
-- auto-approve 是否允许保留（当前 `should_auto_approve_local_write` 只对 `RiskLevel::LocalWrite` 生效），还是必须一律改为显式批准；
-- 若允许 auto-approve，风险上限固定在哪一档（映射到 R0–R5 后），以及是否要求 trust/sandbox 前置条件；
-- auto-approve 是否必须在 Receipt 与事件流中显式披露（事件类型、字段和 UI 呈现位置）。
+**审批决定卡（I-3 落点）**：ControlPlane 必须为每个决定追加一条 durable、用户可见的事件卡，字段含 actor（user / reviewer）、scope（once / turn / session / policy）、subject（命令 / 路径 / host）、expiry、结果（消费 / 拒绝 / 过期 / 取消），并投影到 transcript 与 Receipt；拒绝与中止必须是不同终态，界面据此显示“已消费 / 拒绝 / 过期 / 取消”，不得把按钮点击直接渲染成成功。
 
-这三项是规范空白，不是已批准行为；在决策落定前，入口不得扩大 auto-approve 的范围或风险档位。
+#### 5.3.2 自动批准（决策已定，2026-09-08）
+
+auto-approve 保留但严格收窄（决策记录 §零）：
+
+- 只允许 `RiskLevel::LocalWrite` 一档，更高风险一律弹审批；
+- 开关默认关闭，只能由用户显式开启；
+- 每次自动批准必须追加一条带「自动批准」标记的事件，且在 Receipt 中可见，用户不得失去“发生过审批”的事实感知；
+- project 已受信是硬前置（见 [`company-os-security-constitution.md`](company-os-security-constitution.md) SEC-01）；更严格的 sandbox 前置条件由 policy 决定，放宽范围一律 fail-closed 拒绝。
+
+审批作用域四级阶梯（once / turn / session / policy）是目标设计：首发只落 once（本次）与拒绝路径，`turn` 随 A-4（P1）落地，`session` / `policy` 持久化列为第二阶段；持久规则只在精确 prefix 内 allow、绝不泛化，且需要 policy 明确允许，界面必须能显示「本会话有效 / 持久规则」。在落定前，入口不得扩大 auto-approve 的范围或风险档位。
 
 ### 5.4 取消
 
@@ -385,6 +412,8 @@ Web workbench   无审批路由：kiana-entrypoints/src/web.rs 只有
 如果结果未知，UI 必须显示：
 
 > 请求已停止继续推进，但系统无法确认副作用是否已经发生。请进入对账，不要直接重试。
+
+取消是两段式：CLI / TTY 首次触发只提示“再按一次取消”并起一个超时计时器，超时自动复位，第二次才真正取消；Web 用显式确认。取消收敛时统一收尾——把仍在执行的能力调用标记为 `cancelled`、给当前 assistant 步骤补结束时间与状态、界面用弱化样式显示“已中断”；若本轮没有任何有效产出，把用户原始输入回填输入框。取消时可给一个可选输入框，把一句话作为用户消息注入当前 run 继续（不输入则维持取消）。所有后续工具调用仍必须过 ControlPlane。
 
 #### 5.4.1 取消一个正挂审批的 Run
 
@@ -421,6 +450,8 @@ Reviewer 只能：
 ```
 
 不能在 Review 页面修改 Builder 的原始事实，也不能通过编辑 criteria 来让结果通过。
+
+Reviewer 的裁决输入必须是带统计的逐文件 diff（DiffArtifact 投影：后端算 +/−、前端逐文件折叠 + 行号 + 跳转、会话级聚合），而不是“改动文件清单”。diff 只读，路径越界在展示前 fail-closed。
 
 Acceptance 页面必须显示：
 
@@ -532,6 +563,8 @@ TTY workbench 当前**没有** `/approve` / `/deny` 命令：`kiana-entrypoints/
 
 在此之前，TTY 至少必须满足 §5.3.1 的降级要求：`awaiting_approval` 可见、附 challenge ID、不得显示为成功或失败；`/approve`、`/deny` 属于 §6.3 中应标记为 planned 的目标命令，不能执行后静默失败。
 
+目标落点：TTY 必须能渲染审批一等请求（§5.3）并回复，pending 列表与 Web / Desktop 共用同一投影；重启只恢复审批单、不恢复内存执行态；非交互默认暂停。
+
 ### 6.2 推荐 TTY 布局
 
 ```text
@@ -558,13 +591,15 @@ input prompt
 
 不能因为终端太窄而隐藏正在等待的 Approval、Unknown 或 cancellation state。
 
+TTY 需要为审批卡提供“展开全屏 diff / 完整命令”的按键（复用已 stage 的 payload，只读）；档位选择必须能显示被钉死档位的 disabled_reason，选择无沙箱 / full-access 档时二次确认、默认焦点在 Cancel。
+
 ### 6.3 Slash command 分层
 
 ```text
 导航：/help /quit /clear
 工作区：/trust /sandbox
 运行：/status /cancel /pause /resume
-证据：/receipt /diff /tests /events
+证据：/receipt /diff /tests /events /checkpoint
 上下文：/context /memory
 平台：/tools /mcp /workflow /swarm
 ```
@@ -613,6 +648,8 @@ cancel_affordance    可取消提示，以及当前是否仍可取消
 
 **最低一致集**：TTY 与 Web 至少都显示 elapsed、最近事件的时间与类型、stale 提示和 cancel 入口；布局可以不同，语义不得不同。阈值 N 由实现集中定义并写入配置（开放决策：N 的取值、是否按能力类型分档、以及是否允许用户调整）。
 
+`retry` 期间额外显示结构化重试信息：第几次 attempt、下一次尝试的服务端时间戳与倒计时、可读原因、可选行动；倒计时以服务端时间戳为准，不由客户端本地累计。
+
 ## 7. Web 交互规范
 
 ### 7.1 当前边界
@@ -643,6 +680,8 @@ connect
 
 不能显示“完成”直到收到 terminal event 或重新从 State/Receipt 读取到 terminal state。
 
+打开页面先用 REST 取最近 N 条做尾页锚点，再用 `after_event_id` 订阅增量，投影层按事件 id 去重；重放事件只更新事实，不重复触发通知 / 未读等副作用。断线显示“正在重连”并退避重试（约 1s 起、30s 封顶、加抖动），恢复后从 EventLog 重载并明确告知“断线期间的事件可能缺失，已按账本重建”。连接类错误横幅按 connection / conversation / auth 三类呈现，并映射到 §11 既有错误类（如 Unavailable / Conflict / PolicyDenied）；连接类在下一条正常事件到达时自动清除，auth / 信任类保持粘性。Web 仍必须 loopback-only。
+
 ### 7.3 多标签页和并发
 
 - 每个标签页必须有显式 session/run 标识；
@@ -650,7 +689,10 @@ connect
 - 一个 Session 的并发 turn 要显示 queued/rejected 语义；
 - 旧标签页的响应必须被 epoch/run ID 丢弃；
 - 一次 Approval 只能被一个合法 owner 消费；
-- UI 乐观更新必须可被服务端事实回滚。
+- UI 乐观更新必须可被服务端事实回滚；
+- 客户端 store 全部按 run / session id 做 key，每个活动会话渲染成独立的隐藏 pane，切换只改可见性、保持后台流不断；
+- 导航栏按 ControlPlane 投影显示“在跑 / 等你审批 / 刚完成未读”徽标，进入会话即清除未读；
+- 底部列出有挂起审批的会话（最多 3 个 + “…”）并支持跳转；跳转只切视图，裁决仍走该会话自己的审批请求，**不允许一个会话代另一个会话批准**。
 
 ### 7.4 无障碍
 
@@ -803,6 +845,8 @@ open_incident
 | `request_change` / `accept` / `reject` | Conflict / PolicyDenied |
 | `open_incident` | Persistence |
 
+审批在 wire 上是一等请求 / 应答（owner 同为 `kiana-protocol`）：请求带 `approval_id`、对象（命令 / 路径 / host）、`available_decisions` 与有效期，由 `DaemonHost` 发出；三个界面以同一 `UiAction` 回复，`ControlPlane` resolve。pending 列表是三个界面共用的投影，重启只恢复审批单、不恢复内存执行态（§5.3 / §5.3.1）。首发审批决定只映射为三个动作（批准这一次 / 拒绝并继续 / 拒绝并中止）；`approve_scope`（本会话 / 持久规则）列为第二阶段。
+
 服务端返回：
 
 ```text
@@ -904,7 +948,9 @@ retry/reconcile guidance
 - 统一 running/idle/blocked/failed/cancelled 文案；
 - 正确处理 cancel-after-awaiting-approval；
 - 错误显示对象、影响和下一步；
-- CLI/Web 使用显式 session/run 目标。
+- CLI/Web 使用显式 session/run 目标；
+- 审批成为三个界面都能应答的一等请求（协议请求/应答 + 共用 pending 列表 + 重启只恢复单子 + 非交互默认暂停）；
+- 审批动作分层首发三个（批准这一次 / 拒绝并继续 / 拒绝并中止），拒绝可带理由、拒绝 ≠ 终止。
 
 ### P1：可操作的 Run 和 Human Inbox
 
@@ -912,7 +958,11 @@ retry/reconcile guidance
 - Approval/Review/Acceptance/Incident action cards；
 - cursor/epoch hydration；
 - changed files、tests、Receipt 和 evidence panels；
-- reconnect、stale response 和 optimistic conflict。
+- reconnect、stale response 和 optimistic conflict；
+- 审批卡全屏 diff / 多文件聚合、审批决定卡、跨会话挂起审批提示；
+- 可恢复事件桥（尾页锚点 + after_event_id 增量 + 去重 + 退避重连）；
+- per-session 运行状态与重试倒计时、发送中气泡、单一终局信封 run.finished；
+- 两段式取消与取消后收尾、工具调用五态、检查点时间线、受约束档位与无沙箱二次确认。
 
 ### P2：项目、Workflow 和 Memory 观察
 
@@ -948,7 +998,8 @@ retry/reconcile guidance
 5. UI 不显示服务端尚未证明的 streaming、远程、外部或现实世界成功；
 6. Secret、隐藏 reasoning 和未授权 Memory 不进入可见或可复制内容；
 7. 窄屏、键盘、屏幕阅读器和高对比度使用不丢失安全状态；
-8. UI regression 使用 fake model/cassette 和状态协议，不依赖时间或真实 Provider。
+8. UI regression 使用 fake model/cassette 和状态协议，不依赖时间或真实 Provider；
+9. 审批在三个界面都能渲染并应答同一张审批单，pending 列表一致；重启只恢复审批单、不恢复内存执行态。
 
 ## 15. 当前诚实描述
 
