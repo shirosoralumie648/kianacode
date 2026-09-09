@@ -8,7 +8,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：CompanyOS 的总蓝图——产品定位与北极星、治理/劳动/能力三个层次、五个 PMP 部门、核心对象词典（WorkPacket、Cell、Grant、Receipt…）、细胞分裂的防失控规则、R0–R5 风险分级、关键状态机（Run、Cell、WorkPacket、CapabilityExecution、Approval）、安全宪法总纲（与 SEC-01–SEC-12 的映射）和以规范索引 §7 为准的分阶段路线图。
+> - **讲什么**：CompanyOS 的总蓝图——产品定位与北极星、治理/劳动/能力三个层次、五个 PMP 部门、核心对象词典（WorkPacket、Cell、Grant、Receipt…）、细胞分裂的防失控规则、R0–R5 风险分级、关键状态机（Run、Cell、WorkPacket、CapabilityExecution、Approval）、审批续跑与自动批准收窄、任务图依赖不变量、检查点/回滚、安全宪法总纲（与 SEC-01–SEC-12 的映射）和以规范索引 §7 为准的分阶段路线图。
 > - **回答的问题**："Kiana 想成为什么样的系统、按什么原则运转、先做什么后做什么。"
 > - **什么时候读**：想理解整个系统的设计逻辑时从这份开始；其余各份规范都是它某一部分的展开。
 >
@@ -244,6 +244,14 @@ WorkPacket {
 `goal` 与代码、`company-os-domain-contracts.md` 和 overview 的字段名保持一致。`milestone_id?` 为新增规范字段（当前 `kiana-domain::WorkPacket` 尚未提供）：用于把工单挂到里程碑，使验收标准可以沿 packet → milestone → project 上溯；不填写时该 packet 只能作为 standalone 工作，不得作为 Project 交付证据。
 
 必须指定 domain WorkPacket 为 canonical 类型。`kiana-tasks` 等旧类型只能作为调度投影或兼容 adapter，不得形成第二个真相。
+
+`dependencies[]` 是可执行不变量，不是提示信息。依赖边只来自这个显式字段，不得从 packet 文本解析；packet 只有在其全部依赖处于成功终态时才可派发。唯一的就绪谓词由 `kiana-domain` / `kiana-tasks` 定义，形如 `ready_packets(graph, now)`——状态属于可派发集合、`dependencies[]` 全部成功、且无未过期 lease 冲突时才返回 ready；ControlPlane 的 spawn 校验、`kiana project next` 和各界面看板都调用它，禁止各写一份。
+
+依赖缺失或成环必须 fail-closed：approve 和 workflow 模板注册时调用确定性的 `validate_dependency_dag`（输出规范化环，两次运行结果一致），失败拒绝落盘。`blocked` 是依赖图的不动点：父 packet blocked 则子 packet 派生 blocked。spawn 前校验依赖，未满足返回 blocked 并记事件。
+
+`ready_packets` 与 PathLock 的关系固定为「规划期检查 + 运行期兜底」：规划期用就绪谓词筛掉依赖未满足的 packet，运行期仍由 PathLock 在真正写入前拒绝越界或冲突路径。就绪谓词只是查询结果，真正的执行许可仍由 ControlPlane 的 policy / gates / approval 产生，不得替代授权。
+
+WorkPacket 增加 claim 字段 `owner` / `lease_expires_at` / `heartbeat_at`：spawn、continue 和每个 turn 续租；后台按确定性规则扫描过期 lease，把 packet 退回 ready 并记事件。被回收的 packet 以新 attempt 重新派发，不复活旧责任链。
 
 验收标准分四层派生并冻结：packet 的 `acceptance_tests[]` 必须落在所属 Milestone 的 `acceptance_criteria[]` 内，Milestone 的标准必须落在 Project 的 `success_criteria[]` 内；`Acceptance` 进入 `Requested` 时从已冻结的上层标准派生并冻结为 `Acceptance.criteria_snapshot`，决策阶段只读校验、不得改写，任何修改都必须走 ChangeRequest 并产生新版本，不能覆盖历史标准（详见 `company-os-domain-contracts.md` §4.3–§4.5）。
 
@@ -646,7 +654,9 @@ HandoffReceipt {
 
 `Reviewed → Running` 表示 Review 要求返工；返工必须重新进入 `Running` 并保留原 Review 事实，不能改写或删除（与 `company-os-domain-contracts.md` §4.5 的 `Rejected → ReworkRequested → EvidencePending` 对齐）。
 
-> **开放决策（实现缺口）**：当前 `kiana-domain::WorkPacketStatus` 没有 ACK 状态，`Assigned → Running` 直接成立，无法表达"已派发未确认"；ACK 语义需要在 domain 合同、wire DTO 和状态机中补齐后才能宣称 `code_enforced`。
+`Blocked` 的进入条件是 §5.1 的唯一就绪谓词判定依赖未满足、依赖缺失 / 成环或没有可用 lease，而不是外部 `source_status`。父 packet `Blocked` 时子 packet 必须派生 `Blocked`（父子传递）；子 packet 不能在被依赖项未成功前进入 `Running`。`Assigned` / `Running` 期间必须持有未过期 claim lease（§5.1），续租失败或租约过期由后台确定性扫描回收，把 packet 退回 ready（可派发集合）并记事件；重新派发产生新 attempt，旧责任链不复活。
+
+> **开放决策（实现缺口）**：当前 `kiana-domain::WorkPacketStatus` 没有 ACK 状态，`Assigned → Running` 直接成立，无法表达"已派发未确认"；ACK 语义需要在 domain 合同、wire DTO 和状态机中补齐后才能宣称 `code_enforced`。同样，当前 `kiana-core` spawn 路径直接从 `Draft` 推到 `Running`，不校验 `dependencies`，也没有环检测与 claim/lease，`Blocked` 由外部 `source_status` 推导而非依赖图；§5.1 的依赖不变量与本节的就绪 / 传递语义补齐前不得宣称 `code_enforced`（见 `docs/features/07-roles-departments.md`）。
 
 ### 9.3 CapabilityExecution
 
@@ -693,8 +703,8 @@ Harness 遇到 `Ask` 时，不应把它伪装成普通 tool failure，而应创�
 PendingInvocation
 → ApprovalChallenge
 → Run::AwaitingApproval
-→ approve / deny / expire
-→ 同一个 Runner continuation
+→ approve_once / deny_continue / deny_abort
+→ 批准与拒绝并继续回到同一个 Runner continuation；拒绝并中止经 `cancel_requested` 进入 `cancelled` 终态（ApprovalDecision.result = `cancelled`，拒绝并继续的 result 是 `denied`）
 ```
 
 Challenge 必须绑定：
@@ -710,7 +720,16 @@ Challenge 必须绑定：
 
 Agent、Symposium、投票或自然语言报告不能替代 R3–R5 的人类确认。
 
-> **开放决策（规范空白）**：当前 `kiana-entrypoints` 存在 `approve_local_write` 自动批准路径——该 app-state 标志为真且挑战风险为 `LocalWrite` 时，入口层直接以 `ApprovalDecision::Approve` 消费挑战，不经过人类确认。本规范未授权入口层自动批准，也未规定该路径的适用条件、可见性和审计要求；需在 ADR 中明确它是"用户预先声明的本地策略"还是应被移除。无论结论如何，都不得据此放宽 R3–R5 的人类确认要求。
+审批决定是一等事件，续跑材料必须落盘：
+
+- 首发三个动作：「批准这一次 / 拒绝并继续 / 拒绝并中止」。「本会话批准」和「持久 prefix 规则」列为第二阶段（涉及持久化与撤销），在此之前不得宣称已支持。
+- 拒绝只拒绝当前 invocation，并允许附一句理由，作为带 feedback 的 tool result 回灌模型，不等于终止 run；只有 cancel 才是终止 run。
+- 审批暂存前，ControlPlane 先写一条 invocation 请求事件（或扩展 `run.capability_requested`），携带经脱敏处理的 CapabilityRequest、`invocation_id`、`attempt`、policy_snapshot、sandbox 和事件游标；`PendingInvocation` 是该事件的投影，不再是只存在于内存的对象。
+- `RunSnapshot`（run_id / session_id、消息历史、`pending_capability{call_id, args_fingerprint}`、approval_decisions、step_counter、schema_version）由 ControlPlane 独占写入；启动时由 ControlPlane 调用 `resume_run` 重建 harness 状态，runner 自身永远不读盘恢复。
+- 重启后默认暂停（fail-closed）：ControlPlane 从事件重建待审批列表，但不自动续跑，只有用户显式点「恢复」才继续；无法重建续跑材料时返回明确的「续跑材料不可用」，不得伪造继续。
+- 派发前查调用账本，键为 `(run_id, call_id)`：已执行直接返回缓存结果或 fail-closed，指纹不一致立即拒绝。
+
+> **已定案（自动批准收窄）**：自动批准保留但严格收窄——只允许 `LocalWrite` 一档，开关默认关闭，每次自动批准必须追加一条带「自动批准」标记的事件并在 Receipt 中可见，更高风险一律弹审批；入口层不得据此放宽 R3–R5 的人类确认要求。当前 `kiana-entrypoints` 的 `approve_local_write` 路径尚未实现事件标记与收据可见性（见 `docs/features/05-approvals.md`），补齐前不得宣称该路径已合规。
 
 ### 10.2 取消 fencing
 
@@ -740,6 +759,30 @@ CancelRequested
 - 取消已返回但子进程仍不确定。
 
 Unknown 不得自动盲重试。补偿、退款或取消本身也是新的副作用，需要新的授权。
+
+### 10.4 检查点与回滚
+
+检查点是一等对象，不是事后补丁。`CheckpointService` 为每个检查点绑定三要素：transcript offset、workspace revision 和 `invocation_id`。
+
+```text
+Checkpoint {
+  checkpoint_id
+  run_id
+  session_id
+  transcript_offset
+  workspace_revision
+  invocation_id
+  kind              # state / edit
+  created_at
+  schema_version
+}
+```
+
+- **写前快照**：在写工具执行前和用户输入前由 ControlPlane 触发快照，绑定当时的 transcript offset、workspace revision 与 `invocation_id`；快照是只读记录，本身不产生副作用。
+- **恢复走 ControlPlane**：回滚是受控操作，必须经 ControlPlane 授权并写事件 / Receipt；恢复后旧的 approval 一律作废。回滚不是模型可见工具，模型不能自行触发。
+- **首发范围（状态层 + 编辑级 undo）**：复用 `apply_patch` 已有的写前 precondition 快照，在 patch 成功后产出结构化 diff 写进 Receipt，并提供针对单次编辑的 undo。undo 受 policy / approval 约束，不构成第二条执行路径。
+- **第二阶段（文件层）**：独立 shadow git、事务化恢复、危险路径与嵌套 repo 防护、HEAD 未移动校验、只在确实被快照捕获时才清理 untracked，全部列为第二阶段，进入前需要独立 ADR。
+- **预览只读**：checkpoint 预览绝不写盘；恢复本身按高风险写操作处理，先快照当前工作区到私有位置，失败可回滚；缺 git 或能力不足时明确降级并告知，不得假装可用。
 
 ---
 

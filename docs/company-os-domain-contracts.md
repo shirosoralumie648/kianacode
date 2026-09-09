@@ -8,7 +8,7 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**："公司业务"一侧的对象合同——从目标（Objective）、立项（Initiative）、项目（Project）、里程碑（Milestone），到验收（Acceptance）、交付（Delivery）、结果测量（Outcome），以及变更（ChangeRequest）、风险（Risk）和事故（Incident）的字段、状态机、命令/事件矩阵和规则；另含验收标准四层派生与冻结规则。
+> - **讲什么**："公司业务"一侧的对象合同——从目标（Objective）、立项（Initiative）、项目（Project）、里程碑（Milestone），到验收（Acceptance）、交付（Delivery）、结果测量（Outcome），以及变更（ChangeRequest）、风险（Risk）和事故（Incident）的字段、状态机、命令/事件矩阵和规则；另含验收标准四层派生与冻结规则，以及运行恢复合同（RunSnapshot、调用账本）、任务图依赖不变量与 claim、委派信封（DelegationPacket）和审批决定事件。
 > - **回答的问题**："一件工作为什么值得做、做到什么算完、谁说了算、交付之后目标到底实现没实现。"
 > - **核心思想**：执行事实（Agent 跑成功了）和公司事实（业务目标实现了）是两条链，前者不能自动推出后者；每台状态机的每条转移都必须收敛到明确终态或归档出口，不允许死端。
 > - **什么时候读**：实现或修改业务领域对象时；想理解"为什么 Receipt 不等于业务成功"时。
@@ -152,6 +152,8 @@ Transcript 只能是 UI 视图，不得作为 Company 或 Runtime 的唯一事�
 | `Outcome` | 交付后是否产生目标结果 | metric observations, target, realization, review date | `kiana-domain` |
 | `AgentTemplate/Cell` | 谁执行、如何受限 | role, grant, budget, supervision, lineage | `kiana-domain` |
 | `Session/Run/Invocation` | 一次执行如何恢复和对账 | owner, IDs, state, cursor, attempts | `kiana-domain` |
+| `RunSnapshot` / `InvocationLedger` | 一次运行如何跨进程恢复、如何防重复副作用 | run_id, session_id, schema_version, step_counter, pending_capability, approval_decisions / `(run_id, call_id)`, args_fingerprint, status | `kiana-domain` |
+| `DelegationPacket` | 父子 Cell 之间的运行时授权信封 | parent/child cell, capability/path scopes, budget/supervision lease, expires_at, delegation_allowed, max_turns, max_messages, termination_predicate, handoff_allowlist | `kiana-domain` |
 | `RuntimeEvent/Artifact/Receipt` | 事实、产物和报告如何留存 | aggregate, version, provenance, refs | `kiana-domain` / `kiana-ports`（event ports）；runtime owner `kiana-eventlog`，Receipt 投影另见 `kiana-daemon` |
 
 `Charter` 和 `Plan` 是 `Project` 的版本化工件，不单列为顶层聚合：Project 通过 `charter_ref` / `plan_ref` 引用它们的冻结版本，修改必须走 ChangeRequest 并产生新版本，不能原地覆盖。
@@ -533,6 +535,141 @@ WorkPacket.acceptance_tests[]
 
 任何一层修改都必须留下版本和 DecisionRecord，不能覆盖历史标准。
 
+### 4.10 运行恢复：RunSnapshot 与调用账本
+
+`RunSnapshot` 是可序列化的 durable pause / resume 边界，由 ControlPlane 独占写入：
+
+```text
+RunSnapshot {
+  run_id
+  session_id
+  schema_version
+  step_counter
+  messages[]                      // 规范化消息历史（role + 内容引用 + turn/step 序号）
+  pending_capability? {
+    call_id
+    invocation_id
+    args_fingerprint
+  }
+  approval_decisions[]            // ApprovalDecision 的 id 引用，见 §4.13
+}
+```
+
+- runner 自身永远不读盘恢复；启动或首次访问某个 run 时，由 ControlPlane 调用 `resume_run` 从 `RunSnapshot` 重建 harness 状态。
+- `args_fingerprint` 是对规范化后的 capability 类型 / 名称 / 参数做确定性哈希；续跑时指纹不一致必须立即拒绝，不得按漂移后的参数执行。
+- `schema_version` 不兼容时 fail-closed，必须提供迁移或 upcaster，不得猜测旧结构。
+- 跨进程恢复默认暂停（fail-closed）：重启后只从持久事实重建待审批列表与运行态，不自动续跑；必须由用户显式「恢复」后才继续。重建出的 pending capability 必须重新过 policy / gate / approval，不能直接交给 broker。
+
+调用账本由 ControlPlane 独占写入，键唯一：
+
+```text
+InvocationLedgerEntry {
+  run_id
+  call_id
+  invocation_id
+  attempt
+  args_fingerprint
+  status          // executed | unknown | rejected
+  result_ref?     // 已执行结果的缓存引用
+}
+```
+
+- 键为 `(run_id, call_id)`；派发任何 capability 前先查账本：已 `executed` 直接返回缓存结果，`args_fingerprint` 不一致立即拒绝，`unknown` 不得自动重试、必须走 reconciliation 并视情况关联 Incident（§4.7）。
+- 账本是事实而不是缓存；重复命令不得制造第二个副作用。
+
+### 4.11 任务图：依赖不变量与 claim
+
+`WorkPacket.dependencies[]` 是显式依赖边，只从字段读取，不从 packet 文本解析。就绪只有一个定义：
+
+```text
+ready_packets(graph, now) =
+      status ∈ 可派发集合
+    ∧ 所有 dependencies 处于成功终态
+    ∧ 不存在未过期 lease 冲突（now ≥ lease_expires_at 视为过期）
+```
+
+- `completed` / `accepted` 属于成功终态；`failed` / `cancelled` / `result_unknown` 不是。ControlPlane 的 spawn 校验、`kiana project next` 与看板必须都调用同一个 `ready_packets`，禁止各写一份。
+- spawn 前校验依赖：未满足时返回 `blocked` 并记事件，不得把 Draft → Approved → Assigned → Running 直接推完。
+- `blocked` 是依赖图的不动点：任一 packet 处于 blocked，其子 packet 也 blocked（父子继承），递归折叠到不再变化为止。
+- `validate_dependency_dag` 做确定性环检测：输出规范化环（节点按稳定 id 排序），两次运行字节一致；在 `approve_packet` 与 workflow 模板注册时调用，检测到环即拒绝落盘。
+- `WorkPacket` 增加派生 claim：
+
+```text
+claim? {
+  owner              // 认领者 cell_id
+  lease_expires_at
+  heartbeat_at
+}
+```
+
+- spawn / continue / 每个 turn 续租 `heartbeat_at`；后台确定性扫描过期 lease，把 packet 退回 ready 并记事件。默认 TTL 与扫描周期由 policy 给定。
+- `ready_packets` 只是查询；真正的执行许可仍由 ControlPlane 的 policy / gates / approval 产生。`ready_packets` 与 PathLock 的关系固定为「规划期检查 + 运行期兜底」。
+
+### 4.12 委派信封与失败合并
+
+`DelegationPacket` 的基础合同见 [`company-os-design.md`](company-os-design.md) §6.2；本条只做增量。委派是 ControlPlane 的 assign / handoff 操作，不是模型可见工具：模型只能在 WorkPacket 内容里提出建议，实际目标由 ControlPlane 按 role / grant 白名单解析。
+
+```text
+DelegationPacket 增量 {
+  max_turns
+  max_messages
+  termination_predicate       // AND / OR 组合的显式谓词，不是模型文本
+  handoff_allowlist[]         // 只来自 grant / template，不来自模型文本
+}
+```
+
+- 超出 `max_turns` / `max_messages` 自动终止并写事件；`handoff_allowlist` 之外的 target 一律拒绝。
+- 子 Cell 失败以 typed payload 随 EventLog 持久化：
+
+```text
+ChildFailureReport {
+  child_cell_id
+  reason_code
+  error_class
+  partial_output_refs[]
+  result_unknown
+  retryable
+  policy_snapshot
+}
+```
+
+- `MergeDecision` 是父 Cell 对子输出的合并裁决；`result_unknown = true` 的 child 输出一律拒绝合并，不得当成成功：
+
+```text
+MergeDecision {
+  parent_cell_id
+  child_cell_id
+  decision          // merged | rejected | superseded
+  basis_refs[]
+  rejected_reason?
+}
+```
+
+- 委派生命周期事件为 `delegation_started` / `delegation_completed` / `delegation_failed` / `delegation_reconciled`，必须带 parent / child 关联。
+
+### 4.13 审批决定
+
+审批决定是一条 durable、用户可见的事件卡，由 ControlPlane 追加进 EventLog 并投影到 transcript 和 Receipt：
+
+```text
+ApprovalDecision {
+  decision_id
+  approval_id
+  actor              // user / reviewer；自动批准标记为 system:auto
+  scope              // once / turn / session / policy
+  subject            // 精确目标：命令 / 路径 / host
+  expiry_at?
+  result             // consumed / denied / expired / cancelled
+  feedback?          // 拒绝理由，作为带 feedback 的 tool result 回灌模型
+  decided_at
+}
+```
+
+- `denied`（拒绝但继续）与 `cancelled`（拒绝并中止）是不同终态，不得合并；`expired` 与 `consumed` 也不同。拒绝只拒绝当前 invocation，`cancelled` 才是终止 run。
+- 首发决定集为「批准这一次 / 拒绝并继续 / 拒绝并中止」三个动作；「本会话批准」与「持久 prefix 规则」列为第二阶段开放决策，不在首发目标内。
+- 自动批准只在 LocalWrite 一档、且开关默认关闭时才可能发生；每次自动批准必须追加带「自动批准」标记的 `ApprovalDecision`，在 Receipt 里可见，更高风险一律弹审批。
+- `scope` 的完整四级阶梯（once / turn / session / policy）是目标合同；首发只落地与上述三个动作对应的作用域（`once` 及拒绝路径），`turn` / `session` / `policy` 三级按 A-4 的阶梯逐步落地，其中 `session` / `policy` 的持久化与撤销列为第二阶段开放决策。
+
 ## 5. 执行事实与公司事实的连接
 
 ### 5.1 关联规则
@@ -630,6 +767,9 @@ FinancialBudget
 | Milestone | `rework_milestone` / `resubmit_milestone` | owner | Rejected / Rework 完成 | `MilestoneReworkStarted` / `MilestoneResubmitted` | Rejected → Rework → ReadyForAcceptance |
 | Milestone | `cancel_milestone` / `close_milestone` | Planning / owner | Active/Blocked / Accepted | `MilestoneCancelled` / `MilestoneClosed` | → Cancelled / Closed |
 | WorkPacket | `approve_packet` / `accept_packet` | Planning / 指定 acceptor | 写集、验收、预算、owner 存在；packet 内容未漂移 | `PacketApproved` / `PacketAccepted` | 见 `company-os-design.md` §9.2 |
+| WorkPacket | `claim_packet` / `renew_packet_lease` / `reclaim_packet` | ControlPlane | 依赖全部成功终态；无未过期 lease 冲突 | `PacketClaimed` / `PacketLeaseRenewed` / `PacketReclaimed` | 见 §4.11 |
+| Approval | `decide_approval` | user / reviewer | pending approval 存在；决定属于首发决定集 | `ApprovalDecided` | → consumed / denied / expired / cancelled（见 §4.13） |
+| Delegation | `start_delegation` / `complete_delegation` / `fail_delegation` / `reconcile_delegation` / `merge_delegation` | ControlPlane | grant、预算有效；目标在 `handoff_allowlist` 内 | `DelegationStarted` / `DelegationCompleted` / `DelegationFailed` / `DelegationReconciled` / `MergeDecided` | 见 §4.12 |
 | Run | `start_run` | ControlPlane | packet、grant、budget 和依赖有效 | `RunStarted` | 见 `company-os-platform-architecture.md` |
 | Acceptance | `request_acceptance` / `decide_acceptance` | Builder / Closer；独立 Reviewer / Sponsor | 见 §4.5 | `AcceptanceRequested` / `AcceptanceDecided` | 见 §4.5 |
 | ChangeRequest | `request_change` / `decide_change` | owner / Sponsor | 说明影响和原因；impact assessment 完整 | `ChangeRequested` / `ChangeApproved` / `ChangeRejected` | Draft → ImpactAssessed → PendingDecision → Approved / Rejected |
@@ -658,6 +798,10 @@ outcome_id?
 change_id?
 risk_id?
 incident_id?
+run_id?
+invocation_id?
+call_id?
+delegation_id?
 ```
 
 这些字段只做关联，不替代 design §11 的字段，也不把执行事实升级为公司事实。
@@ -748,7 +892,7 @@ Objective → Project → Packet → Run → Evidence → Acceptance → Receipt
 
 ### 可靠的单项目闭环（spec-index §7 P3）
 
-- 先完成 Session/Run/Invocation 的 durable ledger、Approval continuation、State projection 和 Receipt rebuild；
+- 先完成 Session/Run/Invocation 的 durable ledger、RunSnapshot 与 `(run_id, call_id)` 调用账本、Approval continuation（含 `ApprovalDecision` 事件）、State projection 和 Receipt rebuild；
 - 实现 Objective、Project、Milestone、Acceptance、Delivery、Outcome 的最小 domain contracts；
 - 以一个 fake-model Coding 项目证明四条负向路径和一条成功路径；
 - Project、Packet、Review 和 Acceptance 的 owner、acceptor、reviewer 不得由客户端自报覆盖。
@@ -788,6 +932,9 @@ Provider account identity
 - 重复命令、重复审批和重复交付不会制造未授权的重复副作用；
 - RuntimeBudget、BudgetLease、ProjectBudget 和 FinancialBudget 不会混为一谈；
 - Outcome 的“业务结果”不会由模型文字或普通 Receipt 自动宣称；
+- 运行态可由 `RunSnapshot` 与 `(run_id, call_id)` 调用账本重建，跨进程恢复默认暂停、显式恢复后才续跑，重复 call_id 不产生第二个副作用；
+- 任务图的「就绪」只有 `ready_packets` 一个定义，依赖缺失或成环在启动前 fail-closed，过期 lease 可被确定性回收；
+- 委派不新增模型可见工具，`result_unknown` 的子输出不得进入 `MergeDecision`；
 - 新的 CLI、Workbench、Web 入口都复用同一个 ControlPlane 和事实源。
 
 在这些条件之前，Kiana 的诚实描述仍是：

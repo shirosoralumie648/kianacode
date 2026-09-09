@@ -10,8 +10,8 @@
 
 > **本文速览（导读，非规范）**
 >
-> - **讲什么**：Agent 平台的九个"平面"——运行时（Session/Turn/Run/Invocation，含 pre-tool hook 位置与合法转移）、上下文与记忆（ContextPlan/Memory，含 promotion/expiry/collection）、缓存与压缩（Prompt Cache/Compaction）、工具发现（CapabilityDescriptor/Tool Search/MCP，含失败恢复与 trust decision）、工作流（Workflow 确定性合同与 replay divergence）、有界多 Agent（Swarm，含 Partition/MergeDecision）、Provider 网关（NormalizedEvent 与客户端 epoch）、可观测与评测——每个平面的对象合同、硬性不变量和参考项目取舍。
-> - **回答的问题**："模型每次应该看到什么、工具怎么被发现和授权、并行怎么不失控、不同模型服务商的输出怎么统一、失败与重放凭什么可复现。"
+> - **讲什么**：Agent 平台的九个"平面"——运行时（Session/Turn/Run/Invocation，含 pre-tool hook 位置、合法转移、可重建运行态、续跑材料与重试/超时策略、编辑后验证）、上下文与记忆（ContextPlan/Memory，含 promotion/expiry/collection、服务端派生 origin、admission/证据/双时态与 can_read/can_manage）、缓存与压缩（Prompt Cache/Compaction）、工具发现（CapabilityDescriptor/Tool Search/MCP，含失败恢复与 trust decision）、工作流（Workflow 确定性合同、replay divergence、ArtifactGraph 与 validate 门禁）、有界多 Agent（Swarm，含 Partition/MergeDecision、有界委派与 typed child failure）、Provider 网关（NormalizedEvent、客户端 epoch 与可恢复事件桥）、可观测与评测——每个平面的对象合同、硬性不变量和参考项目取舍。
+> - **回答的问题**："模型每次应该看到什么、工具怎么被发现和授权、并行怎么不失控、不同模型服务商的输出怎么统一、失败与重放凭什么可复现、重启后系统凭什么知道哪些 Run 在跑或在等审批。"
 > - **什么时候读**：实现运行时、记忆、MCP、工作流、Swarm 相关能力时按章节查阅；§3 的十条硬不变量值得所有人先通读一遍；规范与代码的已知冲突集中在 §16 开放决策。
 >
 > 术语看不懂先查 [`company-os-overview.md`](company-os-overview.md) 的白话词典。
@@ -127,6 +127,22 @@ causation_id / correlation_id
 
 禁止使用“当前活动 session”或共享全局 run 作为请求目标。每个入口必须显式携带并校验 session/run ownership。
 
+**Invocation 请求事件与续跑材料（新增规范）**：
+
+- **先落事件再暂存审批**：进入 `AwaitingApproval` 之前，ControlPlane 必须先 append 一条 invocation 请求事件（复用 `run.capability_requested` 或等价的 `invocation.requested`），携带经 `redact_event_value` 脱敏后的 `CapabilityRequest`、`invocation_id`、`attempt`、`policy_snapshot`、sandbox 与写入时的事件游标。事件落盘失败即 fail-closed：不得暂存审批、不得 dispatch。
+- **PendingInvocation 是投影**：`PendingInvocation` 只是该事件的投影，不再拥有独立于 EventLog 的内存事实；`decide_approval` 从事件重建续跑材料，材料缺失或与 `invocation_id` / `attempt` 不一致时返回 `approval_continuation_unavailable`，不得凭内存状态放行。
+- **RunSnapshot 由 ControlPlane 独占写入**：`RunSnapshot`（`run_id` / `session_id`、消息历史、`pending_capability{call_id, args_fingerprint}`、`approval_decisions`、`step_counter`、`schema_version`）由 ControlPlane 写入；恢复时由 ControlPlane 调用 `resume_run` 重建 harness 状态，runner 自身不读盘恢复（§8.4）。
+- **调用账本防重复派发**：ControlPlane 独占写入一份键为 `(run_id, call_id)` 的调用账本；dispatch 前先查账本，已执行则返回缓存结果或 fail-closed，`args_fingerprint` 不一致立即拒绝。
+
+**运行态投影与惰性重建（新增规范）**：
+
+- `RunProjection` / `InvocationProjection` 折叠 `read_stream("run", run_id)` 与 `read_all` 的 `run.*` / `capability.*` / `approval.*` 事件，产出 Run / Invocation 的当前状态、待审批集合与未决 capability 集合。
+- 内存 `sessions` / `pending_invocations` / `cancellations` 表降级为 projection 的写穿缓存，不再是权威；缓存缺失时按 run_id / session 惰性重建，不依赖启动时全量扫描。
+- 折叠遇到互相矛盾的终态保持 `run_terminal_conflict` / `result_unknown` 的 fail-closed 语义（§4.4）。
+- **重建出的 pending 必须重新过 policy / gate / approval**，不能直接交给 broker。
+
+**跨进程恢复默认暂停（新增规范）**：重启后按上述投影重建待审批列表与运行态，但默认 `paused`，不自动续跑；必须由用户显式点“恢复”才继续（fail-closed）。检查点 / 回滚首发只做状态层 + 编辑级 undo（复用 apply_patch 的前置快照），文件层 shadow git 列为第二阶段。
+
 ### 4.2 规范运行循环
 
 ```text
@@ -165,6 +181,18 @@ Pre-tool hook 合同（新增规范）：
 - **Ask 的归宿**：hook 返回 `Ask` 时必须进入与 [`company-os-design.md`](company-os-design.md) §10.1 相同的 ApprovalChallenge/PendingInvocation 通路；审批通路不可用或无人值守时 fail-closed 为 `failed`（`hook_ask_unattended:<reason>`），不得静默放行（当前实现差距见 §16）。
 - **可观测**：hook 决策（decision、reason、hook/policy 版本）必须写入事件，Receipt 必须能回答“哪个 hook 因什么阻断了本次调用”。
 - **局部证据**：`CURRENT_STATUS.md` 的 G0-02 slice evidence（`PreToolHookPort` 注入 daemon）与 P1-02 证据块；`docs/coding-pack-matrix.md` P0-HOOK 行（`hook_blocked` 可在 broker 执行前阻断）。这些证据只覆盖已实现部分，不覆盖 Ask→Approval 通路。
+
+**审批决定与自动批准（新增规范）**：
+
+- **审批动作首发三个**：`批准这一次` / `拒绝并继续` / `拒绝并中止` 为第一版决定集；`本会话批准` 与 `持久 prefix 规则` 涉及持久化与撤销，列为第二阶段。拒绝只拒绝当前 invocation，并把拒绝理由作为带 feedback 的工具结果回灌模型；只有“拒绝并中止”才终止 Run。
+- **自动批准严格收窄**：自动批准只允许 `LocalWrite` 一档，开关默认关闭；每次自动批准必须追加一条带“自动批准”标记的事件，Receipt 里可见。更高风险一律弹审批，绝不自动放行。
+- 审批决定由 ControlPlane resolve 并追加事件（actor、scope、subject、expiry、结果），拒绝与中止是不同终态。
+
+**编辑后验证钩子（新增规范）**：
+
+- workspace-write 类能力成功后，runner / daemon 可执行项目配置的 verify 命令（lint / test），把输出作为一条 observation 追加。
+- verify 命令必须走既有 capability broker / ControlPlane 通道并受 policy / sandbox 约束，**不是第二条执行路径**；不新增模型可见工具。
+- 失败时回灌并限次重试（例如 3 次），超限记事件并停止；`verify_commands` 由工作台 / Web 配置和开关。
 
 ### 4.3 参考项目与吸收决策
 
@@ -216,6 +244,25 @@ result_unknown              design §9.3 的 Unknown（wire/终态名以 result_
 
 - Invocation 的终态取最近一次 attempt 的终态；只要存在一个副作用未确认的 attempt，Invocation 必须为 `result_unknown`，不得报 `Succeeded` / `Failed` / `Cancelled`。
 - `attempt` 单调递增，旧 attempt 的事件不可改写；重试必须携带新的 `idempotency_key` 或复用同一幂等键，按 capability 的 `idempotency_policy` 决定。
+
+**重试与超时是可持久化的一等策略（新增规范）**：
+
+- `CapabilityRequest` / Invocation 携带可序列化的 `RetryPolicy`（`initial_interval`、`backoff_coefficient`、`maximum_attempts`、`non_retryable_error_types`）与 `TimeoutPolicy`（`start_to_close` / `schedule_to_close`）；字段形状与 §8.2 `WorkflowDefinition.retry_policy` / `timeout_policy` 统一。
+- **fail-closed 默认单次尝试**（`maximum_attempts = 1`）；非幂等操作禁止重试；每次 attempt 写独立事件。
+- 三类错误边界：
+  1. 传输 / 模型瞬时错误：仅在尚无 capability 被执行时做有界退避重试；
+  2. 模型可纠正的工具错误：作为工具结果回灌模型，不判 Run 失败；
+  3. 授权失败、指纹不符、账本显示已执行：绝不重试。
+- 超时或结果未知一律收敛为 `result_unknown`，绝不自动重试；重试前必须查调用账本（§4.1）。
+
+**Signal / Query / Update 三类 wire 意图（新增规范）**：
+
+- **signal**：`continue` / `cancel` / `steer` 等对 Run 的输入；必须先 append 事件再作用于 Run。取消先落 `run.cancel_requested`（携带目标 `invocation_id` 列表与 `cancellation_type`），进程重启后从事件重放并重新下发；只有 broker 确认停止才写 `cancelled`，否则收敛为 `result_unknown`。
+- **query**：`receipt` / `status` 等只读请求，进入只读上下文，禁止写事件或派发。
+- **update**：审批决定等状态变更，走 validator + handler 并返回结果。
+- **单一写入者**：每次推进模型步之前，先把事件与状态 delta 作为一个持久化单元写入，runner await 到回执才继续；partial 输出不参与阻塞。
+
+**Per-session 运行状态（新增规范）**：运行状态是 ControlPlane 投影的一等可观察对象，至少包含 `idle` / `running` / `awaiting_approval` / `cancelling` / `retry`；`cancelling` 只是 UI 投影名，wire 名仍是 §4.4 的 `cancel_requested`。`retry` 状态必须带结构化信息（`attempt`、下一次时间戳、可读原因、可选行动），时间戳来自服务端而非本地计数。会话列表与状态栏据此渲染，不得用多个布尔量拼状态。
 
 ## 5. Context / Memory 平面
 
@@ -309,7 +356,11 @@ sensitivity
 purpose
 created_at / last_verified_at
 expires_at?
+valid_from? / valid_to? / expired_at?
 supersedes?
+origin: model | hook | git | user      # 服务端派生，不读模型传入的 source
+review_state: draft | approved | rejected
+admission_state: candidate | qualified | ephemeral   # 与 status 正交
 status: candidate | active | stale | revoked | deleted
 ```
 
@@ -361,6 +412,21 @@ promotion 是跨层/跨 collection 的显式、可审计跃迁，不是检索排
 - `revoked`：立即从检索与索引排除；`deleted`：写 tombstone，不复活，不参与去重之外的任何用途。
 - 清理责任：daemon / `kiana-query` 的 memory service 执行确定性 sweep，并 append `MemoryExpired` / `MemoryStale` 事件；删除传播范围以 [`company-os-operations-governance.md`](company-os-operations-governance.md) §9.3 为准（primary record → event projection → artifact index → vector index → graph index → compaction summary → provider-bound cache policy → search result cache）。
 - Memory 的过期与删除不得改写历史 Event/Receipt；只改变可检索性与派生索引。
+
+**服务端派生来源与候选准入（新增规范）**：
+
+- `MemoryRecord.origin` 由服务端按写入通道派生（`model` / `hook` / `git` / `user`），**不读取模型传入的 `source`**；模型经 `memory.write` 写入一律落 `review_state: draft` + `admission_state: candidate`，默认检索排除。
+- 只有操作者或目标层 owner 显式批准（走现有本地命令或审批项）才转 `review_state: approved`；模型不能自批。
+- **分层默认可见性**：`instance/<session_id>/scratch` 层保持默认可见（它是临时草稿）；持久层（company / department / role / project / user）默认 `candidate` 不可检索，避免现有 Builder scratch 写入在测试里突然消失。
+- 默认检索返回 `admission_state: qualified` 与无该字段的 legacy 旧记录（保持可见，避免升级后记忆消失）；`candidate` / `ephemeral` 不进入默认投递，但 `instance/<session_id>/scratch` 层除外（保持默认可见）。
+
+**证据、双时态与授权谓词（新增规范）**：
+
+- **证据记录**：证据建成独立记录 `{kind, referenceId, relation, contradicts?}`；从 `candidate` 晋级到 `qualified` 必须引用至少一条 `supports` / `verifies` 证据。
+- **双时态**：事实型记忆带 `valid_from` / `valid_to` / `expired_at`；新事实与旧记录冲突时把旧记录标失效并 append 事件，检索默认过滤已失效记录，历史仍保留。
+- **保留衰减**：保留期用确定性的 relevance 与衰减做 sweep；免疫规则显式排除 `candidate` / `ephemeral`，不得让未准入记忆绕过衰减。
+- **读管分离**：抽出 fail-closed 的 `can_read` / `can_manage` 两个谓词，各自独立、默认拒绝，统一所有检索与写入；能读 ≠ 能管。
+- provenance basis 与 confidence 由捕获通道派生，只进检索排序，不参与授权。向量 / 图检索可作为后续项，分数只排序不授权。
 
 **Collection 分类学与六层 ACL（新增规范，最小第一版枚举）**：
 
@@ -697,6 +763,10 @@ Gate              确定性验收
 SubWorkflow       调用版本固定的子流程
 ```
 
+`retry_policy` / `timeout_policy` 采用 §4.4 的可序列化形状，节点级同样 fail-closed 默认单次尝试。
+
+**ArtifactGraph（新增规范）**：`kiana-workflow` 落一个版本化工件图，每个工件声明 `id` / `generates` / `template` / `requires`；`apply` 只认 `apply.requires` 的传递闭包，缺依赖即 `blocked`，不得凭 packet 文本猜测。
+
 ### 8.3 WorkflowInstance 状态
 
 ```text
@@ -732,6 +802,10 @@ child_run_refs[]
 - LLM 只提出候选节点或参数，不能直接改变 Instance status；
 - 运行中改变验收或 scope 必须产生 ChangeRequest；
 - workflow completion 不自动代表 Project 或 Objective success。
+- **validate 门禁**：`kiana workflow validate --json` 是只读门禁（稳定 issue code + 退出码），另有只读的跨产物一致性分析；缺依赖、成环或违反硬约束即阻断，不得进入 apply。
+- **机器可读宪法**：把硬约束（五工具、冻结项、单执行路径、fail-closed、审批不绕过）抽成机器可读的 constitution，plan / analyze 节点逐条给出 `pass` / `violation`，`violation` 直接阻断。
+- **冻结检查**：packet 绑定冻结的 check 文件（命令 + 期望退出码 / 输出），Builder 执行后写进 `EvidencePacket`，Reviewer / Closer 只读结果判 `pass` / `fail`；冻结后改动即 `FAIL`。
+- 上述命令仍经现有 shell 能力在 policy / sandbox 下执行，不新增模型可见工具。
 
 ### 8.5 确定性合同（新增）
 
@@ -739,6 +813,10 @@ child_run_refs[]
 - **模型输出的入口**：模型输出只能作为候选参数，经 ApprovalGate（Approval 节点或等价 policy gate）后才写入 `NodeExecution` 参数；模型不能直接改变 `WorkflowInstance` 或 `NodeExecution` 状态（§8.4）。
 - **replay divergence 的计算**：逐项比对基准与重放的 `(node_id, attempt, input_digest, output_ref, error_code)` 序列，首个不一致项即 divergence point；结果必须写入 Receipt/Eval，并按 [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) §5.1 阻断 Promote。
 - **非确定输入**：时间、随机数、request id、进程 id 等必须来自可注入的 deterministic source，并纳入 `input_digest`；否则 replay 结果不成立。
+- **RequestContext 注入**：`RequestContext` 必须注入 `DecisionClock` / `RandomSeed` / `InputDigest`；禁止 ControlPlane 直接读环境时间与随机，digest 写进事件与 `NodeExecution`。
+- **版本 marker**：引入 `logic_version` / patch marker 事件；fold 历史时先读已记录 marker 再决定走哪条分支，未知版本 fail-closed 拒绝重放而不是猜测。
+- **只读重放门**：`kiana replay --run <id>` 仅作 CI / 测试入口（**不是模型可见工具**），只读折叠该 Run 的事件，比对 `(invocation_id, attempt, input_digest, 状态, error_code)` 序列，首个不一致即 divergence point 并阻断 release；重放绝不重跑副作用或调用模型。
+- 参考实现对照 grok-build 的 journal（`req_hash` + 稠密 seq + Divergence fail-closed）与 Temporal 的 Replayer。
 
 ### 8.6 参考项目
 
@@ -765,6 +843,8 @@ Specialists → Synthesizer
 ```
 
 不把自由广播、任意私聊、无限递归或 Queen/Hive 作为默认产品协议。
+
+**委派是 ControlPlane 操作，不是第六个模型工具（新增规范）**：delegation 由 ControlPlane 的 assign / handoff 操作承载，不进入模型工具 schema（模型可见工具仍只有 shell / apply_patch / mcp / memory.search / memory.write）；模型只能在 WorkPacket 内容里提出建议，实际目标由 ControlPlane 按 role / grant 白名单解析。禁止自由多 agent 消息总线。
 
 ### 9.2 SwarmPlan 与 Cell
 
@@ -799,6 +879,8 @@ child_grant
 
 `WorkFingerprint` 用于防重复劳动；相同 fingerprint 的活跃任务应复用、订阅结果或拒绝重复创建。
 
+`DelegationPacket` 增加 `max_turns` / `max_messages` / `termination_predicate` / `handoff_allowlist`；白名单来自 grant / template 而不是模型文本，超预算自动终止并写事件。WorkPacket 的依赖边使用显式 `WorkPacket.dependencies` 字段，不从 packet 文本解析；`ready_packets` 与 PathLock 的关系写死「规划期检查 + 运行期兜底」。
+
 ### 9.3 Fan-out / Fan-in 生命周期
 
 ```text
@@ -816,6 +898,8 @@ validate plan
 ```
 
 Child failure、timeout、cancel 或 `result_unknown` 必须向 parent 和 Workflow 汇报；不能只在一个共享 transcript 中留下文字。
+
+**Typed child failure（新增规范）**：child 失败必须写 `ChildFailureReport{child_cell_id, reason_code, error_class, partial_output_refs, result_unknown, retryable, policy_snapshot}` 并随 EventLog 持久化；另记 `delegation_started` / `delegation_completed` / `delegation_failed` / `delegation_reconciled` 事件与 parent / child 关联。
 
 ### 9.4 Partition 与 MergeDecision（新增）
 
@@ -850,6 +934,7 @@ MergeDecision {
 - **MergeDecision 与 design §5.6 MergeReceipt 的关系**：MergeDecision 是“是否合并”的授权决定；MergeReceipt 是该决定的回执投影——一个决定至多产生一个回执，回执必须引用 `merge_decision_id` 并携带 reviewer/acceptor 与 provenance（[`company-os-design.md`](company-os-design.md) §5.6、§6.5）。
 - **SwarmPlan 生命周期与 SupervisionLease**：validate/authorize → 原子预留 `BudgetLease` / Grant / 锁 → 创建 child Cell → 每个 child Cell 绑定 design §5.6 的 `SupervisionLease`（heartbeat、checkpoint、stall threshold、retry limit）→ 收集 typed result → MergeDecision → 释放 lease/grant/未用预算 → retire。
 - `result_unknown` 的 child 不得被合并进父输出；必须先 reconciliation 或按补偿规则收敛。
+- **MergeDecision 拒绝含 `result_unknown` 的 child**：`rejected_child_outputs` 必须携带 reason_code，`result_unknown` 的 child 输出不得进入 `accepted_child_outputs`，机器可检查、不靠人工判断。
 
 ### 9.5 Swarm 参考项目
 
@@ -862,6 +947,8 @@ MergeDecision {
 | CrewAI | Crew 与 Flow 分层 | Swarm 作为 Workflow 执行策略，而非独立 runtime |
 | DeepSeek subagent | child context 独立、不是 fork 父窗口 | child 使用 fresh Session/Run 和显式 lineage |
 | 本仓 `kiana-tasks` | WorkPacket、path isolation 形状 | 继续迁移到 canonical domain WorkPacket |
+
+A2A 只取 Task / Message 的字段形状与 TaskState→Kiana 状态映射，不做远程 transport，不搬运原始 transcript。
 
 ## 10. Provider Gateway 与事件输出
 
@@ -942,6 +1029,14 @@ subscribe before load
 - **失效行为**：epoch 变化后旧 cursor 失效，客户端必须重新拉取 snapshot，再合并新 epoch 的事件；不得把旧 epoch 的事件拼进新 snapshot。
 - **与 operations §3.3 `authority_epoch` 的关系**：桥 epoch 必须携带 `authority_epoch`；`authority_epoch` 变化必然使桥 epoch 递增，反之不成立（重启、catalog 变化也可独立递增）。
 
+**可恢复桥的增量与退避（新增规范）**：
+
+- **先拉尾页再增量**：打开页面先用 REST 取最近 N 条做锚点，再用 `after_event_id` 订阅增量；投影层按事件 id 去重，重放事件只更新事实，不重复触发通知 / 未读等副作用。
+- **断线退避**：断线显示“正在重连”并退避重试（约 1s 起、30s 封顶、加抖动）；恢复后从 EventLog 重载并明确告知“断线期间的事件可能缺失，已按账本重建”。
+- **错误分类**：connection / conversation / auth 三类；连接类下一条正常事件自动清除，auth / 信任类保持粘性。Web 仍必须 loopback-only。
+
+**终局信封（新增规范）**：定义单一终局信封 `run.finished`（含 `run_id` / status / error / cancelled / 最终 assistant 文本）；三个界面都以「`run_id` 匹配的终局信封」作为结束条件，并用内嵌文本对账已渲染内容（§4.4 per-session 状态）。
+
 ### 10.3 参考项目
 
 | 参考项目 | 可吸收设计 |
@@ -975,6 +1070,8 @@ Objective
 每一层都应能通过 `correlation_id`、`causation_id` 和 parent reference 回溯。
 
 **Trace 对象定义（新增）**：Trace 是从 `RuntimeEvent` / `Artifact` / `Receipt` 派生出的只读关联视图，不是新的事实源；它可以被重放重建，但不能反向修改事件，也不能替代 Receipt 的证据断言。
+
+委派链必须可回溯：`delegation_started` / `delegation_completed` / `delegation_failed` / `delegation_reconciled` 事件带 parent / child 关联，沿 `correlation_id` / `causation_id` 即可重建完整谱系（§9.3）。
 
 ### 11.2 必须观测的指标
 
@@ -1042,6 +1139,8 @@ fake model stream
 | normalized provider stream | Cline / DeepSeek | Letta、Crush | P1 |
 | client replay/cursor | OpenCode / Crush | Letta、Cline | P1 |
 | observability/eval | Agno / DeepSeek fixtures | OpenCode、CrewAI checkpoints | P1 |
+
+参考矩阵按「结构化审计 + 最后核验日 + 只核对被引用路径」轻量维护，不每次全量重审；本轮重审顺序为 codex（审批 P0）→ deepseek-harness（P0 主参考）→ grok-build（检查点 / 确定性），其余按审计维护清单排序。
 
 ## 13. 取舍清单
 
@@ -1111,7 +1210,9 @@ P6 Team / Remote / Enterprise
 以下冲突只登记，不在本文放宽规范迁就代码；解决前相关路径保持 fail-closed。
 
 1. **hook `Ask` 与 Approval 通路未打通**：§4.2 要求 `Ask` 进入 PendingInvocation/ApprovalChallenge（design §10.1）；当前 harness 产品路径在无人值守时把 `Ask` fail-closed 为 `hook_ask_unattended`，两条“要人确认”的通路尚未接通（`docs/features/05-approvals.md` 记载；`CURRENT_STATUS.md` 的 P1-02 证据块显示 continuation 仍为 process-local partial）。需要 ADR 决定 `Ask` 的规范归宿与过渡语义。
-2. **epoch / authority_epoch 的持久化载体未定**：§10.2 要求 epoch 在 daemon 重启后仍能 fence 旧 cursor；当前 session/run/lock/approval 仍有进程内状态，`CURRENT_STATUS.md` 记“跨进程完整 resume = deferred”。需要 ADR 决定两者的持久化位置与迁移方式。
+2. **epoch / authority_epoch 的持久化载体未定**：§10.2 要求 epoch 在 daemon 重启后仍能 fence 旧 cursor；§4.1 已规定 RunSnapshot / 调用账本 / RunProjection 由 ControlPlane 独占写入并惰性重建，但 epoch 与这些材料的物理载体（复用 EventStore 还是新增账本）仍需 ADR 决定。
 3. **MCP trust decision 的持久化位置未定**：§7.3 要求存放在 daemon 持久信任账本；是扩展 `ProjectTrust` 还是新增独立账本，需要 ADR。
-4. **本地单用户版的 Memory promotion 审批主体未定**：§5.3 要求由目标层 owner 批准；本地版是否允许 HumanPrincipal 自批（以及如何与 Company policy 区分）需要 ADR。
+4. **本地单用户版的 Memory promotion 审批主体未定**：§5.3 已规定模型不能自批、持久层默认 candidate 不可检索；本地版是否允许 HumanPrincipal 自批（以及如何与 Company policy 区分）仍需 ADR。
 5. **Invocation 与 CapabilityExecution 的最终形态**：本文采用 `1 Invocation : N CapabilityExecution attempt` 的映射；若未来选择合一，必须先修改 [`company-os-design.md`](company-os-design.md) §5.2 的“`execution_id` 与 `invocation_id` 不得混用”约束。
+6. **审批的「本会话批准」「持久 prefix 规则」为第二阶段**：§4.2 首发只做「批准这一次 / 拒绝并继续 / 拒绝并中止」三个动作；本会话授权与持久 prefix 规则涉及持久化、撤销与精确 prefix 边界，需要 ADR 决定存储与失效语义。
+7. **文件层检查点 / 回滚为第二阶段**：§4.1 首发只做状态层 + 编辑级 undo；shadow git 方案、事务化恢复与危险路径防护需要 ADR。
