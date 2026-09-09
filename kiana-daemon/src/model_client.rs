@@ -140,20 +140,27 @@ fn provider_from_env(config: LocalModelConfig) -> Result<Option<Arc<dyn ModelCli
     Ok(Some(Arc::new(ProviderModelClient {
         provider,
         model: model_id,
-        streaming_enabled: streaming_enabled_from_env(),
+        streaming_policy: streaming_enabled_from_env(),
     })))
 }
 
-fn streaming_enabled_from_env() -> bool {
-    std::env::var(ENV_STREAMING)
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StreamingPolicy {
+    Off,
+    Auto,
+    On,
+}
+
+fn streaming_enabled_from_env() -> StreamingPolicy {
+    match std::env::var(ENV_STREAMING)
         .ok()
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("off" | "0" | "false" | "no") => StreamingPolicy::Off,
+        Some("on" | "1" | "true" | "yes") => StreamingPolicy::On,
+        Some("auto") | None | Some(_) => StreamingPolicy::Auto,
+    }
 }
 
 fn provider_system_prompt() -> String {
@@ -184,7 +191,7 @@ fn first_env(keys: &[String]) -> Option<String> {
 struct ProviderModelClient {
     provider: Box<dyn Provider>,
     model: String,
-    streaming_enabled: bool,
+    streaming_policy: StreamingPolicy,
 }
 
 #[async_trait]
@@ -214,10 +221,7 @@ impl ModelClient for ProviderModelClient {
                         .map_err(provider_error_to_service_error)
                 }
             },
-            RetryConfig {
-                max_retries: MODEL_MAX_RETRIES,
-                base_delay: MODEL_RETRY_BASE_DELAY,
-            },
+            model_retry_config(),
         )
         .await
         .map_err(model_error_from_service_error)?;
@@ -230,32 +234,71 @@ impl ModelClient for ProviderModelClient {
         on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
     ) -> Result<ModelOutput, String> {
         let profile = self.provider.model_profile(&self.model);
-        if !self.streaming_enabled || !profile.native_streaming {
-            return self.complete_as_single_delta(request, on_delta).await;
+        match self.streaming_policy {
+            StreamingPolicy::Off => {
+                return self.complete_as_single_delta(request, on_delta).await;
+            }
+            StreamingPolicy::Auto if !profile.native_streaming => {
+                return self.complete_as_single_delta(request, on_delta).await;
+            }
+            StreamingPolicy::On if !profile.native_streaming => {
+                return Err(unsupported_streaming_error(
+                    self.provider.provider_id(),
+                    &self.model,
+                ));
+            }
+            StreamingPolicy::Auto | StreamingPolicy::On => {}
         }
 
         let messages = map_messages(&request.messages)?;
         let tools = map_tools(&request.tools);
         let system = Some(json!(provider_system_prompt()));
-        let stream = self
-            .provider
-            .stream_message(MessagesRequest {
-                model: self.model.clone(),
-                messages,
-                max_tokens: DEFAULT_MAX_TOKENS,
-                system,
-                temperature: None,
-                tools: if tools.is_empty() { None } else { Some(tools) },
-                thinking: None,
-                stream: Some(true),
-            })
-            .await
-            .map_err(|error| {
-                model_error_from_service_error(provider_error_to_service_error(error))
-            })?;
+        let stream = with_retry(
+            || {
+                let messages = messages.clone();
+                let tools = tools.clone();
+                let system = system.clone();
+                async move {
+                    self.provider
+                        .stream_message(MessagesRequest {
+                            model: self.model.clone(),
+                            messages,
+                            max_tokens: DEFAULT_MAX_TOKENS,
+                            system,
+                            temperature: None,
+                            tools: if tools.is_empty() { None } else { Some(tools) },
+                            thinking: None,
+                            stream: Some(true),
+                        })
+                        .await
+                        .map_err(provider_error_to_service_error)
+                }
+            },
+            model_retry_config(),
+        )
+        .await
+        .map_err(model_error_from_service_error)?;
 
         aggregate_provider_stream(self.provider.provider_id(), &self.model, stream, on_delta).await
     }
+}
+
+fn model_retry_config() -> RetryConfig {
+    RetryConfig {
+        max_retries: MODEL_MAX_RETRIES,
+        base_delay: MODEL_RETRY_BASE_DELAY,
+    }
+}
+
+fn unsupported_streaming_error(provider_id: &str, model_id: &str) -> String {
+    model_error_from_service_error(provider_error_to_service_error(
+        ProviderError::UnsupportedCapability {
+            provider_id: provider_id.to_owned(),
+            model_id: model_id.to_owned(),
+            capability: "streaming".to_owned(),
+            message: format!("model {provider_id}/{model_id} does not support native streaming"),
+        },
+    ))
 }
 
 impl ProviderModelClient {
@@ -800,9 +843,58 @@ mod tests {
         }
     }
 
+    struct RetryingStreamProvider {
+        attempts: Arc<AtomicU64>,
+        events: Vec<StreamEvent>,
+    }
+
+    #[async_trait]
+    impl Provider for RetryingStreamProvider {
+        fn provider_id(&self) -> &str {
+            "retrying-stream-provider"
+        }
+
+        fn model_profile(&self, model_id: &str) -> ModelProfile {
+            ModelProfile {
+                provider_id: "retrying-stream-provider".to_owned(),
+                provider_display_name: "Retrying Stream Provider".to_owned(),
+                model_id: model_id.to_owned(),
+                supports_tools: true,
+                supports_streaming: true,
+                streaming_mode: StreamingMode::Native,
+                native_streaming: true,
+                supports_vision: false,
+                supports_structured_output: false,
+                context_window: 8_192,
+            }
+        }
+
+        async fn create_message(
+            &self,
+            _request: MessagesRequest,
+        ) -> ProviderResult<MessagesResponse> {
+            panic!("retrying stream provider must not use the non-streaming fallback");
+        }
+
+        async fn stream_message(
+            &self,
+            _request: MessagesRequest,
+        ) -> ProviderResult<ProviderStream> {
+            let attempt = self.attempts.fetch_add(1, Ordering::SeqCst);
+            if attempt == 0 {
+                return Err(ProviderError::Provider {
+                    provider_id: self.provider_id().to_owned(),
+                    code: "server_overload".to_owned(),
+                    message: "retry before first delta".to_owned(),
+                });
+            }
+            Ok(provider_stream_from_events(self.events.clone()))
+        }
+    }
+
     fn tracking_client(
         native_streaming: bool,
-        streaming_enabled: bool,
+        streaming_policy: StreamingPolicy,
     ) -> (ProviderModelClient, Arc<AtomicBool>) {
         let stream_called = Arc::new(AtomicBool::new(false));
         let client = ProviderModelClient {
@@ -811,7 +903,7 @@ mod tests {
                 stream_called: Arc::clone(&stream_called),
             }),
             model: "tracking-model".to_owned(),
-            streaming_enabled,
+            streaming_policy,
         };
         (client, stream_called)
     }
@@ -839,19 +931,37 @@ mod tests {
     }
 
     #[test]
-    fn streaming_env_is_opt_in() {
+    fn streaming_env_parses_off_auto_and_on_case_insensitively() {
         let _lock = env_lock();
         let _streaming = EnvGuard::remove(ENV_STREAMING);
-        assert!(!streaming_enabled_from_env());
+        assert_eq!(streaming_enabled_from_env(), StreamingPolicy::Auto);
 
-        let _streaming = EnvGuard::set(ENV_STREAMING, "0");
-        assert!(!streaming_enabled_from_env());
+        for value in ["off", "0", "FALSE", "No"] {
+            let _streaming = EnvGuard::set(ENV_STREAMING, value);
+            assert_eq!(
+                streaming_enabled_from_env(),
+                StreamingPolicy::Off,
+                "KIANA_STREAMING={value}"
+            );
+        }
 
-        let _streaming = EnvGuard::set(ENV_STREAMING, "1");
-        assert!(streaming_enabled_from_env());
+        for value in ["on", "1", "TRUE", "Yes"] {
+            let _streaming = EnvGuard::set(ENV_STREAMING, value);
+            assert_eq!(
+                streaming_enabled_from_env(),
+                StreamingPolicy::On,
+                "KIANA_STREAMING={value}"
+            );
+        }
 
-        let _streaming = EnvGuard::set(ENV_STREAMING, "TRUE");
-        assert!(streaming_enabled_from_env());
+        for value in ["auto", "", "unexpected"] {
+            let _streaming = EnvGuard::set(ENV_STREAMING, value);
+            assert_eq!(
+                streaming_enabled_from_env(),
+                StreamingPolicy::Auto,
+                "KIANA_STREAMING={value}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -903,7 +1013,7 @@ mod tests {
 
     #[tokio::test]
     async fn streaming_switch_off_uses_non_streaming_fallback() {
-        let (client, stream_called) = tracking_client(true, false);
+        let (client, stream_called) = tracking_client(true, StreamingPolicy::Off);
         let mut deltas = Vec::new();
 
         let output = client
@@ -935,8 +1045,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_native_provider_uses_non_streaming_fallback_when_enabled() {
-        let (client, stream_called) = tracking_client(false, true);
+    async fn streaming_auto_uses_non_streaming_fallback_for_non_native_provider() {
+        let (client, stream_called) = tracking_client(false, StreamingPolicy::Auto);
         let mut deltas = Vec::new();
 
         let output = client
@@ -964,6 +1074,94 @@ mod tests {
         assert!(
             !stream_called.load(Ordering::SeqCst),
             "synthetic providers must not be reported as native streaming"
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_on_fails_closed_for_non_native_provider() {
+        let (client, stream_called) = tracking_client(false, StreamingPolicy::On);
+
+        let error = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("hello")],
+                    tools: Vec::new(),
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |_| Ok(()),
+            )
+            .await
+            .expect_err("forced streaming must not silently fall back");
+
+        assert_eq!(error, "unsupported_streaming");
+        assert!(
+            !stream_called.load(Ordering::SeqCst),
+            "non-native providers must be rejected before stream_message is called"
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_retries_transient_connection_before_first_delta() {
+        let event = |value: Value| serde_json::from_value::<StreamEvent>(value).unwrap();
+        let attempts = Arc::new(AtomicU64::new(0));
+        let client = ProviderModelClient {
+            provider: Box::new(RetryingStreamProvider {
+                attempts: Arc::clone(&attempts),
+                events: vec![
+                    event(json!({
+                        "type": "message_start",
+                        "message": {
+                            "id": "msg_retry",
+                            "model": "retry-model",
+                            "role": "assistant",
+                            "usage": {"input_tokens": 4, "output_tokens": 0}
+                        }
+                    })),
+                    event(json!({
+                        "type": "content_block_start",
+                        "index": 0,
+                        "content_block": {"type": "text", "text": ""}
+                    })),
+                    event(json!({
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"type": "text_delta", "text": "retried stream"}
+                    })),
+                    event(json!({
+                        "type": "message_delta",
+                        "delta": {"stop_reason": "end_turn"},
+                        "usage": {"input_tokens": 0, "output_tokens": 2}
+                    })),
+                    event(json!({"type": "message_stop"})),
+                ],
+            }),
+            model: "retry-model".to_owned(),
+            streaming_policy: StreamingPolicy::Auto,
+        };
+        let mut deltas = Vec::new();
+
+        let output = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("hello")],
+                    tools: Vec::new(),
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |delta| {
+                    deltas.push(delta);
+                    Ok(())
+                },
+            )
+            .await
+            .expect("transient stream connection failures should be retried");
+
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert_eq!(output.text, "retried stream");
+        assert_eq!(
+            deltas,
+            vec![ModelDelta::Text {
+                text: "retried stream".to_owned()
+            }]
         );
     }
 
@@ -1020,7 +1218,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(EventProvider { events }),
             model: "event-model".to_owned(),
-            streaming_enabled: true,
+            streaming_policy: StreamingPolicy::On,
         };
         let mut deltas = Vec::new();
 
@@ -1102,7 +1300,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(EventProvider { events }),
             model: "event-model".to_owned(),
-            streaming_enabled: true,
+            streaming_policy: StreamingPolicy::On,
         };
 
         let error = client
@@ -1139,7 +1337,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "fake-model".to_owned(),
-            streaming_enabled: false,
+            streaming_policy: StreamingPolicy::Off,
         };
         let first = client
             .complete(ModelRequest {
@@ -1222,7 +1420,7 @@ data: {"type":"message_stop"}
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "claude-stream-test".to_owned(),
-            streaming_enabled: true,
+            streaming_policy: StreamingPolicy::On,
         };
         let mut deltas = Vec::new();
 
@@ -1295,7 +1493,7 @@ data: {"type":"message_stop"}
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: FAKE_TEXT_ONLY_MODEL_ID.to_owned(),
-            streaming_enabled: false,
+            streaming_policy: StreamingPolicy::Off,
         };
         let error = client
             .complete(ModelRequest {
@@ -1330,7 +1528,7 @@ data: {"type":"message_stop"}
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "fake-model".to_owned(),
-            streaming_enabled: false,
+            streaming_policy: StreamingPolicy::Off,
         };
 
         let output = client
@@ -1362,7 +1560,7 @@ data: {"type":"message_stop"}
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "fake-model".to_owned(),
-            streaming_enabled: false,
+            streaming_policy: StreamingPolicy::Off,
         };
 
         let error = client
@@ -1415,7 +1613,7 @@ data: {"type":"message_stop"}
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "gpt-test".to_owned(),
-            streaming_enabled: false,
+            streaming_policy: StreamingPolicy::Off,
         };
 
         let output = client
@@ -1464,7 +1662,7 @@ data: {"type":"message_stop"}
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "gpt-test".to_owned(),
-            streaming_enabled: false,
+            streaming_policy: StreamingPolicy::Off,
         };
 
         let error = client
