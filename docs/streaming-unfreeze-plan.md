@@ -193,6 +193,8 @@
 | 解冻范围 | **三个界面都要**：命令行、文件夹工作台、网页版（loopback SSE） |
 | 首发证明上限 | **必须到 `live`**：真实 provider adapter + 对账 + 证据块；不接受只用 Fake/Synthetic 就宣称完成 |
 | 中断语义 | **保留已流出文本并标注「已中断」**；终态 `cancelled`；副作用无法确认时 `result_unknown` |
+| 开关默认 | **`auto`**：`KIANA_STREAMING=off|auto|on`，默认 `auto`——provider 支持就流，不支持就退回整段，但**退回必须显式记一条事件**，不许静默装成等价 |
+| 网页传输 | **SSE**（单向推送、自带断线重连，代码最少）；取消/审批仍走现有 HTTP 接口。WebSocket 依赖已就位（`axum` 的 `ws` 特性 + `tokio-tungstenite`），留作将来需要双向通道时再用 |
 
 据此按「方案 B 全量版」执行。开发期间用 opt-in 开关（默认关闭）保证既有行为零回归；`live` 证据块落地后，命令行与网页默认开启、保留关闭开关。
 

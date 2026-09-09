@@ -205,6 +205,18 @@ impl ProviderError {
 pub type ProviderResult<T> = Result<T, ProviderError>;
 pub type ProviderStream = Pin<Box<dyn Stream<Item = ProviderResult<StreamEvent>> + Send + 'static>>;
 
+/// Advance a provider stream by one event without exposing the concrete stream crate.
+pub async fn next_provider_stream_event(
+    stream: &mut ProviderStream,
+) -> Option<ProviderResult<StreamEvent>> {
+    stream.next().await
+}
+
+/// Build a deterministic provider stream from already-decoded events.
+pub fn provider_stream_from_events(events: Vec<StreamEvent>) -> ProviderStream {
+    Box::pin(stream::iter(events.into_iter().map(Ok)))
+}
+
 #[async_trait]
 pub trait Provider: Send + Sync {
     fn provider_id(&self) -> &str;
@@ -547,7 +559,7 @@ impl Provider for OpenAiCompatibleProvider {
     async fn stream_message(&self, request: MessagesRequest) -> ProviderResult<ProviderStream> {
         let response = self.create_message(request).await?;
         let events = stream_events_from_response(&response);
-        Ok(Box::pin(stream::iter(events.into_iter().map(Ok))))
+        Ok(provider_stream_from_events(events))
     }
 }
 
@@ -928,7 +940,7 @@ impl Provider for OllamaProvider {
     async fn stream_message(&self, request: MessagesRequest) -> ProviderResult<ProviderStream> {
         let response = self.create_message(request).await?;
         let events = stream_events_from_response(&response);
-        Ok(Box::pin(stream::iter(events.into_iter().map(Ok))))
+        Ok(provider_stream_from_events(events))
     }
 }
 
@@ -1329,7 +1341,7 @@ impl Provider for FakeProvider {
         self.ensure_request_supported(&request)?;
         let response = self.create_message(request).await?;
         let events = stream_events_from_response(&response);
-        Ok(Box::pin(stream::iter(events.into_iter().map(Ok))))
+        Ok(provider_stream_from_events(events))
     }
 }
 

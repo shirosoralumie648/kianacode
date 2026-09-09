@@ -7,19 +7,23 @@
 use async_trait::async_trait;
 use kiana_domain::RoleSpec;
 use kiana_runner::{
-    ModelClient, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall, ModelUsage,
-    ScriptedModel, UnavailableModel,
+    ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall,
+    ModelUsage, ScriptedModel, UnavailableModel,
 };
 use kiana_services::api::errors::ApiErrorKind;
 use kiana_services::api::messages::{Message, MessagesRequest, MessagesResponse};
 use kiana_services::api::provider::{
-    provider_registry_entry, AnthropicProvider, FakeProvider, OllamaProvider,
-    OpenAiCompatibleProvider, Provider, ProviderError, ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID,
-    OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
+    next_provider_stream_event, provider_registry_entry, AnthropicProvider, FakeProvider,
+    OllamaProvider, OpenAiCompatibleProvider, Provider, ProviderError, ProviderStream,
+    ANTHROPIC_PROVIDER_ID, FAKE_PROVIDER_ID, OLLAMA_PROVIDER_ID, OPENAI_COMPATIBLE_PROVIDER_ID,
 };
 use kiana_services::api::retry::{with_retry, RetryConfig};
+use kiana_services::api::streaming::{
+    ContentBlock as StreamContentBlock, Delta as StreamDelta, StreamEvent,
+};
 use kiana_services::errors::ServiceError;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,6 +31,7 @@ use crate::LocalModelConfig;
 
 const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
 const ENV_PROVIDER: &str = "KIANA_PROVIDER";
+const ENV_STREAMING: &str = "KIANA_STREAMING";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(60);
 const MODEL_MAX_RETRIES: u32 = 2;
@@ -135,7 +140,20 @@ fn provider_from_env(config: LocalModelConfig) -> Result<Option<Arc<dyn ModelCli
     Ok(Some(Arc::new(ProviderModelClient {
         provider,
         model: model_id,
+        streaming_enabled: streaming_enabled_from_env(),
     })))
+}
+
+fn streaming_enabled_from_env() -> bool {
+    std::env::var(ENV_STREAMING)
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 fn provider_system_prompt() -> String {
@@ -166,6 +184,7 @@ fn first_env(keys: &[String]) -> Option<String> {
 struct ProviderModelClient {
     provider: Box<dyn Provider>,
     model: String,
+    streaming_enabled: bool,
 }
 
 #[async_trait]
@@ -204,6 +223,192 @@ impl ModelClient for ProviderModelClient {
         .map_err(model_error_from_service_error)?;
         Ok(output_from_response(&response))
     }
+
+    async fn complete_streaming(
+        &self,
+        request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        let profile = self.provider.model_profile(&self.model);
+        if !self.streaming_enabled || !profile.native_streaming {
+            return self.complete_as_single_delta(request, on_delta).await;
+        }
+
+        let messages = map_messages(&request.messages)?;
+        let tools = map_tools(&request.tools);
+        let system = Some(json!(provider_system_prompt()));
+        let stream = self
+            .provider
+            .stream_message(MessagesRequest {
+                model: self.model.clone(),
+                messages,
+                max_tokens: DEFAULT_MAX_TOKENS,
+                system,
+                temperature: None,
+                tools: if tools.is_empty() { None } else { Some(tools) },
+                thinking: None,
+                stream: Some(true),
+            })
+            .await
+            .map_err(|error| {
+                model_error_from_service_error(provider_error_to_service_error(error))
+            })?;
+
+        aggregate_provider_stream(self.provider.provider_id(), &self.model, stream, on_delta).await
+    }
+}
+
+impl ProviderModelClient {
+    async fn complete_as_single_delta(
+        &self,
+        request: ModelRequest,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<ModelOutput, String> {
+        let output = self.complete(request).await?;
+        if !output.text.is_empty() {
+            on_delta(ModelDelta::Text {
+                text: output.text.clone(),
+            })?;
+        }
+        Ok(output)
+    }
+}
+
+enum StreamBlock {
+    Text(String),
+    ToolUse {
+        id: String,
+        name: String,
+        initial_input: Value,
+        input_json: String,
+    },
+}
+
+async fn aggregate_provider_stream(
+    provider_id: &str,
+    fallback_model_id: &str,
+    mut stream: ProviderStream,
+    on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+) -> Result<ModelOutput, String> {
+    let mut blocks = BTreeMap::<usize, StreamBlock>::new();
+    let mut input_tokens = 0_u32;
+    let mut output_tokens = 0_u32;
+    let mut stop_reason = None;
+    let mut model_id = Some(fallback_model_id.to_owned());
+
+    while let Some(event) = next_provider_stream_event(&mut stream).await {
+        match event.map_err(|error| {
+            model_error_from_service_error(provider_error_to_service_error(error))
+        })? {
+            StreamEvent::MessageStart { message } => {
+                input_tokens = message.usage.input_tokens;
+                model_id = Some(message.model);
+            }
+            StreamEvent::ContentBlockStart {
+                index,
+                content_block,
+            } => match content_block {
+                StreamContentBlock::Text { text } => {
+                    if !text.is_empty() {
+                        on_delta(ModelDelta::Text { text: text.clone() })?;
+                    }
+                    blocks.insert(index, StreamBlock::Text(text));
+                }
+                StreamContentBlock::ToolUse(tool) => {
+                    blocks.insert(
+                        index,
+                        StreamBlock::ToolUse {
+                            id: tool.id,
+                            name: tool.name,
+                            initial_input: tool.input,
+                            input_json: String::new(),
+                        },
+                    );
+                }
+                StreamContentBlock::Thinking { .. }
+                | StreamContentBlock::RedactedThinking { .. } => {}
+            },
+            StreamEvent::ContentBlockDelta { index, delta } => match delta {
+                StreamDelta::TextDelta { text } => {
+                    let Some(StreamBlock::Text(current)) = blocks.get_mut(&index) else {
+                        return Err(format!("stream_text_delta_without_content_block:{index}"));
+                    };
+                    current.push_str(&text);
+                    if !text.is_empty() {
+                        on_delta(ModelDelta::Text { text })?;
+                    }
+                }
+                StreamDelta::InputJsonDelta { partial_json } => {
+                    let Some(StreamBlock::ToolUse { input_json, .. }) = blocks.get_mut(&index)
+                    else {
+                        return Err(format!("stream_tool_delta_without_content_block:{index}"));
+                    };
+                    input_json.push_str(&partial_json);
+                }
+                StreamDelta::ThinkingDelta { .. } | StreamDelta::SignatureDelta { .. } => {}
+            },
+            StreamEvent::ContentBlockStop { .. } | StreamEvent::Ping | StreamEvent::MessageStop => {
+            }
+            StreamEvent::MessageDelta { delta, usage } => {
+                output_tokens = usage.output_tokens;
+                stop_reason = delta.stop_reason;
+            }
+            StreamEvent::Error { error } => {
+                let code = error
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("provider_stream_error");
+                let message = error
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("provider stream error");
+                return Err(model_error_from_service_error(
+                    provider_error_to_service_error(ProviderError::Provider {
+                        provider_id: provider_id.to_owned(),
+                        code: code.to_owned(),
+                        message: message.to_owned(),
+                    }),
+                ));
+            }
+        }
+    }
+
+    let mut text = String::new();
+    let mut tool_calls = Vec::new();
+    for (index, block) in blocks {
+        match block {
+            StreamBlock::Text(chunk) => text.push_str(&chunk),
+            StreamBlock::ToolUse {
+                id,
+                name,
+                initial_input,
+                input_json,
+            } => {
+                let arguments = if input_json.trim().is_empty() {
+                    initial_input
+                } else {
+                    serde_json::from_str(&input_json)
+                        .map_err(|error| format!("invalid_stream_tool_input:{index}:{error}"))?
+                };
+                tool_calls.push(ModelToolCall {
+                    id,
+                    name,
+                    arguments,
+                });
+            }
+        }
+    }
+
+    Ok(ModelOutput {
+        text,
+        tool_calls,
+        usage: Some(ModelUsage {
+            input_tokens: u64::from(input_tokens),
+            output_tokens: u64::from(output_tokens),
+        }),
+        stop_reason,
+        model_id,
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -421,10 +626,15 @@ fn output_from_response(response: &MessagesResponse) -> ModelOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiana_services::api::provider::{FakeProviderStep, FAKE_TEXT_ONLY_MODEL_ID};
+    use async_trait::async_trait;
+    use kiana_services::api::messages::{MessagesResponse, Usage};
+    use kiana_services::api::provider::{
+        provider_stream_from_events, FakeProviderStep, ModelProfile, ProviderResult, StreamingMode,
+        FAKE_TEXT_ONLY_MODEL_ID,
+    };
     use std::ffi::{OsStr, OsString};
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::Mutex;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -491,6 +701,121 @@ mod tests {
         }
     }
 
+    struct TrackingProvider {
+        native_streaming: bool,
+        stream_called: Arc<AtomicBool>,
+    }
+
+    #[async_trait]
+    impl Provider for TrackingProvider {
+        fn provider_id(&self) -> &str {
+            "tracking"
+        }
+
+        fn model_profile(&self, model_id: &str) -> ModelProfile {
+            ModelProfile {
+                provider_id: "tracking".to_owned(),
+                provider_display_name: "Tracking".to_owned(),
+                model_id: model_id.to_owned(),
+                supports_tools: true,
+                supports_streaming: true,
+                streaming_mode: if self.native_streaming {
+                    StreamingMode::Native
+                } else {
+                    StreamingMode::Synthetic
+                },
+                native_streaming: self.native_streaming,
+                supports_vision: false,
+                supports_structured_output: false,
+                context_window: 8_192,
+            }
+        }
+
+        async fn create_message(
+            &self,
+            request: MessagesRequest,
+        ) -> ProviderResult<MessagesResponse> {
+            Ok(MessagesResponse {
+                id: "tracking-msg".to_owned(),
+                model: request.model,
+                role: "assistant".to_owned(),
+                content: vec![json!({
+                    "type": "text",
+                    "text": "fallback text",
+                })],
+                stop_reason: Some("end_turn".to_owned()),
+                usage: Usage {
+                    input_tokens: 4,
+                    output_tokens: 2,
+                },
+            })
+        }
+
+        async fn stream_message(
+            &self,
+            _request: MessagesRequest,
+        ) -> ProviderResult<ProviderStream> {
+            self.stream_called.store(true, Ordering::SeqCst);
+            panic!("stream_message must not be called when native streaming is unavailable");
+        }
+    }
+
+    struct EventProvider {
+        events: Vec<StreamEvent>,
+    }
+
+    #[async_trait]
+    impl Provider for EventProvider {
+        fn provider_id(&self) -> &str {
+            "event-provider"
+        }
+
+        fn model_profile(&self, model_id: &str) -> ModelProfile {
+            ModelProfile {
+                provider_id: "event-provider".to_owned(),
+                provider_display_name: "Event Provider".to_owned(),
+                model_id: model_id.to_owned(),
+                supports_tools: true,
+                supports_streaming: true,
+                streaming_mode: StreamingMode::Native,
+                native_streaming: true,
+                supports_vision: false,
+                supports_structured_output: false,
+                context_window: 8_192,
+            }
+        }
+
+        async fn create_message(
+            &self,
+            _request: MessagesRequest,
+        ) -> ProviderResult<MessagesResponse> {
+            panic!("event provider must only be used through the streaming path");
+        }
+
+        async fn stream_message(
+            &self,
+            _request: MessagesRequest,
+        ) -> ProviderResult<ProviderStream> {
+            Ok(provider_stream_from_events(self.events.clone()))
+        }
+    }
+
+    fn tracking_client(
+        native_streaming: bool,
+        streaming_enabled: bool,
+    ) -> (ProviderModelClient, Arc<AtomicBool>) {
+        let stream_called = Arc::new(AtomicBool::new(false));
+        let client = ProviderModelClient {
+            provider: Box::new(TrackingProvider {
+                native_streaming,
+                stream_called: Arc::clone(&stream_called),
+            }),
+            model: "tracking-model".to_owned(),
+            streaming_enabled,
+        };
+        (client, stream_called)
+    }
+
     #[test]
     fn provider_env_anthropic_with_key_selects_provider_client() {
         let _lock = env_lock();
@@ -511,6 +836,22 @@ mod tests {
             with_key.is_some(),
             "KIANA_PROVIDER=anthropic with ANTHROPIC_API_KEY should select a provider client"
         );
+    }
+
+    #[test]
+    fn streaming_env_is_opt_in() {
+        let _lock = env_lock();
+        let _streaming = EnvGuard::remove(ENV_STREAMING);
+        assert!(!streaming_enabled_from_env());
+
+        let _streaming = EnvGuard::set(ENV_STREAMING, "0");
+        assert!(!streaming_enabled_from_env());
+
+        let _streaming = EnvGuard::set(ENV_STREAMING, "1");
+        assert!(streaming_enabled_from_env());
+
+        let _streaming = EnvGuard::set(ENV_STREAMING, "TRUE");
+        assert!(streaming_enabled_from_env());
     }
 
     #[tokio::test]
@@ -561,6 +902,225 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn streaming_switch_off_uses_non_streaming_fallback() {
+        let (client, stream_called) = tracking_client(true, false);
+        let mut deltas = Vec::new();
+
+        let output = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("hello")],
+                    tools: Vec::new(),
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |delta| {
+                    deltas.push(delta);
+                    Ok(())
+                },
+            )
+            .await
+            .expect("switch off should use the non-streaming path");
+
+        assert_eq!(output.text, "fallback text");
+        assert_eq!(
+            deltas,
+            vec![ModelDelta::Text {
+                text: "fallback text".to_owned()
+            }]
+        );
+        assert!(
+            !stream_called.load(Ordering::SeqCst),
+            "native stream_message must not be called when KIANA_STREAMING is off"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_native_provider_uses_non_streaming_fallback_when_enabled() {
+        let (client, stream_called) = tracking_client(false, true);
+        let mut deltas = Vec::new();
+
+        let output = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("hello")],
+                    tools: Vec::new(),
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |delta| {
+                    deltas.push(delta);
+                    Ok(())
+                },
+            )
+            .await
+            .expect("synthetic-only providers should use the non-streaming fallback");
+
+        assert_eq!(output.text, "fallback text");
+        assert_eq!(
+            deltas,
+            vec![ModelDelta::Text {
+                text: "fallback text".to_owned()
+            }]
+        );
+        assert!(
+            !stream_called.load(Ordering::SeqCst),
+            "synthetic providers must not be reported as native streaming"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_streaming_aggregates_input_json_delta_without_network() {
+        let event = |value: Value| serde_json::from_value::<StreamEvent>(value).unwrap();
+        let events = vec![
+            event(json!({
+                "type": "message_start",
+                "message": {
+                    "id": "msg_event",
+                    "model": "event-model",
+                    "role": "assistant",
+                    "usage": {"input_tokens": 9, "output_tokens": 0}
+                }
+            })),
+            event(json!({
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""}
+            })),
+            event(json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "streamed"}
+            })),
+            event(json!({
+                "type": "content_block_start",
+                "index": 1,
+                "content_block": {
+                    "type": "tool_use",
+                    "id": "toolu_event",
+                    "name": "shell",
+                    "input": {}
+                }
+            })),
+            event(json!({
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "input_json_delta", "partial_json": "{\"command\":"}
+            })),
+            event(json!({
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "input_json_delta", "partial_json": "\"pwd\"}"}
+            })),
+            event(json!({
+                "type": "message_delta",
+                "delta": {"stop_reason": "tool_use"},
+                "usage": {"input_tokens": 0, "output_tokens": 5}
+            })),
+            event(json!({"type": "message_stop"})),
+        ];
+        let client = ProviderModelClient {
+            provider: Box::new(EventProvider { events }),
+            model: "event-model".to_owned(),
+            streaming_enabled: true,
+        };
+        let mut deltas = Vec::new();
+
+        let output = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("run pwd")],
+                    tools: vec![json!({"name": "shell"})],
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |delta| {
+                    deltas.push(delta);
+                    Ok(())
+                },
+            )
+            .await
+            .expect("decoded native events should aggregate");
+
+        assert_eq!(output.text, "streamed");
+        assert_eq!(
+            output.tool_calls,
+            vec![ModelToolCall {
+                id: "toolu_event".to_owned(),
+                name: "shell".to_owned(),
+                arguments: json!({"command": "pwd"}),
+            }]
+        );
+        assert_eq!(
+            output.usage,
+            Some(ModelUsage {
+                input_tokens: 9,
+                output_tokens: 5,
+            })
+        );
+        assert_eq!(output.stop_reason.as_deref(), Some("tool_use"));
+        assert_eq!(output.model_id.as_deref(), Some("event-model"));
+        assert_eq!(
+            deltas,
+            vec![ModelDelta::Text {
+                text: "streamed".to_owned()
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn native_streaming_invalid_tool_json_fails_closed() {
+        let event = |value: Value| serde_json::from_value::<StreamEvent>(value).unwrap();
+        let events = vec![
+            event(json!({
+                "type": "message_start",
+                "message": {
+                    "id": "msg_bad_tool",
+                    "model": "event-model",
+                    "role": "assistant",
+                    "usage": {"input_tokens": 3, "output_tokens": 0}
+                }
+            })),
+            event(json!({
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {
+                    "type": "tool_use",
+                    "id": "toolu_bad",
+                    "name": "shell",
+                    "input": {}
+                }
+            })),
+            event(json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": "{\"command\":"}
+            })),
+            event(json!({
+                "type": "message_delta",
+                "delta": {"stop_reason": "tool_use"},
+                "usage": {"input_tokens": 0, "output_tokens": 2}
+            })),
+        ];
+        let client = ProviderModelClient {
+            provider: Box::new(EventProvider { events }),
+            model: "event-model".to_owned(),
+            streaming_enabled: true,
+        };
+
+        let error = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("run shell")],
+                    tools: vec![json!({"name": "shell"})],
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |_| Ok(()),
+            )
+            .await
+            .expect_err("invalid streamed tool JSON must fail closed");
+
+        assert!(error.starts_with("invalid_stream_tool_input:0:"), "{error}");
+    }
+
+    #[tokio::test]
     async fn provider_wrapper_maps_tool_calls_and_final_text() {
         let provider = FakeProvider::new(
             "fake-model".to_owned(),
@@ -579,6 +1139,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "fake-model".to_owned(),
+            streaming_enabled: false,
         };
         let first = client
             .complete(ModelRequest {
@@ -619,6 +1180,111 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anthropic_native_streaming_aggregates_output_without_network() {
+        let stream_body = r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_stream","model":"claude-stream-test","role":"assistant","usage":{"input_tokens":12,"output_tokens":1}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello "}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"world"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"shell","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"command\":"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"ls\"}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":0,"output_tokens":7}}
+
+event: message_stop
+data: {"type":"message_stop"}
+
+"#;
+        let (base_url, mut request_rx, server) =
+            start_mock_anthropic_stream_server(stream_body.to_owned()).await;
+        let provider =
+            AnthropicProvider::new("test-key".to_owned(), base_url, Duration::from_secs(5));
+        let client = ProviderModelClient {
+            provider: Box::new(provider),
+            model: "claude-stream-test".to_owned(),
+            streaming_enabled: true,
+        };
+        let mut deltas = Vec::new();
+
+        let output = client
+            .complete_streaming(
+                ModelRequest {
+                    messages: vec![ModelMessage::user("say hello")],
+                    tools: vec![json!({
+                        "name": "shell",
+                        "input_schema": {"type": "object"}
+                    })],
+                    sandbox: "read-only".to_owned(),
+                },
+                &mut |delta| {
+                    deltas.push(delta);
+                    Ok(())
+                },
+            )
+            .await
+            .expect("native Anthropic SSE should aggregate");
+
+        assert_eq!(output.text, "Hello world");
+        assert_eq!(
+            output.tool_calls,
+            vec![ModelToolCall {
+                id: "toolu_1".to_owned(),
+                name: "shell".to_owned(),
+                arguments: json!({"command": "ls"}),
+            }]
+        );
+        assert_eq!(
+            output.usage,
+            Some(ModelUsage {
+                input_tokens: 12,
+                output_tokens: 7,
+            })
+        );
+        assert_eq!(output.stop_reason.as_deref(), Some("tool_use"));
+        assert_eq!(output.model_id.as_deref(), Some("claude-stream-test"));
+        assert_eq!(
+            deltas,
+            vec![
+                ModelDelta::Text {
+                    text: "Hello ".to_owned()
+                },
+                ModelDelta::Text {
+                    text: "world".to_owned()
+                }
+            ]
+        );
+
+        let request = request_rx
+            .recv()
+            .await
+            .expect("mock server should receive the streaming request");
+        assert!(request.starts_with("POST /v1/messages "));
+        assert!(request.contains("\"stream\":true"));
+        assert!(request.contains("\"name\":\"shell\""));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn text_only_provider_maps_unsupported_tools_code() {
         let provider = FakeProvider::new(
             FAKE_TEXT_ONLY_MODEL_ID.to_owned(),
@@ -629,6 +1295,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: FAKE_TEXT_ONLY_MODEL_ID.to_owned(),
+            streaming_enabled: false,
         };
         let error = client
             .complete(ModelRequest {
@@ -663,6 +1330,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "fake-model".to_owned(),
+            streaming_enabled: false,
         };
 
         let output = client
@@ -694,6 +1362,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "fake-model".to_owned(),
+            streaming_enabled: false,
         };
 
         let error = client
@@ -746,6 +1415,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "gpt-test".to_owned(),
+            streaming_enabled: false,
         };
 
         let output = client
@@ -794,6 +1464,7 @@ mod tests {
         let client = ProviderModelClient {
             provider: Box::new(provider),
             model: "gpt-test".to_owned(),
+            streaming_enabled: false,
         };
 
         let error = client
@@ -844,6 +1515,30 @@ mod tests {
                 );
                 socket.write_all(raw.as_bytes()).await.unwrap();
             }
+        });
+        (format!("http://{addr}"), request_rx, server)
+    }
+
+    async fn start_mock_anthropic_stream_server(
+        stream_body: String,
+    ) -> (
+        String,
+        tokio::sync::mpsc::UnboundedReceiver<String>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let request = read_http_request(&mut socket).await;
+            request_tx.send(request).unwrap();
+            let raw = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                stream_body.len(),
+                stream_body
+            );
+            socket.write_all(raw.as_bytes()).await.unwrap();
         });
         (format!("http://{addr}"), request_rx, server)
     }
