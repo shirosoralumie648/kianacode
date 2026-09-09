@@ -83,7 +83,7 @@ export OPENAI_MODEL=gpt-4.1
 ## 文件夹工作台（Codex / pi / dsh 那种入口）
 
 产品路径是 `DaemonHost`，不是 parked 的 `kiana tui`。进目录就能干活；GUI 只负责选文件夹。
-TTY 是对话区 + 输入框 + 状态行。`--json` 仍是脚本/cassette 路径。不声称 token 流式。
+TTY 是对话区 + 输入框 + 状态行。模型增量会逐块渲染；`--json` 仍是脚本/cassette 路径。
 
 ```bash
 # 文件管理器：在项目目录打开终端，然后
@@ -110,7 +110,7 @@ kiana gui
 
 ## 网页工作台（dsh 形，同一核）
 
-`kiana web` 是 DeepSeek Harness Web UI 的布局抄法：侧栏选会话、中间对话、右侧细节。工人仍是 `DaemonHost` / `KianaHarness`。只绑回环。不声称 token 流式，不是 dsh Cordis 克隆。
+`kiana web` 是 DeepSeek Harness Web UI 的布局抄法：侧栏选会话、中间对话、右侧细节。工人仍是 `DaemonHost` / `KianaHarness`。只绑回环。增量走 loopback SSE 展示流，receipt 才是事实源；不是 dsh Cordis 克隆。
 
 ```bash
 kiana trust .
@@ -185,7 +185,7 @@ bash scripts/v03-workbench-smoke.sh
 
 - 并行 Builder 是同一 `DaemonHost` 上的 `spawn`，**没有**新 CLI。路径锁在 ControlPlane；越权是 `packet_path_denied`。
 - 文件夹工作台是 `kiana` / `--workdir` / `--pick-folder`。TTY 会话面是 `workbench_chat`，不是 `kiana tui`。`kiana tui` 保持 park：legacy SDK/stream，不是 DaemonHost。
-- 状态行只报 idle/running。token 流式、权限弹窗、`@文件`、跨进程 resume 都不是完成。
+- 状态行只报 idle/running。权限弹窗、`@文件`、跨进程 resume 都不是完成；token 流式已接入但断线重连、配额和跨进程传输未覆盖。
 - HTTP MCP 是 `mcp_transport_unsupported`。stdio MCP 才是产品路径。
 - live Anthropic / OpenAI / Ollama 不是完成。缺 tools 的 fake profile 必须 `unsupported_tools`，禁止假成功。
 - JointSymposium、招满 COMPANY.md 角色、Librarian、TeamCreate/SendMessage 仍冻结。

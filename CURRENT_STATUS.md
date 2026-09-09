@@ -2,7 +2,7 @@
 
 > 本文件是“当前状态”的唯一汇总入口。  
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
-> 当前工作树：包含未提交修改；以下结论不得当作干净发布基线。
+> 当前工作树：与 HEAD 快照一致；以下结论绑定该快照与证据块。
 
 ## 1. 状态与证明等级
 
@@ -64,6 +64,50 @@ reviewer: focused adversarial regression review
 | 支付、外卖、打车、旅行预订 | not_supported | source | 尚无满足身份、审批、幂等、对账和证据要求的 adapter |
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
+
+### Incomplete provider stream fail-closed and CI hang correction evidence (2026-09-09)
+
+```text
+source_snapshot: 3b65af2 (kiana-daemon/src/model_client.rs, kiana-entrypoints/src/cli.rs, kiana-entrypoints/tests/cli_session.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  cargo test -p kiana-daemon --lib native_streaming --locked --offline
+  KIANA_STREAMING=off target/debug/deps/kiana_entrypoints-* --test-threads=1 --exact cli::tests::bridge_stream_json_loop_round_trips_permission_prompt_and_result_event
+  cargo test -p kiana-entrypoints --lib bridge_stream_json_loop_round_trips_permission_prompt_and_result_event --locked --offline
+  cargo test -p kiana-entrypoints --lib --locked --offline
+  cargo check -p kiana-entrypoints --all-targets --locked --offline
+  strace -f -e trace=network,futex,read,write target/debug/deps/kiana_entrypoints-* --exact cli::tests::bridge_stream_json_loop_round_trips_permission_prompt_and_result_event
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; --locked --offline; local sandbox
+fixture or cassette: EventProvider truncating the stream after message_start; the four cli.rs mock model servers and the cli_session mock now answer Anthropic SSE when the request carries stream=true
+exit_code: 0 for every listed command; daemon lib 84 passed; the bridge test passes in 0.04s with KIANA_STREAMING=off and with the SSE mock; entrypoints lib 444 passed in ~165s; check clean
+status change: no capability status promotion. A provider stream that ends without a terminal event now returns the machine-readable `provider_stream_incomplete` instead of Ok(empty output), which is the fail-closed behavior docs/streaming-unfreeze-plan.md §6 requires.
+proof-level change: local_behavior negative evidence for the incomplete-stream path. Root cause of the nine-hour CI stall is recorded: since 3b6f31a the harness calls complete_streaming, the SDK/bridge mocks answered non-SSE JSON, the SSE parser produced zero events, and the bridge test then waited forever for a permission request that could never arrive.
+limitations: the full entrypoints integration package was not re-run locally after the cli_session mock fix (the local run before that fix showed 512 passed / 1 failed); verification of that package is delegated to the GitHub release-smoke run. The SDK/bridge surface now streams by default because it shares the DaemonHost spine; no disconnect/reconnect, quota, or cross-process transport evidence was added. `make test-fast` does not cover the entrypoints test targets, which is why this regression reached master.
+reviewer: Claude-run root-cause analysis (strace futex wait plus CI log comparison) and TDD RED/GREEN observation; no independent reviewer
+```
+
+### Streamed delta ledger granularity correction evidence (2026-09-09)
+
+```text
+source_snapshot: e9df8b4 (kiana-core/src/lifecycle.rs, kiana-core/tests/control_plane.rs, kiana-daemon/tests/daemon_host.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  cargo test -p kiana-core --locked --offline
+  cargo test -p kiana-core --test control_plane stream_deltas --locked --offline
+  cargo test -p kiana-daemon --test daemon_host streamed_run_writes_one_run_delta_per_turn_to_the_ledger --locked --offline
+  cargo test -p kiana-runner --locked --offline
+  KIANA_HOME=<repo>/target/test-home cargo test -p kiana-daemon --locked --offline --no-fail-fast
+  cargo test -p kiana-entrypoints --test cli_run --locked --offline
+  KIANA_HOME=<repo>/target/test-home make test-fast
+  cargo fmt --all --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; --locked --offline; daemon tests serialized where the sandbox requires it
+fixture or cassette: ChunkedDeltaRunner emitting contiguous chunks, TwoTurnDeltaRunner splitting delta runs with a capability request, daemon ChunkedModel over a disk JSONL EventLog; no cassette or protocol schema change
+exit_code: 0 for every listed command; kiana-core 101 passed; kiana-daemon 84 lib + 13 control_plane + 67 daemon_host; kiana-runner 39; cli_run 33; make test-fast 31 targets / 411 passed; fmt clean
+status change: no capability status promotion. ControlPlane::drive_run now records one `run.delta` per model turn instead of one per provider chunk, restoring the coarse-grained ledger docs/streaming-unfreeze-plan.md §5 requires.
+proof-level change: local_behavior evidence for durable-ledger granularity. Before the fix a two-run live web smoke wrote 129 `run.delta` events (target/live-smoke/web plus the session events.jsonl of /tmp/kiana-live-web), and every append paid a full EventLog read_stream plus CAS.
+limitations: the aggregate is one event per contiguous delta run, not a fixed flush interval; both new tests were observed failing against 5ecc4a3 before the fix (3 events vs 1; ["first"," turn","second"," turn"] vs ["first turn","second turn"]); no timing measurement of the append-cost reduction was taken
+reviewer: Claude-run TDD cycle with RED/GREEN observation; no independent reviewer
+```
 
 ### Protocol additive run-stream subscription evidence (2026-09-09)
 

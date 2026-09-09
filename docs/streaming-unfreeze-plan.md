@@ -165,12 +165,12 @@
 - [ ] usage / stop_reason 在流式路径正确聚合（注意 `MessageStart` 给 input_tokens、`MessageDelta` 给 output_tokens）。
 
 **负向（缺一不可）**
-- [ ] **流到一半取消**：终态为 `cancelled` 或 `result_unknown`，绝不写 `completed`，取消后不再发 delta。
-- [ ] **流式内容脱敏**：sentinel secret（Bearer/Basic/token/API-key/X-Api-Key）不落账本、不出现在 stdout/stderr/argv/env，且覆盖“secret 被拆到相邻 chunk”的场景。
-- [ ] **断线 / 重连**：连接中断不产生重复 item，未收到 terminal event 前界面不得显示“完成”；连接失败 fail-closed。
-- [ ] **老客户端兼容**：老 daemon 解新请求不失败；老客户端忽略新增字段 / 新 event kind；`PROTOCOL_SCHEMA` 不变。
-- [ ] **provider 不支持 streaming**：返回机器可读的 `unsupported_streaming`，fail-closed；若选择自动回退，必须显式声明并测到，不能静默装等价。
-- [ ] **事件账本**：确认没有逐 token 写 `RuntimeEvent`；CAS 无争用回归；`run.delta` 仍是展示投影，事实源仍是 EventLog + receipt。
+- [x] **流到一半取消**：终态为 `cancelled` 或 `result_unknown`，绝不写 `completed`，取消后不再发 delta。（P1-03 证据块 + `daemon_host::cancelling_mid_stream_never_completes_or_emits_a_late_delta`）
+- [x] **流式内容脱敏**：sentinel secret（Bearer/Basic/token/API-key/X-Api-Key）不落账本、不出现在 stdout/stderr/argv/env，且覆盖"secret 被拆到相邻 chunk"的场景。（`daemon_host::split_secret_across_stream_deltas_...` + `kiana-domain` streaming redactor 跨块单测）
+- [ ] **断线 / 重连**：连接中断不产生重复 item，未收到 terminal event 前界面不得显示"完成"；连接失败 fail-closed。
+- [x] **老客户端兼容**：老 daemon 解新请求不失败；老客户端忽略新增字段 / 新 event kind；`PROTOCOL_SCHEMA` 不变。（`kiana-protocol::run_stream_events_are_additive_and_unknown_events_are_ignored`）
+- [x] **provider 不支持 streaming**：返回机器可读的 `unsupported_streaming`，fail-closed；若选择自动回退，必须显式声明并测到，不能静默装等价。（`streaming_on_fails_closed_for_non_native_provider`；流在终止事件前结束另返回 `provider_stream_incomplete`，见 2026-09-09 证据块）
+- [x] **事件账本**：确认没有逐 token 写 `RuntimeEvent`；CAS 无争用回归；`run.delta` 仍是展示投影，事实源仍是 EventLog + receipt。（2026-09-09 账本粒度证据块：按轮次聚合，不再逐块落账）
 - [ ] **单一脊柱**：全部经 `DaemonHost → ControlPlane → KianaHarness`；未接旧 SDK 第二执行循环（`sdk.rs` / parked `tui.rs`）。
 
 ---
