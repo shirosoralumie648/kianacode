@@ -16,6 +16,12 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install bubblewrap for sandboxed shell tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          # Ubuntu 24.04 默认限制非特权 user namespace，会让 bwrap 直接失败
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - run: cargo fetch --locked
       - name: Record build inputs
         shell: bash
