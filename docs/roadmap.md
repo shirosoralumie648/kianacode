@@ -78,7 +78,7 @@
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
-| `P1-H-02` | P1 | H Capability/Broker | `P1-H-01` | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | 🔄 |
+| `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | 🔄 |
 | `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ⏳ |
 | `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ⏳ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
@@ -391,11 +391,11 @@
 
 ### P1-H-02 参数 schema 校验　⏳
 
-- **现状**：`tool_schemas()` 只发给 provider，`call.arguments` 从不校验。
-- **做什么**：在映射到 capability 之前按 registry 的 schema 拒绝非法参数。
-- **风险**：`additionalProperties` 不能默认禁止，否则老 cassette 被误拒。
+- **现状**：`tool_schemas()` 只发给 provider，`call.arguments` 从不校验；`9095ea7` 已加 `validate_tool_arguments`（读现有 schema 表）。
+- **做什么**：在映射到 capability 之前拒绝非法参数，失败返回 `invalid_arguments:<tool>:<field>`。
+- **风险**：`additionalProperties` 不能默认禁止；本次新增的 `schema_name_for_tool` 别名表与 `tools.rs:234` 重复，`P1-H-01` 必须收敛到单一真源。
 - **验收**：`malformed_arguments_are_rejected_before_capability_mapping`
-- **依赖 / 边界**：依赖 `P1-H-01`；不改变已有工具的接受集。
+- **依赖 / 边界**：无硬依赖（校验器读现有 `tool_schemas()`，`P1-H-01` 落地后只需替换数据源）；不改变已有工具的接受集。
 - **依据**：`company-os-implementation-outline.md` §Slice H｜已提交 `9095ea7`，等 CI + 证据块
 
 ### P1-H-03 路径 containment 共享实现　⏳
