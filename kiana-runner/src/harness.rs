@@ -35,6 +35,7 @@ const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeConfig {
     pub max_steps_per_turn: u32,
+    pub repeated_tool_call_threshold: u32,
     pub compact_trigger_tokens: usize,
     pub compact_user_message_max_tokens: usize,
 }
@@ -43,6 +44,7 @@ impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
             max_steps_per_turn: 32,
+            repeated_tool_call_threshold: 3,
             compact_trigger_tokens: DEFAULT_COMPACT_TRIGGER_TOKENS,
             compact_user_message_max_tokens: COMPACT_USER_MESSAGE_MAX_TOKENS,
         }
@@ -110,9 +112,16 @@ struct ActiveRun {
     inbox: Inbox,
     messages: Vec<ModelMessage>,
     pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
+    last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
     last_text: String,
     cancellation: Arc<RunCancellation>,
+}
+
+struct RepeatedToolCall {
+    name: String,
+    canonical_arguments: String,
+    count: u32,
 }
 
 #[derive(Default)]
@@ -163,6 +172,7 @@ pub struct KianaHarness {
     compact_trigger_tokens: usize,
     compact_user_message_max_tokens: usize,
     max_steps_per_turn: u32,
+    repeated_tool_call_threshold: u32,
 }
 
 impl Default for KianaHarness {
@@ -184,12 +194,14 @@ impl KianaHarness {
             compact_trigger_tokens: config.compact_trigger_tokens,
             compact_user_message_max_tokens: config.compact_user_message_max_tokens,
             max_steps_per_turn: config.max_steps_per_turn.max(1),
+            repeated_tool_call_threshold: config.repeated_tool_call_threshold.max(1),
         }
     }
 
     pub fn config(&self) -> RuntimeConfig {
         RuntimeConfig {
             max_steps_per_turn: self.max_steps_per_turn,
+            repeated_tool_call_threshold: self.repeated_tool_call_threshold,
             compact_trigger_tokens: self.compact_trigger_tokens,
             compact_user_message_max_tokens: self.compact_user_message_max_tokens,
         }
@@ -203,6 +215,11 @@ impl KianaHarness {
 
     pub fn with_max_steps(mut self, max_steps_per_turn: u32) -> Self {
         self.max_steps_per_turn = max_steps_per_turn.max(1);
+        self
+    }
+
+    pub fn with_repeated_tool_call_threshold(mut self, threshold: u32) -> Self {
+        self.repeated_tool_call_threshold = threshold.max(1);
         self
     }
 
@@ -342,6 +359,7 @@ impl KianaHarness {
             inbox: Inbox::default(),
             messages: Vec::new(),
             pending_tools: VecDeque::new(),
+            last_tool_call: None,
             steps: 0,
             last_text: String::new(),
             cancellation: cancellation.clone(),
@@ -408,7 +426,7 @@ impl KianaHarness {
                 emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
                 return Ok(());
             }
-            match emit_tool_request(&mut run, &next_call) {
+            match self.emit_tool_request(&mut run, &next_call) {
                 Ok(event) => emitter.emit_event(event)?,
                 Err(error) => emitter.emit_event(RunnerEvent::Failed { run_id, error })?,
             }
@@ -452,6 +470,7 @@ impl KianaHarness {
         }
         run.steps = 0;
         run.last_text.clear();
+        run.last_tool_call = None;
         run.inbox
             .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
         for message in run.inbox.claim(InboxTarget::NextTurn) {
@@ -684,7 +703,7 @@ impl KianaHarness {
         }
 
         match run.pending_tools.front().cloned() {
-            Some((_, call)) => match emit_tool_request(run, &call) {
+            Some((_, call)) => match self.emit_tool_request(run, &call) {
                 Ok(event) => emitter.emit_event(event)?,
                 Err(error) => emitter.replace_event_since(
                     checkpoint,
@@ -781,6 +800,48 @@ impl KianaHarness {
             .insert(run.run_id, run);
         Ok(())
     }
+
+    fn emit_tool_request(
+        &self,
+        run: &mut ActiveRun,
+        call: &ModelToolCall,
+    ) -> Result<RunnerEvent, String> {
+        if let Some(error) = self.record_tool_call(run, call) {
+            return Err(error);
+        }
+        let request = capability_for_tool(call, &run.sandbox, &run.project_root)?;
+        if let Some((pending_id, _)) = run.pending_tools.front_mut() {
+            *pending_id = request.request_id;
+        }
+        Ok(RunnerEvent::CapabilityRequested {
+            run_id: run.run_id,
+            request,
+        })
+    }
+
+    fn record_tool_call(&self, run: &mut ActiveRun, call: &ModelToolCall) -> Option<String> {
+        let canonical_arguments = canonical_json(&call.arguments);
+        let is_same_as_last = run.last_tool_call.as_ref().is_some_and(|last| {
+            last.name == call.name && last.canonical_arguments == canonical_arguments
+        });
+        let count = if is_same_as_last {
+            let last = run
+                .last_tool_call
+                .as_mut()
+                .expect("the previous tool call was just observed");
+            last.count = last.count.saturating_add(1);
+            last.count
+        } else {
+            run.last_tool_call = Some(RepeatedToolCall {
+                name: call.name.clone(),
+                canonical_arguments,
+                count: 1,
+            });
+            1
+        };
+        (count >= self.repeated_tool_call_threshold)
+            .then(|| format!("repeated_tool_call:{}", call.name))
+    }
 }
 
 impl From<KianaHarnessError> for PortError {
@@ -809,15 +870,38 @@ impl RunnerPort for KianaHarness {
     }
 }
 
-fn emit_tool_request(run: &mut ActiveRun, call: &ModelToolCall) -> Result<RunnerEvent, String> {
-    let request = capability_for_tool(call, &run.sandbox, &run.project_root)?;
-    if let Some((pending_id, _)) = run.pending_tools.front_mut() {
-        *pending_id = request.request_id;
+fn canonical_json(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Object(object) => {
+            let mut entries = object.iter().collect::<Vec<_>>();
+            entries.sort_by_key(|(left, _)| *left);
+            let mut canonical = String::from("{");
+            for (index, (key, value)) in entries.into_iter().enumerate() {
+                if index > 0 {
+                    canonical.push(',');
+                }
+                canonical.push_str(
+                    &serde_json::to_string(key).expect("JSON object key serialization cannot fail"),
+                );
+                canonical.push(':');
+                canonical.push_str(&canonical_json(value));
+            }
+            canonical.push('}');
+            canonical
+        }
+        serde_json::Value::Array(values) => {
+            let mut canonical = String::from("[");
+            for (index, value) in values.iter().enumerate() {
+                if index > 0 {
+                    canonical.push(',');
+                }
+                canonical.push_str(&canonical_json(value));
+            }
+            canonical.push(']');
+            canonical
+        }
+        _ => serde_json::to_string(value).expect("JSON scalar serialization cannot fail"),
     }
-    Ok(RunnerEvent::CapabilityRequested {
-        run_id: run.run_id,
-        request,
-    })
 }
 
 fn normalize_sandbox(sandbox: &str) -> Result<&str, KianaHarnessError> {
@@ -847,6 +931,206 @@ mod tests {
 
     fn scripted(outputs: Value) -> KianaHarness {
         KianaHarness::new(Arc::new(ScriptedModel::from_json(&outputs).unwrap()))
+    }
+
+    fn capability_request_id(events: &[RunnerEvent]) -> kiana_domain::RequestId {
+        events
+            .iter()
+            .find_map(|event| match event {
+                RunnerEvent::CapabilityRequested { request, .. } => Some(request.request_id),
+                _ => None,
+            })
+            .expect("expected a capability request")
+    }
+
+    async fn send_capability_success(
+        harness: &KianaHarness,
+        run_id: RunId,
+        request_id: kiana_domain::RequestId,
+    ) -> Vec<RunnerEvent> {
+        harness
+            .send(RunnerCommand::CapabilityResult {
+                run_id,
+                result: CapabilityResult::success(request_id, json!({"ok": true})),
+            })
+            .await
+            .unwrap()
+    }
+
+    #[test]
+    fn runtime_config_defaults_repeated_tool_call_threshold_to_three() {
+        assert_eq!(RuntimeConfig::default().repeated_tool_call_threshold, 3);
+    }
+
+    #[tokio::test]
+    async fn configured_repeated_tool_call_threshold_fails_at_that_count() {
+        let harness = KianaHarness::with_config(
+            Arc::new(
+                ScriptedModel::from_json(&json!([
+                    {"text": "first", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+                    {"text": "second", "tool_calls": [{"id": "c2", "name": "shell", "arguments": {"command": "ls"}}]},
+                    {"text": "done"}
+                ]))
+                .unwrap(),
+            ),
+            RuntimeConfig {
+                repeated_tool_call_threshold: 2,
+                ..RuntimeConfig::default()
+            },
+        );
+        let run_id = RunId::new();
+
+        let first = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        let second = send_capability_success(&harness, run_id, capability_request_id(&first)).await;
+
+        assert_eq!(
+            second.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "repeated_tool_call:shell".to_owned(),
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn third_consecutive_identical_tool_call_fails_closed() {
+        let harness = scripted(json!([
+            {"text": "first", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "second", "tool_calls": [{"id": "c2", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "third", "tool_calls": [{"id": "c3", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "done"}
+        ]));
+        let run_id = RunId::new();
+
+        let first = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        let second = send_capability_success(&harness, run_id, capability_request_id(&first)).await;
+        let third = send_capability_success(&harness, run_id, capability_request_id(&second)).await;
+
+        assert_eq!(
+            third.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "repeated_tool_call:shell".to_owned(),
+            })
+        );
+        assert!(!third.iter().any(|event| matches!(
+            event,
+            RunnerEvent::CapabilityRequested { .. } | RunnerEvent::Completed { .. }
+        )));
+    }
+
+    #[tokio::test]
+    async fn consecutive_same_tool_with_different_arguments_is_not_blocked() {
+        let harness = scripted(json!([
+            {"text": "first", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "second", "tool_calls": [{"id": "c2", "name": "shell", "arguments": {"command": "ls src"}}]},
+            {"text": "third", "tool_calls": [{"id": "c3", "name": "shell", "arguments": {"command": "ls tests"}}]},
+            {"text": "done"}
+        ]));
+        let run_id = RunId::new();
+
+        let first = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        let second = send_capability_success(&harness, run_id, capability_request_id(&first)).await;
+        let third = send_capability_success(&harness, run_id, capability_request_id(&second)).await;
+        let completed =
+            send_capability_success(&harness, run_id, capability_request_id(&third)).await;
+
+        assert!(completed
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(!completed
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Failed { .. })));
+    }
+
+    #[tokio::test]
+    async fn alternating_different_tools_reset_repetition_count() {
+        let harness = scripted(json!([
+            {"text": "shell", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "patch", "tool_calls": [{"id": "c2", "name": "apply_patch", "arguments": {"patch": "one"}}]},
+            {"text": "shell", "tool_calls": [{"id": "c3", "name": "shell", "arguments": {"command": "pwd"}}]},
+            {"text": "patch", "tool_calls": [{"id": "c4", "name": "apply_patch", "arguments": {"patch": "two"}}]},
+            {"text": "shell", "tool_calls": [{"id": "c5", "name": "shell", "arguments": {"command": "ls"}}]},
+            {"text": "done"}
+        ]));
+        let run_id = RunId::new();
+        let mut events = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+
+        for _ in 0..4 {
+            assert!(!events
+                .iter()
+                .any(|event| matches!(event, RunnerEvent::Failed { .. })));
+            events =
+                send_capability_success(&harness, run_id, capability_request_id(&events)).await;
+        }
+        let completed =
+            send_capability_success(&harness, run_id, capability_request_id(&events)).await;
+
+        assert!(completed
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(!completed
+            .iter()
+            .any(|event| matches!(event, RunnerEvent::Failed { .. })));
+    }
+
+    #[tokio::test]
+    async fn repeated_tool_call_detection_ignores_json_object_key_order() {
+        let harness = scripted(json!([
+            {
+                "text": "first",
+                "tool_calls": [{
+                    "id": "c1",
+                    "name": "mcp",
+                    "arguments": {"server": "local", "tool": "read", "arguments": {"beta": 2, "alpha": 1}}
+                }]
+            },
+            {
+                "text": "second",
+                "tool_calls": [{
+                    "id": "c2",
+                    "name": "mcp",
+                    "arguments": {"arguments": {"alpha": 1, "beta": 2}, "tool": "read", "server": "local"}
+                }]
+            },
+            {
+                "text": "third",
+                "tool_calls": [{
+                    "id": "c3",
+                    "name": "mcp",
+                    "arguments": {"server": "local", "tool": "read", "arguments": {"beta": 2, "alpha": 1}}
+                }]
+            },
+            {"text": "done"}
+        ]));
+        let run_id = RunId::new();
+
+        let first = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        let second = send_capability_success(&harness, run_id, capability_request_id(&first)).await;
+        let third = send_capability_success(&harness, run_id, capability_request_id(&second)).await;
+
+        assert_eq!(
+            third.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "repeated_tool_call:mcp".to_owned(),
+            })
+        );
     }
 
     #[derive(Debug)]
