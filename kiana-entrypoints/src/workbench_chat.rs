@@ -4,8 +4,9 @@
 //! 交给同一个 [`DaemonHost`]。它不会直接调用模型或工具；提交、继续、取消和查看回执均
 //! 通过 `harness_run` 回到 daemon，因此 UI 不能绕过授权、信任和沙箱边界。
 //!
-//! “running/idle” 是当前进程观察到的视图状态而非持久执行事实，且不承诺 token streaming。
-//! 收到响应后界面只提取助手文本与声明的文件路径；要审计执行结果仍应读取正式 receipt。
+//! “running/idle” 是当前进程观察到的视图状态而非持久执行事实。界面订阅
+//! [`DaemonHost::subscribe_run`] 的 additive run-stream 只用于增量展示；完成、取消和
+//! 结果未知仍以终态响应/回执为准。要审计执行结果仍应读取正式 receipt。
 
 use anyhow::{anyhow, Result};
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -15,7 +16,7 @@ use crossterm::terminal::{
 };
 use futures_util::StreamExt;
 use kiana_daemon::DaemonHost;
-use kiana_protocol::{ExecutionStatus, RunId};
+use kiana_protocol::{ExecutionStatus, ResponseEnvelope, RunId, RunStreamEvent};
 use kiana_types::{write_project_trust, ProjectTrust};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -56,6 +57,17 @@ pub struct ChatMessage {
     pub role: ChatRole,
     /// 显示给用户的文本；它不是 EventLog 的替代品。
     pub text: String,
+}
+
+/// 当前 turn 的增量展示状态。
+///
+/// 该状态只服务于 ratatui 投影，不是 EventLog 或 Receipt 的替代品。`text` 是已经收到
+/// 的 delta 拼接结果，`message_index` 指向时间线中唯一一条仍在增长的助手消息。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StreamTurn {
+    run_id: RunId,
+    text: String,
+    message_index: Option<usize>,
 }
 
 /// 对一行用户输入解析得到的本地 UI 动作。
@@ -103,6 +115,10 @@ pub struct WorkbenchView {
     pub input: String,
     /// 用于绘制对话尾部的展示消息集合。
     pub messages: Vec<ChatMessage>,
+    /// 当前正在增量展示的 turn；终态到达后清空。
+    stream_turn: Option<StreamTurn>,
+    /// 最近一次已应用的终态，用于忽略同一响应的重复投递。
+    last_terminal: Option<(RunId, ExecutionStatus)>,
 }
 
 impl WorkbenchView {
@@ -116,6 +132,8 @@ impl WorkbenchView {
             running: false,
             input: String::new(),
             messages: Vec::new(),
+            stream_turn: None,
+            last_terminal: None,
         };
         view.push_system(format!(
             "Conversation surface on DaemonHost. {SLASH_HELP}. Esc/Ctrl-C cancels a running turn."
@@ -179,24 +197,123 @@ impl WorkbenchView {
         });
     }
 
+    /// 为即将启动的 turn 建立增量展示状态。
+    ///
+    /// 调用方必须已经完成 [`DaemonHost::subscribe_run`] 订阅；该方法本身不发起 daemon
+    /// 请求，也不会把“开始展示”当成运行已经开始。
+    fn begin_stream(&mut self, run_id: RunId) {
+        self.stream_turn = Some(StreamTurn {
+            run_id,
+            text: String::new(),
+            message_index: None,
+        });
+        self.last_terminal = None;
+    }
+
+    /// 应用一条 additive run-stream 事件。
+    ///
+    /// `Delta` 只更新展示消息；`Terminal` 只把最终响应交还给调用方，必须由调用方继续走
+    /// [`apply_response`](Self::apply_response) 才可能结束本地 running 状态。没有活跃
+    /// turn 时忽略迟到事件，避免旧订阅把新 turn 的展示状态污染。
+    fn apply_stream_event(&mut self, event: RunStreamEvent) -> Result<Option<ResponseEnvelope>> {
+        let Some(active_run_id) = self.stream_turn.as_ref().map(|stream| stream.run_id) else {
+            return Ok(None);
+        };
+        match event {
+            RunStreamEvent::Delta { run_id, text } => {
+                if run_id != active_run_id {
+                    return Err(anyhow!("stream_run_id_mismatch"));
+                }
+                self.push_stream_delta(&text);
+                Ok(None)
+            }
+            RunStreamEvent::Terminal { run_id, response } => {
+                if run_id != active_run_id {
+                    return Err(anyhow!("stream_run_id_mismatch"));
+                }
+                Ok(Some(response))
+            }
+            RunStreamEvent::Unknown => Ok(None),
+        }
+    }
+
+    fn push_stream_delta(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        let Some(stream) = self.stream_turn.as_mut() else {
+            return;
+        };
+        stream.text.push_str(text);
+        let streamed_text = stream.text.clone();
+        if let Some(index) = stream.message_index {
+            self.messages[index].text = streamed_text;
+        } else {
+            let index = self.messages.len();
+            self.messages.push(ChatMessage {
+                role: ChatRole::Assistant,
+                text: streamed_text,
+            });
+            if let Some(stream) = self.stream_turn.as_mut() {
+                stream.message_index = Some(index);
+            }
+        }
+    }
+
     /// 将 daemon 响应投影到时间线，并结束本地等待状态。
     ///
     /// 非 `Completed` 响应只显示结构化错误文本，不把其输出伪装为助手成功回复；成功响应
-    /// 仅提取约定 JSON 字段。缺少字段时静默省略展示项目，不能据此推断没有执行副作用。
-    pub fn apply_response(&mut self, response: &kiana_protocol::ResponseEnvelope) {
+    /// 仅提取约定 JSON 字段。已有增量文本时，`Completed` 用最终回执文本替换增量投影；
+    /// `Cancelled` / `ResultUnknown` 保留已显示文本并明确标注中断，不伪装成完成。
+    pub fn apply_response(&mut self, response: &ResponseEnvelope) {
+        let response_run_id = run_id_from(response);
+        if response.status.is_terminal() {
+            if let Some(run_id) = response_run_id {
+                if self.last_terminal == Some((run_id, response.status)) {
+                    return;
+                }
+                self.last_terminal = Some((run_id, response.status));
+            }
+        }
         if response.status != ExecutionStatus::Completed {
-            self.push_system(format!(
-                "blocked: {}",
-                response.error.as_deref().unwrap_or("kiana_harness_failed")
-            ));
-            self.running = false;
+            self.finish_non_completed_response(response);
             return;
         }
-        if let Some(text) = response.output["output"]["text"].as_str() {
-            if !text.trim().is_empty() {
+        self.finish_completed_response(response);
+    }
+
+    fn finish_non_completed_response(&mut self, response: &ResponseEnvelope) {
+        self.stream_turn = None;
+        match response.status {
+            ExecutionStatus::Cancelled => self.push_system("已中断"),
+            ExecutionStatus::ResultUnknown => self.push_system(format!(
+                "已中断（result_unknown）：{}",
+                response.error.as_deref().unwrap_or("result_unknown")
+            )),
+            _ => self.push_system(format!(
+                "blocked: {}",
+                response.error.as_deref().unwrap_or("kiana_harness_failed")
+            )),
+        }
+        self.running = false;
+    }
+
+    fn finish_completed_response(&mut self, response: &ResponseEnvelope) {
+        let final_text = response.output["output"]["text"]
+            .as_str()
+            .filter(|text| !text.trim().is_empty())
+            .map(str::to_owned);
+        let streamed_index = self
+            .stream_turn
+            .take()
+            .and_then(|stream| stream.message_index);
+        if let Some(text) = final_text {
+            if let Some(index) = streamed_index {
+                self.messages[index].text = text;
+            } else {
                 self.messages.push(ChatMessage {
                     role: ChatRole::Assistant,
-                    text: text.to_owned(),
+                    text,
                 });
             }
         }
@@ -327,6 +444,8 @@ pub async fn run(
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     let mut events = EventStream::new();
     let (tx, mut rx) = mpsc::unbounded_channel::<Result<kiana_protocol::ResponseEnvelope>>();
+    let (stream_tx, mut stream_rx) =
+        mpsc::unbounded_channel::<std::result::Result<RunStreamEvent, String>>();
     let mut started = false;
     let mut last_run_id: Option<RunId> = None;
 
@@ -340,7 +459,8 @@ pub async fn run(
             last_run_id.clone(),
             prompt,
             &tx,
-        );
+            &stream_tx,
+        )?;
         started = true;
     }
 
@@ -359,6 +479,26 @@ pub async fn run(
                         view.push_system(error.to_string());
                     }
                     None => view.running = false,
+                }
+            }
+            stream_event = stream_rx.recv() => {
+                match stream_event {
+                    Some(Ok(event)) => {
+                        match view.apply_stream_event(event) {
+                            Ok(Some(response)) => {
+                                last_run_id = run_id_from(&response).or(last_run_id);
+                                started = true;
+                                view.apply_response(&response);
+                            }
+                            Ok(None) => {}
+                            Err(error) => view.push_system(error.to_string()),
+                        }
+                    }
+                    Some(Err(error)) => {
+                        // 流通道失败不能结束 running；必须继续等终态响应/回执对账。
+                        view.push_system(format!("stream interrupted; awaiting receipt: {error}"));
+                    }
+                    None => {}
                 }
             }
             event = events.next() => {
@@ -380,6 +520,7 @@ pub async fn run(
                             started,
                             last_run_id.clone(),
                             &tx,
+                            &stream_tx,
                         )
                         .await?
                         {
@@ -417,6 +558,7 @@ async fn handle_action(
     started: bool,
     last_run_id: Option<RunId>,
     tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
+    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEvent, String>>,
 ) -> Result<LoopControl> {
     match action {
         ChatAction::None => Ok(LoopControl::Continue),
@@ -478,7 +620,8 @@ async fn handle_action(
                 last_run_id,
                 prompt,
                 tx,
-            );
+                stream_tx,
+            )?;
             Ok(LoopControl::Submitted)
         }
     }
@@ -514,9 +657,18 @@ fn submit_turn(
     last_run_id: Option<RunId>,
     prompt: String,
     tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
-) {
+    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEvent, String>>,
+) -> Result<()> {
     // 启动/继续的选择只取决于本会话是否已拥有 run；真正的生命周期合法性仍由 daemon
     // 验证。结果通过 channel 串回 UI，避免并发任务直接改动视图状态。
+    let stream_run_id = if started {
+        last_run_id.or_else(|| RunId::parse_str(session_id))
+    } else {
+        RunId::parse_str(session_id)
+    }
+    .ok_or_else(|| anyhow!("workbench_stream_run_id_required"))?;
+    subscribe_run_stream(host, stream_run_id, stream_tx);
+    view.begin_stream(stream_run_id);
     view.push_user(prompt.clone());
     view.running = true;
     let host = Arc::clone(host);
@@ -531,6 +683,41 @@ fn submit_turn(
             harness_run::run_envelope_on_host(host, session_id, prompt, &options).await
         };
         let _ = tx.send(result);
+    });
+    Ok(())
+}
+
+fn subscribe_run_stream(
+    host: &Arc<DaemonHost>,
+    run_id: RunId,
+    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEvent, String>>,
+) {
+    // 必须在 run 任务启动前创建订阅；否则会错过已经发出的早期 delta。订阅只转发展示
+    // 事件，终态仍由 run/cancel 响应与 receipt 对账。
+    let mut subscription = host.subscribe_run(run_id);
+    let stream_tx = stream_tx.clone();
+    tokio::spawn(async move {
+        loop {
+            match subscription.recv().await {
+                Ok(envelope) => {
+                    let terminal = matches!(envelope.event, RunStreamEvent::Terminal { .. });
+                    if stream_tx.send(Ok(envelope.event)).is_err() {
+                        break;
+                    }
+                    if terminal {
+                        break;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    let _ = stream_tx.send(Err(format!("stream_subscription_lagged:{skipped}")));
+                    break;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    let _ = stream_tx.send(Err("stream_closed_before_terminal".to_owned()));
+                    break;
+                }
+            }
+        }
     });
 }
 
@@ -603,6 +790,40 @@ mod tests {
             schema: PROTOCOL_SCHEMA.to_owned(),
             request_id: RequestId::new(),
             status: ExecutionStatus::Completed,
+            output,
+            error: None,
+        }
+    }
+
+    fn running_view() -> WorkbenchView {
+        let mut view = WorkbenchView::new(
+            PathBuf::from("/tmp/demo"),
+            true,
+            "workspace-write".to_owned(),
+            RunId::new().to_string(),
+        );
+        view.running = true;
+        view
+    }
+
+    fn delta_event(run_id: RunId, text: &str) -> RunStreamEvent {
+        RunStreamEvent::Delta {
+            run_id,
+            text: text.to_owned(),
+        }
+    }
+
+    fn response_with_run_id(
+        status: ExecutionStatus,
+        run_id: RunId,
+        output: Value,
+    ) -> ResponseEnvelope {
+        let mut output = output;
+        output["run_id"] = Value::String(run_id.to_string());
+        ResponseEnvelope {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            request_id: RequestId::new(),
+            status,
             output,
             error: None,
         }
@@ -689,6 +910,185 @@ mod tests {
             .iter()
             .any(|message| message.role == ChatRole::Changed
                 && message.text.contains("GOLDEN_PATH.txt")));
+    }
+
+    #[test]
+    fn stream_deltas_update_one_assistant_message_without_completing_the_turn() {
+        let mut view = running_view();
+        let run_id = RunId::new();
+        view.begin_stream(run_id);
+
+        assert!(view
+            .apply_stream_event(delta_event(run_id, "alpha"))
+            .unwrap()
+            .is_none());
+        assert!(view
+            .apply_stream_event(delta_event(run_id, " beta"))
+            .unwrap()
+            .is_none());
+
+        let assistant: Vec<_> = view
+            .messages
+            .iter()
+            .filter(|message| message.role == ChatRole::Assistant)
+            .collect();
+        assert_eq!(assistant.len(), 1);
+        assert_eq!(assistant[0].text, "alpha beta");
+        assert!(view.running, "delta alone must not end the local turn");
+        assert!(!view
+            .messages
+            .iter()
+            .any(|message| message.text.contains("completed")));
+    }
+
+    #[test]
+    fn terminal_event_waits_for_the_terminal_response_to_finish_the_turn() {
+        let mut view = running_view();
+        let run_id = RunId::new();
+        view.begin_stream(run_id);
+        view.apply_stream_event(delta_event(run_id, "partial"))
+            .unwrap();
+        let response = response_with_run_id(
+            ExecutionStatus::Completed,
+            run_id,
+            serde_json::json!({"output": {"text": "partial final"}}),
+        );
+
+        let returned = view
+            .apply_stream_event(RunStreamEvent::Terminal {
+                run_id,
+                response: response.clone(),
+            })
+            .unwrap();
+
+        assert_eq!(returned, Some(response));
+        assert!(view.running, "terminal event alone must not end the turn");
+        assert_eq!(
+            view.messages
+                .iter()
+                .find(|message| message.role == ChatRole::Assistant)
+                .unwrap()
+                .text,
+            "partial"
+        );
+    }
+
+    #[test]
+    fn completed_terminal_replaces_streamed_text_without_duplicating_messages() {
+        let mut view = running_view();
+        let run_id = RunId::new();
+        view.begin_stream(run_id);
+        view.apply_stream_event(delta_event(run_id, "alpha"))
+            .unwrap();
+        view.apply_stream_event(delta_event(run_id, " beta"))
+            .unwrap();
+        let response = response_with_run_id(
+            ExecutionStatus::Completed,
+            run_id,
+            serde_json::json!({
+                "output": {"text": "alpha beta gamma"},
+                "files_changed": ["GOLDEN_PATH.txt"]
+            }),
+        );
+
+        view.apply_response(&response);
+        view.apply_response(&response);
+
+        let assistant: Vec<_> = view
+            .messages
+            .iter()
+            .filter(|message| message.role == ChatRole::Assistant)
+            .collect();
+        assert_eq!(assistant.len(), 1);
+        assert_eq!(assistant[0].text, "alpha beta gamma");
+        assert_eq!(
+            view.messages
+                .iter()
+                .filter(|message| message.role == ChatRole::Changed)
+                .count(),
+            1
+        );
+        assert!(!view.running);
+    }
+
+    #[test]
+    fn cancelled_terminal_preserves_streamed_text_and_marks_interrupted() {
+        let mut view = running_view();
+        let run_id = RunId::new();
+        view.begin_stream(run_id);
+        view.apply_stream_event(delta_event(run_id, "half"))
+            .unwrap();
+        let mut response = response_with_run_id(
+            ExecutionStatus::Cancelled,
+            run_id,
+            serde_json::json!({"output": {}}),
+        );
+        response.error = Some("cancelled:user".to_owned());
+
+        view.apply_response(&response);
+
+        assert_eq!(
+            view.messages
+                .iter()
+                .find(|message| message.role == ChatRole::Assistant)
+                .unwrap()
+                .text,
+            "half"
+        );
+        assert!(view
+            .messages
+            .iter()
+            .any(|message| message.role == ChatRole::System && message.text == "已中断"));
+        assert!(!view.running);
+    }
+
+    #[test]
+    fn result_unknown_terminal_preserves_text_and_marks_interrupted() {
+        let mut view = running_view();
+        let run_id = RunId::new();
+        view.begin_stream(run_id);
+        view.apply_stream_event(delta_event(run_id, "half"))
+            .unwrap();
+        let mut response = response_with_run_id(
+            ExecutionStatus::ResultUnknown,
+            run_id,
+            serde_json::json!({"output": {}}),
+        );
+        response.error = Some("result_unknown:provider_timeout".to_owned());
+
+        view.apply_response(&response);
+
+        assert_eq!(
+            view.messages
+                .iter()
+                .find(|message| message.role == ChatRole::Assistant)
+                .unwrap()
+                .text,
+            "half"
+        );
+        assert!(view.messages.iter().any(|message| {
+            message.role == ChatRole::System
+                && message.text.contains("已中断")
+                && message.text.contains("result_unknown")
+        }));
+        assert!(!view.running);
+    }
+
+    #[test]
+    fn stream_delta_for_another_run_is_rejected_without_mutating_text() {
+        let mut view = running_view();
+        let run_id = RunId::new();
+        view.begin_stream(run_id);
+
+        let error = view
+            .apply_stream_event(delta_event(RunId::new(), "wrong"))
+            .unwrap_err();
+
+        assert_eq!(error.to_string(), "stream_run_id_mismatch");
+        assert!(!view
+            .messages
+            .iter()
+            .any(|message| message.role == ChatRole::Assistant));
     }
 
     #[test]

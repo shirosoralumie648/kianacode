@@ -32,7 +32,8 @@ Usage: kiana workbench [--json] [--sandbox read-only|workspace-write] [--role bu
 
 Open a folder (cwd, --workdir, file-manager path, or GUI picker) and work through DaemonHost.
 TTY conversation: transcript + input + status. Esc/Ctrl-C cancels a running turn. /sandbox actually switches.
---json and KIANA_WORKBENCH_PLAIN=1 stay one-shot / rustyline. Token streaming is not claimed.
+--json and KIANA_WORKBENCH_PLAIN=1 stay one-shot / rustyline. TTY deltas are display-only;
+completion, cancellation, and result_unknown still come from the terminal response/receipt.
 Interactive mode needs a terminal. Scripts pass a prompt after --.
 kiana tui stays parked.";
 
