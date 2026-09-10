@@ -63,7 +63,7 @@
 | `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
 | `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ✅ |
 | `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
-| `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ⏳ |
+| `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ✅ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ⏳ |
@@ -265,14 +265,14 @@
 - **依赖 / 边界**：依赖 `P0-G-02b`；`PROTOCOL_SCHEMA` 不动。
 - **依据**：`company-os-implementation-outline.md` §Slice G
 
-### P0-G-04 事件重建投影　⏳
+### P0-G-04 事件重建投影　✅
 
 - **现状**：run/invocation 状态主要存在内存 `Mutex<HashMap>`，不是事件的投影。
 - **做什么**：新增 RunProjection / InvocationProjection，用 `read_stream("run", run_id)` 与 `read_all` 折叠 `run.*`/`capability.*`/`approval.*`；首次按 run_id/session 访问时惰性重建。
 - **风险**：折叠遇矛盾终态必须保持 `run_terminal_conflict`/`result_unknown` fail-closed，不能猜。
 - **验收**：`new_process_rebuilds_run_state_from_events_alone`
 - **依赖 / 边界**：依赖 `P0-G-01`；内存 map 降级为写穿缓存。
-- **依据**：`company-os-implementation-outline.md` §Slice G（A-2）
+- **依据**：`company-os-implementation-outline.md` §Slice G（A-2）｜`3a319be` + CI `34500579350` ✅ + 证据块「Run state event projection evidence (2026-09-10)」；Invocation 投影与本卡合并交付，内存 map 降级为写穿缓存仍未做
 
 ### P0-J1-01 统一 cancellation token 与状态词表　⏳
 

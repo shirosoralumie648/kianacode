@@ -65,6 +65,23 @@ reviewer: focused adversarial regression review
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
 
+### Run state event projection evidence (2026-09-10)
+
+```text
+source_snapshot: 3a319be (kiana-core/src/projection.rs, kiana-core/src/lib.rs, kiana-core/tests/control_plane.rs)
+worktree_status: committed on master and pushed to origin
+command_argv:
+  bash scripts/release-smoke.sh        # GitHub Actions release-smoke job, run 34500579350 completed/success
+  cargo test -p kiana-core --test control_plane run_state --locked --offline -- --test-threads=1
+cwd/environment: GitHub Actions release-smoke job (ubuntu-latest, stable, bubblewrap); local reproduction with rustc/cargo 1.97.1 and --locked --offline
+fixture or cassette: in-memory scripted runner over MemoryEventLog; hand-written event sequences with duplicate and conflicting terminal kinds
+exit_code: 0 (run 34500579350 completed/success); the acceptance test `new_process_rebuilds_run_state_from_events_alone` passes in that run
+status change: no capability status promotion. `kiana-core/src/projection.rs` folds `run.*` / `approval.*` events into a read-only `RunState` ordered by run-level stream version (falling back to sequence with request-scoped deduplication, the same convention as the history fold); two distinct terminal kinds for one run fail closed with `run_terminal_conflict:<kinds>`, repeated identical terminals are idempotent, and events after the terminal are ignored.
+proof-level change: local_behavior evidence for rebuilding run state from the ledger alone.
+limitations: the projection is a new read path only — the in-memory maps are unchanged and not yet degraded to write-through caches; invocation-level projection is deferred; conflicting terminals are reported as an error because the ledger holds no reconciliation authority, so callers receive `run_terminal_conflict` rather than a guessed outcome.
+reviewer: Claude reviewed the Codex diff (no assertions deleted), ran the focused tests locally before pushing, and verified the acceptance test in the green run
+```
+
 ### Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)
 
 ```text
