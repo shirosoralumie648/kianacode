@@ -89,7 +89,7 @@
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ⏳ |
 | `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ⏳ |
 | `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ⏳ |
-| `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | `memory.search` 按 knowledge_grants 过滤；命中进收据 | ⏳ |
+| `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | 检索带相关性打分且命中进收据可追溯；grants ACL 两端一致 | ⏳ |
 | `P1-J4-01` | P1 | J4 Capability/MCP | `P0-A-01a` | MCP server/tool schema、health、trust、version、result validation 可追踪 | ⏳ |
 | `P1-J8-01` | P1 | J8 Observability | `P0-G-04` | provider/model、policy verdict、tool args hash、usage、retry/cancel reason 可追溯且不泄密 | ⏳ |
 | `P1-K5-01` | P1 | K5 Cost/capacity | `P0-G-04` | `UsageRecord`/`CostLedger`/`Quota`；`RuntimeBudget` 与 `ProjectBudget` 不混用 | ⏳ |
@@ -502,12 +502,12 @@
 
 ### P1-J3-02 分层检索与密级　⏳
 
-- **现状**：`memory.search`/`memory.write` 已有角色级 collection ACL（`kiana-policy/src/lib.rs:219-244`），但 `COMPANY.md` §7 的六层（Company/Department/Role/Project/User/Instance scratch）与密级在代码中无痕迹；检索命中不进收据。
-- **做什么**：`memory.search` 按 `knowledge_grants` 过滤集合与密级；命中写进收据（谁查了什么、用了哪几条、来自哪层）。
-- **风险**：同一句查询不同角色必须看到不同集合；无法指认来源的内容不得进入 Reviewer 的「已验证」结论。
+- **现状**：分层存储已存在——home 侧 `company/user/user-prefs/user-private.jsonl`，项目侧 `department/role/project/instance/*.jsonl`（`kiana-daemon/src/harness_memory.rs:220-293`）；读写两端都有 RoleSpec grants ACL（`allows_knowledge` / `allows_memory_write`）。缺：相关性打分（现为纯 AND 词项包含 `text_matches`）、命中与收据的显式关联（COMPANY.md 的 `AgentInstance.retrieved`）、「检索结果不得静默拼进系统提示」的强制。
+- **做什么**：检索升级为多词项 OR + 计数打分（CLI 侧 `search_memory_records` 已有此实现，搬到 harness 工具面）；命中显式写进收据（谁查了什么、用了哪几条、来自哪层）。
+- **风险**：无法指认来源的内容不得进入 Reviewer 的「已验证」结论。
 - **验收**：`memory_hits_respect_knowledge_grants_and_reach_the_receipt`
-- **依赖 / 边界**：依赖 `P1-J3-01`；检索结果本回合注入、下回合重查，不得静默拼进系统提示。
-- **依据**：`COMPANY.md` §7
+- **依赖 / 边界**：依赖 `P1-J3-01`；检索结果本回合注入、下回合重查，不得静默拼进系统提示；不引入网络 embedding 服务。
+- **依据**：`COMPANY.md` §7｜参考：mem0 extract→consolidate 管线（`reference/mem0`）、ruflo hybrid 检索与 ReasoningBank 蒸馏（机制层面）
 
 ### P1-J4-01 Capability Descriptor 与 MCP 生命周期　⏳
 
