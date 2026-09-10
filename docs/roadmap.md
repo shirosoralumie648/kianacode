@@ -90,6 +90,8 @@
 | `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ⏳ |
 | `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ⏳ |
 | `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | 检索带相关性打分且命中进收据可追溯；grants ACL 两端一致 | ⏳ |
+| `P1-J3-03` | P1 | J3 Memory | `P1-J3-01` | 抽取建议包带 evidence 与相似旧记录；三档准入落地 | ⏳ |
+| `P1-J3-04` | P1 | J3 Memory | `P1-J3-02` | hybrid 检索（BM25+本地向量+RRF+MMR）确定性可复现；模型 hash 校验 fail-closed | ⏳ |
 | `P1-J4-01` | P1 | J4 Capability/MCP | `P0-A-01a` | MCP server/tool schema、health、trust、version、result validation 可追踪 | ⏳ |
 | `P1-J8-01` | P1 | J8 Observability | `P0-G-04` | provider/model、policy verdict、tool args hash、usage、retry/cancel reason 可追溯且不泄密 | ⏳ |
 | `P1-K5-01` | P1 | K5 Cost/capacity | `P0-G-04` | `UsageRecord`/`CostLedger`/`Quota`；`RuntimeBudget` 与 `ProjectBudget` 不混用 | ⏳ |
@@ -99,7 +101,7 @@
 | `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ⏳ |
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ⏳ |
 | `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ⏳ |
-| `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
+| `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a`、`P1-J3-04` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ⏳ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ⏳ |
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
@@ -113,7 +115,8 @@
 | `P3-I-04` | P3 | I Company 生命周期 | `P3-I-02` | criteria snapshot 冻结；Reviewer 不改写 Builder 原始事实 | ⏳ |
 | `P3-I-05` | P3 | I Company 生命周期 | `P3-I-03` | Project 关闭需 Acceptance+Delivery+ClosingReceipt 或显式豁免；Outcome 不自动夸大 | ⏳ |
 | `P3-I-06` | P3 | I Company 生命周期 | `P3-I-05` | 端到端产出完整 ClosingReceipt | ⏳ |
-| `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02` | 五部门可各自开会；决议写入部门记忆层 | ⏳ |
+| `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | 五部门可各自开会；决议写入部门记忆层 | ⏳ |
+| `P4-J3-05` | P4 | J3 Memory | `P1-J3-03` | run 蒸馏产出 lesson candidate 入部门层 | ⏳ |
 | `P4-J6-01` | P4 | J6 Swarm | `P1-C-02` | fan-out 有 parent/partition/预算/并发/TTL/WorkFingerprint/MergeDecision | ⏳ |
 | `P4-J7-02` | P4 | J7 Provider/Output | `P0-J7-01` | additive `sequence`/`epoch`；`PROTOCOL_SCHEMA` 不动 | ⏳ |
 | `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ⏳ |
@@ -509,6 +512,24 @@
 - **依赖 / 边界**：依赖 `P1-J3-01`；检索结果本回合注入、下回合重查，不得静默拼进系统提示；不引入网络 embedding 服务。
 - **依据**：`COMPANY.md` §7｜参考：mem0 extract→consolidate 管线（`reference/mem0`）、ruflo hybrid 检索与 ReasoningBank 蒸馏（机制层面）
 
+### P1-J3-03 抽取建议包与三档准入　⏳
+
+- **现状**：`memory.write` 在 policy ACL 内直写目标层即生效（`harness_memory.rs:157`），无建议包、无 turn 结束抽取。
+- **做什么**：turn 结束抽取器产出 `kiana.memory-proposal.v1`（facts + ADD/UPDATE/DELETE 建议 + evidence 引文 + 相似旧记录 top-3）；持久层写入落 candidate 不可检索、批准转 qualified；scratch 即时生效；user-private 仅人工。
+- **风险**：抽取失败不阻塞 run（incident 事件）；建议缺 evidence 视为 bug。
+- **验收**：`extraction_proposals_carry_evidence_and_similar_records`
+- **依赖 / 边界**：依赖 `P1-J3-01`；审批入口复用 `P0-F-01`，不另起。
+- **依据**：设计 `docs/superpowers/specs/2026-09-10-memory-architecture-design.md` §7｜`COMPANY.md` §7
+
+### P1-J3-04 hybrid 检索基建　⏳
+
+- **现状**：J3-02 归一后为词项 OR + 计分；无向量通道、无 BM25。
+- **做什么**：BM25（CJK 双字组）+ 本地 ONNX embedding（模型注册表 hash 钉版）→ RRF → MMR；ort feature flag 默认关，CI 用 fixture embedder；模型缺失降级纯词项且命中带 `degraded` 标记。
+- **风险**：索引是派生物可重建；确定性断言（钉住模型 → 同输入同命中）。
+- **验收**：`hybrid_retrieval_is_deterministic_for_a_pinned_model`
+- **依赖 / 边界**：依赖 `P1-J3-02`；不引入网络 embedding 服务；新增构建依赖须 feature 门控。
+- **依据**：设计 `docs/superpowers/specs/2026-09-10-memory-architecture-design.md` §5–§6、§11
+
 ### P1-J4-01 Capability Descriptor 与 MCP 生命周期　⏳
 
 - **现状**：capability 合同较窄，MCP server/tool schema、health、trust、version 不可追踪。
@@ -734,8 +755,17 @@
 - **做什么**：五部门可各自开会；决议写入部门记忆层，受 `P1-J3-02` 的密级约束。
 - **风险**：跨部门联席必须仍是显式对象；决议入库走 `memory.write` 晋升规则，不得自动写入。
 - **验收**：`department_resolutions_enter_the_department_memory_layer`
-- **依赖 / 边界**：依赖 `P1-E-02`、`P1-J3-02`；多租户部门会议 ACL 仍属 P6 边界。
+- **依赖 / 边界**：依赖 `P1-E-02`、`P1-J3-02`、`P1-J3-03`（决议走建议包通道，`kind=decision`）；多租户部门会议 ACL 仍属 P6 边界。
 - **依据**：`COMPANY.md` §5.4
+
+### P4-J3-05 run 蒸馏与 lesson 入库　⏳
+
+- **现状**：run 到终态只留账本事件，无蒸馏。
+- **做什么**：run 终态触发蒸馏器产 `kiana.memory-distillation.v1` lesson 候选（带 verdict）→ 部门层 candidate → 审批入库（`kind=lesson`）；symposium 决议走同一通道（`kind=decision`）。
+- **风险**：蒸馏是 LLM 输出，必须过 T1 准入，噪音止步于审批卡；triple 只收集不检索。
+- **验收**：`run_distillation_lands_as_lesson_candidate`
+- **依赖 / 边界**：依赖 `P1-J3-03`；不新增模型可见工具。
+- **依据**：设计 `docs/superpowers/specs/2026-09-10-memory-architecture-design.md` §9
 
 ### P4-J6-01 有界 Swarm　⏳
 
