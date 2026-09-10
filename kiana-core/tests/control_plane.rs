@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
-use kiana_core::{ControlPlane, CoreError};
+use kiana_core::{
+    project_run_state, ControlPlane, CoreError, RunOutcome, RunPhase, RunProjectionError, RunState,
+};
 use kiana_domain::{
     ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
     CapabilityRequest, CapabilityResult, CommandIntent, ConversationMessage, ConversationRole,
@@ -751,6 +753,18 @@ fn trusted_context() -> RequestContext {
     let mut context = RequestContext::local("session-1", "/repo");
     context.project_trusted = true;
     context
+}
+
+fn run_event(
+    request_id: RequestId,
+    run_id: RunId,
+    sequence: u64,
+    kind: &str,
+    data: Value,
+) -> RuntimeEvent {
+    RuntimeEvent::new(request_id, sequence, kind, data)
+        .unwrap()
+        .with_stream_metadata("run", run_id.to_string(), sequence)
 }
 
 fn temp_project() -> PathBuf {
@@ -5314,4 +5328,172 @@ async fn history_duplicate_sequence_keeps_first_event() {
             tool_call_id: None,
         }]
     );
+}
+
+#[tokio::test]
+async fn new_process_rebuilds_run_state_from_events_alone() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(TwoTurnDeltaRunner),
+    );
+    let context = trusted_context();
+    let response = core
+        .start_run(context, "rebuild with a tool call".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    let run_id = RunId::parse_str(response.output["run_id"].as_str().unwrap()).unwrap();
+
+    let restarted = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events,
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let state = restarted.run_state(run_id).await.unwrap();
+    assert_eq!(
+        state,
+        RunState {
+            run_id,
+            phase: RunPhase::Terminal,
+            outcome: Some(RunOutcome::Completed),
+            error: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn conflicting_terminal_kinds_fail_closed_with_both_kinds() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let events = vec![
+        run_event(request_id, run_id, 1, "run.authorized", json!({})),
+        run_event(request_id, run_id, 2, "run.completed", json!({})),
+        run_event(
+            request_id,
+            run_id,
+            3,
+            "run.failed",
+            json!({ "run_id": run_id, "error": "contradiction" }),
+        ),
+    ];
+    let error = project_run_state(run_id, &events).unwrap_err();
+    let expected = RunProjectionError::TerminalConflict {
+        kinds: vec!["run.completed".to_owned(), "run.failed".to_owned()],
+    };
+    assert_eq!(error, expected);
+    assert!(error.to_string().contains("run.completed"));
+    assert!(error.to_string().contains("run.failed"));
+}
+
+#[tokio::test]
+async fn repeated_terminal_kind_is_idempotent_and_stable() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let events = vec![
+        run_event(request_id, run_id, 1, "run.authorized", json!({})),
+        run_event(
+            request_id,
+            run_id,
+            2,
+            "run.failed",
+            json!({ "run_id": run_id, "error": "failed once" }),
+        ),
+        run_event(
+            request_id,
+            run_id,
+            3,
+            "run.failed",
+            json!({ "run_id": run_id, "error": "replayed" }),
+        ),
+    ];
+    let state = project_run_state(run_id, &events).unwrap();
+    assert_eq!(state.phase, RunPhase::Terminal);
+    assert_eq!(state.outcome, Some(RunOutcome::Failed));
+    assert_eq!(state.error.as_deref(), Some("failed once"));
+}
+
+#[tokio::test]
+async fn missing_or_unsupported_ledger_fails_run_projection() {
+    let core = CoreHarness::new();
+    let error = core.core.run_state(RunId::new()).await.unwrap_err();
+    assert_eq!(error.to_string(), "port_failed:run_not_found");
+
+    let unsupported = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        Arc::new(UnsupportedReadAllEventStore::default()),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let error = unsupported.run_state(RunId::new()).await.unwrap_err();
+    assert_eq!(error.to_string(), "port_failed:run_projection_unsupported");
+}
+
+#[tokio::test]
+async fn non_terminal_events_after_terminal_do_not_change_phase() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let events = vec![
+        run_event(request_id, run_id, 1, "run.authorized", json!({})),
+        run_event(
+            request_id,
+            run_id,
+            2,
+            "run.cancelled",
+            json!({ "run_id": run_id, "error": "cancelled: user" }),
+        ),
+        run_event(request_id, run_id, 3, "approval.requested", json!({})),
+        run_event(request_id, run_id, 4, "approval.denied", json!({})),
+    ];
+    let state = project_run_state(run_id, &events).unwrap();
+    assert_eq!(state.phase, RunPhase::Terminal);
+    assert_eq!(state.outcome, Some(RunOutcome::Cancelled));
+    assert_eq!(state.error.as_deref(), Some("cancelled: user"));
+}
+
+#[tokio::test]
+async fn approval_transition_is_projected_by_stream_order() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let authorized = RuntimeEvent::new(request_id, 1, "run.authorized", json!({}))
+        .unwrap()
+        .with_stream_metadata("run", run_id.to_string(), 1);
+    let approval_requested = RuntimeEvent::new(request_id, 9, "approval.requested", json!({}))
+        .unwrap()
+        .with_stream_metadata("run", run_id.to_string(), 2);
+    let started = RuntimeEvent::new(request_id, 2, "run.started", json!({}))
+        .unwrap()
+        .with_stream_metadata("run", run_id.to_string(), 3);
+
+    let state = project_run_state(
+        run_id,
+        &[approval_requested.clone(), started.clone(), authorized],
+    )
+    .unwrap();
+    assert_eq!(state.phase, RunPhase::Running);
+
+    let state = project_run_state(run_id, &[approval_requested]).unwrap();
+    assert_eq!(state.phase, RunPhase::AwaitingApproval);
+}
+
+#[tokio::test]
+async fn conflicting_terminal_is_detected_after_non_terminal_replay() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let events = vec![
+        run_event(request_id, run_id, 1, "run.completed", json!({})),
+        run_event(request_id, run_id, 2, "approval.requested", json!({})),
+        run_event(request_id, run_id, 3, "run.cancelled", json!({})),
+    ];
+    let error = project_run_state(run_id, &events).unwrap_err();
+    assert!(matches!(error, RunProjectionError::TerminalConflict { .. }));
 }

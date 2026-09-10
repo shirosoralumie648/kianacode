@@ -10,9 +10,12 @@ mod context_query;
 mod events;
 mod history;
 mod lifecycle;
+mod projection;
 mod receipts;
 mod redaction;
 mod sessions;
+
+pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{
