@@ -3,7 +3,7 @@
 > **一屏看进度** → §1 总图。**看某步具体做什么** → §4 起的详细卡。**你想加东西** → §11 追加区。
 > 当前事实以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准；本文只排顺序、记进度、写验收口径，**不定义新规范**。
 > 阶段编号以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 的 P0–P6 为唯一 canonical。
-> 单元清单来源：`company-os-implementation-outline.md` §3 的切片 A–M 与子切片 J1–M7（共 38 个）。
+> 单元清单来源：`company-os-implementation-outline.md` §3 的切片 A–M 与子切片 J1–M7（共 38 个）；产品特有单元（角色目录、会议、六层记忆、提示词来源）另见 `COMPANY.md` §3/§4/§5/§7。
 
 ---
 
@@ -21,7 +21,7 @@
 
 **编号规则**
 
-- 形式 `P<阶段>-<切片>-<序号>`，例 `P0-A-01`、`P1-J2-01`。
+- 形式 `P<阶段>-<切片>-<序号>`，例 `P0-A-01a`、`P1-J2-01`。
 - 切片字母用 `implementation-outline` 的 A–M；子切片用 `J1`…`M7`。
 - 一个切片在同一阶段可以有多个单元（如 `P0-G-01`…`P0-G-04`）。38 个切片/子切片是**覆盖下限**，不是行数上限。
 - 序号按该切片在**该阶段内**的依赖顺序排，不预留空号。
@@ -54,8 +54,8 @@
 |---|---|---|---|---|---|
 | `P0-A-01a` | P0 | A 契约注册表 | — | ID 契约唯一登记 + 每类型转换测试 | ✅ |
 | `P0-A-01b` | P0 | A 契约注册表 | `P0-A-01a` | schema 注册表；unknown field / unknown event / migration 规则 | ⏳ |
-| `P0-A-02` | P0 | A 契约注册表 | `P0-A-01` | `CapabilityErrorCode` + `failure_code()`，每码有 CLI exit / HTTP status / 可重试映射 | ⏳ |
-| `P0-B-01` | P0 | B 正式状态机 | `P0-A-01` | Cell/WorkPacket/CapabilityExecution/Approval 四张转移表；非法转移与重复请求有断言 | ⏳ |
+| `P0-A-02` | P0 | A 契约注册表 | `P0-A-01a` | `CapabilityErrorCode` + `failure_code()`，每码有 CLI exit / HTTP status / 可重试映射 | ⏳ |
+| `P0-B-01` | P0 | B 正式状态机 | `P0-A-01a` | Cell/WorkPacket/CapabilityExecution/Approval 四张转移表；非法转移与重复请求有断言 | ⏳ |
 | `P0-F-01` | P0 | F Approval | `P0-B-01` | TTY/Web/一次性 CLI 三处可列举同一 pending 并回复 | ⏳ |
 | `P0-F-02` | P0 | F Approval | `P0-F-01` | 每次批/拒都有 durable 记录；重复消费与过期被拒 | ⏳ |
 | `P0-F-03` | P0 | F Approval | `P0-G-02b` | 重启后可续跑同一 Runner；缺材料返回 `approval_continuation_unavailable` | ⏳ |
@@ -71,31 +71,35 @@
 | `P0-J1-05a` | P0 | J1 Runtime | — | 重复工具调用与 run 级 wall-time 预算 fail-closed，阈值进 `RuntimeConfig` 且在产品路径生效 | 🔄 |
 | `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | `RoleSpec.max_steps` 经 `RuntimeConfig` 到达 harness | ⏳ |
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
-| `P0-K1-01` | P0 | K1 Identity | `P0-A-01` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ⏳ |
+| `P0-K1-01` | P0 | K1 Identity | `P0-A-01a` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ⏳ |
 | `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ⏳ |
-| `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01` | 六类组织契约定义齐备；子权限只减不增 | ⏳ |
+| `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ⏳ |
 | `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
-| `P1-D-01` | P1 | D WorkPacket | `P0-A-01` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ⏳ |
+| `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ⏳ |
+| `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ⏳ |
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ⏳ |
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
-| `P1-H-01` | P1 | H Capability/Broker | `P0-A-01` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
+| `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ⏳ |
+| `P1-H-01` | P1 | H Capability/Broker | `P0-A-01a` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
 | `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ✅ |
 | `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ⏳ |
 | `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ⏳ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ⏳ |
-| `P1-J3-01` | P1 | J3 Memory | `P0-A-01` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ⏳ |
-| `P1-J4-01` | P1 | J4 Capability/MCP | `P0-A-01` | MCP server/tool schema、health、trust、version、result validation 可追踪 | ⏳ |
+| `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ⏳ |
+| `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ⏳ |
+| `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | `memory.search` 按 knowledge_grants 过滤；命中进收据 | ⏳ |
+| `P1-J4-01` | P1 | J4 Capability/MCP | `P0-A-01a` | MCP server/tool schema、health、trust、version、result validation 可追踪 | ⏳ |
 | `P1-J8-01` | P1 | J8 Observability | `P0-G-04` | provider/model、policy verdict、tool args hash、usage、retry/cancel reason 可追溯且不泄密 | ⏳ |
 | `P1-K5-01` | P1 | K5 Cost/capacity | `P0-G-04` | `UsageRecord`/`CostLedger`/`Quota`；`RuntimeBudget` 与 `ProjectBudget` 不混用 | ⏳ |
 | `P1-L1-01` | P1 | L1 Eval | `P0-G-04` | GoldenTrace 绑定源码快照/输入 hash/版本/Receipt；replay 无真实副作用 | ⏳ |
-| `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01` | 结果带 snapshot、来源与 freshness | ⏳ |
+| `P1-L4-01` | P1 | L4 Code intelligence | `P0-A-01a` | 结果带 snapshot、来源与 freshness | ⏳ |
 | `P2-J5-01` | P2 | J5 Workflow | `P0-G-04` | 版本固定；重试/取消/审批/补偿可重放 | ⏳ |
 | `P2-K3-01` | P2 | K3 Human control | `P0-F-02` | Approval/Review/Acceptance/Incident 进入同一 Inbox | ⏳ |
 | `P2-K4-01` | P2 | K4 Artifact | `P0-G-04` | CheckpointService 绑定 transcript offset + workspace revision + invocation；恢复后旧 approval 作废 | ⏳ |
 | `P2-K6-01` | P2 | K6 Reliability | `P2-K4-01` | 六类失败各有 Incident/Recovery | ⏳ |
-| `P2-K7-01` | P2 | K7 Data governance | `P0-A-01` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
+| `P2-K7-01` | P2 | K7 Data governance | `P0-A-01a` | 删除/过期/撤销传播到 Memory、Artifact、Index、Compaction、cache policy | ⏳ |
 | `P2-L2-01` | P2 | L2 Feedback | `P1-L1-01` | Feedback 只产生候选，不能直接改 Role/Grant/Policy/历史事实 | ⏳ |
 | `P2-M2-01` | P2 | M2 UI projection | `P0-M1-01` | `UiSnapshot`/`UiAction`/cursor/epoch；乐观更新不覆盖更新事件 | ⏳ |
 | `P2-M3-01` | P2 | M3 Human actions | `P2-M2-01` | Approval/Review/Acceptance/Incident 动作卡三处复用 | ⏳ |
@@ -103,17 +107,18 @@
 | `P2-M5-01` | P2 | M5 Web sync | `P2-M2-01` | snapshot hydration + 事件订阅 + 重连不重放 delta | ⏳ |
 | `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | ✅ |
 | `P2-M7-01` | P2 | M7 accessible fallback | `P2-M2-01` | 键盘、窄屏、文本状态、aria/高对比 | ⏳ |
-| `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01` | 十类业务对象定义与不变量 | ⏳ |
+| `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01a` | 十类业务对象定义与不变量 | ⏳ |
 | `P3-I-02` | P3 | I Company 生命周期 | `P3-I-01` | 九个命令/事件冻结 | ⏳ |
 | `P3-I-03` | P3 | I Company 生命周期 | `P3-I-02`、`P0-G-04` | 新进程可从事件与 Artifact 引用重建全链 | ⏳ |
 | `P3-I-04` | P3 | I Company 生命周期 | `P3-I-02` | criteria snapshot 冻结；Reviewer 不改写 Builder 原始事实 | ⏳ |
 | `P3-I-05` | P3 | I Company 生命周期 | `P3-I-03` | Project 关闭需 Acceptance+Delivery+ClosingReceipt 或显式豁免；Outcome 不自动夸大 | ⏳ |
 | `P3-I-06` | P3 | I Company 生命周期 | `P3-I-05` | 端到端产出完整 ClosingReceipt | ⏳ |
+| `P4-E-03` | P4 | E 通信与问责 | `P1-E-02`、`P1-J3-02` | 五部门可各自开会；决议写入部门记忆层 | ⏳ |
 | `P4-J6-01` | P4 | J6 Swarm | `P1-C-02` | fan-out 有 parent/partition/预算/并发/TTL/WorkFingerprint/MergeDecision | ⏳ |
 | `P4-J7-02` | P4 | J7 Provider/Output | `P0-J7-01` | additive `sequence`/`epoch`；`PROTOCOL_SCHEMA` 不动 | ⏳ |
 | `P4-J7-03` | P4 | J7 Provider/Output | `P4-J7-02` | Usage/ToolCall/ApprovalRequested/Error 投影；terminal 重放给迟到订阅者 | ⏳ |
 | `P4-K2-01` | P4 | K2 Trigger | `P0-B-01` | Trigger 只能创建 Workflow/Run，不能直接执行 Capability | ⏳ |
-| `P4-K8-01` | P4 | K8 Connector | `P0-A-01` | 不绕过 ControlPlane/Approval/Idempotency/Receipt/reconciliation | ⏳ |
+| `P4-K8-01` | P4 | K8 Connector | `P0-A-01a` | 不绕过 ControlPlane/Approval/Idempotency/Receipt/reconciliation | ⏳ |
 | `P4-L3-01` | P4 | L3 Version governance | `P1-L1-01` | ModelProfile/PromptBundle/RouteDecision/DriftReport 按版本分桶 | ⏳ |
 | `P4-L5-01` | P4 | L5 Extension | `P1-H-01` | skill `allowed-tools` 不进 policy；read-only 扩展写操作在 broker 拒绝 | ⏳ |
 | `P4-L6-01` | P4 | L6 Supply chain | `P4-L5-01` | content hash/license/signature/capability diff/rollback 可审计 | ⏳ |
@@ -152,6 +157,7 @@
 | 2026-09-10 | 网页重启后只读列出历史会话，改走 `DaemonHost::persisted_events()` 端口；证据块「Read-only persisted web session history evidence (2026-09-10)」 | `1c504a0` + `e144d30` |
 | 2026-09-10 | run 级 wall-time 预算 + `RuntimeConfig` 接进 daemon harness（含 `KIANA_HARNESS_MAX_STEPS` / `KIANA_HARNESS_WALL_TIME_MS`）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` |
 | 2026-09-10 | 从账本折叠 model-visible history（不新增事件 kind）+ 预派发失败补 `capability_request_id` + ID 契约注册表；CI 修复 chrome apt 源抖动；证据块「Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)」 | `41bb971` + `9d255d1` + `d3f7601` + `5f9ce29` → CI `34386563396` ✅ |
+| 2026-09-10 | 补入产品特有单元 5 个（`P1-C-03`/`P1-E-02`/`P1-J2-04`/`P1-J3-02`/`P4-E-03`），来源 `COMPANY.md` §3/§4/§5/§7；同时修正 `P1-J2-03` 现状表述（builder prompt 已部分接线） | 待提交 |
 
 ---
 
@@ -168,13 +174,20 @@
 
 ### P0-A-01b schema 注册表与 unknown field/migration 规则　⏳
 
+- **现状**：ID 契约已登记（`P0-A-01a`），但 canonical domain schema 与 wire protocol schema 未区分注册，unknown field / unknown event / migration 规则缺失。
+- **做什么**：建 schema 注册表并区分 domain schema 与 wire schema；定 unknown field / unknown event 处理规则与 migration 规则。
+- **风险**：兼容字段增加可升 minor，破坏性变化必须升 major 并提供 upcaster/迁移；未知 major 必须 fail-closed。
+- **验收**：`unknown_major_version_fails_closed`
+- **依赖 / 边界**：依赖 `P0-A-01a`；兼容边界以 `company-os-spec-index.md` §6.2 为准。
+- **依据**：`company-os-implementation-outline.md` §Slice A、`company-os-spec-index.md` §6.2
+
 ### P0-A-02 稳定错误码枚举　⏳
 
 - **现状**：错误以字符串理由跨层传递，没有 enum 与统一映射（`company-os-implementation-outline.md` §Slice B）。
 - **做什么**：`CapabilityErrorCode` enum + `CapabilityResult::failure_code()`；每个码定义 CLI exit、HTTP status、是否可重试、是否需新授权或补偿。
 - **风险**：错误码一旦进入 wire 就只能加新码，不能改语义。
 - **验收**：`path_escape_uses_stable_error_code`
-- **依赖 / 边界**：依赖 `P0-A-01`；`result_unknown` 必须进对账队列，不能自动 retry。
+- **依赖 / 边界**：依赖 `P0-A-01a`；`result_unknown` 必须进对账队列，不能自动 retry。
 - **依据**：`company-os-implementation-outline.md` §Slice B
 
 ### P0-B-01 正式状态机转移表　⏳
@@ -183,7 +196,7 @@
 - **做什么**：为 Cell、WorkPacket、CapabilityExecution、Approval 各出一张状态转移表，冻结终态不可回、expired approval 不得执行、`result_unknown` 不得自动变成功。
 - **风险**：新增中间态会改变 `run.cancelled` 时序，必须保住「每 run 恰好一条终态」。
 - **验收**：`illegal_state_transition_is_rejected`
-- **依赖 / 边界**：依赖 `P0-A-01`；Review 不得覆盖 Builder 原始事实。
+- **依赖 / 边界**：依赖 `P0-A-01a`；Review 不得覆盖 Builder 原始事实。
 - **依据**：`company-os-implementation-outline.md` §Slice B
 
 ### P0-F-01 审批一等请求/应答　⏳
@@ -327,7 +340,7 @@
 - **做什么**：由受保护入口解析身份，服务端从不可变 assignment 派生 role/department/authority epoch。
 - **风险**：wire 上的 actor/trust/profile 若被当作授权来源，就是越权入口。
 - **验收**：`wire_actor_cannot_grant_role_or_department`
-- **依赖 / 边界**：依赖 `P0-A-01`；不改现有 ProjectTrust 派生逻辑的语义。
+- **依赖 / 边界**：依赖 `P0-A-01a`；不改现有 ProjectTrust 派生逻辑的语义。
 - **依据**：`company-os-implementation-outline.md` §Slice K1
 
 ### P0-M1-01 Workbench 基线　⏳
@@ -349,7 +362,7 @@
 - **做什么**：定义 `AgentTemplate`、`CellSpec`、`SpawnPlan`、`BudgetLease`、`CapabilityGrant`、`SupervisionLease`；模板版本固定，子权限只减不增，默认不可再委派。
 - **风险**：模板版本若不固定，历史 Cell 无法复现。
 - **验收**：`child_grant_cannot_exceed_parent_grant`
-- **依赖 / 边界**：依赖 `P0-A-01`；优先在 `kiana-domain` 定义契约。
+- **依赖 / 边界**：依赖 `P0-A-01a`；优先在 `kiana-domain` 定义契约。
 - **依据**：`company-os-implementation-outline.md` §Slice C
 
 ### P1-C-02 Cell 生命周期与 retire　⏳
@@ -361,13 +374,22 @@
 - **依赖 / 边界**：依赖 `P1-C-01`；`kiana-core` 执行授权和生命周期，`kiana-daemon` 提供目录与调度。
 - **依据**：`company-os-implementation-outline.md` §Slice C
 
+### P1-C-03 五部门角色目录与 model_profile 接线　⏳
+
+- **现状**：`RoleSpec` 十二字段齐备（`kiana-domain/src/roles.rs:116-133`），但角色实例只有写死的构造函数（如 `RoleSpec::builder()`）；`model_profile` 在 `roles.rs` 之外零消费，规划/执行无法异模型。
+- **做什么**：按 `COMPANY.md` §3/§4 把五部门 × 角色落成数据集（角色目录），并把 `RoleSpec.model_profile` 接到 provider 路由。
+- **风险**：角色目录若散落各 crate 会形成第二真相；「规划用强模型、执行用便宜模型」必须可在收据里复现。
+- **验收**：`planning_and_execution_roles_can_use_different_models`
+- **依赖 / 边界**：依赖 `P1-C-01`；不新增模型可见工具。
+- **依据**：`COMPANY.md` §3、§4
+
 ### P1-D-01 WorkPacket 单一 ready 谓词　⏳
 
 - **现状**：spawn 校验、`kiana project next`、Web/Desktop 看板各自判断就绪。
 - **做什么**：`kiana-domain`/`kiana-tasks` 只暴露一个 `ready_packets(graph, now)`，三处必须调用同一实现。
 - **风险**：三处各写一份会让「可派发」的定义漂移。
 - **验收**：`single_ready_predicate_agrees_across_three_callers`
-- **依赖 / 边界**：依赖 `P0-A-01`；就绪 = 状态可派发 + 依赖全成功 + 无未过期 lease 冲突。
+- **依赖 / 边界**：依赖 `P0-A-01a`；就绪 = 状态可派发 + 依赖全成功 + 无未过期 lease 冲突。
 - **依据**：`company-os-implementation-outline.md` §Slice D
 
 ### P1-D-02 依赖缺失 / 成环 fail-closed　⏳
@@ -397,13 +419,22 @@
 - **依赖 / 边界**：依赖 `P0-B-01`；`kiana-ports` 定义接口，`kiana-core` 产生正式事件。
 - **依据**：`company-os-implementation-outline.md` §Slice E
 
+### P1-E-02 Symposium 会议对象契约化　⏳
+
+- **现状**：`Symposium`/投票/黑板/`DecisionRecord` 已实现（`kiana-domain/src/symposiums.rs`），`convene_symposium` 有 chair 必须为 PM、`can_convene` 与 workspace-write 校验（`kiana-core/src/collaboration.rs:955-1044`）——对应 `COMPANY.md` §5.4 的 v0.3/v0.4，但从未进验收追踪。
+- **做什么**：给现有会议路径补验收测试（chair 校验、投票、决议产出）；会议决定事件 durable 可重放。
+- **风险**：会议代码已存在却不在 §1 表里，回归不可见；决定事件若不 durable，重启后决议丢失。
+- **验收**：`symposium_decision_is_durable_and_replayable`
+- **依赖 / 边界**：依赖 `P1-E-01`；不改会议参会边界（Builder 不进规划/监控会，冻结项）。
+- **依据**：`COMPANY.md` §5.1–5.4
+
 ### P1-H-01 `ToolSpec` registry　⏳
 
 - **现状**：工具权威分散在 5 处，新增工具要改多处。
 - **做什么**：`kiana-domain` 新增 `tool_authority` 模块（`ToolSpec{name, aliases, capability, operation, risk_policy, side_effecting, schema}` + `TOOL_SPECS`）。
 - **风险**：registry 若成为第二套 authority 而不被 policy 消费，就是摆设。
 - **验收**：`tool_authority_covers_every_model_visible_tool`
-- **依赖 / 边界**：依赖 `P0-A-01`；**不新增模型可见工具**，保持 5 个。
+- **依赖 / 边界**：依赖 `P0-A-01a`；**不新增模型可见工具**，保持 5 个。
 - **依据**：`company-os-implementation-outline.md` §Slice H
 
 ### P1-H-02 参数 schema 校验　✅
@@ -444,12 +475,21 @@
 
 ### P1-J2-03 角色 prompt 接线　⏳
 
-- **现状**：`RoleSpec.prompt` 已定义但没有进入 provider 的 system message。
+- **现状**：部分接线——写死的 `RoleSpec::builder().prompt` 已是 system message 来源（`kiana-daemon/src/model_client.rs:166`，环境变量可覆盖），按角色注入仍缺。
 - **做什么**：把 `RoleSpec.prompt` 接到 provider 的 system message。
 - **风险**：角色 prompt 若覆盖系统安全指令，会削弱边界。
 - **验收**：`role_prompt_reaches_the_provider_system_message`
 - **依赖 / 边界**：依赖 `P1-J2-01`；不改变现有安全指令的优先级。
 - **依据**：`company-os-implementation-outline.md` §Slice J2
+
+### P1-J2-04 提示词来源与角色包加载　⏳
+
+- **现状**：`provider_system_prompt()`（`kiana-daemon/src/model_client.rs:166`）先读环境变量，否则回落 `RoleSpec::builder().prompt`——角色提示词写死在 `roles.rs` 构造函数，不从 kiana-skills 角色包加载。
+- **做什么**：角色提示词改从角色包 / `kiana-skills` 加载；`prompt_hash` 进收据可复现。
+- **风险**：提示词换源后 hash 必须按换源后的内容计算，否则收据复现失效；环境变量逃生口保留但不得成为产品路径。
+- **验收**：`role_prompt_loads_from_the_role_pack`
+- **依赖 / 边界**：依赖 `P1-J2-03`（先有管道再换源）；提示词产品拥有（12-factor #2）。
+- **依据**：`COMPANY.md` §4 原则 2
 
 ### P1-J3-01 Memory 写入候选制　⏳
 
@@ -457,8 +497,17 @@
 - **做什么**：`memory.write` 由模型写入一律落 candidate + draft；`origin` 由服务端派生（model / hook / git / user）；默认检索排除 candidate，只有操作者或目标层 owner 显式批准才转 active。
 - **风险**：模型不能自批；instance-scratch 层保持默认可见。
 - **验收**：`model_written_memory_stays_unsearchable_until_approved`
-- **依赖 / 边界**：依赖 `P0-A-01`；持久层 candidate 默认不可检索。
+- **依赖 / 边界**：依赖 `P0-A-01a`；持久层 candidate 默认不可检索。
 - **依据**：`company-os-implementation-outline.md` §Slice J3
+
+### P1-J3-02 分层检索与密级　⏳
+
+- **现状**：`memory.search`/`memory.write` 已有角色级 collection ACL（`kiana-policy/src/lib.rs:219-244`），但 `COMPANY.md` §7 的六层（Company/Department/Role/Project/User/Instance scratch）与密级在代码中无痕迹；检索命中不进收据。
+- **做什么**：`memory.search` 按 `knowledge_grants` 过滤集合与密级；命中写进收据（谁查了什么、用了哪几条、来自哪层）。
+- **风险**：同一句查询不同角色必须看到不同集合；无法指认来源的内容不得进入 Reviewer 的「已验证」结论。
+- **验收**：`memory_hits_respect_knowledge_grants_and_reach_the_receipt`
+- **依赖 / 边界**：依赖 `P1-J3-01`；检索结果本回合注入、下回合重查，不得静默拼进系统提示。
+- **依据**：`COMPANY.md` §7
 
 ### P1-J4-01 Capability Descriptor 与 MCP 生命周期　⏳
 
@@ -466,7 +515,7 @@
 - **做什么**：把 `(CapabilityKind, operation)` 扩展为带域、版本、风险、scope、approval、幂等和补偿描述的 descriptor；MCP 走 stdio 生命周期管理。
 - **风险**：未知 operation、参数越界、资源越界、过期 grant 必须 fail-closed。
 - **验收**：`mcp_tool_schema_and_health_are_traceable`
-- **依赖 / 边界**：依赖 `P0-A-01`；**HTTP MCP 冻结**，只支持 stdio。
+- **依赖 / 边界**：依赖 `P0-A-01a`；**HTTP MCP 冻结**，只支持 stdio。
 - **依据**：`company-os-implementation-outline.md` §Slice H、§Slice J4
 
 ### P1-J8-01 Observability 与 trace/receipt　⏳
@@ -502,7 +551,7 @@
 - **做什么**：`RepositorySnapshot`/`SymbolIndex`/`DependencyGraph`/`RepoMap` 的结果带 snapshot、来源和 freshness。
 - **风险**：无 freshness 的索引结果会被当成当前事实。
 - **验收**：`code_intelligence_results_carry_freshness`
-- **依赖 / 边界**：依赖 `P0-A-01`；不改变现有索引的可见范围。
+- **依赖 / 边界**：依赖 `P0-A-01a`；不改变现有索引的可见范围。
 - **依据**：`company-os-implementation-outline.md` §Slice L4
 
 ---
@@ -551,7 +600,7 @@
 - **做什么**：删除、过期和撤销能传播到 Memory、Artifact、Index、Compaction 和 cache policy。
 - **风险**：传播不全等于数据没删干净，却对外声称已删。
 - **验收**：`deletion_propagates_to_memory_and_index`
-- **依赖 / 边界**：依赖 `P0-A-01`；不改变现有 ACL 语义。
+- **依赖 / 边界**：依赖 `P0-A-01a`；不改变现有 ACL 语义。
 - **依据**：`company-os-implementation-outline.md` §Slice K7
 
 ### P2-L2-01 反馈与候选改进　⏳
@@ -627,7 +676,7 @@
 - **做什么**：定义 `Objective`、`Initiative`、`Project`、`Milestone`、`Acceptance`、`Delivery`、`Outcome`、`ChangeRequest`、`Risk`、`Incident` 及不变量。
 - **风险**：把业务对象实现成 prompt 里的名词，而不是 domain 类型。
 - **验收**：`company_objects_expose_invariants`
-- **依赖 / 边界**：依赖 `P0-A-01`；字段与状态机以 `company-os-domain-contracts.md` 为准。
+- **依赖 / 边界**：依赖 `P0-A-01a`；字段与状态机以 `company-os-domain-contracts.md` 为准。
 - **依据**：`company-os-implementation-outline.md` §Slice I
 
 ### P3-I-02 命令与事件冻结　⏳
@@ -679,6 +728,15 @@
 
 ## 8. P4 — 有界 Swarm、Scheduler、Provider streaming、Skill/Plugin 生态
 
+### P4-E-03 五部门开会与决议入部门 RAG　⏳
+
+- **现状**：只有规划部（v0.3）与监控部（v0.4）会议路径；五部门开会与「决议进部门 RAG」（`COMPANY.md` §5.4 v0.5）未实现。
+- **做什么**：五部门可各自开会；决议写入部门记忆层，受 `P1-J3-02` 的密级约束。
+- **风险**：跨部门联席必须仍是显式对象；决议入库走 `memory.write` 晋升规则，不得自动写入。
+- **验收**：`department_resolutions_enter_the_department_memory_layer`
+- **依赖 / 边界**：依赖 `P1-E-02`、`P1-J3-02`；多租户部门会议 ACL 仍属 P6 边界。
+- **依据**：`COMPANY.md` §5.4
+
 ### P4-J6-01 有界 Swarm　⏳
 
 - **现状**：`SwarmPlan`/`Partition`/`Child Cell`/`MergeDecision` 为 `target`。
@@ -721,7 +779,7 @@
 - **做什么**：Connector 不绕过 ControlPlane、Approval、Idempotency、Receipt 和 reconciliation。
 - **风险**：Connector 是外部副作用入口，绕过控制面即等于无审计。
 - **验收**：`connector_cannot_bypass_the_control_plane`
-- **依赖 / 边界**：依赖 `P0-A-01`；R3+ 需最终 payload 单次确认。
+- **依赖 / 边界**：依赖 `P0-A-01a`；R3+ 需最终 payload 单次确认。
 - **依据**：`company-os-implementation-outline.md` §Slice K8
 
 ### P4-L3-01 版本治理与 drift　⏳
