@@ -68,7 +68,7 @@
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ⏳ |
 | `P0-J1-04` | P0 | J1 Runtime | `P0-J1-01`–`03` | 保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 语义 | ⏳ |
-| `P0-J1-05a` | P0 | J1 Runtime | — | 重复工具调用与 run 级 wall-time 预算 fail-closed，阈值进 `RuntimeConfig` 且在产品路径生效 | 🔄 |
+| `P0-J1-05a` | P0 | J1 Runtime | — | 重复工具调用与 run 级 wall-time 预算 fail-closed，阈值进 `RuntimeConfig` 且在产品路径生效 | ✅ |
 | `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | `RoleSpec.max_steps` 经 `RuntimeConfig` 到达 harness | ⏳ |
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
 | `P0-K1-01` | P0 | K1 Identity | `P0-A-01a` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ⏳ |
@@ -133,10 +133,10 @@
 
 | 事项 | 单元 | 位置 | 卡在哪 |
 |---|---|---|---|
-| 折叠账本重建 history | `P0-G-02b` | `kiana-core/src/history.rs` | `41bb971` + `32692da` 已提交，等 CI + 证据块 |
-| `RuntimeConfig` 接线到产品路径 | `P0-J1-05a` | `kiana-daemon/src/lib.rs` | `747ff8b` 已提交，等 CI + 证据块 |
+| 实施会话工作树改动（单元归属待实现方回报） | 待回报 | `kiana-core/src/{commands,lib,lifecycle}.rs`、`kiana-daemon/src/{harness_skills,lib}.rs`、`kiana-runner-protocol`、`kiana-runner/src/harness.rs` | 未提交，未回报单元号 |
 
-> 最近一次全绿：CI `34380542728`（tip `409cfc7`）—— 覆盖 `P0-J1-05a` 的重复调用与 wall-time 部分。`P1-H-02`（`34380323510`）与 `P2-M5-02`（`34380076942`）各自 CI 亦绿且证据块已落。
+> 最近一次全绿：CI `34500579350`（tip `3a319be`）—— `P0-G-04` 事件重建投影。
+> 记忆线下一刀：`P1-J3-01`，实施计划已备（`docs/superpowers/plans/2026-09-10-memory-j3-01-j3-02.md`），由实现方认领。
 
 ---
 
@@ -160,7 +160,10 @@
 | 2026-09-10 | 网页重启后只读列出历史会话，改走 `DaemonHost::persisted_events()` 端口；证据块「Read-only persisted web session history evidence (2026-09-10)」 | `1c504a0` + `e144d30` |
 | 2026-09-10 | run 级 wall-time 预算 + `RuntimeConfig` 接进 daemon harness（含 `KIANA_HARNESS_MAX_STEPS` / `KIANA_HARNESS_WALL_TIME_MS`）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` |
 | 2026-09-10 | 从账本折叠 model-visible history（不新增事件 kind）+ 预派发失败补 `capability_request_id` + ID 契约注册表；CI 修复 chrome apt 源抖动；证据块「Model-visible history rebuild and pre-dispatch pairing evidence (2026-09-10)」 | `41bb971` + `9d255d1` + `d3f7601` + `5f9ce29` → CI `34386563396` ✅ |
-| 2026-09-10 | 补入产品特有单元 5 个（`P1-C-03`/`P1-E-02`/`P1-J2-04`/`P1-J3-02`/`P4-E-03`），来源 `COMPANY.md` §3/§4/§5/§7；同时修正 `P1-J2-03` 现状表述（builder prompt 已部分接线） | 待提交 |
+| 2026-09-10 | 补入产品特有单元 5 个（`P1-C-03`/`P1-E-02`/`P1-J2-04`/`P1-J3-02`/`P4-E-03`），来源 `COMPANY.md` §3/§4/§5/§7；同时修正 `P1-J2-03` 现状表述（builder prompt 已部分接线） | `7aa619f` |
+| 2026-09-10 | 新进程凭事件重建 Run 状态（projection，矛盾终态 fail-closed）；证据块「Run state event projection evidence (2026-09-10)」 | `3a319be` + `c5de094` → CI `34500579350` ✅ |
+| 2026-09-10 | `P0-J1-05a` 收口：wall-time 预算接线进产品路径（`KIANA_HARNESS_WALL_TIME_MS` / `KIANA_HARNESS_MAX_STEPS`，默认不变）；直跑 `34381844056` 红于 CI 环境 apt 问题（`c83a357`/`5f9ce29` 修复后覆盖跑绿）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` → 覆盖 CI `34389804309` ✅ |
+| 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 
 ---
 
@@ -310,14 +313,14 @@
 - **依赖 / 边界**：依赖 `P0-J1-01`–`03`；必须保留 `daemon_host::cancelling_mid_stream_never_completes_or_emits_a_late_delta` 的语义。
 - **依据**：`company-os-implementation-outline.md` §Slice J1
 
-### P0-J1-05a 重复调用检测与 wall-time 预算接线　🔄
+### P0-J1-05a 重复调用检测与 wall-time 预算接线　✅
 
 - **现状**：重复调用检测已落地（`d973ff6`）；`wall_time_budget` 与 `with_wall_time_budget` 已加（`409cfc7`）；`RuntimeConfig` 已接进 daemon 的 5 处 harness 构造，支持 `KIANA_HARNESS_MAX_STEPS` / `KIANA_HARNESS_WALL_TIME_MS`（`747ff8b`）。
-- **做什么**：保持现状；确认无环境变量时默认行为不变（32 步、无 wall-time）。
+- **做什么**：保持现状；无环境变量时默认行为不变（32 步、无 wall-time）。
 - **风险**：环境变量非法值必须 fail-closed；只加字段不接线等于配置存在但不生效。
 - **验收**：`run_wall_time_budget_fails_closed`
 - **依赖 / 边界**：无依赖；不同参数不算重复调用，不得误伤。
-- **依据**：`company-os-implementation-outline.md` §Slice J1｜`409cfc7` + `747ff8b`，等 CI + 证据块
+- **依据**：`company-os-implementation-outline.md` §Slice J1｜`409cfc7` + `747ff8b` + 覆盖 CI `34389804309` ✅ + 证据块「Run-level wall-time budget evidence (2026-09-10)」；直跑 `34381844056` 红于 CI 环境 apt 问题（`c83a357`/`5f9ce29` 修复后覆盖跑绿）；默认无预算（env 可配），`RoleSpec.max_steps` 仍未消费（见 `P0-J1-05b`）
 
 ### P0-J1-05b 按角色的 max_steps　⏳
 
