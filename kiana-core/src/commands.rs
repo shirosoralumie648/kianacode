@@ -29,6 +29,30 @@ impl ControlPlane {
         runner: Arc<dyn RunnerPort>,
         pre_tool_hooks: Arc<dyn PreToolHookPort>,
     ) -> Self {
+        Self::with_pre_tool_hooks_and_runtime_config(
+            policy,
+            gates,
+            events,
+            capabilities,
+            approvals,
+            runner,
+            pre_tool_hooks,
+            ControlPlaneRuntimeConfig {
+                max_steps_per_turn: 32,
+            },
+        )
+    }
+
+    pub fn with_pre_tool_hooks_and_runtime_config(
+        policy: Arc<dyn PolicyEngine>,
+        gates: Arc<dyn GateEngine>,
+        events: Arc<dyn EventStorePort>,
+        capabilities: Arc<dyn CapabilityBrokerPort>,
+        approvals: Arc<dyn ApprovalStorePort>,
+        runner: Arc<dyn RunnerPort>,
+        pre_tool_hooks: Arc<dyn PreToolHookPort>,
+        runtime_config: ControlPlaneRuntimeConfig,
+    ) -> Self {
         Self::with_pre_tool_hooks_and_cell_registry(
             policy,
             gates,
@@ -37,6 +61,9 @@ impl ControlPlane {
             approvals,
             runner,
             pre_tool_hooks,
+            ControlPlaneRuntimeConfig {
+                max_steps_per_turn: runtime_config.max_steps_per_turn,
+            },
             Arc::new(MemoryCellRegistry::new()),
         )
     }
@@ -49,8 +76,10 @@ impl ControlPlane {
         approvals: Arc<dyn ApprovalStorePort>,
         runner: Arc<dyn RunnerPort>,
         pre_tool_hooks: Arc<dyn PreToolHookPort>,
+        runtime_config: ControlPlaneRuntimeConfig,
         cell_registry: Arc<dyn kiana_ports::CellRegistryPort>,
     ) -> Self {
+        let max_steps_per_turn = runtime_config.max_steps_per_turn.max(1);
         Self {
             policy,
             gates,
@@ -58,6 +87,7 @@ impl ControlPlane {
             capabilities,
             approvals,
             runner,
+            max_steps_per_turn,
             pre_tool_hooks,
             cell_registry,
             sessions: Mutex::new(HashMap::new()),

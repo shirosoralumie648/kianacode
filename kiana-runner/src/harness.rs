@@ -318,6 +318,7 @@ impl KianaHarness {
                 sandbox,
                 instructions,
                 project_trusted: _,
+                max_steps_per_turn: _,
             } => {
                 self.start(
                     StartInput {
@@ -1127,6 +1128,35 @@ mod tests {
             Some(&RunnerEvent::Failed {
                 run_id,
                 error: "repeated_tool_call:shell".to_owned(),
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn start_command_max_steps_limits_that_run() {
+        let harness = KianaHarness::new(Arc::new(ScriptedModel::from_json(&json!([
+            {"text": "first", "tool_calls": [{"id": "c1", "name": "memory.search", "arguments": {"query": "step", "collection": "role"}}]},
+            {"text": "second", "tool_calls": [{"id": "c2", "name": "memory.search", "arguments": {"query": "step-1", "collection": "role"}}]},
+            {"text": "third", "tool_calls": [{"id": "c3", "name": "memory.search", "arguments": {"query": "step-2", "collection": "role"}}]},
+            {"text": "must not run"}
+        ])).unwrap()))
+        .with_max_steps(3);
+        let run_id = RunId::new();
+
+        let started = harness
+            .send(RunnerCommand::start(run_id, "go"))
+            .await
+            .unwrap();
+        let second =
+            send_capability_success(&harness, run_id, capability_request_id(&started)).await;
+        let third = send_capability_success(&harness, run_id, capability_request_id(&second)).await;
+        let fourth = send_capability_success(&harness, run_id, capability_request_id(&third)).await;
+
+        assert_eq!(
+            fourth.last(),
+            Some(&RunnerEvent::Failed {
+                run_id,
+                error: "max_steps_per_turn".to_owned(),
             })
         );
     }

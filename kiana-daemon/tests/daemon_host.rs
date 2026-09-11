@@ -7,7 +7,7 @@ use kiana_protocol::{
 };
 use kiana_runner::{
     KianaHarness, ModelClient, ModelDelta, ModelOutput, ModelRequest, ModelRole, ModelToolCall,
-    ScriptedModel,
+    RuntimeConfig, ScriptedModel, UnavailableModel,
 };
 use serde_json::json;
 use std::fs;
@@ -311,6 +311,68 @@ async fn run_brokers_kiana_harness_tools() {
         response.output["output"]["schema"],
         "kiana.harness-result.v1"
     );
+    assert_eq!(response.output["output"]["text"], "architecture mapped");
+}
+
+#[tokio::test]
+async fn role_max_steps_reaches_harness_runtime_config() {
+    let _environment_lock = environment_lock();
+    let _environment = EnvGuard {
+        key: "KIANA_HARNESS_MAX_STEPS",
+        previous: std::env::var("KIANA_HARNESS_MAX_STEPS").ok(),
+    };
+    std::env::remove_var("KIANA_HARNESS_MAX_STEPS");
+    let role = RoleSpec::architect();
+    let role_max_steps = role.max_steps;
+    let configured_host = Arc::new(
+        trusted_harness_host(
+            KianaHarness::new(Arc::new(UnavailableModel::default())).with_max_steps(role.max_steps),
+        )
+        .expect("role-configured daemon"),
+    );
+    assert_eq!(
+        configured_host
+            .harness_runtime_config(Some(role))
+            .expect("runtime config"),
+        RuntimeConfig {
+            max_steps_per_turn: role_max_steps,
+            ..RuntimeConfig::default()
+        }
+    );
+}
+
+#[tokio::test]
+async fn environment_max_steps_overrides_role_snapshot() {
+    let _environment_lock = environment_lock();
+    let _environment = EnvGuard::set("KIANA_HARNESS_MAX_STEPS", "3");
+    let host = Arc::new(
+        trusted_harness_host(KianaHarness::new(Arc::new(UnavailableModel::default())))
+            .expect("environment daemon"),
+    );
+
+    assert_eq!(
+        host.harness_runtime_config(Some(RoleSpec::architect()))
+            .expect("runtime config")
+            .max_steps_per_turn,
+        3
+    );
+}
+
+#[tokio::test]
+async fn default_harness_max_steps_does_not_apply_role_budget() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+    let host = scripted_host(json!([
+        {"text": "running ls", "tool_calls": [{"id": "c1", "name": "shell", "arguments": {"command": "ls"}}]},
+        {"text": "architecture mapped"}
+    ]));
+    let client = KianaClient::new(InProcessTransport { host });
+    let response = client
+        .run(trusted_metadata_in(&root), "map the architecture", None)
+        .await
+        .unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
     assert_eq!(response.output["output"]["text"], "architecture mapped");
 }
 

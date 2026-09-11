@@ -148,6 +148,7 @@ impl ControlPlane {
                 sandbox.to_owned(),
                 String::new(),
                 context.project_trusted,
+                self.max_steps_per_turn,
             ))
             .await
         {

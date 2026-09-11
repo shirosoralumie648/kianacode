@@ -14,7 +14,7 @@ mod run_stream;
 
 use approval_store::{JsonlApprovalStore, MemoryApprovalStore};
 use kiana_capability_broker::CapabilityBroker;
-use kiana_core::ControlPlane;
+use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     CommandIntent, PermissionProfile, RequestContext, RoleSpec, RunId, RuntimeEvent,
@@ -93,6 +93,16 @@ impl DaemonHost {
         }
     }
 
+    /// 只读解析一个角色的 harness runtime 配置。
+    ///
+    /// 显式环境开关 > 角色快照 > harness 默认值。
+    pub fn harness_runtime_config(
+        &self,
+        role: Option<RoleSpec>,
+    ) -> Result<RuntimeConfig, PortError> {
+        harness_runtime_config_from_env().map(|config| config.into_runtime_config(role))
+    }
+
     /// Subscribe to additive run-stream events for one run.
     ///
     /// The subscription must be created before the run starts to observe deltas. It remains
@@ -125,7 +135,7 @@ impl DaemonHost {
         Self::with_runner_events_and_approval(
             Arc::new(KianaHarness::with_config(
                 model_client::from_config(config),
-                runtime_config_from_env()?,
+                harness_runtime_config_from_env()?.into_runtime_config(None),
             )),
             Arc::new(JsonlEventLog::open_default()?),
             Arc::new(JsonlApprovalStore::open_default()?),
@@ -228,6 +238,7 @@ impl DaemonHost {
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
         let run_stream = Arc::new(RunStreamBus::default());
+        let runtime_config = harness_runtime_config_from_env()?;
         let runner = harness_skills::SkillAwareRunner::wrap(runner);
         let runner = run_stream::RunStreamRunner::wrap(runner, run_stream.clone());
         let mut capabilities = CapabilityBroker::new();
@@ -235,7 +246,7 @@ impl DaemonHost {
         harness_capabilities::register(&mut capabilities)?;
         harness_mcp::register(&mut capabilities)?;
         harness_memory::register(&mut capabilities)?;
-        let core = ControlPlane::with_pre_tool_hooks(
+        let core = ControlPlane::with_pre_tool_hooks_and_runtime_config(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
             events,
@@ -243,6 +254,9 @@ impl DaemonHost {
             approvals,
             runner,
             Arc::new(pre_tool_hooks::QueryPreToolHooks),
+            ControlPlaneRuntimeConfig {
+                max_steps_per_turn: runtime_config.into_runtime_config(None).max_steps_per_turn,
+            },
         );
         Ok(Self::with_run_stream(
             Arc::new(core),
@@ -417,13 +431,62 @@ pub struct LocalModelConfig {
     pub model: Option<String>,
 }
 
+/// Harness runtime inputs resolved when a daemon is composed.
+///
+/// A value is set only by the explicit environment override. A role supplies
+/// its snapshot only when this override is absent.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct HarnessRuntimeConfig {
+    pub max_steps_override: Option<u32>,
+}
+
+impl HarnessRuntimeConfig {
+    fn into_runtime_config(self, role: Option<RoleSpec>) -> RuntimeConfig {
+        let mut config = RuntimeConfig::default();
+        if let Some(max_steps) = self
+            .max_steps_override
+            .or_else(|| role.map(|role| role.max_steps))
+        {
+            config.max_steps_per_turn = max_steps;
+        }
+        config
+    }
+}
+
 fn configured_env_harness() -> Result<KianaHarness, PortError> {
     let config = runtime_config_from_env()?;
     Ok(KianaHarness::with_config(model_client::from_env(), config))
 }
 
-fn runtime_config_from_env() -> Result<RuntimeConfig, PortError> {
+pub fn runtime_config_from_env() -> Result<RuntimeConfig, PortError> {
     runtime_config_from_lookup(|name| std::env::var(name))
+}
+
+fn harness_runtime_config_from_env() -> Result<HarnessRuntimeConfig, PortError> {
+    harness_runtime_config_from_lookup(|name| std::env::var(name))
+}
+
+fn harness_runtime_config_from_lookup(
+    mut lookup: impl FnMut(&str) -> Result<String, std::env::VarError>,
+) -> Result<HarnessRuntimeConfig, PortError> {
+    match lookup(ENV_HARNESS_MAX_STEPS) {
+        Ok(raw) => {
+            let max_steps = raw
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| invalid_runtime_config(ENV_HARNESS_MAX_STEPS))?;
+            if max_steps == 0 {
+                return Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS));
+            }
+            Ok(HarnessRuntimeConfig {
+                max_steps_override: Some(max_steps),
+            })
+        }
+        Err(std::env::VarError::NotPresent) => Ok(HarnessRuntimeConfig::default()),
+        Err(std::env::VarError::NotUnicode(_)) => {
+            Err(invalid_runtime_config(ENV_HARNESS_MAX_STEPS))
+        }
+    }
 }
 
 fn runtime_config_from_lookup(
@@ -558,6 +621,25 @@ mod tests {
                 wall_time_budget: Some(Duration::from_secs(1)),
                 ..RuntimeConfig::default()
             }
+        );
+    }
+
+    #[test]
+    fn invalid_role_harness_environment_value_fails_closed() {
+        let error = harness_runtime_config_from_lookup(|name| {
+            if name == ENV_HARNESS_MAX_STEPS {
+                Ok("abc".to_owned())
+            } else {
+                Err(std::env::VarError::NotPresent)
+            }
+        })
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            PortError::Failed(format!(
+                "runtime_config_invalid:{ENV_HARNESS_MAX_STEPS}:expected_positive_integer"
+            ))
         );
     }
 

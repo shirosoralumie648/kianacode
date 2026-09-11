@@ -53,6 +53,7 @@ async fn with_skill_instructions(command: RunnerCommand) -> RunnerCommand {
             sandbox,
             instructions,
             project_trusted,
+            max_steps_per_turn,
         } if instructions.trim().is_empty() => RunnerCommand::Start {
             run_id,
             prompt,
@@ -61,6 +62,7 @@ async fn with_skill_instructions(command: RunnerCommand) -> RunnerCommand {
             sandbox,
             instructions: load_skill_pack(&project_root, project_trusted).await,
             project_trusted,
+            max_steps_per_turn,
         },
         other => other,
     }

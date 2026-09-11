@@ -39,6 +39,9 @@ pub enum RunnerCommand {
         #[serde(default)]
         /// 项目 trust 快照；不能替代 core 的实时授权。
         project_trusted: bool,
+        #[serde(default = "default_harness_max_steps")]
+        /// 请求级步数上限；由上游 ControlPlane 按环境覆盖、角色快照或默认值解析。
+        max_steps_per_turn: u32,
     },
     /// 将 capability handler 的结果回传给 runner。
     CapabilityResult {
@@ -67,6 +70,10 @@ fn default_harness_sandbox() -> String {
     DEFAULT_HARNESS_SANDBOX.to_owned()
 }
 
+fn default_harness_max_steps() -> u32 {
+    32
+}
+
 impl RunnerCommand {
     /// 构造默认只读、无项目上下文的新 run 命令。
     pub fn start(run_id: RunId, prompt: impl Into<String>) -> Self {
@@ -78,6 +85,7 @@ impl RunnerCommand {
             sandbox: default_harness_sandbox(),
             instructions: String::new(),
             project_trusted: false,
+            max_steps_per_turn: 32,
         }
     }
 
@@ -115,6 +123,7 @@ impl RunnerCommand {
             sandbox: sandbox.into(),
             instructions: instructions.into(),
             project_trusted,
+            max_steps_per_turn: 32,
         }
     }
 
@@ -127,6 +136,7 @@ impl RunnerCommand {
         sandbox: impl Into<String>,
         instructions: impl Into<String>,
         project_trusted: bool,
+        max_steps_per_turn: u32,
     ) -> Self {
         Self::Start {
             run_id,
@@ -136,6 +146,7 @@ impl RunnerCommand {
             sandbox: sandbox.into(),
             instructions: instructions.into(),
             project_trusted,
+            max_steps_per_turn,
         }
     }
 

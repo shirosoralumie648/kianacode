@@ -64,6 +64,10 @@ struct PathLockLease {
     _file: File,
 }
 
+pub struct ControlPlaneRuntimeConfig {
+    pub max_steps_per_turn: u32,
+}
+
 struct RunTerminalScope {
     recorded: AsyncMutex<bool>,
 }
@@ -138,6 +142,7 @@ pub struct ControlPlane {
     capabilities: Arc<dyn CapabilityBrokerPort>,
     approvals: Arc<dyn ApprovalStorePort>,
     runner: Arc<dyn RunnerPort>,
+    max_steps_per_turn: u32,
     pre_tool_hooks: Arc<dyn PreToolHookPort>,
     cell_registry: Arc<dyn kiana_ports::CellRegistryPort>,
     sessions: Mutex<HashMap<String, SessionBinding>>,
