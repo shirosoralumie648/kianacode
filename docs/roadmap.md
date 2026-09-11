@@ -133,10 +133,10 @@
 
 | 事项 | 单元 | 位置 | 卡在哪 |
 |---|---|---|---|
-| 实施会话工作树改动（单元归属待实现方回报） | 待回报 | `kiana-core/src/{commands,lib,lifecycle}.rs`、`kiana-daemon/src/{harness_skills,lib}.rs`、`kiana-runner-protocol`、`kiana-runner/src/harness.rs` | 未提交，未回报单元号 |
+| Codex 中间态（已弃，不按进度记账） | `P0-J1-05b` | `kiana-core/src/{commands,lib,lifecycle}.rs`、`kiana-daemon/src/{harness_skills,lib}.rs`、`kiana-runner-protocol`、`kiana-runner/src/harness.rs` | 后台跑约 18 小时未收敛（57 次测试运行，卡在自写测试与两种设计间反复），已终止；能编译、测试对不上，实现方将收尾或回滚 |
 
 > 最近一次全绿：CI `34500579350`（tip `3a319be`）—— `P0-G-04` 事件重建投影。
-> 记忆线下一刀：`P1-J3-01`，实施计划已备（`docs/superpowers/plans/2026-09-10-memory-j3-01-j3-02.md`），由实现方认领。
+> 记忆线下一刀：`P1-J3-01`，实施计划已备（`docs/superpowers/plans/2026-09-10-memory-j3-01-j3-02.md`），实现方认领、排在 `P0-J1-05b` 之后。
 
 ---
 
@@ -324,9 +324,9 @@
 
 ### P0-J1-05b 按角色的 max_steps　⏳
 
-- **现状**：`RoleSpec.max_steps`（`kiana-domain/src/roles.rs:140`）仍未被消费；`with_max_steps` 零调用点，产品路径恒 32 步。
+- **现状**：`RoleSpec.max_steps`（`kiana-domain/src/roles.rs:140`）仍未被消费；`with_max_steps` 零调用点，产品路径恒 32 步。2026-09-10 首轮接线尝试未收敛（「构造期 `RuntimeConfig` vs per-command 传递」两种设计反复，中间态未提交、不计数）——重做前先定这个接口选择。
 - **做什么**：把角色 `max_steps` 经 `RuntimeConfig` 传到 harness，并加断言。
-- **风险**：阈值写死在 harness 会让角色配置形同虚设。
+- **风险**：阈值写死在 harness 会让角色配置形同虚设；配置注入点（构造期 vs 每命令）不先定死，会重复首轮失败。
 - **验收**：`role_max_steps_reaches_the_harness`
 - **依赖 / 边界**：依赖 `P0-J1-05a`；不改 `RoleSpec` 现有字段语义。
 - **依据**：`company-os-implementation-outline.md` §Slice J1
