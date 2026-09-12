@@ -7,6 +7,7 @@
 ## 0. 第一次来？
 
 - **完全没头绪、术语看不懂** → 先读 [`company-os-overview.md`](company-os-overview.md)（白话总览：心智模型、任务走读、术语词典、FAQ）。
+- **想看项目分成哪些大模块** → [`module-map.md`](module-map.md)（九大模块表、Provider/Harness/CompanyOS 分工与调用关系）。
 - **只想跑起来用** → [`../USER.md`](../USER.md) 有全部可运行的命令。
 - **想知道现在真的做到哪了** → 只看 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md)。
 - **发现两份文档说法不一致** → 按下面 §3 的权威顺序取舍：事实压过规范，规范压过计划；不要用愿景覆盖运行事实。
@@ -16,6 +17,7 @@
 | 你的问题 | 第一入口 | 继续阅读 |
 |---|---|---|
 | 这套系统到底是什么、术语什么意思 | [`company-os-overview.md`](company-os-overview.md) | [`company-os-design.md`](company-os-design.md) |
+| Provider、Harness、CompanyOS 等模块分别做什么 | [`module-map.md`](module-map.md) | [`company-os-platform-architecture.md`](company-os-platform-architecture.md)、[`roadmap.md`](roadmap.md) |
 | 当前到底能运行什么 | [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) | [`../USER.md`](../USER.md)、[`../README.md`](../README.md) |
 | CompanyOS 的产品蓝图是什么 | [`company-os-design.md`](company-os-design.md) | [`../COMPANY.md`](../COMPANY.md) |
 | 目标、项目、验收这些业务对象怎么定义 | [`company-os-domain-contracts.md`](company-os-domain-contracts.md) | [`company-os-spec-index.md`](company-os-spec-index.md) |
@@ -24,7 +26,7 @@
 | 身份、调度、成本、恢复、数据治理怎么管 | [`company-os-operations-governance.md`](company-os-operations-governance.md) | [`company-os-security-constitution.md`](company-os-security-constitution.md) |
 | 如何评测、防退步、扩展插件 | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) |
 | 现在该实现什么、验收标准是什么 | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) | [`../PHASES.md`](../PHASES.md)、[`../PROCESS.md`](../PROCESS.md) |
-| 接下来每一步做什么、谁做、怎么算做完 | [`roadmap.md`](roadmap.md) | [`company-os-implementation-outline.md`](company-os-implementation-outline.md)、[`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
+| 接下来每一步做什么、怎么排序、怎么算做完 | [`roadmap.md`](roadmap.md)（含 403 张全量 Step 索引） | [`company-os-implementation-outline.md`](company-os-implementation-outline.md)、[`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
 | 什么事绝对不能发生（安全底线） | [`company-os-security-constitution.md`](company-os-security-constitution.md) | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) |
 | Coding 能力哪些完成了、哪些冻结了 | [`coding-pack-matrix.md`](coding-pack-matrix.md) | [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
 | 参考项目为什么这样取舍 | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) | [`reference-agent-audit/README.md`](reference-agent-audit/README.md)、[`reference-agent-audit/00-unified-agent-flow.md`](reference-agent-audit/00-unified-agent-flow.md) |
@@ -35,7 +37,8 @@
 ```text
 docs/
 ├── 入门导读
-│   └── company-os-overview.md ······· 白话总览：比喻、走读、术语词典、FAQ（非规范）
+│   ├── company-os-overview.md ······· 白话总览：比喻、走读、术语词典、FAQ（非规范）
+│   └── module-map.md ··············· 九大模块、源码入口与调用关系（非规范）
 │
 ├── 产品与业务（"为什么做、交付什么"）
 │   ├── company-os-design.md ········· 总蓝图：北极星、部门模型、核心对象、风险分级、路线图
@@ -58,7 +61,8 @@ docs/
 │   └── features/ ··················· 每篇讲一个功能的代码真实现状（01–10，索引见 features/README.md）
 │
 ├── 实施与审计（"下一步做什么、凭什么算完成"）
-│   ├── roadmap.md ·················· 逐步执行路线图：每步做什么/谁做/验收/门禁（可执行待办）
+│   ├── roadmap.md ·················· 逐步执行路线图：全量 Step 排序、每步做什么/谁做/验收/门禁
+│   ├── roadmap/ ···················· 9 份专项设计与细化 Step 卡（由 roadmap.md 导航）
 │   ├── company-os-implementation-outline.md 工程切片 A–M、验收条件、Gate 0、90 天序列
 │   ├── coding-pack-matrix.md ········ v1.0 Coding pack 审计底表：逐行为的现状/owner/证据
 │   └── reference-agent-audit/ ······· 26 个外部 Agent 项目的源码审计（只作设计参考）
