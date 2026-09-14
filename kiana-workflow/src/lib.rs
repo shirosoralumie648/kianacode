@@ -5,8 +5,8 @@
 //! `kiana-core::ControlPlane` 的第二条执行路径。上层若采用这些状态，仍必须由控制面完成
 //! 授权、生命周期推进和事实记录。
 //!
-//! 当前产品主路径尚未直接消费本 crate 的状态类型；这里提供的是可复用的源码契约，
-//! 不能仅凭类型存在就声称某个入口已经强制该工作流。
+//! `durable` provides the pure planner consumed by the ControlPlane workflow command route.
+//! Persisting decisions and executing returned effects remain ControlPlane responsibilities.
 
 use serde::{Deserialize, Serialize};
 
@@ -131,3 +131,6 @@ mod tests {
             .is_err());
     }
 }
+
+mod durable;
+pub use durable::*;

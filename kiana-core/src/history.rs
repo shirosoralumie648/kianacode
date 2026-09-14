@@ -23,14 +23,149 @@ impl ControlPlane {
         session_id: &str,
         run_id: Option<RunId>,
     ) -> Result<Vec<ConversationMessage>, CoreError> {
-        let Some(events) = self.read_all_events().await? else {
+        let Some(mut events) = self.read_all_events().await? else {
             return Ok(Vec::new());
         };
+        let mut revoked_runs = HashSet::new();
+        for (index, event) in events.iter().enumerate().filter(|(_, event)| {
+            event.kind == "run.authorized" && event.data["session_id"] == session_id
+        }) {
+            if events[index + 1..].iter().any(|later| {
+                matches!(
+                    later.kind.as_str(),
+                    "data.revocation_requested"
+                        | "workspace.restore_requested"
+                        | "workspace.restored"
+                ) && later.data["project_root"] == event.data["project_root"]
+            }) {
+                if let Some(id) = event.data["run_id"].as_str() {
+                    revoked_runs.insert(id.to_owned());
+                }
+            }
+        }
+        let revoked_requests = events
+            .iter()
+            .filter(|event| {
+                event.data["run_id"]
+                    .as_str()
+                    .is_some_and(|id| revoked_runs.contains(id))
+            })
+            .map(|event| event.request_id)
+            .collect::<HashSet<_>>();
+        events.retain(|event| !revoked_requests.contains(&event.request_id));
         Ok(fold_model_visible_history(&events, session_id, run_id))
     }
 }
 
-fn fold_model_visible_history(
+impl ControlPlane {
+    /// Reconstruct complete assistant/tool pairs from the authoritative ledger.
+    /// Streaming text is a projection only; an incomplete attempt is never a completed message.
+    pub(crate) async fn model_protocol_history(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<kiana_domain::ModelMessage>, CoreError> {
+        use kiana_domain::{ModelMessage, ModelOutput};
+        let Some(events) = self.read_all_events().await? else {
+            return Ok(Vec::new());
+        };
+        let mut selected = session_run_ids(&events, session_id);
+        for (index, event) in events.iter().enumerate().filter(|(_, event)| {
+            event.kind == "run.authorized" && event.data["session_id"] == session_id
+        }) {
+            if events[index + 1..].iter().any(|later| {
+                matches!(
+                    later.kind.as_str(),
+                    "data.revocation_requested"
+                        | "workspace.restore_requested"
+                        | "workspace.restored"
+                ) && later.data["project_root"] == event.data["project_root"]
+            }) {
+                if let Some(run) = event_run_id(event) {
+                    selected.remove(&run);
+                }
+            }
+        }
+        let exact_runs = events
+            .iter()
+            .filter(|event| {
+                event.kind == "run.model_turn" && event.data["schema"] == "kiana.model-turn.v2"
+            })
+            .filter_map(event_run_id)
+            .collect::<HashSet<_>>();
+        let calls = capability_call_ids(&events, &selected);
+        let mut history = Vec::new();
+        let mut seen = HashSet::new();
+        let mut closed = HashSet::new();
+        for event in &events {
+            if !event_is_in_scope(event, session_id, &selected) || !seen.insert(event.event_id) {
+                continue;
+            }
+            let run = event_run_id(event).expect("scoped event has a run");
+            match event.kind.as_str() {
+                "run.prompt" => {
+                    if let Some(text) = event.data["text"].as_str() {
+                        history.push(ModelMessage::user(text));
+                    }
+                }
+                "run.model_turn" if event.data["purpose"] == "task" => {
+                    if let Some(value) =
+                        event.data.get("assistant").filter(|value| !value.is_null())
+                    {
+                        let output: ModelOutput =
+                            serde_json::from_value(value.clone()).map_err(|_| {
+                                CoreError::from(PortError::Failed(
+                                    "model_history_assistant_invalid".to_owned(),
+                                ))
+                            })?;
+                        history.push(ModelMessage::assistant_with_tools(
+                            output.text,
+                            output.tool_calls,
+                        ));
+                    }
+                }
+                "run.delta" if !exact_runs.contains(&run) => {
+                    if let Some(text) = event.data["text"].as_str() {
+                        history.push(ModelMessage::assistant(text));
+                    }
+                }
+                "capability.completed" | "capability.failed" => {
+                    let call_id = event.data["capability_request_id"]
+                        .as_str()
+                        .and_then(|id| calls.get(id))
+                        .cloned()
+                        .flatten();
+                    if let Some(id) = call_id.filter(|id| closed.insert((run, id.clone()))) {
+                        let text = capability_result_text(&event.data);
+                        if exact_runs.contains(&run) {
+                            history.push(ModelMessage::tool(id, text));
+                        } else {
+                            history.push(ModelMessage::user(format!(
+                                "[Legacy tool observation; no replay authority]\n{text}"
+                            )));
+                        }
+                    }
+                }
+                "run.tool_result" if exact_runs.contains(&run) => {
+                    if let Some(id) = event.data["call_id"]
+                        .as_str()
+                        .filter(|id| closed.insert((run, (*id).to_owned())))
+                    {
+                        history.push(ModelMessage::tool(id, event.data["result"].to_string()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        kiana_domain::validate_model_history(&history).map_err(|error| {
+            CoreError::from(PortError::Failed(format!(
+                "model_history_unrecoverable:{error}"
+            )))
+        })?;
+        Ok(history)
+    }
+}
+
+pub(crate) fn fold_model_visible_history(
     events: &[RuntimeEvent],
     session_id: &str,
     requested_run_id: Option<RunId>,

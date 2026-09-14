@@ -8,6 +8,7 @@
 //! via a same-directory temp file and rename.
 
 use kiana_ports::PortError;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -64,8 +65,13 @@ enum OverlayFile {
     Deleted,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum PlannedOp {
+    WriteBytes {
+        target: PathBuf,
+        contents: Vec<u8>,
+        executable: bool,
+    },
     Add {
         target: PathBuf,
         contents: String,
@@ -84,7 +90,7 @@ enum PlannedOp {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct PlannedPatch {
     operations: Vec<PlannedOp>,
     preconditions: Vec<PathPrecondition>,
@@ -123,13 +129,13 @@ impl ProjectPatchLock {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct PathPrecondition {
     path: PathBuf,
     snapshot: PathSnapshot,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum PathSnapshot {
     Missing,
     Present {
@@ -139,7 +145,7 @@ enum PathSnapshot {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct MetadataFingerprint {
     is_file: bool,
     is_dir: bool,
@@ -166,6 +172,493 @@ pub fn apply_codex_patch(project_root: &Path, patch: &str) -> Result<Value, Port
     let _lock = ProjectPatchLock::acquire(&project_root)?;
     let planned = plan_hunks(&project_root, hunks)?;
     commit_planned(&project_root, &planned)
+}
+
+/// Publish a script's bounded changes through the same confinement and commit journal as patch.
+pub(crate) fn publish_workspace_files(
+    root: &Path,
+    changes: &[crate::execution_workspace::PublishedFile],
+    _request_id: kiana_domain::RequestId,
+) -> Result<Value, PortError> {
+    let root = root.canonicalize().map_err(io_failed)?;
+    let _lock = ProjectPatchLock::acquire(&root)?;
+    let policy = crate::data_governance::read_policy(&root)?;
+    let mut operations = Vec::new();
+    for change in changes {
+        if policy
+            .revoked_sources
+            .iter()
+            .any(|path| change.path == *path || change.path.starts_with(&format!("{path}/")))
+        {
+            return Err(failed("workspace_publish_source_revoked"));
+        }
+        let relative = Path::new(&change.path);
+        let target = confined_candidate(&root, relative)?;
+        reject_symlink_components(&root, &target)?;
+        let before = match fs::symlink_metadata(&target) {
+            Ok(metadata) => {
+                if !metadata.is_file() {
+                    return Err(failed("workspace_publish_file_type_changed"));
+                }
+                reject_hardlink(&metadata)?;
+                let contents = crate::execution_workspace::read_regular(&target)?;
+                #[cfg(unix)]
+                let executable = metadata.mode() & 0o111 != 0;
+                #[cfg(not(unix))]
+                let executable = false;
+                Some(crate::execution_workspace::file_version(
+                    &contents, executable,
+                ))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(io_failed(error)),
+        };
+        if before != change.before {
+            return Err(failed("workspace_publish_revision_conflict"));
+        }
+        match &change.after {
+            Some(contents) => operations.push(PlannedOp::WriteBytes {
+                target,
+                contents: contents.clone(),
+                executable: change.executable,
+            }),
+            None if before.is_some() => operations.push(PlannedOp::Delete { target }),
+            None => {}
+        }
+    }
+    if operations.is_empty() {
+        return Ok(json!({"changed":[]}));
+    }
+    let preconditions = capture_preconditions(&root, &operations)?;
+    commit_planned(
+        &root,
+        &PlannedPatch {
+            operations,
+            preconditions,
+        },
+    )
+}
+
+#[derive(Serialize, Deserialize)]
+struct PatchJournalRecord {
+    schema: String,
+    root: PathBuf,
+    root_identity: Value,
+    planned: PlannedPatch,
+}
+struct PatchTransaction {
+    directory: crate::local_packages::LocalDir,
+    id: kiana_domain::RequestId,
+}
+fn patch_journal_root(root: &Path) -> Result<PathBuf, PortError> {
+    let store = std::env::var_os("KIANA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|path| PathBuf::from(path).join(".kiana")))
+        .ok_or_else(|| failed("workspace_journal_home_required"))?;
+    if !store.is_absolute() {
+        return Err(failed("workspace_journal_home_not_absolute"));
+    }
+    let key = kiana_domain::json_digest(&json!({"project_root":root})).replace(':', "-");
+    Ok(store.join("workspace-transactions").join(key))
+}
+impl PatchTransaction {
+    fn begin(root: &Path, planned: &PlannedPatch) -> Result<Self, PortError> {
+        let path = patch_journal_root(root)?;
+        let directory = crate::local_packages::LocalDir::open(&path, true)?;
+        if !pending_patch_transactions(root)?.is_empty() {
+            return Err(failed(
+                "result_unknown:workspace_transaction_reconciliation_required",
+            ));
+        }
+        let id = kiana_domain::RequestId::new();
+        let record = PatchJournalRecord {
+            schema: "kiana.patch-transaction.v1".to_owned(),
+            root: root.to_owned(),
+            root_identity: kiana_core::project_root_identity(&root.to_string_lossy())?,
+            planned: planned.clone(),
+        };
+        let bytes =
+            serde_json::to_vec(&record).map_err(|_| failed("workspace_journal_encode_failed"))?;
+        if bytes.len() > 64 * 1024 * 1024 {
+            return Err(failed("workspace_journal_size_limit"));
+        }
+        directory.publish(&format!("{id}.prepared.json"), &bytes)?;
+        Ok(Self { directory, id })
+    }
+    fn finish(&self, status: &str) -> Result<(), PortError> {
+        self.directory
+            .publish(
+                &format!("{}.resolved.json", self.id),
+                &serde_json::to_vec(&json!({"transaction_id":self.id,"status":status}))
+                    .map_err(|_| failed("workspace_journal_encode_failed"))?,
+            )
+            .map_err(|error| {
+                failed(format!(
+                    "result_unknown:workspace_journal_finish_failed:{error}"
+                ))
+            })
+    }
+}
+fn pending_patch_transactions(root: &Path) -> Result<Vec<String>, PortError> {
+    let path = patch_journal_root(root)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let directory = crate::local_packages::LocalDir::open(&path, false)?;
+    let mut pending = Vec::new();
+    for entry in fs::read_dir(&path).map_err(io_failed)? {
+        let entry = entry.map_err(io_failed)?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(id) = name.strip_suffix(".prepared.json") else {
+            continue;
+        };
+        if serde_json::from_value::<kiana_domain::RequestId>(json!(id)).is_err() {
+            return Err(failed("workspace_journal_invalid_identity"));
+        }
+        if !path.join(format!("{id}.resolved.json")).exists() {
+            let _ = directory.read(name, 64 * 1024 * 1024)?;
+            pending.push(id.to_owned());
+        }
+        if pending.len() > 1024 {
+            return Err(failed("workspace_journal_pending_limit"));
+        }
+    }
+    pending.sort();
+    Ok(pending)
+}
+fn final_file_contents(planned: &PlannedPatch) -> HashMap<PathBuf, Option<Vec<u8>>> {
+    let mut result = HashMap::new();
+    for operation in &planned.operations {
+        match operation {
+            PlannedOp::WriteBytes {
+                target, contents, ..
+            } => {
+                result.insert(target.clone(), Some(contents.clone()));
+            }
+            PlannedOp::Add { target, contents } | PlannedOp::Update { target, contents } => {
+                result.insert(target.clone(), Some(contents.as_bytes().to_vec()));
+            }
+            PlannedOp::Delete { target } => {
+                result.insert(target.clone(), None);
+            }
+            PlannedOp::Move {
+                source,
+                destination,
+                contents,
+            } => {
+                result.insert(source.clone(), None);
+                result.insert(destination.clone(), Some(contents.as_bytes().to_vec()));
+            }
+        }
+    }
+    result
+}
+fn snapshot_content(snapshot: &PathSnapshot) -> Option<&[u8]> {
+    match snapshot {
+        PathSnapshot::Present {
+            contents: Some(bytes),
+            ..
+        } => Some(bytes),
+        _ => None,
+    }
+}
+fn rollback_patch_guarded(planned: &PlannedPatch) -> Result<(), PortError> {
+    let after = final_file_contents(planned);
+    // Never overwrite an outside writer's new contents during rollback or recovery.
+    for before in &planned.preconditions {
+        if let Some(expected) = after.get(&before.path) {
+            let current = snapshot_path(&before.path)?;
+            if snapshot_content(&current) != expected.as_deref()
+                && snapshot_content(&current) != snapshot_content(&before.snapshot)
+            {
+                return Err(failed("workspace_rollback_revision_conflict"));
+            }
+        }
+    }
+    rollback_preconditions(&planned.preconditions)
+}
+
+pub(crate) fn workspace_transaction(root: &Path, arguments: &Value) -> Result<Value, PortError> {
+    let root = root.canonicalize().map_err(io_failed)?;
+    let action = arguments["action"].as_str().unwrap_or_default();
+    if action == "list" {
+        return Ok(json!({"pending":pending_patch_transactions(&root)?}));
+    }
+    let id = serde_json::from_value::<kiana_domain::RequestId>(arguments["transaction_id"].clone())
+        .map_err(|_| failed("workspace_transaction_id_invalid"))?;
+    let directory = crate::local_packages::LocalDir::open(&patch_journal_root(&root)?, false)?;
+    let record: PatchJournalRecord =
+        serde_json::from_slice(&directory.read(&format!("{id}.prepared.json"), 64 * 1024 * 1024)?)
+            .map_err(|_| failed("workspace_transaction_invalid"))?;
+    if record.schema != "kiana.patch-transaction.v1"
+        || record.root != root
+        || record.root_identity != kiana_core::project_root_identity(&root.to_string_lossy())?
+    {
+        return Err(failed("workspace_transaction_root_changed"));
+    }
+    if action == "inspect" {
+        return Ok(
+            json!({"transaction_id":id,"paths":final_file_contents(&record.planned).keys().map(|path|display_relative(&root,path)).collect::<Vec<_>>(),"source_snapshot":record.root_identity}),
+        );
+    }
+    if action != "recover" && action != "rollback" {
+        return Err(failed("workspace_transaction_action_invalid"));
+    }
+    let _lock = ProjectPatchLock::acquire(&root)?;
+    if !pending_patch_transactions(&root)?.contains(&id.to_string()) {
+        return Ok(json!({"transaction_id":id,"already_resolved":true}));
+    }
+    // Validate every serialized path before accepting it as a physical recovery plan.
+    for condition in &record.planned.preconditions {
+        if !condition.path.starts_with(&root) {
+            return Err(failed("workspace_transaction_path_escape"));
+        }
+        reject_symlink_components(&root, &condition.path)?;
+    }
+    let resolution = if action == "rollback" {
+        "rollback"
+    } else {
+        arguments["resolution"].as_str().unwrap_or_default()
+    };
+    let status = match resolution {
+        "rollback" => {
+            rollback_patch_guarded(&record.planned)?;
+            "rolled_back"
+        }
+        "commit" => {
+            for (path, expected) in final_file_contents(&record.planned) {
+                let current = snapshot_path(&path)?;
+                if snapshot_content(&current) != expected.as_deref() {
+                    return Err(failed("workspace_transaction_effect_unconfirmed"));
+                }
+            }
+            "committed"
+        }
+        _ => return Err(failed("workspace_transaction_resolution_required")),
+    };
+    let transaction = PatchTransaction { directory, id };
+    transaction.finish(status)?;
+    Ok(json!({"transaction_id":id,"resolution":status,"original_invocation_unchanged":true}))
+}
+
+/// Read-only capture used by CheckpointService. It never creates a lock or a directory.
+pub(crate) fn capture_checkpoint_files(
+    project_root: &Path,
+    paths: &[String],
+) -> Result<Vec<kiana_domain::WorkspaceFileSnapshot>, PortError> {
+    use std::io::Read;
+    if paths.len() > 128 {
+        return Err(failed("checkpoint_paths_limit"));
+    }
+    let root = project_root.canonicalize().map_err(io_failed)?;
+    let mut normalized = paths
+        .iter()
+        .map(|path| checkpoint_relative_path(path))
+        .collect::<Result<Vec<_>, _>>()?;
+    normalized.sort();
+    normalized.dedup();
+    let mut snapshots = Vec::new();
+    let mut total = 0;
+    for path in normalized {
+        let file = open_checkpoint_file(&root, Path::new(&path))?;
+        let (contents, executable) = if let Some(mut file) = file {
+            let before = file.metadata().map_err(io_failed)?;
+            if !before.is_file() || before.len() > 128 * 1024 {
+                return Err(failed("checkpoint_file_limit_or_not_regular"));
+            }
+            #[cfg(unix)]
+            if before.nlink() != 1 {
+                return Err(failed("checkpoint_hardlink_denied"));
+            }
+            let mut bytes = Vec::new();
+            std::io::Read::by_ref(&mut file)
+                .take(128 * 1024 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(io_failed)?;
+            let after = file.metadata().map_err(io_failed)?;
+            if metadata_fingerprint(&before) != metadata_fingerprint(&after) {
+                return Err(failed("checkpoint_file_changed"));
+            }
+            total += bytes.len();
+            if bytes.len() > 128 * 1024 || total > 2 * 1024 * 1024 {
+                return Err(failed("checkpoint_bytes_limit"));
+            }
+            let text = String::from_utf8(bytes)
+                .map_err(|_| failed("checkpoint_binary_file_unsupported"))?;
+            if kiana_domain::redact_text(&text) != text {
+                return Err(failed("checkpoint_sensitive_content_denied"));
+            }
+            #[cfg(unix)]
+            let executable = {
+                use std::os::unix::fs::PermissionsExt;
+                before.permissions().mode() & 0o111 != 0
+            };
+            #[cfg(not(unix))]
+            let executable = false;
+            (Some(text), executable)
+        } else {
+            (None, false)
+        };
+        snapshots.push(kiana_domain::WorkspaceFileSnapshot {
+            path,
+            contents,
+            executable,
+        });
+    }
+    Ok(snapshots)
+}
+
+pub(crate) fn preview_checkpoint(
+    checkpoint: &kiana_domain::WorkspaceCheckpoint,
+) -> Result<kiana_domain::CheckpointPreview, PortError> {
+    let paths = checkpoint
+        .files
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    let current = capture_checkpoint_files(Path::new(&checkpoint.project_root), &paths)?;
+    let changes=current.iter().zip(&checkpoint.files).filter(|(current,target)|current!=target).map(|(current,target)|json!({
+        "path":target.path,"before":current.contents,"after":target.contents,"executable_before":current.executable,"executable_after":target.executable
+    })).collect();
+    Ok(kiana_domain::CheckpointPreview {
+        checkpoint_id: checkpoint.checkpoint_id.clone(),
+        current_revision: kiana_domain::json_digest(&json!(current)),
+        target_revision: checkpoint.workspace_revision.clone(),
+        changes,
+        writes_performed: false,
+    })
+}
+
+/// Reuses patch confinement, preconditions, descriptor-relative commits and rollback.
+pub(crate) fn restore_checkpoint(
+    checkpoint: &kiana_domain::WorkspaceCheckpoint,
+    expected_revision: &str,
+) -> Result<Value, PortError> {
+    let root = Path::new(&checkpoint.project_root)
+        .canonicalize()
+        .map_err(io_failed)?;
+    let _lock = ProjectPatchLock::acquire(&root)?;
+    let paths = checkpoint
+        .files
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    let current = capture_checkpoint_files(&root, &paths)?;
+    if kiana_domain::json_digest(&json!(current)) != expected_revision {
+        return Err(failed("checkpoint_revision_conflict"));
+    }
+    if checkpoint.workspace_revision != kiana_domain::json_digest(&json!(checkpoint.files))
+        || current.len() != checkpoint.files.len()
+    {
+        return Err(failed("checkpoint_snapshot_invalid"));
+    }
+    let mut operations = Vec::new();
+    for (before, target) in current.iter().zip(&checkpoint.files) {
+        if before.path != target.path {
+            return Err(failed("checkpoint_path_order_invalid"));
+        }
+        let relative = Path::new(&target.path);
+        match (&before.contents, &target.contents) {
+            (Some(_), Some(contents)) => {
+                if before.executable != target.executable {
+                    return Err(failed("checkpoint_file_mode_changed"));
+                }
+                if before.contents != target.contents {
+                    operations.push(PlannedOp::Update {
+                        target: confined_existing_file(&root, relative)?,
+                        contents: contents.clone(),
+                    });
+                }
+            }
+            (None, Some(contents)) => {
+                if target.executable {
+                    return Err(failed("checkpoint_executable_recreate_unsupported"));
+                }
+                operations.push(PlannedOp::Add {
+                    target: confined_new_file(&root, relative)?,
+                    contents: contents.clone(),
+                });
+            }
+            (Some(_), None) => operations.push(PlannedOp::Delete {
+                target: confined_existing_file(&root, relative)?,
+            }),
+            (None, None) => {}
+        }
+    }
+    let preconditions = capture_preconditions(&root, &operations)?;
+    let result = commit_planned(
+        &root,
+        &PlannedPatch {
+            operations,
+            preconditions,
+        },
+    )?;
+    let after = capture_checkpoint_files(&root, &paths)
+        .map_err(|error| failed(format!("result_unknown:checkpoint_post_read:{error}")))?;
+    let revision = kiana_domain::json_digest(&json!(after));
+    if revision != checkpoint.workspace_revision {
+        return Err(failed(
+            "result_unknown:checkpoint_restore_revision_mismatch",
+        ));
+    }
+    Ok(
+        json!({"checkpoint_id":checkpoint.checkpoint_id,"restored":true,"workspace_revision":revision,"changed":result["changed"]}),
+    )
+}
+
+fn checkpoint_relative_path(path: &str) -> Result<String, PortError> {
+    let path =
+        kiana_domain::normalize_role_path(path).ok_or_else(|| failed("checkpoint_path_invalid"))?;
+    if path == "."
+        || path.split('/').any(|part| {
+            matches!(part, ".git" | ".kiana" | ".env" | "node_modules" | "target")
+                || part.starts_with(".env.")
+        })
+    {
+        return Err(failed("checkpoint_protected_path"));
+    }
+    Ok(path)
+}
+
+#[cfg(target_os = "linux")]
+fn open_checkpoint_file(root: &Path, relative: &Path) -> Result<Option<File>, PortError> {
+    use std::ffi::CString;
+    let mut directory = File::open(root).map_err(io_failed)?;
+    let components = relative.components().collect::<Vec<_>>();
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(name) = component else {
+            return Err(failed("checkpoint_path_invalid"));
+        };
+        let name = CString::new(name.as_bytes()).map_err(|_| failed("checkpoint_path_invalid"))?;
+        let is_last = index + 1 == components.len();
+        let flags = libc::O_RDONLY
+            | libc::O_CLOEXEC
+            | libc::O_NOFOLLOW
+            | libc::O_NONBLOCK
+            | if is_last { 0 } else { libc::O_DIRECTORY };
+        let fd = unsafe { libc::openat(directory.as_raw_fd(), name.as_ptr(), flags) };
+        if fd < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::NotFound {
+                return Ok(None);
+            }
+            return Err(io_failed(error));
+        }
+        let file = unsafe { File::from_raw_fd(fd) };
+        if is_last {
+            return Ok(Some(file));
+        }
+        directory = file;
+    }
+    Err(failed("checkpoint_path_invalid"))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn open_checkpoint_file(_root: &Path, _relative: &Path) -> Result<Option<File>, PortError> {
+    Err(failed("checkpoint_safe_read_unsupported_platform"))
 }
 
 #[cfg(unix)]
@@ -509,21 +1002,26 @@ fn open_commit_directories(
 fn commit_planned(project_root: &Path, planned: &PlannedPatch) -> Result<Value, PortError> {
     let directories = open_commit_directories(&planned.preconditions)?;
     verify_preconditions(&planned.preconditions)?;
+    let transaction = PatchTransaction::begin(project_root, planned)?;
     let mut changed = Vec::new();
     for operation in &planned.operations {
         match commit_op(project_root, operation, &directories) {
             Ok(change) => changed.push(change),
             Err(error) => {
-                return match rollback_preconditions(&planned.preconditions) {
-                    Ok(()) => Err(error),
+                return match rollback_patch_guarded(planned) {
+                    Ok(()) => {
+                        transaction.finish("rolled_back")?;
+                        Err(error)
+                    }
                     Err(rollback_error) => Err(failed(format!(
-                        "apply_patch_rollback_failed:{error};{rollback_error}"
+                        "result_unknown:apply_patch_rollback_failed:{error};{rollback_error}"
                     ))),
                 };
             }
         }
     }
-    Ok(json!({ "changed": changed }))
+    transaction.finish("committed")?;
+    Ok(json!({ "changed": changed, "transaction_id":transaction.id }))
 }
 
 fn capture_preconditions(
@@ -533,7 +1031,8 @@ fn capture_preconditions(
     let mut paths = Vec::new();
     for operation in operations {
         let operation_paths = match operation {
-            PlannedOp::Add { target, .. }
+            PlannedOp::WriteBytes { target, .. }
+            | PlannedOp::Add { target, .. }
             | PlannedOp::Delete { target }
             | PlannedOp::Update { target, .. } => {
                 vec![target]
@@ -676,6 +1175,33 @@ fn commit_op(
     directories: &CommitDirectories,
 ) -> Result<Value, PortError> {
     match op {
+        PlannedOp::WriteBytes {
+            target,
+            contents,
+            executable,
+        } => {
+            ensure_parent(target)?;
+            reject_symlink_components(project_root, target)?;
+            atomic_replace_bytes(target, contents)?;
+            #[cfg(target_os = "linux")]
+            {
+                let mut options = OpenOptions::new();
+                options.read(true);
+                use std::os::unix::fs::OpenOptionsExt;
+                options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+                let file = options.open(target).map_err(io_failed)?;
+                file.set_permissions(fs::Permissions::from_mode(if *executable {
+                    0o700
+                } else {
+                    0o600
+                }))
+                .map_err(io_failed)?;
+                file.sync_all().map_err(io_failed)?;
+            }
+            Ok(
+                json!({"op":"write","path":display_relative(project_root,target),"bytes":contents.len()}),
+            )
+        }
         PlannedOp::Add { target, contents } => {
             commit_add(project_root, target, contents, directories)
         }
@@ -969,6 +1495,7 @@ fn atomic_replace_bytes_at(
             if let Some(permissions) = permissions.clone() {
                 file.set_permissions(permissions).map_err(io_failed)?;
             }
+            file.sync_all().map_err(io_failed)?;
             Ok(())
         })();
         drop(file);
@@ -987,6 +1514,7 @@ fn atomic_replace_bytes_at(
             )
         };
         if renamed == 0 {
+            parent_file.sync_all().map_err(io_failed)?;
             return Ok(());
         }
         unsafe {

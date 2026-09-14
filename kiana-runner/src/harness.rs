@@ -19,7 +19,7 @@ use crate::model::{
 };
 use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
-use kiana_domain::{redact_text, CapabilityResult, RunId, StreamingRedactor};
+use kiana_domain::{redact_text, CapabilityResult, PromptBundle, RunId, StreamingRedactor};
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
     RunnerCommand, RunnerEvent, DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE,
@@ -115,26 +115,62 @@ struct ActiveRun {
     project_root: String,
     inbox: Inbox,
     messages: Vec<ModelMessage>,
+    prompt_sources: Vec<serde_json::Value>,
+    model_assignment: Option<kiana_domain::ModelAssignment>,
+    model_route: Option<kiana_domain::ModelRoute>,
     pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
     last_tool_call: Option<RepeatedToolCall>,
     steps: u32,
+    max_steps_per_turn: u32,
     wall_time_started_at: Instant,
     last_text: String,
     cancellation: Arc<RunCancellation>,
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct RepeatedToolCall {
     name: String,
     canonical_arguments: String,
     count: u32,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HarnessCheckpoint {
+    schema: String,
+    run_id: RunId,
+    sandbox: String,
+    project_root: String,
+    messages: Vec<ModelMessage>,
+    #[serde(default)]
+    prompt_sources: Vec<serde_json::Value>,
+    #[serde(default)]
+    model_assignment: Option<kiana_domain::ModelAssignment>,
+    #[serde(default)]
+    model_route: Option<kiana_domain::ModelRoute>,
+    pending_tools: VecDeque<(kiana_domain::RequestId, ModelToolCall)>,
+    last_tool_call: Option<RepeatedToolCall>,
+    steps: u32,
+    max_steps_per_turn: u32,
+    wall_time_elapsed_ms: u64,
+    last_text: String,
+}
+
 #[derive(Default)]
 struct RunCancellation {
     error: Mutex<Option<String>>,
+    changed: tokio::sync::Notify,
 }
 
 impl RunCancellation {
+    async fn cancelled(&self) -> String {
+        loop {
+            if let Ok(Some(error)) = self.error() {
+                return error;
+            }
+            self.changed.notified().await;
+        }
+    }
     fn request(&self, error: String) -> Result<bool, KianaHarnessError> {
         let mut state = self
             .error
@@ -144,6 +180,7 @@ impl RunCancellation {
             return Ok(false);
         }
         *state = Some(error);
+        self.changed.notify_one();
         Ok(true)
     }
 
@@ -168,11 +205,15 @@ struct StartInput {
     sandbox: String,
     project_root: String,
     instructions: String,
+    max_steps_per_turn: u32,
 }
 
 pub struct KianaHarness {
     model: Arc<dyn ModelClient>,
+    model_budget: Mutex<Option<Arc<dyn kiana_ports::ModelBudgetPort>>>,
     runs: Mutex<HashMap<RunId, ActiveRun>>,
+    assignments: Mutex<HashMap<RunId, kiana_domain::ModelAssignment>>,
+    histories: Mutex<HashMap<RunId, Vec<ModelMessage>>>,
     in_flight: Mutex<HashMap<RunId, Arc<RunCancellation>>>,
     compact_trigger_tokens: usize,
     compact_user_message_max_tokens: usize,
@@ -195,7 +236,10 @@ impl KianaHarness {
     pub fn with_config(model: Arc<dyn ModelClient>, config: RuntimeConfig) -> Self {
         Self {
             model,
+            model_budget: Mutex::new(None),
             runs: Mutex::new(HashMap::new()),
+            assignments: Mutex::new(HashMap::new()),
+            histories: Mutex::new(HashMap::new()),
             in_flight: Mutex::new(HashMap::new()),
             compact_trigger_tokens: config.compact_trigger_tokens,
             compact_user_message_max_tokens: config.compact_user_message_max_tokens,
@@ -318,7 +362,7 @@ impl KianaHarness {
                 sandbox,
                 instructions,
                 project_trusted: _,
-                max_steps_per_turn: _,
+                max_steps_per_turn,
             } => {
                 self.start(
                     StartInput {
@@ -328,6 +372,7 @@ impl KianaHarness {
                         sandbox,
                         project_root,
                         instructions,
+                        max_steps_per_turn,
                     },
                     &mut emitter,
                 )
@@ -358,7 +403,14 @@ impl KianaHarness {
             sandbox,
             project_root,
             instructions,
+            max_steps_per_turn,
         } = input;
+        if max_steps_per_turn == 0 {
+            return emitter.emit_event(RunnerEvent::Failed {
+                run_id,
+                error: "runtime_config_invalid:max_steps_per_turn".to_owned(),
+            });
+        }
         if self.has_run(run_id)? || self.has_in_flight(run_id)? {
             return emitter.emit_event(RunnerEvent::Failed {
                 run_id,
@@ -373,25 +425,68 @@ impl KianaHarness {
             project_root,
             inbox: Inbox::default(),
             messages: Vec::new(),
+            prompt_sources: Vec::new(),
+            model_route: None,
+            model_assignment: self
+                .assignments
+                .lock()
+                .map_err(|_| {
+                    KianaHarnessError::Failed("harness_assignment_lock_poisoned".to_owned())
+                })?
+                .remove(&run_id),
             pending_tools: VecDeque::new(),
             last_tool_call: None,
             steps: 0,
+            max_steps_per_turn: max_steps_per_turn.min(self.max_steps_per_turn),
             wall_time_started_at,
             last_text: String::new(),
             cancellation: cancellation.clone(),
         };
         if !instructions.trim().is_empty() {
-            run.messages.push(ModelMessage::system(instructions));
+            if instructions.trim_start().starts_with('{') {
+                let bundle =
+                    PromptBundle::decode(&instructions).map_err(KianaHarnessError::Failed)?;
+                run.prompt_sources = bundle.provenance();
+                let system = bundle.system_prompt();
+                if !system.is_empty() {
+                    run.messages
+                        .push(ModelMessage::system(bundle.encode().map_err(|error| {
+                            KianaHarnessError::Failed(format!("prompt_bundle_invalid:{error}"))
+                        })?));
+                }
+                let context = bundle.context_prompt();
+                if !context.is_empty() {
+                    run.messages.push(ModelMessage::user(context));
+                }
+            } else {
+                // Legacy in-process instructions carry no role or resource authority.
+                run.messages
+                    .push(ModelMessage::system(kiana_domain::PRODUCT_SYSTEM_PROMPT));
+                run.messages.push(ModelMessage::user(instructions));
+            }
         }
-        run.messages
-            .extend(history.into_iter().map(|message| match message.role {
-                kiana_domain::ConversationRole::User => ModelMessage::user(message.text),
-                kiana_domain::ConversationRole::Assistant => ModelMessage::assistant(message.text),
-                kiana_domain::ConversationRole::Tool => ModelMessage::tool(
-                    message.tool_call_id.unwrap_or_else(|| "history".to_owned()),
-                    message.text,
-                ),
-            }));
+        let exact = self
+            .histories
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_history_lock_poisoned".to_owned()))?
+            .remove(&run_id);
+        if let Some(exact) = exact {
+            run.messages.extend(exact);
+        } else {
+            // Wire v1 has no assistant tool declarations. Preserve supplied observations as
+            // untrusted context; never invent protocol call identities for these legacy records.
+            run.messages
+                .extend(history.into_iter().map(|message| match message.role {
+                    kiana_domain::ConversationRole::User => ModelMessage::user(message.text),
+                    kiana_domain::ConversationRole::Assistant => {
+                        ModelMessage::assistant(message.text)
+                    }
+                    kiana_domain::ConversationRole::Tool => ModelMessage::user(format!(
+                        "[Legacy tool observation; no replay authority]\n{}",
+                        message.text
+                    )),
+                }));
+        }
         run.inbox
             .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
         for message in run.inbox.claim(InboxTarget::NextTurn) {
@@ -516,7 +611,18 @@ impl KianaHarness {
             return emitter.emit_event(RunnerEvent::Failed { run_id, error });
         }
         match self.take_run(run_id) {
-            Ok(_) => emitter.emit_event(RunnerEvent::Failed { run_id, error }),
+            Ok(mut run) => {
+                // The first queued call may already be executing at the control plane.
+                // Only the remaining calls can be proven not to have been dispatched.
+                run.pending_tools.pop_front();
+                for (request_id, call) in run.pending_tools.drain(..) {
+                    emitter.emit_event(RunnerEvent::ToolCancelled {
+                        run_id,request_id,call_id:call.id,
+                        result:json!({"error":"cancelled:queued","not_executed":true,"replay_safe":true}),
+                    })?;
+                }
+                emitter.emit_event(RunnerEvent::Failed { run_id, error })
+            }
             Err(KianaHarnessError::Failed(error)) if error == "run_not_found" => emitter
                 .emit_event(RunnerEvent::Failed {
                     run_id,
@@ -539,7 +645,7 @@ impl KianaHarness {
             return Ok(());
         }
         let checkpoint = emitter.events.len();
-        if run.steps >= self.max_steps_per_turn {
+        if run.steps >= run.max_steps_per_turn {
             emitter.emit_event(RunnerEvent::Failed {
                 run_id: run.run_id,
                 error: "max_steps_per_turn".to_owned(),
@@ -579,62 +685,25 @@ impl KianaHarness {
         }
 
         let run_id = run.run_id;
+        let request = ModelRequest {
+            messages: run.messages.clone(),
+            tools: tool_schemas(),
+            sandbox: run.sandbox.clone(),
+        };
         let cancellation = run.cancellation.clone();
-        let mut emitted_delta = false;
-        let mut sink_error: Option<String> = None;
-        let mut delta_redactor = StreamingRedactor::new();
         let output = self
-            .model
-            .complete_streaming(
-                ModelRequest {
-                    messages: run.messages.clone(),
-                    tools: tool_schemas(),
-                    sandbox: run.sandbox.clone(),
-                },
-                &mut |delta| {
-                    if let Some(error) = sink_error.as_ref() {
-                        return Err(error.clone());
-                    }
-                    match delta {
-                        ModelDelta::Text { text } => {
-                            let state = cancellation.lock().map_err(|error| error.to_string())?;
-                            if let Some(error) = state.as_ref() {
-                                sink_error = Some(error.clone());
-                                return Err(error.clone());
-                            }
-                            let text = delta_redactor.push(&text);
-                            if text.is_empty() {
-                                return Ok(());
-                            }
-                            emitted_delta = true;
-                            if let Err(error) = emitter.emit(RunnerEvent::Delta { run_id, text }) {
-                                sink_error = Some(error.clone());
-                                return Err(error);
-                            }
-                        }
-                    }
-                    Ok(())
-                },
+            .invoke_model(
+                run,
+                request,
+                kiana_domain::ModelPurpose::Task,
+                kiana_domain::ModelResponseFormat::Text,
+                emitter,
             )
             .await;
+        let emitted_delta = true;
         if let Some(error) = cancellation.error()? {
             emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
             return Ok(());
-        }
-        if let Some(error) = sink_error {
-            return Err(KianaHarnessError::Failed(error));
-        }
-        let tail = delta_redactor.finish();
-        if !tail.is_empty() {
-            emitted_delta = true;
-            let state = cancellation.lock()?;
-            if let Some(error) = state.as_ref() {
-                let error = error.clone();
-                drop(state);
-                emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
-                return Ok(());
-            }
-            emitter.emit_event(RunnerEvent::Delta { run_id, text: tail })?;
         }
         let output = match output {
             Ok(output) => output,
@@ -713,6 +782,8 @@ impl KianaHarness {
             return Ok(());
         }
         run.pending_tools.clear();
+        kiana_domain::validate_model_calls(&output.tool_calls)
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         for call in output.tool_calls {
             match capability_for_tool(&call, &run.sandbox, &run.project_root) {
                 Ok(request) => run.pending_tools.push_back((request.request_id, call)),
@@ -749,6 +820,165 @@ impl KianaHarness {
             )?,
         }
         Ok(())
+    }
+
+    async fn invoke_model(
+        &self,
+        run: &mut ActiveRun,
+        request: ModelRequest,
+        purpose: kiana_domain::ModelPurpose,
+        format: kiana_domain::ModelResponseFormat,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<ModelOutput, String> {
+        use kiana_domain::{ModelCallSpec, ModelRetryClass, RequestId};
+        let admission = self
+            .model_budget
+            .lock()
+            .map_err(|_| "model_budget_lock_poisoned".to_owned())?
+            .clone();
+        let call_id = kiana_domain::derived_request_id(
+            "model.call",
+            &format!("{}:{}:{purpose:?}", run.run_id, run.steps),
+        );
+        let max_time = self
+            .wall_time_budget
+            .or_else(|| {
+                run.model_assignment
+                    .as_ref()
+                    .map(|a| Duration::from_millis(a.max_wall_time_ms))
+            })
+            .unwrap_or(Duration::from_secs(300));
+        let remaining = max_time
+            .checked_sub(run.wall_time_started_at.elapsed())
+            .ok_or_else(|| RUN_BUDGET_EXCEEDED_WALL_TIME.to_owned())?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| "model_clock_untrusted".to_owned())?
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        let deadline = now.saturating_add(remaining.as_millis().min(u128::from(u64::MAX)) as u64);
+        let started = Instant::now();
+        for attempt in 0..3u32 {
+            if let Some(error) = run.cancellation.error().map_err(|e| e.to_string())? {
+                return Err(error);
+            }
+            let attempt_id = RequestId::new();
+            let spec = ModelCallSpec {
+                call_id,
+                attempt_id,
+                step: run.steps,
+                purpose,
+                assignment: run.model_assignment.clone(),
+                response_format: format.clone(),
+                replay: Vec::new(),
+                deadline_unix_ms: deadline,
+            };
+            let prepared = self
+                .model
+                .prepare_call(request.clone(), spec)
+                .map_err(|error| error.to_string())?;
+            if run
+                .model_route
+                .as_ref()
+                .is_some_and(|route| route != &prepared.route)
+            {
+                return Err("model_route_changed_during_run".to_owned());
+            }
+            run.model_route = Some(prepared.route.clone());
+            let audit = prepared.audit();
+            let route = prepared.route.clone();
+            let budget = prepared.budget.clone();
+            let permit = if let Some(guard) = &admission {
+                Some(
+                    guard
+                        .reserve_prepared(&prepared)
+                        .await
+                        .map_err(|error| format!("model_admission_denied:{error}"))?,
+                )
+            } else {
+                None
+            };
+            let cancellation = run.cancellation.clone();
+            let mut redactor = StreamingRedactor::new();
+            let run_id = run.run_id;
+            let mut callback = |delta: ModelDelta| -> Result<(), String> {
+                if let Some(error) = cancellation.error().map_err(|e| e.to_string())? {
+                    return Err(error);
+                }
+                let text = match delta {
+                    ModelDelta::Text { text } => text,
+                    _ => return Err("model_delta_unsupported".to_owned()),
+                };
+                let text = redactor.push(&text);
+                if text.is_empty() {
+                    return Ok(());
+                }
+                emitter.emit(RunnerEvent::Delta { run_id, text })
+            };
+            let future = async {
+                if let (Some(guard), Some(permit)) = (&admission, permit) {
+                    self.model
+                        .complete_admitted(prepared, permit, guard.as_ref(), &mut callback)
+                        .await
+                } else {
+                    self.model.complete_prepared(prepared, &mut callback).await
+                }
+            };
+            let result = tokio::select! {
+                result=tokio::time::timeout(remaining.saturating_sub(started.elapsed()),future)=>result.unwrap_or_else(|_|Err(kiana_domain::ModelError::transport("model_attempt_deadline",ModelRetryClass::Never,true))),
+                error=cancellation.cancelled()=>Err(kiana_domain::ModelError::invalid(error)),
+            };
+            let measured = result
+                .as_ref()
+                .ok()
+                .and_then(|reply| reply.output.usage.as_ref())
+                .and_then(|usage| usage.input_tokens.checked_add(usage.output_tokens));
+            if let Some(guard) = &admission {
+                guard
+                    .settle(run.run_id, attempt_id, measured)
+                    .await
+                    .map_err(|error| format!("model_usage_settlement_failed:{error}"))?;
+            }
+            let usage = result
+                .as_ref()
+                .ok()
+                .and_then(|reply| reply.output.usage.as_ref());
+            emitter.emit(RunnerEvent::ModelTurn {run_id,step:run.steps,metadata:json!({
+                "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"attempt":attempt+1,
+                "provider_id":route.provider_id,"model_id":result.as_ref().ok().and_then(|reply|reply.output.model_id.as_ref()).unwrap_or(&route.model_id),
+                "prepared":audit,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
+                "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
+                "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
+                "finish":result.as_ref().ok().map(|reply|reply.finish),
+                "assistant":result.as_ref().ok().map(|reply|kiana_domain::redact_value(&json!(reply.output))),
+                "error":result.as_ref().err(),
+            })})?;
+            match result {
+                Ok(reply) => {
+                    let tail = redactor.finish();
+                    if !tail.is_empty() {
+                        emitter.emit(RunnerEvent::Delta { run_id, text: tail })?;
+                    }
+                    return Ok(reply.output);
+                }
+                Err(error)
+                    if attempt < 2
+                        && matches!(
+                            error.retry_class,
+                            ModelRetryClass::BeforeSend | ModelRetryClass::Rejected
+                        ) =>
+                {
+                    let delay =
+                        Duration::from_millis(error.retry_after_ms.unwrap_or(100u64 << attempt));
+                    if delay >= remaining.saturating_sub(started.elapsed()) {
+                        return Err("model_retry_deadline_exceeded".to_owned());
+                    }
+                    tokio::select! {_=tokio::time::sleep(delay)=>{},error=cancellation.cancelled()=>return Err(error)}
+                }
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+        Err("model_attempt_limit".to_owned())
     }
 
     fn take_run(&self, run_id: RunId) -> Result<ActiveRun, KianaHarnessError> {
@@ -841,7 +1071,26 @@ impl KianaHarness {
         if let Some(error) = self.record_tool_call(run, call) {
             return Err(error);
         }
-        let request = capability_for_tool(call, &run.sandbox, &run.project_root)?;
+        let mut request = capability_for_tool(call, &run.sandbox, &run.project_root)?;
+        let pending_id = run
+            .pending_tools
+            .front()
+            .map(|(id, _)| *id)
+            .ok_or_else(|| "tool_queue_empty".to_owned())?;
+        request.request_id = pending_id;
+        // Extension provenance comes from the immutable system bundle loaded by daemon.
+        // Model-provided fields are overwritten even when the trusted scope is empty.
+        let scopes = match run
+            .messages
+            .iter()
+            .find(|message| message.role == crate::model::ModelRole::System)
+        {
+            Some(message) if message.text.trim_start().starts_with('{') => {
+                PromptBundle::decode(&message.text)?.extensions
+            }
+            _ => Vec::new(),
+        };
+        request.arguments["_extension_scopes"] = json!(scopes);
         if let Some((pending_id, _)) = run.pending_tools.front_mut() {
             *pending_id = request.request_id;
         }
@@ -887,6 +1136,188 @@ impl From<KianaHarnessError> for PortError {
 
 #[async_trait]
 impl RunnerPort for KianaHarness {
+    fn bind_model_assignment(
+        &self,
+        run_id: RunId,
+        assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        assignment
+            .validate()
+            .map_err(|e| PortError::Failed(e.to_string()))?;
+        if assignment.run_id != run_id {
+            return Err(PortError::Failed(
+                "model_assignment_run_mismatch".to_owned(),
+            ));
+        }
+        let mut assignments = self
+            .assignments
+            .lock()
+            .map_err(|_| PortError::Failed("harness_assignment_lock_poisoned".to_owned()))?;
+        if assignments
+            .get(&run_id)
+            .is_some_and(|current| current != &assignment)
+            || self.has_run(run_id)?
+            || self.has_in_flight(run_id)?
+        {
+            return Err(PortError::Conflict(
+                "model_assignment_already_bound".to_owned(),
+            ));
+        }
+        assignments.insert(run_id, assignment);
+        Ok(())
+    }
+
+    fn bind_model_history(
+        &self,
+        run_id: RunId,
+        history: Vec<ModelMessage>,
+    ) -> Result<(), PortError> {
+        kiana_domain::validate_model_history(&history)
+            .map_err(|e| PortError::Failed(e.to_string()))?;
+        if history
+            .iter()
+            .any(|message| message.role == crate::model::ModelRole::System)
+        {
+            return Err(PortError::Failed(
+                "history_cannot_change_system_authority".to_owned(),
+            ));
+        }
+        let mut histories = self
+            .histories
+            .lock()
+            .map_err(|_| PortError::Failed("harness_history_lock_poisoned".to_owned()))?;
+        if histories.get(&run_id).is_some_and(|old| old != &history)
+            || self.has_run(run_id)?
+            || self.has_in_flight(run_id)?
+        {
+            return Err(PortError::Conflict(
+                "model_history_already_bound".to_owned(),
+            ));
+        }
+        histories.insert(run_id, history);
+        Ok(())
+    }
+
+    fn install_model_budget(
+        &self,
+        budget: Arc<dyn kiana_ports::ModelBudgetPort>,
+    ) -> Result<(), PortError> {
+        let mut slot = self
+            .model_budget
+            .lock()
+            .map_err(|_| PortError::Failed("model_budget_lock_poisoned".to_owned()))?;
+        if slot.is_some() {
+            return Err(PortError::Conflict(
+                "model_budget_already_installed".to_owned(),
+            ));
+        }
+        *slot = Some(budget);
+        Ok(())
+    }
+
+    async fn checkpoint(&self, run_id: RunId) -> Result<serde_json::Value, PortError> {
+        if self.has_in_flight(run_id)? {
+            return Err(PortError::Conflict("runner_checkpoint_busy".to_owned()));
+        }
+        let runs = self
+            .runs
+            .lock()
+            .map_err(|_| PortError::Failed("harness_lock_poisoned".to_owned()))?;
+        let run = runs
+            .get(&run_id)
+            .ok_or_else(|| PortError::Unavailable("run_not_found".to_owned()))?;
+        if run.cancellation.error()?.is_some() {
+            return Err(PortError::Conflict(
+                "runner_checkpoint_cancelled".to_owned(),
+            ));
+        }
+        serde_json::to_value(HarnessCheckpoint {
+            schema: "kiana.harness-checkpoint.v1".to_owned(),
+            run_id,
+            sandbox: run.sandbox.clone(),
+            project_root: run.project_root.clone(),
+            messages: run.messages.clone(),
+            prompt_sources: run.prompt_sources.clone(),
+            model_assignment: run.model_assignment.clone(),
+            model_route: run.model_route.clone(),
+            pending_tools: run.pending_tools.clone(),
+            last_tool_call: run.last_tool_call.clone(),
+            steps: run.steps,
+            max_steps_per_turn: run.max_steps_per_turn,
+            wall_time_elapsed_ms: run
+                .wall_time_started_at
+                .elapsed()
+                .as_millis()
+                .min(u64::MAX as u128) as u64,
+            last_text: run.last_text.clone(),
+        })
+        .map_err(|error| PortError::Failed(format!("runner_checkpoint_invalid:{error}")))
+    }
+
+    async fn restore(&self, run_id: RunId, checkpoint: serde_json::Value) -> Result<(), PortError> {
+        let checkpoint: HarnessCheckpoint = serde_json::from_value(checkpoint)
+            .map_err(|error| PortError::Failed(format!("runner_checkpoint_invalid:{error}")))?;
+        if checkpoint.schema != "kiana.harness-checkpoint.v1"
+            || checkpoint.run_id != run_id
+            || checkpoint.max_steps_per_turn == 0
+            || checkpoint.steps > checkpoint.max_steps_per_turn
+        {
+            return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
+        }
+        let sandbox = normalize_sandbox(&checkpoint.sandbox)?;
+        let mut ids = std::collections::HashSet::new();
+        for (_, call) in &checkpoint.pending_tools {
+            if !ids.insert(&call.id) || call.id.trim().is_empty() {
+                return Err(PortError::Failed(
+                    "runner_checkpoint_duplicate_tool".to_owned(),
+                ));
+            }
+            capability_for_tool(call, sandbox, &checkpoint.project_root)
+                .map_err(PortError::Failed)?;
+        }
+        let elapsed = Duration::from_millis(checkpoint.wall_time_elapsed_ms);
+        if self
+            .wall_time_budget
+            .is_some_and(|budget| elapsed >= budget)
+        {
+            return Err(PortError::Failed(RUN_BUDGET_EXCEEDED_WALL_TIME.to_owned()));
+        }
+        if self.has_in_flight(run_id)? {
+            return Err(PortError::Conflict("run_already_exists".to_owned()));
+        }
+        let mut runs = self
+            .runs
+            .lock()
+            .map_err(|_| PortError::Failed("harness_lock_poisoned".to_owned()))?;
+        if runs.contains_key(&run_id) {
+            return Err(PortError::Conflict("run_already_exists".to_owned()));
+        }
+        let started = Instant::now()
+            .checked_sub(elapsed)
+            .ok_or_else(|| PortError::Failed("runner_checkpoint_clock_invalid".to_owned()))?;
+        runs.insert(
+            run_id,
+            ActiveRun {
+                run_id,
+                sandbox: checkpoint.sandbox,
+                project_root: checkpoint.project_root,
+                inbox: Inbox::default(),
+                messages: checkpoint.messages,
+                prompt_sources: checkpoint.prompt_sources,
+                model_assignment: checkpoint.model_assignment,
+                model_route: checkpoint.model_route,
+                pending_tools: checkpoint.pending_tools,
+                last_tool_call: checkpoint.last_tool_call,
+                steps: checkpoint.steps,
+                max_steps_per_turn: checkpoint.max_steps_per_turn.min(self.max_steps_per_turn),
+                wall_time_started_at: started,
+                last_text: checkpoint.last_text,
+                cancellation: Arc::new(RunCancellation::default()),
+            },
+        );
+        Ok(())
+    }
+
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
         self.dispatch(command, None).await.map_err(PortError::from)
     }

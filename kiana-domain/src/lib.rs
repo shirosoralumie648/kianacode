@@ -9,26 +9,48 @@
 //! `ResultUnknown` 与“没有副作用”严格区分，并以 EventLog/Receipt 作为事实来源，不把
 //! transcript、UI 投影或模型自述当作状态权威。
 
+mod approval_journal;
 mod capabilities;
+pub mod company;
+mod connectors;
 mod contracts;
+mod errors;
+mod extensions;
 mod ids;
+mod memory;
+mod memory_distillation;
+mod memory_proposals;
 mod paths;
+mod platform;
+mod prompts;
 mod redaction;
 mod roles;
 mod states;
 mod symposiums;
 #[cfg(test)]
 mod tests;
+mod usage;
 mod work_packets;
 
+pub use approval_journal::*;
 pub use capabilities::*;
+pub use company::*;
+pub use connectors::*;
 pub use contracts::*;
+pub use errors::*;
+pub use extensions::*;
 pub use ids::*;
+pub use memory::*;
+pub use memory_distillation::*;
+pub use memory_proposals::*;
 pub use paths::*;
+pub use platform::*;
+pub use prompts::*;
 pub use redaction::*;
 pub use roles::*;
 pub use states::*;
 pub use symposiums::*;
+pub use usage::*;
 pub use work_packets::*;
 
 pub const APPROVAL_CHALLENGE_SCHEMA: &str = "kiana.approval-challenge.v1";
@@ -100,3 +122,37 @@ pub const MEMORY_LAYERS: [&str; 6] = [
     MEMORY_LAYER_USER,
     MEMORY_LAYER_INSTANCE_SCRATCH,
 ];
+
+mod tool_catalog;
+pub use tool_catalog::*;
+mod governance;
+pub use governance::*;
+mod packet_graph;
+pub use packet_graph::*;
+
+mod automation;
+pub use automation::*;
+
+mod swarm;
+pub use swarm::*;
+
+mod handoff;
+pub use handoff::*;
+
+mod dispatch;
+pub use dispatch::*;
+
+mod journal;
+pub use journal::*;
+
+mod actions;
+pub use actions::*;
+
+mod company_business;
+pub use company_business::*;
+
+mod model;
+pub use model::*;
+
+mod company_closeout;
+pub use company_closeout::*;

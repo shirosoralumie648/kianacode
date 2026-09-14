@@ -6,6 +6,8 @@ use std::collections::{BTreeSet, HashSet};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RunPhase {
     Authorized,
+    Queued,
+    Cancelling,
     Running,
     AwaitingApproval,
     Terminal,
@@ -83,16 +85,27 @@ pub fn project_run_state(
         .enumerate()
         .filter(|(_, event)| event_run_id(event).is_some_and(|event_run_id| event_run_id == run_id))
         .collect::<Vec<_>>();
-    ordered_events
-        .sort_by_key(|(index, event)| (event.stream_version.unwrap_or(event.sequence), *index));
-
+    // Stream versions are comparable only within one aggregate. read_all supplies
+    // durable append order for mixed run, packet, invocation and approval facts.
+    let same_stream = ordered_events.first().is_none_or(|(_, first)| {
+        ordered_events.iter().all(|(_, event)| {
+            event.aggregate_type == first.aggregate_type && event.aggregate_id == first.aggregate_id
+        })
+    });
+    if same_stream {
+        ordered_events
+            .sort_by_key(|(index, event)| (event.stream_version.unwrap_or(event.sequence), *index));
+    }
     for (_, event) in ordered_events {
-        if event_run_id(event).is_none_or(|event_run_id| event_run_id != run_id) {
+        if !seen_keys.insert(event.event_id) {
             continue;
         }
-        let order = event.stream_version.unwrap_or(event.sequence);
-        let sequence_scope = event.stream_version.map(|_| event.request_id);
-        if !seen_keys.insert((sequence_scope, order)) {
+        // Continue opens a new turn on the same run; its outcome supersedes the previous turn.
+        if event.kind == "run.prompt" {
+            phase = RunPhase::Running;
+            outcome = None;
+            error = None;
+            terminal_kinds.clear();
             continue;
         }
 
@@ -118,6 +131,8 @@ pub fn project_run_state(
         }
 
         phase = match event.kind.as_str() {
+            "run.queued" => RunPhase::Queued,
+            "run.cancelling" => RunPhase::Cancelling,
             "run.authorized" | "run.started" => RunPhase::Running,
             "approval.requested" => RunPhase::AwaitingApproval,
             "approval.approved" | "approval.denied" => RunPhase::Running,

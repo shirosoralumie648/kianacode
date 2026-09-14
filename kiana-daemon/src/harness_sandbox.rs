@@ -6,14 +6,19 @@
 //! 收敛边界，而不是可被入口层绕过的第二条执行循环。
 //!
 //! 参数设计参考了 Codex 的公开 Apache-2.0 实现中的会话隔离、能力清空和核心环境变量
-//! 筛选做法，但这里的文件系统规则以 Kiana 自己的项目根目录为权威：先将宿主根目录
-//! 只读绑定，再只读或可写地重新绑定获准的项目根目录。`reference/` 仅是审计输入，
+//! 筛选做法，但这里的文件系统规则以 Kiana 自己的项目根目录为权威：只发布固定工具链目录与获准的项目根目录，宿主 HOME、服务存储与 socket 不进入视图。`reference/` 仅是审计输入，
 //! 不会在运行时加载为实现。
 
 use kiana_ports::PortError;
 use kiana_runner_protocol::{DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE};
 use std::ffi::OsString;
+use std::fs::{self, File};
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, FromRawFd};
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Receipt 和子进程环境中标识当前实际采用的 Linux 沙箱后端名称。
 ///
@@ -49,6 +54,36 @@ pub struct BwrapPlan {
     pub program: PathBuf,
     /// 传给 `bubblewrap` 的完整参数，不含最终由调用者附加的待执行命令。
     pub args: Vec<OsString>,
+    pinned: Vec<Arc<File>>,
+}
+
+impl BwrapPlan {
+    /// A copied workspace appears at the original logical path inside the namespace.
+    pub(crate) fn remap_workspace(&mut self, physical: &Path, logical: &Path) {
+        for argument in &mut self.args {
+            if let Ok(relative) = Path::new(argument).strip_prefix(physical) {
+                *argument = logical.join(relative).into_os_string();
+            }
+        }
+    }
+    /// Keep mount descriptors alive through exec; paths are never reopened by bwrap.
+    pub fn configure_command(&self, command: &mut tokio::process::Command) {
+        command.args(&self.args);
+        #[cfg(unix)]
+        {
+            let pinned = self.pinned.clone();
+            unsafe {
+                command.pre_exec(move || {
+                    for file in &pinned {
+                        if libc::fcntl(file.as_raw_fd(), libc::F_SETFD, 0) < 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                    }
+                    Ok(())
+                });
+            }
+        }
+    }
 }
 
 /// 为某次 harness shell 调用构造 fail-closed 的 `bubblewrap` 启动计划。
@@ -61,10 +96,20 @@ pub struct BwrapPlan {
 /// 返回值固定包含新会话、父进程退出联动、网络命名空间隔离、能力清空和显式环境清空。
 /// 它不保证内核、bubblewrap 版本或宿主挂载策略没有漏洞，因此只能说明本进程请求了
 /// 这些限制，不能把它当作现实世界副作用已被完全隔离的证据。
+#[cfg(test)]
 pub fn bwrap_plan(
     project_root: &Path,
     workdir: &Path,
     sandbox: &str,
+) -> Result<BwrapPlan, PortError> {
+    bwrap_plan_scoped(project_root, workdir, sandbox, &[".".to_owned()])
+}
+
+pub fn bwrap_plan_scoped(
+    project_root: &Path,
+    workdir: &Path,
+    sandbox: &str,
+    path_allow: &[String],
 ) -> Result<BwrapPlan, PortError> {
     let bwrap = find_bwrap()?;
     let project_root = canonicalize_dir(project_root, "harness_project_root_invalid")?;
@@ -76,42 +121,93 @@ pub fn bwrap_plan(
     }
 
     let mut args = vec![
-        OsString::from("--new-session"),
-        OsString::from("--die-with-parent"),
-        OsString::from("--unshare-all"),
-        OsString::from("--ro-bind"),
-        OsString::from("/"),
-        OsString::from("/"),
-        OsString::from("--dev"),
-        OsString::from("/dev"),
-        OsString::from("--proc"),
-        OsString::from("/proc"),
-        OsString::from("--tmpfs"),
-        OsString::from("/tmp"),
+        "--new-session".into(),
+        "--die-with-parent".into(),
+        "--unshare-all".into(),
+        "--proc".into(),
+        "/proc".into(),
+        "--dev".into(),
+        "/dev".into(),
+        "--tmpfs".into(),
+        "/tmp".into(),
+        "--dir".into(),
+        "/tmp/kiana-home".into(),
     ];
-
-    match sandbox {
-        DEFAULT_HARNESS_SANDBOX => {
-            // `/tmp` 被挂成新的 tmpfs 后，需要重新发布项目根；这样位于
-            // `/tmp/...` 的工作区不会消失，同时保持对项目内容的只读约束。
-            args.extend([
-                OsString::from("--ro-bind"),
-                project_root.as_os_str().to_os_string(),
-                project_root.as_os_str().to_os_string(),
-            ]);
-        }
-        HARNESS_SANDBOX_WORKSPACE_WRITE => {
-            args.extend([
-                OsString::from("--bind"),
-                project_root.as_os_str().to_os_string(),
-                project_root.as_os_str().to_os_string(),
-            ]);
-        }
-        other => {
-            return Err(PortError::Failed(format!("sandbox_unsupported:{other}")));
+    let mut pinned = Vec::new();
+    // No host-root bind: read-only mounts still expose credentials and Unix sockets.
+    for system in ["/usr", "/bin", "/sbin", "/lib", "/lib64"] {
+        let path = Path::new(system);
+        if path.exists() {
+            pin_mount(&mut args, &mut pinned, path, path, false)?;
         }
     }
-
+    for system in [
+        "/etc/ld.so.cache",
+        "/etc/nsswitch.conf",
+        "/etc/passwd",
+        "/etc/group",
+        "/etc/localtime",
+    ] {
+        let path = Path::new(system);
+        if path.exists() {
+            pin_mount(&mut args, &mut pinned, path, path, false)?;
+        }
+    }
+    if let Some(configured) = std::env::var_os("KIANA_SANDBOX_TOOLCHAIN_ROOTS") {
+        for path in std::env::split_paths(&configured) {
+            let path = canonicalize_dir(&path, "sandbox_toolchain_root_invalid")?;
+            if matches!(
+                path.to_str(),
+                Some("/" | "/home" | "/root" | "/tmp" | "/run" | "/var" | "/etc")
+            ) {
+                return Err(PortError::Failed(
+                    "sandbox_toolchain_root_too_broad".to_owned(),
+                ));
+            }
+            pin_mount(&mut args, &mut pinned, &path, &path, false)?;
+        }
+    }
+    pin_mount(&mut args, &mut pinned, &project_root, &project_root, false)?;
+    match sandbox {
+        DEFAULT_HARNESS_SANDBOX => {}
+        HARNESS_SANDBOX_WORKSPACE_WRITE => {
+            if path_allow.is_empty() {
+                return Err(PortError::Failed(
+                    "containment_write_scope_empty".to_owned(),
+                ));
+            }
+            for allowed in path_allow {
+                let normalized = kiana_domain::normalize_role_path(allowed)
+                    .ok_or_else(|| PortError::Failed("containment_path_invalid".to_owned()))?;
+                let requested = project_root.join(normalized);
+                let resolved = requested.canonicalize().map_err(|_| {
+                    PortError::Failed(
+                        "containment_path_unavailable:requires_staged_environment".to_owned(),
+                    )
+                })?;
+                if !resolved.starts_with(&project_root) {
+                    return Err(PortError::Failed("containment_path_escape".to_owned()));
+                }
+                pin_mount(&mut args, &mut pinned, &resolved, &resolved, true)?;
+            }
+        }
+        other => return Err(PortError::Failed(format!("sandbox_unsupported:{other}"))),
+    }
+    let data_policy = crate::data_governance::read_policy(&project_root)?;
+    for source in &data_policy.revoked_sources {
+        mask_path(&mut args, &project_root.join(source))?;
+    }
+    // These names are hidden even under a broad project grant. Service-store paths
+    // are also resolved separately, so a project-local KIANA_HOME cannot be exposed.
+    let mut scanned = 0;
+    mask_private_paths(&project_root, &project_root, &mut args, &mut scanned, 0)?;
+    if let Some(store) = std::env::var_os("KIANA_HOME") {
+        if let Ok(store) = PathBuf::from(store).canonicalize() {
+            if store.starts_with(&project_root) {
+                mask_path(&mut args, &store)?;
+            }
+        }
+    }
     args.extend([
         OsString::from("--chdir"),
         workdir.as_os_str().to_os_string(),
@@ -131,7 +227,178 @@ pub fn bwrap_plan(
     Ok(BwrapPlan {
         program: bwrap,
         args,
+        pinned,
     })
+}
+
+#[cfg(unix)]
+fn pin_mount(
+    args: &mut Vec<OsString>,
+    pinned: &mut Vec<Arc<File>>,
+    source: &Path,
+    target: &Path,
+    writable: bool,
+) -> Result<(), PortError> {
+    let name = std::ffi::CString::new(source.as_os_str().as_bytes())
+        .map_err(|_| PortError::Failed("sandbox_mount_nul".to_owned()))?;
+    #[cfg(target_os = "linux")]
+    let flags = libc::O_PATH | libc::O_CLOEXEC;
+    #[cfg(not(target_os = "linux"))]
+    let flags = libc::O_RDONLY | libc::O_CLOEXEC;
+    let fd = unsafe { libc::open(name.as_ptr(), flags) };
+    if fd < 0 {
+        return Err(PortError::Failed(format!(
+            "sandbox_mount_open:{}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    let file = Arc::new(unsafe { File::from_raw_fd(fd) });
+    let meta = file
+        .metadata()
+        .map_err(|_| PortError::Failed("sandbox_mount_identity_unavailable".to_owned()))?;
+    if !meta.is_file() && !meta.is_dir() {
+        return Err(PortError::Failed(
+            "sandbox_mount_special_file_denied".to_owned(),
+        ));
+    }
+    args.extend([
+        if writable {
+            "--bind-fd"
+        } else {
+            "--ro-bind-fd"
+        }
+        .into(),
+        fd.to_string().into(),
+        target.as_os_str().to_owned(),
+    ]);
+    pinned.push(file);
+    Ok(())
+}
+#[cfg(not(unix))]
+fn pin_mount(
+    _: &mut Vec<OsString>,
+    _: &mut Vec<Arc<File>>,
+    _: &Path,
+    _: &Path,
+    _: bool,
+) -> Result<(), PortError> {
+    Err(PortError::Unavailable(
+        "sandbox_backend_unsupported:bwrap".to_owned(),
+    ))
+}
+
+pub(crate) fn private_component(name: &str) -> bool {
+    matches!(
+        name,
+        ".kiana"
+            | ".codex"
+            | ".ssh"
+            | ".aws"
+            | ".azure"
+            | ".gnupg"
+            | ".docker"
+            | ".kube"
+            | ".mcp.json"
+            | ".npmrc"
+            | ".netrc"
+            | ".git-credentials"
+            | "id_rsa"
+            | "id_ed25519"
+    ) || name == ".env"
+        || (name.starts_with(".env.")
+            && !matches!(name, ".env.example" | ".env.sample" | ".env.template"))
+}
+fn mask_path(args: &mut Vec<OsString>, path: &Path) -> Result<(), PortError> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => {
+            return Err(PortError::Failed(
+                "sandbox_read_deny_unavailable".to_owned(),
+            ))
+        }
+    };
+    if metadata.file_type().is_symlink() {
+        return Err(PortError::Failed(
+            "sandbox_read_deny_symlink_requires_staging".to_owned(),
+        ));
+    }
+    if metadata.is_dir() {
+        args.extend([
+            "--tmpfs".into(),
+            path.as_os_str().to_owned(),
+            "--remount-ro".into(),
+            path.as_os_str().to_owned(),
+        ]);
+    } else {
+        args.extend([
+            "--ro-bind".into(),
+            "/dev/null".into(),
+            path.as_os_str().to_owned(),
+        ]);
+    }
+    Ok(())
+}
+fn mask_private_paths(
+    root: &Path,
+    directory: &Path,
+    args: &mut Vec<OsString>,
+    scanned: &mut usize,
+    depth: usize,
+) -> Result<(), PortError> {
+    if depth > 64 {
+        return Err(PortError::Failed("sandbox_path_depth_limit".to_owned()));
+    }
+    let entries = fs::read_dir(directory)
+        .map_err(|_| PortError::Failed("sandbox_read_scope_unavailable".to_owned()))?;
+    for entry in entries {
+        let entry =
+            entry.map_err(|_| PortError::Failed("sandbox_read_scope_unavailable".to_owned()))?;
+        *scanned += 1;
+        if *scanned > 100_000 {
+            return Err(PortError::Failed("sandbox_scope_entry_limit".to_owned()));
+        }
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let kind = entry
+            .file_type()
+            .map_err(|_| PortError::Failed("sandbox_read_scope_unavailable".to_owned()))?;
+        if private_component(&name) || (!kind.is_file() && !kind.is_dir() && !kind.is_symlink()) {
+            mask_path(args, &path)?;
+            continue;
+        }
+        if name == ".git" {
+            if kind.is_symlink() {
+                return Err(PortError::Failed("sandbox_git_identity_invalid".to_owned()));
+            }
+            args.extend([
+                "--ro-bind".into(),
+                path.as_os_str().to_owned(),
+                path.as_os_str().to_owned(),
+            ]);
+            if kind.is_dir() {
+                for file in ["config", "hooks"] {
+                    mask_path(args, &path.join(file))?;
+                }
+            }
+            continue;
+        }
+        if kind.is_symlink() {
+            let target = path
+                .canonicalize()
+                .map_err(|_| PortError::Failed("sandbox_symlink_unavailable".to_owned()))?;
+            if !target.starts_with(root) {
+                return Err(PortError::Failed(
+                    "sandbox_external_symlink_requires_staging".to_owned(),
+                ));
+            }
+        }
+        if kind.is_dir() {
+            mask_private_paths(root, &path, args, scanned, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 /// 从宿主环境产生可传入沙箱的最小环境变量集合。
@@ -158,6 +425,14 @@ pub fn sandbox_env(
             && !name.eq_ignore_ascii_case("TEMP")
             && !name.eq_ignore_ascii_case("TMP")
     });
+    env.retain(|(name, _)| {
+        !["HOME", "PATH", "SHELL"]
+            .iter()
+            .any(|key| name.eq_ignore_ascii_case(key))
+    });
+    env.push(("HOME".to_owned(), "/tmp/kiana-home".to_owned()));
+    env.push(("PATH".to_owned(), "/usr/local/bin:/usr/bin:/bin".to_owned()));
+    env.push(("SHELL".to_owned(), "/bin/sh".to_owned()));
     env.push(("TMPDIR".to_owned(), "/tmp".to_owned()));
     env.push(("KIANA_SANDBOX".to_owned(), sandbox.to_owned()));
     env.push((

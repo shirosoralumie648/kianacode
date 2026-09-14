@@ -290,10 +290,10 @@ pub struct PendingApproval {
     pub request: CapabilityRequest,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// 尚未完成审批的能力请求及其运行上下文。
 ///
-/// 该类型只在 core 内保存，故意不序列化；审批通过后仍需重新绑定 challenge、上下文、
+/// 该类型由 core 写入受控 RunSnapshot；审批通过后仍需重新绑定 challenge、上下文、
 /// sandbox 和事件序号，不能直接把其中的请求交给 broker。
 pub struct PendingInvocation {
     /// 待决定的审批 ID。
@@ -314,6 +314,37 @@ pub struct PendingInvocation {
     pub context: RequestContext,
     /// 当时请求的沙箱档位。
     pub sandbox: String,
+}
+
+/// A display projection of a challenge; available decisions are server-owned.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ApprovalView {
+    #[serde(default)]
+    pub permission_profile: Option<crate::PermissionProfile>,
+    pub challenge: ApprovalChallenge,
+    pub operation: String,
+    pub arguments: Value,
+    pub available_decisions: Vec<ApprovalDecision>,
+}
+
+/// A quiescent runner checkpoint. The control plane alone persists/restores it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RunSnapshot {
+    #[serde(default)]
+    pub cell_state: Option<Value>,
+    #[serde(default)]
+    pub data_epoch: Option<String>,
+    #[serde(default)]
+    pub authority_revision: Option<String>,
+    pub schema: String,
+    pub run_id: RunId,
+    pub context: RequestContext,
+    pub sandbox: String,
+    pub role_prompt_hash: String,
+    pub runner_state: Value,
+    pub runner_state_digest: String,
+    pub pending_invocation: Option<PendingInvocation>,
+    pub resumable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -356,6 +387,19 @@ pub struct CapabilityResult {
 }
 
 impl CapabilityResult {
+    /// Stable classification of a failed handler result. A successful result has no code.
+    pub fn failure_code(&self) -> Option<crate::CapabilityErrorCode> {
+        if self.success {
+            return None;
+        }
+        Some(crate::CapabilityErrorCode::from_reason(
+            self.output
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("execution_failed"),
+        ))
+    }
+
     /// 创建成功结果；不会自动添加证据引用。
     pub fn success(request_id: RequestId, output: Value) -> Self {
         Self {
@@ -374,6 +418,23 @@ impl CapabilityResult {
             output: serde_json::json!({ "error": error.into() }),
             evidence_refs: Vec::new(),
         }
+    }
+
+    /// Construct a failed result while retaining optional diagnostic detail.
+    ///
+    /// The canonical prefix is always stable; callers may append a detail
+    /// suffix for logs and receipts without changing retry or authorization
+    /// decisions.
+    pub fn failure_with_code(
+        request_id: RequestId,
+        code: crate::CapabilityErrorCode,
+        detail: Option<&str>,
+    ) -> Self {
+        let error = match detail {
+            Some(detail) => format!("{}:{detail}", code.as_str()),
+            None => code.as_str().to_owned(),
+        };
+        Self::failure(request_id, error)
     }
 }
 

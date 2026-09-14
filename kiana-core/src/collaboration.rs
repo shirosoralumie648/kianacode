@@ -12,6 +12,16 @@ impl ControlPlane {
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
+        if let Err(error) = self.guard_company_packet(&context, &packet).await {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({"reason":error.to_string(),"command":"run.spawn"}),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, error.to_string()));
+        }
         if let Err(reason) = packet.validate() {
             self.append_event(
                 request_id,
@@ -240,7 +250,10 @@ impl ControlPlane {
             ExecutionStatus::ResultUnknown => {
                 Some((CellLifecycle::Running, CellLifecycle::Quarantined))
             }
-            ExecutionStatus::Accepted | ExecutionStatus::Running => None,
+            ExecutionStatus::Accepted
+            | ExecutionStatus::Queued
+            | ExecutionStatus::Cancelling
+            | ExecutionStatus::Running => None,
         };
         if let Some((expected, next)) = cell_lifecycle {
             let lifecycle = self
@@ -284,7 +297,6 @@ impl ControlPlane {
                         lifecycle.lifecycle,
                         CellLifecycle::ReadyToMerge
                             | CellLifecycle::Failed
-                            | CellLifecycle::Quarantined
                             | CellLifecycle::Cancelled
                     ) {
                         let retirement = self
@@ -330,7 +342,10 @@ impl ControlPlane {
             ExecutionStatus::Denied | ExecutionStatus::Failed | ExecutionStatus::ResultUnknown => {
                 kiana_domain::WorkPacketStatus::Failed
             }
-            ExecutionStatus::Accepted | ExecutionStatus::Running => packet.status,
+            ExecutionStatus::Accepted
+            | ExecutionStatus::Queued
+            | ExecutionStatus::Cancelling
+            | ExecutionStatus::Running => packet.status,
         };
         if next_status != packet.status {
             packet.transition_status(next_status)?;
@@ -356,6 +371,13 @@ impl ControlPlane {
         if let Some(output) = response.output.as_object_mut() {
             output.insert("packet_status".to_owned(), json!(packet.status));
         }
+        if response.status == ExecutionStatus::AwaitingApproval {
+            let sandbox = response.output["sandbox"]
+                .as_str()
+                .unwrap_or("workspace-write");
+            self.checkpoint_run(&context, run_id, sandbox, &mut packet_sequence)
+                .await?;
+        }
         Ok(response)
     }
 
@@ -365,14 +387,25 @@ impl ControlPlane {
         packet: &WorkPacket,
         run_id: RunId,
     ) -> Result<kiana_ports::SpawnReservation, CoreError> {
+        let swarm_parent = self.swarm_parent_for_packet(context, &packet.id).await?;
+        let template_version = if swarm_parent.is_some() {
+            kiana_domain::SWARM_CHILD_TEMPLATE
+        } else {
+            cell_registry::TEMPLATE_VERSION
+        };
         let template = self
             .cell_registry
-            .resolve_template(ROLE_BUILDER, cell_registry::TEMPLATE_VERSION)
+            .resolve_template(ROLE_BUILDER, template_version)
             .await?;
         let now = unix_ms();
         let deadline = packet
             .deadline_unix_ms
-            .unwrap_or_else(|| now.saturating_add(template.ttl_seconds.saturating_mul(1_000)));
+            .unwrap_or_else(|| now.saturating_add(template.ttl_seconds.saturating_mul(1_000)))
+            .min(
+                swarm_parent
+                    .as_ref()
+                    .map_or(u64::MAX, |p| p.grant.expires_at_unix_ms),
+            );
         if deadline <= now {
             return Err(CoreError::Port(PortError::Failed(
                 "spawn_deadline_expired".to_owned(),
@@ -383,13 +416,42 @@ impl ControlPlane {
         } else {
             packet.path_allow.clone()
         };
-        let budget = BudgetLease::new(
-            template.estimated_cost.max(1),
-            template.estimated_cost.max(1).saturating_mul(4096),
-            template.ttl_seconds.saturating_mul(1_000),
-            1,
-            1,
-        );
+        let (company, _) = self.load_company(context).await?;
+        let configured = company
+            .packets
+            .get(&packet.id)
+            .and_then(|p| company.budgets.get(&p.project_id));
+        let runtime =
+            configured
+                .map(|p| p.runtime.clone())
+                .unwrap_or(kiana_domain::RuntimeBudget {
+                    max_model_calls: template.estimated_cost.max(1),
+                    max_tokens: template.estimated_cost.max(1).saturating_mul(4096),
+                    max_wall_time_ms: template.ttl_seconds.saturating_mul(1_000),
+                });
+        runtime
+            .validate()
+            .map_err(|reason| CoreError::Port(PortError::Conflict(reason.into())))?;
+        let deadline = deadline.min(now.saturating_add(runtime.max_wall_time_ms));
+        let budget = swarm_parent
+            .as_ref()
+            .map(|parent| parent.budget.clone())
+            .unwrap_or_else(|| {
+                BudgetLease::new(
+                    runtime.max_model_calls.min(template.estimated_cost.max(1)),
+                    runtime
+                        .max_tokens
+                        .min(template.estimated_cost.max(1).saturating_mul(4096)),
+                    runtime
+                        .max_wall_time_ms
+                        .min(template.ttl_seconds.saturating_mul(1_000)),
+                    1,
+                    runtime
+                        .max_model_calls
+                        .min(template.estimated_cost.max(1))
+                        .min(u64::from(u32::MAX)) as u32,
+                )
+            });
         let supervision = SupervisionLease {
             schema: SUPERVISION_LEASE_SCHEMA.to_owned(),
             lease_id: SupervisionLeaseId::new(),
@@ -412,7 +474,7 @@ impl ControlPlane {
         let plan = SpawnPlan {
             schema: SPAWN_PLAN_SCHEMA.to_owned(),
             plan_id: SpawnPlanId::new(),
-            parent_cell_id: None,
+            parent_cell_id: swarm_parent.as_ref().map(|p| p.cell.cell_id),
             reason_code: "packet_spawn".to_owned(),
             candidate_templates: vec![template.template_id],
             count: 1,
@@ -429,8 +491,11 @@ impl ControlPlane {
         };
         let cell = CellSpec {
             schema: CELL_SCHEMA.to_owned(),
-            cell_id: CellId::new(),
-            parent_cell_id: None,
+            cell_id: packet
+                .claim
+                .as_ref()
+                .map_or_else(CellId::new, |claim| claim.owner),
+            parent_cell_id: swarm_parent.as_ref().map(|p| p.cell.cell_id),
             root_run_id: run_id,
             template_id: template.template_id,
             template_version: template.version.clone(),
@@ -445,7 +510,7 @@ impl ControlPlane {
             capability_grant_id: grant.grant_id,
             budget_lease_id: budget.lease_id,
             supervision_lease_id: supervision.lease_id,
-            depth: 0,
+            depth: u32::from(swarm_parent.is_some()),
             spawn_quota: template.max_children,
             lifecycle: CellLifecycle::Proposed,
         };
@@ -1183,10 +1248,19 @@ impl ControlPlane {
                 "skipped_meeting": anti_meeting,
                 "builder_present": meeting.builder_present(),
                 "decision_id": decision.id,
+                "decision": decision,
                 "work_packet_id": packet.as_ref().map(|packet| packet.id.clone()),
             }),
         )
         .await?;
+        self.derive_memory_proposal(
+            &context,
+            None,
+            "symposium.closed",
+            "decision",
+            &mut sequence,
+        )
+        .await;
 
         Ok(CoreResponse::completed(
             request_id,

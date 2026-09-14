@@ -42,8 +42,74 @@ pub trait PolicyEngine: Send + Sync {
 /// operation through a different capability kind. Higher risk (`Critical`) remains valid and
 /// is still subject to the normal approval decision.
 pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static str> {
+    if request.operation == "workspace.checkpoint.restore" {
+        if request.capability != CapabilityKind::Filesystem {
+            return Some("checkpoint_capability_mismatch");
+        }
+        if request.risk != RiskLevel::Critical {
+            return Some("checkpoint_restore_risk_downgrade");
+        }
+    }
+    if request.operation == "data.governance" {
+        if request.capability != CapabilityKind::Filesystem {
+            return Some("governance_capability_mismatch");
+        }
+        if request.arguments["action"] != "list"
+            && matches!(request.risk, RiskLevel::ReadOnly | RiskLevel::LocalWrite)
+        {
+            return Some("governance_risk_downgrade");
+        }
+    }
+    if request.operation == "memory.review" {
+        if request.capability != CapabilityKind::Filesystem {
+            return Some("memory_review_capability_mismatch");
+        }
+        if request.arguments["action"] != "list"
+            && matches!(request.risk, RiskLevel::ReadOnly | RiskLevel::LocalWrite)
+        {
+            return Some("memory_review_risk_downgrade");
+        }
+    }
+    if matches!(
+        request.operation.as_str(),
+        kiana_domain::CONNECTOR_MANAGE_OPERATION | kiana_domain::CONNECTOR_INVOKE_OPERATION
+    ) {
+        if request.capability != CapabilityKind::Tool {
+            return Some("connector_capability_mismatch");
+        }
+        let requires_approval = if request.operation == kiana_domain::CONNECTOR_MANAGE_OPERATION {
+            request.arguments["action"] != "list"
+        } else {
+            match kiana_domain::connector_invocation_risk(request) {
+                Ok(risk) => risk == RiskLevel::ExternalSideEffect,
+                Err(reason) => return Some(reason),
+            }
+        };
+        if requires_approval
+            && !matches!(
+                request.risk,
+                RiskLevel::ExternalSideEffect | RiskLevel::Critical
+            )
+        {
+            return Some("connector_final_payload_approval_required");
+        }
+    }
+    if request.operation == kiana_domain::EXTENSION_MANAGE_OPERATION {
+        if request.capability != CapabilityKind::Filesystem {
+            return Some("extension_capability_mismatch");
+        }
+        if !matches!(
+            request.arguments["action"].as_str(),
+            Some("list" | "inspect")
+        ) && !matches!(
+            request.risk,
+            RiskLevel::ExternalSideEffect | RiskLevel::Critical
+        ) {
+            return Some("extension_approval_risk_required");
+        }
+    }
     if !matches!(request.operation.as_str(), "mcp.call" | "mcp") {
-        return None;
+        return kiana_domain::capability_action_contract(request).err();
     }
     if request.capability != CapabilityKind::Network {
         return Some("mcp_capability_mismatch");
@@ -51,7 +117,39 @@ pub fn capability_risk_violation(request: &CapabilityRequest) -> Option<&'static
     if matches!(request.risk, RiskLevel::ReadOnly | RiskLevel::LocalWrite) {
         return Some("mcp_risk_downgrade");
     }
-    None
+    kiana_domain::capability_action_contract(request).err()
+}
+
+/// Product boundaries are enforced even when a deployment supplies a permissive engine.
+pub fn hard_policy_denial(context: &RequestContext, request: &CapabilityRequest) -> Option<String> {
+    if context
+        .session_id
+        .as_str()
+        .starts_with(kiana_domain::MEMORY_DISTILL_SESSION_PREFIX)
+    {
+        return Some("role_distillation_tools_denied".to_owned());
+    }
+    if !context.project_trusted {
+        return Some("project_untrusted".to_owned());
+    }
+    if context
+        .actor_id
+        .as_deref()
+        .is_none_or(|actor| actor.trim().is_empty())
+    {
+        return Some("actor_identity_required".to_owned());
+    }
+    if context.role_id.trim().is_empty()
+        || context.department_id.trim().is_empty()
+        || context.session_id.as_str().trim().is_empty()
+        || context.project_root.trim().is_empty()
+    {
+        return Some("authority_context_incomplete".to_owned());
+    }
+    if let Some(PolicyDecision::Deny { reason }) = role_decision(context, request) {
+        return Some(reason);
+    }
+    capability_risk_violation(request).map(str::to_owned)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -63,23 +161,8 @@ pub struct DefaultPolicyEngine;
 
 impl PolicyEngine for DefaultPolicyEngine {
     fn evaluate(&self, context: &RequestContext, request: &CapabilityRequest) -> PolicyDecision {
-        // ProjectTrust 是最外层边界；不受信项目连只读能力也不能进入后续审批流程。
-        if !context.project_trusted {
-            return PolicyDecision::Deny {
-                reason: "project_untrusted".to_owned(),
-            };
-        }
-
-        // 角色与 packet 范围是硬边界。这里的 Deny 必须先于任何可人工批准的 Ask。
-        if let Some(denied) = role_decision(context, request) {
-            return denied;
-        }
-
-        // MCP's external-effect classification is server-owned; a caller cannot downgrade it.
-        if let Some(reason) = capability_risk_violation(request) {
-            return PolicyDecision::Deny {
-                reason: reason.to_owned(),
-            };
+        if let Some(reason) = hard_policy_denial(context, request) {
+            return PolicyDecision::Deny { reason };
         }
 
         // Secret 和名称启发式命中的敏感操作至少需要一次显式审批，与声明风险无关。
@@ -131,6 +214,70 @@ impl PolicyEngine for DefaultPolicyEngine {
 /// 发现角色级拒绝，绝不等同于最终允许。检查基于 [`RoleSpec`] 内置目录：空角色 ID 由
 /// 领域层兼容为 Builder，未知非空角色则拒绝。空部门 ID 当前不触发错配检查。
 fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Option<PolicyDecision> {
+    if kiana_domain::operator_only_action(&request.operation)
+        && (context.cell_id.is_some()
+            || request.cell_id.is_some()
+            || request.arguments["operator_authorized"] != true
+            || request.arguments["actor_id"].as_str() != context.actor_id.as_deref()
+            || request.arguments["project_root"].as_str() != Some(context.project_root.as_str()))
+    {
+        return Some(PolicyDecision::Deny {
+            reason: "action_operator_required".to_owned(),
+        });
+    }
+    if request.operation == "data.governance"
+        && (context.cell_id.is_some()
+            || request.cell_id.is_some()
+            || request.arguments["operator_authorized"] != true
+            || context.actor_id.as_deref().is_none_or(str::is_empty))
+    {
+        return Some(PolicyDecision::Deny {
+            reason: "governance_operator_required".to_owned(),
+        });
+    }
+    if request.operation == "memory.review" {
+        if context.cell_id.is_some()
+            || request.cell_id.is_some()
+            || request.arguments["operator_authorized"] != true
+            || context.actor_id.as_deref().is_none_or(str::is_empty)
+        {
+            return Some(PolicyDecision::Deny {
+                reason: "memory_review_operator_required".to_owned(),
+            });
+        }
+    }
+    if matches!(
+        request.operation.as_str(),
+        kiana_domain::CONNECTOR_MANAGE_OPERATION | kiana_domain::CONNECTOR_INVOKE_OPERATION
+    ) && (context.cell_id.is_some()
+        || request.cell_id.is_some()
+        || request.arguments["operator_authorized"] != true
+        || context
+            .actor_id
+            .as_deref()
+            .is_none_or(|s| s.trim().is_empty())
+        || request.arguments["actor_id"].as_str() != context.actor_id.as_deref()
+        || request.arguments["project_root"].as_str() != Some(context.project_root.as_str()))
+    {
+        return Some(PolicyDecision::Deny {
+            reason: "connector_operator_required".to_owned(),
+        });
+    }
+    if request.operation == kiana_domain::EXTENSION_MANAGE_OPERATION
+        && (context.cell_id.is_some()
+            || request.cell_id.is_some()
+            || request.arguments["operator_authorized"] != true
+            || context
+                .actor_id
+                .as_deref()
+                .is_none_or(|s| s.trim().is_empty())
+            || request.arguments["actor_id"].as_str() != context.actor_id.as_deref()
+            || request.arguments["project_root"].as_str() != Some(context.project_root.as_str()))
+    {
+        return Some(PolicyDecision::Deny {
+            reason: "extension_operator_required".to_owned(),
+        });
+    }
     let Some(role) = RoleSpec::lookup(&context.role_id) else {
         return Some(PolicyDecision::Deny {
             reason: "role_unknown".to_owned(),
@@ -143,7 +290,7 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
             reason: "role_department_mismatch".to_owned(),
         });
     }
-    // 只对规范工具名及已知兼容别名做角色工具检查；未知 operation 留给后续路由拒绝。
+    // Tool permissions are an additional intersection over the complete operation catalog.
     if let Some(tool) = harness_tool_name(&request.operation) {
         if !role.allows_tool(tool) {
             return Some(PolicyDecision::Deny {
@@ -156,7 +303,8 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
         return Some(denied);
     }
     // 路径检查只覆盖 apply_patch 形状；shell 等能力的真实文件边界由 grant/sandbox 执行。
-    if request.operation == "apply_patch"
+    if request.operation.starts_with("context.") && request.risk != RiskLevel::ReadOnly
+        || request.operation == "apply_patch"
         || (request.risk == RiskLevel::LocalWrite
             && harness_tool_name(&request.operation) == Some("apply_patch"))
     {
@@ -167,6 +315,7 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
                 .path_allow
                 .iter()
                 .any(|allow| allow == "." || allow == "*")
+                && context.path_allow.is_empty()
             {
                 return None;
             }
@@ -206,14 +355,7 @@ fn role_decision(context: &RequestContext, request: &CapabilityRequest) -> Optio
 /// 风险判断、Gate、Broker 精确注册和其他能力围栏。映射保持大小写敏感，避免模糊匹配
 /// 把未经审计的新操作悄悄归到一个更宽的工具权限下。
 fn harness_tool_name(operation: &str) -> Option<&'static str> {
-    match operation {
-        "apply_patch" | "file_change" => Some("apply_patch"),
-        "shell.exec" | "shell" | "bash" | "exec" | "command_execution" => Some("shell"),
-        "mcp.call" | "mcp" => Some("mcp"),
-        "memory.search" => Some("memory.search"),
-        "memory.write" => Some("memory.write"),
-        _ => None,
-    }
+    kiana_domain::model_tool_name(operation)
 }
 
 /// 对 `memory.search` 与 `memory.write` 施加角色级 collection ACL。
@@ -223,6 +365,17 @@ fn harness_tool_name(operation: &str) -> Option<&'static str> {
 /// `promote_to` 只能等于原 collection，防止借写入动作跨层提升内容。
 fn memory_decision(role: &RoleSpec, request: &CapabilityRequest) -> Option<PolicyDecision> {
     match request.operation.as_str() {
+        "memory.review" => {
+            if optional_argument(request, "collection")
+                .is_some_and(|collection| role.allows_knowledge(&collection))
+            {
+                None
+            } else {
+                Some(PolicyDecision::Deny {
+                    reason: "role_knowledge_denied".to_owned(),
+                })
+            }
+        }
         "memory.search" => {
             let collection = optional_argument(request, "collection")?;
             if role.allows_knowledge(&collection) {
@@ -306,6 +459,13 @@ fn request_paths(request: &CapabilityRequest) -> Vec<String> {
                         paths.push(path.to_owned());
                     }
                 }
+            }
+        }
+    }
+    if request.operation.starts_with("context.") && request.risk != RiskLevel::ReadOnly {
+        for key in ["cache", "store"] {
+            if let Some(path) = request.arguments.get(key).and_then(|value| value.as_str()) {
+                paths.push(path.to_owned());
             }
         }
     }

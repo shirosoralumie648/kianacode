@@ -22,6 +22,27 @@ use std::sync::Arc;
 
 pub const HARNESS_ID: &str = "kiana-harness";
 
+pub async fn command_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    name: impl Into<String> + Send,
+    arguments: Value,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    // Human commands keep their explicit operator profile; the session's role is immutable.
+    let mut command_options = options.clone();
+    let session_options = session_options_on_host(&host, &session_id, None, options).await?;
+    if let Some(role) = session_options.get("role") {
+        command_options.insert("role".to_owned(), role.clone());
+    }
+    let (client, metadata) = client_on_host(host, session_id, &command_options)?;
+    client
+        .command(metadata, name, arguments)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
 pub struct LocalDaemonTransport {
     host: Arc<DaemonHost>,
 }
@@ -228,6 +249,73 @@ pub fn client_on_host(
     Ok((KianaClient::new(LocalDaemonTransport { host }), metadata))
 }
 
+/// Recover transport options from this daemon principal's owned run facts.
+/// The control plane still validates ownership, current trust and execution authority.
+pub(crate) async fn session_options_on_host(
+    host: &DaemonHost,
+    session_id: &str,
+    requested_run: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<HashMap<String, Value>> {
+    let events = host
+        .ui_events()
+        .await
+        .map_err(anyhow::Error::msg)?
+        .ok_or_else(|| anyhow!("session_history_unsupported"))?;
+    let authorized = events.iter().rev().find(|event| {
+        event.kind == "run.authorized"
+            && event.data["session_id"].as_str() == Some(session_id)
+            && requested_run.is_none_or(|run_id| event.data["run_id"] == run_id.to_string())
+    });
+    let Some(authorized) = authorized else {
+        return Ok(options.clone());
+    };
+    let project_root = project_root_from_options(options)?;
+    let original_root = authorized.data["project_root"]
+        .as_str()
+        .ok_or_else(|| anyhow!("session_project_scope_missing"))?;
+    if std::fs::canonicalize(&project_root).context("session_project_unavailable")?
+        != std::fs::canonicalize(original_root).context("session_project_unavailable")?
+    {
+        return Err(anyhow!("session_project_scope_mismatch"));
+    }
+    let role = authorized.data["role_id"]
+        .as_str()
+        .and_then(RoleSpec::lookup)
+        .ok_or_else(|| anyhow!("session_role_scope_missing"))?;
+    if authorized.data["department_id"].as_str() != Some(role.department_id.as_str()) {
+        return Err(anyhow!("session_department_scope_mismatch"));
+    }
+    let sandbox = authorized.data["sandbox"]
+        .as_str()
+        .ok_or_else(|| anyhow!("session_sandbox_scope_missing"))?;
+    sandbox_policy_from_name(sandbox)?;
+    let mut scoped = options.clone();
+    scoped.insert("cwd".to_owned(), Value::String(original_root.to_owned()));
+    scoped.insert("role".to_owned(), Value::String(role.role_id));
+    scoped.insert("sandbox".to_owned(), Value::String(sandbox.to_owned()));
+    Ok(scoped)
+}
+
+fn approval_options_from_view(
+    options: &HashMap<String, Value>,
+    approval: &Value,
+) -> Result<HashMap<String, Value>> {
+    let mut scoped = options.clone();
+    if !approval["permission_profile"].is_null() {
+        let profile: PermissionProfile =
+            serde_json::from_value(approval["permission_profile"].clone())
+                .context("approval_permission_profile_invalid")?;
+        scoped.remove("sandbox");
+        scoped.insert(
+            "permission_profile".to_owned(),
+            serde_json::to_value(profile)?,
+        );
+        sandbox_policy_from_options(&scoped)?;
+    }
+    Ok(scoped)
+}
+
 pub async fn continue_envelope(
     session_id: impl Into<String>,
     prompt: impl Into<String>,
@@ -244,6 +332,74 @@ pub async fn continue_envelope(
     .await
 }
 
+/// Query the server-owned pending approval list without resuming a run.
+pub async fn pending_approvals_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, run_id, options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    client
+        .pending_approvals(metadata, run_id)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+/// Explicit recovery always returns to the same daemon/control-plane path.
+pub async fn resume_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, run_id, options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    client
+        .resume_run(metadata, run_id)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+pub async fn decide_approval_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    challenge: ApprovalChallenge,
+    decision: ApprovalDecision,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, None, options).await?;
+    let listed =
+        pending_approvals_envelope_on_host(host.clone(), &session_id, None, &options).await?;
+    if listed.status != ExecutionStatus::Completed {
+        return Ok(listed);
+    }
+    // Read the profile from the authenticated server response, never from browser input.
+    let options = match listed.output["approvals"].as_array().and_then(|approvals| {
+        approvals.iter().find(|approval| {
+            approval["challenge"]["approval_id"] == challenge.approval_id.to_string()
+        })
+    }) {
+        Some(approval) => approval_options_from_view(&options, approval)?,
+        None => options,
+    };
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    client
+        .approval_decision_with_proof(
+            metadata,
+            challenge.approval_id,
+            decision,
+            Some(challenge.request_hash),
+            Some(challenge.nonce),
+        )
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
 pub async fn continue_envelope_on_host(
     host: Arc<DaemonHost>,
     session_id: impl Into<String>,
@@ -252,8 +408,9 @@ pub async fn continue_envelope_on_host(
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
     let session_id = session_id.into();
-    let policy = sandbox_policy_from_options(options)?;
-    let (client, metadata) = client_on_host(host, session_id, options)?;
+    let options = session_options_on_host(&host, &session_id, run_id, options).await?;
+    let policy = sandbox_policy_from_options(&options)?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
     client
         .continue_run(metadata, prompt.into(), policy.sandbox, run_id)
         .await
@@ -283,7 +440,9 @@ pub async fn cancel_envelope_on_host(
     reason: impl Into<String>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    let (client, metadata) = client_on_host(host, session_id, options)?;
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, run_id, options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
     client
         .cancel_run(metadata, run_id, reason.into())
         .await
@@ -310,7 +469,9 @@ pub async fn receipt_envelope_on_host(
     run_id: Option<RunId>,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
-    let (client, metadata) = client_on_host(host, session_id, options)?;
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, run_id, options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
     client
         .receipt(metadata, run_id)
         .await

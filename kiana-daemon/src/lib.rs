@@ -1,18 +1,29 @@
 //! Composition root for Kiana control-plane adapters.
 
 mod apply_patch;
+#[cfg(test)]
 mod approval_store;
+mod connectors;
 mod context_query;
+mod data_governance;
+mod execution_control;
+mod execution_workspace;
+mod extensions;
 mod harness_capabilities;
 mod harness_mcp;
 mod harness_memory;
 mod harness_sandbox;
 mod harness_skills;
+mod journal_approvals;
+mod local_packages;
+mod mcp_stdio;
+mod memory_retrieval;
 mod model_client;
 mod pre_tool_hooks;
 mod run_stream;
+mod workspace_checkpoints;
 
-use approval_store::{JsonlApprovalStore, MemoryApprovalStore};
+use journal_approvals::JournalApprovalStore;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
@@ -23,7 +34,9 @@ use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{PortError, RunnerPort};
-use kiana_protocol::{RequestBody, RequestEnvelope, ResponseEnvelope, PROTOCOL_SCHEMA};
+use kiana_protocol::{
+    RequestBody, RequestEnvelope, ResponseEnvelope, UiAction, UiCursor, UiSnapshot, PROTOCOL_SCHEMA,
+};
 use kiana_runner::{KianaHarness, RuntimeConfig};
 use run_stream::RunStreamBus;
 pub use run_stream::RunStreamSubscription;
@@ -58,12 +71,27 @@ impl ProjectTrustAuthority for StoredProjectTrustAuthority {
 #[derive(Clone, Debug)]
 struct AuthenticatedPrincipal {
     actor_id: String,
+    allowed_roles: Vec<String>,
 }
 
 impl AuthenticatedPrincipal {
     fn local() -> Self {
         Self {
             actor_id: "local-user".to_owned(),
+            allowed_roles: std::env::var("KIANA_LOCAL_ALLOWED_ROLES")
+                .map(|value| {
+                    value
+                        .split(',')
+                        .map(|role| role.trim().to_owned())
+                        .filter(|role| !role.is_empty())
+                        .collect()
+                })
+                .unwrap_or_else(|_| {
+                    RoleSpec::catalog()
+                        .iter()
+                        .map(|role| role.role_id.clone())
+                        .collect()
+                }),
         }
     }
 }
@@ -111,6 +139,127 @@ impl DaemonHost {
         self.run_stream.subscribe(run_id)
     }
 
+    /// Resume a display subscription; omitted deltas require snapshot reconciliation.
+    pub fn subscribe_run_after(
+        &self,
+        run_id: RunId,
+        cursor: Option<&UiCursor>,
+    ) -> RunStreamSubscription {
+        self.run_stream.subscribe_after(run_id, cursor)
+    }
+
+    pub fn ui_cursor(&self) -> UiCursor {
+        self.run_stream.ui_cursor()
+    }
+
+    pub fn run_stream_cursor(&self, run_id: RunId) -> UiCursor {
+        self.run_stream.run_cursor(run_id)
+    }
+
+    /// A UI precondition only: the command still passes through ControlPlane authorization.
+    pub fn claim_ui_action(&self, action: &UiAction) -> Result<UiCursor, PortError> {
+        self.run_stream.claim_ui_action(action)
+    }
+
+    /// Build a disposable UI snapshot exclusively from this principal's event facts.
+    pub async fn ui_snapshot(&self, session_id: &str) -> Result<UiSnapshot, PortError> {
+        let cursor = self.ui_cursor();
+        let events = self
+            .ui_events()
+            .await?
+            .ok_or_else(|| PortError::Failed("ui_snapshot_unsupported".to_owned()))?;
+        let run_id = events.iter().rev().find_map(|event| {
+            (event.kind == "run.authorized"
+                && event.data["session_id"].as_str() == Some(session_id)
+                && event.data["actor_id"].as_str() == Some(self.principal.actor_id.as_str()))
+            .then(|| event.data["run_id"].as_str().and_then(RunId::parse_str))
+            .flatten()
+        });
+        let status = if let Some(run_id) = run_id {
+            let projection = kiana_core::project_run_state(run_id, &events)
+                .map_err(|_| PortError::Failed("run_terminal_conflict".to_owned()))?;
+            Some(match projection.outcome {
+                Some(kiana_core::RunOutcome::Completed) => kiana_domain::ExecutionStatus::Completed,
+                Some(kiana_core::RunOutcome::Failed) => kiana_domain::ExecutionStatus::Failed,
+                Some(kiana_core::RunOutcome::Cancelled) => kiana_domain::ExecutionStatus::Cancelled,
+                Some(kiana_core::RunOutcome::ResultUnknown) => {
+                    kiana_domain::ExecutionStatus::ResultUnknown
+                }
+                None if projection.phase == kiana_core::RunPhase::AwaitingApproval => {
+                    kiana_domain::ExecutionStatus::AwaitingApproval
+                }
+                None => kiana_domain::ExecutionStatus::Running,
+            })
+        } else {
+            None
+        };
+        let mut pending = std::collections::BTreeMap::new();
+        if let Some(run_id) = run_id {
+            for event in &events {
+                let Some(id) = event.data["approval_id"].as_str() else {
+                    continue;
+                };
+                if event.kind == "approval.requested"
+                    && event.data["run_id"].as_str() == Some(run_id.to_string().as_str())
+                {
+                    pending.insert(id.to_owned(), event.data.clone());
+                } else if matches!(
+                    event.kind.as_str(),
+                    "approval.approved"
+                        | "approval.denied"
+                        | "approval.cancelled"
+                        | "approval.expired"
+                ) {
+                    pending.remove(id);
+                }
+            }
+        }
+        Ok(UiSnapshot {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            cursor,
+            session_id: session_id.to_owned(),
+            run_id,
+            stream_cursor: run_id.map(|run_id| self.run_stream_cursor(run_id)),
+            status,
+            pending_actions: pending.into_values().take(128).collect(),
+        })
+    }
+
+    /// Limit display history to runs bound to this authenticated local principal.
+    pub async fn ui_events(&self) -> Result<Option<Vec<RuntimeEvent>>, PortError> {
+        let Some(events) = self.persisted_events().await? else {
+            return Ok(None);
+        };
+        let owned: std::collections::HashSet<_> = events
+            .iter()
+            .filter(|event| {
+                event.kind == "run.authorized"
+                    && event.data["actor_id"].as_str() == Some(self.principal.actor_id.as_str())
+            })
+            .filter_map(|event| event.data["run_id"].as_str().map(str::to_owned))
+            .collect();
+        let requests: std::collections::HashSet<_> = events
+            .iter()
+            .filter(|event| {
+                event.data["run_id"]
+                    .as_str()
+                    .is_some_and(|run_id| owned.contains(run_id))
+            })
+            .map(|event| event.request_id)
+            .collect();
+        Ok(Some(
+            events
+                .into_iter()
+                .filter(|event| {
+                    if let Some(run_id) = event.data["run_id"].as_str() {
+                        return owned.contains(run_id);
+                    }
+                    requests.contains(&event.request_id)
+                })
+                .collect(),
+        ))
+    }
+
     /// 只读地读取本实例账本里的全部事件，供展示层做只读投影。
     ///
     /// 展示层不得自己解析账本文件：路径推导、torn-tail 容忍和 symlink 拒绝都由
@@ -124,31 +273,28 @@ impl DaemonHost {
     }
 
     pub fn local() -> Result<Self, PortError> {
-        Self::with_runner_events_and_approval(
+        Self::with_runner_and_events(
             Arc::new(configured_env_harness()?),
             Arc::new(JsonlEventLog::open_default()?),
-            Arc::new(JsonlApprovalStore::open_default()?),
         )
     }
 
     pub fn local_with_model_config(config: LocalModelConfig) -> Result<Self, PortError> {
-        Self::with_runner_events_and_approval(
+        Self::with_runner_and_events(
             Arc::new(KianaHarness::with_config(
                 model_client::from_config(config),
                 harness_runtime_config_from_env()?.into_runtime_config(None),
             )),
             Arc::new(JsonlEventLog::open_default()?),
-            Arc::new(JsonlApprovalStore::open_default()?),
         )
     }
 
     pub fn local_with_project_authority(
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
-        Self::with_runner_events_approval_and_authority(
+        Self::with_runner_events_and_authority(
             Arc::new(configured_env_harness()?),
             Arc::new(JsonlEventLog::open_default()?),
-            Arc::new(JsonlApprovalStore::open_default()?),
             project_authority,
         )
     }
@@ -161,10 +307,9 @@ impl DaemonHost {
         harness: KianaHarness,
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
-        Self::with_runner_events_approval_and_authority(
+        Self::with_runner_events_and_authority(
             Arc::new(harness),
             Arc::new(MemoryEventLog::new()),
-            Arc::new(MemoryApprovalStore::new()),
             project_authority,
         )
     }
@@ -176,10 +321,9 @@ impl DaemonHost {
     pub fn with_env_harness_and_project_authority(
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
-        Self::with_runner_events_approval_and_authority(
+        Self::with_runner_events_and_authority(
             Arc::new(configured_env_harness()?),
             Arc::new(MemoryEventLog::new()),
-            Arc::new(MemoryApprovalStore::new()),
             project_authority,
         )
     }
@@ -199,10 +343,9 @@ impl DaemonHost {
         events_path: impl AsRef<std::path::Path>,
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
-        Self::with_runner_events_approval_and_authority(
+        Self::with_runner_events_and_authority(
             Arc::new(harness),
             Arc::new(JsonlEventLog::open(events_path)?),
-            Arc::new(MemoryApprovalStore::new()),
             project_authority,
         )
     }
@@ -215,37 +358,48 @@ impl DaemonHost {
         runner: Arc<dyn RunnerPort>,
         events: Arc<dyn kiana_ports::EventStorePort>,
     ) -> Result<Self, PortError> {
-        Self::with_runner_events_and_approval(runner, events, Arc::new(MemoryApprovalStore::new()))
-    }
-
-    fn with_runner_events_and_approval(
-        runner: Arc<dyn RunnerPort>,
-        events: Arc<dyn kiana_ports::EventStorePort>,
-        approvals: Arc<dyn kiana_ports::ApprovalStorePort>,
-    ) -> Result<Self, PortError> {
-        Self::with_runner_events_approval_and_authority(
+        Self::with_runner_events_and_authority(
             runner,
             events,
-            approvals,
             Arc::new(StoredProjectTrustAuthority),
         )
     }
 
-    fn with_runner_events_approval_and_authority(
+    fn with_runner_events_and_authority(
         runner: Arc<dyn RunnerPort>,
         events: Arc<dyn kiana_ports::EventStorePort>,
-        approvals: Arc<dyn kiana_ports::ApprovalStorePort>,
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
         let run_stream = Arc::new(RunStreamBus::default());
+        let events = run_stream::StreamEventStore::wrap(events, run_stream.clone());
+        let approvals = Arc::new(JournalApprovalStore::new(events.clone())?);
         let runtime_config = harness_runtime_config_from_env()?;
-        let runner = harness_skills::SkillAwareRunner::wrap(runner);
+        runner.install_model_budget(Arc::new(kiana_core::JournalModelBudget::new(
+            events.clone(),
+        )))?;
+        let extensions = extensions::ExtensionRegistry::from_env(events.clone())?;
+        let runner =
+            harness_skills::SkillAwareRunner::wrap_with_extensions(runner, extensions.clone());
         let runner = run_stream::RunStreamRunner::wrap(runner, run_stream.clone());
         let mut capabilities = CapabilityBroker::new();
+        capabilities.set_permit_verifier(Arc::new(kiana_core::JournalPermitVerifier::new(
+            events.clone(),
+        )));
         context_query::register(&mut capabilities)?;
         harness_capabilities::register(&mut capabilities)?;
-        harness_mcp::register(&mut capabilities)?;
+        execution_control::ExecutionControl::register(&mut capabilities, events.clone())?;
+        let mcp_registry = harness_mcp::McpRegistry::new(events.clone())?;
+        harness_mcp::register(&mut capabilities, mcp_registry.clone())?;
         harness_memory::register(&mut capabilities)?;
+        workspace_checkpoints::register(&mut capabilities)?;
+        data_governance::register(&mut capabilities)?;
+        connectors::register(&mut capabilities, events.clone())?;
+        extensions.register(&mut capabilities)?;
+        capabilities.validate_catalog_bindings()?;
+        let hooks = Arc::new(pre_tool_hooks::QueryPreToolHooks::new(
+            mcp_registry,
+            events.clone(),
+        )?);
         let core = ControlPlane::with_pre_tool_hooks_and_runtime_config(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
@@ -253,11 +407,13 @@ impl DaemonHost {
             Arc::new(capabilities),
             approvals,
             runner,
-            Arc::new(pre_tool_hooks::QueryPreToolHooks),
+            hooks,
             ControlPlaneRuntimeConfig {
                 max_steps_per_turn: runtime_config.into_runtime_config(None).max_steps_per_turn,
             },
-        );
+        )
+        .with_role_step_limits(runtime_config.max_steps_override)
+        .with_workspace_checkpoints(Arc::new(workspace_checkpoints::LocalWorkspaceCheckpoints));
         Ok(Self::with_run_stream(
             Arc::new(core),
             project_authority,
@@ -267,7 +423,20 @@ impl DaemonHost {
 
     pub async fn handle(&self, request: RequestEnvelope) -> ResponseEnvelope {
         let request_id = request.metadata.request_id;
-        if request.schema != PROTOCOL_SCHEMA {
+        let publish_run_response = matches!(
+            &request.body,
+            RequestBody::Run(_)
+                | RequestBody::Continue(_)
+                | RequestBody::Cancel(_)
+                | RequestBody::ApprovalDecision(_)
+        );
+        if request.schema != PROTOCOL_SCHEMA
+            || kiana_domain::check_schema_compatibility(
+                &request.schema,
+                &kiana_domain::SchemaVersion::new(1, 0),
+            )
+            .is_err()
+        {
             return ResponseEnvelope::rejected(request_id, "protocol_schema_unsupported");
         }
         let mut metadata = request.metadata;
@@ -321,6 +490,9 @@ impl DaemonHost {
         let Some(role) = RoleSpec::lookup(&metadata.role_id) else {
             return ResponseEnvelope::rejected(request_id, "role_unknown");
         };
+        if !self.principal.allowed_roles.contains(&role.role_id) {
+            return ResponseEnvelope::rejected(request_id, "principal_role_not_authorized");
+        }
         let department = metadata.department_id.trim();
         if !department.is_empty() && department != role.department_id {
             return ResponseEnvelope::rejected(request_id, "role_department_mismatch");
@@ -339,6 +511,47 @@ impl DaemonHost {
             cell_id: None,
             path_allow: Vec::new(),
         };
+        if request_may_execute(&request.body) {
+            let project_identity = match kiana_core::project_root_identity(&context.project_root) {
+                Ok(identity) => identity,
+                Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
+            };
+            let configuration_revision = kiana_domain::json_digest(&serde_json::json!({
+                "project_identity":project_identity,"role_catalog":RoleSpec::catalog().iter().map(|role|serde_json::json!({"role_id":role.role_id,"department_id":role.department_id,"prompt_hash":role.prompt_hash,"model_profile":role.model_profile,"max_steps":role.max_steps,"paths":role.path_allow,"tools":role.tools,"knowledge_grants":role.knowledge_grants,"can_convene":role.can_convene,"can_vote":role.can_vote})).collect::<Vec<_>>(),"local_roles":self.principal.allowed_roles,
+                "model_profiles":std::env::var("KIANA_MODEL_PROFILES_JSON").unwrap_or_default(),
+                "policy":"kiana.default-policy.content.v2","tool_catalog":kiana_domain::tool_schemas(),
+                "action_catalog":kiana_domain::capability_action_catalog_digest(),
+            }));
+            if let Err(error) = self
+                .core
+                .synchronize_authority(&context, &configuration_revision)
+                .await
+            {
+                return ResponseEnvelope::rejected(request_id, error.to_string());
+            }
+            if let Err(error) = self.core.bind_session_assignment(&context).await {
+                return ResponseEnvelope::rejected(request_id, error.to_string());
+            }
+        }
+        // Trusted local opt-in: consume at most one queued job after a user run finishes.
+        // This calls the same core run path and never recursively schedules internal runs.
+        let auto_distill = matches!(
+            &request.body,
+            RequestBody::Run(_)
+                | RequestBody::Continue(_)
+                | RequestBody::Spawn(_)
+                | RequestBody::Symposium(_)
+                | RequestBody::ApprovalDecision(_)
+        ) && !context
+            .session_id
+            .as_str()
+            .starts_with(kiana_domain::MEMORY_DISTILL_SESSION_PREFIX)
+            && matches!(
+                std::env::var("KIANA_MEMORY_DISTILL_AUTO").as_deref(),
+                Ok("1" | "true")
+            );
+        let mut distill_context = context.clone();
+        distill_context.request_id = kiana_domain::RequestId::new();
         let response = match request.body {
             RequestBody::Command(command) => {
                 self.core
@@ -364,6 +577,12 @@ impl DaemonHost {
             RequestBody::Continue(run) => {
                 self.core
                     .continue_run(context, run.prompt, run.sandbox, run.run_id)
+                    .await
+            }
+            RequestBody::Resume(run) => self.core.resume_run(context, run.run_id).await,
+            RequestBody::ListApprovals(query) => {
+                self.core
+                    .list_pending_approvals(&context, query.run_id)
                     .await
             }
             RequestBody::Cancel(run) => self.core.cancel_run(context, run.run_id, run.reason).await,
@@ -409,7 +628,7 @@ impl DaemonHost {
                 error: Some(error.to_string()),
             },
         };
-        if response.status.is_terminal() {
+        if publish_run_response && response.status.is_terminal() {
             if let Some(run_id) = response
                 .output
                 .get("run_id")
@@ -418,6 +637,23 @@ impl DaemonHost {
             {
                 self.run_stream.publish_terminal(run_id, response.clone());
             }
+        }
+        if auto_distill
+            && matches!(
+                response.status,
+                kiana_domain::ExecutionStatus::Completed
+                    | kiana_domain::ExecutionStatus::Failed
+                    | kiana_domain::ExecutionStatus::Cancelled
+                    | kiana_domain::ExecutionStatus::ResultUnknown
+            )
+        {
+            let _ = self
+                .core
+                .handle_memory_distillation(
+                    distill_context,
+                    serde_json::json!({"action":"consume"}),
+                )
+                .await;
         }
         response
     }
@@ -537,6 +773,34 @@ fn invalid_runtime_config(name: &str) -> PortError {
     ))
 }
 
+fn request_may_execute(body: &RequestBody) -> bool {
+    match body {
+        RequestBody::Receipt(_) | RequestBody::ListApprovals(_) => false,
+        RequestBody::Command(command) => match command.name.as_str() {
+            "company.snapshot.v1"
+            | "company.next.v1"
+            | "workflow.snapshot.v1"
+            | "swarm.snapshot.v1"
+            | "human.inbox"
+            | "failure.incidents"
+            | "feedback.list"
+            | "version.drift"
+            | "trace.replay"
+            | "memory.proposals"
+            | "workspace.checkpoint.list"
+            | "workspace.checkpoint.preview" => false,
+            "memory.distill" | "extension.manage" | "connector.manage" | "data.governance" => {
+                !matches!(
+                    command.arguments["action"].as_str(),
+                    None | Some("list" | "show" | "status" | "inspect" | "preview")
+                )
+            }
+            _ => true,
+        },
+        _ => true,
+    }
+}
+
 fn effective_permission_profile(
     body: &RequestBody,
     declared: PermissionProfile,
@@ -550,11 +814,13 @@ fn effective_permission_profile(
         RequestBody::Symposium(request) => {
             permission_profile_for_sandbox(request.sandbox.as_deref())
         }
-        RequestBody::ApprovalDecision(_) => declared,
+        RequestBody::ApprovalDecision(_)
+        | RequestBody::Resume(_)
+        | RequestBody::ListApprovals(_) => declared,
         RequestBody::Review(_) | RequestBody::Close(_) => PermissionProfile::Balanced,
-        RequestBody::Command(_) | RequestBody::Cancel(_) | RequestBody::Receipt(_) => {
-            PermissionProfile::Safe
-        }
+        RequestBody::Command(_) => declared,
+        RequestBody::Cancel(_) => declared,
+        RequestBody::Receipt(_) => PermissionProfile::Safe,
     }
 }
 

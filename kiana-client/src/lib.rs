@@ -38,6 +38,26 @@ where
         Self { transport }
     }
 
+    pub async fn resume_run(
+        &self,
+        metadata: RequestMetadata,
+        run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::resume_run(metadata, run_id))
+            .await
+    }
+
+    pub async fn pending_approvals(
+        &self,
+        metadata: RequestMetadata,
+        run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::pending_approvals(metadata, run_id))
+            .await
+    }
+
     /// 发送通用命令请求；命令名称和参数不会在客户端本地解释。
     pub async fn command(
         &self,

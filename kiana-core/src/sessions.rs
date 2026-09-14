@@ -2,10 +2,62 @@ use super::redaction::redact_event_value;
 use super::*;
 
 impl ControlPlane {
-    pub async fn send_runner(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, CoreError> {
-        Ok(self.runner.send(command).await?)
+    /// A session selects its role once at the authenticated daemon boundary.
+    /// Subsequent requests cannot change the assignment by changing wire metadata.
+    pub async fn bind_session_assignment(&self, context: &RequestContext) -> Result<(), CoreError> {
+        let role = RoleSpec::lookup(&context.role_id)
+            .ok_or_else(|| PortError::Failed("role_unknown".to_owned()))?;
+        let assignment = json!({"schema":"kiana.session-assignment.v1","session_id":context.session_id,
+            "actor_id":context.actor_id,"project_root":Self::canonical_project_root(&context.project_root),
+            "role_id":role.role_id,"department_id":role.department_id,"prompt_hash":role.prompt_hash,
+            "model_profile":role.model_profile});
+        let key = kiana_domain::json_digest(
+            &json!({"session_id":context.session_id,"project_root":Self::canonical_project_root(&context.project_root)}),
+        );
+        for _ in 0..4 {
+            let prior = self.events.read_stream("session_assignment", &key).await?;
+            if let Some(event) = prior.first() {
+                if event.data != assignment {
+                    return Err(
+                        PortError::Conflict("session_assignment_mismatch".to_owned()).into(),
+                    );
+                }
+                return Ok(());
+            }
+            let event =
+                RuntimeEvent::new(RequestId::new(), 1, "session.assigned", assignment.clone())?
+                    .with_stream_metadata("session_assignment", &key, 1);
+            match self.events.append_expected(event, Some(0)).await {
+                Ok(()) => return Ok(()),
+                Err(PortError::Conflict(_)) => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(PortError::Conflict("session_assignment_contention".to_owned()).into())
     }
-
+    pub(crate) async fn await_capability_stop(&self, run_id: RunId) -> bool {
+        let receiver = self
+            .capability_stops
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&run_id)
+            .map(watch::Sender::subscribe);
+        let Some(mut receiver) = receiver else {
+            return true;
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                if let Some(confirmed) = *receiver.borrow() {
+                    return confirmed;
+                }
+                if receiver.changed().await.is_err() {
+                    return false;
+                }
+            }
+        })
+        .await
+        .unwrap_or(false)
+    }
     pub(crate) async fn resolve_run_id(
         &self,
         context: &RequestContext,
@@ -278,36 +330,67 @@ fn durable_path_lock_path(project_root: &str, path: &str) -> PathBuf {
     durable_path_lock_root().join(format!("{:016x}.lock", hasher.finish()))
 }
 
-fn acquire_durable_path_locks(
+pub(crate) fn acquire_durable_path_locks(
     project_root: &str,
     paths: &[String],
 ) -> Result<Vec<PathLockLease>, &'static str> {
     let root = durable_path_lock_root();
     fs::create_dir_all(&root).map_err(|_| "path_lock_unavailable")?;
-    let mut leases = Vec::with_capacity(paths.len());
+    // Shared ancestor locks and an exclusive leaf lock detect file/directory overlap
+    // across processes while allowing unrelated subtrees to proceed concurrently.
+    let mut modes = std::collections::BTreeMap::<String, bool>::new();
     for path in paths {
-        let lock_path = durable_path_lock_path(project_root, path);
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
+        let normalized = kiana_domain::normalize_role_path(path).ok_or("path_lock_invalid")?;
+        modes.entry(".".to_owned()).or_insert(false);
+        let mut ancestor = Path::new(&normalized).parent();
+        while let Some(parent) = ancestor {
+            let text = parent.to_string_lossy();
+            if !text.is_empty() {
+                modes.entry(text.into_owned()).or_insert(false);
+            }
+            ancestor = parent.parent();
+        }
+        modes.insert(normalized, true);
+    }
+    let mut leases = Vec::with_capacity(modes.len());
+    for (path, exclusive) in modes {
+        let lock_path = durable_path_lock_path(project_root, &path);
+        let mut options = OpenOptions::new();
+        options.create(true).truncate(false).read(true).write(true);
+        #[cfg(unix)]
+        options.custom_flags(libc::O_NOFOLLOW).mode(0o600);
+        let file = options
             .open(lock_path)
             .map_err(|_| "path_lock_unavailable")?;
-        if !try_lock_path_file(&file) {
-            return Err("path_lock_conflict");
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsRawFd;
+            let mode = if exclusive {
+                libc::LOCK_EX
+            } else {
+                libc::LOCK_SH
+            };
+            if unsafe { libc::flock(file.as_raw_fd(), mode | libc::LOCK_NB) } != 0 {
+                return Err("path_lock_conflict");
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = exclusive;
+            return Err("path_lock_platform_unsupported");
         }
         leases.push(PathLockLease { _file: file });
     }
     Ok(leases)
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, test))]
 fn try_lock_path_file(file: &File) -> bool {
     use std::os::fd::AsRawFd;
     unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) == 0 }
 }
 
-#[cfg(not(unix))]
+#[cfg(all(not(unix), test))]
 fn try_lock_path_file(_file: &File) -> bool {
     true
 }

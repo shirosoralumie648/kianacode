@@ -8,19 +8,24 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, AgentTemplate, ApprovalChallenge, ApprovalDecision, ApprovalId,
-    ArtifactId, BudgetLease, BudgetLeaseId, CapabilityExecutionState, CapabilityGrant,
-    CapabilityGrantId, CellId, CellLifecycle, CellSpec, ClosingReceipt, DelegationId,
-    DelegationPacket, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt, OrganizationId,
-    PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, SessionId,
-    SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId,
-    WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH,
-    REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
-    WORK_PACKET_SCHEMA,
+    ArtifactId, BudgetLease, BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy,
+    CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec,
+    ClosingReceipt, DelegationId, DelegationPacket, ExecutionId, ExecutionStatus, InvocationId,
+    MergeReceipt, OrganizationId, PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel,
+    RoleSpec, RunId, SessionId, SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId,
+    Symposium, TemplateId, TurnId, WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING,
+    DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER,
+    ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub use kiana_domain::{CapabilityRequest, ConversationMessage, ConversationRole};
+
+pub use kiana_domain::{
+    CompanyClosingReceipt, CompanyCommand, CompanyCommandRequest, CompanyState, COMPANY_COMMAND,
+    COMPANY_COMMAND_SCHEMA, COMPANY_SNAPSHOT, COMPANY_STATE_SCHEMA,
+};
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
 
@@ -94,6 +99,50 @@ pub struct RequestEnvelope {
 
 impl RequestEnvelope {
     /// 构造通用命令 envelope。
+    /// Submit a versioned Company business command through the existing command route.
+    pub fn company_command(
+        metadata: RequestMetadata,
+        request: CompanyCommandRequest,
+    ) -> Result<Self, serde_json::Error> {
+        Ok(Self::command(
+            metadata,
+            COMPANY_COMMAND,
+            serde_json::to_value(request)?,
+        ))
+    }
+
+    /// Read the event-derived Company state for this principal and workspace.
+    pub fn company_snapshot(metadata: RequestMetadata) -> Self {
+        Self::command(metadata, COMPANY_SNAPSHOT, serde_json::json!({}))
+    }
+
+    pub fn workflow_command(
+        metadata: RequestMetadata,
+        request: AutomationCommandRequest,
+    ) -> Result<Self, serde_json::Error> {
+        Ok(Self::command(
+            metadata,
+            AUTOMATION_COMMAND,
+            serde_json::to_value(request)?,
+        ))
+    }
+    pub fn workflow_snapshot(metadata: RequestMetadata) -> Self {
+        Self::command(metadata, AUTOMATION_SNAPSHOT, serde_json::json!({}))
+    }
+    pub fn swarm_command(
+        metadata: RequestMetadata,
+        request: SwarmCommandRequest,
+    ) -> Result<Self, serde_json::Error> {
+        Ok(Self::command(
+            metadata,
+            SWARM_COMMAND,
+            serde_json::to_value(request)?,
+        ))
+    }
+    pub fn swarm_snapshot(metadata: RequestMetadata) -> Self {
+        Self::command(metadata, SWARM_SNAPSHOT, serde_json::json!({}))
+    }
+
     pub fn command(metadata: RequestMetadata, name: impl Into<String>, arguments: Value) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
@@ -170,6 +219,20 @@ impl RequestEnvelope {
     }
 
     /// 构造 continue envelope。
+    /// Negotiated v2 turn semantics; the v1 Continue request retains its old wire behavior.
+    pub fn new_turn(
+        metadata: RequestMetadata,
+        prompt: impl Into<String>,
+        sandbox: Option<String>,
+        run_id: Option<RunId>,
+    ) -> Self {
+        Self::command(
+            metadata,
+            "run.turn.v2",
+            serde_json::json!({"prompt":prompt.into(),"sandbox":sandbox,"run_id":run_id}),
+        )
+    }
+
     pub fn continue_run(
         metadata: RequestMetadata,
         prompt: impl Into<String>,
@@ -286,6 +349,10 @@ pub enum RequestBody {
     Run(RunRequest),
     /// 继续 run。
     Continue(ContinueRequest),
+    /// Explicitly restore a paused run from the event ledger.
+    Resume(ResumeRequest),
+    /// Read the same pending approvals from every surface.
+    ListApprovals(ApprovalListRequest),
     /// 取消 run。
     Cancel(CancelRequest),
     /// 读取 receipt。
@@ -307,6 +374,36 @@ pub struct CommandRequest {
     pub name: String,
     /// 命令参数。
     pub arguments: Value,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ResumeRequest {
+    #[serde(default)]
+    pub run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ApprovalListRequest {
+    #[serde(default)]
+    pub run_id: Option<RunId>,
+}
+
+impl RequestEnvelope {
+    pub fn resume_run(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Resume(ResumeRequest { run_id }),
+        }
+    }
+
+    pub fn pending_approvals(metadata: RequestMetadata, run_id: Option<RunId>) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::ListApprovals(ApprovalListRequest { run_id }),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -419,6 +516,35 @@ pub struct ResponseEnvelope {
 }
 
 impl ResponseEnvelope {
+    /// Stable failure classification shared by CLI and HTTP adapters.
+    ///
+    /// Lifecycle remains authoritative: an unknown result always requires
+    /// reconciliation, even when its diagnostic text resembles another error.
+    /// A response with an error is never classified as successful.
+    pub fn failure_code(&self) -> Option<CapabilityErrorCode> {
+        match self.status {
+            ExecutionStatus::ResultUnknown => Some(CapabilityErrorCode::ResultUnknown),
+            ExecutionStatus::Cancelled => Some(CapabilityErrorCode::Cancelled),
+            ExecutionStatus::AwaitingApproval => Some(CapabilityErrorCode::ApprovalRequired),
+            _ => self
+                .error
+                .as_deref()
+                .map(CapabilityErrorCode::from_reason)
+                .or_else(|| match self.status {
+                    ExecutionStatus::Blocked | ExecutionStatus::Denied => {
+                        Some(CapabilityErrorCode::PermissionDenied)
+                    }
+                    ExecutionStatus::Failed => Some(CapabilityErrorCode::ExecutionFailed),
+                    _ => None,
+                }),
+        }
+    }
+
+    /// Uniform exit/status/recovery mapping, without authorizing an attempt.
+    pub fn failure_policy(&self) -> Option<CapabilityErrorPolicy> {
+        self.failure_code().map(CapabilityErrorCode::policy)
+    }
+
     /// 将 core 的内部响应投影为 wire 响应。
     pub fn from_core(response: CoreResponse) -> Self {
         Self {
@@ -450,6 +576,15 @@ impl ResponseEnvelope {
 pub struct RunStreamEnvelope {
     /// 事件使用的协议 schema；与请求/响应保持同一个 `kiana.protocol.v1`。
     pub schema: String,
+    /// Opaque daemon incarnation. A changed epoch requires snapshot hydration.
+    #[serde(default)]
+    pub epoch: String,
+    /// Monotonic per-run display cursor within an epoch; zero is a legacy envelope.
+    #[serde(default)]
+    pub sequence: u64,
+    /// UI revision at publication, used to fence an older in-flight snapshot.
+    #[serde(default)]
+    pub ui_cursor: u64,
     /// 运行中事件。
     pub event: RunStreamEvent,
 }
@@ -459,8 +594,35 @@ impl RunStreamEnvelope {
     pub fn new(event: RunStreamEvent) -> Self {
         Self {
             schema: PROTOCOL_SCHEMA.to_owned(),
+            epoch: String::new(),
+            sequence: 0,
+            ui_cursor: 0,
             event,
         }
+    }
+
+    /// Reject changed incarnations and gaps; repeated deliveries are harmless.
+    pub fn advance_cursor(&self, cursor: &mut UiCursor) -> Result<bool, &'static str> {
+        if self.sequence == 0 && self.epoch.is_empty() {
+            return Ok(true);
+        }
+        if self.sequence == 0 || self.epoch.is_empty() {
+            return Err("stream_cursor_invalid");
+        }
+        if !cursor.epoch.is_empty() && cursor.epoch != self.epoch {
+            return Err("stream_epoch_changed");
+        }
+        if cursor.epoch == self.epoch && self.sequence <= cursor.sequence {
+            return Ok(false);
+        }
+        if cursor.sequence != 0 && self.sequence != cursor.sequence.saturating_add(1) {
+            return Err("stream_sequence_gap");
+        }
+        *cursor = UiCursor {
+            epoch: self.epoch.clone(),
+            sequence: self.sequence,
+        };
+        Ok(true)
     }
 }
 
@@ -486,9 +648,46 @@ pub enum RunStreamEvent {
         /// 最终响应 envelope。
         response: ResponseEnvelope,
     },
+    /// A projection of an already committed usage record.
+    Usage { run_id: RunId, data: Value },
+    /// A committed tool request; never an instruction for the UI to execute it.
+    ToolCall { run_id: RunId, data: Value },
+    /// An approval recorded by ControlPlane. Decisions still require challenge proof.
+    ApprovalRequested { run_id: RunId, data: Value },
+    /// A recorded error; it does not imply the run has reached a terminal state.
+    Error { run_id: RunId, data: Value },
     /// 当前客户端不认识的未来事件类型；必须忽略而不是拒绝整个通道。
     #[serde(other)]
     Unknown,
+}
+
+/// Version of the daemon's disposable UI projection, not an execution authority.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UiCursor {
+    pub epoch: String,
+    pub sequence: u64,
+}
+
+/// Optimistic precondition for one explicit human action. Core still authorizes it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UiAction {
+    pub target_id: String,
+    pub expected_epoch: String,
+    pub expected_cursor: u64,
+    pub idempotency_key: String,
+}
+
+/// Server-owned projection of one session's event facts.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UiSnapshot {
+    pub schema: String,
+    pub cursor: UiCursor,
+    pub session_id: String,
+    pub run_id: Option<RunId>,
+    /// Current tail of the independent display stream; it is not a ledger cursor.
+    pub stream_cursor: Option<UiCursor>,
+    pub status: Option<ExecutionStatus>,
+    pub pending_actions: Vec<Value>,
 }
 
 #[cfg(test)]
@@ -707,3 +906,13 @@ mod tests {
         );
     }
 }
+
+pub use kiana_domain::{
+    AutomationCommand, AutomationCommandRequest, AutomationState, TriggerDefinition,
+    WorkflowDefinition, AUTOMATION_COMMAND, AUTOMATION_SCHEMA, AUTOMATION_SNAPSHOT,
+};
+
+pub use kiana_domain::{
+    SwarmCommand, SwarmCommandRequest, SwarmPlan, SwarmState, SWARM_COMMAND, SWARM_SCHEMA,
+    SWARM_SNAPSHOT,
+};

@@ -1,92 +1,397 @@
-//! In-process run event fan-out for additive streaming clients.
-//!
-//! The bus is a display projection only. It never writes the event ledger and it does not
-//! replace receipts. A runner is switched to the real-time sink path only when at least one
-//! subscriber already exists for the run; otherwise the original `RunnerPort::send` path is
-//! preserved.
+//! Disposable, bounded projections of committed events and live model deltas.
+//! Terminal replay and cursors never authorize or repeat an execution.
 
 use async_trait::async_trait;
-use kiana_ports::{PortError, RunnerPort};
-use kiana_protocol::{ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent};
+use kiana_domain::{RequestId, RuntimeEvent};
+use kiana_ports::{EventAppendResult, EventStorePort, PortError, RunnerPort};
+use kiana_protocol::{
+    ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiAction, UiCursor,
+};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 
 const RUN_STREAM_CAPACITY: usize = 256;
+const MAX_RETAINED_RUNS: usize = 128;
+const TERMINAL_RETENTION: Duration = Duration::from_secs(600);
+const MAX_TERMINAL_BYTES: usize = 256 * 1024;
+const MAX_ACTION_KEYS: usize = 1024;
 
-#[derive(Default)]
+struct RunChannel {
+    sender: broadcast::Sender<RunStreamEnvelope>,
+    sequence: u64,
+    terminal: Option<RunStreamEnvelope>,
+    touched: Instant,
+}
+
+impl RunChannel {
+    fn new() -> Self {
+        Self {
+            sender: broadcast::channel(RUN_STREAM_CAPACITY).0,
+            sequence: 0,
+            terminal: None,
+            touched: Instant::now(),
+        }
+    }
+}
+
+struct BusState {
+    channels: HashMap<RunId, RunChannel>,
+    ui_sequence: u64,
+    action_keys: VecDeque<String>,
+}
+
 pub(crate) struct RunStreamBus {
-    channels: Mutex<HashMap<RunId, broadcast::Sender<RunStreamEnvelope>>>,
+    epoch: String,
+    state: Mutex<BusState>,
+}
+
+impl Default for RunStreamBus {
+    fn default() -> Self {
+        Self {
+            epoch: RunId::new().to_string(),
+            state: Mutex::new(BusState {
+                channels: HashMap::new(),
+                ui_sequence: 0,
+                action_keys: VecDeque::new(),
+            }),
+        }
+    }
 }
 
 impl RunStreamBus {
+    fn prune(state: &mut BusState, keep: RunId) {
+        state.channels.retain(|id, channel| {
+            *id == keep
+                || channel.sender.receiver_count() > 0
+                || channel.touched.elapsed() < TERMINAL_RETENTION
+        });
+        while state.channels.len() >= MAX_RETAINED_RUNS && !state.channels.contains_key(&keep) {
+            let oldest = state
+                .channels
+                .iter()
+                .min_by_key(|(_, channel)| (channel.sender.receiver_count() > 0, channel.touched))
+                .map(|(id, _)| *id);
+            if let Some(id) = oldest {
+                state.channels.remove(&id);
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub(crate) fn ui_cursor(&self) -> UiCursor {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        UiCursor {
+            epoch: self.epoch.clone(),
+            sequence: state.ui_sequence,
+        }
+    }
+
+    pub(crate) fn run_cursor(&self, run_id: RunId) -> UiCursor {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        UiCursor {
+            epoch: self.epoch.clone(),
+            sequence: state
+                .channels
+                .get(&run_id)
+                .map_or(0, |channel| channel.sequence),
+        }
+    }
+
+    /// Atomically reject stale and repeated UI mutations before handing them to core.
+    pub(crate) fn claim_ui_action(&self, action: &UiAction) -> Result<UiCursor, PortError> {
+        if action.target_id.trim().is_empty()
+            || action.target_id.len() > 256
+            || action.idempotency_key.trim().is_empty()
+            || action.idempotency_key.len() > 256
+        {
+            return Err(PortError::Failed("ui_action_invalid".to_owned()));
+        }
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if action.expected_epoch != self.epoch || action.expected_cursor != state.ui_sequence {
+            return Err(PortError::Conflict("ui_action_stale".to_owned()));
+        }
+        if state.action_keys.contains(&action.idempotency_key) {
+            return Err(PortError::Conflict("ui_action_replayed".to_owned()));
+        }
+        state.ui_sequence = state
+            .ui_sequence
+            .checked_add(1)
+            .ok_or_else(|| PortError::Failed("ui_cursor_exhausted".to_owned()))?;
+        state.action_keys.push_back(action.idempotency_key.clone());
+        if state.action_keys.len() > MAX_ACTION_KEYS {
+            state.action_keys.pop_front();
+        }
+        Ok(UiCursor {
+            epoch: self.epoch.clone(),
+            sequence: state.ui_sequence,
+        })
+    }
+
     fn has_subscribers(&self, run_id: RunId) -> bool {
-        let channels = self.channels.lock().unwrap_or_else(PoisonError::into_inner);
-        channels
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .channels
             .get(&run_id)
-            .is_some_and(|sender| sender.receiver_count() > 0)
+            .is_some_and(|channel| channel.sender.receiver_count() > 0)
+    }
+
+    pub(crate) fn begin_turn(&self, run_id: RunId) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        Self::prune(&mut state, run_id);
+        let channel = state.channels.entry(run_id).or_insert_with(RunChannel::new);
+        channel.terminal = None;
+        channel.touched = Instant::now();
     }
 
     pub(crate) fn subscribe(&self, run_id: RunId) -> RunStreamSubscription {
-        let mut channels = self.channels.lock().unwrap_or_else(PoisonError::into_inner);
-        channels.retain(|_, sender| sender.receiver_count() > 0);
-        let sender = channels
-            .entry(run_id)
-            .or_insert_with(|| broadcast::channel(RUN_STREAM_CAPACITY).0)
-            .clone();
+        self.subscribe_after(run_id, None)
+    }
+
+    pub(crate) fn subscribe_after(
+        &self,
+        run_id: RunId,
+        after: Option<&UiCursor>,
+    ) -> RunStreamSubscription {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        Self::prune(&mut state, run_id);
+        let channel = state.channels.entry(run_id).or_insert_with(RunChannel::new);
+        let mut replay = VecDeque::new();
+        let same_epoch = after.is_none_or(|cursor| cursor.epoch == self.epoch);
+        let last_sequence = after
+            .filter(|_| same_epoch)
+            .map_or(0, |cursor| cursor.sequence);
+        let gap = !same_epoch
+            || after.is_some_and(|cursor| cursor.sequence > channel.sequence)
+            || channel.sequence > last_sequence;
+        if let Some(terminal) = &channel.terminal {
+            if !same_epoch || terminal.sequence > last_sequence {
+                replay.push_back(terminal.clone());
+            }
+        }
         RunStreamSubscription {
             run_id,
-            receiver: sender.subscribe(),
+            receiver: channel.sender.subscribe(),
+            replay,
+            gap,
+            cursor: UiCursor {
+                epoch: self.epoch.clone(),
+                sequence: channel.sequence,
+            },
         }
     }
 
     pub(crate) fn publish_delta(&self, run_id: RunId, text: String) {
-        self.publish(run_id, RunStreamEvent::Delta { run_id, text }, false);
+        self.publish(run_id, RunStreamEvent::Delta { run_id, text });
     }
 
-    pub(crate) fn publish_terminal(&self, run_id: RunId, response: ResponseEnvelope) {
-        self.publish(run_id, RunStreamEvent::Terminal { run_id, response }, true);
+    pub(crate) fn publish_terminal(&self, run_id: RunId, mut response: ResponseEnvelope) {
+        if serde_json::to_vec(&response).map_or(true, |bytes| bytes.len() > MAX_TERMINAL_BYTES) {
+            response.output =
+                serde_json::json!({"run_id": run_id, "stream_projection_truncated": true});
+            if let Some(error) = response.error.as_mut() {
+                *error = error.chars().take(4096).collect();
+            }
+        }
+        self.publish(run_id, RunStreamEvent::Terminal { run_id, response });
     }
 
-    fn publish(&self, run_id: RunId, event: RunStreamEvent, terminal: bool) {
-        let sender = {
-            let mut channels = self.channels.lock().unwrap_or_else(PoisonError::into_inner);
-            channels.retain(|_, sender| sender.receiver_count() > 0);
-            channels.get(&run_id).cloned()
-        };
-        let Some(sender) = sender else {
+    fn publish(&self, run_id: RunId, event: RunStreamEvent) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        Self::prune(&mut state, run_id);
+        if state
+            .channels
+            .get(&run_id)
+            .is_some_and(|channel| channel.terminal.is_some())
+        {
+            return;
+        }
+        let terminal = matches!(event, RunStreamEvent::Terminal { .. });
+        let advances_ui = terminal || matches!(event, RunStreamEvent::ApprovalRequested { .. });
+        if advances_ui {
+            state.ui_sequence = state.ui_sequence.saturating_add(1);
+        }
+        let ui_cursor = state.ui_sequence;
+        let channel = state.channels.entry(run_id).or_insert_with(RunChannel::new);
+        let Some(sequence) = channel.sequence.checked_add(1) else {
             return;
         };
-        let _ = sender.send(RunStreamEnvelope::new(event));
+        channel.sequence = sequence;
+        channel.touched = Instant::now();
+        let envelope = RunStreamEnvelope {
+            schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+            epoch: self.epoch.clone(),
+            sequence,
+            ui_cursor,
+            event,
+        };
         if terminal {
-            self.channels
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .remove(&run_id);
+            channel.terminal = Some(envelope.clone());
         }
+        let _ = channel.sender.send(envelope);
+    }
+
+    fn project_committed(&self, event: &RuntimeEvent) {
+        // CLI and other clients also change the facts represented by a Web snapshot.
+        // Advance the projection cursor even when this fact has no token-stream payload.
+        {
+            let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+            state.ui_sequence = state.ui_sequence.saturating_add(1);
+        }
+        let Some(run_id) = event
+            .data
+            .get("run_id")
+            .and_then(serde_json::Value::as_str)
+            .and_then(RunId::parse_str)
+        else {
+            return;
+        };
+        let data = event.data.clone();
+        let projection = match event.kind.as_str() {
+            "run.usage" | "model.usage" | "provider.usage" | "usage.recorded"
+            | "run.model_turn" => RunStreamEvent::Usage { run_id, data },
+            "run.capability_requested" | "run.tool_result" => {
+                RunStreamEvent::ToolCall { run_id, data }
+            }
+            "approval.requested" => RunStreamEvent::ApprovalRequested { run_id, data },
+            "run.failed"
+            | "run.result_unknown"
+            | "capability.failed"
+            | "capability.result_unknown" => RunStreamEvent::Error { run_id, data },
+            _ => return,
+        };
+        self.publish(run_id, projection);
     }
 }
 
-/// 一个按 run ID 过滤的进程内订阅。
-///
-/// 订阅必须在该 run 开始前建立才能观察到运行中的 `delta`。终态事件在现有订阅者上发送；
-/// 订阅者掉线或落后时，调用方应以 Receipt 重新对账，不能把已收到的增量当作完成事实。
+/// Subscriptions atomically attach a receiver and capture a bounded terminal replay.
+/// Missing deltas are signalled as a gap; they are never silently replayed.
 #[derive(Debug)]
 pub struct RunStreamSubscription {
     run_id: RunId,
     receiver: broadcast::Receiver<RunStreamEnvelope>,
+    replay: VecDeque<RunStreamEnvelope>,
+    gap: bool,
+    cursor: UiCursor,
 }
 
 impl RunStreamSubscription {
-    /// 返回订阅对应的 run ID。
     pub const fn run_id(&self) -> RunId {
         self.run_id
     }
-
-    /// 等待下一条运行中事件。
+    pub const fn has_gap(&self) -> bool {
+        self.gap
+    }
+    pub fn cursor(&self) -> &UiCursor {
+        &self.cursor
+    }
     pub async fn recv(&mut self) -> Result<RunStreamEnvelope, broadcast::error::RecvError> {
+        if let Some(envelope) = self.replay.pop_front() {
+            return Ok(envelope);
+        }
         self.receiver.recv().await
+    }
+}
+
+/// Transparently forwards every event-store guarantee; only committed fresh appends fan out.
+pub(crate) struct StreamEventStore {
+    inner: Arc<dyn EventStorePort>,
+    bus: Arc<RunStreamBus>,
+}
+impl StreamEventStore {
+    pub(crate) fn wrap(
+        inner: Arc<dyn EventStorePort>,
+        bus: Arc<RunStreamBus>,
+    ) -> Arc<dyn EventStorePort> {
+        Arc::new(Self { inner, bus })
+    }
+}
+#[async_trait]
+impl EventStorePort for StreamEventStore {
+    fn supports_atomic_transitions(&self) -> bool {
+        self.inner.supports_atomic_transitions()
+    }
+    fn capabilities(&self) -> kiana_domain::EventStoreCapabilities {
+        self.inner.capabilities()
+    }
+    async fn commit_transition(
+        &self,
+        batch: kiana_domain::TransitionBatch,
+    ) -> Result<kiana_domain::CommitOutcome, PortError> {
+        let events = batch.events.clone();
+        let outcome = self.inner.commit_transition(batch).await?;
+        if matches!(&outcome, kiana_domain::CommitOutcome::Committed { .. }) {
+            for event in events {
+                self.bus.project_committed(&event);
+            }
+        }
+        Ok(outcome)
+    }
+    async fn read_command(
+        &self,
+        id: &kiana_domain::RequestId,
+    ) -> Result<Option<kiana_domain::CommandReceipt>, PortError> {
+        self.inner.read_command(id).await
+    }
+    async fn read_from(
+        &self,
+        cursor: u64,
+        limit: usize,
+    ) -> Result<kiana_domain::JournalPage, PortError> {
+        self.inner.read_from(cursor, limit).await
+    }
+
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event.clone()).await?;
+        self.bus.project_committed(&event);
+        Ok(())
+    }
+    async fn append_expected(
+        &self,
+        event: RuntimeEvent,
+        expected: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.inner.append_expected(event.clone(), expected).await?;
+        self.bus.project_committed(&event);
+        Ok(())
+    }
+    async fn append_idempotent(&self, event: RuntimeEvent) -> Result<EventAppendResult, PortError> {
+        let result = self.inner.append_idempotent(event).await?;
+        if !result.replayed {
+            self.bus.project_committed(&result.event);
+        }
+        Ok(result)
+    }
+    async fn append_idempotent_expected(
+        &self,
+        event: RuntimeEvent,
+        expected: Option<u64>,
+    ) -> Result<EventAppendResult, PortError> {
+        let result = self
+            .inner
+            .append_idempotent_expected(event, expected)
+            .await?;
+        if !result.replayed {
+            self.bus.project_committed(&result.event);
+        }
+        Ok(result)
+    }
+    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_request(request_id).await
+    }
+    async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_all().await
+    }
+    async fn read_stream(
+        &self,
+        aggregate_type: &str,
+        aggregate_id: &str,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_stream(aggregate_type, aggregate_id).await
     }
 }
 
@@ -94,24 +399,57 @@ pub(crate) struct RunStreamRunner {
     inner: Arc<dyn RunnerPort>,
     bus: Arc<RunStreamBus>,
 }
-
 impl RunStreamRunner {
     pub(crate) fn wrap(inner: Arc<dyn RunnerPort>, bus: Arc<RunStreamBus>) -> Arc<dyn RunnerPort> {
         Arc::new(Self { inner, bus })
     }
-
+    fn prepare(&self, command: &RunnerCommand) {
+        if matches!(
+            command,
+            RunnerCommand::Start { .. } | RunnerCommand::Continue { .. }
+        ) {
+            self.bus.begin_turn(command.run_id());
+        }
+    }
     fn publish_runner_delta(&self, event: &RunnerEvent) {
         if let RunnerEvent::Delta { run_id, text } = event {
             self.bus.publish_delta(*run_id, text.clone());
         }
     }
 }
-
 #[async_trait]
 impl RunnerPort for RunStreamRunner {
+    fn bind_model_history(
+        &self,
+        run_id: kiana_domain::RunId,
+        history: Vec<kiana_domain::ModelMessage>,
+    ) -> Result<(), PortError> {
+        self.inner.bind_model_history(run_id, history)
+    }
+    fn bind_model_assignment(
+        &self,
+        run_id: kiana_domain::RunId,
+        assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        self.inner.bind_model_assignment(run_id, assignment)
+    }
+    fn install_model_budget(
+        &self,
+        budget: Arc<dyn kiana_ports::ModelBudgetPort>,
+    ) -> Result<(), PortError> {
+        self.inner.install_model_budget(budget)
+    }
+
+    async fn checkpoint(&self, run_id: RunId) -> Result<serde_json::Value, PortError> {
+        self.inner.checkpoint(run_id).await
+    }
+    async fn restore(&self, run_id: RunId, checkpoint: serde_json::Value) -> Result<(), PortError> {
+        self.inner.restore(run_id, checkpoint).await
+    }
+
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
-        let run_id = command.run_id();
-        if !self.bus.has_subscribers(run_id) {
+        self.prepare(&command);
+        if !self.bus.has_subscribers(command.run_id()) {
             return self.inner.send(command).await;
         }
         self.inner
@@ -121,12 +459,12 @@ impl RunnerPort for RunStreamRunner {
             })
             .await
     }
-
     async fn send_with_events(
         &self,
         command: RunnerCommand,
         on_event: &mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send),
     ) -> Result<Vec<RunnerEvent>, PortError> {
+        self.prepare(&command);
         self.inner
             .send_with_events(command, &mut |event| {
                 self.publish_runner_delta(&event);

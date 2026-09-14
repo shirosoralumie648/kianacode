@@ -50,6 +50,9 @@ pub struct WorkPacket {
     /// 绑定的 budget lease。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub budget_lease_id: Option<BudgetLeaseId>,
+    /// Durable claim; only the ControlPlane may bind or renew its cell owner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim: Option<crate::PacketClaim>,
     /// packet 生命周期状态。
     #[serde(default, skip_serializing_if = "is_draft_status")]
     pub status: WorkPacketStatus,
@@ -99,6 +102,7 @@ impl WorkPacket {
             acceptance_tests: Vec::new(),
             deadline_unix_ms: None,
             budget_lease_id: None,
+            claim: None,
             status: WorkPacketStatus::Draft,
             from_department: default_from_department(),
             to_department: default_department_id(),

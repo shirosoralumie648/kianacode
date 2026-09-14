@@ -5,7 +5,7 @@
 //! 必须按 run ID 关联。`project_trusted`、sandbox 和 instructions 是上游快照/输入，不是
 //! runner 自行授予权限的依据。
 
-use kiana_domain::{CapabilityRequest, CapabilityResult, ConversationMessage, RunId};
+use kiana_domain::{CapabilityRequest, CapabilityResult, ConversationMessage, RequestId, RunId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -173,6 +173,19 @@ impl RunnerCommand {
 #[serde(tag = "event", rename_all = "snake_case")]
 /// runner 返回给 daemon 的事件。
 pub enum RunnerEvent {
+    ToolCancelled {
+        run_id: RunId,
+        request_id: RequestId,
+        call_id: String,
+        result: Value,
+    },
+    /// Effective model request provenance and provider usage for each step, including tool turns.
+    ModelTurn {
+        run_id: RunId,
+        step: u32,
+        metadata: Value,
+    },
+
     /// run 已接受并开始。
     Started {
         /// 对应 run ID。
@@ -224,6 +237,8 @@ impl RunnerEvent {
     pub const fn run_id(&self) -> RunId {
         match self {
             Self::Started { run_id }
+            | Self::ToolCancelled { run_id, .. }
+            | Self::ModelTurn { run_id, .. }
             | Self::Delta { run_id, .. }
             | Self::CapabilityRequested { run_id, .. }
             | Self::Completed { run_id, .. }

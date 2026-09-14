@@ -6,7 +6,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use kiana_daemon::{RunStreamSubscription, StreamingRedactor};
-use kiana_protocol::{ResponseEnvelope, RunId, RunStreamEvent};
+use kiana_protocol::{ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiCursor};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -48,7 +48,7 @@ pub(crate) async fn run_envelope(
             }
             event = subscription.recv() => {
                 let event = event.map_err(stream_recv_error)?;
-                if let Some(response) = renderer.handle_event(run_id, event.event)? {
+                if let Some(response) = renderer.handle_envelope(run_id, event)? {
                     return Ok(response);
                 }
             }
@@ -63,7 +63,7 @@ async fn wait_for_terminal<W: Write>(
 ) -> Result<ResponseEnvelope> {
     loop {
         let event = subscription.recv().await.map_err(stream_recv_error)?;
-        if let Some(response) = renderer.handle_event(run_id, event.event)? {
+        if let Some(response) = renderer.handle_envelope(run_id, event)? {
             return Ok(response);
         }
     }
@@ -84,6 +84,7 @@ struct StreamRenderer<W: Write> {
     writer: W,
     redactor: StreamingRedactor,
     streamed_text: bool,
+    cursor: UiCursor,
 }
 
 impl<W: Write> StreamRenderer<W> {
@@ -92,7 +93,22 @@ impl<W: Write> StreamRenderer<W> {
             writer,
             redactor: StreamingRedactor::new(),
             streamed_text: false,
+            cursor: UiCursor::default(),
         }
+    }
+
+    fn handle_envelope(
+        &mut self,
+        run_id: RunId,
+        envelope: RunStreamEnvelope,
+    ) -> Result<Option<ResponseEnvelope>> {
+        if !envelope
+            .advance_cursor(&mut self.cursor)
+            .map_err(anyhow::Error::msg)?
+        {
+            return Ok(None);
+        }
+        self.handle_event(run_id, envelope.event)
     }
 
     fn handle_event(
@@ -112,7 +128,11 @@ impl<W: Write> StreamRenderer<W> {
                 self.finish_line()?;
                 Ok(Some(response))
             }
-            RunStreamEvent::Unknown => Ok(None),
+            RunStreamEvent::Usage { .. }
+            | RunStreamEvent::ToolCall { .. }
+            | RunStreamEvent::ApprovalRequested { .. }
+            | RunStreamEvent::Error { .. }
+            | RunStreamEvent::Unknown => Ok(None),
         }
     }
 

@@ -88,6 +88,17 @@ struct ApprovalBinding {
     path_allow: Vec<String>,
 }
 
+impl ApprovalBinding {
+    fn matches_principal(&self, context: &RequestContext) -> bool {
+        context.actor_id.as_deref() == Some(self.actor_id.as_str())
+            && self.session_id == context.session_id
+            && self.project_root == context.project_root
+            && self.project_trusted == context.project_trusted
+            && self.role_id == context.role_id
+            && self.department_id == context.department_id
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct PersistedApprovalRecord {
     pending: PendingApproval,
@@ -146,6 +157,101 @@ impl ProcessApprovalLock {
 
 #[async_trait]
 impl ApprovalStorePort for MemoryApprovalStore {
+    async fn context_for_pending(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+    ) -> Result<RequestContext, PortError> {
+        let mut records = self.records.lock().await;
+        if let Some(path) = &self.path {
+            if path.exists() {
+                *records = load_records(path)?;
+            }
+        }
+        let record = records
+            .get(&approval_id)
+            .ok_or_else(|| PortError::Failed("approval_not_found".to_owned()))?;
+        if !record.binding.matches_principal(context) {
+            return Err(PortError::Failed("approval_context_mismatch".to_owned()));
+        }
+        let mut scope = context.clone();
+        scope.path_allow = record.binding.path_allow.clone();
+        scope.permission_profile = record.binding.permission_profile;
+        scope.cell_id = record.pending.request.cell_id;
+        // Administrative requests must not inherit an unrelated Run's packet identity.
+        if scope.cell_id.is_none() {
+            scope.work_packet_id = None;
+        }
+        Ok(scope)
+    }
+    async fn invalidate_project(
+        &self,
+        project_root: &str,
+        reason: &str,
+    ) -> Result<Vec<ApprovalId>, PortError> {
+        let pending = {
+            let mut records = self.records.lock().await;
+            if let Some(path) = &self.path {
+                if path.exists() {
+                    *records = load_records(path)?;
+                }
+            }
+            records
+                .values()
+                .filter(|record| {
+                    !record.state.is_terminal() && record.binding.project_root == project_root
+                })
+                .map(|record| record.pending.challenge.approval_id)
+                .collect::<Vec<_>>()
+        };
+        let mut records = self.records.lock().await;
+        let mut invalidated = Vec::new();
+        for id in pending {
+            if let Some(record) = records.get_mut(&id) {
+                if record.state.is_terminal() {
+                    continue;
+                }
+                let previous = record.state;
+                record.state = ApprovalState::Cancelled;
+                if let Err(error) = self.persist(id, Some(previous), record) {
+                    record.state = previous;
+                    return Err(error);
+                }
+                invalidated.push(id);
+            }
+        }
+        let _ = reason;
+        Ok(invalidated)
+    }
+    async fn list_pending(
+        &self,
+        context: &RequestContext,
+    ) -> Result<Vec<PendingApproval>, PortError> {
+        let mut records = self.records.lock().await;
+        if let Some(path) = &self.path {
+            // Other frontends may have decided a challenge since this host opened it.
+            if path.exists() {
+                *records = load_records(path)?;
+            }
+        }
+        let mut pending = records
+            .values()
+            .filter(|record| {
+                record.state == ApprovalState::Active
+                    && Instant::now() < record.expires_at
+                    && record.binding.matches_principal(context)
+            })
+            .map(|record| record.pending.clone())
+            .collect::<Vec<_>>();
+        pending.sort_by_key(|pending| {
+            (
+                pending.challenge.expires_at_unix_ms,
+                pending.challenge.approval_id.to_string(),
+            )
+        });
+        Ok(pending)
+    }
+
     async fn stage(
         &self,
         context: &RequestContext,
@@ -259,7 +365,30 @@ impl ApprovalStorePort for MemoryApprovalStore {
         request_hash: Option<&str>,
         nonce: Option<&str>,
     ) -> Result<PendingApproval, PortError> {
+        self.decide_with_proof(
+            context,
+            approval_id,
+            kiana_domain::ApprovalDecision::Approve,
+            request_hash,
+            nonce,
+        )
+        .await
+    }
+
+    async fn decide_with_proof(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        decision: kiana_domain::ApprovalDecision,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+    ) -> Result<PendingApproval, PortError> {
         let mut records = self.records.lock().await;
+        if let Some(path) = &self.path {
+            if path.exists() {
+                *records = load_records(path)?;
+            }
+        }
         let previous = records
             .get(&approval_id)
             .cloned()
@@ -335,12 +464,18 @@ impl ApprovalStorePort for MemoryApprovalStore {
         let mut next = previous.clone();
         next.state = next
             .state
-            .transition(ApprovalState::Approved)
+            .transition(if decision == kiana_domain::ApprovalDecision::Approve {
+                ApprovalState::Approved
+            } else {
+                ApprovalState::Denied
+            })
             .map_err(|error| PortError::Failed(error.to_string()))?;
-        next.state = next
-            .state
-            .transition(ApprovalState::Consumed)
-            .map_err(|error| PortError::Failed(error.to_string()))?;
+        if decision == kiana_domain::ApprovalDecision::Approve {
+            next.state = next
+                .state
+                .transition(ApprovalState::Consumed)
+                .map_err(|error| PortError::Failed(error.to_string()))?;
+        }
         let pending = next.pending.clone();
         records.insert(approval_id, next.clone());
         if let Err(error) = self.persist(approval_id, Some(previous.state), &next) {

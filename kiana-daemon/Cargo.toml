@@ -12,6 +12,7 @@ readme.workspace = true
 publish = false
 
 [dependencies]
+ring = "0.17.14"
 kiana-capability-broker.workspace = true
 kiana-core.workspace = true
 kiana-domain.workspace = true
@@ -20,6 +21,7 @@ kiana-gates.workspace = true
 kiana-policy.workspace = true
 kiana-ports.workspace = true
 kiana-protocol.workspace = true
+kiana-provider.workspace = true
 kiana-query.workspace = true
 kiana-runner.workspace = true
 kiana-runner-protocol.workspace = true

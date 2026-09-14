@@ -22,7 +22,8 @@ use futures_util::stream;
 use futures_util::Stream;
 use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_protocol::{
-    ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent, ROLE_BUILDER,
+    ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent, UiAction, UiCursor,
+    ROLE_BUILDER,
 };
 use kiana_types::{write_project_trust, ProjectTrust};
 use serde::{Deserialize, Serialize};
@@ -32,8 +33,10 @@ use std::convert::Infallible;
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+#[cfg(test)]
 use std::pin::Pin;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 
@@ -104,6 +107,8 @@ struct WebApp {
     active: Arc<Mutex<String>>,
     web_token: String,
     bound_addr: SocketAddr,
+    shutting_down: Arc<AtomicBool>,
+    shutdown: tokio::sync::watch::Sender<bool>,
 }
 
 #[derive(Clone, Debug)]
@@ -131,6 +136,7 @@ struct LedgerSession {
     role_id: String,
     department_id: String,
     project_root: String,
+    sandbox: Option<String>,
     name: String,
     last_event_sequence: u64,
     last_event_kind: String,
@@ -176,6 +182,8 @@ struct EventsQuery {
     session_id: Option<String>,
     #[serde(default)]
     token: Option<String>,
+    #[serde(default)]
+    last_event_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -183,6 +191,21 @@ struct SandboxBody {
     sandbox: String,
     #[serde(default)]
     session_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ApprovalBody {
+    session_id: String,
+    challenge: kiana_protocol::ApprovalChallenge,
+    decision: kiana_protocol::ApprovalDecision,
+}
+
+#[derive(Deserialize)]
+struct CommandBody {
+    session_id: String,
+    name: String,
+    #[serde(default)]
+    arguments: Value,
 }
 
 #[derive(Debug)]
@@ -375,10 +398,69 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
     if !launch.no_open {
         maybe_open(&url);
     }
+    let shutdown_app = app.clone();
     axum::serve(listener, router(app))
+        .with_graceful_shutdown(async move {
+            wait_for_shutdown_signal().await;
+            shutdown_app.shutting_down.store(true, Ordering::Release);
+            let active = shutdown_app
+                .sessions
+                .lock()
+                .map(|sessions| {
+                    sessions
+                        .iter()
+                        .filter(|(_, session)| {
+                            session.running
+                                || session
+                                    .last
+                                    .as_ref()
+                                    .is_some_and(|last| last.status == "awaiting_approval")
+                        })
+                        .map(|(id, session)| (id.clone(), session.run_id))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let stopping = async {
+                for (session_id, run_id) in active {
+                    if let Ok(options) = shutdown_app.options() {
+                        let response = harness_run::cancel_envelope_on_host(
+                            shutdown_app.host.clone(),
+                            session_id,
+                            run_id,
+                            "web_shutdown",
+                            &options,
+                        )
+                        .await;
+                        if !response.is_ok_and(|response| {
+                            response.status == kiana_protocol::ExecutionStatus::Cancelled
+                        }) {
+                            eprintln!("web_shutdown:worker_stop_unconfirmed; consult receipt");
+                        }
+                    }
+                }
+            };
+            if tokio::time::timeout(std::time::Duration::from_secs(8), stopping)
+                .await
+                .is_err()
+            {
+                eprintln!("web_shutdown:worker_stop_timeout; consult receipt");
+            }
+            shutdown_app.shutdown.send_replace(true);
+        })
         .await
         .context("web server stopped")?;
     Ok(())
+}
+
+async fn wait_for_shutdown_signal() {
+    #[cfg(unix)]
+    if let Ok(mut terminate) =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+    {
+        tokio::select! { _ = terminate.recv() => {}, _ = tokio::signal::ctrl_c() => {} }
+        return;
+    }
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 fn router(app: WebApp) -> Router {
@@ -394,6 +476,9 @@ fn router(app: WebApp) -> Router {
         .route("/api/sandbox", post(set_sandbox))
         .route("/api/session", post(new_session))
         .route("/api/receipt", post(read_receipt))
+        .route("/api/approvals", get(list_approvals).post(decide_approval))
+        .route("/api/resume", post(resume_turn))
+        .route("/api/command", get(command_query).post(command_action))
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
         .with_state(Arc::new(app))
 }
@@ -420,19 +505,31 @@ impl WebApp {
             active: Arc::new(Mutex::new(session_id)),
             web_token: uuid::Uuid::new_v4().to_string(),
             bound_addr,
+            shutting_down: Arc::new(AtomicBool::new(false)),
+            shutdown: tokio::sync::watch::channel(false).0,
         }
     }
 
     // 汇集 UI 所需的即时状态。Mutex 中的数据可能与 daemon 已持久化的状态不同步，
     // 因此只作为展示快照返回，不用于授权结论。历史会话只从事件账本投影，且永远
-    // 标记为 read_only，不能通过该快照进入 run/continue/cancel 路径。
+    // 标记为 read_only；人工命令可核验归属后访问，继续执行必须先显式 Resume。
     async fn snapshot(&self, session_id: &str) -> Result<Value, ApiError> {
+        let projection = self
+            .host
+            .ui_snapshot(session_id)
+            .await
+            .map_err(|error| ApiError::fail(error.to_string()))?;
         let trusted = harness_run::project_trusted(&self.workdir.to_string_lossy())
             .map_err(|error| ApiError::fail(error.to_string()))?;
         let sandbox = lock_string(&self.sandbox)?;
-        let role_id = lock_string(&self.role)?;
-        let role = RoleSpec::lookup(&role_id).ok_or_else(|| ApiError::bad("role_unknown"))?;
         let (events, history) = self.read_session_ledger().await?;
+        let assignment = history.iter().find(|session| session.id == session_id);
+        let role_id = match assignment {
+            Some(session) => session.role_id.clone(),
+            None => lock_string(&self.role)?,
+        };
+        let role = RoleSpec::lookup(&role_id).ok_or_else(|| ApiError::bad("role_unknown"))?;
+        let run_sandbox = assignment.and_then(|session| session.sandbox.clone());
         let (active_id, current, threads, memory_sessions) = {
             let sessions = self
                 .sessions
@@ -510,15 +607,20 @@ impl WebApp {
                 .unwrap_or(Value::Null)
         };
         Ok(json!({
+            "cursor": projection.cursor,
+            "projection": projection,
             "harness": harness_run::HARNESS_ID,
             "folder": self.workdir.display().to_string(),
             "trusted": trusted,
             "sandbox": sandbox,
+            "run_sandbox": run_sandbox,
             "role": role.role_id,
             "department": role.department_id,
             "session_id": session_id,
             "running": running,
             "read_only": read_only,
+            "resume_required": read_only,
+            "human_actions_allowed": true,
             "sessions": session_views,
             "threads": threads,
             "thread": thread,
@@ -532,7 +634,7 @@ impl WebApp {
     async fn read_session_ledger(
         &self,
     ) -> Result<(Vec<LedgerEvent>, Vec<LedgerSession>), ApiError> {
-        let events: Vec<LedgerEvent> = match self.host.persisted_events().await {
+        let events: Vec<LedgerEvent> = match self.host.ui_events().await {
             Ok(Some(events)) => events
                 .into_iter()
                 .map(|event| LedgerEvent {
@@ -651,6 +753,7 @@ struct EventStreamState {
     subscription: kiana_daemon::RunStreamSubscription,
     gap: Option<Event>,
     done: bool,
+    shutdown: tokio::sync::watch::Receiver<bool>,
 }
 
 struct StreamAttachState {
@@ -668,15 +771,22 @@ async fn events(
     let attach = stream_attach_state(&app, &session_id)?;
     // Subscribe before returning the SSE response headers. The browser waits for
     // EventSource.onopen before issuing /api/run, so the first delta is not lost.
-    let subscription = app.host.subscribe_run(attach.run_id);
-    let gap = attach
-        .gap_reason
-        .map(|reason| stream_gap_sse_event(attach.run_id, reason));
+    let after = stream_cursor_from_request(&headers, query.last_event_id.as_deref())?;
+    let subscription = app.host.subscribe_run_after(attach.run_id, after.as_ref());
+    let gap = if subscription.has_gap() || (after.is_none() && attach.gap_reason.is_some()) {
+        Some(stream_gap_sse_event(
+            attach.run_id,
+            "snapshot_required_after_stream_gap",
+        ))
+    } else {
+        None
+    };
     let stream = stream::unfold(
         EventStreamState {
             subscription,
             gap,
             done: false,
+            shutdown: app.shutdown.subscribe(),
         },
         |mut state| async move {
             if state.done {
@@ -686,11 +796,25 @@ async fn events(
                 return Some((Ok(gap), state));
             }
             loop {
-                match state.subscription.recv().await {
+                let received = tokio::select! {
+                    biased;
+                    _ = state.shutdown.changed() => {
+                        state.done = true;
+                        return Some((Ok(stream_error_sse_event("web_shutdown")), state));
+                    }
+                    received = state.subscription.recv() => received,
+                };
+                match received {
                     Ok(envelope) => {
                         let (name, terminal) = match &envelope.event {
                             RunStreamEvent::Delta { .. } => ("delta", false),
                             RunStreamEvent::Terminal { .. } => ("terminal", true),
+                            RunStreamEvent::Usage { .. } => ("usage", false),
+                            RunStreamEvent::ToolCall { .. } => ("tool_call", false),
+                            RunStreamEvent::ApprovalRequested { .. } => {
+                                ("approval_requested", false)
+                            }
+                            RunStreamEvent::Error { .. } => ("runtime_error", false),
                             RunStreamEvent::Unknown => continue,
                         };
                         state.done = terminal;
@@ -737,11 +861,70 @@ fn stream_attach_state(app: &WebApp, session_id: &str) -> Result<StreamAttachSta
     })
 }
 
+fn claim_ui_headers(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
+    let epoch = headers.get("x-kiana-ui-epoch");
+    let cursor = headers.get("x-kiana-ui-cursor");
+    let key = headers.get("x-kiana-action-id");
+    if epoch.is_none() && cursor.is_none() && key.is_none() {
+        return Ok(());
+    }
+    let text = |value: Option<&axum::http::HeaderValue>| -> Result<String, ApiError> {
+        value
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| ApiError::bad("ui_action_invalid"))
+    };
+    let action = UiAction {
+        target_id: text(headers.get("x-kiana-action-target"))?,
+        expected_epoch: text(epoch)?,
+        expected_cursor: text(cursor)?
+            .parse()
+            .map_err(|_| ApiError::bad("ui_cursor_invalid"))?,
+        idempotency_key: text(key)?,
+    };
+    app.host
+        .claim_ui_action(&action)
+        .map_err(|error| ApiError::conflict(error.to_string()))?;
+    Ok(())
+}
+
+fn stream_cursor_from_request(
+    headers: &HeaderMap,
+    query: Option<&str>,
+) -> Result<Option<UiCursor>, ApiError> {
+    let raw = headers
+        .get("last-event-id")
+        .and_then(|value| value.to_str().ok())
+        .or(query);
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    if raw.len() > 128 {
+        return Err(ApiError::bad("stream_cursor_invalid"));
+    }
+    let (epoch, sequence) = raw
+        .rsplit_once(':')
+        .ok_or_else(|| ApiError::bad("stream_cursor_invalid"))?;
+    if epoch.is_empty() {
+        return Err(ApiError::bad("stream_cursor_invalid"));
+    }
+    Ok(Some(UiCursor {
+        epoch: epoch.to_owned(),
+        sequence: sequence
+            .parse()
+            .map_err(|_| ApiError::bad("stream_cursor_invalid"))?,
+    }))
+}
+
 fn run_stream_sse_event(name: &str, envelope: &RunStreamEnvelope) -> Event {
     let data = serde_json::to_string(envelope).unwrap_or_else(|error| {
         json!({ "error": format!("stream_serialize_failed:{error}") }).to_string()
     });
-    Event::default().event(name).data(data)
+    Event::default()
+        .id(format!("{}:{}", envelope.epoch, envelope.sequence))
+        .event(name)
+        .data(data)
 }
 
 fn stream_gap_sse_event(run_id: RunId, reason: &str) -> Event {
@@ -766,6 +949,7 @@ async fn run_turn(
     Json(body): Json<RunBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    claim_ui_headers(&app, &headers)?;
     let prompt = validate_web_prompt(body.prompt)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let run_id = session_run_id(&app, &session_id)?;
@@ -813,6 +997,7 @@ async fn cancel_turn(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    claim_ui_headers(&app, &headers)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     let run_id = session_run_id(&app, &session_id)?;
     let options = app.options()?;
@@ -835,6 +1020,7 @@ async fn trust_folder(
     body: Option<Json<SessionBody>>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    claim_ui_headers(&app, &headers)?;
     let requested = body
         .as_ref()
         .and_then(|Json(body)| body.session_id.as_deref());
@@ -849,7 +1035,8 @@ async fn set_sandbox(
     Json(body): Json<SandboxBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
+    claim_ui_headers(&app, &headers)?;
+    let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
         .map_err(|error| ApiError::bad(error.to_string()))?;
     *app.sandbox
@@ -863,6 +1050,7 @@ async fn new_session(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
+    claim_ui_headers(&app, &headers)?;
     let session_id = new_session_id();
     {
         let mut sessions = app
@@ -884,8 +1072,11 @@ async fn read_receipt(
     Json(body): Json<SessionBody>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
-    let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
-    let run_id = session_run_id(&app, &session_id)?;
+    let session_id = body.session_id.unwrap_or(lock_string(&app.active)?);
+    let snapshot = app.snapshot(&session_id).await?;
+    let run_id = snapshot["projection"]["run_id"]
+        .as_str()
+        .and_then(RunId::parse_str);
     let options = app.options()?;
     let response = harness_run::receipt_envelope_on_host(
         Arc::clone(&app.host),
@@ -899,6 +1090,172 @@ async fn read_receipt(
         "state": app.snapshot(&session_id).await?,
         "receipt": response,
     })))
+}
+
+async fn list_approvals(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(body): Query<SessionBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
+    let response = harness_run::pending_approvals_envelope_on_host(
+        app.host.clone(),
+        session_id,
+        None,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    Ok(Json(json!({"response": response})))
+}
+
+async fn command_action(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Json(body): Json<CommandBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    if body.name.is_empty() || body.name.len() > 128 || !body.arguments.is_object() {
+        return Err(ApiError::bad("command_request_invalid"));
+    }
+    let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
+    claim_ui_headers(&app, &headers)?;
+    let response = harness_run::command_envelope_on_host(
+        app.host.clone(),
+        session_id.clone(),
+        body.name,
+        body.arguments,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    Ok(Json(
+        json!({ "state": app.snapshot(&session_id).await?, "response": response }),
+    ))
+}
+
+#[derive(Deserialize)]
+struct CommandQuery {
+    name: String,
+    session_id: Option<String>,
+    arguments: Option<String>,
+}
+
+async fn command_query(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<CommandQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    if !matches!(
+        query.name.as_str(),
+        "human.inbox"
+            | "failure.incidents"
+            | "feedback.list"
+            | "workspace.checkpoint.list"
+            | "workspace.checkpoint.preview"
+    ) {
+        return Err(ApiError::bad("command_read_only_required"));
+    }
+    let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
+    let arguments = query.arguments.unwrap_or_else(|| "{}".to_owned());
+    if arguments.len() > 16 * 1024 {
+        return Err(ApiError::bad("command_arguments_limit"));
+    }
+    let arguments: Value =
+        serde_json::from_str(&arguments).map_err(|_| ApiError::bad("command_arguments_invalid"))?;
+    let response = harness_run::command_envelope_on_host(
+        app.host.clone(),
+        session_id,
+        query.name,
+        arguments,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    Ok(Json(json!({"response":response})))
+}
+
+async fn decide_approval(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Json(body): Json<ApprovalBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    claim_ui_headers(&app, &headers)?;
+    let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
+    let response = harness_run::decide_approval_envelope_on_host(
+        app.host.clone(),
+        session_id.clone(),
+        body.challenge,
+        body.decision,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    // A human decision does not grant an old session a Runner continuation.
+    let live_session = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?
+        .contains_key(&session_id);
+    if live_session {
+        store_turn(&app, &session_id, "(approval)", &response)?;
+    }
+    let mut snapshot = app.snapshot(&session_id).await?;
+    snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
+    Ok(Json(snapshot))
+}
+
+async fn resume_turn(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Json(body): Json<SessionBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    claim_ui_headers(&app, &headers)?;
+    let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
+    let response = harness_run::resume_envelope_on_host(
+        app.host.clone(),
+        session_id.clone(),
+        None,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    if response.output["restored"] == true
+        && matches!(
+            response.status,
+            kiana_protocol::ExecutionStatus::AwaitingApproval
+                | kiana_protocol::ExecutionStatus::Running
+                | kiana_protocol::ExecutionStatus::Accepted
+                | kiana_protocol::ExecutionStatus::Completed
+        )
+    {
+        let (events, history) = app.read_session_ledger().await?;
+        let previous = ledger_thread_for_session(&events, &history, &session_id);
+        let mut sessions = app
+            .sessions
+            .lock()
+            .map_err(|_| ApiError::fail("web_state_poisoned"))?;
+        if !sessions.contains_key(&session_id) {
+            ensure_session_capacity(&sessions)?;
+            let mut restored = WebSession::default();
+            if let Some(thread) = previous {
+                restored.name = thread.session.name;
+                restored.run_id = RunId::parse_str(&thread.session.run_id);
+                restored.turns = thread.turns;
+                restored.last = thread.last;
+            }
+            sessions.insert(session_id.clone(), restored);
+        }
+        drop(sessions);
+        store_turn(&app, &session_id, "(resume)", &response)?;
+    }
+    let mut snapshot = app.snapshot(&session_id).await?;
+    snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
+    Ok(Json(snapshot))
 }
 
 fn memory_session_view(id: &str, session: &WebSession) -> Value {
@@ -922,6 +1279,9 @@ fn historical_session_view(session: &LedgerSession) -> Value {
         "role_id": session.role_id,
         "department_id": session.department_id,
         "project_root": session.project_root,
+        "sandbox": session.sandbox,
+        "human_actions_allowed": true,
+        "resume_required": true,
         "last_event_sequence": session.last_event_sequence,
         "last_event_kind": session.last_event_kind,
         "terminal_status": session.terminal_status,
@@ -939,6 +1299,9 @@ fn historical_thread_view(thread: &LedgerThread) -> Value {
         "run_id": thread.session.run_id,
         "role_id": thread.session.role_id,
         "department_id": thread.session.department_id,
+        "sandbox": thread.session.sandbox,
+        "human_actions_allowed": true,
+        "resume_required": true,
         "last_event_sequence": thread.session.last_event_sequence,
         "last_event_kind": thread.session.last_event_kind,
         "terminal_status": thread.session.terminal_status,
@@ -977,6 +1340,7 @@ fn ledger_sessions_for_root(events: &[LedgerEvent], root: &Path) -> Vec<LedgerSe
                     role_id: role_id.to_owned(),
                     department_id: department_id.to_owned(),
                     project_root: project_root.to_owned(),
+                    sandbox: event.data["sandbox"].as_str().map(str::to_owned),
                     name: "New thread".to_owned(),
                     last_event_sequence: event.sequence,
                     last_event_kind: event.kind.clone(),
@@ -987,6 +1351,7 @@ fn ledger_sessions_for_root(events: &[LedgerEvent], root: &Path) -> Vec<LedgerSe
             session.role_id = role_id.to_owned();
             session.department_id = department_id.to_owned();
             session.project_root = project_root.to_owned();
+            session.sandbox = event.data["sandbox"].as_str().map(str::to_owned);
             session.last_event_sequence = event.sequence;
             session.last_event_kind = event.kind.clone();
             session.order = index;
@@ -1007,9 +1372,11 @@ fn ledger_sessions_for_root(events: &[LedgerEvent], root: &Path) -> Vec<LedgerSe
         session.last_event_kind = event.kind.clone();
         session.order = index;
         if let Some(status) = terminal_status_for_kind(&event.kind) {
-            session.terminal_status = status.to_owned();
-        } else if event.kind == "run.receipt" && session.terminal_status == "unknown" {
-            session.terminal_status = "completed".to_owned();
+            if session.terminal_status != "unknown" && session.terminal_status != status {
+                session.terminal_status = "result_unknown".to_owned();
+            } else {
+                session.terminal_status = status.to_owned();
+            }
         }
         if event.kind == "run.prompt" && session.name == "New thread" {
             if let Some(text) = event.data.get("text").and_then(Value::as_str) {
@@ -1056,7 +1423,12 @@ fn ledger_thread_for_session(
             }
             "run.completed" => {
                 if let Some(turn) = current.as_mut() {
-                    turn.status = "completed".to_owned();
+                    if turn.status != "unknown" && turn.status != "completed" {
+                        turn.status = "result_unknown".to_owned();
+                        turn.error = Some("run_terminal_conflict".to_owned());
+                    } else {
+                        turn.status = "completed".to_owned();
+                    }
                     turn.final_text = event
                         .data
                         .get("text")
@@ -1081,9 +1453,6 @@ fn ledger_thread_for_session(
             }
             "run.receipt" => {
                 if let Some(turn) = current.as_mut() {
-                    if turn.status == "unknown" {
-                        turn.status = "completed".to_owned();
-                    }
                     if turn.final_text.is_empty() {
                         turn.final_text = event
                             .data
@@ -1109,6 +1478,11 @@ fn ledger_thread_for_session(
             kind => {
                 if let Some(status) = terminal_status_for_kind(kind) {
                     if let Some(turn) = current.as_mut() {
+                        if turn.status != "unknown" && turn.status != status {
+                            turn.status = "result_unknown".to_owned();
+                            turn.error = Some("run_terminal_conflict".to_owned());
+                            continue;
+                        }
                         turn.status = status.to_owned();
                         turn.error = event
                             .data
@@ -1300,6 +1674,8 @@ fn terminal_status_for_kind(kind: &str) -> Option<&'static str> {
         "run.cancelled" => Some("cancelled"),
         "run.failed" => Some("failed"),
         "run.result_unknown" => Some("result_unknown"),
+        "run.denied" => Some("denied"),
+        "run.blocked" => Some("blocked"),
         _ => None,
     }
 }
@@ -1338,6 +1714,12 @@ fn validate_web_prompt(prompt: String) -> Result<String, ApiError> {
 }
 
 fn authorize_mutation(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
+    if app.shutting_down.load(Ordering::Acquire) {
+        return Err(ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            error: "web_shutting_down".to_owned(),
+        });
+    }
     let supplied = web_token_from_header(headers);
     authorize_web_request(app, headers, supplied)
 }
@@ -1411,10 +1793,9 @@ fn url_matches_bound_addr(url: &url::Url, bound_addr: SocketAddr) -> bool {
         && url.port_or_known_default() == Some(bound_addr.port())
 }
 
-async fn resolve_mutable_session(
-    app: &WebApp,
-    requested: Option<&str>,
-) -> Result<String, ApiError> {
+/// Resolve an owned UI session without creating or restoring a Runner.
+/// History is supplied by DaemonHost::ui_events, filtered to the authenticated principal.
+async fn resolve_human_session(app: &WebApp, requested: Option<&str>) -> Result<String, ApiError> {
     let id = match requested.map(str::trim).filter(|value| !value.is_empty()) {
         Some(id) => id.to_owned(),
         None => lock_string(&app.active)?,
@@ -1433,9 +1814,25 @@ async fn resolve_mutable_session(
             .iter()
             .any(|session| session.id == id)
         {
-            return Err(ApiError::conflict("session_read_only"));
+            return Ok(id);
         }
         return Err(ApiError::bad("session_unknown"));
+    }
+    Ok(id)
+}
+
+async fn resolve_mutable_session(
+    app: &WebApp,
+    requested: Option<&str>,
+) -> Result<String, ApiError> {
+    let id = resolve_human_session(app, requested).await?;
+    if !app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?
+        .contains_key(&id)
+    {
+        return Err(ApiError::conflict("session_read_only"));
     }
     Ok(id)
 }

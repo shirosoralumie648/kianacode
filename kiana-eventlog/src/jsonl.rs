@@ -1,293 +1,797 @@
-//! Durable JSONL event-store adapter.
-
-use crate::event_store_core::{
-    plan_append, plan_idempotent_append, reject_conflicts, validate_idempotency_key, AppendPlan,
-};
+//! Complete, checksummed JSONL transaction frames with bounded blocking I/O.
+use crate::event_store_core::{validate_idempotency_key, AppendPlan};
+use crate::journal_core::{append_result, capabilities, JournalState, TransitionPlan};
 use async_trait::async_trait;
-use kiana_domain::{RequestId, RuntimeEvent};
+use kiana_domain::*;
 use kiana_ports::{EventAppendResult, EventStorePort, PortError};
-#[cfg(target_os = "linux")]
-use std::fs::File;
-use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
+#[cfg(not(unix))]
+use std::fs::OpenOptions;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 #[cfg(unix)]
-use std::os::fd::AsRawFd;
-#[cfg(target_os = "linux")]
-use std::os::fd::FromRawFd;
-#[cfg(target_os = "linux")]
+use std::os::fd::{AsRawFd, FromRawFd};
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
-use tokio::sync::RwLock;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
+use tokio::sync::Semaphore;
 
-#[cfg(unix)]
-struct ProcessEventLogLock(std::fs::File);
-
-#[cfg(unix)]
-impl ProcessEventLogLock {
-    fn acquire(path: &Path) -> Result<Self, PortError> {
-        let lock_path = path.with_extension("jsonl.lock");
-        if let Some(parent) = lock_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| {
-                PortError::Failed(format!("eventlog_lock_create_failed:{error}"))
-            })?;
-        }
-        let mut options = OpenOptions::new();
-        options.create(true).truncate(false).read(true).write(true);
-        #[cfg(unix)]
-        options.custom_flags(libc::O_NOFOLLOW);
-        let file = options
-            .open(lock_path)
-            .map_err(|error| PortError::Failed(format!("eventlog_lock_open_failed:{error}")))?;
-        let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
-        if result != 0 {
-            return Err(PortError::Failed(format!(
-                "eventlog_lock_acquire_failed:{}",
-                std::io::Error::last_os_error()
-            )));
-        }
-        Ok(Self(file))
-    }
+const MAX_STORAGE_WORKERS: usize = 16;
+fn failed(reason: impl Into<String>) -> PortError {
+    PortError::Failed(reason.into())
 }
-
-#[cfg(unix)]
-impl Drop for ProcessEventLogLock {
-    fn drop(&mut self) {
-        let _ = unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
-    }
+fn io_error(code: &str, e: std::io::Error) -> PortError {
+    failed(format!("{code}:{e}"))
 }
-
-#[cfg(not(unix))]
-struct ProcessEventLogLock;
-
-#[cfg(not(unix))]
-impl ProcessEventLogLock {
-    fn acquire(_path: &Path) -> Result<Self, PortError> {
-        Ok(Self)
+fn unknown(command_id: RequestId, reason: impl ToString) -> CommitOutcome {
+    CommitOutcome::Unknown {
+        command_id,
+        reason: reason.to_string(),
     }
 }
 
 #[derive(Debug)]
-pub struct JsonlEventLog {
+struct JournalFiles {
     path: PathBuf,
-    events: RwLock<Vec<RuntimeEvent>>,
+    parent: PathBuf,
+    #[cfg(unix)]
+    directory: File,
+}
+impl JournalFiles {
+    fn open(path: PathBuf) -> Result<Self, PortError> {
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf();
+        create_parent_directories(&parent)?;
+        #[cfg(unix)]
+        let directory = open_directory(&parent)?;
+        Ok(Self {
+            path,
+            parent,
+            #[cfg(unix)]
+            directory,
+        })
+    }
+    fn verify_parent(&self) -> Result<(), PortError> {
+        #[cfg(unix)]
+        {
+            let current = fs::symlink_metadata(&self.parent)
+                .map_err(|e| io_error("eventlog_parent_changed", e))?;
+            let pinned = self
+                .directory
+                .metadata()
+                .map_err(|e| io_error("eventlog_parent_metadata_failed", e))?;
+            if !current.is_dir() || current.dev() != pinned.dev() || current.ino() != pinned.ino() {
+                return Err(failed("eventlog_parent_changed"));
+            }
+        }
+        Ok(())
+    }
+    fn open_name(&self, path: &Path, create: bool) -> Result<Option<File>, PortError> {
+        self.verify_parent()?;
+        #[cfg(unix)]
+        {
+            let name = path
+                .file_name()
+                .ok_or_else(|| failed("eventlog_path_required"))?;
+            let name = std::ffi::CString::new(name.as_bytes())
+                .map_err(|_| failed("eventlog_path_invalid"))?;
+            let flags = libc::O_RDWR
+                | libc::O_APPEND
+                | libc::O_NOFOLLOW
+                | libc::O_CLOEXEC
+                | if create { libc::O_CREAT } else { 0 };
+            let fd =
+                unsafe { libc::openat(self.directory.as_raw_fd(), name.as_ptr(), flags, 0o600) };
+            if fd < 0 {
+                let e = std::io::Error::last_os_error();
+                if !create && e.kind() == std::io::ErrorKind::NotFound {
+                    return Ok(None);
+                }
+                return Err(io_error("eventlog_open_failed", e));
+            }
+            let file = unsafe { File::from_raw_fd(fd) };
+            if !file
+                .metadata()
+                .map_err(|e| io_error("eventlog_metadata_failed", e))?
+                .is_file()
+            {
+                return Err(failed("eventlog_not_regular_file"));
+            }
+            Ok(Some(file))
+        }
+        #[cfg(not(unix))]
+        {
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).append(true).create(create);
+            match options.open(path) {
+                Ok(file) => {
+                    if !file
+                        .metadata()
+                        .map_err(|e| io_error("eventlog_metadata_failed", e))?
+                        .is_file()
+                    {
+                        return Err(failed("eventlog_not_regular_file"));
+                    }
+                    Ok(Some(file))
+                }
+                Err(e) if !create && e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(io_error("eventlog_open_failed", e)),
+            }
+        }
+    }
+    fn lock(&self) -> Result<ProcessEventLogLock, PortError> {
+        let path = self.path.with_extension("jsonl.lock");
+        let file = self
+            .open_name(&path, true)?
+            .ok_or_else(|| failed("eventlog_lock_missing"))?;
+        #[cfg(unix)]
+        {
+            if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+                return Err(io_error(
+                    "eventlog_lock_acquire_failed",
+                    std::io::Error::last_os_error(),
+                ));
+            }
+        }
+        self.verify_named_file(&path, &file)?;
+        Ok(ProcessEventLogLock(file))
+    }
+    fn verify_named_file(&self, path: &Path, file: &File) -> Result<(), PortError> {
+        self.verify_parent()?;
+        #[cfg(unix)]
+        {
+            let current = self
+                .open_name(path, false)?
+                .ok_or_else(|| failed("eventlog_file_removed"))?;
+            let current = current
+                .metadata()
+                .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+            let pinned = file
+                .metadata()
+                .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+            if current.dev() != pinned.dev() || current.ino() != pinned.ino() {
+                return Err(failed("eventlog_file_replaced"));
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path, file);
+        }
+        Ok(())
+    }
+    fn sync_directory(&self) -> Result<(), PortError> {
+        self.verify_parent()?;
+        #[cfg(unix)]
+        {
+            self.directory
+                .sync_all()
+                .map_err(|e| io_error("eventlog_directory_sync_failed", e))?;
+        }
+        self.verify_parent()
+    }
+}
+struct ProcessEventLogLock(File);
+impl Drop for ProcessEventLogLock {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        {
+            let _ = unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+        }
+    }
 }
 
+#[derive(Debug, Default)]
+struct DiskCache {
+    journal: JournalState,
+    offset: u64,
+    line: u64,
+    writer_version: u32,
+    identity: Option<(u64, u64)>,
+    modified: Option<SystemTime>,
+    uncertain_write: bool,
+}
+#[derive(Debug)]
+struct Inner {
+    files: JournalFiles,
+    cache: Mutex<DiskCache>,
+}
+#[derive(Debug)]
+pub struct JsonlEventLog {
+    path: PathBuf,
+    inner: Arc<Inner>,
+    workers: Arc<Semaphore>,
+}
 impl JsonlEventLog {
     pub fn open_default() -> Result<Self, PortError> {
         Self::open(crate::default_sessions_log_path()?)
     }
-
+    /// Synchronous startup compatibility API. Async applications should use open_async.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortError> {
-        let path = path.as_ref().to_path_buf();
-        let _process_lock = ProcessEventLogLock::acquire(&path)?;
-        let events = if path_is_present(&path)? {
-            load_jsonl(&path)?
+        let path = if path.as_ref().is_absolute() {
+            path.as_ref().to_path_buf()
         } else {
-            Vec::new()
+            std::env::current_dir()
+                .map_err(|e| io_error("eventlog_current_directory_failed", e))?
+                .join(path)
         };
+        let files = JournalFiles::open(path.clone())?;
+        let _lock = files.lock()?;
+        let mut cache = DiskCache::default();
+        if let Some(mut file) = files.open_name(&path, false)? {
+            load_delta(&files, &mut file, &mut cache)?;
+        }
         Ok(Self {
             path,
-            events: RwLock::new(events),
+            inner: Arc::new(Inner {
+                files,
+                cache: Mutex::new(cache),
+            }),
+            workers: Arc::new(Semaphore::new(MAX_STORAGE_WORKERS)),
         })
     }
-
+    pub async fn open_async(path: impl AsRef<Path>) -> Result<Self, PortError> {
+        let path = path.as_ref().to_path_buf();
+        tokio::task::spawn_blocking(move || Self::open(path))
+            .await
+            .map_err(|_| failed("eventlog_open_worker_failed"))?
+    }
+    pub async fn open_default_async() -> Result<Self, PortError> {
+        Self::open_async(crate::default_sessions_log_path()?).await
+    }
     pub fn path(&self) -> &Path {
         &self.path
     }
+    async fn with_store<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&JournalFiles, &mut DiskCache) -> Result<T, PortError> + Send + 'static,
+    ) -> Result<T, PortError> {
+        let permit = self
+            .workers
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| PortError::Unavailable("eventlog_worker_queue_full".into()))?;
+        let inner = self.inner.clone();
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            let _lock = inner.files.lock()?;
+            let mut cache = inner
+                .cache
+                .lock()
+                .map_err(|_| failed("eventlog_cache_poisoned"))?;
+            if let Some(mut file) = inner.files.open_name(&inner.files.path, false)? {
+                load_delta(&inner.files, &mut file, &mut cache)?;
+            } else if cache.identity.is_some() {
+                return Err(failed("eventlog_file_removed"));
+            }
+            f(&inner.files, &mut cache)
+        })
+        .await
+        .map_err(|_| PortError::Unavailable("eventlog_worker_failed".into()))?
+    }
 }
-
 #[async_trait]
 impl EventStorePort for JsonlEventLog {
+    fn supports_atomic_transitions(&self) -> bool {
+        cfg!(unix)
+    }
+    fn capabilities(&self) -> EventStoreCapabilities {
+        let mut result = capabilities(cfg!(unix));
+        result.atomic_transitions = cfg!(unix);
+        result
+    }
+    async fn commit_transition(&self, batch: TransitionBatch) -> Result<CommitOutcome, PortError> {
+        if !self.supports_atomic_transitions() {
+            return Err(PortError::Unavailable(
+                "event_store_atomic_transitions_unsupported".into(),
+            ));
+        }
+        batch.validate_identity().map_err(failed)?;
+        let command_id = batch.command_id;
+        let result = self
+            .with_store(move |files, cache| {
+                match cache.journal.plan_transition(batch, EventId::new())? {
+                    TransitionPlan::Conflict(changed) => Ok(CommitOutcome::Conflict { changed }),
+                    TransitionPlan::Replay(original) => match confirm_sync(files, cache) {
+                        Ok(()) => Ok(CommitOutcome::Replayed { original }),
+                        Err(e) => Ok(unknown(command_id, e)),
+                    },
+                    TransitionPlan::Append { batch, receipt } => {
+                        let frame = JournalFrame::new(JournalFramePayload::Transition {
+                            batch: batch.clone(),
+                            receipt: receipt.clone(),
+                        })
+                        .map_err(failed)?;
+                        let encoded = encode_line(&frame)?;
+                        check_disk_capacity(cache, encoded.len())?;
+                        if let Err(e) = write_frame(files, cache, &encoded, true) {
+                            cache.uncertain_write = true;
+                            return Ok(unknown(command_id, e));
+                        }
+                        cache.journal.apply_transition(batch, receipt.clone());
+                        Ok(CommitOutcome::Committed { receipt })
+                    }
+                }
+            })
+            .await;
+        match result {
+            Err(PortError::Unavailable(reason)) if reason == "eventlog_worker_failed" => {
+                Ok(unknown(command_id, reason))
+            }
+            other => other,
+        }
+    }
+    async fn read_command(&self, id: &RequestId) -> Result<Option<CommandReceipt>, PortError> {
+        let id = *id;
+        self.with_store(move |files, cache| {
+            let receipt = cache.journal.commands.get(&id).cloned();
+            if receipt.is_some() {
+                confirm_sync(files, cache)?;
+            }
+            Ok(receipt)
+        })
+        .await
+    }
+    async fn read_from(&self, cursor: u64, limit: usize) -> Result<JournalPage, PortError> {
+        self.with_store(move |_, cache| cache.journal.page(cursor, limit))
+            .await
+    }
     async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
         self.append_expected(event, None).await
     }
-
     async fn append_expected(
         &self,
         event: RuntimeEvent,
-        expected_version: Option<u64>,
+        expected: Option<u64>,
     ) -> Result<(), PortError> {
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        reload_if_present(&self.path, &mut events)?;
-        let event = plan_append(&events, event, expected_version)?;
-        append_jsonl_line(&self.path, &event)?;
-        events.push(event);
-        Ok(())
+        self.with_store(move |files, cache| {
+            let AppendPlan::Append(event) = cache.journal.plan_legacy(event, expected, false)?
+            else {
+                unreachable!("non-idempotent append");
+            };
+            let (encoded, upgrade) = encode_legacy_record(cache, &event)?;
+            check_disk_capacity(cache, encoded.len())?;
+            if let Err(e) = write_frame(files, cache, &encoded, upgrade) {
+                cache.uncertain_write = true;
+                return Err(PortError::Unavailable(format!(
+                    "eventlog_append_result_unknown:{e}"
+                )));
+            }
+            cache.journal.apply_legacy(event);
+            Ok(())
+        })
+        .await
     }
-
     async fn append_idempotent(&self, event: RuntimeEvent) -> Result<EventAppendResult, PortError> {
         self.append_idempotent_expected(event, None).await
     }
-
     async fn append_idempotent_expected(
         &self,
         event: RuntimeEvent,
-        expected_version: Option<u64>,
+        expected: Option<u64>,
     ) -> Result<EventAppendResult, PortError> {
         validate_idempotency_key(&event)?;
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        reload_if_present(&self.path, &mut events)?;
-        match plan_idempotent_append(&events, event, expected_version)? {
-            AppendPlan::Replay(event) => Ok(EventAppendResult {
-                event,
-                replayed: true,
-            }),
-            AppendPlan::Append(event) => {
-                append_jsonl_line(&self.path, &event)?;
-                events.push(event.clone());
-                Ok(EventAppendResult {
-                    event,
-                    replayed: false,
-                })
+        self.with_store(move |files, cache| {
+            match cache.journal.plan_legacy(event, expected, true)? {
+                AppendPlan::Replay(event) => {
+                    confirm_sync(files, cache)?;
+                    Ok(append_result(event, true))
+                }
+                AppendPlan::Append(event) => {
+                    let (encoded, upgrade) = encode_legacy_record(cache, &event)?;
+                    check_disk_capacity(cache, encoded.len())?;
+                    if let Err(e) = write_frame(files, cache, &encoded, upgrade) {
+                        cache.uncertain_write = true;
+                        return Err(PortError::Unavailable(format!(
+                            "eventlog_append_result_unknown:{e}"
+                        )));
+                    }
+                    cache.journal.apply_legacy(event.clone());
+                    Ok(append_result(event, false))
+                }
             }
-        }
+        })
+        .await
     }
-
-    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        reload_if_present(&self.path, &mut events)?;
-        Ok(events
-            .iter()
-            .filter(|event| &event.request_id == request_id)
-            .cloned()
-            .collect())
+    async fn read_request(&self, id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        let id = *id;
+        self.with_store(move |_, cache| Ok(cache.journal.request(&id)))
+            .await
     }
-
     async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
-        let _process_lock = ProcessEventLogLock::acquire(&self.path)?;
-        let mut events = self.events.write().await;
-        reload_if_present(&self.path, &mut events)?;
-        Ok(events.clone())
+        self.with_store(|_, cache| Ok(cache.journal.events.clone()))
+            .await
+    }
+    async fn read_stream(&self, kind: &str, id: &str) -> Result<Vec<RuntimeEvent>, PortError> {
+        let (kind, id) = (kind.to_owned(), id.to_owned());
+        self.with_store(move |_, cache| Ok(cache.journal.stream(&kind, &id)))
+            .await
     }
 }
-
-fn reload_if_present(path: &Path, events: &mut Vec<RuntimeEvent>) -> Result<(), PortError> {
-    if path_is_present(path)? {
-        *events = load_jsonl(path)?;
+fn encode_line(value: &impl serde_compat::JournalEncode) -> Result<Vec<u8>, PortError> {
+    let mut bytes = value.journal_bytes().map_err(failed)?;
+    if bytes.len() > MAX_JOURNAL_FRAME_BYTES {
+        return Err(failed("eventlog_frame_size_limit"));
+    }
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+// The adapter deliberately needs no additional serde dependency: its wire DTOs own serialization.
+mod serde_compat {
+    pub(super) trait JournalEncode {
+        fn journal_bytes(&self) -> Result<Vec<u8>, String>;
+    }
+    impl JournalEncode for kiana_domain::JournalFrame {
+        fn journal_bytes(&self) -> Result<Vec<u8>, String> {
+            kiana_domain::canonical_journal_bytes(self)
+        }
+    }
+    impl JournalEncode for kiana_domain::JournalHeader {
+        fn journal_bytes(&self) -> Result<Vec<u8>, String> {
+            kiana_domain::canonical_journal_bytes(self)
+        }
+    }
+}
+fn check_disk_capacity(cache: &DiskCache, next: usize) -> Result<(), PortError> {
+    let header = if cache.writer_version < JOURNAL_WRITER_VERSION {
+        256
+    } else {
+        0
+    };
+    if cache
+        .offset
+        .saturating_add(next as u64)
+        .saturating_add(header)
+        > MAX_JOURNAL_LOG_BYTES
+    {
+        return Err(failed("eventlog_disk_limit"));
     }
     Ok(())
 }
-
-fn path_is_present(path: &Path) -> Result<bool, PortError> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(PortError::Failed(format!("eventlog_open_failed:{error}"))),
+fn encode_legacy_record(
+    cache: &DiskCache,
+    event: &RuntimeEvent,
+) -> Result<(Vec<u8>, bool), PortError> {
+    if cache.writer_version == 0 {
+        // Compatibility-only logs retain their existing single-event wire format until
+        // the first atomic command durably installs the required writer header.
+        let mut bytes =
+            serde_json::to_vec(event).map_err(|e| failed(format!("eventlog_encode_failed:{e}")))?;
+        if bytes.len() > MAX_JOURNAL_EVENT_BYTES {
+            return Err(failed("eventlog_event_size_limit"));
+        }
+        bytes.push(b'\n');
+        return Ok((bytes, false));
     }
+    let frame = JournalFrame::new(JournalFramePayload::Event {
+        event: event.clone(),
+    })
+    .map_err(failed)?;
+    Ok((encode_line(&frame)?, true))
 }
-
-fn load_jsonl(path: &Path) -> Result<Vec<RuntimeEvent>, PortError> {
-    let mut options = OpenOptions::new();
-    options.read(true);
+fn write_frame(
+    files: &JournalFiles,
+    cache: &mut DiskCache,
+    bytes: &[u8],
+    upgrade: bool,
+) -> Result<(), PortError> {
+    let mut file = files
+        .open_name(&files.path, true)?
+        .ok_or_else(|| failed("eventlog_file_missing"))?;
+    verify_cached_file(&file, cache)?;
+    if upgrade && cache.writer_version < JOURNAL_WRITER_VERSION {
+        let header = encode_line(&JournalHeader::default())?;
+        file.write_all(&header)
+            .map_err(|e| io_error("eventlog_header_write_failed", e))?;
+        file.sync_all()
+            .map_err(|e| io_error("eventlog_header_sync_failed", e))?;
+        files.sync_directory()?;
+        cache.offset += header.len() as u64;
+        cache.line += 1;
+        cache.writer_version = JOURNAL_WRITER_VERSION;
+    }
+    file.write_all(bytes)
+        .map_err(|e| io_error("eventlog_write_failed", e))?;
+    file.flush()
+        .map_err(|e| io_error("eventlog_flush_failed", e))?;
+    file.sync_all()
+        .map_err(|e| io_error("eventlog_sync_failed", e))?;
+    files.sync_directory()?;
+    files.verify_named_file(&files.path, &file)?;
+    // No fallible operation may follow cursor publication: otherwise an Unknown response
+    // could skip the durable frame during the next read and lose its command receipt.
+    remember_file(&file, cache)?;
+    cache.offset += bytes.len() as u64;
+    cache.line += 1;
+    cache.uncertain_write = false;
+    Ok(())
+}
+fn verify_cached_file(file: &File, cache: &DiskCache) -> Result<(), PortError> {
+    let metadata = file
+        .metadata()
+        .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+    if metadata.len() != cache.offset {
+        return Err(failed("eventlog_file_changed_during_commit"));
+    }
     #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
-    let mut file = options
-        .open(path)
-        .map_err(|error| PortError::Failed(format!("eventlog_open_failed:{error}")))?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|error| PortError::Failed(format!("eventlog_open_failed:{error}")))?;
-    let mut events = Vec::new();
-    let mut offset = 0usize;
-    for (line_index, segment) in bytes.split_inclusive(|byte| *byte == b'\n').enumerate() {
-        let has_newline = segment.last() == Some(&b'\n');
-        let line = if has_newline {
-            &segment[..segment.len() - 1]
+    if cache
+        .identity
+        .is_some_and(|id| id != (metadata.dev(), metadata.ino()))
+    {
+        return Err(failed("eventlog_file_replaced"));
+    }
+    Ok(())
+}
+fn confirm_sync(files: &JournalFiles, cache: &DiskCache) -> Result<(), PortError> {
+    let file = files
+        .open_name(&files.path, false)?
+        .ok_or_else(|| failed("eventlog_file_removed"))?;
+    verify_cached_file(&file, cache)?;
+    file.sync_all()
+        .map_err(|e| io_error("eventlog_confirm_sync_failed", e))?;
+    files.sync_directory()?;
+    files.verify_named_file(&files.path, &file)
+}
+fn remember_file(file: &File, cache: &mut DiskCache) -> Result<(), PortError> {
+    let metadata = file
+        .metadata()
+        .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+    #[cfg(unix)]
+    {
+        cache.identity = Some((metadata.dev(), metadata.ino()));
+    }
+    #[cfg(not(unix))]
+    {
+        cache.identity = Some((0, 0));
+    }
+    cache.modified = metadata.modified().ok();
+    Ok(())
+}
+fn load_delta(
+    files: &JournalFiles,
+    file: &mut File,
+    cache: &mut DiskCache,
+) -> Result<(), PortError> {
+    let original_offset = cache.offset;
+    let metadata = file
+        .metadata()
+        .map_err(|e| io_error("eventlog_metadata_failed", e))?;
+    if metadata.len() > MAX_JOURNAL_LOG_BYTES {
+        return Err(failed("eventlog_disk_limit"));
+    }
+    #[cfg(unix)]
+    if cache
+        .identity
+        .is_some_and(|id| id != (metadata.dev(), metadata.ino()))
+    {
+        return Err(failed("eventlog_file_replaced"));
+    }
+    if metadata.len() < cache.offset {
+        return Err(failed("eventlog_committed_prefix_truncated"));
+    }
+    if metadata.len() == cache.offset
+        && cache.offset > 0
+        && cache.modified.is_some()
+        && cache.modified != metadata.modified().ok()
+        && !cache.uncertain_write
+    {
+        // A peer may have removed its own incomplete tail without changing this
+        // committed prefix. Revalidate once instead of accepting mtime as authority.
+        let mut verified = DiskCache::default();
+        load_delta(files, file, &mut verified)?;
+        if verified.offset != cache.offset
+            || verified.writer_version != cache.writer_version
+            || verified.journal.events != cache.journal.events
+            || verified.journal.commands != cache.journal.commands
+        {
+            return Err(failed("eventlog_committed_prefix_modified"));
+        }
+        *cache = verified;
+        return Ok(());
+    }
+    file.seek(SeekFrom::Start(cache.offset))
+        .map_err(|e| io_error("eventlog_seek_failed", e))?;
+    let mut reader = BufReader::new(
+        file.try_clone()
+            .map_err(|e| io_error("eventlog_clone_failed", e))?,
+    );
+    loop {
+        let bytes = read_bounded_line(&mut reader)?;
+        if bytes.is_empty() {
+            break;
+        }
+        let newline = bytes.last() == Some(&b'\n');
+        let payload = if newline {
+            &bytes[..bytes.len() - 1]
         } else {
-            segment
+            &bytes[..]
         };
-        let line_number = line_index + 1;
-        offset += segment.len();
-        if line.iter().all(u8::is_ascii_whitespace) {
+        let line_number = cache.line + 1;
+        if payload.iter().all(u8::is_ascii_whitespace) {
+            cache.offset += bytes.len() as u64;
+            cache.line += 1;
             continue;
         }
-        match serde_json::from_slice::<RuntimeEvent>(line) {
-            Ok(event) => {
-                reject_conflicts(&events, &event)?;
-                events.push(event);
-                if !has_newline && offset == bytes.len() {
-                    repair_missing_final_newline(path)?;
-                }
-            }
-            Err(error)
-                if !has_newline
-                    && offset == bytes.len()
-                    && !events.is_empty()
-                    && is_torn_tail_error(&error) =>
+        let value = match serde_json::from_slice::<serde_json::Value>(payload) {
+            Ok(value) => value,
+            Err(e)
+                if !newline
+                    && e.is_eof()
+                    && (cache.writer_version == JOURNAL_WRITER_VERSION
+                        || !cache.journal.events.is_empty()) =>
             {
-                truncate_torn_tail(path, offset - segment.len())?;
+                file.set_len(cache.offset)
+                    .map_err(|e| io_error("eventlog_repair_failed", e))?;
+                file.sync_all()
+                    .map_err(|e| io_error("eventlog_repair_sync_failed", e))?;
+                files.sync_directory()?;
                 break;
             }
-            Err(error) => {
-                return Err(PortError::Failed(format!(
-                    "eventlog_corrupt:line={line_number}:{error}"
-                )))
+            Err(_) => return Err(failed(format!("eventlog_corrupt:line={line_number}"))),
+        };
+        let schema = value.get("schema").and_then(serde_json::Value::as_str);
+        if schema == Some(JOURNAL_HEADER_SCHEMA) {
+            let header: JournalHeader =
+                serde_json::from_value(value).map_err(|_| failed("eventlog_header_invalid"))?;
+            if header.writer_version != JOURNAL_WRITER_VERSION
+                || !header.required
+                || cache.writer_version == JOURNAL_WRITER_VERSION
+            {
+                return Err(failed("eventlog_writer_version_unsupported"));
+            }
+            cache.writer_version = JOURNAL_WRITER_VERSION;
+        } else if schema == Some(JOURNAL_FRAME_SCHEMA) {
+            if cache.writer_version != JOURNAL_WRITER_VERSION {
+                return Err(failed("eventlog_frame_header_missing"));
+            }
+            let source_shape = canonical_journal_bytes(&value).map_err(failed)?;
+            let frame: JournalFrame = serde_json::from_value(value)
+                .map_err(|_| failed(format!("eventlog_frame_invalid:line={line_number}")))?;
+            // RuntimeEvent remains permissive for v1 callers, but a v2 authority frame
+            // must not silently discard newly required fields nested in an event.
+            if canonical_journal_bytes(&frame).map_err(failed)? != source_shape {
+                return Err(failed("eventlog_frame_shape_unsupported"));
+            }
+            cache
+                .journal
+                .accept_frame(frame)
+                .map_err(|e| failed(format!("eventlog_corrupt:line={line_number}:{e}")))?;
+        } else if value.get("schema").is_some()
+            || value.get("required").is_some()
+            || value.get("writer_version").is_some()
+        {
+            return Err(failed("eventlog_required_record_unsupported"));
+        } else {
+            if cache.writer_version == JOURNAL_WRITER_VERSION {
+                return Err(failed("eventlog_legacy_writer_after_upgrade"));
+            }
+            let event: RuntimeEvent = serde_json::from_value(value)
+                .map_err(|_| failed(format!("eventlog_corrupt:line={line_number}")))?;
+            let AppendPlan::Append(event) = cache.journal.plan_legacy(event, None, false)? else {
+                unreachable!("legacy replay is not idempotent");
+            };
+            cache.journal.apply_legacy(event);
+        }
+        cache.offset += bytes.len() as u64;
+        cache.line += 1;
+        if !newline {
+            file.write_all(b"\n")
+                .map_err(|e| io_error("eventlog_repair_newline_write_failed", e))?;
+            file.sync_all()
+                .map_err(|e| io_error("eventlog_repair_newline_sync_failed", e))?;
+            files.sync_directory()?;
+            cache.offset += 1;
+            break;
+        }
+    }
+    if cache.offset != original_offset || cache.uncertain_write {
+        // A previous process may have lost its sync/commit response. Establish the same
+        // persistence barrier before any reader exposes its complete authority frames.
+        cache.uncertain_write = true;
+        file.sync_all()
+            .map_err(|e| io_error("eventlog_recovery_sync_failed", e))?;
+        files.sync_directory()?;
+    }
+    files.verify_named_file(&files.path, file)?;
+    remember_file(file, cache)?;
+    cache.uncertain_write = false;
+    Ok(())
+}
+fn read_bounded_line(reader: &mut impl BufRead) -> Result<Vec<u8>, PortError> {
+    let mut line = Vec::new();
+    loop {
+        let available = reader
+            .fill_buf()
+            .map_err(|e| io_error("eventlog_read_failed", e))?;
+        if available.is_empty() {
+            break;
+        }
+        let take = available
+            .iter()
+            .position(|b| *b == b'\n')
+            .map_or(available.len(), |i| i + 1);
+        if line.len().saturating_add(take) > MAX_JOURNAL_FRAME_BYTES + 1 {
+            return Err(failed("eventlog_frame_size_limit"));
+        }
+        let ended = available[take - 1] == b'\n';
+        line.extend_from_slice(&available[..take]);
+        reader.consume(take);
+        if ended {
+            break;
+        }
+    }
+    Ok(line)
+}
+fn create_parent_directories(parent: &Path) -> Result<(), PortError> {
+    let mut missing = Vec::new();
+    let mut current = parent;
+    loop {
+        match fs::symlink_metadata(current) {
+            Ok(metadata) => {
+                if !metadata.is_dir() {
+                    return Err(failed("eventlog_parent_not_directory"));
+                }
+                break;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                missing.push(current.to_path_buf());
+                current = current
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or_else(|| Path::new("."));
+            }
+            Err(e) => return Err(io_error("eventlog_parent_metadata_failed", e)),
+        }
+    }
+    for directory in missing.into_iter().rev() {
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        builder.mode(0o700);
+        match builder.create(&directory) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(io_error("eventlog_create_failed", e)),
+        }
+        #[cfg(unix)]
+        {
+            open_directory(&directory)?
+                .sync_all()
+                .map_err(|e| io_error("eventlog_directory_sync_failed", e))?;
+            if let Some(parent) = directory.parent() {
+                open_directory(parent)?
+                    .sync_all()
+                    .map_err(|e| io_error("eventlog_directory_sync_failed", e))?;
             }
         }
     }
-    Ok(events)
+    Ok(())
 }
-
-fn is_torn_tail_error(error: &serde_json::Error) -> bool {
-    error.to_string().to_ascii_lowercase().contains("eof")
-}
-
-fn truncate_torn_tail(path: &Path, complete_bytes: usize) -> Result<(), PortError> {
-    let mut options = OpenOptions::new();
-    options.write(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
-    let file = options
-        .open(path)
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_open_failed:{error}")))?;
-    file.set_len(complete_bytes as u64)
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_failed:{error}")))?;
-    file.sync_data()
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_sync_failed:{error}")))
-}
-
-fn repair_missing_final_newline(path: &Path) -> Result<(), PortError> {
-    let mut options = OpenOptions::new();
-    options.append(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
-    let mut file = options.open(path).map_err(|error| {
-        PortError::Failed(format!("eventlog_repair_newline_open_failed:{error}"))
-    })?;
-    file.write_all(b"\n").map_err(|error| {
-        PortError::Failed(format!("eventlog_repair_newline_write_failed:{error}"))
-    })?;
-    file.flush().map_err(|error| {
-        PortError::Failed(format!("eventlog_repair_newline_flush_failed:{error}"))
-    })?;
-    file.sync_data()
-        .map_err(|error| PortError::Failed(format!("eventlog_repair_newline_sync_failed:{error}")))
-}
-
-fn append_jsonl_line(path: &Path, event: &RuntimeEvent) -> Result<(), PortError> {
-    #[cfg(target_os = "linux")]
-    {
-        let parent = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("."));
-        fs::create_dir_all(parent)
-            .map_err(|error| PortError::Failed(format!("eventlog_create_failed:{error}")))?;
-        let directory = open_eventlog_directory(path)?;
-        append_jsonl_line_at(path, event, &directory)
+#[cfg(unix)]
+fn open_directory(path: &Path) -> Result<File, PortError> {
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| failed("eventlog_parent_invalid"))?;
+    let fd = unsafe {
+        libc::open(
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if fd < 0 {
+        return Err(io_error(
+            "eventlog_open_failed",
+            std::io::Error::last_os_error(),
+        ));
     }
-    #[cfg(not(target_os = "linux"))]
-    {
-        append_jsonl_line_by_path(path, event)
-    }
+    Ok(unsafe { File::from_raw_fd(fd) })
 }
 
-#[cfg(target_os = "linux")]
+// Preserve the existing explicit-directory compatibility helper and its fixture.
+#[cfg(all(test, target_os = "linux"))]
 fn open_eventlog_directory(path: &Path) -> Result<File, PortError> {
     let parent = path
         .parent()
@@ -310,7 +814,7 @@ fn open_eventlog_directory(path: &Path) -> Result<File, PortError> {
     Ok(unsafe { File::from_raw_fd(fd) })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(test, target_os = "linux"))]
 fn append_jsonl_line_at(
     path: &Path,
     event: &RuntimeEvent,
@@ -336,31 +840,6 @@ fn append_jsonl_line_at(
         )));
     }
     let mut file = unsafe { File::from_raw_fd(fd) };
-    let mut encoded = serde_json::to_string(event)
-        .map_err(|error| PortError::Failed(format!("eventlog_encode_failed:{error}")))?;
-    encoded.push('\n');
-    file.write_all(encoded.as_bytes())
-        .map_err(|error| PortError::Failed(format!("eventlog_write_failed:{error}")))?;
-    file.flush()
-        .map_err(|error| PortError::Failed(format!("eventlog_flush_failed:{error}")))?;
-    file.sync_data()
-        .map_err(|error| PortError::Failed(format!("eventlog_sync_failed:{error}")))?;
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn append_jsonl_line_by_path(path: &Path, event: &RuntimeEvent) -> Result<(), PortError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| PortError::Failed(format!("eventlog_create_failed:{error}")))?;
-    }
-    let mut options = OpenOptions::new();
-    options.create(true).append(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
-    let mut file = options
-        .open(path)
-        .map_err(|error| PortError::Failed(format!("eventlog_open_failed:{error}")))?;
     let mut encoded = serde_json::to_string(event)
         .map_err(|error| PortError::Failed(format!("eventlog_encode_failed:{error}")))?;
     encoded.push('\n');

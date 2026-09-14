@@ -26,6 +26,20 @@ use kiana_domain::{
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 
+/// Read-only edit checkpoint adapter. Restoring files is deliberately absent: it is brokered.
+#[async_trait]
+pub trait WorkspaceCheckpointPort: Send + Sync {
+    async fn capture_files(
+        &self,
+        project_root: &str,
+        paths: &[String],
+    ) -> Result<Vec<kiana_domain::WorkspaceFileSnapshot>, PortError>;
+    async fn preview(
+        &self,
+        checkpoint: &kiana_domain::WorkspaceCheckpoint,
+    ) -> Result<kiana_domain::CheckpointPreview, PortError>;
+}
+
 #[derive(Clone, Debug, PartialEq)]
 /// 一次幂等事件追加的可核验结果。
 ///
@@ -62,7 +76,7 @@ pub struct SpawnReservationRequest {
     pub owned_paths: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 /// 注册表接受预留后保存的权威快照。
 ///
 /// 返回完整快照而不是单独的 ID，是为了让控制面后续提交、回滚和绑定能力请求时使用
@@ -128,6 +142,36 @@ pub enum CapabilityOutcome {
 /// 父子权限、预算、并发和路径锁；能力开始必须同时校验 Cell 状态、Grant、Budget 与
 /// 请求绑定。当前默认组合可以是进程内实现，但 trait 本身不承诺 durable 恢复。
 pub trait CellRegistryPort: Send + Sync {
+    /// Charge a completed model turn against the same Cell budget as tool work.
+    async fn account_model_usage(
+        &self,
+        _cell_id: CellId,
+        _turn_key: &str,
+        _tokens: u64,
+    ) -> Result<BudgetLease, PortError> {
+        Err(PortError::Unavailable(
+            "cell_model_accounting_unsupported".to_owned(),
+        ))
+    }
+
+    /// Export quiescent authority and consumed budgets for an event-backed run checkpoint.
+    async fn checkpoint_run(&self, _run_id: RunId) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable(
+            "cell_checkpoint_unsupported".to_owned(),
+        ))
+    }
+
+    /// Revalidate and atomically install a ledger snapshot without starting a worker.
+    async fn restore_run(
+        &self,
+        _run_id: RunId,
+        _snapshot: serde_json::Value,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "cell_restore_unsupported".to_owned(),
+        ))
+    }
+
     /// 按角色 ID 和精确版本解析 Agent 模板。
     ///
     /// 不应在版本不匹配时自动回退到“最接近”版本，否则审批时看到的模板可能与执行时
@@ -242,10 +286,51 @@ pub trait CellRegistryPort: Send + Sync {
 /// 追加式运行事件事实源的最小端口。
 ///
 /// 事件顺序、聚合版本和幂等键共同决定重试与恢复是否可信。基础方法用于兼容简单
-/// 适配器；控制面的关键写入应优先使用同时带幂等与期望版本的
-/// [`Self::append_idempotent_expected`]。trait 的存在不自动保证落盘、`fsync`、跨进程锁
-/// 或损坏恢复，这些需要由具体适配器和测试证明。
+/// 适配器；授权、审批消费、预算和许可等关联权威变更必须检查事务能力并使用
+/// [`Self::commit_transition`]。单事件追加不能替代多聚合事务。trait 的存在不自动保证
+/// 落盘、`fsync`、跨进程锁或损坏恢复，这些由具体适配器声明并提供证据。
 pub trait EventStorePort: Send + Sync {
+    /// Capability negotiation is mandatory before a caller relies on atomic authority changes.
+    fn supports_atomic_transitions(&self) -> bool {
+        false
+    }
+
+    fn capabilities(&self) -> kiana_domain::EventStoreCapabilities {
+        kiana_domain::EventStoreCapabilities::default()
+    }
+
+    /// Atomically checks every read dependency and commits all events or none. Unknown outcomes
+    /// must be confirmed with read_command; they never permit execution.
+    async fn commit_transition(
+        &self,
+        _batch: kiana_domain::TransitionBatch,
+    ) -> Result<kiana_domain::CommitOutcome, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_atomic_transitions_unsupported".to_owned(),
+        ))
+    }
+
+    async fn read_command(
+        &self,
+        _command_id: &RequestId,
+    ) -> Result<Option<kiana_domain::CommandReceipt>, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_command_receipts_unsupported".to_owned(),
+        ))
+    }
+
+    /// Reads after a logical cursor. A page never splits a committed transaction; a first frame
+    /// larger than limit is returned whole within the store's maximum batch bound.
+    async fn read_from(
+        &self,
+        _cursor: kiana_domain::EventCursor,
+        _limit: usize,
+    ) -> Result<kiana_domain::JournalPage, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_cursor_reads_unsupported".to_owned(),
+        ))
+    }
+
     /// 无条件追加一条事件。
     ///
     /// 此方法不表达 CAS 或幂等语义，重试可能产生重复记录；仅在调用方能接受该边界或
@@ -356,6 +441,30 @@ pub trait CapabilityBrokerPort: Send + Sync {
         &self,
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError>;
+
+    /// Cancellation must report uncertainty unless the adapter confirms its effects stopped.
+    async fn execute_cancellable(
+        &self,
+        request: AuthorizedCapabilityRequest,
+        mut cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityResult, PortError> {
+        tokio::select! {
+            biased;
+            _ = wait_for_cancellation(&mut cancellation) => Err(PortError::Failed("result_unknown:cancel_stop_unconfirmed".to_owned())),
+            result = self.execute(request) => result,
+        }
+    }
+}
+
+pub async fn wait_for_cancellation(cancellation: &mut tokio::sync::watch::Receiver<bool>) {
+    loop {
+        if *cancellation.borrow() {
+            return;
+        }
+        if cancellation.changed().await.is_err() {
+            std::future::pending::<()>().await;
+        }
+    }
 }
 
 #[async_trait]
@@ -365,6 +474,101 @@ pub trait CapabilityBrokerPort: Send + Sync {
 /// 取消）的单向状态变化。审批 ID 不是可转借的通行证；适配器应核对主体、会话、项目、
 /// 角色、部门、路径范围以及 proof，且不能重复消费。
 pub trait ApprovalStorePort: Send + Sync {
+    /// Authenticated execution material for policy/gate/hook revalidation; never a UI preview.
+    async fn pending_with_proof(
+        &self,
+        _context: &RequestContext,
+        _approval_id: ApprovalId,
+        _request_hash: Option<&str>,
+        _nonce: Option<&str>,
+    ) -> Result<PendingApproval, PortError> {
+        Err(PortError::Unavailable(
+            "approval_execution_material_unsupported".to_owned(),
+        ))
+    }
+
+    /// Read the durable decision without creating execution authority or changing its identity.
+    async fn read_decision(
+        &self,
+        _context: &RequestContext,
+        _approval_id: ApprovalId,
+    ) -> Result<kiana_domain::ApprovalDecisionRecord, PortError> {
+        Err(PortError::Unavailable(
+            "approval_decision_read_unsupported".to_owned(),
+        ))
+    }
+
+    /// Prepare Active in the same journal transaction as the Run pause/pending facts.
+    async fn prepare_activation(
+        &self,
+        _approval_id: ApprovalId,
+        _command_id: RequestId,
+    ) -> Result<kiana_domain::PreparedApprovalConsumption, PortError> {
+        Err(PortError::Unavailable(
+            "approval_atomic_activation_unsupported".to_owned(),
+        ))
+    }
+
+    /// Prepare Approved -> Consumed without writing. Core must atomically commit this read set
+    /// and event with the exact dispatch permit, then compare pending.request to the permit.
+    async fn prepare_consumption(
+        &self,
+        _context: &RequestContext,
+        _approval_id: ApprovalId,
+        _dispatch_command_id: RequestId,
+    ) -> Result<kiana_domain::PreparedApprovalConsumption, PortError> {
+        Err(PortError::Unavailable(
+            "approval_atomic_consumption_unsupported".to_owned(),
+        ))
+    }
+
+    /// Recover only this challenge's frozen scope after authenticating its principal.
+    async fn context_for_pending(
+        &self,
+        context: &RequestContext,
+        _approval_id: ApprovalId,
+    ) -> Result<RequestContext, PortError> {
+        Ok(context.clone())
+    }
+
+    async fn invalidate_project(
+        &self,
+        _project_root: &str,
+        _reason: &str,
+    ) -> Result<Vec<ApprovalId>, PortError> {
+        Err(PortError::Unavailable(
+            "approval_project_invalidation_unsupported".to_owned(),
+        ))
+    }
+    /// Read pending challenges bound to this authenticated session and scope.
+    async fn list_pending(
+        &self,
+        _context: &RequestContext,
+    ) -> Result<Vec<PendingApproval>, PortError> {
+        Err(PortError::Unavailable(
+            "approval_listing_unsupported".to_owned(),
+        ))
+    }
+
+    /// Record the actual decision, including a denied terminal state.
+    async fn decide_with_proof(
+        &self,
+        context: &RequestContext,
+        approval_id: ApprovalId,
+        decision: kiana_domain::ApprovalDecision,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+    ) -> Result<PendingApproval, PortError> {
+        if decision == kiana_domain::ApprovalDecision::Approve {
+            self.consume_with_proof(context, approval_id, request_hash, nonce)
+                .await
+        } else {
+            Err(PortError::Unavailable(
+                "approval_denial_unsupported".to_owned(),
+            ))
+        }
+    }
+
     /// 为待审批能力请求创建暂存记录和发给审批者的 challenge。
     ///
     /// 暂存成功不代表审批已经生效。实现应校验 `context.request_id` 与请求一致，并将
@@ -463,6 +667,41 @@ pub enum PreToolHookDecision {
 /// 实现可能读取受信项目配置，因此组合根必须先完成 `ProjectTrust` 判断。端口只返回
 /// `Allow`、`Block` 或 `Ask`，不能直接执行副作用，也不能改写请求扩大其能力范围。
 pub trait PreToolHookPort: Send + Sync {
+    /// Pure preparation may pin trusted descriptors/configuration. It never executes a process
+    /// or performs discovery; those effects remain separate brokered capabilities.
+    async fn prepare_action(
+        &self,
+        _context: &RequestContext,
+        request: &CapabilityRequest,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityRequest, PortError> {
+        if *cancellation.borrow() {
+            return Err(PortError::Failed("cancelled:before_prepare".to_owned()));
+        }
+        Ok(request.clone())
+    }
+
+    /// Process-owning hooks must propagate cancellation and wait for their supervisor to finish.
+    async fn decide_cancellable(
+        &self,
+        context: &RequestContext,
+        request: &CapabilityRequest,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<PreToolHookDecision, PortError> {
+        if *cancellation.borrow() {
+            return Ok(PreToolHookDecision::Block(
+                "cancelled:before_hook".to_owned(),
+            ));
+        }
+        let decision = self.decide(context, request).await?;
+        if *cancellation.borrow() {
+            return Ok(PreToolHookDecision::Block(
+                "cancelled:hook_stopped".to_owned(),
+            ));
+        }
+        Ok(decision)
+    }
+
     /// 根据当前授权上下文和能力请求计算钩子决策。
     ///
     /// 配置损坏、钩子执行失败或决策无法解释时应返回错误，由控制面按拒绝处理。
@@ -497,6 +736,57 @@ impl PreToolHookPort for AllowAllPreToolHooks {
 /// Runner 负责模型循环和产生能力申请，不拥有直接执行工具的权限。返回的事件是本次命令
 /// 产生的有序协议事件；其中的工具请求仍必须回到控制面，经授权后交给 Broker。
 pub trait RunnerPort: Send + Sync {
+    /// Trusted runtime assignment; model text has no access to this setter.
+    fn bind_model_assignment(
+        &self,
+        _run_id: RunId,
+        _assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "runner_model_assignment_unsupported".to_owned(),
+        ))
+    }
+    /// Exact history derived from committed control-plane events, not wire-supplied role strings.
+    fn bind_model_history(
+        &self,
+        _run_id: RunId,
+        history: Vec<kiana_domain::ModelMessage>,
+    ) -> Result<(), PortError> {
+        if history.is_empty() {
+            Ok(())
+        } else {
+            Err(PortError::Unavailable(
+                "runner_protocol_history_unsupported".to_owned(),
+            ))
+        }
+    }
+    /// Installed once by the trusted daemon; custom runners must explicitly support admission.
+    fn install_model_budget(
+        &self,
+        _budget: std::sync::Arc<dyn ModelBudgetPort>,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "runner_model_budget_unsupported".to_owned(),
+        ))
+    }
+    /// Export only paused state; never perform a model call or filesystem operation.
+    async fn checkpoint(&self, _run_id: RunId) -> Result<serde_json::Value, PortError> {
+        Err(PortError::Unavailable(
+            "runner_checkpoint_unsupported".to_owned(),
+        ))
+    }
+
+    /// Install a checkpoint supplied by ControlPlane, without executing it.
+    async fn restore(
+        &self,
+        _run_id: RunId,
+        _checkpoint: serde_json::Value,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "runner_restore_unsupported".to_owned(),
+        ))
+    }
+
     /// 发送一条版本化 Runner 命令，并等待本轮产生的协议事件。
     ///
     /// 适配器不可在协议之外另起第二个执行循环。运行时不可用应使用
@@ -541,3 +831,49 @@ pub enum PortError {
     #[error("port_failed:{0}")]
     Failed(String),
 }
+
+/// The product Broker consumes a committed, single-use permit before entering a handler.
+#[async_trait]
+pub trait ExecutionPermitVerifierPort: Send + Sync {
+    async fn verify_and_consume(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+    ) -> Result<(), PortError>;
+}
+
+/// Model requests reserve capacity before contacting a provider. Unknown usage is never refunded.
+#[async_trait]
+pub trait ModelBudgetPort: Send + Sync {
+    async fn reserve_prepared(
+        &self,
+        _prepared: &kiana_domain::PreparedModelCall,
+    ) -> Result<kiana_domain::ModelCallPermit, PortError> {
+        Err(PortError::Unavailable(
+            "model_prepared_admission_unsupported".to_owned(),
+        ))
+    }
+    async fn consume_prepared(
+        &self,
+        _prepared: &kiana_domain::PreparedModelCall,
+        _permit: &kiana_domain::ModelCallPermit,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "model_prepared_admission_unsupported".to_owned(),
+        ))
+    }
+    async fn reserve(
+        &self,
+        run_id: RunId,
+        request_id: kiana_domain::RequestId,
+        tokens: u64,
+    ) -> Result<(), PortError>;
+    async fn settle(
+        &self,
+        run_id: RunId,
+        request_id: kiana_domain::RequestId,
+        tokens: Option<u64>,
+    ) -> Result<(), PortError>;
+}
+
+mod model;
+pub use model::*;

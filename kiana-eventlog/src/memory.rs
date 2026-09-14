@@ -1,79 +1,85 @@
-//! In-memory event-store adapter used by tests and ephemeral hosts.
-
-use crate::event_store_core::{
-    plan_append, plan_idempotent_append, validate_idempotency_key, AppendPlan,
-};
+//! In-memory adapter with the same atomic transition contract as the durable journal.
+use crate::event_store_core::{validate_idempotency_key, AppendPlan};
+use crate::journal_core::{append_result, capabilities, JournalState, TransitionPlan};
 use async_trait::async_trait;
-use kiana_domain::{RequestId, RuntimeEvent};
+use kiana_domain::*;
 use kiana_ports::{EventAppendResult, EventStorePort, PortError};
 use tokio::sync::RwLock;
 
 #[derive(Debug, Default)]
 pub struct MemoryEventLog {
-    events: RwLock<Vec<RuntimeEvent>>,
+    state: RwLock<JournalState>,
 }
-
 impl MemoryEventLog {
     pub fn new() -> Self {
         Self::default()
     }
 }
-
 #[async_trait]
 impl EventStorePort for MemoryEventLog {
-    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
-        self.append_expected(event, None).await
+    fn supports_atomic_transitions(&self) -> bool {
+        true
     }
-
-    async fn append_expected(
-        &self,
-        event: RuntimeEvent,
-        expected_version: Option<u64>,
-    ) -> Result<(), PortError> {
-        let mut events = self.events.write().await;
-        let event = plan_append(&events, event, expected_version)?;
-        events.push(event);
-        Ok(())
+    fn capabilities(&self) -> EventStoreCapabilities {
+        capabilities(false)
     }
-
-    async fn append_idempotent(&self, event: RuntimeEvent) -> Result<EventAppendResult, PortError> {
-        self.append_idempotent_expected(event, None).await
-    }
-
-    async fn append_idempotent_expected(
-        &self,
-        event: RuntimeEvent,
-        expected_version: Option<u64>,
-    ) -> Result<EventAppendResult, PortError> {
-        validate_idempotency_key(&event)?;
-        let mut events = self.events.write().await;
-        match plan_idempotent_append(&events, event, expected_version)? {
-            AppendPlan::Replay(event) => Ok(EventAppendResult {
-                event,
-                replayed: true,
-            }),
-            AppendPlan::Append(event) => {
-                events.push(event.clone());
-                Ok(EventAppendResult {
-                    event,
-                    replayed: false,
-                })
+    async fn commit_transition(&self, batch: TransitionBatch) -> Result<CommitOutcome, PortError> {
+        let mut state = self.state.write().await;
+        match state.plan_transition(batch, EventId::new())? {
+            TransitionPlan::Replay(original) => Ok(CommitOutcome::Replayed { original }),
+            TransitionPlan::Conflict(changed) => Ok(CommitOutcome::Conflict { changed }),
+            TransitionPlan::Append { batch, receipt } => {
+                state.apply_transition(batch, receipt.clone());
+                Ok(CommitOutcome::Committed { receipt })
             }
         }
     }
-
-    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
-        Ok(self
-            .events
-            .read()
-            .await
-            .iter()
-            .filter(|event| &event.request_id == request_id)
-            .cloned()
-            .collect())
+    async fn read_command(&self, id: &RequestId) -> Result<Option<CommandReceipt>, PortError> {
+        Ok(self.state.read().await.commands.get(id).cloned())
     }
-
+    async fn read_from(&self, cursor: u64, limit: usize) -> Result<JournalPage, PortError> {
+        self.state.read().await.page(cursor, limit)
+    }
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.append_expected(event, None).await
+    }
+    async fn append_expected(
+        &self,
+        event: RuntimeEvent,
+        expected: Option<u64>,
+    ) -> Result<(), PortError> {
+        let mut state = self.state.write().await;
+        let AppendPlan::Append(event) = state.plan_legacy(event, expected, false)? else {
+            unreachable!("non-idempotent append");
+        };
+        state.apply_legacy(event);
+        Ok(())
+    }
+    async fn append_idempotent(&self, event: RuntimeEvent) -> Result<EventAppendResult, PortError> {
+        self.append_idempotent_expected(event, None).await
+    }
+    async fn append_idempotent_expected(
+        &self,
+        event: RuntimeEvent,
+        expected: Option<u64>,
+    ) -> Result<EventAppendResult, PortError> {
+        validate_idempotency_key(&event)?;
+        let mut state = self.state.write().await;
+        match state.plan_legacy(event, expected, true)? {
+            AppendPlan::Replay(event) => Ok(append_result(event, true)),
+            AppendPlan::Append(event) => {
+                state.apply_legacy(event.clone());
+                Ok(append_result(event, false))
+            }
+        }
+    }
+    async fn read_request(&self, id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        Ok(self.state.read().await.request(id))
+    }
     async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
-        Ok(self.events.read().await.clone())
+        Ok(self.state.read().await.events.clone())
+    }
+    async fn read_stream(&self, kind: &str, id: &str) -> Result<Vec<RuntimeEvent>, PortError> {
+        Ok(self.state.read().await.stream(kind, id))
     }
 }

@@ -21,8 +21,8 @@
     .brand { font-weight:700; letter-spacing:.04em; }
     .muted { color:var(--muted); font-size:12px; }
     .folder { margin:12px 0 8px; word-break:break-all; font-family:ui-monospace,monospace; font-size:12px; }
-    button, select, textarea { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:8px; }
-    button, select { padding:8px 10px; cursor:pointer; }
+    button, select, textarea, input { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:8px; }
+    button, select, input { padding:8px 10px; cursor:pointer; }
     button.primary { background:var(--accent); border-color:transparent; color:#fff; }
     button.ghost { width:100%; margin:6px 0; text-align:left; }
     .row { display:flex; gap:8px; margin:8px 0; }
@@ -51,19 +51,34 @@
     .coach.show { display:flex; }
     .coach .card { width:min(560px,92vw); background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px; }
     .coach ol { color:var(--muted); }
+    :focus-visible { outline:3px solid var(--warn); outline-offset:3px; }
+    button:disabled { cursor:not-allowed; opacity:.65; }
+    .skip-link { position:fixed; top:-60px; left:12px; z-index:20; background:var(--panel); color:var(--text); padding:12px; }
+    .skip-link:focus { top:8px; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .approval { border:1px solid var(--warn); border-radius:8px; padding:10px; margin-bottom:10px; overflow-wrap:anywhere; }
+    .approval button { margin:4px; }
+    .center, .details, .sidebar, pre { overflow-wrap:anywhere; }
+    @media (max-width:1100px) { .frame { grid-template-columns:220px minmax(0,1fr); } .details { grid-column:1/-1; border-left:0; border-top:1px solid var(--border); } }
+    @media (max-width:650px) { html,body { height:auto; min-height:100%; } .frame { display:flex; flex-direction:column; height:auto; } .sidebar { border-right:0; border-bottom:1px solid var(--border); } .center { min-height:65vh; } .chat { max-height:65vh; padding:12px; } .sessions { max-height:150px; overflow:auto; } .row { flex-wrap:wrap; } .coach .card { max-height:90vh; overflow:auto; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+    @media (prefers-contrast:more) { :root { --muted:#dce3ee; --border:#aab6c7; --accent:#2460be; } button,select,textarea { border-width:2px; } }
+    @media (forced-colors:active) { .pill,.banner,.approval { border:1px solid CanvasText; } button.primary { border:2px solid ButtonText; } :focus-visible { outline-color:Highlight; } }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#prompt">跳到输入框</a>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="frame">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="工作区与会话">
       <div class="brand">KIANA</div>
-      <div class="muted">Codex App 形 · Thread / Turn / Item</div>
+      <div class="muted">本地工作区与任务</div>
       <div class="folder" id="folder">…</div>
-      <div><span class="pill" id="trust">untrusted</span> <span class="pill" id="status">idle</span></div>
-      <div class="banner" id="trustBanner">未信任时不能写盘。先点「信任此文件夹」。这就是 Codex 的审批大门，Kiana 用 ProjectTrust 做成 fail-closed。</div>
+      <div><span class="pill" id="trust">untrusted</span> <span class="pill" id="status" role="status" aria-live="polite">idle</span></div>
+      <div class="banner" id="trustBanner">未信任此文件夹时不能修改文件。请先核实工作区，再选择「信任此文件夹」。</div>
       <div class="row">
         <button id="trustBtn">信任此文件夹</button>
-        <select id="sandbox">
+        <select id="sandbox" aria-label="新任务的文件访问权限" title="新建会话后生效；已有运行保留原权限">
           <option value="workspace-write">workspace-write</option>
           <option value="read-only">read-only</option>
         </select>
@@ -75,12 +90,12 @@
       <h2>Threads</h2>
       <div class="sessions" id="sessions"></div>
     </aside>
-    <main class="center">
-      <div class="banner" id="streamBanner">正在重连…</div>
-      <div class="chat" id="chat">
+    <main class="center" aria-label="对话">
+      <div class="banner" id="streamBanner" role="status" aria-live="polite">正在重连…</div>
+      <div class="chat" id="chat" role="region" aria-label="对话记录" tabindex="0">
         <div class="guide" id="emptyGuide">
           <h1>Ask Kiana</h1>
-          <p class="muted">对照 Codex App：左边是 Thread 列表，中间是 Turn 里的 Item（你的话、工具、改文件、回答），右边是 diff / 状态。工人仍是 DaemonHost；delta 经 SSE 增量展示，终态仍以回执为准。</p>
+          <p class="muted">选择左侧会话，描述要完成的任务。运行进度、待审批动作与文件变更会显示在右侧。</p>
           <div class="chips">
             <button data-prompt="列出这个工作区里有哪些文件，并总结各自用途">先看看仓库</button>
             <button data-prompt="在当前文件夹创建一个 README.md，用三句话介绍这个项目">写一份 README</button>
@@ -89,28 +104,52 @@
         </div>
       </div>
       <div class="composer">
-        <textarea id="prompt" placeholder="Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。"></textarea>
+        <label for="prompt" class="sr-only">发送给 Kiana 的任务</label>
+        <textarea aria-describedby="promptHelp" id="prompt" placeholder="Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。"></textarea>
         <div class="row">
           <button class="primary" id="send">发送 Turn</button>
           <button id="cancel">打断 Turn</button>
         </div>
-        <div class="muted">thread/start → turn/start → item/* 。Kiana 一次 run 就是一个 Turn。</div>
+        <div class="muted" id="promptHelp">Ctrl+Enter 发送；Esc 取消当前运行。审批需要你明确选择批准或拒绝。</div>
       </div>
     </main>
-    <aside class="details">
+    <aside class="details" aria-label="运行详情与人工操作">
+      <h2 id="approvalsTitle">人工待办</h2>
+      <div id="approvals" role="region" aria-labelledby="approvalsTitle">正在读取…</div>
+      <button id="resume">恢复此会话</button>
+      <button id="receiptBtn">查看回执</button>
+      <pre id="receiptDetail" tabindex="0" aria-label="执行回执"></pre>
+      <details><summary>编辑快照与恢复</summary>
+        <label for="checkpointPaths">保存这些文件（每行一个相对路径）</label><textarea id="checkpointPaths"></textarea>
+        <button id="createCheckpoint">保存编辑快照</button><button id="listCheckpoints">查看快照</button>
+        <div id="checkpoints" role="region" aria-label="编辑快照"></div>
+        <pre id="checkpointPreview" tabindex="0" aria-label="恢复预览"></pre>
+      </details>
+      <details><summary>提交改进建议</summary>
+        <label for="feedbackObservation">遇到的问题</label><textarea id="feedbackObservation"></textarea>
+        <label for="feedbackProposal">建议如何改进</label><textarea id="feedbackProposal"></textarea>
+        <label for="feedbackEvidence">证据引用（每行一个 event:编号）</label><textarea id="feedbackEvidence"></textarea>
+        <button id="submitFeedback">保存为待审阅建议</button>
+      </details>
+      <details><summary>控制面命令</summary>
+        <label for="commandName">命令名</label><input id="commandName" autocomplete="off" placeholder="company.snapshot.v1" />
+        <label for="commandArguments">JSON 参数</label><textarea id="commandArguments">{}</textarea>
+        <button id="runCommand">提交命令</button><pre id="commandResult" tabindex="0" aria-label="命令结果"></pre>
+      </details>
+      <h2>运行事件</h2><pre id="runtimeEvents" tabindex="0">暂无事件</pre>
       <h2>Turn</h2>
       <pre id="progress">还没开始</pre>
       <h2>Changed files</h2>
       <pre id="files">还没有 fileChange。</pre>
       <h2>Capabilities</h2>
-      <p class="muted">模型面：shell + apply_patch。审批：信任 × 沙箱。不是 50-tool 克隆，也不是 live ChatGPT 登录。</p>
+      <p class="muted">工具请求均经过授权。可写文件范围由工作区、沙箱和当前任务共同决定。</p>
       <h2>诚实边界</h2>
-      <p class="muted">SSE 只做增量展示，不替代 EventLog / Receipt；没有 inline command 弹窗（未信任直接拦）、没有 Codex 云线程。关窗口可留托盘。</p>
+      <p class="muted">连接中断时请查看回执确认执行结果。取消不会自动撤销已经发生的文件修改。</p>
     </aside>
   </div>
-  <div class="coach" id="coach">
+  <div class="coach" id="coach" role="dialog" aria-modal="true" aria-labelledby="coachTitle" aria-hidden="true">
     <div class="card">
-      <div class="brand">Codex App 形引导</div>
+      <div class="brand" id="coachTitle">开始使用 Kiana</div>
       <h1 style="font-size:22px;margin:8px 0;">Thread → Turn → Item</h1>
       <ol>
         <li>左边选或新建 Thread（一次对话）。工作区不对就打开文件夹 / 新建 ~/.kiana 项目。</li>
@@ -129,6 +168,7 @@
     let sessionId = null;
     let running = false;
     let readOnly = false;
+    let humanActionsAllowed = false;
     let runPending = false;
     let pollTimer = null;
     let started = false;
@@ -143,6 +183,143 @@
     let streamComplete = false;
     let streamIncomplete = false;
     let streamInterruption = null;
+    const streamCursors = new Map();
+    let observedUiCursor = 0;
+    let refreshIssued = 0;
+    let refreshApplied = 0;
+    let approvalRequest = 0;
+    let humanInboxViewKey = '';
+    let previousFocus = null;
+    const runtimeEvents = [];
+
+    function announce(text) { document.getElementById('announcer').textContent = text; }
+    function reportError(error) { addItem({kind:'error',title:'操作未完成',body:String(error.message || error)}); announce(String(error.message || error)); }
+    function readStreamEnvelope(message) {
+      let envelope;
+      try { envelope = JSON.parse(message.data); } catch (_) { markStreamIncomplete('stream_payload_invalid'); return null; }
+      if (!envelope || envelope.schema !== 'kiana.protocol.v1') return null;
+      if (!Number.isSafeInteger(envelope.sequence) || envelope.sequence < 1 || !envelope.epoch) {
+        markStreamIncomplete('stream_cursor_invalid'); return null;
+      }
+      if (stateCache && stateCache.cursor && stateCache.cursor.epoch !== envelope.epoch) {
+        markStreamIncomplete('stream_epoch_changed'); refresh().catch(reportError); return null;
+      }
+      const old = streamCursors.get(sessionId);
+      if (old && old.epoch === envelope.epoch) {
+        if (envelope.sequence <= old.sequence) return null;
+        if (envelope.sequence !== old.sequence + 1) markStreamIncomplete('stream_sequence_gap');
+      }
+      streamCursors.set(sessionId, {epoch:envelope.epoch, sequence:envelope.sequence});
+      observedUiCursor = Math.max(observedUiCursor, envelope.ui_cursor || 0);
+      return envelope;
+    }
+    function handleRuntimeEvent(message) {
+      const envelope = readStreamEnvelope(message);
+      if (!envelope) return;
+      const event = envelope.event || {};
+      const data = event.data || {};
+      runtimeEvents.push(event.type + ': ' + (data.operation || data.error || data.approval_id || JSON.stringify(data)));
+      while (runtimeEvents.length > 12) runtimeEvents.shift();
+      document.getElementById('runtimeEvents').textContent = runtimeEvents.join('\n');
+      if (event.type === 'approval_requested') { announce('有新的待审批请求'); refreshApprovals().catch(reportError); }
+    }
+    async function queryCommand(name, args = {}, requested = sessionId) {
+      const data = await api('/api/command?name=' + encodeURIComponent(name) + '&session_id=' + encodeURIComponent(requested) + '&arguments=' + encodeURIComponent(JSON.stringify(args)));
+      if (!data.response || data.response.status !== 'completed') throw new Error((data.response && data.response.error) || '读取未完成');
+      return data.response.output || {};
+    }
+    async function submitCommand(name, args, requested = sessionId) {
+      const data = await api('/api/command', {session_id:requested, name, arguments:args});
+      if (requested === sessionId) renderState(data.state);
+      if (!data.response || !['completed','awaiting_approval','running','accepted'].includes(data.response.status)) throw new Error((data.response && data.response.error) || '操作未完成');
+      return data.response;
+    }
+    async function refreshApprovals() {
+      const requested = sessionId;
+      if (!requested) return;
+      const request = ++approvalRequest;
+      const output = await queryCommand('human.inbox', {}, requested);
+      if (requested !== sessionId || request !== approvalRequest) return;
+      const viewKey = requested + ':' + output.revision + ':' + humanActionsAllowed;
+      if (humanInboxViewKey === viewKey) return;
+      humanInboxViewKey = viewKey;
+      const box = document.getElementById('approvals'); box.replaceChildren();
+      const items = output.items || [];
+      if (!items.length) { box.textContent = '没有待处理事项'; return; }
+      const names = {approval:'审批', review:'复核', acceptance:'验收', incident:'异常', reconciliation:'对账', feedback:'改进建议'};
+      items.forEach(item => {
+        const card = document.createElement('section'); card.className = 'approval';
+        const title = document.createElement('strong'); title.textContent = (names[item.kind] || item.kind) + ' · ' + item.title; card.appendChild(title);
+        const detail = document.createElement('pre'); detail.textContent = JSON.stringify(item.detail || {}, null, 2); card.appendChild(detail);
+        (item.actions || []).forEach(action => {
+          let fieldsInput = null;
+          if ((action.required_fields || []).length) {
+            const label = document.createElement('label'); label.textContent = action.label + '：补充证据与决定（JSON）';
+            fieldsInput = document.createElement('textarea');
+            fieldsInput.setAttribute('aria-label', item.title + ' ' + action.label + ' 补充信息');
+            const fields = {};
+            action.required_fields.forEach(key => { fields[key] = ['evidence_refs','reasons'].includes(key) ? [] : key === 'criterion_results' ? {} : key === 'waiver_ref' ? null : ''; });
+            fieldsInput.value = JSON.stringify(fields, null, 2); label.appendChild(fieldsInput); card.appendChild(label);
+          }
+          const button = document.createElement('button'); button.textContent = action.label;
+          const challenge = item.detail && item.detail.challenge;
+          button.disabled = !humanActionsAllowed || (challenge && Date.now() >= challenge.expires_at_unix_ms);
+          button.onclick = async () => {
+            button.disabled = true;
+            try {
+              if (action.command === 'approval') {
+                await ensureEventStream(requested, true).catch(() => {});
+                const result = await api('/api/approvals', {session_id:requested, challenge, decision:action.arguments.decision});
+                if (sessionId === requested) renderState(result);
+                if (result.response && ['blocked','rejected'].includes(result.response.status)) throw new Error(result.response.error || '审批未完成');
+              } else {
+                await submitCommand('human.resolve', {item_id:item.item_id, action_id:action.id, inbox_revision:output.revision, fields:fieldsInput ? JSON.parse(fieldsInput.value) : {}, idempotency_key:crypto.randomUUID()}, requested);
+              }
+              announce('决定已提交');
+            } catch (error) { reportError(error); }
+            finally { button.disabled = !humanActionsAllowed || (challenge && Date.now() >= challenge.expires_at_unix_ms); await refresh().catch(reportError); }
+          };
+          card.appendChild(button);
+        });
+        if (!(item.actions || []).length) { const hint=document.createElement('p'); hint.textContent='此会话角色没有可用操作。'; card.appendChild(hint); }
+        box.appendChild(card);
+      });
+    }
+    async function listCheckpoints() {
+      const requested=sessionId;
+      const output=await queryCommand('workspace.checkpoint.list',{},requested);
+      if (requested!==sessionId) return;
+      const box=document.getElementById('checkpoints'); box.replaceChildren();
+      (output.checkpoints || []).forEach(checkpoint => {
+        const card=document.createElement('section'); card.className='approval';
+        const label=document.createElement('p'); label.textContent=checkpoint.reason + ' · ' + checkpoint.checkpoint_id + '\n' + checkpoint.paths.join(', '); card.appendChild(label);
+        const preview=document.createElement('button'); preview.textContent='预览恢复'; preview.disabled=!checkpoint.paths.length;
+        preview.onclick=async () => {
+          try {
+            const result=await queryCommand('workspace.checkpoint.preview',{checkpoint_id:checkpoint.checkpoint_id},requested);
+            if (requested!==sessionId) return;
+            const detail=document.getElementById('checkpointPreview'); detail.textContent=JSON.stringify(result.preview,null,2); detail.focus();
+            let restore=card.querySelector('[data-restore]'); if (restore) restore.remove();
+            restore=document.createElement('button'); restore.dataset.restore='true'; restore.textContent='请求恢复这些修改'; restore.disabled=!humanActionsAllowed;
+            restore.onclick=async () => {
+              restore.disabled=true;
+              try { await submitCommand('workspace.checkpoint.restore',{checkpoint_id:checkpoint.checkpoint_id,expected_revision:result.preview.current_revision},requested); await refresh(); announce('请在人工待办中核对并批准恢复'); }
+              catch(error) { reportError(error); }
+              finally { restore.disabled=!humanActionsAllowed; }
+            };
+            card.appendChild(restore);
+          } catch(error) { reportError(error); }
+        };
+        card.appendChild(preview); box.appendChild(card);
+      });
+      if (!box.children.length) box.textContent='此会话还没有编辑快照';
+    }
+    function setCoach(open) {
+      coach.classList.toggle('show', open); coach.setAttribute('aria-hidden', String(!open));
+      document.querySelector('.frame').inert = open;
+      if (open) { previousFocus = document.activeElement; document.getElementById('coachOk').focus(); }
+      else if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+    }
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -157,11 +334,22 @@
     }
     async function api(path, body) {
       const headers = {'x-kiana-web-token': window.__KIANA_WEB_TOKEN__};
-      if (body !== undefined) headers['content-type'] = 'application/json';
+      if (body !== undefined) {
+        headers['content-type'] = 'application/json';
+        if (stateCache && stateCache.cursor) {
+          headers['x-kiana-ui-epoch'] = stateCache.cursor.epoch;
+          headers['x-kiana-ui-cursor'] = String(stateCache.cursor.sequence);
+          headers['x-kiana-action-id'] = crypto.randomUUID();
+          headers['x-kiana-action-target'] = String((body && body.session_id) || sessionId || 'workspace');
+        }
+      }
       const opts = body === undefined ? { headers } : { method:'POST', headers, body: JSON.stringify(body) };
       const res = await fetch(path, opts);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || res.statusText);
+      if (!res.ok) {
+        if (data.error && data.error.includes('ui_action_stale')) refresh().catch(() => {});
+        throw new Error(data.error || res.statusText);
+      }
       return data;
     }
     function renderThread(s) {
@@ -238,8 +426,8 @@
       renderBusyStatus();
     }
     function handleStreamDelta(message) {
-      let envelope;
-      try { envelope = JSON.parse(message.data); } catch (_) { return; }
+      const envelope = readStreamEnvelope(message);
+      if (!envelope) return;
       const delta = envelope.event;
       if (!delta || delta.type !== 'delta' || delta.run_id !== streamRunId) return;
       streamText += delta.text || '';
@@ -249,8 +437,8 @@
       chat.scrollTop = chat.scrollHeight;
     }
     function handleStreamTerminal(message) {
-      let envelope;
-      try { envelope = JSON.parse(message.data); } catch (_) { return; }
+      const envelope = readStreamEnvelope(message);
+      if (!envelope) return;
       const terminal = envelope.event;
       if (!terminal || terminal.type !== 'terminal' || terminal.run_id !== streamRunId) return;
       streamTerminal = terminal.response || {};
@@ -303,7 +491,7 @@
       markStreamIncomplete(payload.error || 'stream_error');
       refresh().catch(() => {});
     }
-    function ensureEventStream(session) {
+    function ensureEventStream(session, nextTurn = false) {
       if (!session) return Promise.reject(new Error('session_required'));
       if (eventSource && eventSourceSession === session && eventSource.readyState !== EventSource.CLOSED) {
         return eventSourceOpen || Promise.resolve();
@@ -311,8 +499,12 @@
       closeEventStream();
       eventSourceSession = session;
       streamRunId = (stateCache && stateCache.last && stateCache.last.run_id) || session;
+      const after = nextTurn && stateCache && stateCache.projection && stateCache.projection.stream_cursor
+        ? stateCache.projection.stream_cursor : streamCursors.get(session);
+      if (nextTurn && after) streamCursors.set(session, after);
       const url = '/api/events?session_id=' + encodeURIComponent(session) +
-        '&token=' + encodeURIComponent(window.__KIANA_WEB_TOKEN__);
+        '&token=' + encodeURIComponent(window.__KIANA_WEB_TOKEN__) +
+        (after ? '&last_event_id=' + encodeURIComponent(after.epoch + ':' + after.sequence) : '');
       const source = new EventSource(url);
       eventSource = source;
       eventSourceOpen = new Promise((resolve, reject) => {
@@ -342,6 +534,7 @@
         };
         source.addEventListener('delta', handleStreamDelta);
         source.addEventListener('terminal', handleStreamTerminal);
+        ['usage','tool_call','approval_requested','runtime_error'].forEach(name => source.addEventListener(name, handleRuntimeEvent));
         source.addEventListener('stream_gap', handleStreamGap);
         source.addEventListener('stream_error', handleStreamError);
       });
@@ -351,20 +544,20 @@
       const busy = running || runPending;
       const st = document.getElementById('status');
       if (readOnly) {
-        st.textContent = 'read-only';
+        st.textContent = '历史 · ' + ((stateCache && stateCache.projection && stateCache.projection.status) || 'unknown');
         st.className = 'pill';
       } else if (busy) {
         st.textContent = 'running';
         st.className = 'pill run';
       } else if (streamIncomplete) {
-        st.textContent = 'incomplete';
+        st.textContent = '连接不完整 · ' + ((stateCache && stateCache.projection && stateCache.projection.status) || 'unknown');
         st.className = 'pill bad';
       } else if (streamComplete) {
-        st.textContent = 'complete';
+        st.textContent = 'completed';
         st.className = 'pill ok';
       } else {
-        st.textContent = 'idle';
-        st.className = 'pill ok';
+        st.textContent = (stateCache && stateCache.projection && stateCache.projection.status) || (stateCache && stateCache.last && stateCache.last.status) || 'idle';
+        st.className = 'pill';
       }
     }
     function syncPolling() {
@@ -380,17 +573,26 @@
       }
     }
     function renderState(s) {
+      if (s.cursor) {
+        if (stateCache && stateCache.cursor && stateCache.cursor.epoch === s.cursor.epoch &&
+          s.cursor.sequence < Math.max(stateCache.cursor.sequence, observedUiCursor)) return;
+        if (stateCache && stateCache.cursor && stateCache.cursor.epoch !== s.cursor.epoch) {
+          clearStreamProjection(); streamCursors.clear(); observedUiCursor = 0;
+        }
+      }
       stateCache = s;
       sessionId = s.session_id;
       running = !!s.running;
       readOnly = !!s.read_only;
+      humanActionsAllowed = !!s.human_actions_allowed;
       promptEl.disabled = readOnly;
       document.getElementById('send').disabled = readOnly;
       document.getElementById('cancel').disabled = readOnly;
       document.getElementById('trustBtn').disabled = readOnly;
-      document.getElementById('sandbox').disabled = readOnly;
+      document.getElementById('sandbox').disabled = !humanActionsAllowed;
+      ['runCommand','createCheckpoint','submitFeedback'].forEach(id => { document.getElementById(id).disabled = !humanActionsAllowed; });
       promptEl.placeholder = readOnly
-        ? '历史会话只读；新建 Thread 后才能继续。'
+        ? '继续执行前请先恢复此会话；人工待办和编辑恢复可直接处理。'
         : 'Ask Kiana to do anything. Ctrl+Enter 发送，Esc 取消当前 Turn。';
       document.getElementById('folder').textContent = s.folder;
       const trust = document.getElementById('trust');
@@ -413,38 +615,53 @@
         'thread ' + (thread.name || 'New thread') + '\n' +
         'turns ' + ((thread.turns || []).length) + '\n' +
         'status ' + lastTurnStatus + '\n' +
+        'session sandbox ' + (s.run_sandbox || '尚未开始') + ' · 新任务 ' + s.sandbox + '\n' +
         'stream ' + streamState + '\n' +
         'transport streaming ' + s.streaming + (s.streaming_transport ? ' (' + s.streaming_transport + ')' : '');
       const box = document.getElementById('sessions');
+      const focusedSession = document.activeElement && document.activeElement.dataset.session;
       box.innerHTML = '';
       (s.sessions || s.threads || []).forEach(item => {
         const b = document.createElement('button');
+        b.dataset.session = item.id;
+        b.setAttribute('aria-current', item.id === s.session_id ? 'true' : 'false');
         b.className = 'ghost' + (item.id === s.session_id ? ' active' : '');
         b.textContent = (item.name || item.id.slice(0,8)) +
           (item.read_only ? ' · history' : (item.running ? ' · running' : ''));
         b.onclick = () => { clearStreamProjection(); sessionId = item.id; refresh().catch(() => {}); };
         box.appendChild(b);
       });
+      if (focusedSession) { const replacement = Array.from(box.children).find(item => item.dataset.session === focusedSession); if (replacement) replacement.focus(); }
+      document.getElementById('resume').disabled = running || runPending || !(s.projection && s.projection.run_id);
+      document.getElementById('send').disabled = readOnly || running || runPending;
+      document.getElementById('cancel').disabled = readOnly || !(running || runPending);
+      const scroll = chat.scrollTop;
+      const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48;
       renderThread(s);
+      if (!atBottom) chat.scrollTop = scroll;
+      if (running && !readOnly && !eventSource) ensureEventStream(sessionId).catch(() => {});
       syncPolling();
     }
     async function refresh() {
       const requested = sessionId;
+      const request = ++refreshIssued;
       const path = requested
         ? '/api/state?session_id=' + encodeURIComponent(requested)
         : '/api/state';
       const data = await api(path);
-      if (sessionId === requested) renderState(data);
+      if (sessionId === requested && request >= refreshApplied) {
+        refreshApplied = request; renderState(data); refreshApprovals().catch(() => {});
+      }
     }
     async function sendPrompt(prompt) {
       const text = String(prompt || '').trim();
       if (!text || running || runPending) return;
       if (readOnly) {
-        addItem({ kind:'error', title:'read-only', body:'历史会话只读；新建 Thread 后才能继续。' });
+        addItem({ kind:'error', title:'需要恢复会话', body:'继续执行前请先选择「恢复此会话」。人工待办和编辑恢复可直接处理。' });
         return;
       }
       if (stateCache && !stateCache.trusted) {
-        addItem({ kind:'error', title:'blocked', body:'还没信任这个文件夹。Codex 会弹审批；Kiana 直接 fail-closed。' });
+        addItem({ kind:'error', title:'blocked', body:'请先核实并信任当前工作区，再发送写入任务。' });
         return;
       }
       promptEl.value = '';
@@ -454,7 +671,7 @@
       syncPolling();
       try {
         try {
-          await ensureEventStream(sessionId);
+          await ensureEventStream(sessionId, true);
         } catch (_) {
           showStreamBanner(true);
         }
@@ -478,6 +695,39 @@
       }
     }
     document.getElementById('send').onclick = () => sendPrompt(promptEl.value);
+    document.getElementById('listCheckpoints').onclick = () => listCheckpoints().catch(reportError);
+    document.getElementById('createCheckpoint').onclick = async () => {
+      try { await submitCommand('workspace.checkpoint.create',{paths:document.getElementById('checkpointPaths').value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean)}); await listCheckpoints(); }
+      catch(error) { reportError(error); }
+    };
+    document.getElementById('submitFeedback').onclick = async () => {
+      try {
+        const current=await queryCommand('feedback.list');
+        await submitCommand('feedback.submit',{candidate_id:crypto.randomUUID(),category:'usability',observation:document.getElementById('feedbackObservation').value,proposed_change:document.getElementById('feedbackProposal').value,
+          evidence_refs:document.getElementById('feedbackEvidence').value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean),expected_revision:current.revision,idempotency_key:crypto.randomUUID()});
+        await refresh(); announce('建议已保存，等待独立审阅');
+      } catch(error) { reportError(error); }
+    };
+
+    document.getElementById('runCommand').onclick = async () => {
+      try {
+        const data = await api('/api/command', {session_id:sessionId, name:document.getElementById('commandName').value.trim(), arguments:JSON.parse(document.getElementById('commandArguments').value)});
+        renderState(data.state); const output = document.getElementById('commandResult');
+        output.textContent = JSON.stringify(data.response, null, 2); output.focus();
+      } catch (error) { reportError(error); }
+    };
+    document.getElementById('resume').onclick = async () => {
+      try {
+        const result=await api('/api/resume', {session_id:sessionId}); renderState(result);
+        if (!result.response || !result.response.output || !result.response.output.restored) throw new Error((result.response && result.response.error) || '会话未恢复');
+        await refreshApprovals(); announce('会话已恢复');
+      }
+      catch (error) { reportError(error); }
+    };
+    document.getElementById('receiptBtn').onclick = async () => {
+      try { const data = await api('/api/receipt', {session_id:sessionId}); document.getElementById('receiptDetail').textContent = JSON.stringify(data.receipt, null, 2); document.getElementById('receiptDetail').focus(); }
+      catch (error) { reportError(error); }
+    };
     document.getElementById('cancel').onclick = async () => { renderState(await api('/api/cancel', { session_id: sessionId })); };
     document.getElementById('trustBtn').onclick = async () => { renderState(await api('/api/trust', { session_id: sessionId })); };
     document.getElementById('sandbox').onchange = async (e) => { renderState(await api('/api/sandbox', { sandbox: e.target.value, session_id: sessionId })); };
@@ -491,17 +741,23 @@
       openFolder.onclick = () => window.kianaDesktop.openFolder();
       newProject.onclick = () => window.kianaDesktop.newProject();
     } else { openFolder.hidden = true; newProject.hidden = true; }
-    document.getElementById('showGuide').onclick = () => coach.classList.add('show');
+    document.getElementById('showGuide').onclick = () => setCoach(true);
     document.getElementById('coachOk').onclick = () => {
-      coach.classList.remove('show');
+      setCoach(false);
       try { localStorage.setItem('kiana.guide.v2', '1'); } catch (e) {}
     };
     promptEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendPrompt(promptEl.value); }
       if (e.key === 'Escape') document.getElementById('cancel').click();
     });
-    if (!localStorage.getItem('kiana.guide.v2')) coach.classList.add('show');
-    refresh().catch(err => addItem({ kind:'error', title:'error', body:String(err) }));
+    try { if (!localStorage.getItem('kiana.guide.v2')) setCoach(true); } catch (_) { setCoach(true); }
+    coach.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); setCoach(false); }
+      if (event.key === 'Tab') { event.preventDefault(); document.getElementById('coachOk').focus(); }
+    });
+    window.addEventListener('unhandledrejection', event => { event.preventDefault(); reportError(event.reason || '请求失败'); });
+    window.addEventListener('beforeunload', closeEventStream);
+    refresh().catch(reportError);
   </script>
 </body>
 </html>

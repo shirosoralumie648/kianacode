@@ -31,6 +31,14 @@ impl ControlPlane {
         if receipt_owner_mismatch(&events, &context) {
             return Ok(CoreResponse::blocked(request_id, "run_owner_mismatch"));
         }
+        if self.run_data_revoked(run_id).await? {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::Blocked,
+                output: json!({"run_id":run_id,"data_revoked":true,"retained_event_ids":events.iter().map(|event|event.event_id).collect::<Vec<_>>()}),
+                error: Some("receipt_data_revoked".to_owned()),
+            });
+        }
         let sandbox = events
             .iter()
             .rev()
@@ -45,10 +53,27 @@ impl ControlPlane {
                 .map(redact_event_text)
                 .unwrap_or_else(|| fallback.to_owned())
         };
-        let has_completed = events.iter().any(|event| event.kind == "run.completed");
-        let has_failed = events.iter().any(|event| event.kind == "run.failed");
-        let has_cancelled = events.iter().any(|event| event.kind == "run.cancelled");
-        let has_result_unknown = events
+        let turn_start = events
+            .iter()
+            .rposition(|event| event.kind == "run.prompt")
+            .unwrap_or(0);
+        let turn_events = &events[turn_start..];
+        if let Err(reason) = crate::project_invocations(run_id, &events) {
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::ResultUnknown,
+                output: receipt_from_events(&context, run_id, sandbox, Value::Null, &events),
+                error: Some(reason),
+            });
+        }
+        let has_completed = turn_events
+            .iter()
+            .any(|event| event.kind == "run.completed");
+        let has_failed = turn_events.iter().any(|event| event.kind == "run.failed");
+        let has_cancelled = turn_events
+            .iter()
+            .any(|event| event.kind == "run.cancelled");
+        let has_result_unknown = turn_events
             .iter()
             .any(|event| event.kind == "run.result_unknown");
         let terminal_count = has_completed as usize
@@ -115,6 +140,8 @@ impl ControlPlane {
         output: Value,
     ) -> Result<Value, CoreError> {
         let events = self.events_for_current_run(context, run_id).await?;
+        crate::project_invocations(run_id, &events)
+            .map_err(|reason| PortError::Conflict(reason))?;
         Ok(receipt_from_events(
             context, run_id, sandbox, output, &events,
         ))
@@ -234,6 +261,9 @@ pub(crate) fn receipt_from_events(
     events: &[RuntimeEvent],
 ) -> Value {
     let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
+    let invocation_projection = crate::project_invocations(run_id, events);
+    let invocation_error = invocation_projection.as_ref().err().cloned();
+    let invocations = invocation_projection.ok();
     let receipt = with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
@@ -244,9 +274,15 @@ pub(crate) fn receipt_from_events(
             "actor_id": context.actor_id,
             "role_id": worker.role_id,
             "department_id": worker.department_id,
-            "prompt_hash": worker.prompt_hash,
+            "prompt_hash": events.iter().rev().find(|event| event.kind == "run.model_turn")
+                .and_then(|event| event.data.get("prompt_hash")).cloned().unwrap_or_else(|| json!(worker.prompt_hash)),
+            "model_turns": model_turns_from_events(events),
+            "cost_ledger": cost_ledger_from_events(events, run_id),
             "files_changed": files_changed_from_events(events),
             "memory_hits": memory_hits_from_events(events),
+            "memory_proposals": events.iter().filter(|event| event.kind == "memory.proposed").map(|event| event.data.clone()).collect::<Vec<_>>(),
+            "invocations":invocations,
+            "invocation_projection_error":invocation_error,
             "compact": compact_from_events(events),
             "capabilities": capabilities_from_events(events),
             "output": output,
@@ -411,7 +447,27 @@ pub(crate) fn memory_hits_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
             continue;
         };
         for item in items {
-            hits.push(item.clone());
+            let mut hit = item.clone();
+            if let Some(fields) = hit.as_object_mut() {
+                fields.insert("retrieval_event_id".to_owned(), json!(event.event_id));
+                fields.insert(
+                    "retrieval_request_id".to_owned(),
+                    event
+                        .data
+                        .get("capability_request_id")
+                        .cloned()
+                        .unwrap_or_else(|| json!(event.request_id)),
+                );
+                fields.insert(
+                    "query".to_owned(),
+                    event.data.get("query").cloned().unwrap_or(Value::Null),
+                );
+                fields.insert(
+                    "retrieved_by".to_owned(),
+                    event.data.get("role_id").cloned().unwrap_or(Value::Null),
+                );
+            }
+            hits.push(hit);
         }
     }
     hits
@@ -428,4 +484,57 @@ pub(crate) fn capabilities_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
             })
         })
         .collect()
+}
+
+/// Model calls, including calls that produce tools, are projected from the authoritative ledger.
+pub(crate) fn model_turns_from_events(events: &[RuntimeEvent]) -> Vec<Value> {
+    events
+        .iter()
+        .filter(|event| event.kind == "run.model_turn")
+        .map(|event| {
+            let mut data = event.data.clone();
+            if let Some(fields) = data.as_object_mut() {
+                fields.insert("event_id".to_owned(), json!(event.event_id));
+                fields.insert("request_id".to_owned(), json!(event.request_id));
+            }
+            data
+        })
+        .collect()
+}
+pub(crate) fn cost_ledger_from_events(
+    events: &[RuntimeEvent],
+    run_id: RunId,
+) -> kiana_domain::CostLedger {
+    let records = events
+        .iter()
+        .filter(|event| {
+            event.kind == "run.model_turn"
+                && event.data.get("attempted").and_then(Value::as_bool) == Some(true)
+        })
+        .map(|event| {
+            let data = &event.data;
+            kiana_domain::UsageRecord {
+                event_id: event.event_id,
+                request_id: event.request_id,
+                run_id,
+                step: data
+                    .get("step")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    .min(u64::from(u32::MAX)) as u32,
+                provider_id: data
+                    .get("provider_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+                model_id: data
+                    .get("model_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+                input_tokens: data.pointer("/usage/input_tokens").and_then(Value::as_u64),
+                output_tokens: data.pointer("/usage/output_tokens").and_then(Value::as_u64),
+                elapsed_ms: data.get("elapsed_ms").and_then(Value::as_u64).unwrap_or(0),
+            }
+        })
+        .collect();
+    kiana_domain::CostLedger::from_records(records)
 }

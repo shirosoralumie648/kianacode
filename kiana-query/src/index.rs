@@ -468,6 +468,9 @@ pub struct ContextSearchResults {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// 关键词搜索中的单行命中。
 pub struct ContextSearchHit {
+    /// Hash of the exact file used for this result, not a later re-read.
+    #[serde(default)]
+    pub content_hash: String,
     /// 相对文件路径。
     pub path: String,
     /// 语言标签。
@@ -1802,6 +1805,7 @@ fn search_file(
     let score = occurrences * 10 + matched_terms.len() as u64 * 5 + path_score * 3;
 
     Ok(Some(ContextSearchHit {
+        content_hash: stable_hash(content.as_bytes()),
         path: rel,
         language: language_for_path(path).map(str::to_string),
         score,
@@ -2139,7 +2143,8 @@ fn portable_path(path: &Path) -> String {
 }
 
 fn stable_hash(bytes: &[u8]) -> String {
-    format!("{:016x}", stable_hash_u64(bytes))
+    use sha2::{Digest, Sha256};
+    format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
 fn stable_hash_u64(bytes: &[u8]) -> u64 {

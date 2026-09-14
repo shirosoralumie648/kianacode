@@ -146,7 +146,7 @@ impl RoleSpec {
         Self::new(
             ROLE_BUILDER,
             DEPARTMENT_EXECUTING,
-            "You are Kiana's executing Builder. Use only the provided tools `shell`, `apply_patch`, `mcp`, `memory.search`, and `memory.write`. Never request danger-full-access.",
+            include_str!("../role-packs/builder.md"),
             vec![
                 "shell".to_owned(),
                 "apply_patch".to_owned(),
@@ -174,7 +174,7 @@ impl RoleSpec {
         Self::new(
             ROLE_PM,
             DEPARTMENT_PLANNING,
-            "You are Kiana's planning PM. Write only charter/plan/packet artifacts. Do not patch source files. Do not run shell.",
+            include_str!("../role-packs/pm.md"),
             vec![
                 "apply_patch".to_owned(),
                 "memory.search".to_owned(),
@@ -204,7 +204,7 @@ impl RoleSpec {
         Self::new(
             ROLE_ARCHITECT,
             DEPARTMENT_PLANNING,
-            "You are Kiana's planning Architect. Read and advise. Do not write files or run shell.",
+            include_str!("../role-packs/architect.md"),
             vec!["memory.search".to_owned()],
             ROLE_SANDBOX_READ_ONLY,
             Vec::new(),
@@ -225,7 +225,7 @@ impl RoleSpec {
         Self::new(
             ROLE_REVIEWER,
             DEPARTMENT_MONITORING,
-            "You are Kiana's monitoring Reviewer. Compare the author receipt to acceptance. Do not patch source or run shell. You are never the author.",
+            include_str!("../role-packs/reviewer.md"),
             vec!["memory.search".to_owned()],
             ROLE_SANDBOX_READ_ONLY,
             Vec::new(),
@@ -246,7 +246,7 @@ impl RoleSpec {
         Self::new(
             ROLE_SPONSOR,
             DEPARTMENT_INITIATING,
-            "You are Kiana's initiating Sponsor. Write only charter artifacts. Do not patch source files. Do not run shell.",
+            include_str!("../role-packs/sponsor.md"),
             vec![
                 "apply_patch".to_owned(),
                 "memory.search".to_owned(),
@@ -271,7 +271,7 @@ impl RoleSpec {
         Self::new(
             ROLE_CLOSER,
             DEPARTMENT_CLOSING,
-            "You are Kiana's closing Closer. Write only lessons artifacts. Do not patch source files. Do not run shell.",
+            include_str!("../role-packs/closer.md"),
             vec![
                 "apply_patch".to_owned(),
                 "memory.search".to_owned(),

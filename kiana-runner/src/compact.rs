@@ -32,7 +32,13 @@ pub fn approx_token_count(text: &str) -> usize {
 pub fn history_tokens(messages: &[ModelMessage]) -> usize {
     messages
         .iter()
-        .map(|message| approx_token_count(&message.text))
+        .map(|message| {
+            approx_token_count(&message.text).saturating_add(
+                serde_json::to_string(&message.tool_calls)
+                    .map(|calls| approx_token_count(&calls))
+                    .unwrap_or(usize::MAX),
+            )
+        })
         .sum()
 }
 
@@ -126,7 +132,13 @@ pub fn build_compacted_history(
         selected.reverse();
     }
 
-    let mut history: Vec<ModelMessage> = selected.into_iter().map(ModelMessage::user).collect();
+    // Product-owned system instructions are an immutable prefix across compaction.
+    let mut history: Vec<ModelMessage> = messages
+        .iter()
+        .filter(|message| message.role == ModelRole::System)
+        .cloned()
+        .collect();
+    history.extend(selected.into_iter().map(ModelMessage::user));
     history.push(ModelMessage::user(format!(
         "{SUMMARY_PREFIX}\n(no summary available)"
     )));

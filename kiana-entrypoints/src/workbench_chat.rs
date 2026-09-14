@@ -16,7 +16,9 @@ use crossterm::terminal::{
 };
 use futures_util::StreamExt;
 use kiana_daemon::DaemonHost;
-use kiana_protocol::{ExecutionStatus, ResponseEnvelope, RunId, RunStreamEvent};
+use kiana_protocol::{
+    ExecutionStatus, ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent, UiCursor,
+};
 use kiana_types::{write_project_trust, ProjectTrust};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -36,7 +38,7 @@ use crate::harness_run;
 use crate::workbench::WORKBENCH_USAGE;
 
 const SLASH_HELP: &str =
-    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /cancel  /quit";
+    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
@@ -92,6 +94,17 @@ pub enum ChatAction {
     ShowSandbox,
     /// 请求读取当前 run 的 receipt。
     Receipt,
+    /// List pending requests and reply with the server-issued challenge.
+    Approvals,
+    Approval {
+        id: String,
+        approve: bool,
+    },
+    Resume,
+    Command {
+        name: String,
+        arguments: Value,
+    },
     /// 显示帮助内容。
     Help,
     /// 显示解析或校验错误，而不提交模型请求。
@@ -105,7 +118,7 @@ pub struct WorkbenchView {
     pub folder: PathBuf,
     /// 当前读取到的项目信任状态；可能因外部修改而过时。
     pub trusted: bool,
-    /// 当前回合将作为选项传给 daemon 的沙箱档位。
+    /// 新 Run 使用的沙箱档位；已有 Run 的选项从 daemon 账本恢复。
     pub sandbox: String,
     /// 本次界面会话使用的 session 标识。
     pub session_id: String,
@@ -119,6 +132,8 @@ pub struct WorkbenchView {
     stream_turn: Option<StreamTurn>,
     /// 最近一次已应用的终态，用于忽略同一响应的重复投递。
     last_terminal: Option<(RunId, ExecutionStatus)>,
+    last_status: Option<ExecutionStatus>,
+    stream_cursor: UiCursor,
 }
 
 impl WorkbenchView {
@@ -134,6 +149,8 @@ impl WorkbenchView {
             messages: Vec::new(),
             stream_turn: None,
             last_terminal: None,
+            last_status: None,
+            stream_cursor: UiCursor::default(),
         };
         view.push_system(format!(
             "Conversation surface on DaemonHost. {SLASH_HELP}. Esc/Ctrl-C cancels a running turn."
@@ -151,7 +168,13 @@ impl WorkbenchView {
             self.folder.display(),
             if self.trusted { "yes" } else { "no" },
             self.sandbox,
-            if self.running { "running" } else { "idle" },
+            if self.running {
+                "running"
+            } else {
+                self.last_status
+                    .map(|status| status.as_str())
+                    .unwrap_or("idle")
+            },
             short_id(&self.session_id)
         )
     }
@@ -174,6 +197,30 @@ impl WorkbenchView {
                 "sandbox" if args.is_empty() => ChatAction::ShowSandbox,
                 "sandbox" => interpret_sandbox(args),
                 "receipt" => ChatAction::Receipt,
+                "approvals" => ChatAction::Approvals,
+                "inbox" => ChatAction::Command {
+                    name: "human.inbox".to_owned(),
+                    arguments: serde_json::json!({}),
+                },
+                "approve" | "deny" if !args.trim().is_empty() => ChatAction::Approval {
+                    id: args.trim().to_owned(),
+                    approve: name == "approve",
+                },
+                "resume" => ChatAction::Resume,
+                "command" => {
+                    let (name, arguments) = args.split_once(' ').unwrap_or((args, "{}"));
+                    match serde_json::from_str::<Value>(arguments) {
+                        Ok(arguments) if !name.is_empty() && arguments.is_object() => {
+                            ChatAction::Command {
+                                name: name.to_owned(),
+                                arguments,
+                            }
+                        }
+                        _ => {
+                            ChatAction::Error("用法：/command name {\"key\":\"value\"}".to_owned())
+                        }
+                    }
+                }
                 "cancel" => ChatAction::Cancel,
                 _ => ChatAction::Help,
             };
@@ -233,7 +280,14 @@ impl WorkbenchView {
                 }
                 Ok(Some(response))
             }
-            RunStreamEvent::Unknown => Ok(None),
+            RunStreamEvent::ApprovalRequested { .. } => {
+                self.push_system("awaiting_approval：使用 /approvals 查看，再明确批准或拒绝。");
+                Ok(None)
+            }
+            RunStreamEvent::Usage { .. }
+            | RunStreamEvent::ToolCall { .. }
+            | RunStreamEvent::Error { .. }
+            | RunStreamEvent::Unknown => Ok(None),
         }
     }
 
@@ -266,6 +320,7 @@ impl WorkbenchView {
     /// 仅提取约定 JSON 字段。已有增量文本时，`Completed` 用最终回执文本替换增量投影；
     /// `Cancelled` / `ResultUnknown` 保留已显示文本并明确标注中断，不伪装成完成。
     pub fn apply_response(&mut self, response: &ResponseEnvelope) {
+        self.last_status = Some(response.status);
         let response_run_id = run_id_from(response);
         if response.status.is_terminal() {
             if let Some(run_id) = response_run_id {
@@ -291,7 +346,8 @@ impl WorkbenchView {
                 response.error.as_deref().unwrap_or("result_unknown")
             )),
             _ => self.push_system(format!(
-                "blocked: {}",
+                "{}: {}",
+                response.status.as_str(),
                 response.error.as_deref().unwrap_or("kiana_harness_failed")
             )),
         }
@@ -445,7 +501,7 @@ pub async fn run(
     let mut events = EventStream::new();
     let (tx, mut rx) = mpsc::unbounded_channel::<Result<kiana_protocol::ResponseEnvelope>>();
     let (stream_tx, mut stream_rx) =
-        mpsc::unbounded_channel::<std::result::Result<RunStreamEvent, String>>();
+        mpsc::unbounded_channel::<std::result::Result<RunStreamEnvelope, String>>();
     let mut started = false;
     let mut last_run_id: Option<RunId> = None;
 
@@ -461,7 +517,6 @@ pub async fn run(
             &tx,
             &stream_tx,
         )?;
-        started = true;
     }
 
     loop {
@@ -470,8 +525,10 @@ pub async fn run(
             result = rx.recv() => {
                 match result {
                     Some(Ok(response)) => {
-                        last_run_id = run_id_from(&response).or(last_run_id);
-                        started = true;
+                        if let Some(run_id) = run_id_from(&response) {
+                            last_run_id = Some(run_id);
+                            started = true;
+                        }
                         view.apply_response(&response);
                     }
                     Some(Err(error)) => {
@@ -484,7 +541,7 @@ pub async fn run(
             stream_event = stream_rx.recv() => {
                 match stream_event {
                     Some(Ok(event)) => {
-                        match view.apply_stream_event(event) {
+                        match event.advance_cursor(&mut view.stream_cursor).map_err(anyhow::Error::msg).and_then(|fresh| if fresh { view.apply_stream_event(event.event) } else { Ok(None) }) {
                             Ok(Some(response)) => {
                                 last_run_id = run_id_from(&response).or(last_run_id);
                                 started = true;
@@ -525,7 +582,7 @@ pub async fn run(
                         .await?
                         {
                             LoopControl::Quit => break,
-                            LoopControl::Submitted => started = true,
+                            LoopControl::Submitted => {}
                             LoopControl::Continue => {}
                         }
                     }
@@ -558,7 +615,7 @@ async fn handle_action(
     started: bool,
     last_run_id: Option<RunId>,
     tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
-    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEvent, String>>,
+    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEnvelope, String>>,
 ) -> Result<LoopControl> {
     match action {
         ChatAction::None => Ok(LoopControl::Continue),
@@ -572,7 +629,17 @@ async fn handle_action(
             Ok(LoopControl::Continue)
         }
         ChatAction::ShowSandbox => {
-            view.push_system(format!("sandbox: {}", view.sandbox));
+            let scoped =
+                harness_run::session_options_on_host(host, session_id, last_run_id, options)
+                    .await?;
+            let active = scoped
+                .get("sandbox")
+                .and_then(Value::as_str)
+                .unwrap_or("read-only");
+            view.push_system(format!(
+                "当前会话 sandbox: {active}；新 Run sandbox: {}",
+                view.sandbox
+            ));
             Ok(LoopControl::Continue)
         }
         ChatAction::Trust => {
@@ -584,7 +651,7 @@ async fn handle_action(
         ChatAction::SetSandbox(sandbox) => {
             view.sandbox = sandbox.clone();
             options.insert("sandbox".to_string(), Value::String(sandbox.clone()));
-            view.push_system(format!("sandbox: {sandbox}"));
+            view.push_system(format!("新 Run sandbox: {sandbox}；已有运行保留原权限。"));
             Ok(LoopControl::Continue)
         }
         ChatAction::Receipt => {
@@ -595,8 +662,93 @@ async fn handle_action(
                 options,
             )
             .await?;
-            view.apply_response(&response);
+            view.push_system(serde_json::to_string_pretty(&response)?);
             Ok(LoopControl::Continue)
+        }
+        ChatAction::Approvals => {
+            let response = harness_run::pending_approvals_envelope_on_host(
+                host.clone(),
+                session_id,
+                last_run_id,
+                options,
+            )
+            .await?;
+            view.push_system(serde_json::to_string_pretty(&response.output)?);
+            view.push_system("/approve <approval_id> 或 /deny <approval_id>；重启后先 /resume。");
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::Command { name, arguments } => {
+            let response = harness_run::command_envelope_on_host(
+                host.clone(),
+                session_id,
+                name,
+                arguments,
+                options,
+            )
+            .await?;
+            view.push_system(serde_json::to_string_pretty(&response)?);
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::Approval { id, approve } => {
+            let listed = harness_run::pending_approvals_envelope_on_host(
+                host.clone(),
+                session_id,
+                last_run_id,
+                options,
+            )
+            .await?;
+            let decision = if approve { "approve" } else { "deny" };
+            let entry = listed.output["approvals"].as_array().and_then(|items| {
+                items.iter().find(|item| {
+                    item["challenge"]["approval_id"].as_str() == Some(id.as_str())
+                        && item["available_decisions"]
+                            .as_array()
+                            .is_some_and(|decisions| {
+                                decisions.iter().any(|item| item.as_str() == Some(decision))
+                            })
+                })
+            });
+            let Some(entry) = entry else {
+                view.push_system("approval_not_available：刷新 /approvals 后重试。");
+                return Ok(LoopControl::Continue);
+            };
+            let challenge = serde_json::from_value(entry["challenge"].clone())?;
+            let decision = if approve {
+                kiana_protocol::ApprovalDecision::Approve
+            } else {
+                kiana_protocol::ApprovalDecision::Deny
+            };
+            let (host, session_id, options, tx) = (
+                host.clone(),
+                session_id.to_owned(),
+                options.clone(),
+                tx.clone(),
+            );
+            view.running = true;
+            tokio::spawn(async move {
+                let response = harness_run::decide_approval_envelope_on_host(
+                    host, session_id, challenge, decision, &options,
+                )
+                .await;
+                let _ = tx.send(response);
+            });
+            Ok(LoopControl::Submitted)
+        }
+        ChatAction::Resume => {
+            let (host, session_id, options, tx) = (
+                host.clone(),
+                session_id.to_owned(),
+                options.clone(),
+                tx.clone(),
+            );
+            view.running = true;
+            tokio::spawn(async move {
+                let response =
+                    harness_run::resume_envelope_on_host(host, session_id, last_run_id, &options)
+                        .await;
+                let _ = tx.send(response);
+            });
+            Ok(LoopControl::Submitted)
         }
         ChatAction::Cancel => {
             if !view.running {
@@ -657,7 +809,7 @@ fn submit_turn(
     last_run_id: Option<RunId>,
     prompt: String,
     tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
-    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEvent, String>>,
+    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEnvelope, String>>,
 ) -> Result<()> {
     // 启动/继续的选择只取决于本会话是否已拥有 run；真正的生命周期合法性仍由 daemon
     // 验证。结果通过 channel 串回 UI，避免并发任务直接改动视图状态。
@@ -667,7 +819,8 @@ fn submit_turn(
         RunId::parse_str(session_id)
     }
     .ok_or_else(|| anyhow!("workbench_stream_run_id_required"))?;
-    subscribe_run_stream(host, stream_run_id, stream_tx);
+    view.stream_cursor = host.run_stream_cursor(stream_run_id);
+    subscribe_run_stream(host, stream_run_id, &view.stream_cursor, stream_tx);
     view.begin_stream(stream_run_id);
     view.push_user(prompt.clone());
     view.running = true;
@@ -690,18 +843,19 @@ fn submit_turn(
 fn subscribe_run_stream(
     host: &Arc<DaemonHost>,
     run_id: RunId,
-    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEvent, String>>,
+    cursor: &UiCursor,
+    stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEnvelope, String>>,
 ) {
     // 必须在 run 任务启动前创建订阅；否则会错过已经发出的早期 delta。订阅只转发展示
     // 事件，终态仍由 run/cancel 响应与 receipt 对账。
-    let mut subscription = host.subscribe_run(run_id);
+    let mut subscription = host.subscribe_run_after(run_id, Some(cursor));
     let stream_tx = stream_tx.clone();
     tokio::spawn(async move {
         loop {
             match subscription.recv().await {
                 Ok(envelope) => {
                     let terminal = matches!(envelope.event, RunStreamEvent::Terminal { .. });
-                    if stream_tx.send(Ok(envelope.event)).is_err() {
+                    if stream_tx.send(Ok(envelope)).is_err() {
                         break;
                     }
                     if terminal {

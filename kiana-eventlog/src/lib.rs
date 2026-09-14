@@ -1,6 +1,7 @@
 //! Append-only event storage adapters for Kiana.
 
 mod event_store_core;
+mod journal_core;
 mod jsonl;
 mod memory;
 

@@ -14,6 +14,7 @@ pub mod command_dispatch;
 pub mod harness_run;
 pub mod init;
 pub mod mcp;
+pub mod product_command;
 pub mod repl;
 pub mod runner;
 pub mod sandbox;

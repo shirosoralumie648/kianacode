@@ -26,7 +26,7 @@ impl ControlPlane {
 
     pub(crate) async fn start_run_with_id(
         &self,
-        context: RequestContext,
+        mut context: RequestContext,
         prompt: String,
         history: Vec<kiana_domain::ConversationMessage>,
         sandbox: Option<String>,
@@ -88,6 +88,50 @@ impl ControlPlane {
             ));
         }
 
+        let distillation = match self
+            .claim_distillation_start(
+                &context,
+                run_id,
+                &prompt,
+                history.is_empty(),
+                sandbox.as_deref(),
+            )
+            .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({"run_id":run_id,"reason":error.to_string()}),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, error.to_string()));
+            }
+        };
+        let max_steps_per_turn = self
+            .company_runtime_step_limit(&context, self.max_steps_per_turn.unwrap_or(role.max_steps))
+            .await?;
+        let max_steps_per_turn = if distillation {
+            max_steps_per_turn.min(1)
+        } else {
+            max_steps_per_turn
+        };
+        if max_steps_per_turn == 0 {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": "runtime_config_invalid:max_steps_per_turn" }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "runtime_config_invalid:max_steps_per_turn",
+            ));
+        }
+
         let sandbox = match authorized_harness_sandbox(&context, sandbox.as_deref()) {
             Ok(sandbox) => sandbox,
             Err(reason) => {
@@ -102,6 +146,24 @@ impl ControlPlane {
             }
         };
 
+        if let Err(error) = self
+            .bind_company_run_scope(&mut context, sandbox, true)
+            .await
+        {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({"reason":error.to_string(),"run_id":run_id}),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, error.to_string()));
+        }
+
+        let runtime_budget = self
+            .runtime_budget_for_run(&context, max_steps_per_turn)
+            .await?;
+        let authority_revision = self.authority_revision(&context.project_root).await?;
         self.record_event(
             request_id,
             &mut sequence,
@@ -116,9 +178,22 @@ impl ControlPlane {
                 "harness": HARNESS_ID,
                 "sandbox": sandbox,
                 "capability_mode": "brokered",
+                "max_steps_per_turn": max_steps_per_turn,
+                "runtime_budget":runtime_budget,
+                "authority_revision":authority_revision,
+                "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+                "role_prompt_hash": role.prompt_hash,
+                "model_profile": role.model_profile,
             }),
         )
         .await?;
+
+        if let Some(response) = self
+            .checkpoint_before_input(&context, run_id, &mut sequence)
+            .await?
+        {
+            return Ok(response);
+        }
 
         self.record_event(
             request_id,
@@ -138,6 +213,32 @@ impl ControlPlane {
         let _cancel_rx = self.watch_cancel(run_id);
         let _terminal_scope = self.begin_terminal_scope(run_id);
 
+        let mut prompt_bundle = kiana_domain::PromptBundle::for_role(&role);
+        if distillation {
+            prompt_bundle.sections.push(kiana_domain::PromptSection {
+                name: "memory_distillation".to_owned(),
+                order: 180,
+                text: kiana_domain::MEMORY_DISTILL_SYSTEM.to_owned(),
+                source: kiana_domain::MEMORY_DISTILL_PROMPT_SOURCE.to_owned(),
+                authority: kiana_domain::PromptAuthority::Product,
+            });
+        }
+
+        self.runner.bind_model_assignment(
+            run_id,
+            kiana_domain::ModelAssignment {
+                schema: "kiana.model-assignment.v1".to_owned(),
+                run_id,
+                turn_id: kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+                role_id: role.role_id.clone(),
+                profile: role.model_profile.clone(),
+                project_root: context.project_root.clone(),
+                project_trusted: context.project_trusted,
+                authority_revision: authority_revision.clone(),
+                max_wall_time_ms: runtime_budget.max_wall_time_ms,
+            },
+        )?;
+
         let pending_events = match self
             .runner
             .send(RunnerCommand::start_in_with_history(
@@ -146,9 +247,11 @@ impl ControlPlane {
                 history,
                 context.project_root.clone(),
                 sandbox.to_owned(),
-                String::new(),
+                prompt_bundle.encode().map_err(|error| {
+                    CoreError::from(PortError::Failed(format!("prompt_bundle_invalid:{error}")))
+                })?,
                 context.project_trusted,
-                self.max_steps_per_turn,
+                max_steps_per_turn,
             ))
             .await
         {
@@ -178,14 +281,79 @@ impl ControlPlane {
             .await
     }
 
-    pub async fn continue_run(
+    /// New protocol semantics: a terminal Run is immutable; a new turn links a fresh Run.
+    pub async fn continue_new_turn(
         &self,
         context: RequestContext,
+        prompt: String,
+        sandbox: Option<String>,
+        previous: Option<RunId>,
+    ) -> Result<CoreResponse, CoreError> {
+        if context
+            .session_id
+            .as_str()
+            .starts_with(kiana_domain::MEMORY_DISTILL_SESSION_PREFIX)
+        {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "memory_distillation_continue_denied",
+            ));
+        }
+        let previous = match self.resolve_run_id(&context, previous).await? {
+            Ok(id) => id,
+            Err(reason) => return Ok(CoreResponse::blocked(context.request_id, reason)),
+        };
+        let state = self.run_state(previous).await?;
+        if state.outcome.is_none() {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "run_not_terminal_use_resume",
+            ));
+        }
+        if state.outcome == Some(RunOutcome::ResultUnknown) {
+            return Ok(CoreResponse::blocked(
+                context.request_id,
+                "run_unknown_requires_reconciliation",
+            ));
+        }
+        let history = self
+            .model_protocol_history(context.session_id.as_str())
+            .await?;
+        let run_id = RunId::new();
+        self.runner.bind_model_history(run_id, history)?;
+        let turn_id = kiana_domain::TurnId::from_uuid(context.request_id.as_uuid());
+        self.append_event(context.request_id,1,"run.predecessor",json!({"run_id":run_id,
+            "previous_run_id":previous,"turn_id":turn_id,"session_id":context.session_id,"semantics":"new_turn_v2"})).await?;
+        self.start_run_with_id(context, prompt, Vec::new(), sandbox, Some(run_id))
+            .await
+    }
+
+    /// Legacy v1 continuation keeps its historical per-turn interpretation.
+    pub async fn continue_run(
+        &self,
+        mut context: RequestContext,
         prompt: String,
         sandbox: Option<String>,
         run_id: Option<RunId>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
+        if context
+            .session_id
+            .as_str()
+            .starts_with(kiana_domain::MEMORY_DISTILL_SESSION_PREFIX)
+        {
+            self.append_event(
+                request_id,
+                1,
+                "run.rejected",
+                json!({"reason":"memory_distillation_continue_denied"}),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(
+                request_id,
+                "memory_distillation_continue_denied",
+            ));
+        }
         let mut sequence = 1u64;
         let run_id = match self.resolve_run_id(&context, run_id).await? {
             Ok(run_id) => run_id,
@@ -208,6 +376,20 @@ impl ControlPlane {
             }
         };
 
+        let has_pending = self
+            .pending_invocations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .any(|pending| pending.run_id == run_id);
+        if has_pending
+            || self
+                .run_state(run_id)
+                .await
+                .is_ok_and(|state| state.phase == RunPhase::AwaitingApproval)
+        {
+            return Ok(CoreResponse::blocked(request_id, "run_awaiting_approval"));
+        }
         self.record_event(
             request_id,
             &mut sequence,
@@ -244,6 +426,27 @@ impl ControlPlane {
                 return Ok(CoreResponse::blocked(request_id, reason));
             }
         };
+
+        if let Err(error) = self
+            .bind_company_run_scope(&mut context, sandbox, false)
+            .await
+        {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({"reason":error.to_string(),"run_id":run_id}),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, error.to_string()));
+        }
+
+        if let Some(response) = self
+            .checkpoint_before_input(&context, run_id, &mut sequence)
+            .await?
+        {
+            return Ok(response);
+        }
 
         self.record_event(
             request_id,
@@ -324,6 +527,24 @@ impl ControlPlane {
             }
         };
 
+        let context = self.approval_scope(&context).await?;
+        if let Ok(state) = self.run_state(run_id).await {
+            if let Some(outcome) = state.outcome {
+                let status = match outcome {
+                    RunOutcome::Completed => ExecutionStatus::Completed,
+                    RunOutcome::Failed => ExecutionStatus::Failed,
+                    RunOutcome::Cancelled => ExecutionStatus::Cancelled,
+                    RunOutcome::ResultUnknown => ExecutionStatus::ResultUnknown,
+                };
+                return Ok(CoreResponse {
+                    request_id,
+                    status,
+                    output: json!({"run_id":run_id,"session_id":context.session_id,"already_terminal":true}),
+                    error: state.error,
+                });
+            }
+        }
+
         self.record_event(
             request_id,
             &mut sequence,
@@ -336,14 +557,16 @@ impl ControlPlane {
         )
         .await?;
 
-        let pending_approvals: Vec<ApprovalId> = self
+        let pending_approvals: Vec<(ApprovalId, PendingInvocation)> = self
             .pending_invocations
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .iter()
-            .filter_map(|(approval_id, pending)| (pending.run_id == run_id).then_some(*approval_id))
+            .filter_map(|(approval_id, pending)| {
+                (pending.run_id == run_id).then_some((*approval_id, pending.clone()))
+            })
             .collect();
-        for approval_id in pending_approvals {
+        for (approval_id, pending) in pending_approvals {
             if let Err(error) = self
                 .approvals
                 .invalidate(&context, approval_id, &reason)
@@ -370,12 +593,24 @@ impl ControlPlane {
                     error: Some(format!("approval_invalidation_failed:{error}")),
                 });
             }
+            self.record_event(request_id,&mut sequence,"run.tool_result",json!({"run_id":run_id,
+                "capability_request_id":pending.request_id,"call_id":pending.request.arguments["call_id"],
+                "result":{"error":"cancelled:approval_pending","not_executed":true,"replay_safe":true},"not_executed":true})).await?;
             self.pending_invocations
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .remove(&approval_id);
         }
 
+        self.record_event(
+            request_id,
+            &mut sequence,
+            "run.cancelling",
+            json!({
+                "run_id":run_id,"reason":reason,"cancellation_state":"stopping",
+            }),
+        )
+        .await?;
         self.signal_cancel(run_id);
         let events = match self
             .runner
@@ -406,6 +641,40 @@ impl ControlPlane {
             }
         };
 
+        let stop_confirmed = self.await_capability_stop(run_id).await;
+        for event in &events {
+            if let RunnerEvent::ToolCancelled {
+                run_id: event_run_id,
+                request_id: tool_request_id,
+                call_id,
+                result,
+            } = event
+            {
+                if *event_run_id == run_id {
+                    self.record_event(request_id,&mut sequence,"run.tool_result",json!({
+                        "run_id":run_id,"capability_request_id":tool_request_id,"call_id":call_id,
+                        "result":result,"cancelled":true,"not_executed":true,
+                    })).await?;
+                }
+            }
+        }
+        if !stop_confirmed {
+            let error = "result_unknown:cancel_stop_unconfirmed";
+            self.record_terminal_event(
+                request_id,
+                &mut sequence,
+                run_id,
+                "run.result_unknown",
+                json!({"run_id":run_id,"error":error}),
+            )
+            .await?;
+            return Ok(CoreResponse {
+                request_id,
+                status: ExecutionStatus::ResultUnknown,
+                output: run_identity(&context, run_id, "read-only"),
+                error: Some(error.to_owned()),
+            });
+        }
         let response_run_ids_match = events.iter().all(|event| event.run_id() == run_id);
         let matching_failure_errors = events
             .iter()
@@ -450,6 +719,14 @@ impl ControlPlane {
                 run_id,
                 "run.cancelled",
                 json!({ "run_id": run_id, "error": &cancelled }),
+            )
+            .await?;
+            self.settle_resumed_cell(
+                &context,
+                run_id,
+                "read-only",
+                ExecutionStatus::Cancelled,
+                &mut sequence,
             )
             .await?;
             return Ok(CoreResponse {
@@ -536,6 +813,75 @@ impl ControlPlane {
                     .await?;
             }
             match event {
+                RunnerEvent::ToolCancelled {
+                    run_id,
+                    request_id: tool_request_id,
+                    call_id,
+                    result,
+                } => {
+                    self.record_event(request_id,sequence,"run.tool_result",json!({
+                        "run_id":run_id,"capability_request_id":tool_request_id,"call_id":call_id,
+                        "result":result,"cancelled":true,"not_executed":true,
+                    })).await?;
+                }
+                RunnerEvent::ModelTurn {
+                    run_id,
+                    step,
+                    mut metadata,
+                } => {
+                    if let Some(fields) = metadata.as_object_mut() {
+                        fields.insert("run_id".to_owned(), json!(run_id));
+                        fields.insert("step".to_owned(), json!(step));
+                        fields.insert("session_id".to_owned(), json!(context.session_id));
+                    }
+                    if metadata["attempted"] == true {
+                        if let Some(cell_id) = context.cell_id {
+                            let measured = metadata["usage"]["input_tokens"]
+                                .as_u64()
+                                .zip(metadata["usage"]["output_tokens"].as_u64())
+                                .and_then(|(input, output)| input.checked_add(output));
+                            let charge = measured
+                                .or_else(|| metadata["budget"]["total"].as_u64())
+                                .unwrap_or(u64::MAX);
+                            let turn_key = metadata["model_request_id"]
+                                .as_str()
+                                .map(str::to_owned)
+                                .unwrap_or_else(|| format!("{request_id}:{step}"));
+                            match self
+                                .cell_registry
+                                .account_model_usage(cell_id, &turn_key, charge)
+                                .await
+                            {
+                                Ok(budget) => {
+                                    metadata["cell_budget"] = json!(budget);
+                                    metadata["usage_accounting"] = json!(if measured.is_some() {
+                                        "provider_reported"
+                                    } else {
+                                        "conservative_request_reserve"
+                                    });
+                                }
+                                Err(error) => {
+                                    failed = Some(format!("run_budget_exceeded:{}", error));
+                                    let _ = self
+                                        .runner
+                                        .send(RunnerCommand::Cancel {
+                                            run_id,
+                                            reason: "run_budget_exceeded:tokens".to_owned(),
+                                        })
+                                        .await;
+                                    metadata["budget_error"] = json!(error.to_string());
+                                }
+                            }
+                        }
+                    }
+                    self.record_event(
+                        request_id,
+                        sequence,
+                        "run.model_turn",
+                        redact_event_value(&metadata),
+                    )
+                    .await?;
+                }
                 RunnerEvent::Started { run_id } => {
                     self.record_event(
                         request_id,
@@ -557,6 +903,8 @@ impl ControlPlane {
                     {
                         Ok(Some(events)) => pending_events.extend(events),
                         Ok(None) => {
+                            self.checkpoint_run(context, run_id, sandbox, sequence)
+                                .await?;
                             let pending = self
                                 .pending_invocations
                                 .lock()
@@ -603,12 +951,22 @@ impl ControlPlane {
                         output.clone(),
                     )
                     .await?;
+                    self.derive_memory_proposal(
+                        context,
+                        Some(run_id),
+                        "run.completed",
+                        "lesson",
+                        sequence,
+                    )
+                    .await;
                 }
                 RunnerEvent::Failed { run_id, error } => {
                     let error = redact_event_text(&error);
                     failed = Some(error.clone());
                     let terminal_kind = if error.starts_with("cancelled:") {
                         "run.cancelled"
+                    } else if error.contains("result_unknown:") {
+                        "run.result_unknown"
                     } else {
                         "run.failed"
                     };
@@ -620,6 +978,14 @@ impl ControlPlane {
                         json!({ "run_id": run_id, "error": error }),
                     )
                     .await?;
+                    self.derive_memory_proposal(
+                        context,
+                        Some(run_id),
+                        terminal_kind,
+                        "lesson",
+                        sequence,
+                    )
+                    .await;
                 }
                 RunnerEvent::Compacted {
                     run_id,
@@ -655,7 +1021,21 @@ impl ControlPlane {
             if error == "run_not_found" {
                 self.forget_session(context.session_id.as_str(), run_id);
             }
-            let result_unknown = error.strip_prefix("result_unknown:").is_some();
+            let result_unknown = error.contains("result_unknown:");
+            self.record_terminal_event(
+                request_id,
+                sequence,
+                run_id,
+                if result_unknown {
+                    "run.result_unknown"
+                } else if error.starts_with("cancelled:") {
+                    "run.cancelled"
+                } else {
+                    "run.failed"
+                },
+                json!({"run_id":run_id,"error":error}),
+            )
+            .await?;
             if result_unknown {
                 let _ = self
                     .record_terminal_event(
@@ -705,6 +1085,8 @@ impl ControlPlane {
             .run_receipt_from_store(context, run_id, sandbox, output)
             .await?;
         self.record_event(request_id, sequence, "run.receipt", receipt.clone())
+            .await?;
+        self.checkpoint_run(context, run_id, sandbox, sequence)
             .await?;
         Ok(CoreResponse::completed(request_id, receipt))
     }

@@ -240,6 +240,8 @@ fn local_daemon() -> anyhow::Result<Arc<DaemonHost>> {
 fn status_name(status: ExecutionStatus) -> &'static str {
     match status {
         ExecutionStatus::Accepted => "accepted",
+        ExecutionStatus::Queued => "queued",
+        ExecutionStatus::Cancelling => "cancelling",
         ExecutionStatus::Denied => "denied",
         ExecutionStatus::AwaitingApproval => "awaiting_approval",
         ExecutionStatus::Running => "running",

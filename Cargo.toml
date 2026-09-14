@@ -20,6 +20,7 @@ members = [
     "kiana-policy",
     "kiana-ports",
     "kiana-protocol",
+    "kiana-provider",
     "kiana-query",
     "kiana-remote",
     "kiana-runner",
@@ -85,6 +86,7 @@ kiana-gates = { path = "kiana-gates" }
 kiana-policy = { path = "kiana-policy" }
 kiana-ports = { path = "kiana-ports" }
 kiana-protocol = { path = "kiana-protocol" }
+kiana-provider = { path = "kiana-provider" }
 kiana-query = { path = "kiana-query" }
 kiana-runner = { path = "kiana-runner" }
 kiana-runner-protocol = { path = "kiana-runner-protocol" }

@@ -69,6 +69,21 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return Ok(());
     }
 
+    let has_product_session = runtime_flags.session_id.is_some()
+        || args
+            .iter()
+            .any(|arg| arg == "--session-id" || arg.starts_with("--session-id="));
+    if args.first().is_some_and(|arg| {
+        matches!(arg.as_str(), "command" | "approvals" | "approval")
+            || (arg == "resume" && has_product_session)
+    }) {
+        let mut product_args = args.clone();
+        if let Some(session_id) = runtime_flags.session_id.as_ref() {
+            product_args.extend(["--session-id".to_owned(), session_id.clone()]);
+        }
+        return crate::product_command::main_from_args(&product_args).await;
+    }
+
     if args.first().map(String::as_str) == Some("architecture") {
         return architecture_main(&args).await;
     }
@@ -6811,6 +6826,8 @@ async fn direct_connect_app_approval_decision_handler(
 fn direct_connect_approval_status(status: ControlPlaneStatus) -> &'static str {
     match status {
         ControlPlaneStatus::Accepted => "accepted",
+        ControlPlaneStatus::Queued => "queued",
+        ControlPlaneStatus::Cancelling => "cancelling",
         ControlPlaneStatus::Denied => "denied",
         ControlPlaneStatus::AwaitingApproval => "awaiting_approval",
         ControlPlaneStatus::Running => "running",

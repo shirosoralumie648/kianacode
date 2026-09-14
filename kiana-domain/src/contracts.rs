@@ -1,7 +1,8 @@
-//! ID 契约注册表。
+//! ID 契约注册表与 schema 版本规则。
 //!
-//! 本模块登记 domain 中公开 ID 类型的唯一 owner 与线协议形状。登记不改变任何现有
-//! serde 表示；测试把注册表与真实类型的 JSON 往返行为锁在一起。
+//! 本模块登记 domain 中公开 ID 类型的唯一 owner 与线协议形状，以及 schema 注册表、
+//! 版本策略和 unknown field/event 处理规则。登记不改变任何现有 serde 表示；测试把
+//! 注册表与真实类型的 JSON 往返行为锁在一起。
 
 /// ID 在 JSON 线协议中的基础形态。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -148,6 +149,398 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::String,
     },
 ];
+
+/// Schema 的层级分类。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SchemaLayer {
+    /// Canonical domain schema：业务对象字段与不变量。
+    Domain,
+    /// Wire protocol schema：跨进程传输的 envelope 与 DTO。
+    Wire,
+    /// Runtime event schema：执行事实与账本事件。
+    RuntimeEvent,
+    /// Projection/receipt schema：派生状态与收据。
+    Projection,
+}
+
+/// Schema 版本号。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub struct SchemaVersion {
+    pub major: u32,
+    pub minor: u32,
+}
+
+impl SchemaVersion {
+    pub const fn new(major: u32, minor: u32) -> Self {
+        Self { major, minor }
+    }
+
+    /// 检查当前运行时版本是否与给定版本兼容。
+    ///
+    /// 规则：
+    /// - major 不匹配 → fail-closed（未知 major 必须拒绝）
+    /// - major 匹配、minor 更新 → 兼容（additive 字段可升 minor）
+    pub fn is_compatible_with(&self, other: &SchemaVersion) -> bool {
+        self.major == other.major
+    }
+}
+
+/// Schema 的兼容性策略。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompatibilityPolicy {
+    /// 严格向后兼容：major 不变时只能增加 optional 字段。
+    BackwardCompatible,
+    /// 破坏性变更：需要 major 升级与显式迁移。
+    Breaking,
+}
+
+/// Unknown events remain inspectable facts; they confer no state transition or execution authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnknownEventPolicy {
+    PreserveOpaqueWithoutExecution,
+}
+pub const UNKNOWN_EVENT_POLICY: UnknownEventPolicy =
+    UnknownEventPolicy::PreserveOpaqueWithoutExecution;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SchemaMigration {
+    pub from: &'static str,
+    pub to: &'static str,
+    pub adapter: &'static str,
+}
+pub const SCHEMA_MIGRATIONS: &[SchemaMigration] = &[SchemaMigration {
+    from: "kiana.memory-record.v1",
+    to: "kiana.memory-record.v2",
+    adapter: "legacy_origin_to_candidate_draft",
+}];
+
+/// Schema 变更类型。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SchemaChange {
+    /// 增加 optional 字段（可升 minor）。
+    AddOptionalField,
+    /// 删除字段（必须升 major）。
+    RemoveField,
+    /// 改变字段类型（必须升 major）。
+    ChangeFieldType,
+    /// 改变 required 语义（必须升 major）。
+    ChangeRequired,
+    /// 改变状态语义（必须升 major）。
+    ChangeStateSemantics,
+}
+
+impl SchemaChange {
+    /// 此变更是否需要 major 版本升级。
+    pub const fn requires_major_bump(&self) -> bool {
+        matches!(
+            self,
+            SchemaChange::RemoveField
+                | SchemaChange::ChangeFieldType
+                | SchemaChange::ChangeRequired
+                | SchemaChange::ChangeStateSemantics
+        )
+    }
+}
+
+/// 一个 schema 的注册契约。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SchemaContract {
+    /// Schema 名称，例如 `kiana.protocol.v1`。
+    pub name: &'static str,
+    /// 当前版本。
+    pub version: SchemaVersion,
+    /// Schema 层级。
+    pub layer: SchemaLayer,
+    /// Canonical owner crate。
+    pub owner_crate: &'static str,
+    /// 兼容性策略。
+    pub compatibility: CompatibilityPolicy,
+    /// Unknown field 处理：`true` 表示允许 unknown fields（宽松模式），`false` 表示拒绝。
+    pub allow_unknown_fields: bool,
+}
+
+/// `kiana-domain` 和 `kiana-protocol` 当前注册的 schema 契约。
+pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
+    SchemaContract {
+        name: "kiana.protocol.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Wire,
+        owner_crate: "kiana-protocol",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: true,
+    },
+    SchemaContract {
+        name: "kiana.work-packet.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.review-packet.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.cell.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.approval-challenge.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.company-command.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.company-event.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.company-state.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.memory-record.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.memory-record.v2",
+        version: SchemaVersion::new(2, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.prompt-bundle.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.memory-proposal.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.data-policy.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.golden-trace.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-core",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: true,
+    },
+    SchemaContract {
+        name: "kiana.workflow-command.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.workflow-event.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.workflow-state.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.swarm-command.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.extension-manifest.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.extension-package.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.extension-migration.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-daemon",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.connector-definition.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.account-binding.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.provider-receipt.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.workspace-checkpoint.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: true,
+    },
+    SchemaContract {
+        name: "kiana.human-inbox.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.run-snapshot.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: true,
+    },
+];
+
+/// 检查给定的 schema 版本是否与当前运行时兼容。
+///
+/// 返回 `Err` 表示 fail-closed：未知 major 版本必须拒绝。
+pub fn check_schema_compatibility(
+    schema_name: &str,
+    incoming_version: &SchemaVersion,
+) -> Result<(), String> {
+    let contract = SCHEMA_CONTRACTS
+        .iter()
+        .find(|c| c.name == schema_name)
+        .ok_or_else(|| format!("unknown schema: {}", schema_name))?;
+
+    if !contract.version.is_compatible_with(incoming_version) {
+        return Err(format!(
+            "incompatible schema version: {} runtime={}.{} incoming={}.{} (unknown major must fail-closed)",
+            schema_name,
+            contract.version.major,
+            contract.version.minor,
+            incoming_version.major,
+            incoming_version.minor
+        ));
+    }
+
+    Ok(())
+}
+
+/// A canonical SHA-256 fingerprint of structured data, independent of object-key order.
+pub fn json_digest(value: &serde_json::Value) -> String {
+    use sha2::{Digest, Sha256};
+    fn canonical(value: &serde_json::Value, output: &mut String) {
+        match value {
+            serde_json::Value::Object(object) => {
+                output.push('{');
+                let mut entries = object.iter().collect::<Vec<_>>();
+                entries.sort_by_key(|(key, _)| *key);
+                for (index, (key, value)) in entries.into_iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                    }
+                    output.push_str(&serde_json::to_string(key).expect("JSON string"));
+                    output.push(':');
+                    canonical(value, output);
+                }
+                output.push('}');
+            }
+            serde_json::Value::Array(array) => {
+                output.push('[');
+                for (index, value) in array.iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                    }
+                    canonical(value, output);
+                }
+                output.push(']');
+            }
+            scalar => output.push_str(&scalar.to_string()),
+        }
+    }
+    let mut text = String::new();
+    canonical(value, &mut text);
+    format!("sha256:{:x}", Sha256::digest(text.as_bytes()))
+}
 
 #[cfg(test)]
 mod tests {
@@ -386,5 +779,126 @@ mod tests {
                 name.strip_prefix('"')?.strip_suffix('"')
             })
             .collect()
+    }
+
+    mod schema_registry {
+        use super::super::{
+            check_schema_compatibility, SchemaChange, SchemaLayer, SchemaVersion, SCHEMA_CONTRACTS,
+        };
+        use std::collections::HashSet;
+
+        #[test]
+        fn unknown_major_version_fails_closed() {
+            // 运行时是 v1.0，接收到 v2.0 → 必须拒绝
+            let runtime_v1 = SchemaVersion::new(1, 0);
+            let incoming_v2 = SchemaVersion::new(2, 0);
+            assert!(!runtime_v1.is_compatible_with(&incoming_v2));
+
+            // 通过 check_schema_compatibility 验证 fail-closed
+            let result = check_schema_compatibility("kiana.protocol.v1", &incoming_v2);
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("incompatible schema version"));
+            assert!(err.contains("unknown major must fail-closed"));
+
+            // 运行时是 v1.5，接收到 v2.1 → 仍必须拒绝
+            let runtime_v1_5 = SchemaVersion::new(1, 5);
+            let incoming_v2_1 = SchemaVersion::new(2, 1);
+            assert!(!runtime_v1_5.is_compatible_with(&incoming_v2_1));
+
+            // v1.0 运行时接收 v1.2 → 兼容（minor 升级）
+            let incoming_v1_2 = SchemaVersion::new(1, 2);
+            assert!(runtime_v1.is_compatible_with(&incoming_v1_2));
+            assert!(check_schema_compatibility("kiana.protocol.v1", &incoming_v1_2).is_ok());
+
+            // v1.5 运行时接收 v1.0 → 兼容（旧 minor）
+            let incoming_v1_0 = SchemaVersion::new(1, 0);
+            assert!(runtime_v1_5.is_compatible_with(&incoming_v1_0));
+        }
+
+        #[test]
+        fn schema_contract_names_are_unique() {
+            let mut names: HashSet<&str> = HashSet::new();
+            for contract in SCHEMA_CONTRACTS {
+                assert!(
+                    names.insert(contract.name),
+                    "duplicate schema name: {}",
+                    contract.name
+                );
+            }
+        }
+
+        #[test]
+        fn schema_change_classification() {
+            assert!(!SchemaChange::AddOptionalField.requires_major_bump());
+            assert!(SchemaChange::RemoveField.requires_major_bump());
+            assert!(SchemaChange::ChangeFieldType.requires_major_bump());
+            assert!(SchemaChange::ChangeRequired.requires_major_bump());
+            assert!(SchemaChange::ChangeStateSemantics.requires_major_bump());
+        }
+
+        #[test]
+        fn schema_version_ordering() {
+            let v1_0 = SchemaVersion::new(1, 0);
+            let v1_1 = SchemaVersion::new(1, 1);
+            let v2_0 = SchemaVersion::new(2, 0);
+
+            assert!(v1_0 < v1_1);
+            assert!(v1_1 < v2_0);
+            assert!(v1_0 < v2_0);
+        }
+
+        #[test]
+        fn registered_schemas_have_valid_owners() {
+            let valid_owners = [
+                "kiana-domain",
+                "kiana-protocol",
+                "kiana-eventlog",
+                "kiana-core",
+                "kiana-daemon",
+            ];
+            for contract in SCHEMA_CONTRACTS {
+                assert!(
+                    valid_owners.contains(&contract.owner_crate),
+                    "unknown owner crate: {}",
+                    contract.owner_crate
+                );
+            }
+        }
+
+        #[test]
+        fn protocol_schema_allows_unknown_fields() {
+            let protocol_contract = SCHEMA_CONTRACTS
+                .iter()
+                .find(|c| c.name == "kiana.protocol.v1")
+                .expect("kiana.protocol.v1 must be registered");
+
+            assert_eq!(protocol_contract.layer, SchemaLayer::Wire);
+            assert!(
+                protocol_contract.allow_unknown_fields,
+                "wire protocol should allow unknown fields for forward compatibility"
+            );
+        }
+
+        #[test]
+        fn domain_schemas_reject_unknown_fields() {
+            for contract in SCHEMA_CONTRACTS {
+                if matches!(contract.layer, SchemaLayer::Domain) {
+                    assert!(
+                        !contract.allow_unknown_fields,
+                        "domain schema {} should reject unknown fields",
+                        contract.name
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn check_compatibility_rejects_unknown_schema() {
+            let unknown_version = SchemaVersion::new(1, 0);
+            let result = check_schema_compatibility("unknown.schema.v99", &unknown_version);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("unknown schema"));
+        }
     }
 }

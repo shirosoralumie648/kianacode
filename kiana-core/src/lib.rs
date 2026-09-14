@@ -2,19 +2,35 @@
 
 mod approvals;
 mod artifacts;
+mod authority;
 mod capabilities;
 mod cell_registry;
 mod collaboration;
 mod commands;
+mod company;
+mod connectors;
 mod context_query;
+mod data_governance;
+mod dispatch;
 mod events;
+pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod history;
+mod invocation_projection;
 mod lifecycle;
+mod memory_distillation;
+mod model_budget;
+pub use model_budget::JournalModelBudget;
+mod memory_proposals;
+mod platform;
 mod projection;
 mod receipts;
+mod recovery;
 mod redaction;
 mod sessions;
+mod versioning;
+mod workspace_checkpoints;
 
+pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 
 use cell_registry::MemoryCellRegistry;
@@ -60,8 +76,17 @@ use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{watch, Mutex as AsyncMutex};
 
-struct PathLockLease {
+pub struct PathLockLease {
     _file: File,
+}
+
+/// The same OS locks are held by short Run scopes and explicitly supervised processes.
+pub fn acquire_workspace_resources(
+    project_root: &str,
+    paths: &[String],
+) -> Result<Vec<PathLockLease>, PortError> {
+    sessions::acquire_durable_path_locks(project_root, paths)
+        .map_err(|reason| PortError::Conflict(reason.to_owned()))
 }
 
 pub struct ControlPlaneRuntimeConfig {
@@ -142,12 +167,14 @@ pub struct ControlPlane {
     capabilities: Arc<dyn CapabilityBrokerPort>,
     approvals: Arc<dyn ApprovalStorePort>,
     runner: Arc<dyn RunnerPort>,
-    max_steps_per_turn: u32,
+    workspace_checkpoints: Option<Arc<dyn kiana_ports::WorkspaceCheckpointPort>>,
+    max_steps_per_turn: Option<u32>,
     pre_tool_hooks: Arc<dyn PreToolHookPort>,
     cell_registry: Arc<dyn kiana_ports::CellRegistryPort>,
     sessions: Mutex<HashMap<String, SessionBinding>>,
     pending_invocations: Mutex<HashMap<ApprovalId, PendingInvocation>>,
     cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
+    capability_stops: Mutex<HashMap<RunId, watch::Sender<Option<bool>>>>,
     active_terminal_scopes: Mutex<HashMap<RunId, Arc<RunTerminalScope>>>,
     path_locks: Mutex<HashMap<String, String>>,
     durable_path_locks: Mutex<HashMap<String, Vec<PathLockLease>>>,
@@ -160,3 +187,9 @@ pub enum CoreError {
     #[error(transparent)]
     Port(#[from] PortError),
 }
+
+mod automation;
+
+mod swarm;
+
+mod company_business;

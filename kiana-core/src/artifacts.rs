@@ -140,7 +140,7 @@ const LINUX_RENAME_NOREPLACE: u32 = 1;
 const LINUX_RENAME_EXCHANGE: u32 = 2;
 
 #[cfg(target_os = "linux")]
-fn read_project_artifact(
+pub(crate) fn read_project_artifact(
     root: &Path,
     relative: &Path,
     error: &'static str,
@@ -149,7 +149,7 @@ fn read_project_artifact(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn read_project_artifact(
+pub(crate) fn read_project_artifact(
     root: &Path,
     relative: &Path,
     error: &'static str,

@@ -49,6 +49,9 @@ pub struct RepoMap {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Repo map 中的单文件摘要。
 pub struct RepoMapFile {
+    /// Hash of the exact text from which these symbols were extracted.
+    #[serde(default)]
+    pub content_hash: String,
     /// 相对于 map 根目录的正斜杠路径。
     pub path: String,
     /// 根据扩展名推断的语言；无法识别时为 `None`。
@@ -166,6 +169,10 @@ fn map_file(root: &Path, path: &Path) -> Result<Option<RepoMapFile>> {
     let estimated_tokens = estimate_entry_tokens(&rel, language.as_deref(), &symbols);
 
     Ok(Some(RepoMapFile {
+        content_hash: {
+            use sha2::{Digest, Sha256};
+            format!("sha256:{:x}", Sha256::digest(content.as_bytes()))
+        },
         path: rel,
         language,
         bytes: content.len() as u64,

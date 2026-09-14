@@ -50,17 +50,114 @@ impl CapabilityHandler for ShellExecHandler {
         &self,
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError> {
-        ensure_operation(&request, SHELL_OPERATION)?;
-        let request_id = request.request.request_id;
-        let arguments = &request.request.arguments;
-        let sandbox = argument_sandbox(arguments)?;
-        let project_root = canonical_project_root(argument_string(arguments, "project_root")?)?;
-        let workdir = confined_workdir(&project_root, arguments.get("workdir"))?;
-        let argv = command_argv(arguments.get("command"))?;
-        let timeout = command_timeout(arguments);
-        let output = run_confined(argv, &project_root, &workdir, sandbox, timeout).await?;
-        Ok(CapabilityResult::success(request_id, output))
+        execute_shell(request, None).await
     }
+
+    async fn execute_cancellable(
+        &self,
+        request: AuthorizedCapabilityRequest,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityResult, PortError> {
+        execute_shell(request, Some(cancellation)).await
+    }
+}
+
+async fn execute_shell(
+    mut request: AuthorizedCapabilityRequest,
+    cancellation: Option<tokio::sync::watch::Receiver<bool>>,
+) -> Result<CapabilityResult, PortError> {
+    ensure_operation(&request, SHELL_OPERATION)?;
+    let root = Path::new(argument_string(&request.request.arguments, "project_root")?);
+    let revision = crate::data_governance::read_policy(root)?.revision;
+    request.request.arguments["source_data_revision"] = json!(revision);
+    let request_id = request.request.request_id;
+    let arguments = &request.request.arguments;
+    let sandbox = argument_sandbox(arguments)?;
+    let project_root = canonical_project_root(argument_string(arguments, "project_root")?)?;
+    let workdir = confined_workdir(&project_root, arguments.get("workdir"))?;
+    let argv = command_argv(arguments.get("command"))?;
+    let timeout = command_timeout(arguments);
+    let mut output = if sandbox == HARNESS_SANDBOX_WORKSPACE_WRITE {
+        let owned = request.clone();
+        let root = project_root.clone();
+        let directory = workdir.clone();
+        let mut workspace = tokio::task::spawn_blocking(move || {
+            crate::execution_workspace::ExecutionWorkspace::prepare(&owned, &root, &directory)
+        })
+        .await
+        .map_err(|_| PortError::Failed("execution_workspace_prepare_join_failed".to_owned()))??;
+        let mut execution_scope = arguments.clone();
+        execution_scope["path_allow"] = json!(["."]);
+        execution_scope["logical_project_root"] = json!(project_root);
+        let mut output = match run_confined_cancellable(
+            argv,
+            &workspace.root,
+            &workspace.workdir,
+            sandbox,
+            timeout,
+            cancellation.clone(),
+            Some(&execution_scope),
+        )
+        .await
+        {
+            Ok(output) => output,
+            Err(error) => {
+                if error.to_string().contains("result_unknown") {
+                    workspace.retain_unknown();
+                }
+                return Err(error);
+            }
+        };
+        let successful = output["exit_code"] == 0
+            && output["cancelled"] != true
+            && output["timed_out"] != true
+            && output["stdout_metadata"]["read_error"].is_null()
+            && output["stderr_metadata"]["read_error"].is_null()
+            && !cancellation
+                .as_ref()
+                .is_some_and(|receiver| *receiver.borrow());
+        let publication = tokio::task::spawn_blocking(move || workspace.finish(successful))
+            .await
+            .map_err(|_| {
+                PortError::Failed("result_unknown:workspace_publication_join_failed".to_owned())
+            })??;
+        output["workspace"] = publication;
+        output
+    } else {
+        run_confined_cancellable(
+            argv,
+            &project_root,
+            &workdir,
+            sandbox,
+            timeout,
+            cancellation,
+            Some(arguments),
+        )
+        .await?
+    };
+    let owned = request.clone();
+    output = tokio::task::spawn_blocking(move || {
+        crate::execution_control::store_output(&owned, &mut output)?;
+        Ok::<_, PortError>(output)
+    })
+    .await
+    .map_err(|_| PortError::Failed("result_unknown:output_store_join_failed".to_owned()))??;
+    let mut result = CapabilityResult::success(request_id, output.clone());
+    if output["exit_code"].as_i64().is_some_and(|code| code != 0) && output["cancelled"] != true {
+        result.success = false;
+        output["error"] = json!(if output["timed_out"] == true {
+            "timed_out:shell"
+        } else {
+            "execution_failed:shell_exit"
+        });
+        result.output = output;
+    } else if !output["stdout_metadata"]["read_error"].is_null()
+        || !output["stderr_metadata"]["read_error"].is_null()
+    {
+        result.success = false;
+        result.output["error"] = json!("execution_failed:output_capture_incomplete");
+    }
+    Ok(result)
 }
 
 struct ApplyPatchHandler;
@@ -82,6 +179,43 @@ impl CapabilityHandler for ApplyPatchHandler {
         }
         let project_root = canonical_project_root(argument_string(arguments, "project_root")?)?;
         let patch = argument_string(arguments, "patch")?.to_owned();
+        let paths = arguments["path_allow"]
+            .as_array()
+            .map(|paths| {
+                paths
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let data_policy = crate::data_governance::read_policy(&project_root)?;
+        for line in patch.lines() {
+            let target = [
+                "*** Add File: ",
+                "*** Update File: ",
+                "*** Delete File: ",
+                "*** Move to: ",
+            ]
+            .iter()
+            .find_map(|prefix| line.strip_prefix(prefix));
+            if let Some(target) = target {
+                let target = kiana_domain::normalize_role_path(target)
+                    .ok_or_else(|| PortError::Failed("apply_patch_path_invalid".to_owned()))?;
+                if target == ".git"
+                    || target.starts_with(".git/")
+                    || target == ".kiana"
+                    || target.starts_with(".kiana/")
+                {
+                    return Err(PortError::Failed("apply_patch_protected_path".to_owned()));
+                }
+                if !kiana_domain::allow_list_covers(&paths, &target)
+                    || data_policy.revoked_sources.contains(&target)
+                {
+                    return Err(PortError::Failed("apply_patch_scope_denied".to_owned()));
+                }
+            }
+        }
         let output = tokio::task::spawn_blocking(move || apply_codex_patch(&project_root, &patch))
             .await
             .map_err(|error| PortError::Failed(format!("apply_patch_join_failed:{error}")))??;
@@ -133,7 +267,10 @@ fn canonical_project_root(project_root: &str) -> Result<PathBuf, PortError> {
     Ok(project_root)
 }
 
-fn confined_workdir(project_root: &Path, workdir: Option<&Value>) -> Result<PathBuf, PortError> {
+pub(crate) fn confined_workdir(
+    project_root: &Path,
+    workdir: Option<&Value>,
+) -> Result<PathBuf, PortError> {
     let Some(value) = workdir.filter(|value| !value.is_null()) else {
         return Ok(project_root.to_path_buf());
     };
@@ -172,7 +309,7 @@ fn confined_workdir(project_root: &Path, workdir: Option<&Value>) -> Result<Path
     Ok(resolved)
 }
 
-fn command_argv(command: Option<&Value>) -> Result<Vec<String>, PortError> {
+pub(crate) fn command_argv(command: Option<&Value>) -> Result<Vec<String>, PortError> {
     let command =
         command.ok_or_else(|| PortError::Failed("harness_command_required".to_owned()))?;
     if let Some(value) = command.as_str() {
@@ -203,6 +340,7 @@ fn command_argv(command: Option<&Value>) -> Result<Vec<String>, PortError> {
     Err(PortError::Failed("harness_command_invalid".to_owned()))
 }
 
+#[cfg(test)]
 async fn run_confined(
     argv: Vec<String>,
     project_root: &Path,
@@ -210,7 +348,24 @@ async fn run_confined(
     sandbox: &str,
     timeout: Duration,
 ) -> Result<Value, PortError> {
-    let mut command = sandboxed_command(&argv, project_root, workdir, sandbox)?;
+    run_confined_cancellable(argv, project_root, workdir, sandbox, timeout, None, None).await
+}
+
+pub(crate) async fn run_confined_cancellable(
+    argv: Vec<String>,
+    project_root: &Path,
+    workdir: &Path,
+    sandbox: &str,
+    timeout: Duration,
+    mut cancellation: Option<tokio::sync::watch::Receiver<bool>>,
+    scope: Option<&Value>,
+) -> Result<Value, PortError> {
+    if cancellation.as_ref().is_some_and(|rx| *rx.borrow()) {
+        return Ok(
+            json!({"cancelled":true,"not_executed":true,"stop_confirmed":true,"exit_code":130}),
+        );
+    }
+    let mut command = sandboxed_command_scoped(&argv, project_root, workdir, sandbox, scope)?;
     prepare_process_group(&mut command);
     command
         .stdin(Stdio::null())
@@ -234,11 +389,22 @@ async fn run_confined(
     // Codex exec.rs consume_output: timeout is an exec outcome (exit 124,
     // timed_out=true), not a capability crash. Kill the child, then drain
     // pipes with IO_DRAIN_TIMEOUT so inherited fds cannot hang the agent.
-    let (exit_code, timed_out, stop_confirmed) = tokio::select! {
+    let (exit_code, timed_out, cancelled, stop_confirmed) = tokio::select! {
+        biased;
+        _ = async {
+            if let Some(rx) = cancellation.as_mut() { kiana_ports::wait_for_cancellation(rx).await; }
+            else { std::future::pending::<()>().await; }
+        } => {
+            let stopped = terminate_process_group(&mut child,process_group.id()).await;
+            if !stopped { return Err(PortError::Failed("shell_result_unknown:cancel_stop_unconfirmed".to_owned())); }
+            (130,false,true,stopped)
+        }
         status = child.wait() => {
             let status = status
                 .map_err(|error| PortError::Failed(format!("shell_exec_failed:{error}")))?;
-            (status.code().unwrap_or(-1), false, true)
+            let stopped = terminate_process_group(&mut child,process_group.id()).await;
+            if !stopped { return Err(PortError::Failed("shell_result_unknown:process_group_not_stopped".to_owned())); }
+            (status.code().unwrap_or(-1), false, false, stopped)
         }
         _ = tokio::time::sleep(timeout) => {
             let stop_confirmed = terminate_process_group(&mut child, process_group.id()).await;
@@ -247,7 +413,7 @@ async fn run_confined(
                     "shell_result_unknown:process_group_not_stopped".to_owned(),
                 ));
             }
-            (EXEC_TIMEOUT_EXIT_CODE, true, stop_confirmed)
+            (EXEC_TIMEOUT_EXIT_CODE, true, false, stop_confirmed)
         }
     };
     process_group.finish_if_stopped();
@@ -258,7 +424,10 @@ async fn run_confined(
         "stderr": render_capped(&stderr.bytes, stderr.truncated),
         "exit_code": exit_code,
         "timed_out": timed_out,
+        "cancelled": cancelled,
         "stop_confirmed": stop_confirmed,
+        "stdout_metadata":{"captured_bytes":stdout.bytes.len(),"observed_bytes":stdout.observed_bytes,"lines":stdout.lines,"truncated":stdout.truncated,"read_error":stdout.read_error},
+        "stderr_metadata":{"captured_bytes":stderr.bytes.len(),"observed_bytes":stderr.observed_bytes,"lines":stderr.lines,"truncated":stderr.truncated,"read_error":stderr.read_error},
         "sandbox": sandbox,
         "backend": crate::harness_sandbox::SANDBOX_BACKEND,
     }))
@@ -267,6 +436,9 @@ async fn run_confined(
 struct CappedOutput {
     bytes: Vec<u8>,
     truncated: bool,
+    observed_bytes: u64,
+    lines: u64,
+    read_error: Option<String>,
 }
 
 fn prepare_process_group(command: &mut Command) {
@@ -314,7 +486,7 @@ impl Drop for ProcessGroupGuard {
     }
 }
 
-async fn terminate_process_group(child: &mut Child, pid: Option<u32>) -> bool {
+pub(crate) async fn terminate_process_group(child: &mut Child, pid: Option<u32>) -> bool {
     let Some(pid) = pid else {
         if child.start_kill().is_err() {
             return false;
@@ -387,9 +559,25 @@ where
     let mut bytes = Vec::with_capacity(READ_CHUNK_SIZE.min(max_bytes));
     let mut tmp = [0u8; READ_CHUNK_SIZE];
     let mut truncated = false;
+    let mut observed_bytes = 0u64;
+    let mut lines = 0u64;
+    let mut read_error = None;
     loop {
-        let n = reader.read(&mut tmp).await?;
+        let n = match reader.read(&mut tmp).await {
+            Ok(count) => count,
+            Err(error) => {
+                read_error = Some(error.kind().to_string());
+                break;
+            }
+        };
         if n == 0 {
+            break;
+        }
+        observed_bytes = observed_bytes.saturating_add(n as u64);
+        lines = lines.saturating_add(tmp[..n].iter().filter(|byte| **byte == b'\n').count() as u64);
+        if observed_bytes > 32 * 1024 * 1024 {
+            truncated = true;
+            read_error = Some("output_total_limit".to_owned());
             break;
         }
         if bytes.len() >= max_bytes {
@@ -402,7 +590,13 @@ where
             truncated = true;
         }
     }
-    Ok(CappedOutput { bytes, truncated })
+    Ok(CappedOutput {
+        bytes,
+        truncated,
+        observed_bytes,
+        lines,
+        read_error,
+    })
 }
 
 async fn drain_capped(handle: &mut JoinHandle<std::io::Result<CappedOutput>>) -> CappedOutput {
@@ -411,37 +605,93 @@ async fn drain_capped(handle: &mut JoinHandle<std::io::Result<CappedOutput>>) ->
         Ok(Ok(Err(_))) | Ok(Err(_)) => CappedOutput {
             bytes: Vec::new(),
             truncated: false,
+            observed_bytes: 0,
+            lines: 0,
+            read_error: Some("output_reader_failed".to_owned()),
         },
         Err(_) => {
             handle.abort();
             CappedOutput {
                 bytes: Vec::new(),
                 truncated: false,
+                observed_bytes: 0,
+                lines: 0,
+                read_error: Some("output_drain_timeout".to_owned()),
             }
         }
     }
 }
 
+/// Remove terminal control sequences before display, persistence or model feedback.
+pub(crate) fn safe_output_text(text: &str) -> String {
+    let text = kiana_domain::redact_text(text);
+    let mut output = String::new();
+    let mut state = 0u8;
+    for ch in text.chars() {
+        match state {
+            0 if ch == '\u{1b}' => state = 1,
+            0 if ch == '\n' || ch == '\t' || !ch.is_control() => output.push(ch),
+            0 => {}
+            1 if ch == '[' => state = 2,
+            1 if ch == ']' => state = 3,
+            1 => state = 0,
+            2 if ('@'..='~').contains(&ch) => state = 0,
+            3 if ch == '\u{7}' => state = 0,
+            3 if ch == '\u{1b}' => state = 4,
+            4 if ch == '\\' => state = 0,
+            4 => state = 3,
+            _ => {}
+        }
+    }
+    output
+}
+
 fn render_capped(bytes: &[u8], truncated: bool) -> String {
-    let mut text = String::from_utf8_lossy(bytes).into_owned();
+    let mut text = safe_output_text(&String::from_utf8_lossy(bytes));
     if truncated {
         text.push_str("\n...truncated...");
     }
     text
 }
 
+#[cfg(test)]
 fn sandboxed_command(
     argv: &[String],
     project_root: &Path,
     workdir: &Path,
     sandbox: &str,
 ) -> Result<Command, PortError> {
+    sandboxed_command_scoped(argv, project_root, workdir, sandbox, None)
+}
+
+pub(crate) fn sandboxed_command_scoped(
+    argv: &[String],
+    project_root: &Path,
+    workdir: &Path,
+    sandbox: &str,
+    scope: Option<&Value>,
+) -> Result<Command, PortError> {
     if argv.is_empty() {
         return Err(PortError::Failed("harness_command_required".to_owned()));
     }
-    let plan = crate::harness_sandbox::bwrap_plan(project_root, workdir, sandbox)?;
+    let paths = scope
+        .and_then(|scope| scope.get("path_allow"))
+        .and_then(Value::as_array)
+        .map(|paths| {
+            paths
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| vec![".".to_owned()]);
+    let mut plan =
+        crate::harness_sandbox::bwrap_plan_scoped(project_root, workdir, sandbox, &paths)?;
+    if let Some(logical) = scope.and_then(|value| value["logical_project_root"].as_str()) {
+        plan.remap_workspace(project_root, Path::new(logical));
+    }
     let mut command = Command::new(&plan.program);
-    command.args(&plan.args);
+    plan.configure_command(&mut command);
     command.arg(&argv[0]);
     command.args(&argv[1..]);
     // Codex spawn.rs: env_clear the helper process so host secrets never sit
@@ -451,7 +701,33 @@ fn sandboxed_command(
     for (key, value) in crate::harness_sandbox::sandbox_env(std::env::vars(), sandbox) {
         command.env(key, value);
     }
+    enforce_process_limits(&mut command)?;
     Ok(command)
+}
+
+pub(crate) fn enforce_process_limits(command: &mut Command) -> Result<(), PortError> {
+    #[cfg(unix)]
+    unsafe {
+        command.pre_exec(|| {
+            for (resource, value) in [
+                (libc::RLIMIT_CORE, 0u64),
+                (libc::RLIMIT_NOFILE, 256),
+                (libc::RLIMIT_FSIZE, 64 * 1024 * 1024),
+                (libc::RLIMIT_AS, 2 * 1024 * 1024 * 1024),
+                (libc::RLIMIT_NPROC, 1024),
+            ] {
+                let limit = libc::rlimit {
+                    rlim_cur: value as libc::rlim_t,
+                    rlim_max: value as libc::rlim_t,
+                };
+                if libc::setrlimit(resource, &limit) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+            }
+            Ok(())
+        });
+    }
+    Ok(())
 }
 
 fn command_timeout(arguments: &Value) -> Duration {

@@ -10,7 +10,9 @@
 //! 和具体授权实现的责任。
 
 use async_trait::async_trait;
-use kiana_domain::{AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult};
+use kiana_domain::{
+    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ExtensionExecutionContract,
+};
 use kiana_ports::{CapabilityBrokerPort, PortError};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,6 +27,9 @@ type HandlerKey = (CapabilityKind, String);
 /// 与参数边界内工作。Handler 不接收原始模型调用，因此不能自行绕过控制面创建或扩展
 /// [`AuthorizedCapabilityRequest`]。
 pub trait CapabilityHandler: Send + Sync {
+    fn binding_version(&self) -> &'static str {
+        kiana_domain::ACTION_HANDLER_BINDING_VERSION
+    }
     /// 执行一项已授权请求并返回与原请求 ID 对应的结构化结果。
     ///
     /// 端口/传输层故障使用 [`PortError`]；能力执行成功或业务失败由
@@ -33,6 +38,85 @@ pub trait CapabilityHandler: Send + Sync {
         &self,
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError>;
+
+    async fn execute_cancellable(
+        &self,
+        request: AuthorizedCapabilityRequest,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityResult, PortError> {
+        if *cancellation.borrow() {
+            return Ok(CapabilityResult::success(
+                request.request.request_id,
+                serde_json::json!({"cancelled":true,"not_executed":true,"stop_confirmed":true}),
+            ));
+        }
+        let request_id = request.request.request_id;
+        // Await ownership of blocking writers and child cleanup. Dropping an execute future
+        // does not stop spawn_blocking work and cannot release its execution reservation.
+        let mut result =
+            kiana_domain::normalize_capability_result(request_id, self.execute(request).await?);
+        if *cancellation.borrow()
+            && !result
+                .failure_code()
+                .is_some_and(|code| code.policy().requires_reconciliation)
+        {
+            if !result.output.is_object() {
+                result.output = serde_json::json!({"detail":result.output});
+            }
+            result.output["completed_before_cancel"] = serde_json::json!(result.success);
+            result.output["cancelled"] = serde_json::json!(true);
+            result.output["stop_confirmed"] = serde_json::json!(true);
+            result = kiana_domain::normalize_capability_result(request_id, result);
+        }
+        Ok(result)
+    }
+}
+
+/// Installed extension admission is rechecked immediately before dispatch, so a cached
+/// descriptor cannot survive revocation or silently change to a newer package version.
+#[async_trait]
+pub trait ExtensionAdmission: Send + Sync {
+    async fn check(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+        contract: &ExtensionExecutionContract,
+    ) -> Result<(), PortError>;
+}
+
+struct ExtensionHandler {
+    handler: Arc<dyn CapabilityHandler>,
+    contract: ExtensionExecutionContract,
+    admission: Arc<dyn ExtensionAdmission>,
+}
+
+#[async_trait]
+impl CapabilityHandler for ExtensionHandler {
+    fn binding_version(&self) -> &'static str {
+        self.handler.binding_version()
+    }
+    async fn execute_cancellable(
+        &self,
+        request: AuthorizedCapabilityRequest,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityResult, PortError> {
+        self.contract
+            .check(&request.request)
+            .map_err(|reason| PortError::Failed(reason.to_owned()))?;
+        self.admission.check(&request, &self.contract).await?;
+        self.handler
+            .execute_cancellable(request, cancellation)
+            .await
+    }
+    async fn execute(
+        &self,
+        request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        self.contract
+            .check(&request.request)
+            .map_err(|reason| PortError::Failed(reason.to_owned()))?;
+        self.admission.check(&request, &self.contract).await?;
+        self.handler.execute(request).await
+    }
 }
 
 #[derive(Default)]
@@ -44,14 +128,106 @@ pub trait CapabilityHandler: Send + Sync {
 pub struct CapabilityBroker {
     /// 以能力种类和精确操作名为键的 Handler 集合。
     handlers: RwLock<HashMap<HandlerKey, Arc<dyn CapabilityHandler>>>,
+    extension_admission: Option<Arc<dyn ExtensionAdmission>>,
+    permit_verifier: Option<Arc<dyn kiana_ports::ExecutionPermitVerifierPort>>,
+    catalog_sealed: bool,
 }
 
 impl CapabilityBroker {
+    /// Called once by DaemonHost after all static registrations and before any model request.
+    pub fn validate_catalog_bindings(&mut self) -> Result<(), PortError> {
+        let handlers = self.handlers.get_mut();
+        for operation in kiana_domain::ACTION_OPERATIONS {
+            let descriptor = kiana_domain::capability_action_descriptor(operation)
+                .ok_or_else(|| PortError::Failed("capability_descriptor_missing".to_owned()))?;
+            kiana_domain::validate_schema_contract(&descriptor.argument_schema)
+                .map_err(PortError::Failed)?;
+            kiana_domain::validate_schema_contract(&descriptor.result_schema)
+                .map_err(PortError::Failed)?;
+            let handler = handlers
+                .get(&(descriptor.capability, (*operation).to_owned()))
+                .ok_or_else(|| {
+                    PortError::Unavailable(format!("capability_binding_missing:{operation}"))
+                })?;
+            if handler.binding_version() != descriptor.binding_version {
+                return Err(PortError::Failed(
+                    "capability_binding_version_mismatch".to_owned(),
+                ));
+            }
+        }
+        if handlers.len() != kiana_domain::ACTION_OPERATIONS.len() {
+            return Err(PortError::Failed(
+                "capability_binding_catalog_mismatch".to_owned(),
+            ));
+        }
+        self.catalog_sealed = true;
+        Ok(())
+    }
+
+    fn validate_action(&self, request: &AuthorizedCapabilityRequest) -> Result<(), PortError> {
+        if !self.catalog_sealed {
+            return Err(PortError::Unavailable(
+                "capability_catalog_unvalidated".to_owned(),
+            ));
+        }
+        let mut normalized = request.request.clone();
+        kiana_domain::normalize_capability_action(&mut normalized)
+            .map_err(|reason| PortError::Failed(reason.to_owned()))?;
+        if normalized != request.request {
+            return Err(PortError::Failed(
+                "capability_action_not_prepared".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+    async fn admit_extensions(
+        &self,
+        request: &AuthorizedCapabilityRequest,
+    ) -> Result<(), PortError> {
+        if let Some(scopes) = kiana_domain::request_extension_scopes(&request.request)
+            .map_err(|e| PortError::Failed(e.to_owned()))?
+        {
+            for scope in scopes {
+                let admission = self.extension_admission.as_ref().ok_or_else(|| {
+                    PortError::Unavailable("extension_admission_unavailable".to_owned())
+                })?;
+                // Concrete built-in read behavior is classified by the broker, never by
+                // the model or skill manifest. Shell remains potentially mutating.
+                let effect = if request.request.capability == CapabilityKind::Query
+                    && matches!(
+                        request.request.operation.as_str(),
+                        "memory.search" | "context.repo_map" | "context.search"
+                    ) {
+                    kiana_domain::ExtensionEffect::ReadOnly
+                } else {
+                    kiana_domain::ExtensionEffect::ReadWrite
+                };
+                let contract = scope.contract(effect);
+                contract
+                    .check(&request.request)
+                    .map_err(|e| PortError::Failed(e.to_owned()))?;
+                admission.check(&request, &contract).await?;
+            }
+        }
+        Ok(())
+    }
+
     /// 创建一个没有注册任何能力的 Broker。
     ///
     /// 空 Broker 对所有执行请求都会 fail-closed；组合根必须显式注册产品允许的能力面。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn set_permit_verifier(
+        &mut self,
+        verifier: Arc<dyn kiana_ports::ExecutionPermitVerifierPort>,
+    ) {
+        self.permit_verifier = Some(verifier);
+    }
+
+    pub fn set_extension_admission(&mut self, admission: Arc<dyn ExtensionAdmission>) {
+        self.extension_admission = Some(admission);
     }
 
     /// 在共享 Broker 已投入使用后，以异步写锁注册一个 Handler。
@@ -64,6 +240,9 @@ impl CapabilityBroker {
         operation: impl Into<String>,
         handler: Arc<dyn CapabilityHandler>,
     ) -> Result<(), PortError> {
+        if self.catalog_sealed {
+            return Err(PortError::Failed("capability_catalog_sealed".to_owned()));
+        }
         let mut handlers = self.handlers.write().await;
         insert_handler(&mut handlers, capability, operation.into(), handler)
     }
@@ -78,12 +257,37 @@ impl CapabilityBroker {
         operation: impl Into<String>,
         handler: Arc<dyn CapabilityHandler>,
     ) -> Result<(), PortError> {
+        if self.catalog_sealed {
+            return Err(PortError::Failed("capability_catalog_sealed".to_owned()));
+        }
         // 两个公开注册入口共用此函数，确保静态和动态装配不会产生不同的覆盖语义。
         insert_handler(
             self.handlers.get_mut(),
             capability,
             operation.into(),
             handler,
+        )
+    }
+
+    /// Register an explicitly reviewed host adapter for an installed package. This grants
+    /// no new policy permission: callers still arrive through ControlPlane, and manifest
+    /// limits are an additional intersection applied inside the broker.
+    pub fn register_extension_static(
+        &mut self,
+        capability: CapabilityKind,
+        operation: impl Into<String>,
+        handler: Arc<dyn CapabilityHandler>,
+        contract: ExtensionExecutionContract,
+        admission: Arc<dyn ExtensionAdmission>,
+    ) -> Result<(), PortError> {
+        self.register_static(
+            capability,
+            operation,
+            Arc::new(ExtensionHandler {
+                handler,
+                contract,
+                admission,
+            }),
         )
     }
 }
@@ -94,6 +298,18 @@ fn insert_handler(
     operation: String,
     handler: Arc<dyn CapabilityHandler>,
 ) -> Result<(), PortError> {
+    let descriptor = kiana_domain::capability_action_descriptor(&operation)
+        .ok_or_else(|| PortError::Failed("capability_operation_unknown".to_owned()))?;
+    if descriptor.operation != operation || descriptor.capability != capability {
+        return Err(PortError::Failed(
+            "capability_binding_catalog_mismatch".to_owned(),
+        ));
+    }
+    if descriptor.binding_version != handler.binding_version() {
+        return Err(PortError::Failed(
+            "capability_binding_version_mismatch".to_owned(),
+        ));
+    }
     let key = (capability, operation);
     // 禁止静默替换：路由目标变化必须在组合代码中显式解决，而不能取决于注册顺序。
     if handlers.contains_key(&key) {
@@ -107,6 +323,36 @@ fn insert_handler(
 
 #[async_trait]
 impl CapabilityBrokerPort for CapabilityBroker {
+    async fn execute_cancellable(
+        &self,
+        request: AuthorizedCapabilityRequest,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<CapabilityResult, PortError> {
+        self.validate_action(&request)?;
+        self.admit_extensions(&request).await?;
+        let key = (
+            request.request.capability.clone(),
+            request.request.operation.clone(),
+        );
+        let handler = self
+            .handlers
+            .read()
+            .await
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| {
+                PortError::Unavailable(format!("capability_unregistered:{:?}:{}", key.0, key.1))
+            })?;
+        if *cancellation.borrow() {
+            return Err(PortError::Failed("cancelled:before_broker".to_owned()));
+        }
+        self.permit_verifier
+            .as_ref()
+            .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
+            .verify_and_consume(&request)
+            .await?;
+        handler.execute_cancellable(request, cancellation).await
+    }
     /// 按能力种类和操作名精确路由并执行请求。
     ///
     /// 未注册键返回 [`PortError::Unavailable`]，不会尝试相近名称或更宽泛 Handler。查找
@@ -115,6 +361,8 @@ impl CapabilityBrokerPort for CapabilityBroker {
         &self,
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError> {
+        self.validate_action(&request)?;
+        self.admit_extensions(&request).await?;
         let key = (
             request.request.capability.clone(),
             request.request.operation.clone(),
@@ -127,6 +375,11 @@ impl CapabilityBrokerPort for CapabilityBroker {
                 key.0, key.1
             )));
         };
+        self.permit_verifier
+            .as_ref()
+            .ok_or_else(|| PortError::Unavailable("execution_permit_verifier_required".to_owned()))?
+            .verify_and_consume(&request)
+            .await?;
         handler.execute(request).await
     }
 }

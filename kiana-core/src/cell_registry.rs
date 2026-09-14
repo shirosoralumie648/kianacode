@@ -24,6 +24,7 @@ const MAX_ROOT_CELLS: usize = 64;
 const MAX_ACTIVE_CELLS: usize = 64;
 const MAX_CHILDREN_PER_PARENT: usize = 8;
 
+#[derive(Clone)]
 struct CellRecord {
     reservation: SpawnReservation,
     locked_paths: Vec<String>,
@@ -31,8 +32,9 @@ struct CellRecord {
     active_capabilities: HashMap<RequestId, CapabilityLease>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RegistryState {
+    model_turns: std::collections::HashSet<String>,
     templates: HashMap<(String, String), AgentTemplate>,
     records: HashMap<SpawnPlanId, CellRecord>,
     by_idempotency: HashMap<String, SpawnPlanId>,
@@ -178,6 +180,246 @@ impl MemoryCellRegistry {
 
 #[async_trait]
 impl CellRegistryPort for MemoryCellRegistry {
+    async fn account_model_usage(
+        &self,
+        cell_id: CellId,
+        turn_key: &str,
+        tokens: u64,
+    ) -> Result<BudgetLease, PortError> {
+        let mut state = self.lock_state()?;
+        let plan_id = *state
+            .by_cell
+            .get(&cell_id)
+            .ok_or_else(|| PortError::Failed("cell_not_found".to_owned()))?;
+        let record = state
+            .records
+            .get(&plan_id)
+            .ok_or_else(|| PortError::Failed("cell_not_found".to_owned()))?;
+        if record.resources_released || record.reservation.cell.lifecycle != CellLifecycle::Running
+        {
+            return Err(PortError::Conflict("cell_model_not_running".to_owned()));
+        }
+        let budget_id = record.reservation.budget.lease_id;
+        let key = format!("{cell_id}:{turn_key}");
+        let already_charged = state.model_turns.contains(&key);
+        let budget = state
+            .budgets
+            .get_mut(&budget_id)
+            .ok_or_else(|| PortError::Failed("spawn_budget_ledger_missing".to_owned()))?;
+        if !already_charged {
+            budget
+                .consume(0, tokens, 0)
+                .map_err(|reason| PortError::Conflict(reason.to_owned()))?;
+        }
+        let snapshot = budget.clone();
+        state.model_turns.insert(key);
+        state
+            .records
+            .get_mut(&plan_id)
+            .expect("existing record")
+            .reservation
+            .budget = snapshot.clone();
+        Ok(snapshot)
+    }
+
+    async fn checkpoint_run(&self, run_id: RunId) -> Result<serde_json::Value, PortError> {
+        let state = self.lock_state()?;
+        let mut reservations = Vec::new();
+        for record in state.records.values().filter(|record| {
+            record.reservation.cell.root_run_id == run_id && !record.resources_released
+        }) {
+            if !record.active_capabilities.is_empty() {
+                return Err(PortError::Conflict(
+                    "cell_checkpoint_invocation_in_flight".to_owned(),
+                ));
+            }
+            let mut reservation = record.reservation.clone();
+            reservation.budget = state
+                .budgets
+                .get(&reservation.budget.lease_id)
+                .cloned()
+                .ok_or_else(|| PortError::Failed("spawn_budget_ledger_missing".to_owned()))?;
+            reservations.push(reservation);
+        }
+        reservations.sort_by_key(|reservation| {
+            (reservation.cell.depth, reservation.cell.cell_id.to_string())
+        });
+        Ok(
+            serde_json::json!({"schema":"kiana.cell-checkpoint.v1", "run_id":run_id,"reservations":reservations}),
+        )
+    }
+
+    async fn restore_run(
+        &self,
+        run_id: RunId,
+        snapshot: serde_json::Value,
+    ) -> Result<(), PortError> {
+        let reject = |reason: &str| PortError::Conflict(reason.to_owned());
+        if snapshot["schema"] != "kiana.cell-checkpoint.v1"
+            || snapshot["run_id"] != serde_json::json!(run_id)
+        {
+            return Err(reject("cell_snapshot_invalid"));
+        }
+        let mut reservations: Vec<SpawnReservation> =
+            serde_json::from_value(snapshot["reservations"].clone())
+                .map_err(|_| reject("cell_snapshot_invalid"))?;
+        if reservations.is_empty() || reservations.len() > MAX_ACTIVE_CELLS {
+            return Err(reject("cell_snapshot_invalid"));
+        }
+        reservations.sort_by_key(|reservation| {
+            (reservation.cell.depth, reservation.cell.cell_id.to_string())
+        });
+        // Template contents are re-resolved from trusted role packs. Historical IDs remain
+        // part of the receipt; random IDs do not make unchanged template contents stale.
+        for reservation in &reservations {
+            let mut current = self
+                .resolve_template(&reservation.template.role_id, &reservation.template.version)
+                .await?;
+            current.template_id = reservation.template.template_id;
+            if current != reservation.template {
+                return Err(reject("cell_snapshot_template_changed"));
+            }
+        }
+        let now = Self::now_unix_ms();
+        let mut guard = self.lock_state()?;
+        let mut next = guard.clone();
+        let mut seen = std::collections::HashSet::new();
+        for reservation in reservations {
+            let plan = &reservation.plan;
+            let cell = &reservation.cell;
+            let grant = &reservation.grant;
+            let budget = &reservation.budget;
+            if !seen.insert(cell.cell_id)
+                || cell.root_run_id != run_id
+                || plan.status != SpawnPlanStatus::Committed
+                || !matches!(
+                    cell.lifecycle,
+                    CellLifecycle::Running | CellLifecycle::WaitingInput
+                )
+                || plan.deadline_unix_ms <= now
+                || grant.expires_at_unix_ms <= now
+                || grant.expires_at_unix_ms < plan.deadline_unix_ms
+            {
+                return Err(reject("cell_snapshot_expired_or_inactive"));
+            }
+            plan.validate().map_err(reject)?;
+            cell.validate(&reservation.template).map_err(reject)?;
+            grant.validate().map_err(reject)?;
+            budget.validate().map_err(reject)?;
+            reservation.supervision.validate().map_err(reject)?;
+            if cell.parent_cell_id != plan.parent_cell_id
+                || cell.capability_grant_id != grant.grant_id
+                || cell.budget_lease_id != budget.lease_id
+                || cell.supervision_lease_id != reservation.supervision.lease_id
+                || cell.input_refs != plan.input_refs
+                || cell.partition_key != plan.partition
+                || cell.output_contract != plan.output_contract
+                || plan.count != 1
+                || plan.candidate_templates != vec![reservation.template.template_id]
+                || reservation.owned_paths != builder_lock_paths(&cell.owned_paths)
+                || cell
+                    .owned_paths
+                    .iter()
+                    .any(|path| !allow_list_covers(&grant.paths, path))
+            {
+                return Err(reject("cell_snapshot_authority_mismatch"));
+            }
+            if let Some(existing) = next.records.get(&plan.plan_id) {
+                if existing.reservation != reservation
+                    || existing.resources_released
+                    || !existing.active_capabilities.is_empty()
+                {
+                    return Err(reject("cell_snapshot_existing_state_changed"));
+                }
+                continue;
+            }
+            if next.by_cell.contains_key(&cell.cell_id)
+                || next
+                    .by_idempotency
+                    .contains_key(plan.idempotency_key.trim())
+                || Self::active_by_fingerprint(&next, &reservation.fingerprint).is_some()
+                || next
+                    .records
+                    .values()
+                    .filter(|record| !record.resources_released)
+                    .count()
+                    >= MAX_ACTIVE_CELLS
+            {
+                return Err(reject("cell_snapshot_resource_conflict"));
+            }
+            if let Some(parent_id) = cell.parent_cell_id {
+                let parent = next
+                    .by_cell
+                    .get(&parent_id)
+                    .and_then(|id| next.records.get(id))
+                    .ok_or_else(|| reject("cell_snapshot_parent_missing"))?;
+                if parent.resources_released
+                    || !parent.reservation.template.delegation_allowed
+                    || !parent.reservation.grant.delegation_allowed
+                    || !parent.reservation.grant.contains(grant)
+                    || cell.depth != parent.reservation.cell.depth.saturating_add(1)
+                    || Self::active_children(&next, parent_id) >= MAX_CHILDREN_PER_PARENT
+                    || Self::active_children(&next, parent_id)
+                        >= parent.reservation.cell.spawn_quota as usize
+                {
+                    return Err(reject("cell_snapshot_parent_scope_changed"));
+                }
+            } else if cell.depth != 0 || Self::active_root_cells(&next) >= MAX_ROOT_CELLS {
+                return Err(reject("cell_snapshot_root_limit"));
+            }
+            for path in &reservation.owned_paths {
+                if next.path_locks.iter().any(|(held, owner)| {
+                    *owner != cell.cell_id && kiana_domain::path_locks_conflict(path, held)
+                }) {
+                    return Err(reject("path_lock_conflict"));
+                }
+            }
+            if let Some(existing) = next.budgets.get(&budget.lease_id) {
+                if existing != budget {
+                    return Err(reject("cell_snapshot_budget_changed"));
+                }
+            } else {
+                next.budgets.insert(budget.lease_id, budget.clone());
+            }
+            let reserved_total = next
+                .records
+                .values()
+                .filter(|record| {
+                    !record.resources_released
+                        && record.reservation.budget.lease_id == budget.lease_id
+                })
+                .try_fold(plan.budget_reservation, |sum, record| {
+                    sum.checked_add(record.reservation.plan.budget_reservation)
+                })
+                .ok_or_else(|| reject("cell_snapshot_budget_invalid"))?;
+            if reserved_total > budget.reserved_budget {
+                return Err(reject("cell_snapshot_budget_invalid"));
+            }
+            let plan_id = plan.plan_id;
+            let cell_id = cell.cell_id;
+            next.by_idempotency
+                .insert(plan.idempotency_key.trim().to_owned(), plan_id);
+            next.by_fingerprint
+                .insert(reservation.fingerprint.clone(), plan_id);
+            next.by_cell.insert(cell_id, plan_id);
+            next.by_run.entry(run_id).or_default().push(cell_id);
+            for path in &reservation.owned_paths {
+                next.path_locks.insert(path.clone(), cell_id);
+            }
+            next.records.insert(
+                plan_id,
+                CellRecord {
+                    locked_paths: reservation.owned_paths.clone(),
+                    reservation,
+                    resources_released: false,
+                    active_capabilities: HashMap::new(),
+                },
+            );
+        }
+        *guard = next;
+        Ok(())
+    }
+
     async fn resolve_template(
         &self,
         role_id: &str,
@@ -192,7 +434,12 @@ impl CellRegistryPort for MemoryCellRegistry {
                 "spawn_template_version_required".to_owned(),
             ));
         }
-        if version != TEMPLATE_VERSION {
+        let swarm_template = role_id == "builder"
+            && matches!(
+                version,
+                kiana_domain::SWARM_CONTROLLER_TEMPLATE | kiana_domain::SWARM_CHILD_TEMPLATE
+            );
+        if version != TEMPLATE_VERSION && !swarm_template {
             return Err(PortError::Failed(
                 "spawn_template_version_mismatch".to_owned(),
             ));
@@ -202,7 +449,17 @@ impl CellRegistryPort for MemoryCellRegistry {
         if let Some(template) = state.templates.get(&key) {
             return Ok(template.clone());
         }
-        let template = AgentTemplate::for_role(&role, version.to_owned());
+        let mut template = AgentTemplate::for_role(&role, version.to_owned());
+        if version == kiana_domain::SWARM_CONTROLLER_TEMPLATE {
+            template.template_id = kiana_domain::swarm_controller_template_id();
+            template.default_capabilities.clear();
+            template.max_children = 8;
+            template.max_depth = 0;
+            template.delegation_allowed = true;
+        } else if version == kiana_domain::SWARM_CHILD_TEMPLATE {
+            template.template_id = kiana_domain::swarm_child_template_id();
+            template.max_depth = 1;
+        }
         template
             .validate()
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
@@ -713,7 +970,8 @@ impl CellRegistryPort for MemoryCellRegistry {
         cell_id: CellId,
         reason: &str,
     ) -> Result<RetirementRecord, PortError> {
-        let mut state = self.lock_state()?;
+        let mut authoritative = self.lock_state()?;
+        let mut state = authoritative.clone();
         let plan_id = state
             .by_cell
             .get(&cell_id)
@@ -784,6 +1042,7 @@ impl CellRegistryPort for MemoryCellRegistry {
             .validate()
             .map_err(|error| PortError::Failed(error.to_owned()))?;
         state.records.insert(plan_id, record);
+        *authoritative = state;
         Ok(retirement)
     }
 

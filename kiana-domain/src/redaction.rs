@@ -147,11 +147,17 @@ pub fn redact_value(value: &Value) -> Value {
                     let token_metric =
                         matches!(
                             normalized.as_str(),
-                            "tokens_before"
+                            "reserved_tokens"
+                                | "tokens"
+                                | "charged_tokens"
+                                | "reported_tokens"
+                                | "charged_and_reserved_tokens"
+                                | "tokens_before"
                                 | "tokens_after"
                                 | "input_tokens"
                                 | "output_tokens"
                                 | "total_tokens"
+                                | "tokens_used"
                                 | "cached_tokens"
                                 | "reasoning_tokens"
                                 | "max_tokens"

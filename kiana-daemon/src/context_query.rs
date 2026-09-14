@@ -829,6 +829,16 @@ fn canonical_project_root(project_root: &str) -> Result<PathBuf, PortError> {
             "context_project_root_invalid:not_directory".to_owned(),
         ));
     }
+    let policy = crate::data_governance::read_policy(&project_root)?;
+    if policy
+        .revoked_sources
+        .iter()
+        .any(|source| project_root.join(source).exists())
+    {
+        return Err(PortError::Failed(
+            "context_processing_revoked:retained_source".to_owned(),
+        ));
+    }
     Ok(project_root)
 }
 
@@ -980,11 +990,52 @@ fn render_output<T: Serialize>(
     label: &str,
     text_formatter: impl FnOnce(&T) -> String,
 ) -> Result<String, PortError> {
+    let mut serialized = serde_json::to_value(value)
+        .map_err(|error| PortError::Failed(format!("context_{label}_serialize:{error}")))?;
+    let mut sources = std::collections::BTreeMap::<String, String>::new();
+    collect_provenance_sources(&serialized, &mut sources);
+    let source_snapshot = kiana_domain::json_digest(&json!({"query_kind":label,"sources":sources}));
+    let provenance = json!({"schema":"kiana.context-provenance.v1","snapshot":source_snapshot,
+        "source":"local_workspace","sources":sources,"freshness":"captured_at_read",
+        "atomic_workspace_snapshot":false,"runtime_version":env!("CARGO_PKG_VERSION")});
     if output == "json" {
-        serde_json::to_string_pretty(value)
+        if let Some(object) = serialized.as_object_mut() {
+            object.insert("provenance".to_owned(), provenance);
+        }
+        serde_json::to_string_pretty(&serialized)
             .map_err(|error| PortError::Failed(format!("context_{label}_serialize:{error}")))
     } else {
-        Ok(text_formatter(value))
+        Ok(format!(
+            "{}\nsource: local_workspace; snapshot: {}; files: {}; freshness: captured_at_read",
+            text_formatter(value),
+            source_snapshot,
+            sources.len()
+        ))
+    }
+}
+
+fn collect_provenance_sources(
+    value: &Value,
+    sources: &mut std::collections::BTreeMap<String, String>,
+) {
+    match value {
+        Value::Object(object) => {
+            if let (Some(path), Some(hash)) = (
+                object.get("path").and_then(Value::as_str),
+                object.get("content_hash").and_then(Value::as_str),
+            ) {
+                sources.insert(path.to_owned(), hash.to_owned());
+            }
+            for child in object.values() {
+                collect_provenance_sources(child, sources);
+            }
+        }
+        Value::Array(values) => {
+            for child in values {
+                collect_provenance_sources(child, sources);
+            }
+        }
+        _ => {}
     }
 }
 

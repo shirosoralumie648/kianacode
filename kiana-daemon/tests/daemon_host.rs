@@ -541,7 +541,14 @@ async fn split_secret_across_stream_deltas_never_reaches_stdout_events_receipt_o
         match envelope.event {
             RunStreamEvent::Delta { text, .. } => streamed.push_str(&text),
             RunStreamEvent::Terminal { .. } => break,
-            RunStreamEvent::Unknown => {}
+            // Informational projections carry no delta text and are not the terminal
+            // marker this loop waits for. They stay listed so a future protocol
+            // addition fails closed here instead of being silently drained.
+            RunStreamEvent::Usage { .. }
+            | RunStreamEvent::ToolCall { .. }
+            | RunStreamEvent::ApprovalRequested { .. }
+            | RunStreamEvent::Error { .. }
+            | RunStreamEvent::Unknown => {}
         }
     }
 
@@ -640,7 +647,12 @@ async fn cancelling_mid_stream_never_completes_or_emits_a_late_delta() {
         match envelope.event {
             RunStreamEvent::Delta { text, .. } => late_stream.push_str(&text),
             RunStreamEvent::Terminal { .. } => break,
-            RunStreamEvent::Unknown => {}
+            // See the drain loop above: informational and unknown events are ignored.
+            RunStreamEvent::Usage { .. }
+            | RunStreamEvent::ToolCall { .. }
+            | RunStreamEvent::ApprovalRequested { .. }
+            | RunStreamEvent::Error { .. }
+            | RunStreamEvent::Unknown => {}
         }
     }
     let event_log = fs::read_to_string(&events).expect("durable event log");

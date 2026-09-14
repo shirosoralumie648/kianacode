@@ -14,16 +14,59 @@ pub enum ApprovalState {
     Consumed,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunCancellationState {
+    Active,
+    Requested,
+    Stopping,
+    Cancelled,
+    ResultUnknown,
+}
+
+impl RunCancellationState {
+    pub fn transition(self, next: Self) -> Result<Self, DomainError> {
+        if matches!(
+            (self, next),
+            (Self::Active, Self::Requested)
+                | (Self::Requested, Self::Stopping)
+                | (Self::Stopping, Self::Cancelled)
+                | (Self::Stopping, Self::ResultUnknown)
+        ) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "run_cancellation",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
+    }
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Requested => "requested",
+            Self::Stopping => "stopping",
+            Self::Cancelled => "cancelled",
+            Self::ResultUnknown => "result_unknown",
+        }
+    }
+}
+
 impl ApprovalState {
     pub fn can_transition_to(self, next: Self) -> bool {
         matches!(
             (self, next),
             (Self::Staged, Self::Active)
+                | (Self::Staged, Self::Expired)
+                | (Self::Staged, Self::Cancelled)
                 | (Self::Active, Self::Approved)
                 | (Self::Active, Self::Denied)
                 | (Self::Active, Self::Expired)
                 | (Self::Active, Self::Cancelled)
                 | (Self::Approved, Self::Consumed)
+                | (Self::Approved, Self::Expired)
+                | (Self::Approved, Self::Cancelled)
         )
     }
 
@@ -241,6 +284,12 @@ impl CellLifecycle {
                 | (Self::Running, Self::Failed)
                 | (Self::Running, Self::Quarantined)
                 | (Self::WaitingInput, Self::Running)
+                | (Self::WaitingInput, Self::CancelRequested)
+                | (Self::WaitingInput, Self::Failed)
+                | (Self::WaitingInput, Self::Quarantined)
+                | (Self::Blocked, Self::CancelRequested)
+                | (Self::Blocked, Self::Quarantined)
+                | (Self::Blocked, Self::Retiring)
                 | (Self::Blocked, Self::Running)
                 | (Self::Checkpointing, Self::Running)
                 | (Self::Checkpointing, Self::ReadyToMerge)
@@ -328,6 +377,8 @@ impl Default for CellLifecycle {
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionStatus {
     Accepted,
+    Queued,
+    Cancelling,
     Denied,
     AwaitingApproval,
     Running,
@@ -343,6 +394,13 @@ impl ExecutionStatus {
         matches!(
             (self, next),
             (Self::Accepted, Self::Running)
+                | (Self::Accepted, Self::Queued)
+                | (Self::Queued, Self::Running)
+                | (Self::Queued, Self::Cancelling)
+                | (Self::Running, Self::Cancelling)
+                | (Self::AwaitingApproval, Self::Cancelling)
+                | (Self::Cancelling, Self::Cancelled)
+                | (Self::Cancelling, Self::ResultUnknown)
                 | (Self::Accepted, Self::AwaitingApproval)
                 | (Self::Accepted, Self::Denied)
                 | (Self::Accepted, Self::Blocked)
@@ -376,6 +434,8 @@ impl ExecutionStatus {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Accepted => "accepted",
+            Self::Queued => "queued",
+            Self::Cancelling => "cancelling",
             Self::Denied => "denied",
             Self::AwaitingApproval => "awaiting_approval",
             Self::Running => "running",
