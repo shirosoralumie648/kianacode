@@ -147,7 +147,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
-### H01 Harness wiring baseline and acceptance skeleton evidence (2026-09-14)
+### P4-J7-04 Provider baseline evidence (2026-09-14)
+
+```text
+source_snapshot: 55cac10251feebbdca7233f8e64da44b5500e394 (H01 closure); docs/roadmap/provider-baseline.md; kiana-daemon/src/model_client.rs; kiana-provider/src/{lib,config,request,transport,response}.rs; kiana-services/src/api/{provider,client,retry,streaming}.rs; kiana-runner/src/model.rs; kiana-domain/src/{model,usage}.rs; kiana-services/tests/provider_standard.rs
+worktree_status: source snapshot was clean and pushed; provider baseline doc plus roadmap/status backfill is this step's documentation commit
+command_argv:
+  git rev-parse HEAD
+  sha256sum kiana-daemon/src/model_client.rs kiana-provider/src/lib.rs kiana-provider/src/config.rs kiana-provider/src/request.rs kiana-provider/src/transport.rs kiana-provider/src/response.rs kiana-services/src/api/provider.rs kiana-services/src/api/client.rs kiana-services/src/api/retry.rs kiana-services/src/api/streaming.rs kiana-runner/src/model.rs kiana-domain/src/model.rs kiana-domain/src/usage.rs kiana-services/tests/provider_standard.rs
+  rg -n 'native_streaming_without_a_terminal_event_fails_closed|provider_does_not_retry_auth_errors|provider_wrapper_maps_tool_calls_and_final_text|anthropic_native_streaming_aggregates_output_without_network' kiana-daemon/src/model_client.rs
+  rg -c '#\[test\]|#\[tokio::test\]' kiana-provider/src
+  cargo check --workspace --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked/offline dependency resolution; source inspection and static compilation only; no test binaries executed
+fixture or cassette: none executed; the five named acceptance tests were classified by source reading as legacy_fixtures-only or mixed (see baseline doc §4)
+exit_code: source inspection=0; workspace static compile=0; format check=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: P4-J7-04 baseline completed. Key facts fixed: kiana-daemon model_client.rs product code is lines 1-39 only (ProviderGateway + ScriptedModel); lines 42-2102 are cfg(test) legacy_fixtures never linked into product builds; kiana-provider is the sole networked product path (5 protocols, native streaming) with ZERO tests — recorded as RED for J7-05; research-doc gap table re-verified: 7 of 10 gaps already fixed by kiana-provider (profile routing, strict terminal validation, tool JSON rejection, transport limits, typed retry classification with TLS never-retry, first-class ModelFinish, final wire budget), 3 partially hold (Text-only delta, two-field usage without cache/reasoning tokens and price version, missing failure-attempt usage); kiana-services legacy stack remains reachable only via model smoke --live diagnostics and bridge/remote compat surfaces. No implementation status promoted for P4-J7-05 or later.
+proof-level_change: source plus compile/static-check evidence only; no local_behavior promotion
+limitations: zero-test finding for kiana-provider is a coverage gap statement, not a defect claim; legacy fixture tests still exercise the kiana-services stack that --live diagnostics use; the 2026-09-09 live DeepSeek evidence does not extend to the kiana-provider crate; hashes will drift as J7-05+ lands
+reviewer: multi-agent source survey with adversarial gap verification (15 agents); no runtime test reviewer
+```
+
+
 
 ```text
 source_snapshot: 8709b71a54549fd7fa894904b55a4d501e68148a (fixture commit); docs/roadmap/harness-baseline.md; kiana-runner/tests/harness_contract.rs; kiana-daemon/tests/harness_runtime.rs; call-chain files hashed in the baseline doc

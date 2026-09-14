@@ -88,7 +88,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-04 Provider 基线、快照和现有测试　⏳
+#### P4-J7-04 Provider 基线、快照和现有测试　✅
 
 - **依赖**：`P0-J7-01`。
 - **改动位置**：现有 `model_client.rs`、services/api、runner/model、测试与调研清单；先只读核对。
