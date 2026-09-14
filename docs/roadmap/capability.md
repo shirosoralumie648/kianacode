@@ -5,7 +5,7 @@
 ## 20. Capability 专项：调研结论与实现设计（2026-09-12 追加）
 
 > 对应 [module-map.md](../module-map.md) 的「5. Capability：工具执行与沙箱」。
-> **性质：待实施设计与任务分解；全部新增 step 均为 ⏳，不表示源码已经通过验收。**
+> **性质：待实施设计与任务分解；`CAP-00` 已在 2026-09-14 以 source/static 基线完成，`CAP-01` 及后续 step 仍为 ⏳，不表示源码已经通过运行时验收。**
 > 阅读顺序：§20.1–20.4 看依据，§20.5–20.9 看执行设计，§21 按 step 实施，§22 看验收门。
 > 本追加不重排 §2 正在执行的预算、恢复和记忆任务；另一位实现 agent 先收口当前切片，再按依赖消费这里的细化任务。
 
@@ -293,7 +293,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 | Step | 交付内容 | 对应原单元 | CAP 直接依赖 | 状态 |
 |---|---|---|---|---|
-| `CAP-00` | 快照、冲突口径、WIP 接线清单 | `P0-A-02`、`P0-B-01`、`P1-H-01` | — | ⏳ |
+| `CAP-00` | 快照、冲突口径、WIP 接线清单 | `P0-A-02`、`P0-B-01`、`P1-H-01` | — | ✅ |
 | `CAP-01` | 统一 descriptor / binding / catalog | `P1-H-01` | `CAP-00` | ⏳ |
 | `CAP-02` | 类型化输入、schema、canonical digest | `P1-H-02`、`P0-A-01b` | `CAP-01` | ⏳ |
 | `CAP-03` | 完整 ExecutionScope 与资源解析 | `P1-H-03`、`P0-K1-01` | `CAP-02` | ⏳ |
@@ -355,7 +355,8 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 - **代码/文档落点：** module map 对应入口、`CURRENT_STATUS.md`、本 roadmap、平台规范 §4/§7；不改产品行为。
 - **步骤：** a. 记录 HEAD、相关 WIP 文件 hash、平台/环境；b. 按 registry、scope、cancel、patch、MCP、memory 六条调用链标注已有/未接线/未测试；c. 明确 §20.8 的 timeout 分层、五工具兼容与 HTTP 后续范围，将正式契约差异同步到对应规范；d. 按 §21.1 合并点对照 CP/H 已交付接口，为后续卡绑定实际文件/测试 owner，不各造一份同名契约。
 - **先核验：** 保留原有拒绝语义，确认 `P0-J1-05a/b`、`P0-G-04` 等前置是否真实收口。已有新增代码按验收缺口补齐，不再创建同义模块。
-- **退出条件：** 基线清单、依赖图和差异说明可复查；不将静态类型存在或历史 CI 直接填成完成。每个后续 step 开始前再次检查其相关文件是否漂移。
+- **完成记录（2026-09-14）：** [CAP-00 Capability 基线](capability-baseline.md) 已绑定源码快照、文件 hash、六条调用链、五工具边界、timeout/失败口径、CP/H handoff 和 source-indexed CI 验收入口；仅文档基线 artifact 标为 `implemented`，产品 capability 仍保持各自 `partial`/`target`/`deferred`。
+- **证明限制：** 本轮只做源码盘点、静态编译、格式和 diff 检查；不运行本地测试，GitHub CI 由推送触发且不等待结果。每个后续 step 开始前仍须重算 snapshot/hash。
 
 <a id="step-cap-01"></a>
 

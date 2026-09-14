@@ -151,6 +151,18 @@ aggregate/stream version、idempotency key 以及 `CommandReceipt` cursor 组成
 部分 legacy event 仍缺少完整的 causation/typed turn 链，外部 effect 的 exactly-once
 和 reconciliation 也尚未建立；这些属于 ER-01、ER-02、ER-13、ER-14+ 的后续范围。
 
+## CAP-00 能力执行基线（2026-09-14）
+
+本节绑定源码快照 `b49cd62772943aa117c8ea4adec383580f739237`，只记录 Capability
+在 `DaemonHost → ControlPlane → Broker → Handler` 主链中的当前接线和缺口。模型可见
+工具仍固定为 `shell`、`apply_patch`、`mcp`、`memory.search`、`memory.write`；
+operator-only action、HTTP MCP 和动态工具扩展不因存在 descriptor 就变成当前可用能力。
+
+可复核的文件 hash、六条调用链、超时分层、失败分类和 GitHub CI 验收索引见
+[CAP-00 Capability 基线](roadmap/capability-baseline.md)。本步骤是 source/static 文档
+交付，不提升任何产品 capability 的 `proof_level`；后续 CAP/CP/H 步骤必须在开始时
+重新核对源码快照和 hash，避免把 WIP 漂移当成已接线。
+
 ## 如何判断完成程度
 
 这张图描述职责和边界，具体能力仍须结合证据。[状态账本](../CURRENT_STATUS.md) 记录当前源码快照、命令、测试和证明等级。规范里的 `target`、`partial`、`deferred` 或模块名称本身，都不能推断功能已经交付。

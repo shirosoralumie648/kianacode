@@ -193,6 +193,31 @@ limitations: event-literal count includes action/schema compatibility strings an
 reviewer: Codex root source review; no runtime test reviewer
 ```
 
+### CAP-00 Capability execution baseline evidence (2026-09-14)
+
+```text
+source_snapshot: b49cd62772943aa117c8ea4adec383580f739237; docs/roadmap/capability-baseline.md
+worktree_status: source snapshot was clean and pushed before this documentation follow-up; baseline, module-map, roadmap and status changes are this step's documentation commit
+command_argv:
+  git rev-parse HEAD
+  git status --short
+  sha256sum kiana-domain/src/{tool_catalog,actions,capabilities}.rs kiana-runner/src/tools.rs kiana-core/src/{capabilities,events,sessions}.rs kiana-capability-broker/src/lib.rs kiana-daemon/src/{harness_sandbox,harness_capabilities,apply_patch,harness_mcp,mcp_stdio,pre_tool_hooks,harness_memory}.rs
+  rg -n 'five model tools|CapabilityBrokerPort|ExecutionPermitVerifierPort|catalog_sealed|timeout|result_unknown' kiana-domain/src kiana-runner/src kiana-core/src kiana-capability-broker/src kiana-daemon/src
+  cargo check -p kiana-capability-broker --tests --locked --offline
+  cargo check -p kiana-runner --tests --locked --offline
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux/bash; stable Rust toolchain; locked offline dependency cache; no local tests or test binaries executed
+fixture or cassette: source-indexed registry/scope/cancel/patch/MCP/memory paths and named CI assertions; no runtime fixture executed locally
+exit_code: all listed static checks and source inspection expected 0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: CAP-00 capability baseline artifact completed (`feature_status=implemented`, `proof_level=source`); product capabilities remain independently `partial`, `target`, `deferred` or `not_supported`
+proof-level_change: source plus static-check evidence only; no local_behavior, durable, live or physical promotion
+limitations: no unified prepare/authorize/dispatch/finalize contract, durable dispatch CAS, common execution scope, stop confirmation, patch recovery, MCP drift/HTTP transport, or memory blocking-write cancellation is claimed; five model tools remain the current compatibility boundary
+reviewer: Codex root source review; no runtime test reviewer
+```
+
 ### Run state event projection evidence (2026-09-10)
 
 ```text
