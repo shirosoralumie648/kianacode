@@ -4,7 +4,7 @@
 > 当前事实以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准；本文只排顺序、记进度、写验收口径，**不定义新规范**。
 > 阶段编号以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 的 P0–P6 为唯一 canonical。
 > 单元清单来源：`company-os-implementation-outline.md` §3 的切片 A–M 与子切片 J1–M7（共 38 个）；产品特有单元（角色目录、会议、六层记忆、提示词来源）另见 `COMPANY.md` §3/§4/§5/§7。
-> 本次核对：2026-09-12，源码快照 `db77c24`；共享工作树另有持续变化的 WIP，不能套用历史 CI。当前窗口见 §2，核对证据见 `CURRENT_STATUS.md`「Roadmap source reconciliation evidence (2026-09-12)」。
+> 本次核对：2026-09-14；源码基线仍以 `CURRENT_STATUS.md` 中绑定的快照为准，文档变更不提升任何源码能力的证明等级。共享工作树另有持续变化的 WIP，不能套用历史 CI。当前窗口见 §2，核对证据见 `CURRENT_STATUS.md`「Roadmap source reconciliation evidence (2026-09-12)」。
 
 ---
 
@@ -135,9 +135,11 @@
 
 <a id="all-step-index"></a>
 
-### 1.1 全量 Step 总图：依赖波次（403 张）
+### 1.1 Canonical Step 总图：依赖波次（403 张）
 
-> 这里列出基础路线图 74 张验收卡与 9 个专项 329 张实施卡，共 403 张登记项。基础卡是阶段验收口径，专项卡是实现拆分；两者有意重叠，不能相加当作 403 份独立交付。
+> 这里列出基础路线图 74 张验收卡与 9 个历史专项 329 张实施卡，共 403 张 canonical 登记项。基础卡是阶段验收口径，专项卡是实现拆分；两者有意重叠，不能相加当作 403 份独立交付。2026-09-13 起追加的专项使用独立局部索引，并在导航中单独列出。
+>
+> 后续追加的 `CI-*`、`SW-*`、`OA-*`、`AUT-*`、`NM-*`、`PD-*`、`INT-*`、`EQ-*`、`BQ-*`、`DEP-*` 和 `SC-*` 是专项局部索引，统一从“专项设计导航”进入，不回写这份历史 canonical 计数，也不改变 P0–P6 编号。专项导航同时给出每条局部索引的完整实施卡入口，避免把 403 张 canonical 卡误读成全部专项步骤。
 
 **排序原则**：先固定事实基线和已验证基础，再收口当前 wall-time/role-limit 与共享契约；随后建立权威账本、运行时、执行和恢复；再推进跨模块编排与 CompanyOS；最后做入口一致性、后置平台扩展和发布门。`W0–W11` 只是建议执行波次，不是新的 P 阶段或完成状态。
 
@@ -631,6 +633,18 @@
 | 2026-09-10 | `P0-J1-05a` 收口：wall-time 预算接线进产品路径（`KIANA_HARNESS_WALL_TIME_MS` / `KIANA_HARNESS_MAX_STEPS`，默认不变）；直跑 `34381844056` 红于 CI 环境 apt 问题（`c83a357`/`5f9ce29` 修复后覆盖跑绿）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` → 覆盖 CI `34389804309` ✅ |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
+| 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
+| 2026-09-13 | 追加多 Agent 协调 / Swarm 专项：有界 fan-out/fan-in、持久 DispatchIntent、fresh child、监督/取消/恢复、确定性 reduce、独立合并及 SW-00..SW-18 执行批次 | 文档规划未提交；基于 reference 全目录盘点、CompanyOS 规范、LangGraph/OpenAI Agents/Agent Framework/Kubernetes/MCP 一手资料；无源码状态变更 |
+| 2026-09-13 | 追加可观测性与审计专项设计：EventLog/Receipt/Log/Metric/Trace/Audit/Health 边界、提交后投影、脱敏/Unknown/背压/恢复、OA-00..OA-28 实施批次与验收矩阵 | 文档规划未提交；基于 reference、CompanyOS 规范、EventLog 源码和 OpenTelemetry/W3C 公开规范调研；无源码状态变更 |
+| 2026-09-13 | 追加调度、工作流与触发器专项：durable queue/claim、timer/event occurrence、纯 replay planner、effect reservation、cancel/retry/Unknown/recovery 与 AUT-01..AUT-24 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
+| 2026-09-14 | 追加持久化与数据层专项：事实/投影/Artifact/Memory/Index 分层、cursor/generation、备份/恢复、迁移、保留和 `PD-00`–`PD-35` 实施批次 | 文档规划未提交；独立设计见 `roadmap/persistence-data-layer.md`；无源码状态变更 |
+| 2026-09-14 | 补全通知与消息专项：消息/通知/投递/实时流分层、ControlPlane 处理流、`NM-00`–`NM-22` 实施步骤和拒绝优先验收矩阵 | 文档规划未提交；无源码状态变更 |
+| 2026-09-14 | 追加集成与连接器专项：Provider/Connector/MCP/A2A 边界、账号绑定、SecretRef/Lease、幂等/回执/Unknown 对账、Webhook 入站和 INT-00..INT-33 实施批次 | 文档规划未提交；基于 reference 全目录、审计材料和当前 connector WIP 调研；无源码状态变更 |
+| 2026-09-14 | 追加评测与质量专项：EvalCase/GoldenTrace、隔离执行、finding/评分、baseline、quality gate、反馈/漂移和 `EQ-00`–`EQ-51` 实施批次 | 文档规划未提交；无源码状态变更 |
+| 2026-09-14 | 追加部署、运维与迁移专项：部署 profile、ReleaseManifest、健康/ready/drain、单 writer lease/fence、备份/恢复、forward migration、回滚、滚动发布和 `DEP-00`–`DEP-41` 实施批次 | 文档规划未提交；基于 reference 全目录、Temporal/SQLite/Kubernetes/Flyway/12-factor 调研；无源码状态变更 |
+| 2026-09-14 | 追加计费、配额与成本专项：UsageVector/RateCard/CostLedger、层级预算与 ProviderBudget、原子预留/结算、Unknown/对账、背压和 `BQ-00`–`BQ-30` 实施批次 | 文档规划未提交；基于 reference 全目录、Provider/ControlPlane/CompanyOS 规范和相关项目源码调研；无源码状态变更 |
+| 2026-09-14 | 追加安全与合规专项：身份、授权、Secret、数据治理、供应链、审计、事故响应和 `SC-00`–`SC-43` 实施批次 | 文档规划未提交；独立设计见 `roadmap/security-compliance.md`；无源码状态变更 |
+| 2026-09-14 | 重排模块地图与专项导航：补产品平面/事实源矩阵、稳定锚点、独立文件入口，并将追加章节标为 `34-A`/`34-B` | 文档规划未提交；无源码状态变更 |
 
 ---
 
@@ -1989,9 +2003,9 @@
 
 ## 专项设计导航（拆分文档）
 
-> 为了让总图可快速扫描，以下专项保留在独立文档中。主文档承载 P0–P4 基础执行单元、当前窗口、全量 Step 索引、冻结项与完成定义；专项文档承载设计说明和细化步骤。两层编号互不替代，状态仍以本页总图与 `CURRENT_STATUS.md` 的证据块为准。
+> 为了让总图可快速扫描，以下同时列出独立专项文件和本页内的专项章节。主文档承载 P0–P4 基础执行单元、当前窗口、canonical Step 索引、冻结项与完成定义；专项章节/文件承载设计说明和细化步骤。两层编号互不替代，状态仍以本页总图与 `CURRENT_STATUS.md` 的证据块为准。
 
-| 专项 | 细化卡 | 内容 |
+| 专项 | 细化卡 | 位置 |
 |---|---:|---|
 | ControlPlane | CP-00–CP-30（31） | [授权、状态转移与恢复设计](roadmap/control-plane.md) |
 | Harness | H01–H36（36） | [Agent 运行时设计与实施步骤](roadmap/harness.md) |
@@ -2002,6 +2016,17 @@
 | Context / Memory | CM-00–CM-39（40） | [上下文、检索、记忆与治理](roadmap/context-memory.md) |
 | Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [扩展来源、信任与生命周期](roadmap/skills-plugins-hooks.md) |
 | UI / Entrypoints | UI-00–UI-41（42） | [CLI、Workbench、Web、Desktop 与入口一致性](roadmap/ui-entrypoints.md) |
+| 配置 / 凭据 / 身份 | CI-01–CI-12（12） | [§29](#config-credentials-identity-plan) |
+| Swarm | SW-00–SW-18（19） | [§30](#swarm-coordination-design) |
+| 可观测性 / 审计 | OA-00–OA-28（29） | [§31](#observability-audit-plan) |
+| 调度 / Workflow / Trigger | AUT-01–AUT-24（24） | [§32](#scheduling-workflow-trigger-plan) |
+| Persistence / Data Layer | PD-00–PD-35（36） | [独立设计](roadmap/persistence-data-layer.md) · [§33](#persistence-data-layer-plan) |
+| Notifications / Messaging | NM-00–NM-22（23） | [通知与消息：事实投影、订阅、投递、Human Inbox 与实时桥](#notification-messaging-design) |
+| Integrations / Connectors | INT-00–INT-33（34） | [独立设计](roadmap/integrations-connectors.md) · [§34-A](#integrations-connectors-plan) |
+| Evaluation / Quality | EQ-00–EQ-51（52） | [§34-B](#quality-evaluation-design) |
+| Billing / Quota / Cost | BQ-00–BQ-30（31） | [计费、配额与成本：预留、用量、价格、容量、对账与发布门](#billing-quota-cost-plan) |
+| Security / Compliance | SC-00–SC-43（44） | [安全与合规：身份、授权、隔离、秘密、数据治理、供应链、审计与证明门](#security-compliance-plan) |
+| Deployment / Operations / Migration | DEP-00–DEP-41（42） | [部署、运维与迁移：发布、健康、备份、恢复、迁移、回滚与运维工具](#deployment-operations-migration-design) |
 
 ---
 
@@ -2154,3 +2179,2944 @@
 > 本专项已拆到 [UI / Entrypoints 专项](roadmap/ui-entrypoints.md)。本页保留入口和原编号，详细设计、处理流程、实施卡与验证规则请打开独立文档。
 
 ---
+
+<a id="config-credentials-identity-plan"></a>
+
+## 29. 配置、凭据与身份：实际设计、处理流程与详细实施步骤（2026-09-13 追加）
+
+> 本专项补全 [module-map.md](module-map.md) 的“配置、凭据与身份”模块。它是实现路线，不把规范目标或参考项目能力写成当前实现。当前源码仍以 `CURRENT_STATUS.md` 为准：Provider 配置、固定 `local-user`、ProjectTrust 和角色目录已有局部实现，但 durable principal、assignment、SecretRef、OAuth 生命周期和 secret 全链路隔离尚未完成。
+>
+> 参考调研范围包括仓库内 `reference/` 的 Codex workload identity、OpenCode provider/credential/policy、OpenHands credential probe、Strix OAuth/PKCE、Cline/Roo/Crush/Goose 等项目，以及本仓库的 CompanyOS 治理与安全宪法。参考项目只提供行为启发，不引入其源码、凭据格式或第二执行循环。
+
+### 29.1 设计结论
+
+配置、凭据和身份是三个相互关联但不能互相替代的事实域：
+
+| 事实域 | 回答的问题 | 权威对象 | 不得承担的职责 |
+|---|---|---|---|
+| Configuration | 这次运行采用了哪些非秘密参数、来自哪里、版本是什么 | `ConfigSnapshot`（canonical bytes + `config_revision`） | 不保存 secret 原值；不决定用户是否有权执行 |
+| Credential | 出站目标当前是否有可用的 API key/OAuth/工作负载令牌 | `CredentialBinding`、`SecretRef`、`CredentialLease` | 不代表 Kiana 用户、组织、项目或角色身份 |
+| Identity / Authority | 谁发起、属于哪个组织/项目、拥有哪些有效 assignment | `Principal`、`Membership`、`RoleAssignment`、`ProjectAssignment`、`authority_epoch` | 不从 wire body、模型文本、provider account 或 API key 推断权限 |
+
+必须保持以下关系：
+
+```text
+protected ingress
+  → authenticate server/client boundary
+  → resolve Principal + Organization/Membership
+  → resolve ProjectTrust + ProjectAssignment + PolicyProfile
+  → build immutable AuthoritySnapshot(authority_epoch)
+  → resolve ConfigSnapshot(non-secret, trusted sources)
+  → evaluate provider.use / capability policy
+  → bind ProviderAccount + SecretRef revision
+  → ControlPlane admission (grant/approval/budget)
+  → one invocation CredentialLease (opaque, short TTL, one-shot)
+  → Provider transport injects secret at the last possible boundary
+  → append redacted facts and receipt metadata
+```
+
+配置正确、凭据存在、Provider 可用和动作获授权是四个独立判断；任一失败都必须在 Broker/Provider 产生副作用前 fail-closed。Provider account ID、OAuth subject、ChatGPT account header、API key possession 和 local bearer 都不是 Kiana `PrincipalId`。
+
+### 29.1.1 参考项目模式与 Kiana 落点
+
+| 参考实现 | 可复用的行为模式 | Kiana 的落点 | 明确不照搬的部分 |
+|---|---|---|---|
+| OpenCode | credential tagged union、同 integration 单活跃凭据、OAuth 提前刷新；provider config、credential、provider.use policy 三分离；权限请求有 once/always/reject 决策 | `CredentialKind`/`CredentialLease`、Provider catalog→config→policy、ControlPlane approval 与审计 | 不把 key 存入配置/Connection，不让插件改写 policy，不提供 secret read-back |
+| Codex workload identity | assertion 每次重读；16 KiB/UTF-8/NUL 校验；token URL/redirect/timeout/body 上限；single-flight、generation CAS、transient/permanent 错误分类 | workload `SecretRef` adapter、OAuth/工作负载刷新器、`CI-09` 并发与轮换测试 | 不把 access token 暴露给 Core/Runner，不用“刷新成功”推断 Kiana 授权 |
+| Strix | PKCE S256 + state；跨进程 refresh lock + 锁内重读；旧 refresh 保留；0600/O_EXCL/atomic replace；安装身份与 provider token 分开 | OAuth account store、LocalInstance identity、daemon 本地 SecretStore | JWT claim 只作为外部 account metadata，不能本地当作 assignment 证据 |
+| OpenHands | credential validity 与 permission validity 分离；只读 whoami/list probe；`missing_scope`、invalid、unknown 分级；presence-only UI | Connector `CredentialProbe`、结构化错误码和诊断投影 | 不执行 destructive probe，不因未知/非 JSON 错误删除凭据 |
+| Continue / Cline / Roo / Crush / Goose | provider-specific auth 注入、API key/OAuth/AWS 等 credential chain、取消与 refresh 生命周期；覆盖默认 auth header 防重复 | Provider adapter 的最后边界注入、route/credential revision fencing | 不引入第二套 provider registry/执行循环，不允许 credential chain 绕过 ControlPlane |
+| ADK / MetaGPT / gpt-pilot / Claude Code | OAuth/JWKS/API key 的认证、scope、expiry 分层；配置来源和 provider registry 的组织方式 | 作为 DTO、错误分类、配置迁移的对照测试 | 其 raw-key 配置、客户端自选身份和宽松 fallback 不作为 Kiana 规范 |
+| CompanyOS 规范与本地实现 | Principal/Organization/Assignment/DataBoundary、ProjectTrust、authority epoch、EventLog/Receipt 事实链 | `CI-02` 至 `CI-12` 的领域合同、fencing、恢复和证据块 | 规范目标不当作已实现能力；当前状态仍以源码、测试和 `CURRENT_STATUS.md` 为准 |
+
+### 29.2 当前代码基线与必须消除的分叉
+
+1. `kiana-provider/src/config.rs` 已有 profile、endpoint、TLS/loopback、capability 和 concurrency 校验，但 `ProviderConfig.api_key` 与 `Connection.credential` 仍允许 raw secret 长驻内存；`configuration_revision` 只能记录 secret hash，不能替代 SecretRef/lease。
+2. `kiana-daemon/src/model_client.rs` 仍有第二份 profile/env 解析（`profile_routes`/legacy provider path），会造成 precedence、缺失凭据和默认 profile 语义分叉；最终只能保留一个 ConfigResolver。
+3. `DaemonHost` 当前固定 `AuthenticatedPrincipal { actor_id: "local-user", allowed_roles }`，`RequestMetadata` 仍可携带 actor/role/department/trust 声明；服务端必须继续覆盖这些声明，并逐步迁移到 durable LocalHumanPrincipal、SessionOwnership 和 assignment 投影。
+4. `RequestContext`、`RoleSpec`、`AccountBinding` 尚缺稳定 `PrincipalId`、`AssignmentId`、`SecretRef`、`ProviderAccountId`、`authority_epoch`、data boundary 和 credential generation。
+5. `docs/schemas/kiana-app-server-config-resolved.v1.schema.json` 与 secrets schema 的 `additionalProperties` 占位不能作为运行时校验；schema、迁移和 unknown-field 行为必须进入可执行测试。
+
+### 29.3 目标领域合同（先落在 domain，再接 ports）
+
+以下对象只允许序列化非秘密元数据。`Debug`、`Display`、`Serialize`、错误和事件投影必须输出 opaque ref、digest、状态和时间，不得输出 secret 原值。
+
+```text
+PrincipalId / OrganizationId / MembershipId / AssignmentId
+ProjectId / SessionId / ServiceIdentityId / ProviderAccountId
+SecretRef { store, key, purpose, audience, generation }
+ConfigRevision / AuthorityEpoch / CredentialGeneration
+
+Principal { id, kind: human|agent|service|mcp|provider, status, created_at }
+Membership { id, principal_id, organization_id, status, valid_from, valid_until, authority_epoch }
+RoleAssignment { id, principal_id, organization_id, role_id, department_id,
+                 project_scope, capability_scopes, policy_profile, status,
+                 valid_from, valid_until, authority_epoch }
+ProjectAssignment { id, role_assignment_id, project_id, scope, status, authority_epoch }
+ServiceIdentity { id, principal_id, credential_ref, capability_scopes, rotation_policy }
+ProviderAccount { id, provider_id, external_subject?, tenant?, data_boundary, status }
+CredentialBinding { id, provider_account_id, kind: key|oauth|workload,
+                    secret_ref, scopes, endpoint_binding, status, generation, expires_at }
+ConfigSource { kind: cli|workspace|user|env|builtin, trust, path?, precedence }
+ConfigSnapshot { schema, source_refs, effective_non_secret_config,
+                 config_revision, project_trust_revision }
+AuthoritySnapshot { principal_id, organization_id, project_id, session_owner,
+                    role_id, department_id, policy_profile, data_boundary,
+                    authority_epoch, assignment_ids }
+CredentialLease { lease_id, secret_ref, provider_account_id, purpose,
+                  audience, endpoint_digest, issued_at, expires_at, one_shot }
+SharingGrant { source_project, target_project, scope, purpose, operations, expires_at }
+```
+
+状态规则沿用 CompanyOS 目标合同：Principal `Proposed → Active → Suspended → Revoked → Archived`；Membership `Invited → Accepted → Active → Suspended/Expired → Revoked`；RoleAssignment `Requested → Approved → Active → Reduced/Suspended → Revoked`。撤销、降权、项目解绑和 credential rotation 都必须递增相应 fencing version；旧 Run、Grant、Approval、Scheduler trigger、CredentialLease 不能继续使用旧版本。
+
+### 29.4 配置解析与快照流程
+
+配置解析必须是纯的、可重放的、带来源的，且不让项目配置在未通过 ProjectTrust 前进入有效集合。推荐有效优先级：
+
+```text
+explicit non-secret CLI
+  > trusted workspace/project config
+  > user config
+  > environment variables
+  > built-in defaults
+```
+
+secret 不在此优先级中合并原值；配置只声明 `SecretRef` 或受限的环境变量名称。实现顺序：读取并限制文件大小 → 解析版本化 schema → 拒绝未知 major/字段 → canonicalize path/URL/JSON → 校验 ProjectTrust/source trust → 合并非秘密 patch → 解析 provider/model/profile → 生成不含 secret 原值的 `ConfigSnapshot` → 计算 `config_revision` → 原子发布新快照。旧 revision 在已有 admission 中保持只读，reload 不能隐式改写运行中的 route。
+
+配置拒绝至少包括：未知字段、未知 schema major、重复 profile、空模型、非法 provider/protocol、带 userinfo/query/fragment 的 URL、非 HTTPS 的非 loopback endpoint、重定向、超限 body/frame、未信任项目引用本地 config/skill/plugin、显式 profile 缺失和无效 secret reference。provider policy 在完整 catalog/route 组装后单独评估 `provider.use`，不能藏在 provider 配置或插件里。
+
+### 29.5 凭据解析、注入与生命周期流程
+
+```text
+SecretRef
+  → CredentialStore resolve (env/keyring/file/OS/workload source)
+  → validate purpose/audience/provider/account/endpoint/scope/expiry
+  → issue CredentialLease (short TTL, one-shot, non-delegable)
+  → provider transport inject header/body/file handle
+  → redact all observations and dispose lease
+```
+
+只有 CredentialStore/Broker/Provider transport 可以接触解析后的 secret；ControlPlane、Runner、EventLog、Receipt、Memory、UI、子 Cell 和普通 adapter 只接触 `SecretRef`、presence、generation、expiry 和 digest。环境变量是输入来源，不是把 raw value 传播到 `Connection`、配置快照或事件的许可。文件凭据使用大小/NUL/UTF-8 校验、`0600`、临时文件 `O_EXCL` + 原子替换；endpoint 禁止 redirect、代理泄漏和非绑定目标。
+
+OAuth/工作负载身份统一使用 typed lifecycle：PKCE S256 + 随机 state + callback anti-CSRF；access/refresh token、scope、external account subject、issued/expiry、refresh generation 分离保存；提前 skew 刷新；同一 account 使用 single-flight；`refresh(observed_generation)` 和 `invalidate_if_current` 做 compare-and-swap，旧 refresh 结果不得清掉新 token。瞬态 408/429/5xx/网络错误且旧 token 仍有效时可以保留旧 token 并延迟重试；永久错误、scope 不足、state/redirect 不匹配和 revoked 立即 fail-closed 并转 `reauth_required`/`revoked`。
+
+连接测试只允许只读 `whoami`/`list`/advertised probe，并区分 `credential_invalid`、`scope_insufficient`、`endpoint_unreachable`、`provider_error`；不能因为非 JSON 错误或一次 probe 失败就删除凭据，也不能把“已配置”显示成“已登录”。
+
+### 29.6 身份、assignment 与一次运行的绑定
+
+受保护入口先认证本地实例/客户端，再从存储的 Principal、Membership、RoleAssignment、ProjectAssignment 和 ProjectTrust 派生 `AuthoritySnapshot`。wire 的 actor、role、department、agent、trust、model profile 只作为请求意图或诊断字段；不一致、过期、撤销、跨项目且无 SharingGrant、session owner 不匹配时拒绝，Broker 调用数必须为零。
+
+`AuthoritySnapshot` 在 Run/Invocation admission 时固化：`principal_id + assignment_ids + authority_epoch + project_id + role_id + policy/config revision + data boundary`。每次 `dispatch`、`continue`、`approval consume` 和 effect-time 再检查 epoch/状态；子 Cell 权限严格为 `parent ∩ template ∩ department ∩ project ∩ packet ∩ approval`。`model_profile` 只能从服务端 RoleAssignment/RoleSpec 派生，模型文本不能切换 provider、account、scope 或 endpoint。
+
+事件和 Receipt 只记录主体/assignment/organization/project/provider-account ID、revision、generation、source kind、digest、拒绝原因和状态转移。需要新增 `identity.authenticated`、`assignment.bound`、`config.snapshot_published`、`credential.lease_issued`（无值）、`credential.rotated`、`credential.revoked`、`oauth.refresh_succeeded/failed` 等事实事件；任何 secret sentinel 出现在 prompt、transcript、event、receipt、stdout/stderr、argv、env、cache、error 或 provider echo 都是发布阻断。
+
+### 29.7 端到端处理与故障路径
+
+```text
+Ingress
+  → protected transport / instance auth
+  → server-derived AuthoritySnapshot
+  → trusted ConfigSnapshot
+  → provider catalog + provider.use policy
+  → ControlPlane grant/approval/budget admission
+  → CredentialLease resolve at effect boundary
+  → route/authority/credential revision re-check
+  → provider request (single attempt or classified bounded retry)
+  → normalize response
+  → append redacted event + usage/receipt metadata
+  → dispose lease; continue/paused/failed/result_unknown
+```
+
+故障必须按边界处理：认证失败、assignment 过期、ProjectTrust 失败、policy deny、config invalid、credential missing/expired/revoked、scope insufficient、route drift 和 lease mismatch 都是 `failed`/`paused` 且零 effect；请求已经发出但结果不可确认时只能是 `result_unknown`，不能用 credential retry 或模型重试掩盖；rotation/revoke 后旧 invocation 不能因为缓存命中继续发送。daemon 重启后 lease 默认失效，恢复必须重新做 authority/config/credential admission；未知 schema major 或事件矛盾同样暂停并 fail-closed。
+
+### 29.8 详细实施步骤
+
+每一步都遵循“先拒绝、再成功、最后回归”的顺序；每个完成单元必须有源码快照、精确命令、退出码、测试 fixture/cassette、feature_status、proof_level 和 limitations 证据块。编号是本专项局部编号，不替代 P0–P6。
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝的验收 | 成功/回归验收 |
+|---|---|---|---|---|
+| `CI-01` | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | raw secret sentinel 在 debug/error/event/receipt/argv/env/cache 任一通道出现即失败；重复 profile parser 行为差异被测试捕获 | 固化当前 env/profile precedence、旧 `local-user` 兼容事件和 config migration fixture |
+| `CI-02` | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | CI-01 | 空/非法/跨类型 ID、过期状态转移、`Debug`/serde 泄漏 secret、authority epoch 回退拒绝 | round-trip schema、状态机合法转移、只输出 ref/hash 的 Receipt projection |
+| `CI-03` | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | CI-02 | port 不能返回 raw secret 到 core/runner；错误 resolver、取消、版本不匹配 fail-closed | fake stores 支持 deterministic snapshot、lease 生命周期和故障注入 |
+| `CI-04` | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | CI-02, CI-03 | 无/错 bearer 或 Unix credential、伪造 actor/role/trust、错误 Origin/Host、他人 session/project 全部拒绝且 0 broker calls | `LocalInstance → LocalHumanPrincipal → ProjectTrust → SessionOwnership` 可从事件重建；旧 local-user 只通过显式 migration event 兼容 |
+| `CI-05` | Durable Membership/RoleAssignment/ProjectAssignment/PolicyProfile/DataBoundary/SharingGrant 与 authority epoch；`kiana-core`、`kiana-domain` | CI-02, CI-04 | revoked/expired assignment、跨项目无 grant、scope 超集、旧 epoch 的 run/grant/approval/scheduler dispatch 拒绝 | effective capability 正确取交集；角色、部门、项目、packet 和 approval 全链路绑定 |
+| `CI-06` | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | CI-01, CI-03, CI-04 | unknown field/major、未信任 workspace config、非法 URL/redirect、profile 缺失、配置超限拒绝且不请求 provider | precedence、canonical snapshot、原子 reload、revision fencing；同一输入跨入口得到同一 snapshot |
+| `CI-07` | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | CI-02, CI-03, CI-06 | missing/expired/revoked/wrong-purpose/wrong-endpoint SecretRef、one-shot 重放、lease 超时、secret sentinel 泄漏均 0 effect | fake secret store 注入成功，Broker 只在 effect boundary 解析并在完成后销毁 lease |
+| `CI-08` | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | CI-05, CI-06, CI-07 | route/config/authority/credential revision 在 admission 后漂移、provider 试图反推 actor、redirect/proxy/host 变更拒绝 | `Connection` 不保存 raw credential；fake provider 收到正确 opaque account binding 和一次注入，usage/receipt 不含 secret |
+| `CI-09` | OAuth/工作负载身份生命周期；PKCE、state、callback、refresh single-flight、generation CAS、0600 atomic file | CI-07, CI-08 | state/redirect mismatch、坏/超限 token response、scope 不足、旧 refresh 覆盖新 token、并发 refresh 重复发请求 | 提前 skew refresh、瞬态错误保留有效 token、永久错误 reauth/revoked、rotation/revoke 立即 fencing |
+| `CI-10` | Provider policy、只读 credential probe 与 UI/诊断边界；`kiana-policy`、`kiana-entrypoints`、protocol DTO | CI-06, CI-08, CI-09 | denied provider 被插件/默认 route 重新启用；probe 把 `missing_scope` 当 invalid credential；诊断/HTTP/Receipt 返回 secret | provider.use 按明确 precedence/last-match 评估；用户看到 configured/expired/reauth/scope 状态而不是凭据值 |
+| `CI-11` | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | CI-04..CI-10 | event replay 遇 unknown schema、stale epoch/revision、lease 缺失、credential refresh failure 不得自动 resume | 重启默认暂停；回放 identity/config/assignment/credential binding 后显式重新 admission；审计可按 ref/generation 查询 |
+| `CI-12` | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | CI-01..CI-11 | 缺认证、未信任项目、越权/跨项目、过期审批、secret 泄漏、TOCTOU、重放、result_unknown 全矩阵 | fake provider 完整黄金链；按连接/协议的 live 只在显式 opt-in、有脱敏 fixture 和独立 evidence block 时宣称 `live` |
+
+### 29.9 依赖批次与现有 roadmap 对接
+
+```text
+Wave A: CI-01 → CI-02 → CI-03
+Wave B: CI-04 ∥ CI-06
+Wave C: CI-05 → CI-07 → CI-08
+Wave D: CI-09 ∥ CI-10
+Wave E: CI-11 → CI-12
+```
+
+与现有专项的接点：`P0-K1-01`/`CP-01`/`CP-08`/`CP-09` 提供身份与 authority epoch；`P4-J7-08`/`P4-J7-09` 接入 ConfigSnapshot、SecretRef 和 ProviderGateway；`CP-13`/`CP-14` 负责 grant/lease 消费，`CP-18`/`CP-19` 负责恢复 fencing；`P1-C-03` 使用 assignment-derived `model_profile`；`CAP-25`/`CAP-28` 负责最小凭据注入和 egress；Connector 线必须复用 `CI-05` 的 ProviderAccount/DataBoundary，不得自建账号或 authn。
+
+实施时允许拆分 `CI-07`、`CI-09`、`CI-10` 为更小的 agent 任务，但不得改变依赖顺序或把 raw secret 传入 Core/Runner。任何需要新增网络、远端租户、支付或第二执行循环的提案都必须另行登记，不能借此专项默认开启。
+
+### 29.10 验收矩阵与证据口径
+
+最低负向矩阵：缺认证、伪造/不一致 actor、错误 session/project、未信任项目、过期/撤销 assignment、跨项目无 SharingGrant、unknown config field/major、非法 endpoint、缺失/过期/错误用途 SecretRef、lease 重放、rotation/revoke race、OAuth PKCE/state/redirect 失败、scope 不足、provider policy deny、route/config/authority revision drift、TOCTOU、provider redirect、crash/replay、`result_unknown`、以及全输出通道 secret sentinel 扫描。
+
+成功矩阵：本地 fake key、fake OAuth refresh、fake workload identity、多个 profile/connection、只读 probe、批准后的 local write、取消、重启后显式恢复、Receipt/审计查询和跨 CLI/Web/Workbench 的同一 snapshot。先使用 deterministic fake transport/store；真实服务商只按协议、连接和 credential kind 分别登记 fixture、环境、退出码和限制。
+
+本专项的完成不以“结构体存在”或“配置文件能解析”为准。只有拒绝路径证明无 Broker effect，成功路径证明 route/authority/credential 三个 revision 一致，且 `CURRENT_STATUS.md` 证据块明确 `feature_status` 与 `proof_level`，才能推进对应 Step；任何 secret 泄漏、权限并集、旧 epoch 复用或恢复自动放行都会阻断发布。
+
+---
+
+<a id="swarm-coordination-design"></a>
+
+## 30. 多 Agent 协调 / Swarm：实际代码设计、处理流程与详细实施步骤（2026-09-13 追加）
+
+> 本专项补全 [module-map.md](module-map.md) 的「多 Agent 协调 / Swarm」模块。它描述目标设计、源码缺口和可执行步骤，不把当前 WIP 或 reference 能力写成已交付能力。当前状态仍以 `CURRENT_STATUS.md` 为准；本节新增的 `SW-*` 均从 ⏳ 开始，完成后才回填对应的 `P4-J6-01`、`P1-C-02`、`P1-D-01/02/03`、`P1-E-01`、`CO-18..23`、`CO-42..44`。
+
+### 30.1 结论先行：Swarm 的边界和目标
+
+Swarm 是 Workflow 中一种**有界的 fan-out/fan-in 策略**，不是第二个 Agent runtime、自由消息总线或新的权限中心。允许的首版拓扑只有：
+
+```text
+Supervisor → Workers
+Planner → Builders → Reviewer
+Parallel Map → Deterministic Reduce
+Specialists → Synthesizer
+```
+
+所有子任务仍由同一个产品脊柱驱动：
+
+```text
+Swarm command / Workflow node
+  → DaemonHost
+  → ControlPlane admission
+  → CellRegistry reserve / claim / lease
+  → fresh child Session + Run
+  → KianaHarness model loop
+  → Capability Broker / sandbox
+  → EventLog facts
+  → typed result / review / merge decision
+  → deterministic reducer
+  → release and retire
+```
+
+明确禁止：自由 `SendMessage` 或全员广播、共享父 transcript、模型文本直接创建子 Cell、模型可见的第六个 delegation 工具、无界递归、`first_success` 竞速取消、子任务自行重试未知副作用、Integrator 直接运行另一套 Agent loop、以及把“所有 child completed”当作业务 Acceptance。规划/监控 symposium 仍不得让 Builder 列席；若要讨论，只能使用有限议程、轮数、消息数、token、wall-time 和 stall 上限。
+
+### 30.2 参考调研与采用取舍
+
+本轮先完整盘点 `reference/` 的 73 个目录，再精读与编排、任务、恢复、取消和权限直接相关的实现；`docs/reference-agent-audit/00-unified-agent-flow.md`、`99-kiana-mapping.md` 和 `company-os-organization-business-survey-2026-09-12.md` 是汇总入口。下表记录采用的行为模式和不照搬的保证：
+
+| 来源 | 可采用的机制 | Kiana 的落点 | 不可直接推导的保证 |
+|---|---|---|---|
+| ChatDev DAG、OpenSpec、Task Master | 拓扑分层、依赖闭环、规范化 ID、确定性 ready/join | `WorkPacket`/`packet_graph`、`PartitionGraph`、SW-02 | 层内并发本身不证明写集安全或持久恢复 |
+| Archon-Knowledge | 显式 `fan_out.items`、`max_parallel`、输入 key collision 拒绝；workflow retry 与 resume 分离 | `Partition`、`QueueEntry`、SW-02/SW-06/SW-11 | 不采用 `first_success`；未知副作用不能靠 retry 参数掩盖 |
+| Gastown | 持久 convoy 与短命 worker 分离；调度器只注入容量、ready 查询和执行回调 | `SwarmPlan`/`WorkPacket` 持久，Cell/worker 可回收；SW-06 | 调度器成功不代表 worker 的外部效果成功 |
+| Beads | CAS claim、同 holder 幂等、冲突可诊断；ready 查询不授予执行权 | `PacketClaim`/`PacketAttempt`/lease fence；SW-05/SW-06 | caller-asserted actor 不是认证身份 |
+| LangGraph | 每个 superstep checkpoint；pending writes 保留已成功 sibling，恢复不重跑 | `SwarmCheckpoint`、per-partition completion；SW-11 | checkpoint 不是外部副作用 exactly-once；serializer 必须 allowlist/strict |
+| AutoGen Magentic-One | progress ledger、RequestToSpeak、max turns/stalls、manager state | `ProgressLedger`、定向 `StatusReport`、SW-09/SW-16 | runtime subscription 和取消一致性不能当作 Kiana 授权证据 |
+| Agency Swarm、MetaGPT | handoff 与 delegated work 分层；按 recipient/address 投递结构化工件 | `Handoff`/`DelegationPacket`/`TypedChildResult`；SW-07/SW-16 | flat callback history、自由 SendMessage、模型 JSON command 都不是事实或权限边界 |
+| DeepSeek Harness、Cline、OpenCode、Crush、Goose | fresh child context、RunID/sequence、terminal must-deliver、effect-before-publication、取消排空 | child lineage、EventLog CAS、SW-08/SW-10/SW-17 | 参考实现中的内存 session、吞错 projector、弱 sandbox 不作为 durable 证明 |
+| Pydantic AI、OpenAI Agents、Agent Framework | validate-before-defer、typed approval、call ID 绑定、独立 retry budget、可序列化 RunState | child proposal/approval/review identity；SW-12/SW-14 | SDK 的 approval callback 不替代 ControlPlane grant；handoff 不改变 Kiana authority |
+| Temporal | workflow 与 activity/I/O 分离、heartbeat、attempt、取消通知与停止确认分离 | scheduler/worker/side-effect 边界、SW-09/SW-10/SW-11 | activity retry 不提供外部系统 exactly-once |
+| Kubernetes Lease | holder identity、renew time、lease transition 和 fencing 语义 | `SupervisionLease`/worker epoch；SW-06/SW-09/SW-10 | lease 过期不会自动杀死旧进程，必须在 effect-time 再验 fence |
+| MCP Tasks | 长任务有 receiver-owned task ID、状态机、轮询和取消终态 | 仅作为 Connector/MCP 适配参考；SW-17 | 当前 Kiana 继续关闭 HTTP MCP；MCP task 状态不能成为 Swarm 事实源 |
+
+官方一手资料也只用于约束行为：[LangGraph 的 durable execution/checkpoint 文档](https://langchain-ai.github.io/langgraph/concepts/durable_execution/)说明 queue/worker/checkpoint 分离和 pending writes，已成功 sibling 不应被恢复重跑；[OpenAI Agents 的 HITL 文档](https://openai.github.io/openai-agents-python/human_in_the_loop/)要求以原始 call identity 序列化审批并由原 run 恢复；[Microsoft Agent Framework 的 orchestration 文档](https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/)将 sequential/concurrent/handoff/group-chat/magentic 作为不同编排模式，支持把人审作为 workflow 节点；[Kubernetes Lease 文档](https://kubernetes.io/docs/concepts/architecture/leases/)强调 `holderIdentity`/`renewTime` 只是协调信号，effect-time 仍需 fencing；[MCP Tasks 规范](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks)明确任务取消后必须保持 `cancelled`，即使底层执行继续。这些资料支持本节的边界，但不提升 Kiana 的 proof level。
+
+### 30.3 当前源码基线与明确缺口
+
+当前工作树已经有一个有价值的 deny-first 骨架，但它仍不能整体称为 durable/live：
+
+| 位置 | 已有能力 | 必须补齐的细节 |
+|---|---|---|
+| `kiana-domain/src/swarm.rs` | `SwarmPlan`、Controller、Child、Failure、Merge、命令和状态；Create 限 packet/concurrency/depth/TTL/预算/路径/fingerprint；Start/Reconcile/Merge/Cancel 有拒绝条件 | 显式 `PartitionId`、`ChildCellId`、`AttemptId`、`DispatchIntentId`、`workflow_instance_id`、partition strategy、结构化 merge policy、lineage 和 per-child idempotency |
+| `kiana-core/src/swarm.rs` | EventLog stream CAS、idempotency、公司 `StartRun` 接线、reconcile/cancel/retire | `StartChild` 仍直接触发 Company command；需持久 DispatchIntent/QueueEntry、capacity/fair ordering、typed delegation events、每 child supervision/checkpoint 和 result reconciliation |
+| `kiana-core/src/cell_registry.rs` | reserve/commit、grant/lease 校验、并发、checkpoint/restore、root/child/path/budget 限制、retire | 跨进程资源事实、per-attempt 状态、旧 epoch 结果拒绝、partial reserve 回滚和完成结果核销要与 EventLog 原子边界明确 |
+| `kiana-domain/src/packet_graph.rs` | DAG/cycle/missing dependency/ready/claim TTL 基础 | 将“ready 只读”与“claim/dispatch 执行权”分离到统一服务；失败传播、success sibling 保留和 successor attempt 规则需固定 |
+| `kiana-domain/src/work_packets.rs` / Company | WorkPacket、Handoff、claim、Review、fresh Builder StartRun 路径 | packet 与 worker 生命周期解耦；同 packet 的 rework 产生新 attempt/successor，旧 Unknown 不得复用 |
+| `kiana-core/src/events.rs` / projection | 运行事件、receipt、部分 Swarm command 事件 | `delegation_started/completed/failed/reconciled`、progress/heartbeat/checkpoint、causation/correlation/sequence/epoch 和 terminal replay |
+
+现有 Controller grant 将 packet 写路径做 union，且当前模板允许 delegation；首版应把 controller 视为无模型执行的 admission/supervision 资源，child grant 只携带对应 partition 的路径、数据范围、预算和 approval 交集。`max_depth=1` 可以保留，但必须记录为显式 non-recursive policy，而不是遗漏字段。
+
+### 30.4 目标对象和状态合同
+
+持久事实与短命执行状态分开。以下对象先在 `kiana-domain` 固化，再通过 `kiana-ports` 接入 Core；所有 schema 必须 canonical serialize、拒绝未知 major/字段，并把 digest/version 写进事件。
+
+```text
+SwarmPlan
+  { swarm_id, project_id, workflow_instance_id?, parent_cell_id?, owner,
+    partition_strategy, partition_ids, child_count_limit, max_depth,
+    max_concurrency, spawn_rate_limit, ttl, max_turns/messages/model_calls,
+    max_tokens/effects/wall_time, merge_policy/version, approval_ref,
+    idempotency_key, policy/config/authority revisions }
+
+Partition
+  { partition_id, swarm_id, ordinal, input_refs, data_scope, owned_paths,
+    output_contract/version, dependency_partition_ids, work_fingerprint,
+    status, child_cell_id?, active_attempt_id? }
+
+ChildAttempt
+  { attempt_id, partition_id, child_cell_id, parent/root/correlation IDs,
+    session_id, run_id?, dispatch_intent_id, authority/grant/budget/lease epochs,
+    input_digest, policy/config/template revisions, status, retry_of? }
+
+DispatchIntent / QueueEntry
+  { intent_id, swarm_id, partition_id, attempt_id, expected_revision,
+    priority, ready_at, enqueue_key, capacity_class, claim_owner?, lease_epoch,
+    expires_at, state, retry_after?, idempotency_key }
+
+ProgressLedger / SupervisionLease
+  { attempt_id, heartbeat_seq, last_progress_at, stall_count, max_stalls,
+    checkpoint_ref, current_phase, next_expected_event, holder_identity,
+    renew_at, expires_at, fence_epoch }
+
+TypedChildResult / ChildFailureReport
+  { attempt/partition/cell/run IDs, producer identity, output/evidence refs,
+    usage, path/data manifest, status, error_class/reason_code,
+    partial_output_refs, result_unknown, retryable, policy snapshot }
+
+MergeDecision / MergeReceipt
+  { decision_id, swarm/workflow/partition refs, strategy/version,
+    accepted/rejected refs, conflict_refs, reviewer/acceptor identity,
+    review/evidence/policy refs, canonical child order, created_at }
+```
+
+首版状态转移应固定为：
+
+```text
+Swarm:       proposed → validated → reserved → ready → running
+             → ready_to_merge → merged/completed
+             → failed | cancel_requested → cancelled | result_unknown
+             → retired
+Partition:   planned → ready → queued → claimed → running → waiting
+             → succeeded | failed | cancelled | result_unknown
+Attempt:     admitted → dispatched → active → paused | stopping
+             → completed | failed | cancelled | result_unknown | fenced
+```
+
+终态不可回滚。Retry 只创建新 `ChildAttempt`/`DispatchIntent`，且只对已确认无副作用的 typed failure 开放；Resume 复用同一 attempt 的 checkpoint，不能借 resume 复活终态 Run。`result_unknown` 具有最高保护优先级：不允许 merge、自动 retry、资源释放或声称成功，必须进入 Incident/reconciliation。
+
+### 30.5 端到端处理流程
+
+```text
+1. Plan
+   PM/Sponsor/Workflow 产生 SwarmPlan proposal；Planner 只提交结构化分区建议。
+2. Validate
+   Core 校验 project/packet approved、DAG/inputs、partition 写集与 data scope 互斥、
+   WorkFingerprint、merge policy、count/depth/spawn-rate/TTL/budget/authority。
+3. Admit atomically
+   一次受保护提交预留 project/runtime budget、父 Cell、child grant 上限、path/data locks、
+   PacketClaim、SupervisionLease 和 DispatchIntent；任何一项失败都不能留下部分许可。
+4. Queue
+   durable QueueEntry 按 priority/deadline/aging/partition ordinal 的 canonical key 排序；
+   ready 查询只读，worker claim 使用 CAS + lease epoch + capacity，迟到 worker 被 fence。
+5. Materialize
+   为每个 Partition 创建 fresh child Cell/Session/Run/Attempt，输入只来自冻结 refs 和授权
+   context；不复制父私有 transcript、secret 或未批准 tool state；先写 delegation_started。
+6. Execute
+   child 经同一 DaemonHost→ControlPlane→Broker→Harness 执行；工具结果、usage、phase 和
+   checkpoint 先落 EventLog，再发布 UI/stream；模型不能扩大角色、路径、provider 或预算。
+7. Supervise
+   worker 按 lease heartbeat；每个 model turn、tool batch 和 side-effect boundary 做 checkpoint；
+   progress ledger 记录停滞、stall、重试和 next action；耗尽任何上限就 typed failure。
+8. Reconcile
+   Parent 只折叠持久 Run/Invocation/Attempt 事实；缺 terminal、事件断裂、旧 epoch 或无法确认
+   外部效果进入 result_unknown + Incident；已完成 sibling 的 checkpoint 不重跑。
+9. Review
+   独立 Reviewer 对每个 typed result 按冻结 criteria/evidence 验证；reviewer/acceptor 不能是
+   child author；不接受 transcript 自述或“命令退出 0”替代证据。
+10. Reduce
+    仅按固定 partition ordinal 运行 versioned deterministic reducer；检查 output schema、
+    path/data/output conflict 和完整覆盖；v1 只支持 all-settled/all-success，partial accept
+    必须是显式 policy，result_unknown 永远拒绝。
+11. Release
+    只有所有 child terminal 且无 unknown，才按 attempt→partition→controller 顺序 exactly-once
+    释放 grant/lease/claim/locks/unused budget；Packet、Attempt、Evidence、Receipt 继续保留。
+12. Surface
+    UI/CLI 只投影 parent-child tree、queue、heartbeat、budget、failure、review、merge 和 terminal；
+    重连先 hydration 再合并 cursor 后事件，迟到订阅者仍能得到 terminal。
+```
+
+### 30.6 详细实施步骤（SW-00–SW-18）
+
+每一步都执行“先拒绝、再成功、最后回归”；测试名是待新增或需加强的验收目标，不表示当前已通过。
+
+#### 波次 A：基线、契约与确定性计划
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
+|---|---|---|---|---|
+| `SW-00` | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas`；记录当前状态、WIP hash、已有测试和未证明窗口 | 生成“已接线/仅类型/缺测试/未实现”表；把 `P4-J6-01`、CO-43/44 与 SW 步骤一一映射，不重建已有 Cell/Packet 类型 |
+| `SW-01` | 稳定 ID、schema 和 lineage；domain + protocol + ports | SW-00 | unknown major/field、空 ID、cross-swarm partition、revision/epoch 回退、canonical bytes 不稳定均拒绝 | `SwarmPlanId/PartitionId/ChildCellId/AttemptId/DispatchIntentId/QueueEntryId/MergeDecisionId` round-trip；parent/root/workflow/correlation/causation 可定位 |
+| `SW-02` | 显式 Partition/WorkGraph validator；复用 `packet_graph` | SW-01 | `swarm_plan_rejects_partition_overlap_and_unbound_input`、cycle/missing ref、重复 key/fingerprint、first_success、超 count/depth/concurrency/spawn-rate/TTL/budget 均拒绝 | ready/blocked/failed 输出稳定排序；每 partition 有 disjoint path/data scope、input digest、output contract 和 canonical fingerprint |
+| `SW-03` | Swarm/Partition/Attempt 状态 reducer 与 typed transition events；core/domain events | SW-02 | 非法回退、重复 terminal、unknown→success、merge 前缺 review、terminal 后继续 dispatch 均拒绝 | 每次转移产生一条 `delegation_*`/state event；replay 与 live reducer 结果一致，单一 terminal 可核验 |
+
+#### 波次 B：授权交集与原子准入
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
+|---|---|---|---|---|
+| `SW-04` | 从 parent/template/department/project/packet/approval 派生 child grant；`kiana-core` authority/capabilities + `cell_registry` | SW-03；CP-04/08/13、P1-C-02 | `swarm_rejects_grant_superset_and_controller_delegation`；伪造 role/path/provider/secret、旧 authority epoch、跨项目无 SharingGrant 均 0 broker effect | controller 是无模型 admission/supervision Cell；child 仅有 partition-specific 交集，reviewer/acceptor 身份与 author 分离 |
+| `SW-05` | 统一原子 admission；budget/path/data lock/claim/grant/supervision/intent 同一 CAS 边界 | SW-04；CO-19/20 | `swarm_spawn_reservation_is_atomic_and_idempotent`；任一资源失败无 partial reservation；重复 key 同 payload 返回原 receipt，改 payload/authority 冲突 | 一次 admission 绑定 authority/config/policy revisions；WorkFingerprint 活跃复用被拒，已终态结果按显式复用策略只读引用 |
+
+#### 波次 C：持久调度与 fresh child
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
+|---|---|---|---|---|
+| `SW-06` | durable `DispatchIntent`/`QueueEntry`、容量、公平顺序、claim lease/fence/backoff；`kiana-core`/`kiana-eventlog`/`kiana-ports` | SW-05；P1-D-01/02/03 | `swarm_queue_claim_fences_late_worker`；ready 查询不得取得执行权，容量超售、过期 lease、旧 worker result、无界 retry 均拒绝 | 同一 snapshot 在多入口得到同一 queue order；仅 confirmed stop 后 requeue；失败 attempt 与 successor attempt 可区分 |
+| `SW-07` | fresh child Cell/Session/Run/Attempt 和 DelegationPacket；daemon/core/runner | SW-06；CO-21/23 | `swarm_child_uses_fresh_session_without_parent_private_history`；父 session 重用、输入/secret 漏传、child scope 超集、duplicate materialization 均拒绝 | 每 Partition 恰好一个 active attempt；冻结 input refs、authorized retrieval、lineage、template/policy/config/authority snapshot 进入 receipt |
+| `SW-08` | 统一执行路由和 child correlation；复用 `DaemonHost→ControlPlane→Broker→KianaHarness` | SW-07；H01、CP-23/24 | `swarm_no_second_runtime_or_delegate_tool_reaches_harness`；模型生成 delegate/free message、直接 shell/provider、未授权 child run 均 0 effect | fake model 的 child tool call 与 parent/child/partition/attempt/correlation 事件可对齐；五个模型工具集合保持不变 |
+
+#### 波次 D：监督、取消与恢复
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
+|---|---|---|---|---|
+| `SW-09` | heartbeat、checkpoint、ProgressLedger、stall/escalation 与分层预算 | SW-08；P0-J1、P2-K4、P4-J7 | `swarm_progress_ledger_escalates_stall_within_budget`；缺 heartbeat、超 turns/messages/tokens/effects/wall/TTL/stalls、checkpoint 越权均 typed failure | model turn/tool batch/side-effect boundary 可恢复；进度报告定向到 parent，重试预算与运行预算分离 |
+| `SW-10` | parent→child cancel、drain、fence、Incident/Unknown；core/daemon/process supervisor | SW-09；P0-J1、CP-15/16/20 | `swarm_cancel_drains_started_children_and_marks_unknown`；取消后新 dispatch 被挡，已启动 effect 排空，未启动项有 synthetic terminal，旧 epoch 结果不能完成/释放 | 区分 cancelled/stopping/result_unknown；无法确认的现实效果永不自动 retry 或 merge |
+| `SW-11` | EventLog replay、pending writes、崩溃恢复与显式 re-admission | SW-10；P0-G-04、CP-18/19 | `swarm_replay_rejects_gap_unknown_schema_and_terminal_conflict`；崩溃窗口、缺 checkpoint、审批/authority/lease 失效均暂停且 0 effect | `swarm_recovery_preserves_successful_siblings`；重启重建 queue/attempt/child tree，成功 sibling 不重跑，恢复必须重新过 grant/approval/fence |
+
+#### 波次 E：结果、reduce 与独立合并
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
+|---|---|---|---|---|
+| `SW-12` | TypedChildResult/ChildFailureReport 与 delegation facts；domain/core/event projection | SW-11 | `swarm_child_failure_is_typed_and_persisted`；伪造 producer、缺 output/evidence/attempt、transcript 自述、secret sentinel、错误 status 组合均拒绝 | `delegation_started/completed/failed/reconciled` 带 parent/child/run/partition/attempt/causation/correlation/epoch；结果只引用 immutable artifact/evidence |
+| `SW-13` | versioned deterministic reducer、冲突和完整覆盖检查 | SW-12；CO-43/44 | `swarm_merge_is_canonical_and_rejects_result_unknown`；unordered input、path/data/output conflict、missing partition、first_success 或 unknown result 均拒绝 | canonical partition order + strategy/version；v1 all-success/all-settled 可重放，partial acceptance 必须显式 policy 和证据 |
+| `SW-14` | Independent Review、MergeDecision、MergeReceipt；`company` review + core swarm | SW-13；P3-I-04、CO-44 | `swarm_merge_covers_each_partition_once`；reviewer=author、旧 review/criteria、duplicate decision、未验证 output、reviewer 自己修改事实均拒绝 | 一 partition 一 immutable decision；receipt 绑定 reviewer/acceptor/policy/evidence/conflict refs；Swarm merge 不等于 Project Acceptance |
+| `SW-15` | exactly-once release/retire、残余预算与事实保留 | SW-14 | `swarm_retire_releases_only_owned_resources_once`；unknown/in-flight/foreign Cell 不能释放，重复 retire 不退还未知成本 | child→controller 级联回收 grant/lease/claim/locks/unused budget；Packet/Attempt/Event/Evidence/Receipt 保留可查，controller 最后 retire |
+
+#### 波次 F：通信、投影和总验收
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
+|---|---|---|---|---|
+| `SW-16` | 定向 WorkPacket/Handoff ACK/StatusReport/Evidence/Incident；可选 bounded Symposium | SW-15；P1-E-01/02、P4-E-03 | `swarm_no_free_message_or_broadcast_reaches_harness`；共享 transcript、未认证 recipient、超 round/message/token/stall、Builder 列席规划/监控均拒绝 | parent 只向具名 recipient 发结构化输入；ACK/negative ACK、progress、failure、replan 都可回放 |
+| `SW-17` | parent-child UI/event projection、sequence/epoch/cursor、terminal replay/hydration | SW-16；P4-J7-02/03、P2-M5 | `swarm_late_subscriber_gets_terminal_without_duplicate_effect`；乱序/陈旧 event、断线 hydration 覆盖新事件、UI action 越权均拒绝 | CLI/Web/Workbench/desktop 展示同一树和 next action；UI 只读投影，terminal must-deliver，重连不重做 dispatch |
+| `SW-18` | deny-first 全矩阵、fake golden、崩溃/竞态/replay 和发布证据 | SW-17；P4-J6-01、CO-42/43/44 | 覆盖未信任、越权、cycle/overlap/dup fingerprint、budget/concurrency/TTL/depth/spawn-rate、stale claim/heartbeat、cancel race、unknown、merge conflict、schema gap、crash-after-reserve/dispatch/effect、secret injection | `swarm_full_fake_model_golden_flow_is_deterministic`：两 disjoint partitions → fresh builders → reconcile → independent review/merge → release/retire；跨进程重启每个边界均不重复副作用 |
+
+### 30.7 依赖波次、现有 roadmap 接点与实现顺序
+
+```text
+Wave A: SW-00 → SW-01 → SW-02 → SW-03
+Wave B: SW-04 → SW-05                    (P1-C-02, CO-19/20)
+Wave C: SW-06 → SW-07 → SW-08             (P1-D-01/02/03, CO-21/23)
+Wave D: SW-09 → SW-10 → SW-11             (P0-J1, P0-G-04, CP-15/18/19)
+Wave E: SW-12 → SW-13 → SW-14 → SW-15     (CO-43/44, P3-I-04)
+Wave F: SW-16 → SW-17 → SW-18             (P1-E, P4-J7, UI projection)
+```
+
+`P4-J6-01` 是本专项的汇总验收，不另建 Swarm runtime。`CO-18..23` 提供 claim、Cell、ProcessManager 和 fresh Builder 路径；`P1-D-*` 提供 DAG/ready/lease；`CP-04/08/13/15/18/19/23/24` 提供 authority、grant、取消、恢复和统一命令提交；`P2-K4/K6` 提供 checkpoint/Incident；`CO-43/44` 提供并行 Builder、Integrator 和 MergeReceipt 业务接线。若某个既有单元已经有真实证据，SW 步骤只补其缺口，不重复建设 EventStore、Workflow engine、Broker 或 Harness loop。
+
+实现顺序中的一个硬规则是：**先把拒绝路径做成可观察的零 effect，再做成功路径**。尤其先复现并固定三类反例：未批准项目仍可 dispatch、ready 查询被误当执行权、child/parent 共享 session 或 transcript；以及三类恢复反例：reserve 后崩溃、effect 后未知、成功 sibling 被重复执行。
+
+### 30.8 验收矩阵与证据规则
+
+最低负向矩阵应包含：
+
+- 身份/权限：未认证、伪造 parent/role/department、跨 project、旧 authority epoch、controller delegation、grant 超集、secret/provider scope 注入；
+- 计划/资源：未知 schema、缺 input、DAG cycle、path/data overlap、duplicate fingerprint/idempotency、超 count/depth/concurrency/spawn-rate/TTL/turn/token/effect/wall budget、容量超售；
+- 调度/运行：ready 冒充 claim、重复 dispatch、过期 lease/heartbeat、迟到 worker、stale result、父取消竞态、进程组未停止、未知外部效果；
+- 恢复/事实：事件 gap、未知 major、terminal conflict、坏 checkpoint、pending writes 丢失、旧 approval/lease 自动复活、成功 sibling 重跑；
+- 合并/沟通：缺 partition decision、重复 decision、author 自审、旧 criteria、unknown 接受、conflict 隐藏、free broadcast/shared transcript、Builder 进入冻结 symposium；
+- 泄漏/入口：prompt/transcript/EventLog/Receipt/UI/stdout/stderr/argv/env/cache/provider echo 出现 sentinel secret，或 CLI/Web/Workbench/desktop 产生不一致动作。
+
+成功矩阵使用 deterministic fake model、fake Broker、真实 `DaemonHost`、真实 EventLog 和 CellRegistry，至少跑两 disjoint partitions；逐边界注入 crash、CAS contention、provider truncation、cancel、lease expiry、review reject 和 result_unknown。真实 provider 或远程连接只在显式 opt-in 下单独登记，不把 fake 或 source-only 证据升级成 `live`。
+
+每个 SW 完成单元必须在 `CURRENT_STATUS.md` 追加：
+
+```text
+step: SW-xx / P4-J6-01 or linked unit
+source_snapshot: HEAD + touched-file hashes
+worktree_status: exact relevant files and dirty WIP
+command_argv: exact focused/replay/release commands
+cwd / environment: repo, toolchain, feature flags, no secret values
+fixture / cassette: plan/partitions, fault point, input hash
+exit_code / matched_tests: actual results only
+artifacts: DispatchIntent, RuntimeEvent, checkpoint, Evidence, MergeReceipt refs
+status change: feature_status before → after
+proof-level change: source / local_behavior / durable / live (no inflation)
+limitations: external effect, cross-process, provider, timing and untested gaps
+reviewer: actual independent review or explicitly none
+```
+
+本专项完成的必要条件是：没有第二执行循环、没有自由消息总线、没有权限并集；每个 child 有 fresh context、attempt、lease/fence 和 typed result；每个不确定效果保留为 `result_unknown`；合并顺序和证据可从 EventLog 重放；所有入口只投影同一事实。结构体存在、单测通过、一次本机成功或“所有 child completed”均不足以提升 `P4-J6-01` 的状态。
+
+---
+
+<a id="observability-audit-plan"></a>
+
+## 31. 可观测性与审计专项：实际代码设计、处理流程与详细实施步骤（2026-09-13 追加）
+
+> 本专项补全 [module-map.md](module-map.md) 的“可观测性与审计”模块，和 `P1-J8-01`、`ER-30` 对接。它是给实施 agent 的代码设计与验收合同，不是当前能力声明；真实状态仍以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准。
+>
+> 本次任务说明优先于 roadmap 中较早的限制性文字；但既有安全宪法、ControlPlane 单一执行脊柱、EventLog 事实源、五个模型可见工具和 deny-first 证据纪律仍然是本专项的边界。专项局部编号 `OA-*` 不替代 P0–P6，也不把已有 `ER-*` 或 `P1-J8-01` 自动标成完成。
+>
+> 调研覆盖 `reference/` 的 DeepSeek Harness、Codex、OpenCode、Cline、Goose、Crush、Letta Code、OpenHands、Agno、OpenAI Agents、Pydantic AI、CrewAI、A2A、Archon-Knowledge、ECC、Graphiti、Temporal、LangGraph、Promptfoo 等，以及 `docs/reference-agent-audit/`、CompanyOS 平台/运营/质量规范和本地 EventLog journal。外部标准采用 [OpenTelemetry signals](https://opentelemetry.io/docs/concepts/signals/)、[OpenTelemetry trace API](https://opentelemetry.io/docs/specs/otel/trace/api/)、[W3C Trace Context](https://www.w3.org/TR/trace-context/) 和 [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/)。参考项目只提供机制启发，不证明 Kiana 的实现，也不复制其源码或凭据格式。
+
+### 31.1 设计结论：五类对象，四条权威边界
+
+可观测性不能被实现成“给所有函数加日志”。Kiana 需要把事实、诊断、统计、因果和审计拆成不同的数据合同：
+
+| 对象/信号 | 权威问题 | 写入方式 | 失败语义 | 不得承担的职责 |
+|---|---|---|---|---|
+| `RuntimeEvent` / `TransitionBatch` | 发生了什么、按什么顺序、哪个命令被接受 | ControlPlane 构造；EventStore CAS/幂等提交 | 提交未知时不得 dispatch；损坏或矛盾 fail-closed | 不因 telemetry exporter 成功而变成成功；不保存 secret 原值 |
+| `CommandReceipt` / `ExecutionReceipt` / `RunReceipt` | 哪个事实提交了、某次 attempt 的 effect 是否已确认、一次 Run 的可重算结果 | 从 EventLog + Artifact refs 纯投影 | 源 cursor、artifact 或 projector 不可读时返回错误/Unknown，不造空 Receipt | 不代表业务 Outcome、现实世界交付或 trace 已完整 |
+| `OperationalLog` | 组件为何慢、失败、重试或降级 | 由 `ObservabilityPort` 结构化发出；可异步导出 | 可丢失但必须计数并提升 Health；不能阻塞 EventStore commit | 不改变 policy、grant、state 或 receipt |
+| `MetricPoint` / `MetricSnapshot` | 一段时间的数量、延迟、容量和质量趋势 | 从 committed event reducer 与受控 runtime gauges 产生 | 丢失/聚合落后只影响统计；不得把估算当 measured | 不证明某个 effect 成功，不使用高基数秘密/原文标签 |
+| `Trace` / `Span` | 一条命令跨入口、Run、Provider、Broker、EventStore 的因果与耗时 | `trace_id` 根 span，`span_id` 子操作；事件保存关联 ref | 采样或 exporter 失败不改变事实；Span `unknown` 不能投影为 Ok | 不作为授权、审批或恢复依据；不取代事件顺序 |
+| `AuditRecord` / `AuditQuery` | 谁以什么权限对什么对象作了什么决定，证据在哪里 | 从安全相关 committed events 派生；必要时写 `audit.*` 事实 | 审计事实提交失败时高影响动作不得执行；查询失败不能返回“无记录” | 不暴露 prompt、tool args、token、密钥或未授权项目数据 |
+| `HealthSnapshot` / `Incident` | 哪个组件是否可用、落后、隔离或需要人工处理 | 只读探针 + projector/queue/exporter 观测；Incident 通过 ControlPlane 事件 | stale/unknown 是 degraded 或 unavailable，不是 healthy | 不自动批准、重试未知副作用或关闭 Incident |
+
+四条必须写进代码 review 和测试的边界：
+
+1. **事实先于观察**：副作用前先提交 `TransitionBatch`（含 authority、approval、budget、lease、action digest）；提交后才能派发。提交后的事件再被 reducer 同步/异步转换为 logs、metrics、traces 和 audit projection。
+2. **审计先于高影响效果，telemetry 可降级**：高影响动作的 `audit.required` 元数据必须和授权/permit 同一事实提交；OTLP/JSONL exporter、debug log、trace sampler 故障不能让动作获得额外权限，也不能阻塞已提交事实。队列满时只允许丢弃明确标记为 `best_effort` 的诊断信号，不能丢 Audit、Approval、Recovery、terminal 或 EventLog cursor。
+3. **显示不是证据**：CLI/Web/Workbench/Desktop 只读 Receipt/Audit/Health DTO；SSE、transcript、缓存和 exporter 都是派生视图。任何“成功”文案必须能定位到 `source_cursor`、`source_event_ids` 和 effect/stop 证据。
+4. **未知必须保留未知**：provider timeout、handler stop 未确认、result delivery 丢失、projector gap、artifact 不可读或 audit 事实提交不确定，都要保留 `unknown`/`degraded`，创建 Incident/Recovery 索引，禁止用 span end、metric increment 或模型文本覆盖。
+
+### 31.2 参考项目吸收矩阵
+
+| 来源 | 已观察到的可复用机制 | Kiana 的落点 | 明确不照搬 |
+|---|---|---|---|
+| DeepSeek Harness | step/request/tool/result event、flush 后结束、usage 和 malformed stream 记录、observer 监听 committed events | `run/turn/invocation` 生命周期、EventStore commit observer、provider normalized metadata | 不把 observer/console JSONL 当作唯一事实；不把 write-behind ack 当作 durable commit |
+| Codex | Thread/Turn/rollout identity、interrupt/abort 事件、persist/flush/shutdown ack、每 step context capture | `command_id`/`run_id`/`turn_id`/`correlation_id` 关联、flush evidence、cancel/unknown 记录 | 不把 thread id 当权限边界；不复制大型 runtime |
+| OpenCode | event projector、session hydration、aggregate/sequence/schema、SSE 同步 | Audit/Health/Receipt projector、cursor query、rebuild checkpoint | UI Bus 不成为第二数据库；旧事件不直接改业务表 |
+| Cline / Crush / Letta Code | Local Runtime Host、RunID/OTID/seq、terminal must-deliver、gap/reconnect、approval audit | `trace/span` 与 `logical_cursor` 关联、terminal/audit 永不因普通 delta 丢失 | 不把断线重连当作成功；不把 UI timeline 作为审计事实 |
+| Goose / Temporal / LangGraph | effect-before-event、step checkpoint、pending writes、历史 replay 与 workflow/activity 分离 | effect/stop evidence、Invocation attempt、replay-only projector、RecoveryCase | 不重跑模型、shell、MCP 或外部 effect；不引入完整 Temporal 服务 |
+| Agno / OpenAI Agents / Pydantic AI | 可序列化 run state、usage/retry/trace、HITL requirements、独立 limit/retry 层 | `UsageRecord`、span names、approval/action digest、bounded retry metrics | 不把 callback、trace 或 cost estimate 当授权；不把 price unknown 当 cost limit 已强制 |
+| OpenHands / Archon-Knowledge / ECC | 健康/活动事件、匿名 usage、security scan、workflow/audit 视图 | opt-in 诊断、presence-only health、配置/插件审计 DTO | 默认不向外发送遥测；不收集 prompt/response/路径/PII；不把扫描结果自动改 policy |
+| A2A | 事件顺序、terminal stream、cursor、webhook ack、认证失败/授权拒绝审计 | 多入口 cursor、terminal envelope、未来外部订阅的 delivery evidence | 当前不打开远程/HTTP MCP 或外部 webhook 副作用 |
+| Graphiti / Promptfoo | provenance/freshness、按版本分桶的 eval 和 replay divergence | `source_event_ids`、version dimensions、Eval evidence | 检索、eval 或 trace 不授予权限；不把质量分数抵消安全失败 |
+| OpenTelemetry / W3C | logs、metrics、traces 是不同 signal；SpanContext/traceparent 传播；低基数和采样约束 | 本地语义约定、trace/span correlation、可选 OTLP adapter | 外部 trace context 只用于关联，不用于认证、assignment 或 authority |
+
+`reference/` 的其余目录按审计相关性归入以下四组，作为 OA-00 的盘点边界：
+
+- **运行时与入口**：`codex`、`deepseek-harness`、`opencode`、`cline`、`crush`、`goose`、`letta-code`、`pi`、`roo-code`、`claude-code-rust`、`mini-swe-agent`、`aider`、`continue`、`OpenHands`、`agent-framework`。
+- **状态、工作流与恢复**：`temporal-sdk-python`、`langgraph`、`adk-python`、`pydantic-ai`、`crewAI`、`autogen`、`agency-swarm`、`MetaGPT`、`ChatDev`、`grok-build`、`architect-loop`、`12-factor-agents`、`container-use`、`beads`、`gastown`。
+- **记忆、溯源与知识**：`MemPalace`、`memorix`、`mem0`、`letta`、`letta-oss`、`claude-memory`、`claude-mem-candidate`、`graphiti`、`graphify`、`llama-index`、`GitNexus`。
+- **治理、扩展与评测**：`Archon`、`Archon-Knowledge`、`ECC`、`everything-claude-code`、`get-shit-done`、`gsd-core`、`gstack`、`OpenSpec`、`promptfoo-full`、`a2a`、`mcp-servers`、`ruflo`、`skills`、`awesome-agent-skills`、`superpowers`、`pm-skills`、`strix`、`orca`、`emdash`、`herdr`、`ai-coding-guide`、`claude-task-master`、`planning-with-files`。
+
+这些目录只用于发现事件、游标、健康、审计、溯源、重放和评测模式；没有直接阅读或与当前模块无关的目录仍必须在 OA-00 的 inventory 中标记为 `reviewed/no-relevant-signal`，不能默认为已实现。
+
+统一吸收规则：使用 `correlation_id`/`causation_id`/parent refs 建立因果图；使用 `stream_version`/`logical_cursor` 建立事实顺序；使用 `trace_id`/`span_id` 表达耗时和跨边界关联；使用 `source_event_ids`/artifact hash 表达审计证据。四套 ID 可以同时存在，不能把其中一套当成其他三套的别名。
+
+### 31.3 目标代码分层与模块落点
+
+```text
+Ingress / Client
+  → Authenticated RequestContext
+  → CorrelationContext { trace_id, span_id, correlation_id, causation_id }
+  → ControlPlane admission
+       ├─ policy / gate / approval / budget / lease
+       ├─ TransitionBatch { audit metadata + action digest }
+       └─ EventStore commit (cursor + command receipt)
+              ├─ Projectors: Run / Invocation / Receipt / Audit / Health / Incident
+              ├─ MetricsReducer (committed facts + bounded runtime gauges)
+              ├─ TraceBridge (spans, links, sampled export)
+              └─ OperationalLogSink (redacted, bounded, best effort)
+  → Capability Broker / Provider / Artifact store
+  → result/effect/usage commit
+  → Receipt + AuditQuery + Health/Incident projections
+  → CLI / Workbench / Web / Desktop DTOs
+```
+
+建议代码边界：
+
+| 层 | 主要文件/新接口 | 约束 |
+|---|---|---|
+| Domain | `kiana-domain/src/observability.rs`、`audit.rs`、`usage.rs`、`governance.rs`、`contracts.rs` | 只放稳定 ID、枚举、schema、digest、DataClass、Retention、TraceRef、MetricPoint、AuditRecord；`Debug`/serde 不输出 secret |
+| Ports | `kiana-ports/src/lib.rs` 或独立 `observability` module | `ObservabilityPort`、`TraceSink`、`MetricSink`、`AuditQueryPort`、`HealthProbePort`；明确 durable/best-effort、flush ack、capabilities，不把 exporter 当 EventStore |
+| Core | `kiana-core/src/observability.rs`、`events.rs`、`receipts.rs`、`projection.rs`、`recovery.rs` | 只消费已提交事实；建立/结束 span 不能推进状态；审计 query 必须重新做 principal/data-boundary 校验 |
+| EventLog | `kiana-eventlog/src/*`、新增 audit/metric projection checkpoint | cursor、frame checksum、command dedup、rebuild、projector lag；commit observer 只在成功 commit 后通知 |
+| Daemon | `kiana-daemon/src/health.rs`、`run_stream.rs`、`lib.rs` | 组合根注入 sink/projectors；SSE 只展示；健康探针无副作用；慢消费者不阻塞事实提交 |
+| Protocol/Client | `kiana-protocol/src/lib.rs`、`kiana-client` | versioned `AuditQueryRequest/Response`、`HealthSnapshot`、`TraceSummary`、`MetricSnapshot`；禁止暴露原始 EventLog 写接口 |
+| Entrypoints | `kiana-entrypoints` CLI/Web/Workbench/Desktop | 统一 query/action 路由；服务端补 owner/scope；导出、reconcile、incident action 回 ControlPlane |
+| Scripts/CI | `scripts/`、`CURRENT_STATUS.md` | secret scan、cardinality test、fault injection、rebuild diff、evidence block；不把历史 CI 结果当当前证明 |
+
+### 31.4 观测合同与字段白名单
+
+#### 31.4.1 关联上下文
+
+所有高价值信号都使用服务端构造的不可变 `CorrelationContext`：
+
+```text
+CorrelationContext {
+  trace_id                  # 仅 trace 关联；入口无可信 parent 时新建
+  span_id                   # 当前操作；每个 span 只能结束一次
+  parent_span_id?
+  correlation_id            # 一次命令/业务链的稳定关联
+  causation_id?             # 直接触发它的事件/命令/attempt
+  command_id?
+  request_id
+  organization_id?
+  project_id?
+  session_id?
+  run_id?
+  turn_id?
+  invocation_id?
+  execution_id?
+  attempt?
+  authority_epoch
+  data_epoch
+  source_cursor?
+}
+```
+
+入口可以接收 W3C `traceparent` 作为关联输入，但服务端必须验证格式、生成自己的 authenticated `CorrelationContext`，不能从 `traceparent`、HTTP body、模型文本、MCP 返回值或 UI 字段推导 actor、role、project、grant 或 policy。跨进程/异步队列恢复时，使用新 child span 加 `SpanLink` 指向上游，而不是伪造旧 span owner。
+
+#### 31.4.2 Span 白名单
+
+固定 span 名称先采用：`kiana.command`、`kiana.run`、`kiana.turn`、`kiana.context.assemble`、`kiana.provider.request`、`kiana.capability.admission`、`kiana.approval.wait`、`kiana.broker.execute`、`kiana.eventlog.commit`、`kiana.projector.apply`、`kiana.receipt.project`、`kiana.recovery`、`kiana.audit.query`、`kiana.audit.export`。每个 span 至少有 `start/end`、`status`（`ok|error|unknown`）、`error_code?`、`source_cursor?`、`duration_ms` 和对应稳定 ID。
+
+允许的低基数 attributes：`provider_id`、`model_id`、`capability_id`、`operation`、`sandbox_profile`、`environment`、`component`、`schema_version`、`outcome`、`reason_class`、`retryable`、`approval_required`、`effect_known`、`stop_confirmed`。禁止 attributes：prompt/response 原文、tool arguments、shell command、路径全文、环境变量值、Authorization/header、token、cookie、个人姓名、邮件、自由错误堆栈和高基数 raw IDs。需要定位请求时放到事件/审计的受权限 digest/ref，或在本地 debug fixture 中使用测试专用 allowlist。
+
+#### 31.4.3 Metric 目录
+
+Metric 必须声明 `name`、`kind`（counter/gauge/histogram）、`unit`、`description`、`stability`、`allowed_labels`、`privacy_class` 和 `source`（`event_reducer|runtime_gauge|derived`）。首批 canonical 名称：
+
+```text
+kiana.commands.accepted_total
+kiana.commands.denied_total
+kiana.runs.started_total
+kiana.runs.completed_total
+kiana.runs.failed_total
+kiana.runs.cancelled_total
+kiana.runs.result_unknown_total
+kiana.runs.duration_ms
+kiana.invocations.attempt_total
+kiana.invocations.effect_unknown_total
+kiana.approvals.requested_total
+kiana.approvals.decided_total
+kiana.eventlog.commit_total
+kiana.eventlog.commit_failure_total
+kiana.eventlog.append_latency_ms
+kiana.eventlog.durable_cursor
+kiana.projector.cursor
+kiana.projector.lag_events
+kiana.projector.rebuild_total
+kiana.observability.queue_depth
+kiana.observability.dropped_best_effort_total
+kiana.observability.export_failure_total
+kiana.provider.request_total
+kiana.provider.request_latency_ms
+kiana.provider.retry_total
+kiana.provider.malformed_stream_total
+kiana.provider.input_tokens_total
+kiana.provider.output_tokens_total
+kiana.provider.estimated_cost_total
+kiana.provider.measured_cost_total
+kiana.context.compaction_total
+kiana.context.cache_hit_total
+kiana.memory.retrieval_hit_total
+kiana.memory.stale_hit_total
+kiana.security.redaction_total
+kiana.security.redaction_failure_total
+kiana.audit.query_total
+kiana.audit.query_denied_total
+kiana.health.degraded_total
+kiana.incidents.open_total
+```
+
+指标标签只允许经过注册表校验的低基数集合，例如 `outcome`、`reason_class`、`provider_id`、`model_id`、`capability_id`、`operation`、`sandbox_profile`、`component`、`schema_major`、`environment`。`run_id`、`session_id`、`request_id`、路径、prompt hash、tool args hash 和用户标识只能作为事件/Receipt/Audit 的查询字段，不能进入常规 metric label。估算成本和实测成本分开；没有 `provider_receipt_ref` 的值不能进入 `measured_cost_total`。
+
+#### 31.4.4 AuditRecord
+
+```text
+AuditRecord {
+  audit_id
+  schema / record_version
+  action_kind                 # command|authorization|approval|capability|credential|recovery|query|export
+  decision                    # accepted|denied|staged|approved|consumed|failed|unknown|queried|exported
+  actor_ref                   # server-derived Principal/Service ref
+  organization_ref?
+  project_ref?
+  session_ref? / run_ref? / turn_ref?
+  invocation_ref? / execution_ref? / attempt?
+  target_ref / target_kind
+  command_id? / request_id
+  correlation_id / causation_id?
+  authority_epoch / data_epoch
+  policy_ref? / gate_ref? / approval_ref?
+  action_digest? / input_digest?
+  source_cursor / source_event_ids[]
+  effect_known? / stop_confirmed?
+  artifact_refs[] / provider_receipt_ref?
+  reason_code? / error_class?
+  redaction_profile / data_class / retention_class
+  occurred_at / observed_at
+}
+```
+
+`AuditRecord` 只能由服务端从已提交事件派生；模型、插件、MCP server、UI 和普通 exporter 不能自行提交“已批准/已完成”审计记录。原始参数只保留规范化 digest；若因调查必须读取受控 Artifact，需要单独 `audit.read_sensitive_evidence` 授权和查询审计。更正只能追加 `audit.correction`，保留原 record 和原因。
+
+### 31.5 端到端处理流程
+
+#### 31.5.1 正常命令与能力调用
+
+```text
+Ingress
+  → authenticate + derive RequestContext/AuthoritySnapshot
+  → create CorrelationContext + root command span
+  → validate schema/trust/ownership/policy/gate/approval/budget
+  → normalize action and compute action_digest
+  → commit TransitionBatch:
+       request.accepted / run.authorized / audit.required / reservation facts
+  → after Committed/Replayed:
+       start run/turn/model/capability spans
+       dispatch one fenced Broker attempt
+  → normalize provider/tool result and usage
+  → commit effect/stop/result/usage/audit facts atomically where possible
+  → projector folds Receipt + Audit + Metrics + Health cursor
+  → deliver committed result to Harness once
+  → end spans, publish best-effort logs/metrics/traces
+  → expose redacted Receipt/Audit/Health DTO
+```
+
+`Replayed` 可以返回原 `CommandReceipt`，但必须再确认调用账本和 effect receipt；不能因为命令已提交就重复执行 handler。`OperationalLog`、trace exporter 和 live metric sink 都只能观察 committed facts，不可回写 Run 状态。
+
+#### 31.5.2 拒绝、脱敏和审计失败
+
+```text
+untrusted/unauthenticated/owner mismatch
+  → append denial fact when the caller is authorized to see it
+  → redacted denial DTO + audit query visibility rules
+  → zero Broker/provider calls
+
+redaction/classification failure
+  → do not publish the candidate log/span/audit projection
+  → append security/observability failure metadata without secret value
+  → high-impact action remains blocked or becomes Unknown according to effect boundary
+  → increment redaction_failure and open Incident if repeated
+
+required audit fact cannot commit
+  → no permit/dispatch
+  → return persistence/audit_unavailable
+  → Health degraded; recovery is explicit
+```
+
+拒绝事件也要避免信息泄露：未认证调用者只能收到稳定错误码；已认证且有项目范围的操作者才可查询该 scope 内的拒绝原因、policy/gate ref 和 digest。任何 secret sentinel 出现在 log、span attribute/event、metric exemplar、audit DTO、Receipt、stdout/stderr、argv、env、cache、export 或错误字符串都阻断该 Step。
+
+#### 31.5.3 Unknown、取消、重启和对账
+
+```text
+provider/handler started
+  → timeout/cancel/process loss/result delivery loss
+  → record execution attempt with effect_known=false or stop_confirmed=false
+  → Run/Invocation = result_unknown / unknown
+  → fence grant, lease, worker and resource
+  → append incident.opened + recovery.proposed
+  → recovery query shows last_durable_cursor and safe/forbidden actions
+  → explicit reconcile / retry_without_effect / compensate / restore
+  → new authority + approval + idempotency check
+  → append observation/correction facts; never rewrite Unknown
+```
+
+重启流程先校验 journal header/frame/checksum、读取最后可信 cursor、重建 Audit/Receipt/Health/Incident projector，再将 orphan dispatch 标为 Unknown。重启、trace exporter 恢复或“看到了 terminal event”都不能自动 resume；只有显式恢复命令再次通过当前 authority/policy/gate/approval 才能继续。
+
+#### 31.5.4 审计查询与导出
+
+```text
+AuditQueryRequest (server-authenticated principal)
+  → validate bounded filters + snapshot/cursor
+  → enforce organization/project/session ownership + DataBoundary
+  → read AuditProjection at a committed source cursor
+  → apply field-level redaction and retention policy
+  → return page { records, next_cursor, source_cursor, projection_version, limitations }
+
+AuditExportRequest
+  → separate audit.export capability + purpose/recipient/retention
+  → freeze source cursor and query digest
+  → materialize redacted export artifact + manifest/hash
+  → append audit.exported + DeliveryReceipt (if delivered)
+  → export failure is visible; no claim of delivery
+```
+
+查询必须区分“无匹配记录”和“EventLog/Projection 不可用”；不允许以当前活动 session、UI 选中项或客户端传入的 owner/scope 作为授权。分页 cursor 绑定 `epoch + projection_version + source_cursor + filter_digest`，过滤条件变化、epoch 变化或 retention revoke 时要求重新 hydrate。
+
+### 31.6 详细实施步骤（OA-00–OA-28）
+
+每张卡都按“先拒绝、再成功、最后回归”执行。完成时必须在 `CURRENT_STATUS.md` 写证据块：`source_snapshot / worktree_status / command_argv / cwd·environment / fixture·cassette / exit_code / status change / proof-level change / limitations / reviewer`。`best_effort` telemetry 的本地证据不能提升 durable；Audit/EventLog 的 durable 证据不能自动提升 live 或 physical。
+
+| Step | 代码归属与交付物 | 依赖 | 先拒绝的验收 | 成功与回归验收 |
+|---|---|---|---|---|
+| `OA-00` | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | 找出任何把 UI/transcript/cache/metric 当事实、把 trace 当授权、把 receipt 当 Outcome 的路径；重复/私自命名的观测字段列为 issue | 生成 signal matrix、代码 owner、当前 proof ceiling 和迁移清单；不改历史证据 |
+| `OA-01` | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | OA-00 | unknown major/required field、非法 status、空 cursor、错误 digest、未注册 metric 或过长 attribute fail-closed | serde round-trip、canonical bytes、minor additive compatibility、schema owner/版本测试 |
+| `OA-02` | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | OA-01 | 伪造 actor/authority、无效 traceparent、跨 project/session 关联、attempt/command 错配不得改变授权或查询范围 | ingress→run→turn→invocation→provider→broker→eventlog 的关联稳定；异步恢复使用 link 和新 span |
+| `OA-03` | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | OA-01 | secret sentinel、prompt/tool args/path/env/header/token 进入任一信号或错误通道时阻断发布；redactor error 不回退原文 | split chunk、nested JSON、UTF-8/NUL、oversize、provider echo、artifact/export 全通道扫描；profile hash 可定位 |
+| `OA-04` | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | OA-01, OA-03 | 模型/UI/plugin 伪造批准、完成、导出；原 record 被覆盖；未绑定 source event 的审计行不可见 | command/deny/approval/capability/credential/recovery/query/export 均有 stable action/decision/digest/source cursor |
+| `OA-05` | `ObservabilityPort`/`TraceSink`/`MetricSink`/`AuditQueryPort`/`HealthProbePort`；Memory/JSONL fake adapters | OA-01..OA-04 | exporter 报错不得授予权限；不支持 durable/flush/capability 的 adapter 被依赖时 fail-closed；sink 不能调用 Broker | fake sink 可记录、注入失败、flush ack、取消和容量；接口依赖方向通过 boundary test |
+| `OA-06` | EventStore commit observer；`kiana-eventlog`、`StreamEventStore`、`TransitionBatch` | OA-05 | pre-commit 观测不能让未提交事件出现在 Receipt/Audit/metric；重放不重复发通知/副作用 | 仅 `Committed` 发布一次；`Replayed` 可关联原 receipt；cursor/commit boundary、CAS conflict、Unknown evidence 可重建 |
+| `OA-07` | Run/Turn/Invocation span 生命周期；`kiana-core` projection/runner bridge | OA-02, OA-06 | span end 不能制造 terminal；late delta、duplicate end、stale run/attempt 不覆盖事实 | 每次合法状态转移都有 start/end/status/error/unknown；取消、pause、compact、retry、resume、terminal 一一可定位 |
+| `OA-08` | Provider/model/stream/usage instrumentation；`kiana-provider`、`kiana-daemon/model_client.rs` | OA-03, OA-07 | malformed/truncated/timeout/retry 不标 `ok`；secret header、prompt、raw response 不进 telemetry | provider/model/route/prompt version、latency、stop reason、usage、retry class、cache usage 可在 Receipt/Audit/metrics 对齐 |
+| `OA-09` | Broker/approval/effect/stop instrumentation；`kiana-core/capabilities.rs`、`kiana-daemon/harness_capabilities.rs` | OA-04, OA-07 | policy deny/hook block/expired approval/lease mismatch/TOCTOU 均 zero effect 且可查询；cancel 不等于 stop confirmed | admission→permit→dispatch→execution→result/stop 的 attempt 证据完整；effect unknown 保留 fencing |
+| `OA-10` | EventLog/projector/Receipt/Artifact/Recovery metrics；`kiana-eventlog`、`projection.rs`、`receipts.rs`、`recovery.rs` | OA-06..OA-09 | projector 读空、artifact 读错、cursor gap 不被计为 healthy/zero work；Receipt 不用 metric 补事实 | append/flush/rebuild/query latency、durable cursor、projector lag、orphan/unknown、artifact bytes、last error 可解释 |
+| `OA-11` | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | OA-10 | stale heartbeat、unknown exporter、cursor divergence、corrupt journal、missing audit projection 不返回 healthy/ready | DaemonHost/ControlPlane/EventStore/Projector/Provider/Broker/Artifact/Telemetry 各有 bounded probe、version、state、last success、limitation |
+| `OA-12` | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | OA-10 | raw IDs/path/prompt/secret 作为 label、cardinality overflow、estimated-as-measured、counter reset 伪造成功均拒绝 | event replay 与 live reducer 对同一 cursor 一致；counter/gauge/histogram 单位、label allowlist、overflow 计数和版本稳定 |
+| `OA-13` | 异步队列、背压和丢弃策略；`kiana-daemon`/`kiana-eventlog` | OA-05, OA-10 | queue full 不丢 Event/Audit/Approval/Recovery/terminal，不阻塞 commit 到死；slow consumer 不能改事实 | best-effort log/trace 丢弃有 reason/counter；flush/shutdown ack、bounded memory、reopen spool、Health degraded 可观察 |
+| `OA-14` | Trace exporter 与 W3C context adapter；可选 `kiana-observability` crate 或 daemon module | OA-02, OA-07, OA-13 | invalid parent、exporter failure、sampled=false、foreign baggage 不影响 authority；关闭 exporter 不改变 receipt | local no-op/JSONL exporter、可选 OTLP mapping、span links、sampling decision、shutdown flush；不声明外部 backend durable |
+| `OA-15` | AuditProjection checkpoint/rebuild；`kiana-eventlog`/`kiana-core` | OA-04, OA-06, OA-10 | unknown audit schema、矛盾 decision、source cursor 回退、projection checksum 错误 fail-closed；不得删除原事实 | 新进程从 EventLog + Artifact refs 产生稳定 AuditRecord；同 cursor/version/hash 输出一致，gap 可重放 |
+| `OA-16` | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | OA-15, `CP-21/22` | 未认证、跨组织/project/session、客户端 owner/scope 覆盖、无限 limit、raw event endpoint 全部拒绝且 zero effect | CLI/Web/Workbench/Desktop 调用同一只读 query；字段 redaction、limitations、source cursor、projection version 一致 |
+| `OA-17` | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | OA-15, OA-16 | cursor epoch/filter digest/version 不符、越界 page、projection lag/retention revoke 继续返回旧数据均拒绝 | stable next cursor、bounded page、empty-vs-unavailable 区分、replay during query、multi-tab/reconnect 一致 |
+| `OA-18` | 审计导出、manifest、delivery evidence；`kiana-entrypoints`/ArtifactStore/ControlPlane | OA-03, OA-16, OA-17 | 无 `audit.export`/purpose/recipient/retention、scope 超集、未完成 artifact hash、delivery unknown 不能声称 exported/delivered | redacted JSONL/CSV/JSON export 绑定 query digest + source cursor + manifest hash + schema + DeliveryReceipt |
+| `OA-19` | Alert/Incident 规则、去重和 Recovery 关联；`kiana-core/recovery.rs`、daemon health | OA-10, OA-11, OA-15 | alert 不能自动 approve/retry/close；同一 incident 重复风暴、模型自报恢复、unknown 被关闭均拒绝 | projector lag、audit loss、redaction failure、queue overflow、journal corruption、effect unknown 产生可重放 Incident/RecoveryPlan |
+| `OA-20` | DataClass/Purpose/Retention/Deletion propagation；`data_governance.rs`、Memory/Artifact/Query/Telemetry stores | OA-03, OA-15..OA-19 | 删除只删 UI/cache、retention 绕过 scope、secret/PII 留在 trace/export/spool、audit metadata 与 payload ref 混淆均 fail | payload expiry 与 audit metadata 分离；revoke/deletion/data epoch 传播到 Receipt/Audit/Artifact/Memory/Index/Cache/export，重启后仍一致 |
+| `OA-21` | Replay/reconciliation diagnostics；新增只读 `replay`/audit consistency fixture | OA-15, OA-19, OA-20 | replay 调模型/Provider/Broker、unknown schema 猜测、divergence 被吞、metric/trace 反写事实均拒绝 | `(invocation_id, attempt, input_digest, status, error_code)` 首个 divergence 可定位；Audit/Receipt/Health projector 与 baseline 一致 |
+| `OA-22` | Crash/fault injection；EventStore、Broker、Provider、projector、export、shutdown | OA-06..OA-21 | 每个注入点证明 no duplicate effect、no false success、unknown queryable、resource fenced；固定 sleep 不算证据 | prepare/commit/dispatch/result/flush/projector/export 各 fault seed 可重放并生成同分类、cursor 和 limitations |
+| `OA-23` | Provider-independent eval suite；fake model/provider/broker、GoldenTrace、Promptfoo 风格断言 | OA-08, OA-09, OA-21, `P1-L1-01` | secret、forbidden effect、policy safety、evidence completeness、replay divergence 任一失败阻断 Promote | expected normalized events、audit rows、metrics、spans、receipt assertions、final status、cost/latency bucket 可重现 |
+| `OA-24` | 四入口审计/健康/Receipt parity；CLI/Web/Workbench/Desktop | OA-16..OA-23, `P2-M2..M5` | 入口自拼字段、自读 EventLog、自行判断成功/健康、自行触发恢复均拒绝 | 同一 run/cursor/query 在四入口的 owner filtering、status、limitations、source refs、unknown、retention 结果一致 |
+| `OA-25` | 容量、性能和迁移演练；journal/projector/query/export benchmark | OA-12, OA-13, OA-17, OA-20 | 高基数/大 artifact/大 page/慢 exporter 导致事实丢失或无界内存、迁移 unknown version 静默通过均拒绝 | p50/p95/p99 append/flush/project/rebuild/query/export 基线；quota/backpressure/rotation/archive/upgrade/downgrade read-only 有证据 |
+| `OA-26` | Local durable observability gate；release/smoke/CURRENT_STATUS | OA-22..OA-25, `ER-34` | 历史 CI、内存 sink、单测 mock、无 artifact hash 不能声称 durable；缺限制/审计 scope 测试不放行 | deny→commit→effect→receipt/audit→restart→unknown/reconcile；journal/artifact/export hashes、process/queue/cursor/secret scan 全部记录 |
+| `OA-27` | Cross-entry/company governance gate；`ER-35`、CompanyOS Review/Delivery/Close、Cost/Memory/Data governance | OA-24..OA-26 | Runtime completed 不能直接变 Delivery/Outcome；audit query/export 不能跨 DataBoundary；Review 不能改 Builder facts | Objective→Project→Packet→Run→Review→Acceptance→Delivery→ClosingReceipt 的 trace/audit/evidence refs 可重建 |
+| `OA-28` | Physical/live handoff；目标 OS、OTLP backend、隔离 provider/connector 和 operator runbook | OA-26, OA-27, `ER-36` | 无目标 backend/credential/provider receipt/独立账户时只能证明 deny/local；不能把 OTLP export 或 mock receipt 写成 live/physical | 每个 provider/backend/connector 组合单独记录环境、版本、权限、采样、retention、incident、cleanup 和失败矩阵 |
+
+### 31.7 执行波次与依赖
+
+```text
+Wave A 事实与边界：OA-00 → OA-01 → OA-02 → OA-03 → OA-04
+Wave B 接线与基础信号：OA-05 → OA-06 → OA-07 → OA-08 → OA-09
+Wave C 统计与健康：OA-10 → OA-11 → OA-12 → OA-13
+Wave D Trace 与审计查询：OA-14 ∥ OA-15 → OA-16 → OA-17 → OA-18
+Wave E 运营治理：OA-19 → OA-20 → OA-21
+Wave F 可靠性与入口：OA-22 → OA-23 → OA-24 → OA-25
+Wave G 交付门：OA-26 → OA-27 → OA-28
+```
+
+与已有路线的接点：
+
+- `P0-G-02a/b`、`P0-G-04`、`ER-01..ER-08` 提供事件落账、CAS、cursor、projection 和恢复事实；OA 不重建第二个 EventLog。
+- `P0-J7-01`、`P4-J7-02/03`、Provider 专项提供 normalized stream、usage、terminal、sequence/epoch；OA 只增加 trace/metric/audit 投影。
+- `P0-K1-01`、`CP-01/08/09/21/22` 提供 authenticated principal、authority epoch、query ownership 和 ControlPlane command；AuditQuery 不自行认证或授权。
+- `P1-K5-01`、`P2-K6-01`、`P2-K7-01` 提供 usage/cost、Incident/Recovery、retention/deletion；OA 将它们纳入可定位的 metric/audit/health 证据，不把估算成本当账单。
+- `P2-M2..M5`、`P4-L3-01`、`ER-26/27/29/30` 提供入口 projection、版本分桶、cursor、data governance 和高层 health/trace 卡；OA 细化实际字段、查询和测试，不改变既有 owner。
+- `CI-01..CI-12` 的 identity/config/credential/SecretRef revision 必须进入 `CorrelationContext`、AuditRecord 和 Receipt metadata；raw secret 永远不进入 observability plane。
+
+### 31.8 最低验收矩阵
+
+每个场景必须同时检查 EventLog、Projection/Receipt/Audit、Telemetry、实际 effect/文件/进程四个观察面；只看返回 JSON 不算通过。
+
+| 场景 | 必须证明 | 关联步骤 |
+|---|---|---|
+| 未认证、伪造 actor/role、跨项目 query | 稳定 deny；zero Broker/provider calls；不泄漏存在性或 secret；denial audit 只对授权 scope 可见 | OA-02/04/16 |
+| policy/gate/hook deny、过期 approval、lease/epoch drift | 无 effect；AuditRecord 有 reason/digest；trace status=error；metrics 不计成功 | OA-04/07/09/12 |
+| 正常 provider/tool run | commit cursor、command receipt、attempt、usage、cost type、span、AuditRecord、RunReceipt 可交叉定位 | OA-06..OA-10 |
+| provider malformed/truncated/timeout | 不标 Ok；retry class 正确；已发送业务请求不自动重试；Unknown/Incident 可查询 | OA-08/09/19/21 |
+| cancel 与 stop race | `cancel_requested`、stop confirmation、late result、terminal event 分离；不能把取消当 stopped | OA-07/09/19/22 |
+| exporter/queue 背压 | Event/Audit/terminal 不丢；best-effort 丢弃有计数/原因；Health degraded；shutdown flush 有 ack | OA-05/13/14 |
+| projector crash/gap/rebuild | 原事件保留；Receipt/Audit/Health 不造空；cursor gap 可重放；同 cursor 输出稳定 | OA-06/10/15/17/21/22 |
+| secret/PII/oversize/redaction failure | log/span/metric/audit/receipt/artifact/export/stdout/stderr/argv/env/cache 全通道无 sentinel；失败不回退原文 | OA-03/08/18/20 |
+| retention/revoke/delete | payload/ref 与 audit metadata 分离；epoch 传播；撤销后旧 projection/cache/export 不返回；法律留存由 policy 明确 | OA-18/20 |
+| audit query/export | owner/DataBoundary/field redaction/cursor/filter digest/manifest hash/DeliveryReceipt 一致；delivery unknown 不宣称 delivered | OA-16..OA-18/24 |
+| crash at every effect boundary | 无重复 effect、无假成功、Unknown 可对账、资源 fenced、recovery action 新授权 | OA-06/09/19/22 |
+| 四入口和 CompanyOS closeout | CLI/Web/Workbench/Desktop 同一 query/projection；RunReceipt 不被 Delivery/Outcome 越权改写 | OA-24/27 |
+
+### 31.9 交付、状态和限制
+
+专项完成不是“接入 OpenTelemetry crate”或“看到一条 trace”。必须同时满足：
+
+1. EventLog commit、AuditRecord、Receipt、MetricReducer、TraceBridge、Health/Incident 和四入口 query 都沿同一 `source_cursor`/关联 ID 工作；
+2. deny、unknown、redaction、retention、ownership、backpressure、rebuild 和 crash 场景都有负向证据，Broker effect 数量符合预期；
+3. 运行时 telemetry 丢失不会改变授权/状态，审计事实丢失不会被隐藏；`CURRENT_STATUS.md` 明确每项是 `source`、`local_behavior`、`durable`、`live` 还是 `physical`；
+4. metric labels 通过 allowlist/cardinality gate，trace sampling 不影响审计完整性，导出只包含受控 DTO/Artifact manifest；
+5. 每个 external exporter、OTLP backend、真实 provider/connector 都有独立 opt-in、环境、凭据、版本、退出码和限制，不能以本地 fake sink 或历史 CI 代替。
+
+明确限制：本专项不打开第二条执行循环、不把 EventLog 变成远程 telemetry 服务、不默认向第三方发送本地数据、不实现企业 SIEM 合规认证、不以 trace/metric 推断现实业务 Outcome，也不因 observability 设计存在就提升当前产品的 live、enterprise 或 physical 证明等级。
+
+---
+
+<a id="scheduling-workflow-trigger-plan"></a>
+
+## 32. 调度、工作流与触发器：实际代码设计、处理流程与详细实施步骤（2026-09-13 追加）
+
+> 本专项补全 [module-map.md](module-map.md) 的“调度、工作流与触发器”模块。它是实现合同和拆分后的路线图，不是当前完成声明。当前实现事实仍以源码、精确测试回执和 `CURRENT_STATUS.md` 为准；本节不会因为类型、参考项目或单次本地测试通过而提高 `feature_status` 或 `proof_level`。
+>
+> 调研采用两条线：一是对仓库内 `reference/` 的整目录盘点后，定向阅读 Temporal Python、LangGraph、Codex、Grok workflow journal、Crush、ChatDev、ADK、OpenAI Agents、OpenHands、Goose、Letta 等与持久状态、队列、审批、重试和恢复有关的源码；二是对照 [Temporal application model](https://docs.temporal.io/)、[Inngest durable functions](https://www.inngest.com/docs/learn/how-functions-are-executed)、[Inngest concurrency](https://www.inngest.com/docs/guides/concurrency)、[Trigger.dev idempotency](https://trigger.dev/docs/idempotency)、[Restate durable steps](https://docs.restate.dev/develop/ts/durable-steps) 和 [DBOS steps](https://docs.dbos.dev/python/tutorials/step-tutorial) 的公开机制。参考资料只用于机制比较，不引入其源码、服务端、协议或第二执行循环。
+
+### 32.1 设计目标和不变量
+
+调度器负责发现“现在可以做什么”和取得一个有期限的 claim；工作流负责根据不可变定义和事实历史计算下一步；触发器负责把可信的时间/事件转换成幂等的 Workflow/Run 命令。只有 ControlPlane 能授权和提交副作用，Broker/Runner 只消费已经提交的 permit。三者共享一个事实源和一条执行脊柱：
+
+```text
+trusted ingress / clock
+        │
+        ▼
+Trigger matcher ──(dedupe + occurrence)──► Scheduler queue
+                                             │
+                                             ▼
+                                  atomic claim + fencing lease
+                                             │
+                                             ▼
+Workflow planner (pure replay, no I/O)
+        │                                  │
+        └─ waiting/approval/signal ◄────────┘
+        │
+        └─ effect reservation (CAS) ─► ControlPlane admission
+                                         │
+                                         ▼
+                               CapabilityBroker / Harness
+                                         │
+                                         ▼
+                         observation / receipt / reconciliation
+```
+
+必须长期保持以下不变量：
+
+1. **单一事实源**：定义、触发器、occurrence、队列 claim、node execution、approval、effect reservation、observation 和 recovery 全部由 EventLog 事实重建；内存 map、UI timeline、模型文本和缓存不是权威。
+2. **纯规划**：`kiana-workflow` 的 replay/planner 只读取快照、历史、当前受控时间和命令，输出 `NextState + Intent`；不能调用模型、网络、文件、Broker 或随机数。
+3. **先事实后副作用**：每次 dispatch 必须先提交带 `action_digest`、authority/data/policy revision、预算和 fencing token 的 reservation；没有 committed reservation 不能执行。
+4. **一次 claim、一次终态**：多个 scheduler/worker 可以竞争，但一个 queue item 只有一个有效 lease/fence；过期 lease 只能在确认没有进行中的 effect 后回收。完成、失败、取消和 Unknown 都是幂等终态。
+5. **Unknown 不等于失败**：提交超时、进程崩溃、provider receipt 缺失或 stop 未确认时保持 `ResultUnknown`/`Unknown`，走 reconcile 或人工恢复；不能自动 retry 或直接标为 succeeded。
+6. **权限取交集**：触发器、工作流、角色、项目、WorkPacket、审批、预算、路径和当前 authority epoch 的交集决定有效范围；子工作流和子 packet 只能缩减父权限。
+7. **没有入口专属循环**：CLI、Workbench、Web、Desktop、MCP、scheduler 和 worker 都调用同一个 `DaemonHost`/`ControlPlane`，不得自行启动模型循环、直接执行 capability 或另建权限判断。
+
+### 32.2 参考机制与 Kiana 的取舍
+
+| 参考 | 观察到的机制 | Kiana 采用 | 不采用的部分 |
+|---|---|---|---|
+| Temporal Python / Temporal docs | workflow 由历史驱动重放；timer、signal、child workflow 是历史命令；Activity 在 worker 上执行并有 heartbeat、取消和 retry | 将 workflow planner 与外部 effect 分层；把 timer/signal/child/failure 写入事实；每个 effect 有 execution/attempt/receipt | 不引入 Temporal server、task queue 协议或任意 Python workflow 代码执行 |
+| LangGraph persistence | thread checkpoint 与跨 thread store 分离；super-step 边界持久化；pending writes 让已成功节点不被重跑 | `WorkflowSnapshot` 只保存可序列化运行态；节点结果和待投递结果单独落账；恢复以 cursor/definition digest 校验 | 不把 checkpoint 当 Memory，不让图节点绕过 ControlPlane 写文件或工具 |
+| Inngest durable functions | 每个 step 有稳定 identity；事件触发、重试和并发 key 是服务端事实；同一个 step 重放已保存结果 | occurrence key、step/effect identity、并发策略和 bounded retry 持久化 | 不依赖 hosted event bus；Inngest 的自动 retry 规则不能覆盖 Kiana 的 Unknown 约束 |
+| Trigger.dev idempotency | task run 用显式 idempotency key 防止重复启动，key 有 scope/TTL | `command_id + idempotency_key + action_digest + occurrence_key` 四元去重；TTL 与 retention 都可审计 | 不把幂等 key 当授权，不允许相同 key 携带不同 payload 或 authority |
+| Restate / DBOS | 非确定 I/O 包在 durable step 中，结果 replay；retry 按次数、时间和错误类型分类 | 每个 Broker/Provider/AgentTask invocation 都成为可观察的 durable attempt；已知无副作用错误才可按策略重试 | 不把不可验证的外部副作用声称 exactly-once；没有 provider receipt 时进入 Unknown |
+| 本地 Codex / Grok journal | writer flush/shutdown ack、request hash、dense sequence、replay divergence、journal full fail-closed | EventStore commit/flush ack、command digest、连续 cursor、容量上限和 divergence incident | 不复制参考项目的执行器、凭据格式或 UI event bus |
+| 本地 Crush / Goose / OpenHands / ADK / ChatDev | 队列 drain、approval pause、checkpoint、human-in-loop 和图式依赖有可复用交互 | 只吸收“暂停/恢复需事实和审批”“取消要 stop evidence”“依赖图先校验” | 宿主权限 shell、宽松 session fallback、内存队列、自动重试和直接 agent-to-agent 总线均不作为权限依据 |
+
+### 32.3 当前源码基线与需要补齐的缺口
+
+| 位置 | 已有事实 | 实际缺口/风险 | 路线图处理 |
+|---|---|---|---|
+| `kiana-domain/src/automation.rs` | 已有 `WorkflowDefinition`、DAG 节点类型、实例/节点状态、`TriggerConcurrency`、`MissedSchedulePolicy`、Manual/Event/Interval schedule、`Tick`/`Fire` command | `DurableTrigger` 把 occurrence 压在 `pending_keys`/`fired` 聚合字段，缺少独立 occurrence、queue item、lease、fence、clock trust 和 authority revision；没有 calendar/cron 的确定性时区合同 | `AUT-02`、`AUT-04`、`AUT-07`、`AUT-10`、`AUT-12` 先补合同和有界投影；calendar 作为后续可选扩展，不先引入不确定解析器 |
+| `kiana-workflow/src/durable.rs` | 纯 `plan_command`/replay、定义校验、DAG、retry/cancel/compensation、trigger interval catch-up 和并发分支 | planner 尚未输出独立 reservation/queue intent；`Tick` catch-up 需要固定上限、cursor 语义和原子 claim；FanOut/FanIn/SubWorkflow 的实际执行与父子预算、深度和 fence 仍需闭环 | `AUT-06`、`AUT-08`、`AUT-13`、`AUT-16`、`AUT-19`、`AUT-20` |
+| `kiana-core/src/automation.rs` | 已做 command schema/role/trust/idempotency/revision 检查；commit 后可 dispatch AgentTask/Capability；有 `RecordObservation`、cancel effect、result unknown 路径 | dispatch 在同一 handler 内同步执行；缺少可重取的 reservation/worker claim；proof 和 cancel 辅助路径使用 `read_all`；`guard_workflow_capability` 只在匹配到已知 execution 时拒绝，未知 reservation 需要 fail-closed | `AUT-05`、`AUT-14`、`AUT-15`、`AUT-17`、`AUT-21`；以索引/cursor 查询替换全量扫描 |
+| `kiana-daemon` | `DaemonHost` 是产品组合根，已有 execution control、fencing、上下文和 I/O adapter | 尚未发现产品路径中的持久 scheduler/worker；`sdk.rs::watch_scheduled_tasks` 是兼容面，不能成为第二调度入口 | `AUT-09` 建立 daemon 内 Tokio scheduler/worker，但它只提交 ControlPlane command，不直接执行 capability |
+| `kiana-domain/src/packet_graph.rs`、`work_packets.rs` | 有确定性 ready view、DAG admission、budget lease 和 claim 语义 | 尚未与 workflow queue/trigger occurrence 共享 fence、父子 scope 和恢复索引 | `AUT-07`、`AUT-19` 统一 claim contract，不复制另一套 packet scheduler |
+| `kiana-eventlog`、`kiana-ports` | 有 JSONL/memory event store、CAS、journal 和部分 projection/recovery | scheduler 需要按 aggregate/cursor/due_at/lease 查询和原子 batch；时钟、flush ack、cursor 读取尚未形成 port 合同 | `AUT-03`、`AUT-08`、`AUT-09`、`AUT-21` |
+
+因此，当前已有的 `Tick`/`Fire` 只能视为“受控命令的纯规划入口”，不能写成“已经有 durable scheduler”。当前 `handle_workflow_command` 的同步 dispatch 也只能视为过渡实现；拆分 reservation 与 worker 时仍须复用 `DaemonHost` 和 `ControlPlane`，不能新增第二条执行脊柱。
+
+### 32.4 领域对象和持久合同
+
+优先扩展现有类型，只有在无法保持兼容和不变量时才新增对象。所有对象都使用稳定 ID、`deny_unknown_fields` 或显式 migration；`Debug`、事件、错误和 Receipt 只输出 ref/digest/status，不输出 secret、完整 prompt 或未治理 payload。
+
+```text
+WorkflowDefinitionVersion {
+  definition_id, version, definition_digest, input/output_schema,
+  nodes, max_steps, max_duration, retry_policy, compensation_policy,
+  allowed_roles, project_scope, created_by, created_at
+}
+
+TriggerDefinition {
+  trigger_id, definition_id/version, owner, role, project_scope,
+  schedule, event_filter, concurrency, missed_schedule,
+  max_firings, expires_at, approval_ref, authority_epoch, policy_revision
+}
+
+TriggerOccurrence {
+  occurrence_id, trigger_id, occurrence_key, source_event_ref?,
+  due_at, observed_at, payload_digest, status, attempt, command_id?,
+  coalesce_count, source_cursor, authority_epoch
+}
+
+WorkflowQueueEntry {
+  queue_id, target(instance|occurrence|node), priority, ready_at,
+  definition_digest, input_digest, action_digest, expected_revision,
+  status(queued|claimed|blocked|completed|unknown|cancelled),
+  claim_owner?, lease_expires_at?, fence?, enqueue_cursor
+}
+
+WorkflowNodeExecution {
+  execution_id, instance_id, node_id, attempt, input_digest,
+  reservation_id, status, session_id, authority_epoch, policy_revision,
+  started_at?, lease_expires_at?, ended_at?, effect_known?, stop_confirmed?,
+  output_ref?, error_code?, evidence_refs[]
+}
+
+EffectReservation {
+  reservation_id, execution_id, invocation_id, action_digest,
+  permit_ref, owner, scope_digest, budget_lease, path_lock,
+  authority_epoch, config_revision, policy_revision, fence,
+  expires_at, status(prepared|claimed|settled|unknown|released)
+}
+
+SchedulerLease { lease_id, resource_key, owner, fence, expires_at, heartbeat_at }
+ClockObservation { source, now_ms, monotonic_sample, trust, observed_at }
+WorkflowObservation { execution_id, attempt, response_digest, effect_known,
+  stop_confirmed, output_ref, evidence_refs[], observed_at }
+RecoveryCase { target_ref, unknown_reason, last_cursor, safe_actions[],
+  forbidden_actions[], authority_epoch, status, evidence_refs[] }
+```
+
+关键索引至少包括：`definition_id/version`、`trigger_id + occurrence_key`、`ready_at + priority`、`lease_expires_at`、`execution_id + attempt`、`action_digest`、`authority_epoch` 和 `source_cursor`。索引只是可重建加速层；索引丢失时必须从 EventLog 恢复，不能把空索引当作“没有任务”。
+
+### 32.5 端到端处理流程
+
+#### 32.5.1 注册定义和触发器
+
+1. 受保护入口取得服务端 `Principal`、项目身份、`ProjectTrust`、角色 assignment、当前 authority epoch、policy/config revision 和可信时钟观察值。
+2. ControlPlane 校验 definition schema、节点 ID、DAG 无环性、输入/输出 schema、最大 steps/duration、角色和项目边界；WorkflowDefinition 一经使用不可原地修改，变更必须注册新版本和新 digest。
+3. 注册 TriggerDefinition 时再次检查定义版本、owner/role、approval proof、expires/max_firings、schedule 最小间隔、event filter schema、concurrency/missed policy 和 authority/policy revision。注册只提交 `definition/trigger registered` 事实，不创建 Run，不执行 capability。
+4. 注册结果通过 command idempotency key 重放时返回原 commit；相同 key 携带不同 definition digest、actor、project、authority epoch 或 approval 必须拒绝。
+
+#### 32.5.2 事件/Webhook 触发
+
+```text
+ingress authentication + source allowlist
+  -> normalize {event_id, kind, source, observed_at, payload_digest}
+  -> size/schema/signature/project-trust checks
+  -> append trigger.event_observed (dedupe on source,event_id)
+  -> match enabled trigger definitions deterministically
+  -> create TriggerOccurrence (occurrence_key = trigger_id + source event id)
+  -> apply concurrency policy and enqueue Fire command
+  -> worker claims queue item and asks ControlPlane to start workflow
+```
+
+事件 payload 不得直接成为 capability 参数；只能作为已校验的输入 artifact/ref，经 definition input schema 和 policy 重新映射。重复 event、未知 kind、错误签名、过期 trigger、跨项目 source 和 payload 超限都必须在 Broker 之前拒绝且不创建实例。
+
+#### 32.5.3 Interval 调度、错过时间和多 scheduler
+
+1. Daemon scheduler 通过 `ClockPort` 取得 wall-clock 和 monotonic sample；wall-clock 用于 durable `due_at`，monotonic 只用于本进程 lease/timeout。时钟回退、来源不可信或跨重启无法证明连续性时，暂停受影响 trigger 并打开 incident。
+2. scheduler 按 `next_at <= now` 的索引读取候选 trigger；每个 occurrence 使用确定性 key（例如 `trigger_id:scheduled_at`），在 CAS 中同时推进 cursor、写 occurrence 和入队，两个 scheduler 只有一个能成功。
+3. `Skip` 只产生当前窗口允许的一次 occurrence；`FireOnce` 把错过窗口折叠为一个 occurrence 并记录 missed count；`CatchUp` 按固定 `catch_up_limit` 分批，超过上限转为 blocked/incident，不能在一个 tick 无限循环。
+4. 进程重启先从 cursor/occurrence facts 恢复，再执行一次受上限约束的 reconciliation；不能以“启动时 now 已到期”为理由重放已经 committed 的 occurrence。没有 committed claim 的旧 queue item 才能重新入队。
+
+#### 32.5.4 队列 claim、工作流推进和 effect
+
+```text
+queued item
+  -> CAS queued→claimed(owner, fence, lease_expiry)
+  -> load workflow history + immutable definition digest
+  -> pure planner computes ready nodes / wait / terminal / effect intent
+  -> commit node reservation + budget/path/child scope in one batch
+  -> worker verifies fence and calls ControlPlane admission
+  -> ControlPlane consumes approval/grant and emits prepared permit
+  -> Broker/Runner performs exactly one attempt
+  -> commit observation + usage + lease settlement atomically
+  -> planner folds observation and enqueues next ready nodes or terminal receipt
+```
+
+一个 planner command 最多产生一个可执行 effect intent；并行节点通过多个独立 queue entries 执行，受 definition、project、packet、budget、worker capacity 和 path lock 的交集限制。`Advance`、`RecordObservation`、`Reconcile` 必须带 expected revision、execution/attempt identity 和 source cursor，旧 worker 的结果不能覆盖新 attempt。
+
+#### 32.5.5 Approval、signal、cancel、retry 和 compensation
+
+- **Approval**：node 进入 `WaitingApproval` 后提交 request digest、action digest、scope、nonce、expiry、approver role、authority/policy revision 和 invocation identity。Approve/Deny 以 CAS 单次消费；参数、路径、项目、epoch 或 definition digest 变化即拒绝并要求重新申请。
+- **Signal**：外部 signal 必须有已认证 source、signal ID、payload schema、expected revision 和 occurrence dedupe。planner 一次消费一个 signal；重复 signal 返回原结果，不能推进两次。
+- **Cancel**：`cancel_requested` 是意图。ControlPlane 先 fence 未开始 queue item，再向已开始 handler 请求 stop；只有 `StopReport`/effect receipt 确认后才可标记 cancelled。无法确认的 attempt 保持 Unknown，资源 lease 继续 fenced。
+- **Retry**：纯 Literal/CopyInput/Gate 或 descriptor 明确证明“未 dispatch/幂等”的失败可生成新 attempt；每次 retry 使用新的 execution/command/idempotency key，并重新检查 budget、approval、scope、epoch 和 deadline。任何 effect 可能已发生而无 receipt 时禁止自动 retry。
+- **Compensation**：补偿是新的 workflow instance/command，引用原失败实例和 evidence；重新走授权、预算、路径和审批。不得修改原实例的历史，也不得把 compensation 当作原实例成功。
+
+#### 32.5.6 重启、未知结果和恢复
+
+```text
+open EventLog -> validate frames/schema/cursor -> rebuild projections/indexes
+  -> fence stale scheduler/worker leases
+  -> list queued/claimed/reserved/unknown/recovery cases
+  -> default affected workflows to Paused/NeedsRecovery
+  -> reconcile provider/runner/stop evidence by explicit command
+  -> re-authorize current epoch/policy/approval
+  -> commit resume/retry_without_effect/reconcile decision
+  -> enqueue only newly committed work
+```
+
+恢复重放只折叠历史，不重新请求模型、执行 shell/MCP、发 webhook 或消耗审批。`result_unknown` 必须保留最后可信 cursor、attempt、action digest、effect/stop evidence 和安全/禁止动作；人工选择 `reconcile`、`retry_without_effect`、`abandon` 或 `compensate` 后才改变状态。Receipt 的 `Completed` 只证明本机事实链完成，不证明外部业务 outcome。
+
+### 32.6 状态和并发策略
+
+| 对象 | 允许状态 | 关键转移条件 |
+|---|---|---|
+| Trigger | `disabled → enabled → expired/disabled` | enable/register 需 authority + approval；过期不可自动延长；disable 清理未启动 occurrence 但保留事实 |
+| Occurrence | `observed → queued → claimed → fired / coalesced / rejected / expired` | source/event dedupe、max_firings、concurrency 和 trigger expiry 在同一 CAS 判断 |
+| Queue item | `queued → claimed → completed / blocked / cancelled / unknown` | claim 必须带 lease/fence；lease 过期先 reconcile，不能直接重跑可能有副作用的 item |
+| Node execution | `pending → reserved → running → waiting_approval/waiting_signal / succeeded/failed/cancelled/result_unknown` | reservation 先于 effect；terminal observation 只接受相同 execution/attempt/fence |
+| Workflow | `ready → running → waiting/paused/retrying/compensating → succeeded/failed/cancelled/result_unknown` | 由 planner 根据完整历史计算；终态不可被旧 late result resurrect |
+| Trigger concurrency | `Reject`、`Queue`、`Replace`、`Coalesce` | Reject 返回稳定拒绝；Queue 保留每个 occurrence；Replace 先 cancel/fence 旧实例且等待 stop/reconcile；Coalesce 只保留一个 pending occurrence 并记录 count/digest |
+
+`Replace` 不得把“发出 cancel”当作旧实例已停止；`Coalesce` 不得丢弃输入差异，至少保留 occurrence IDs、count、payload digests 和合并规则。所有队列、occurrence、attempt 和 child 数量都有硬上限，达到上限返回结构化错误并记录 incident。
+
+### 32.7 代码落点和接口边界
+
+| 层 | 目标改动 | 约束 |
+|---|---|---|
+| `kiana-domain` | 扩展 automation contracts、occurrence/queue/lease/fence/clock/recovery 对象；定义稳定错误码和状态转移 | 只放值对象、纯状态和 serde；不依赖 Tokio、provider、filesystem 或网络 |
+| `kiana-protocol` | 增加 versioned scheduler/workflow commands、snapshot/query DTO、event envelope、occurrence/receipt/recovery payload | wire DTO 不接受 actor/role/trust 自声明作为权威；internal observation 不可由外部调用 |
+| `kiana-ports` | `ClockPort`、`WorkflowQueueStore`、`LeaseStore`、cursor/index query、`EffectDispatcher`/`Reconciler` 窄接口 | port 只返回结构化错误和 opaque refs；不得把 Broker/runner 依赖下沉到 domain |
+| `kiana-workflow` | 把 trigger tick/fire、ready node、reservation、retry/cancel/compensation/fan-in/out 规划做成纯函数；定义 planner intent | 无副作用；同一 state/history/command/clock snapshot 必须得到字节等价的 next state/intent |
+| `kiana-core` | 统一 authority/policy/approval/budget/path lock；CAS 提交 reservation；执行结果、stop report、reconcile 原子回写；未知 reservation fail-closed | 不在 core 之外另做权限判断；拒绝路径必须证明 0 broker calls |
+| `kiana-eventlog` | 原子 batch、command dedup、cursor/aggregate query、flush ack、容量和恢复索引 | append 成功不等于 effect 成功；索引可重建，事实不可改写 |
+| `kiana-daemon` | 新增受 `DaemonHost` 管理的 Tokio scheduler/worker service，注入 `ClockPort`，有界 channel、heartbeat、shutdown/restart fencing | service 只提交 ControlPlane command/claim，不直接调用 capability handler；单 worktree/单组合根 |
+| `kiana-capability-broker` / `kiana-runner` | 消费 prepared permit，回传 execution/stop/evidence；所有 attempt 使用 reservation 的 scope/epoch/fence | 不接受未提交 reservation、旧 fence、模型自造 request 或 wire caller 直接 execution |
+| `kiana-query` / UI adapters | 读取可重建的 queue/trigger/workflow/incident/receipt projections；显示 next action、原因、证据和 limitation | 查询和解释不消费 lease/approval，不生成事实，不阻塞 EventStore commit |
+
+### 32.8 详细实施步骤（AUT-01..AUT-24）
+
+下表是可直接分派给 agent 的最小可验证切片。每个 Step 完成前先跑“先拒绝”验收，再跑成功/回归验收；Step 不改变现有 P0–P6 编号，只补充本模块的实施顺序。
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝的验收 | 成功/回归验收 |
+|---|---|---|---|---|
+| `AUT-01` | 基线与迁移护栏；盘点 `module-map`、现有 automation tests、`CURRENT_STATUS`，记录旧 `watch_scheduled_tasks` 兼容边界 | — | 发现第二 scheduler、直接 capability 入口或旧事件无法区分时阻断 | 形成 source snapshot、缺口清单、fixture 命名和不提高 proof 的迁移说明 |
+| `AUT-02` | `ClockPort`、wall/monotonic、clock trust/rollback；`kiana-ports`、`kiana-domain` | AUT-01 | 回退、零/溢出、未可信 clock 不得延长 lease、approval、trigger expiry | fake clock 可重复驱动 timer、deadline、catch-up；跨重启保存 `ClockObservation` |
+| `AUT-03` | definition/version/digest、DAG/schema/role/project validation；`kiana-domain`、`kiana-workflow` | AUT-01 | cycle、missing dependency、unknown field、超步数/超时、未授权 role/project、原地覆盖已用版本全拒绝且 0 effect | 同输入产生稳定 digest；旧实例固定使用原 definition version；migration 有显式事件 |
+| `AUT-04` | TriggerDefinition、event envelope、occurrence key、approval/authority/policy 绑定；`kiana-domain`、`kiana-protocol` | AUT-02, AUT-03 | 伪造 source/event kind、重复 key、过期/超额/跨项目 trigger、event payload 超限均不创建 instance | Manual/Event/Interval 注册和 schema round-trip；event_ref 与证据一一对应 |
+| `AUT-05` | automation event envelope、aggregate stream、command dedup、CAS/cursor query；`kiana-eventlog`、`kiana-ports` | AUT-03, AUT-04 | 同 key 不同 digest/actor/epoch、revision race、torn tail、flush 未确认不得返回 committed | 多 scheduler 对同一 aggregate 只有一个 commit；分页/重放与全量结果一致 |
+| `AUT-06` | 纯 planner intent：ready nodes、wait、terminal、reservation、next queue item；`kiana-workflow` | AUT-03, AUT-05 | planner 触碰 I/O、随机、当前系统时间或产生越权 node/empty dependency 不通过 | 相同 history/clock snapshot 字节等价；planner replay 不重复已 committed effect |
+| `AUT-07` | WorkPacket 与 workflow queue 共用 claim/scope/budget/path-lock contract；`kiana-domain`、`kiana-core` | AUT-05, AUT-06 | 父 scope/预算缺失、并行超限、循环依赖、重复 claim、过期 packet 全拒绝 | `ready_packets`、queue ready view、parent-child intersection 一致；一个 item 只有一个有效 claim |
+| `AUT-08` | `WorkflowQueueStore`、lease/heartbeat/fence/reclaim；`kiana-eventlog`、`kiana-ports`、`kiana-core` | AUT-05, AUT-07 | 旧 fence/错误 owner/lease 回退、可能执行中的 lease 直接重领、heartbeat 越权均 0 dispatch | 两个 worker 竞争只一胜；安全过期 item 可重领；未知 effect 进入 recovery |
+| `AUT-09` | `DaemonHost` 内 Tokio scheduler/worker service、bounded channel、shutdown；`kiana-daemon` | AUT-02, AUT-08 | service 绕过 ControlPlane、无限 channel、入口自建模型 loop、关闭时丢 claim ack 均阻断 | fake clock/queue 驱动 tick→claim→command；优雅关闭能 flush/fence，重启不重复执行 |
+| `AUT-10` | Interval due/cursor/missed policy；`kiana-workflow`、`kiana-core` | AUT-02, AUT-04, AUT-09 | Skip/FireOnce/CatchUp 产生重复或无限 catch-up；`next_at` 与 occurrence 不一致拒绝 | 同一 `scheduled_at` 只一次；CatchUp 有固定批量和 incident；重启后 cursor 继续 |
+| `AUT-11` | Event/Webhook ingress、签名/source allowlist、dedupe、filter；`kiana-daemon`、`kiana-protocol` | AUT-04, AUT-05, AUT-09 | 未认证、错误签名、未知 schema、重放 event、跨项目 source、payload 注入均 0 broker calls | event→occurrence→Fire 可重放；payload 只按 input schema 映射，不直接成为 capability request |
+| `AUT-12` | Reject/Queue/Replace/Coalesce 精确定义与有界 pending index；`kiana-workflow` | AUT-07, AUT-10, AUT-11 | Replace 未 stop 就启动 successor、Coalesce 丢 occurrence digest、Queue 超上限无稳定错误均失败 | concurrency matrix 覆盖 active/terminal/race/restart；firing budget 精确结算 |
+| `AUT-13` | `Advance` ready-node、dependency、FanOut/FanIn/SubWorkflow planner；`kiana-workflow` | AUT-06, AUT-07 | fan-out 越过深度/子 scope/预算、fan-in 缺结果、子定义版本漂移不得 dispatch | 并行节点各有 execution/attempt；fan-in 输入顺序稳定；子实例可恢复 |
+| `AUT-14` | effect reservation、permit、action digest、authority/config/policy revision；`kiana-core`、`kiana-eventlog` | AUT-05, AUT-08, AUT-13 | 未 reservation、旧 epoch、scope/approval/budget/path drift、未知 execution ID 均 0 broker calls | reservation CAS 后可安全重取；一 reservation 只产生一个有效 attempt |
+| `AUT-15` | worker dispatch/observation 分离；把当前 inline dispatch 改成可重取 command；`kiana-core`、`kiana-daemon` | AUT-09, AUT-14 | commit 后崩溃、重复 worker、observation revision race 不得重复 effect 或伪造 success | execution/result facts 可重放；已知失败反馈结构化结果，提交不确定返回 Unknown |
+| `AUT-16` | retry classifier、attempt/lease/deadline、idempotent descriptor；`kiana-workflow`、`kiana-core` | AUT-14, AUT-15 | Unknown、effect receipt 缺失、审批过期、预算不足、非幂等 capability 禁止自动 retry | pure/no-dispatch 和明确幂等失败按 bounded policy 新建 attempt；每次 attempt 可审计 |
+| `AUT-17` | cancel generation、stop report、late result fence、result_unknown；`kiana-core`、`kiana-daemon` | AUT-08, AUT-15 | queued/claimed/running/unknown 各阶段取消不一致、late result resurrect、stop 未确认却标 cancelled 全失败 | 未启动项 `not_executed`；已启动项有 stop/effect evidence；Unknown 进入 recovery |
+| `AUT-18` | approval/signal pause-resume、single consume、checkpoint metadata；`kiana-core`、`kiana-runner` | AUT-14, AUT-17 | approver 越权、参数/path/epoch 变化、重复 signal/approval、UI 自带 context 全拒绝且不 dispatch | 重启后 owner/definition/action digest 匹配才恢复；signal 顺序和 dedupe 稳定 |
+| `AUT-19` | parent-child workflow/WorkPacket fan-out、depth/concurrency/TTL、fail-fast/fan-in；`kiana-workflow`、`kiana-core` | AUT-07, AUT-13, AUT-17 | 子 scope/预算/role 超父级、循环 parent、失败后未启动 child 仍执行全拒绝 | child result/evidence 按稳定顺序合并；parent 状态由事实唯一推导 |
+| `AUT-20` | compensation workflow、原实例引用和新授权；`kiana-workflow`、`kiana-core` | AUT-16, AUT-19 | 成功/Unknown 原实例被错误补偿、补偿复用旧 approval/lease、补偿越权全拒绝 | failed/cancelled 实例可显式选择 compensation；补偿独立 receipt 和 audit trail |
+| `AUT-21` | boot recovery、projection/index rebuild、reconcile case；`kiana-daemon`、`kiana-eventlog`、`kiana-core` | AUT-15, AUT-17, AUT-18 | journal/schema/cursor 损坏、stale lease、Unknown、旧 epoch 不得自动 resume/dispatch | 重启默认 Paused/NeedsRecovery；显式 reconcile/resume 后只执行新 commit |
+| `AUT-22` | scheduler/workflow/trigger snapshot、Receipt、incident query/UI adapter；`kiana-query`、`kiana-protocol` | AUT-05, AUT-21 | 查询消费 claim/approval、投影缺 source cursor、Receipt 将 business outcome 写成 runtime success 全失败 | 同 cursor/version 重算稳定；展示 due/blocked/unknown/reason/evidence/limitations |
+| `AUT-23` | 跨 CLI/Web/Workbench/Desktop/MCP 的同一 DaemonHost 端到端 UAT；entrypoints、daemon、core | AUT-09, AUT-11, AUT-18, AUT-22 | 入口分叉 loop、直接 broker、伪造 actor、跨项目 trigger、权限并集、TOCTOU 全矩阵 | manual/event/interval→workflow→effect→receipt；deny path 记录 0 broker calls |
+| `AUT-24` | durable/live 证据与发布门；scripts、fixtures、`CURRENT_STATUS.md` | AUT-01..AUT-23 | 只有类型/单测、内存 queue、未 flush journal、未对账 Unknown 不得宣称 durable/live | 每个切片有 source_snapshot/worktree/argv/env/fixture/exit/status/proof/limitations/reviewer；真实 provider 仅显式 opt-in |
+
+### 32.9 依赖批次和现有 roadmap 对接
+
+```text
+Wave A: AUT-01 → AUT-02 → AUT-03 → AUT-04 → AUT-05
+Wave B: AUT-06 ∥ AUT-07 → AUT-08
+Wave C: AUT-09 → AUT-10 ∥ AUT-11 → AUT-12
+Wave D: AUT-13 → AUT-14 → AUT-15
+Wave E: AUT-16 ∥ AUT-17 → AUT-18
+Wave F: AUT-19 → AUT-20 → AUT-21
+Wave G: AUT-22 → AUT-23 → AUT-24
+```
+
+与已有卡片的接点如下：`P1-D-01/02/03` 提供 WorkPacket ready/DAG/lease reclaim；`P2-J5-01` 提供 workflow definition/replay 的契约；`P4-K2-01` 提供 trigger 只能创建 Workflow/Run 的边界；`CP-24` 提供 ready_packets、claim、fan-out/fan-in、trigger/Workflow replay 和 parent-child scope 的控制面验收；`CP-27` 提供非阻塞存储、ClockPort、容量和故障注入要求；Event/Receipt/Recovery 专项提供 `Unknown`、reconcile、receipt 和重启 fencing 语义。若已有卡片与本节的 reservation/lease/fence 细节冲突，采用能证明“先事实后副作用、Unknown 不自动重试、权限取交集”的更严格合同，并在实施卡中记录冲突。
+
+### 32.10 最低验收矩阵和证据口径
+
+**先拒绝矩阵**至少覆盖：未信任项目、伪造 actor/role/source、错误 session/project、definition cycle/unknown field、过期/超额/禁用 trigger、重复或错误签名 event、clock rollback、同 key 不同 digest、revision/authority/policy drift、重复 claim/旧 fence、队列/occurrence/child 超限、scope/预算/path lock 超集、过期 approval、重复 signal、Unknown 自动 retry、cancel 未 stop 却 terminal、late result resurrect、fan-in 缺输入、损坏 journal、projection/index miss 和入口绕过 `DaemonHost`。每个拒绝都要证明没有 Broker/handler effect，并有稳定错误码和事件。
+
+**成功和恢复矩阵**至少覆盖：manual/event/interval 三种触发、Skip/FireOnce/CatchUp、四种 concurrency、两个 scheduler 竞争、多个 worker heartbeat/reclaim、DAG/fan-out/fan-in/sub-workflow、approval pause/resume、signal、known failure retry、cancel/stop、compensation、进程崩溃、journal flush、provider receipt 对账、Receipt 重算、CLI/Web/Workbench 共用同一 snapshot。没有 provider 可验证 receipt 的真实 effect 只登记 `local_behavior` 或 `durable` 的事实链，不宣称现实业务 outcome。
+
+每个 `AUT-*` 完成时都必须写入 `CURRENT_STATUS.md` 规定的证据块：
+
+```text
+source_snapshot / worktree_status / command_argv / cwd·environment /
+fixture·cassette / exit_code / status change / proof-level change /
+limitations / reviewer
+```
+
+`feature_status` 和 `proof_level` 分开填写；“有 `WorkflowDefinition`”“有 Tick 测试”“Receipt 存在”都不能单独把状态写成 implemented/durable/live。若发生 schema migration、事件兼容、索引重建或 recovery limitation，必须在 Receipt 和证据块中留下可查询的 limitation。此专项只新增设计与实施步骤，不改变当前实现状态账本。
+
+---
+
+<a id="persistence-data-layer-plan"></a>
+
+## 33. 持久化与数据层专项：实际设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本专项补全 [`module-map.md`](module-map.md) 第 8 模块，详细设计、参考调研、代码落点、拒绝优先验收和 `PD-00`–`PD-35` 实施卡见[独立专项文档](roadmap/persistence-data-layer.md)。本节只提供总路线图入口和执行摘要，不把当前 WIP 或参考项目能力写成已实现。
+
+### 33.1 设计结论
+
+持久化层采用单一事实源和可重建派生层：EventStore 保存 Runtime/Company facts 与 command receipt；Projector 生成 Run、Approval、Cell、Budget、Memory 和查询读模型；ArtifactStore 保存不可变字节和 manifest；Index/Cache 只提供可重建加速；Backup、Migration、Retention 和 Recovery 都围绕 source cursor、generation、schema/store format、authority epoch 和 data epoch 协作。现阶段保留 JSONL v2 作为事实账本，SQLite/WAL 仅作为投影或索引适配器，避免双写两套事实。
+
+### 33.2 统一处理顺序
+
+```text
+resolve StorageRoot/trust
+  → lock and capability/migration preflight
+  → scan facts and classify integrity state
+  → commit canonical transition (CAS/dedup/cursor)
+  → dispatch only after Committed/Replayed
+  → append result/artifact/effect settlement
+  → project with checkpoint and source_cursor
+  → query with freshness/generation/provenance
+  → backup/restore/migrate/retain through manifests and epochs
+```
+
+任何 `Unknown`、损坏中间帧、过期审批、旧 epoch、hash/identity 不匹配或恢复材料缺失都必须保持 fail-closed；Receipt、UI timeline、Memory、Index 和 cache 不能成为第二事实源。
+
+### 33.3 执行波次
+
+| 波次 | 步骤 | 结果 |
+|---|---|---|
+| A Contracts | `PD-00 → PD-01 ∥ PD-02 → PD-03 → PD-04` | StorageRoot、schema、错误/健康、公共端口 |
+| B Facts | `PD-05 → PD-06 → PD-07 → PD-08 → PD-09` | EventStore conformance、JSONL durability、cursor、完整性、projector |
+| C Authority | `PD-10 → PD-11 → PD-12 → PD-13` | Receipt、Cell/Budget/Lease、Approval、Pending/Checkpoint |
+| D Bytes/Query | `PD-14 → PD-15 → PD-16 ∥ PD-17 → PD-18 → PD-19 → PD-20 → PD-21` | Artifact、workspace、evidence、Memory、Index、cache |
+| E Operations | `PD-22 → PD-23 → PD-24 → PD-25 → PD-26` | backup/restore、migration、retention、删除传播 |
+| F Hardening | `PD-27 ∥ PD-28 → PD-29 → PD-30 → PD-31 → PD-32 → PD-33 → PD-34 → PD-35` | 并发、安全、health、故障注入、adapter、平台、UAT、发布证据 |
+
+这些编号是追加专项的局部索引，不重排既有 P0–P6 和历史全量 step 编号。每个 PD 完成前先覆盖 deny、越权、损坏、重放、TOCTOU、恢复和 `result_unknown`，再验证成功路径，并在 `CURRENT_STATUS.md` 写入 source snapshot、命令、fixture、退出码、状态/证明等级和限制。
+
+---
+
+<a id="notification-messaging-design"></a>
+
+## 34. 通知与消息：实际代码设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本专项补全 [`module-map.md`](module-map.md) 的第 14 模块。它把“通信与问责”（`P1-E-01`/`P1-E-02`）和“通知投递、人类收件箱、实时事件桥”（`P2-K3-01`、`P2-M2-01`、`P2-M3-01`、`P4-E-03`、`P4-M6-01`）接成一条可实现的代码路线。新增 `NM-*` 是本专项局部编号，不改变既有 P0–P6 或历史 step 编号，也不把当前 WIP 或参考项目能力写成已交付能力。
+>
+> 当前事实仍以 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 和源码为准：`kiana-daemon/src/run_stream.rs` 已有按 run 的进程内 broadcast、epoch/sequence、有限 terminal replay 和 committed-event 投影；`kiana-protocol` 已有 `RunStreamEnvelope`/`RunStreamEvent`；`kiana-core` 已能把 Approval、Company 和 Recovery 事实拼成 `HumanInboxItem`。这些都是展示或局部投影，尚无独立的 durable 通知收件箱、订阅存储、投递 outbox、已读状态和外部通道证明。
+
+### 34.1 设计结论：四条链必须分开
+
+“消息”“通知”“实时流”“业务动作”不能共用一个模糊对象。它们的事实来源、可靠性和权限不同：
+
+| 对象 | 回答的问题 | 权威来源 | 可靠性/权限边界 |
+|---|---|---|---|
+| `ConversationMessage` | 这次模型请求看到了什么上下文 | RunSnapshot/历史折叠 | 只服务 Harness；不构成跨部门通信，也不能授予权限 |
+| `CommunicationMessage` | 哪个主体向哪个责任主体提交了什么 Chat/Command/Handoff/Decision/StatusReport/Evidence/Incident | ControlPlane 提交的 `RuntimeEvent` | 是业务通信事实；必须有 sender/recipient/scope/causation；普通 Chat 永不变成授权 |
+| `Notification` | 某个主体应该看到哪一条已提交事实、严重程度和下一步动作 | EventLog 事件经 `NotificationProjector` 的投影 | 是可重建的投递视图；客户端不能通过它改写业务状态 |
+| `DeliveryAttempt` | 某个 channel 是否接受、送达或确认了通知 | Notification outbox/投递事实 | 是副作用账本；ACK 只证明 channel/客户端收到，不证明业务动作已应用 |
+| `RunStream` | 当前 run 的增量和终态如何低延迟显示 | committed event + runner delta | delta 可丢；terminal、approval、incident 和 receipt 必须能查询补回 |
+
+通知实现不应建设一个可以独立发布任意消息的第二事件总线。正确边界是：EventLog 是唯一事实源，通知存储是带 `source_cursor` 的可重建投影，outbox 只负责投递生命周期，UI 只提交带版本和幂等键的 ControlPlane 命令。
+
+### 34.2 消息类型与责任状态
+
+`CommunicationMessage` 的最小合同如下；正文应优先使用 Artifact/引用，界面预览只保留经过脱敏和长度限制的摘要：
+
+```text
+CommunicationMessage {
+  message_id
+  message_type          // chat | command | handoff | decision |
+                        // status_report | evidence | incident
+  sender_principal_id
+  recipient_principal_id?   // handoff 必须恰好一个；禁止隐式广播
+  organization_id
+  project_id?
+  work_packet_id?
+  cell_id?
+  run_id?
+  reply_to_message_id?
+  causation_event_id?
+  body_ref?             // Artifact/内容引用
+  redacted_preview?
+  schema_version
+  authority_epoch
+  data_classification
+  idempotency_key
+  created_at
+  expires_at?
+}
+```
+
+消息类型的语义固定如下：
+
+| 类型 | 允许做什么 | 不允许推断什么 |
+|---|---|---|
+| `Chat` | 讨论、澄清、建议；可落账供审计 | 不产生 Grant、Approval、状态转移或责任转移 |
+| `Command` | 作为 ControlPlane 命令的输入意图 | 消息文本不是已执行命令；必须重新验权、验版本、验幂等键 |
+| `Handoff` | 向具名 recipient 交接 frozen WorkPacket/责任 | 发出不等于接收；recipient ACK 前原 owner 仍负责，拒绝 ACK 不得启动 |
+| `Decision` | 引用具名 authority、criteria 和 evidence 的决定 | 普通 agent 文本、投票或“大家同意”不能改变业务状态 |
+| `StatusReport` | 更新进度、阻塞、预算和下一步 | 进度百分比、沉默或一条普通消息不等于完成/验收 |
+| `Evidence` | 提交可验证的 artifact、receipt、测试和 revision 引用 | 模型自报、stdout 文字或空测试结果不能成为证据 |
+| `Incident` | 触发隔离、升级、Recovery/Reconciliation | 事故通知本身不自动批准、重试、关闭或清除 Unknown |
+
+Handoff 的责任状态由 ControlPlane 维护：`proposed → submitted → acknowledged / rejected / expired`；ACK 之后才允许接收方进入执行。通知的状态（sent/read/acked）不能替代该状态。所有消息正文进入模型上下文时必须经过 target run 的 scope、purpose 和预算检查，不能共享父 transcript 或建立自由 `SendMessage` 总线。
+
+### 34.3 通知合同、Human Inbox 和 action 引用
+
+```text
+Notification {
+  notification_id
+  source_event_id
+  source_cursor
+  aggregate_type / aggregate_id?
+  organization_id / project_id? / work_packet_id? / cell_id? / run_id?
+  recipient_principal_id
+  category       // approval | task | handoff | meeting | decision | status |
+                 // evidence | incident | reminder | reconciliation
+  severity       // critical | high | medium | low
+  title
+  redacted_summary
+  payload_digest
+  action_refs[]  // server-generated command/action IDs, not executable code
+  due_at?
+  expires_at?
+  dedup_key
+  template_version
+  subscription_revision
+  data_classification
+  state          // unread | read | expired | withdrawn | superseded
+  created_at
+}
+
+NotificationSubscription {
+  subscription_id
+  owner_principal_id
+  scope                  // principal/project/session/run, server-derived
+  category_filter[]
+  minimum_severity
+  channel_bindings[]
+  digest_policy
+  quiet_hours?
+  revision
+  authority_epoch
+  expires_at?
+}
+
+DeliveryAttempt {
+  attempt_id
+  notification_id
+  channel
+  attempt_no
+  delivery_key
+  lease_id / fence
+  status       // pending | claimed | submitted | delivered | acknowledged |
+               // failed | expired | result_unknown | dead_letter
+  provider_receipt?
+  error_code?
+  next_attempt_at?
+  source_cursor
+}
+```
+
+`HumanTask` 继续是 Approval、Review、Acceptance、Escalation 和 Reconciliation 的投影视图，不能另造一套审批状态。通知 action 只携带 `action_ref`、目标版本、payload digest、允许的命令名和所需字段；用户点击后回到原 ControlPlane 命令，重新检查 actor、project/session ownership、authority epoch、policy/gate、criteria revision、approval expiry 和 idempotency key。`read`、`acknowledge`、`snooze`、`escalate`、`delegate`、`withdraw` 只改变收件箱投影或追加治理事实，永远不直接批准副作用。
+
+`HumanTask` 的动作状态与通知投递状态必须同时展示但不能合并：
+
+```text
+notification: unread → read → acknowledged (可选)
+delivery:     pending → claimed → submitted → delivered/acknowledged
+action:       offered → submitted → applied / failed / result_unknown
+```
+
+仅 `action.applied` 才表示原命令已被 ControlPlane 接受并完成相应事实转移；channel ACK、浏览器已读、桌面 toast 展示和消息回复都不具备该含义。
+
+### 34.4 从事实到通知的处理流程
+
+事件捕获、分类、投递和用户动作按下面顺序运行。提交顺序很重要：先保证事实和投影存在，再允许任何客户端看到“需要行动”。
+
+```text
+ControlPlane command / Runner result / Company transition
+  → validate typed message or terminal fact
+  → append RuntimeEvent with CAS, authority, causation and idempotency
+  → EventStore returns Committed(source_cursor)
+  → NotificationProjector consumes committed cursor (observer only wakes it)
+  → classify event → recipient/scope/severity/template/action refs
+  → persist Notification + outbox row + projector checkpoint atomically
+  → DeliveryWorker claims outbox with lease/fence
+  → channel adapter sends bounded redacted envelope with delivery_key
+  → record submitted/delivered/acknowledged or result_unknown
+  → emit committed delivery fact / update derived delivery projection
+  → UI hydrates snapshot then applies cursor-ordered events
+  → user action returns to ControlPlane with expected revision + idempotency key
+  → append action result, wake original wait key, derive follow-up notification
+```
+
+`NotificationProjector` 必须同时支持扫描和提交后唤醒：提交 observer 丢失、daemon 重启或 projector 暂停时，从最后一个 durable `source_cursor` 继续扫描；不能依赖内存 callback 保证不丢。每个事件只按 `(source_event_id, recipient_principal_id, channel_policy_revision, template_version)` 生成一次 intent。若同一 dedup key 的 payload digest 不同，返回 `notification_dedup_conflict` 并暂停该 intent，不能静默覆盖旧通知。
+
+通知规则首批至少覆盖：
+
+| 来源事实 | 默认类别/严重度 | 默认收件人和动作 |
+|---|---|---|
+| `approval.requested` | `approval/critical` | server-derived approver；approve/deny/cancel action |
+| `run.failed`、`run.result_unknown`、`capability.result_unknown` | `incident` 或 `reconciliation/high` | owner/Closer/Sponsor；inspect/reconcile/recover |
+| `run.finished`、`run.completed` | `task/medium` | run owner；open receipt/review |
+| `handoff.submitted`、`handoff.acknowledged/rejected` | `handoff/high` | 具名 recipient/original owner；ACK/inspect |
+| Symposium/Meeting `symposium.invited`、`agenda.changed`、`meeting.started` | `meeting/high` | server-derived attendee；open agenda/参加/回执；不得让 Builder 越过参会边界 |
+| `status_report.recorded`、`evidence.ready` | `status/evidence/medium` | packet owner/Reviewer；open evidence/review |
+| Symposium/Company `decision.recorded` | `decision/high` | 受影响 owner/下一责任人；open decision/continue |
+| lease expiry、workflow wait、deadline reminder | `reminder/low..high` | 当前责任人；renew/escalate/inspect |
+
+Critical（审批、Unknown、安全事故、发布阻断）必须保留在 durable Human Inbox，并提供查询兜底；Medium/Low 可以按订阅的 digest/quiet-hours 合并，但合并必须保留全部 `source_event_id[]`、最早 due time 和每个 action ref。不能对所有 RuntimeEvent 无差别 fan-out。
+
+### 34.5 实时、订阅和恢复语义
+
+实时传输分为 durable inbox 与 ephemeral run stream 两条 lane：
+
+1. 页面打开先以认证主体调用 snapshot/tail 查询，拿到 `source_cursor`、`projection_version`、`epoch` 和最近 N 条通知；随后再挂载订阅，或先挂载订阅再加载 snapshot 并合并 hydration 期间事件。实现必须保证两者之间的窗口不会丢事件。
+2. 增量使用服务端 `source_cursor`/`event_id`/`sequence`，不能以客户端 timestamp 排序。相同事件按 event ID 去重；重放只更新投影，不重复创建通知、未读计数、toast 或外部发送副作用。
+3. 订阅 envelope 至少带 `schema`、`epoch`、`source_cursor`、`notification_id`、`event_id`、`scope` 和 redacted payload。`run_stream` 的 delta 仍允许丢失；Terminal、ApprovalRequested、Incident 和 `run.finished` 必须由查询或回放补回。
+4. 出现 cursor gap、broadcast lag、projection lag、epoch 变化、旧 socket 的迟到事件或 projection checksum 不一致时，客户端丢弃不完整增量，标记 `syncing/stale`，重新 hydrate；不能把 gap 当成“没有通知”。
+5. SSE/WS/本地订阅状态区分 `connecting → syncing → live → stale → offline → incompatible`；断线重连使用 1 秒起、30 秒封顶、带抖动的退避，旧连接关闭不能覆盖新连接。断线不等于 cancel，窗口关闭也不隐式 resume/cancel。
+6. `run.finished` 是唯一终局投影，至少含 `run_id/status/error/cancelled/final_assistant_text/receipt_ref`，由 ControlPlane 在持久终态事实之后生成且每个 run 恰好一次。现有 `RunStreamEvent::Terminal` 作为兼容 wire 投影，三种界面都以匹配 `run_id` 的终局信封对账结束。
+
+### 34.6 投递、失败、取消和安全边界
+
+默认投递语义是 at-least-once + receiver idempotency。每次发送前先持久化 `claimed`，发送使用稳定 `delivery_key`；得到明确的 channel receipt 后再记录 `delivered/acknowledged`。发送超时、断线、provider 返回不完整或“已发出但 delivery fact 写入失败”都只能标记 `result_unknown`，冻结该 attempt 并进入 reconciliation，不能盲目重试造成重复通知或重复动作。只有在确认尚未交给 channel 的本地失败（例如连接尚未建立、校验在发送前失败）时才允许按 bounded policy 重试。
+
+取消和撤销也不能伪造成功：取消订阅只阻止后续投递，不撤销已经提交的业务事实；正在发送的通知无法确认是否到达时保留 `result_unknown`；撤销 assignment/authority epoch 后，未发送 outbox 失效，已发送记录仍可审计。过期通知追加 `notification.expired`，不删除原事件；撤回或 supersede 追加新事实，不能覆盖历史。
+
+所有通道都复用现有 redaction、DataBoundary、ProjectTrust、Principal/assignment 和 authority epoch：
+
+- in-app/Human Inbox 只查询服务端根据 principal 派生的范围；客户端传入的 owner/project/recipient/filter 只能收窄，不能扩大；
+- 通知正文限制大小、字段和嵌套深度，secret、token、环境变量、原始 stdout/stderr、未脱敏 prompt 和外部账户凭据只允许 opaque ref/digest；
+- `action_refs` 不能包含可执行脚本、任意 URL 或隐式 capability；点击 action 必须走已注册的 `CommandRequest`/HumanTask action；
+- CLI/TTY、Web、Desktop 先实现本地/in-process、SSE 或既有 run stream；Email、Slack、HTTP webhook、A2A push 等外部投递只能作为 Connector 适配器的后续目标，在认证、allowlist、签名、nonce、超时、幂等和对账完成前保持 `not_supported`；
+- webhook 若未来启用，配置必须绑定 `ProviderAccount/ConnectorBinding` 和 project scope，使用 URL allowlist/SSRF 防护、HMAC/JWT/mTLS、timestamp+nonce、防重放、2xx ACK、退避、dead-letter 和删除幂等，绝不从通知正文推断权限。
+
+### 34.7 参考项目取舍与 Kiana 映射
+
+| 参考来源 | 吸收的设计 | Kiana 适配/限制 |
+|---|---|---|
+| [统一 Agent 流程审计](reference-agent-audit/00-unified-agent-flow.md)、[DeepSeek Harness](reference-agent-audit/02-deepseek-harness.md)、[ADK Python](reference-agent-audit/16-adk-python.md)、[Goose](reference-agent-audit/07-goose.md) | append/commit 后才通知；non-partial 事件先持久化；inbox claim/ACK 可恢复；effect-before-event | `NotificationProjector` 只消费 committed cursor；partial delta 不改变 durable inbox；未知状态先对账 |
+| [OpenCode](reference-agent-audit/08-opencode.md) | event projector 同时驱动持久化和 SSE；eager subscribe、heartbeat、disposed；per-session 串行 runner | projector 是事实投影而非 authority；订阅丢失可从 cursor 扫描，不能由 SSE 代替 EventLog |
+| [OpenHands](reference-agent-audit/06-openhands.md) | REST 历史 + since 增量、事件 ID 去重、1–30 秒退避、旧 socket 隔离 | 使用 server sequence/cursor/epoch，不采用其 timestamp 排序或前端 metadata 作为权限 |
+| [Crush](reference-agent-audit/11-crush.md) | RunID/terminal RunComplete、服务器先订阅再 POST、Flush 后发 terminal、queued/active cancel 区分 | terminal/approval/incident 必达并可 query；协作式 cancel 不等于 effect 已停止 |
+| [Codex](reference-agent-audit/01-codex.md)、[Agent Framework](reference-agent-audit/15-agent-framework.md)、[Agno](reference-agent-audit/21-agno.md)、[Letta](reference-agent-audit/25-letta-code.md) | ServerRequest/notification 区分；可序列化 approval/requirement；OTID/run/seq、过期审批协调、重连恢复 | Approval/HumanTask 状态仍由 ControlPlane；不采用进程内 approval/snapshot 作为 durable 证据 |
+| [Cline](reference-agent-audit/05-cline.md)、[Roo Code](reference-agent-audit/10-roo-code.md)、[Pi](reference-agent-audit/12-pi.md) | seq/epoch、UI/model history 分离、悬空工具补齐、流式与完整状态双通道 | 通知 action 不写入模型 transcript；完整状态从 EventLog/Receipt 重建 |
+| [A2A](../reference/a2a/docs/topics/life-of-a-task.md)（仅字段/状态形状） | Message 与 Task 分离、snapshot-first、cursor stream、多订阅、at-least-once webhook、ACK/receipt 区分 | 不启用远程 transport、push notification 或 streaming；关键结果使用 Receipt/Artifact 查询兜底 |
+| [ECC unified-notifications-ops](../reference/ECC/skills/unified-notifications-ops/SKILL.md)（目录级技能参考） | Capture→Classify→Route→Collapse→Attach action；severity、owner、primary/fallback、digest-first | 规则由服务端版本化；不得对所有事件广播；critical/Unknown 不能被 digest 隐藏 |
+| [CompanyOS 设计](company-os-design.md)、[运行治理](company-os-operations-governance.md) | HumanTask 只做 Approval/Review/Acceptance/Incident 投影；owner、due/expiry、authority epoch、reconciliation 和 escalation 有明确状态机 | 通知只呈现治理事实；ACK/read/snooze 不改变 Approval authority；过期、撤销和 Unknown 追加事实并可对账 |
+| MetaGPT、ChatDev、12-factor-agents | 结构化 sender/recipient、human input、stream end marker 的形状 | 不采用内存 Map、未认证 webhook、共享 ChatChain、无 cursor 重放或模型文本授权 |
+| AutoGen、CrewAI、Agency Swarm | 编排/事件/流状态分离、checkpoint 和流 reconciliation | runtime subscription/checkpoint 失败不能吞掉；不引入自由消息总线或 SDK 外部权限中心 |
+
+### 34.8 代码落点与依赖关系
+
+| 层 | 代码职责 | 计划落点 |
+|---|---|---|
+| Domain | `CommunicationMessage`、`Notification`、`NotificationSubscription`、`DeliveryAttempt`、severity/category/state、dedup/TTL/value bounds | `kiana-domain/src/notifications.rs`、`messages.rs`、`contracts.rs` |
+| Ports | Event cursor reader、NotificationStore、SubscriptionStore、DeliveryChannel、Clock、Receipt/Reconciliation 接口 | `kiana-ports/src/notifications.rs`（或等价 module） |
+| Core | typed message command、recipient/scope resolver、event classifier、action authority、HumanTask/notification projection、epoch/revocation | `kiana-core/src/notifications.rs`、`platform.rs`、`events.rs`、`recovery.rs` |
+| EventLog/Data | source cursor/checkpoint、notification projection/outbox 原子写、attempt lease/fence、rebuild、retention | `kiana-eventlog/src/notifications.rs`，复用 PD-05..PD-13 的 store/transaction 原语 |
+| Daemon | committed-event wake adapter、DeliveryWorker、in-process channel、run stream bridge、shutdown/drain | `kiana-daemon/src/notification_projector.rs`、`notification_worker.rs`、`run_stream.rs` |
+| Protocol/Client | snapshot/page/subscription envelope、action/read/ack DTO、epoch/cursor/gap/error codes | `kiana-protocol/src/lib.rs`、`kiana-client/src/lib.rs` |
+| Entrypoints | CLI/TTY inbox 与 ACK、Web REST+SSE hydrate/reconnect、Desktop OS notification permission | `kiana-entrypoints/src/cli.rs`、`workbench_chat.rs`、`web.rs`、`contrib/desktop/` |
+| Connector（后续） | webhook/email/chat/外部推送认证、allowlist、provider receipt/reconcile | 复用 `kiana-daemon/src/connectors.rs`；未满足安全合同前保持 `not_supported` |
+
+端口应把“读投影”“写治理动作”“产生外部投递”拆成不同接口，避免一个宽泛的 `send_notification` 同时拥有查询、授权和副作用权限。实现可以按下面的 Rust 形状落地；具体存储类型由 `PD-*` 决定：
+
+```rust
+trait NotificationStore {
+    async fn page(
+        &self,
+        principal: PrincipalId,
+        scope: NotificationScope,
+        after: SourceCursor,
+        limit: NonZeroUsize,
+    ) -> Result<NotificationPage, NotificationReadError>;
+
+    async fn apply_read_state(
+        &self,
+        principal: PrincipalId,
+        notification_id: NotificationId,
+        expected_revision: ProjectionRevision,
+        action: ReadStateAction,
+        idempotency_key: IdempotencyKey,
+    ) -> Result<ReadStateReceipt, NotificationWriteError>;
+}
+
+trait NotificationProjector {
+    async fn project_committed(
+        &self,
+        event: CommittedRuntimeEvent,
+    ) -> Result<ProjectedNotifications, ProjectionError>;
+}
+
+trait DeliveryChannel {
+    async fn submit(
+        &self,
+        envelope: RedactedNotificationEnvelope,
+        delivery_key: DeliveryKey,
+    ) -> Result<ChannelReceipt, ChannelError>;
+}
+```
+
+`NotificationProjector::project_committed` 必须在同一投影事务中写入通知、outbox intent 和 checkpoint；`DeliveryChannel::submit` 只接受已 claim 的 intent，不能调用 `ControlPlane` 或 Broker。所有入口的 `page` 与 `apply_read_state` 都由 DaemonHost 注入主体和服务端 scope，不能让客户端直接构造 `PrincipalId`、recipient 或 channel。
+
+### 34.9 详细实施步骤（NM-00–NM-22）
+
+每一步都执行“先拒绝、再成功、最后回归”。下表的测试名是验收目标，不表示当前已经存在或通过；完成后必须在 `CURRENT_STATUS.md` 写 `source_snapshot / worktree_status / command_argv / cwd·environment / fixture·cassette / exit_code / status change / proof-level change / limitations / reviewer`。
+
+| Step | 代码与交付物 | 依赖 | 先拒绝的验收 | 成功与回归验收 |
+|---|---|---|---|---|
+| `NM-00` | 现状/事件种类/入口 inventory；`run_stream.rs`、`platform.rs`、`web.rs`、`workbench_chat.rs`、`CURRENT_STATUS.md` | — | 证明当前没有 durable notification bus/read state；列出任何把 transcript/UI event 当事实的路径 | 产出 event→recipient→channel matrix、owner、proof ceiling 和迁移清单，不改历史证据 |
+| `NM-01` | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | NM-00 | unknown kind/schema、空 recipient、scope 超集、超长正文、错误 TTL、secret in `Debug/Serialize` fail-closed | serde/canonical bytes、状态转移、兼容 upcast、bounded value 和 digest 测试 |
+| `NM-02` | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | NM-01、P1-E-01 | Chat/StatusReport/Evidence 文本不能授予 Grant；Handoff 无 recipient、ACK 前 dispatch、Command 伪造 actor/role 全拒绝 | 定向 Handoff ACK/reject、Decision authority/evidence、Incident escalation 均写 committed facts；不进入共享 transcript |
+| `NM-03` | Event kind registry 与分类规则；`kiana-domain/contracts.rs`、`kiana-core/events.rs` | NM-01、ER-01 | 未注册事件、伪造 source event、模型/UI 自报 approval/completion、无 owner 的 critical event 拒绝投影 | approval/run terminal/unknown/handoff/status/evidence/incident/reminder 映射确定且可版本化 |
+| `NM-04` | `NotificationProjector` + source cursor/checkpoint；`kiana-eventlog`/`kiana-core` | NM-03、PD-05..PD-09 | projector 读空、cursor 回退、gap、checksum 错误、pre-commit observer 不能产生通知 | committed-only、分页扫描、重启从 cursor 补齐、同一事件重放字节等价；observer 仅作 wake hint |
+| `NM-05` | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | NM-01、NM-04、CI-05 | 客户端 owner/project/recipient/filter 扩权、跨项目、revoked/expired epoch、未信任项目、role 自报全拒绝且无投递 | 同一主体三入口得到相同可见集合；订阅只能收窄服务端最大 scope，revision/expiry 可重建 |
+| `NM-06` | Notification materializer 与 HumanTask bridge；`kiana-core/platform.rs`、`kiana-domain/platform.rs` | NM-04、NM-05、P2-K3-01 | approval/review/acceptance/incident/reconciliation 缺 source/event/evidence/due 或错误 decider 不可见 | 每个可行动事实有 redacted summary、action refs、due/expiry、source cursor；HumanTask 权威状态仍来自原对象 |
+| `NM-07` | dedup/idempotency/OCC；dedup key、content hash、subscription revision | NM-04、NM-05 | 同 key 不同 digest、重复 claim、旧 revision、重放/多进程竞争不能多发或覆盖 | at-least-once 输入折叠为一次 intent；重复请求返回原 notification/receipt；并发 CAS 只有一个赢家 |
+| `NM-08` | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | NM-06、NM-07、PD-10..PD-13 | outbox claim 后 crash、lease 过期、revoked subscription、队列超限不能丢 critical/terminal/approval，也不能重复动作 | pending→claimed→submitted→ack/failed/unknown 可重建；重启继续安全处理，best-effort 丢弃有理由和计数 |
+| `NM-09` | in-process/in-app channel；NotificationStore query/page | NM-06、NM-08 | 越权查询、无限 page、projection unavailable 当空、已读当批准、删除历史事实全拒绝 | `list/mark_read/ack` 只写投影/治理事实；empty 与 unavailable 区分；同 cursor 重算一致 |
+| `NM-10` | action refs 与 HumanTask action command；审批、ACK、review、reconcile、snooze/escalate/delegate/withdraw | NM-06、NM-09、CP-18/19 | stale target、wrong decider、payload/criteria/epoch drift、double consume、read/ACK 伪造 approval、未知 action 全拒绝且 zero broker effect | action 提交回原 ControlPlane；一次决定唤醒一个 wait key；Applied/Failed/Unknown 与 delivery ACK 分开 |
+| `NM-11` | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | NM-09、NM-10 | 客户端时间/预选按钮/沉默改变优先级或批准；snooze 隐藏 critical/Unknown；排序泄露他人范围 | urgency→due→source sequence 确定排序；已读跨重启保留；关键项始终可查询 |
+| `NM-12` | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | NM-04、NM-09、P2-K7-01 | 删除只删 UI/cache、retention 越权、withdraw 覆盖历史、payload ref 与 audit metadata 混淆 | source cursor 重建同一未读/状态；过期/撤回只追加事实；数据 epoch 传播到摘要、artifact、index、cache |
+| `NM-13` | run stream/notification bridge；snapshot-first、after cursor、epoch、gap、heartbeat/disposed | NM-04、NM-08、UI-17/18 | lagged/old epoch/foreign run/late socket、delta gap 被当 completed、terminal 丢失无告警 | 先订阅再 hydrate（或保留合并窗口）；按 ID 去重；`run.finished`/approval/incident 可 query 回放；delta 仍是易失展示 |
+| `NM-14` | CLI/TTY inbox 与运行状态；`cli.rs`、`workbench_chat.rs` | NM-09、NM-10、NM-13、UI-12/15 | `/approve` 伪造 scope、读已读即消费、错 session action、连接断开隐式 cancel/resume 全拒绝 | `/inbox`、`/approvals`、ACK/decision、retry/reconcile 共用协议；多会话徽标按服务端 projection 渲染 |
+| `NM-15` | Web REST snapshot/page + SSE；`web.rs`/`kiana-client` | NM-09、NM-10、NM-13、UI-16/17/18/19/21 | wrong Host/Origin/bearer、cross-session/project、旧 cursor、无限 body、旧 socket 覆盖新状态全拒绝 | loopback-only；snapshot + after cursor hydrate、1–30 秒退避、connection/auth/conversation 错误分层；跨 tab action CAS 一致 |
+| `NM-16` | Desktop local notification adapter；OS permission、tray、close/detach | NM-15、UI-24/25/26/27 | OS toast 泄露 private payload、托盘越权 command、close 隐式 resume/cancel、无权限仍声称 delivered | 仅 redacted title/summary；系统拒绝权限不影响 durable inbox；reopen 后从 cursor/receipt 恢复 |
+| `NM-17` | severity/digest/reminder/escalation；primary/fallback、quiet hours、deadline | NM-06、NM-11、K3/CO-39 | digest 吞 critical/Unknown、模型自报恢复、重复提醒风暴、自动 approve/retry/close 全拒绝 | high/critical 立即/同日提醒，medium digest，low 可抑制；每次折叠带 source IDs、owner、next action 和 escalation 事实 |
+| `NM-18` | cancellation/revocation/expiry/reconciliation；`recovery.rs`、`connectors.rs` | NM-08、NM-10、P2-K6-01 | cancel_requested 写成 delivered、in-flight 到达未知却重发、authority revoke 后继续发送、Unknown 自动 retry 全拒绝 | known pre-send failure bounded retry；send/ack 不确定进入 dead-letter/reconcile；新授权和新 delivery key 才能重试 |
+| `NM-19` | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | NM-08、NM-18、P4-K8-01 | HTTP/A2A push、任意 URL、SSRF、无 auth/重放/超时/幂等、外部 ACK 伪造应用全拒绝 | fake connector 只验证 envelope/receipt/reconcile；真实外部通道仅显式 opt-in，未验收保持 `not_supported` |
+| `NM-20` | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | NM-04、NM-08、NM-13、NM-18 | duplicate/out-of-order/gap、crash windows、slow consumer、queue full、disk full、secret sentinel、projection loss 不得丢关键事实或产生 effect | bounded queue/backpressure、checkpoint/rebuild、redaction、lease reclaim、multi-subscriber isolation、critical delivery query fallback |
+| `NM-21` | 跨入口 E2E 与消息/通知/动作对账；CLI/TTY/Web/Desktop、fake model/provider | NM-14、NM-15、NM-16、NM-20、CO-39/40/41 | 不同入口各自 bus/loop、一个入口已读影响另一个权限、消息文本改变 run、terminal/approval/incident 丢失全阻断 | 同一 EventLog/source cursor 在四入口产生同一 inbox/action/result；fresh process 重建未读、pending、delivery 和 terminal |
+| `NM-22` | 发布门、证据和 `CURRENT_STATUS` 回填；feature/proof 分离 | NM-01..NM-21、ER/PD/UI 相关门 | 只有类型/单测/内存 broadcast/一次 toast 不能宣称 durable/live；unknown、audit 写失败或 scope 不确定阻断发布 | 每步有拒绝+成功+恢复证据；in-app/run stream 可按实际 proof 标记，外部 push 只有独立 live 证据才能提升 |
+
+### 34.10 依赖批次
+
+```text
+Wave A — Contracts:     NM-00 → NM-01 → NM-02 → NM-03
+Wave B — Projection:     NM-04 → NM-05 → NM-06 → NM-07
+Wave C — Delivery:       NM-08 → NM-09 → NM-10 → NM-11
+Wave D — Durability:     NM-12 ∥ NM-13 → NM-17 → NM-18
+Wave E — Surfaces:       NM-14 ∥ NM-15 → NM-16
+Wave F — External/UAT:   NM-19 → NM-20 → NM-21 → NM-22
+```
+
+与已有路线的接点：`P1-E-01` 提供七类通信语义；`P1-E-02`/`P4-E-03` 提供 Symposium/Decision 事实；`P0-F-02`、`P2-K3-01` 和 `CO-39` 提供 HumanTask/Approval 投影；`ER-06..ER-18` 提供 commit observer、terminal 和 Unknown 语义；`PD-05..PD-13` 提供 cursor、checkpoint、lease 和原子投影；`UI-17..UI-21` 提供 Web hydration/SSE/Human Inbox；`UI-26` 提供 Desktop 仅展示的 OS notification；`P4-K8-01` 之后才允许评估外部 Connector。任何步骤都不得把 `RunStreamBus` 升格为事实源，也不得把通知 worker 变成第二 Agent loop 或权限中心。
+
+### 34.11 最低验收矩阵
+
+| ID | 场景 | 必须断言 |
+|---|---|---|
+| `MSG-01` | 七类消息边界 | Chat/StatusReport/Evidence/Incident 不授予权限；Command/Handoff/Decision 必须回 ControlPlane；Handoff 未 ACK 不派发 |
+| `NTF-01` | 事件到通知 | 只有 committed EventLog 产生通知；pre-commit/未注册/伪造 source 不可见；projector 可从 cursor 重建 |
+| `NTF-02` | scope/recipient | 错 principal、project、session、role、epoch、subscription scope 超集全部拒绝，Broker/handler effect 为零 |
+| `NTF-03` | dedup/replay | 相同 event/recipient/policy 只产生一个 intent；同 key 不同 digest 报 conflict；乱序重放不重复 toast/unread/delivery |
+| `DEL-01` | outbox/lease | claim、crash、lease reclaim、shutdown、queue full 不丢 critical/terminal/approval；只有一个有效 sender |
+| `DEL-02` | delivery Unknown | timeout、late ACK、写 receipt 失败、断线不能标 delivered；进入 `result_unknown`/reconcile，禁止盲重试 |
+| `INBOX-01` | HumanTask/read state | read/ACK/snooze/delegate 不等于 approve；stale target、wrong decider、double consume 被拒；重启可重建 pending/read |
+| `ACT-01` | action command | action ref 过期、digest/criteria/authority drift、未知命令、客户端伪造 owner 全拒绝且无 effect |
+| `STREAM-01` | 实时桥 | snapshot+cursor hydrate、gap/lag/epoch、旧 socket、heartbeat/disposed、重连退避均可证明；delta 丢失不伪造完成 |
+| `TERM-01` | 终局信封 | 每个 run 恰好一个匹配 `run.finished`/Terminal；最终文本与 Receipt 对账；缺终态返回 unavailable/Unknown，不自动完成 |
+| `PRIV-01` | 脱敏/保留 | secret/prompt/raw output/foreign project 不进入通知、digest、toast、SSE、webhook、error；withdraw/retention 不删除原事实 |
+| `EXT-01` | 外部通道 | 未认证、非 allowlist、重放、非 2xx、SSRF、provider receipt 缺失保持 `not_supported`/Unknown；无外部副作用 |
+| `E2E-01` | 四入口一致性 | CLI/TTY/Web/Desktop 只能投影同一 EventLog/Notification snapshot；入口断开、重启、多 tab 不产生第二 bus 或权限并集 |
+
+### 34.12 当前状态与限制声明
+
+本专项追加的是设计和实施顺序，所有 `NM-*` 初始为待实施/待核验。当前可声称的只有：进程内 `RunStreamBus` 的局部增量展示和有限 terminal replay、`HumanInboxItem` 的局部查询投影、以及既有 Approval/Company/Recovery 事实的展示路径。当前不能声称 durable NotificationStore、跨进程未读/订阅恢复、可靠 outbox/DeliveryReceipt、OS 通知送达、Email/Slack/Webhook/A2A push 或现实业务消息已送达。
+
+完成任何步骤时，必须分别更新对应的 `P1/P2/P4` 原单元、`CURRENT_STATUS.md` 证据块和本专项的状态；`Notification` 结构体存在、一个 SSE 客户端收到了 toast、客户端显示已读、或 channel 返回 2xx，都不足以提升 `feature_status` 或 `proof_level`。只有事实可重放、权限可重验、关键通知可查询补回、Unknown 可对账、所有入口共用同一 DaemonHost/ControlPlane，才允许推进相应退出条件。
+
+---
+
+<a id="integrations-connectors-plan"></a>
+
+## 34-A. 集成与连接器专项：实际设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本专项补全 [`module-map.md`](module-map.md) 第 13 模块和 `P4-K8-01`。完整调研、代码落点、拒绝优先验收和 `INT-00`–`INT-33` 实施卡见[独立专项文档](roadmap/integrations-connectors.md)。本节保留可扫描的架构结论、现状边界和执行索引，不把参考项目能力或当前 WIP 写成已交付。
+
+### 34-A.1 现状和边界
+
+当前源码只证明本地 `local_fixture` connector：`connector.manage`/`connector.invoke` 经过 `DaemonHost → ControlPlane → Policy/Gate/Approval → Capability Broker → EventStore`，binding、operation、scope、idempotency、rate limit、`ProviderReceipt` 和 `reconcile` 有局部代码；结果明确标记 `external_effect_performed: false`。HTTP MCP、真实 GitHub/Jira/Slack/Notion、支付/退款、远程账户、企业租户和 physical effect 仍是 `not_supported` 或后续目标。
+
+本专项必须保持的分类：
+
+| 对象 | 事实 | 不能替代 |
+|---|---|---|
+| Provider | 模型 endpoint、模型凭据、流式和用量 | Kiana Principal、Connector account 或项目授权 |
+| Connector | 外部业务系统的 definition、account binding、operation、scope 和 effect receipt | MCP transport、Provider policy 或 Company Acceptance |
+| MCP | 工具/资源的协议和 transport；当前仅 stdio 已支持 | connector scope、审批、idempotency 和外部 outcome |
+| A2A | 异步 Agent Task、Artifact、status 和 push notification | 本地 capability permit 或 Kiana approval |
+| Webhook/Trigger | 认证事件入口和 occurrence | 直接执行模型、Broker 或外部副作用 |
+
+参考结论来自 Codex connector directory/account-scoped cache、OpenCode integration/credential/policy、Cline OAuth/MCP、OpenHands read-only credential probe/redaction、MCP capability handshake、A2A task/webhook/auth semantics、12-Factor pause/resume、Goose/Cline/Roo/Crush/OpenCode 生命周期审计和 Temporal/LangGraph 的 deterministic effect boundary。详细源码路径和取舍见独立文档 §2。
+
+### 34-A.2 目标主链和数据合同
+
+```text
+operator / Harness / Workflow / verified webhook
+  → versioned CommandIntent
+  → DaemonHost authenticated context
+  → ControlPlane resolves definition + binding + operation
+  → canonical payload/schema/data boundary validation
+  → policy + scope + budget + rate/concurrency + approval
+  → commit Invocation reservation + action digest + idempotency key
+  → issue one-shot CredentialLease at effect boundary
+  → re-check authority/config/binding/credential/data epoch
+  → prepared permit → Capability Broker → ConnectorAdapter
+  → ProviderReceipt / EffectObservation / StopReport
+  → append connector facts before result delivery
+  → Receipt projection / Human Inbox / reconciliation
+```
+
+最低对象集合：`ConnectorDefinition`、`ConnectorOperation`、`AccountBinding`、`ProviderAccount`、`SecretRef`、`CredentialLease`、`ConnectorInvocation`、`Attempt`、`ProviderReceipt`、`EffectObservation`、`ReconciliationCase`。这些对象必须拥有稳定 ID、schema/version、owner project、scope、data class、purpose、revision/generation 和 source cursor；不可序列化 secret 原值。
+
+风险由服务端 operation contract 派生：R0 list/inspect/health，R1 只读查询，R2 跨边界读取/导出，R3 create/update/send，R4 delete/payment/production。R3 必须对最终 payload 做一次确认，R4 默认拒绝；调用者不能通过参数把写操作降级为只读。
+
+### 34-A.3 关键处理规则
+
+1. **注册/绑定**：definition 版本不可原地覆盖；签名/hash、schema、adapter 能力、scope 和 data boundary 验证通过后才可进入 registry。Binding 绑定 `connector_id + version + provider_account + project + scope + endpoint digest`，撤销/轮换递增 revision/generation。
+2. **凭据**：Core、Runner、EventLog、Receipt、Memory、UI 和子 Cell 只看 `SecretRef`、presence、generation、expiry 和 digest；只有 CredentialStore/Broker/transport 在最后边界解析 raw secret。OAuth 使用 PKCE/state/callback anti-CSRF、提前刷新、single-flight 和 generation CAS。
+3. **调用**：payload 先 canonicalize 再算 digest；idempotency key 绑定 project、binding、operation 和 payload。先提交 reservation/permit，再允许 adapter；任何 revision/epoch drift、过期 approval/lease 或 scope 超集都必须 0 effect。
+4. **回执**：已知成功/失败和 `result_unknown` 分开。没有 provider receipt/query/idempotency 的写操作不能声称 no-effect；Unknown 进入 RecoveryCase，人工或 provider observation 只能追加 `connector.reconciled`，不能改写原事件。
+5. **入站**：Webhook/A2A 先验证认证、来源、时间戳、签名、nonce、版本和 payload schema，再写 `connector.event_received`/trigger occurrence；payload 只能成为 typed input artifact，不能直接成为未经 schema/policy 检查的 capability 参数。
+6. **取消/恢复**：取消是意图；已启动 adapter 需要 StopReport，未确认的 effect 保持 Unknown 并继续 fencing。daemon 重启默认 Paused/NeedsRecovery，显式 reconcile/resume/retry_without_effect 才能重新授权。
+7. **数据治理**：结果带 DataClass/Purpose/owner/source/retention；跨项目必须有 SharingGrant。撤销/删除先写 tombstone、提升 data epoch，再失效 Memory/Index/Cache/Artifact。
+
+### 34-A.4 代码接线
+
+| 层 | 主要落点 | 接线要求 |
+|---|---|---|
+| Domain | `kiana-domain/src/connectors.rs`、`capabilities.rs`、`governance.rs` | 纯合同、状态、digest 和错误；不访问网络/文件/Tokio |
+| Protocol | `kiana-protocol/src/lib.rs` + schema fixtures | `connector.manage/invoke/health/reconcile` versioned DTO；服务端覆盖 caller authority |
+| Ports | `kiana-ports/src/lib.rs` | `ConnectorAdapter`、`CredentialProbe`、`EffectObserver`、`WebhookVerifier` 窄接口 |
+| Core | `kiana-core/src/connectors.rs`、`approvals.rs`、`recovery.rs` | normalize、risk/policy/approval、reservation/CAS、fence、receipt/reconcile |
+| Broker | `kiana-capability-broker/src/lib.rs` | 只消费 prepared permit；不接受公开 authorization 字符串或模型自造 binding |
+| Daemon | `kiana-daemon/src/connectors.rs`、`mcp_stdio.rs`、`execution_control.rs` | fixture/MCP/未来 HTTP adapter、credential lease、bounded worker 和 shutdown |
+| Event/Query | `kiana-eventlog`、`kiana-query` | facts、dedup、projection、health、Receipt、可重建 index/cache |
+| Entrypoints/UI | CLI/Web/Workbench/MCP adapters | 只转发命令、显示状态和 Human Inbox；不运行第二 loop 或直接调用 adapter |
+
+### 34-A.5 详细步骤索引（完整验收见独立文档 §7）
+
+| 波次 | Steps | 交付目标 |
+|---|---|---|
+| A 契约 | `INT-00 → INT-04` | 基线、边界、typed IDs、operation schema、registry CAS |
+| B 绑定 | `INT-05 → INT-09` | account/project scope、SecretRef/Lease、adapter ports、fixture、只读 probe |
+| C 传输 | `INT-10 ∥ INT-11 → INT-13` | stdio MCP、HTTPS/SSRF 边界、OAuth PKCE、全通道脱敏 |
+| D 授权 | `INT-14 → INT-18` | protocol normalize、risk/approval、reservation、配额和 effect-time fencing |
+| E 执行 | `INT-19 → INT-23` | Broker dispatch、ProviderReceipt、retry、Unknown/reconcile、cancel/stop |
+| F 入站 | `INT-24 → INT-28` | Webhook/A2A、mapping/provenance、data governance、通知和四入口查询 |
+| G 收口 | `INT-29 → INT-33` | restart/recovery、conformance、只读 pilot、受控写 pilot、发布证据 |
+
+步骤执行顺序固定为“先拒绝、再成功、最后回归”。最小拒绝集包括：伪造 actor/role/risk/binding、未 trust、跨项目无 grant、unknown schema、scope 超集、raw secret 泄漏、OAuth state 错误、HTTP MCP、SSRF/redirect、重复 key 冲突、超额/旧 fence、过期 approval/lease、Unknown retry、cancel 未 stop、late result、损坏 journal、撤销后 cache 命中和 webhook 重放；每项都必须证明没有 Broker/adapter effect。
+
+成功集包括 local fixture、stdio MCP、read-only probe、idempotent replay、R3 final payload、provider receipt/query reconcile、webhook occurrence、取消/停止、重启显式恢复、数据撤销和 CLI/Web/Workbench/MCP 同一 projection。真实服务按 connector/operation/account 单独 opt-in。
+
+### 34-A.6 发布门和状态回填
+
+`P4-K8-01` 只有在 `INT-00..33` 的相关步骤具备 `CURRENT_STATUS.md` 证据块后才能提升状态。证据必须包含：
+
+```text
+source_snapshot / worktree_status / command_argv / cwd·environment /
+fixture·cassette / exit_code / status change / proof-level change /
+limitations / reviewer
+```
+
+`feature_status` 与 `proof_level` 分开记录；fixture receipt 只能证明 `source`/`local_behavior` 的事实链，不能证明 live/physical 或外部业务 outcome。真实 OAuth、HTTP、支付、退款、生产发布和跨系统回滚若要开启，必须另有环境、账号隔离、provider receipt、对账、清理和回滚证据；本专项不改变冻结项，也不自动开放这些能力。
+
+<a id="quality-evaluation-design"></a>
+
+## 34-B. 评测与质量专项：实际代码设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本节补全 [`module-map.md`](module-map.md) 第 17 模块，并展开既有 `P1-L1-01 EvalSuite 与 GoldenTrace`。它不改变 P0–P6 的 canonical 编号，也不把现有 `kiana eval` 的局部能力写成完整质量平台。本文档前面的旧限制性文字若与本次追加设计冲突，以当前任务和本节为准。
+
+### 34-B.1 当前代码基线与问题分类
+
+当前可确认的源码事实如下：
+
+| 位置 | 已有实现 | 本节要解决的缺口 |
+|---|---|---|
+| `kiana-commands/src/eval.rs` | `kiana.eval-suite.v1`、`kiana.eval-report.v1`、`kiana.eval-baseline.v1`；支持 `runtime_event_replay` fixture、事件/工具/usage/final 状态断言、baseline 阈值和 `--fail-on-failure` | Eval schema 仍是命令层私有 DTO；没有 `EvalCase` 与 Run/Receipt/Artifact 的统一关联，也没有 GoldenTrace、候选版本或质量门裁决 |
+| `kiana-commands/tests/eval_command.rs`、`kiana-entrypoints/tests/cli_eval.rs` | 已覆盖正常、失败、baseline 回归、非法 baseline 和真实 binary 路由 | 没覆盖副作用隔离、权限拒绝、Unknown/取消/恢复、事件序列差异、敏感数据泄露和跨 provider 重放 |
+| `scripts/release-smoke.sh` | 已有离线 eval smoke，创建临时 suite/baseline/JSONL fixture 并校验 report schema/status | smoke 是发布脚本中的单个检查函数，不产生可持久化的 EvalRun、证据包或 Promote 阻断原因 |
+| `kiana-core/src/events.rs`、`receipts.rs`、`projection.rs`、`recovery.rs` | EventLog、Receipt、投影、恢复材料和 `redact_event_value` 已有局部路径 | 没有统一 TraceNormalizer；RuntimeEvent、Artifact、Receipt、EvalResult 之间没有稳定 correlation/causation 索引 |
+| `kiana-daemon` 的 fake/cassette/model adapter | 有 fake model、cassette 和多个 smoke fixture | fixture 不能统一描述 initial state、expected events、forbidden effects、artifact assertions、版本快照和故障注入 |
+| `.github/workflows/`、`scripts/` | 有 workspace、focused test、golden、workbench、release smoke | 没有 PR 快速层、nightly 深层、release Promote 层的明确分工，也没有失败分类、flake quarantine 和证据归档合同 |
+
+因此，`P1-L1-01` 应拆成“质量内核 + 执行适配 + 证据/CI”三层。评测本身是只读消费者；只有现有 `ControlPlane` 才能启动一个被评测的运行，质量门只能提交 `quality.*` 事实，不能直接改变 Grant、Policy、Approval、EventLog 历史或外部系统状态。
+
+### 34-B.2 参考项目调研与采用取舍
+
+| 参考 | 观察到的机制 | Kiana 采用 | 明确不复制 |
+|---|---|---|---|
+| OpenAI Evals | registry 中的数据集、YAML 参数、basic/model-graded eval、可复现实验 | 用版本化 suite/case registry；允许纯代码 evaluator 和受控的可选 judge；每次运行固定 model/prompt/tool 版本 | 不把在线 API key 或第三方 dashboard 作为本地质量门依赖；LLM judge 不负责安全授权 |
+| LangSmith | Dataset/Example、target function、Evaluator、Experiment 分离；离线有 reference output，在线以 run/thread 为对象 | 将 `EvalDataset`、`EvalTarget`、`Evaluator`、`EvalExperiment` 分离；同一 suite 可比较多个 candidate；结果按 case/run 保留 | 不引入 hosted tracing、跨租户数据上传或把 UI 实验表当事实源 |
+| Promptfoo | provider matrix、声明式 assertions、红队/安全测试、阈值和失败报告 | 支持 provider/profile matrix、结构/正则/脚本断言、forbidden effect 和 red-team case；断言失败输出稳定 issue code | 不让 prompt 声明、`allowed-tools` 或 judge 输出直接扩大能力；不把单一文本分数当质量总判定 |
+| Beads Oracle A | reference/candidate 双 binary、真实进程场景、环境清理、JSON-aware diff、volatile normalization、curated/deep 双层、golden provenance | 引入 reference/candidate replay、显式 env allowlist、规范化规则、in-scope predicate、快速 curated 与 nightly deep tier | 不把所有输出都强行 byte-equal；不忽略未覆盖范围，report 必须列出 out-of-scope 与 no-golden |
+| DeepSeek Harness | 生产入口上的 deterministic snapshot、独立 benchmark worker、合成历史、replay 模式、计时与平台预算 | fixture 使用真实 DaemonHost/ControlPlane seam；性能工作在隔离 worker；snapshot 与 replay 明确分开 | 不复制产品算法或为 benchmark 暴露生产专用 export；性能完成不替代语义验收 |
+| Graphify | 数据集、judge/grading、fairness rules、成本统计、可复现命令和结果报告 | 每个 suite 带 dataset provenance、judge 版本、抽样/公平性规则、成本/延迟桶和 reproduction command | 不以未经审查的外部数据或黑盒 judge 作为唯一 Promote 依据 |
+| Aider | repo map、任务 benchmark、历史 replay、结果随时间绘图 | 将代码知识 snapshot、任务输入和历史 baseline 作为 EvalCase 输入；记录时间序列趋势 | repo map 仍是上下文数据，不是权限或事实账本 |
+| ECC evaluator/RAG prototype | trace/report/candidate-playbook/verifier 五件产物；retrieve 与 action 分离；候选必须被 verifier 接受 | 采用 `EvalTrace`、`EvalReport`、`QualityCandidate`、`QualityVerdict` 的分离和只读诊断→候选→验证→晋级流程 | 不在 evaluator 中 merge、publish、修改配置或执行外部副作用 |
+| OpenCode / OpenTelemetry | durable aggregate sequence、replay-and-tail cursor、ephemeral delta 不进 durable cursor；统一 span/metric 语义 | Eval 只消费 durable event cursor；stream chunk 默认聚合成 turn/span；指标字段按稳定命名和白名单记录 | 不把 token delta 或 UI timeline 当可重放事实；不记录 secret、完整 prompt 或隐藏推理 |
+| Pydantic AI / Temporal / LangGraph | graph/state replay、checkpoint、activity/step 边界、reference output 和恢复测试 | 对 Workflow/Swarm 使用已存在的事件和 snapshot，评测按 node/attempt/cursor 比较；故障注入验证 Unknown 和恢复 | 不引入 hosted workflow server、任意 Python workflow 或自动 retry 覆盖 Kiana 的 Unknown 规则 |
+
+### 34-B.3 质量系统的边界与不变量
+
+质量循环固定为：
+
+```text
+observe durable facts
+  → select version-pinned dataset/case
+  → admit read-only eval experiment
+  → build isolated target context
+  → run fake/replay/shadow target through DaemonHost
+  → normalize trace and collect artifacts/receipt
+  → deterministic safety + contract evaluators
+  → optional semantic evaluator (never an authority source)
+  → aggregate scores and classify findings
+  → compare baseline and detect divergence
+  → QualityGate pass/reject/needs_shadow/rollback
+  → append verdict/evidence; only an authorized promotion command changes route
+  → monitor drift and generate candidate feedback
+```
+
+必须长期保持以下不变量：
+
+1. **评测只读**：Eval target 可以调用 fake broker、临时 workspace 和录制 provider；任何真实网络、支付、消息发送、发布、设备操作和未批准写盘都必须被替换为 deny adapter。
+2. **安全优先**：`forbidden_effect`、policy bypass、secret leak、evidence missing、replay divergence、fixture/schema integrity failure 任一发生，直接 `reject`；不能用文本质量、低成本或低延迟抵消。
+3. **事实可追溯**：每个 case 结果都绑定 `suite_digest`、`case_digest`、target 版本、source snapshot、fixture digest、event cursor、artifact hash、receipt hash 和 evaluator/gate 版本。
+4. **版本不可漂移**：model、prompt、tool catalog、memory snapshot、workflow、policy epoch 和 evaluator 都是显式输入；缺失版本或 unknown schema 只能 fail-closed。
+5. **baseline 不等于真理**：baseline 是被接受的比较对象，不是授权依据；baseline 本身必须有 provenance、维护者和过期/重建策略。
+6. **精确比较有边界**：稳定 ID、状态、错误码、工具名、事件类型和 digest 可 exact；时间、随机 ID、路径临时目录、host 信息只能按明确规则 normalize；未声明的差异不自动容忍。
+7. **Judge 不掌权**：LLM-as-judge 只能产生 `semantic_score` 和解释引用，不能批准 capability、跳过 approval、改变 Acceptance criteria 或修改历史。
+8. **失败可分类**：`functional_failure`、`safety_violation`、`evidence_gap`、`replay_divergence`、`infra_failure`、`flake`、`out_of_scope` 必须分开；infra/flake 不能伪装成 pass。
+9. **候选变更最小化**：一次 Candidate 只改变一个主维度（model/prompt/tool_catalog/memory_index/workflow/route），关联的被动版本更新必须显式列出。
+10. **质量不是第二执行脊柱**：`kiana-quality` 只做纯计算和端口调用；入口仍是 `DaemonHost → ControlPlane`，不能由 eval runner 另起模型循环或权限判断。
+
+### 34-B.4 目标代码分层与模块落点
+
+不建议继续把所有逻辑堆进 `kiana-commands/src/eval.rs`。新增能力按以下边界落位：
+
+| 层 | 建议落点 | 责任 |
+|---|---|---|
+| 稳定对象与 schema | `kiana-domain/src/quality.rs`（必要时拆 `quality/`） | `EvalSuite`、`EvalCase`、`EvalDataset`、`GoldenTrace`、`EvalExperiment`、`EvalResult`、`QualityCandidate`、`QualityGate`、`Feedback`、`DriftAlert`；只含值对象、校验和状态转移 |
+| wire 命令/事件 | `kiana-protocol` | `eval.run`、`eval.capture`、`eval.compare`、`quality.feedback`、`quality.promote`；`quality.*` RuntimeEvent 版本化、可重放、拒绝未知字段 |
+| 端口 | `kiana-ports` | `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink`、`Clock`；端口不暴露文件系统或 provider 私有类型 |
+| 纯质量内核 | 新增 `kiana-quality` crate | fixture/schema 校验、TraceNormalizer、TraceDiff、断言 DSL、评分、baseline 比较、flake 分类、gate 计算；默认无 Tokio、网络和副作用依赖 |
+| 权威编排 | `kiana-core/src/quality.rs` | 检查 Principal/ProjectTrust/role、实验 admission、版本快照、预算、只读 profile、质量门提交和 Promote/rollback 授权；复用 `ControlPlane` |
+| 运行适配 | `kiana-daemon/src/eval_runtime.rs` | 临时 workspace、fake provider/broker、受限 EventStore/ArtifactStore、故障注入、进程回收、外部 effect deny；不得绕过 core |
+| CLI 适配 | `kiana-commands/src/eval.rs`、`kiana-entrypoints` | 保留现有 `eval run` 兼容参数；改为调用 `kiana-quality`/`ControlPlane`，只负责参数解析和 human/JSON 输出 |
+| fixture 与 CI | `tests/eval/`、`scripts/eval/`、`.github/workflows/` | curated/deep 数据集、golden capture、差分报告、JUnit/JSON evidence pack、PR/nightly/release 门 |
+
+依赖方向必须是 `domain → protocol/ports → quality → core → daemon → commands/entrypoints`；`kiana-quality` 不得依赖 `kiana-query`、旧 `kiana-tools` 或直接打开网络。
+
+### 34-B.5 领域对象和持久合同
+
+下列是目标合同的最小字段。字段可在实现时拆成 Rust struct，但 schema 名称、状态和 digest 语义必须保持稳定。所有持久对象使用 `deny_unknown_fields` 或显式 migration。
+
+```text
+EvalDataset {
+  dataset_id, version, purpose, owner, provenance, privacy_class,
+  cases[], split(train|validation|regression|red_team|performance),
+  created_at, expires_at?, digest
+}
+
+EvalSuite {
+  suite_id, version, dataset_ref, workload_class,
+  target_kind(replay|fake_model|daemon|shadow|workflow),
+  case_refs[], evaluator_refs[], scoring_policy_ref,
+  safety_policy_ref, budget_policy_ref, baseline_ref?,
+  required_fixture_schema, owner, status(draft|active|deprecated), digest
+}
+
+EvalCase {
+  case_id, suite_id, version, input_fixture_ref, initial_state_fixture_ref?,
+  target_config, model_profile_ref?, prompt_bundle_ref?,
+  tool_catalog_ref, memory_snapshot_ref?, workflow_ref?,
+  expected_events[], expected_state, expected_artifacts[],
+  expected_receipt_assertions[], forbidden_effects[],
+  assertions[], fault_plan?, tags[], privacy_class, digest
+}
+
+GoldenTrace {
+  trace_id, suite_id, case_id, source_run_id?, source_snapshot,
+  input_hash, target_versions, event_cursor_range,
+  normalized_events[], artifact_hashes[], receipt_hash?,
+  normalization_version, human_acceptance?, quality_score?,
+  created_at, expires_at?, provenance_ref, digest
+}
+
+EvalExperiment {
+  experiment_id, suite_ref, candidate_ref, baseline_ref?,
+  target_snapshot, execution_profile, random_seed, clock_mode,
+  started_at, ended_at?, status(admitted|running|completed|failed|cancelled),
+  case_results[], evidence_pack_ref, digest
+}
+
+EvalResult {
+  result_id, experiment_id, case_id, status(pass|fail|blocked|infra_error|flake|out_of_scope),
+  findings[], dimensions{functional,safety,evidence,recovery,context,cost,latency,replay},
+  metrics, normalized_trace_ref, artifact_refs[], receipt_ref?,
+  baseline_comparison?, evaluator_versions, created_at, digest
+}
+
+QualityCandidate {
+  candidate_id, baseline_id, changed_dimension,
+  changed_version_ref, suite_version, experiment_ref,
+  status(draft|offline_evaluated|shadowed|approved|rejected|rolled_back|deprecated),
+  owner, created_at, supersedes?
+}
+
+QualityGateDecision {
+  decision_id, gate_id, gate_version, suite_version,
+  candidate_id, baseline_id, thresholds, blocking_rules[],
+  verdict(pass|reject|needs_shadow|rollback), score_delta,
+  blocking_findings[], known_regressions[], approver?, evidence_ref,
+  decided_at, source_cursor, digest
+}
+
+Feedback {
+  feedback_id, principal_id, target_type(run|turn|tool_call|memory|workflow|artifact|receipt),
+  target_ref, label, comment_ref?, correction_ref?, scope, privacy_policy,
+  created_at, provenance_ref
+}
+```
+
+`EvalResult` 是一次实验对一个 case 的事实结果，`QualityGateDecision` 是对候选版本的裁决；两者不能合并。`GoldenTrace` 是只读派生基线，不能被 `eval run` 原地覆盖；刷新必须通过 `eval capture` 产生新版本和新 provenance。
+
+### 34-B.6 Fixture、Trace 与断言设计
+
+#### 34.6.1 Fixture 分层
+
+每个 case 的 fixture 由四部分组成：
+
+```text
+input fixture       = prompt/command + structured inputs (redacted)
+initial state       = project trust, role, policy epoch, files, memory, workflow snapshot
+provider fixture    = normalized model replies or deterministic fake stream
+oracle              = expected events/state/artifacts/receipt + forbidden effects
+```
+
+fixture 目录建议为 `tests/eval/<suite>/<case>/`，文件名固定为 `case.json`、`initial-state.json`、`provider.jsonl`、`oracle.json`。入口通过 `FixtureStore` 读取，禁止从当前工作树隐式读取未声明文件；fixture 解析失败、路径逃逸、大小超限、重复 case id 和未知 schema 直接拒绝。
+
+#### 34.6.2 Trace normalization
+
+`TraceNormalizer` 按 `normalization_version` 执行以下顺序：
+
+1. 只读取 durable RuntimeEvent、已完成的 Invocation/Artifact/Receipt 引用；丢弃未持久化的 stream delta、UI event 和日志文本。
+2. 验证事件 sequence、aggregate/session/run 关联、parent/causation、terminal 唯一性和 schema version。
+3. 对 prompt、tool argument、tool result、artifact bytes 应用已有 redaction；原文只保留在受保护 fixture，不进入 report。
+4. 把稳定字段排序为 canonical JSON；数组只在 case 声明 `ordered=false` 时按 multiset 比较。
+5. 对显式允许的 volatile 值替换为 `<TS>`、`<UUID>`、`<TEMP_PATH>`、`<ACTOR>` 等 token，同时记录替换计数；未声明的 volatile 字段不应静默归一化。
+6. 为每个 normalized event 计算 `event_digest`，为整条 trace 计算 `trace_digest`；保留首个 divergence 的 cursor、event index 和字段路径。
+
+#### 34.6.3 断言类型
+
+第一版只实现可解释、可确定的断言：
+
+| 类别 | 断言例子 | 失败代码 |
+|---|---|---|
+| 结构 | schema、required field、event count、terminal exactly-one | `fixture_schema_invalid`、`terminal_state_invalid` |
+| 序列 | event type/order、call/result correlation、attempt monotonicity | `event_sequence_mismatch`、`call_result_unmatched` |
+| 状态 | final status、approval/cancel/unknown/recovery transition | `state_expectation_mismatch` |
+| 能力 | tool name、argument digest、policy verdict、grant scope | `capability_expectation_mismatch`、`policy_verdict_mismatch` |
+| 产物 | file set、artifact digest、Receipt assertion、evidence ref | `artifact_expectation_mismatch`、`evidence_missing` |
+| 资源 | input/output token、duration、tool calls、cost bucket | `budget_threshold_exceeded`、`latency_threshold_exceeded` |
+| 安全 | forbidden effect、secret pattern、unredacted payload、网络/进程越界 | `forbidden_effect`、`secret_leak`、`sandbox_violation` |
+| 语义（可选） | reference answer 对齐、rubric 分项、人工标签一致性 | `semantic_score_below_threshold`、`judge_unavailable` |
+
+语义 judge 的输入只能是已脱敏的 case/reference/normalized output，必须记录 judge provider、model、prompt、temperature、版本和 judge trace digest；judge 不可用时按 suite policy 记 `infra_error` 或 `blocked`，不能降级为 pass。
+
+### 34-B.7 端到端处理流程
+
+#### 34.7.1 Admission 与拒绝路径
+
+```text
+CLI/Web/API request
+  → DaemonHost resolves Principal + ProjectTrust + role + policy/config epoch
+  → ControlPlane validates suite/case/fixture/schema/dataset privacy
+  → reject unknown version, untrusted project, external-effect target,
+     missing baseline, expired approval, invalid path, or budget overflow
+  → append eval.admission_rejected with stable reason code
+```
+
+拒绝发生在 provider/broker 之前；不创建可执行 Run，不写真实 workspace，不调用 judge，不产生外部 effect。失败回执至少包含 `reason_code`、`suite_ref`、`case_ref`、actor、authority epoch 和 source cursor。
+
+#### 34.7.2 Replay/Fake target 路径
+
+```text
+admitted EvalExperiment
+  → materialize isolated temp workspace and initial-state snapshot
+  → install fake provider + deny-by-default broker + bounded EventStore
+  → invoke the same DaemonHost/ControlPlane command used by product path
+  → record every request, policy verdict, capability attempt, artifact and receipt
+  → crash/cancel/Unknown fault plan (if declared)
+  → flush durable events before target returns
+  → normalize trace
+  → run deterministic evaluators
+  → persist EvalResult and evidence pack
+```
+
+无副作用的 replay 不应重跑真实模型或真实工具。需要验证 provider parser 时使用录制的 normalized stream；需要验证完整 agent loop 时使用 fake model，所有 capability 都由 fake/deny adapter 受控。`result_unknown`、stop 未确认、EventStore flush 失败和进程崩溃都保留 Unknown，不得自动改成失败或成功。
+
+#### 34.7.3 Baseline compare 与 divergence
+
+比较顺序固定为：
+
+1. suite/case/target/evaluator/schema digest 必须兼容；不兼容先报 `comparison_not_comparable`。
+2. 比较 normalized event 序列的 `(aggregate, sequence, invocation_id, attempt, event_type, input_digest, state, error_code)`。
+3. 再比较 artifact set/digest、Receipt assertions、metrics 和 final state。
+4. 记录首个差异点；后续差异作为同一 root finding 的附加项，不重复计数。
+5. baseline 缺 case、no-golden、out-of-scope、normalization replacement 超限都不能计入 pass。
+
+#### 34.7.4 Gate 与 Promote
+
+```text
+EvalReport + baseline diff + evidence pack
+  → QualityGate evaluates blocking rules first
+  → reject on safety/evidence/replay/fixture integrity failure
+  → pass only when all required dimensions and regression budgets pass
+  → needs_shadow for allowed non-blocking regression or new candidate
+  → append quality.gate_decided
+  → authorized operator issues quality.promote / quality.rollback
+  → ControlPlane rechecks authority, policy, candidate digest and route scope
+  → append route promotion or rollback fact
+```
+
+`QualityGate` 只裁决“候选是否满足质量条件”。真正的默认路由变更必须再次经过 `ControlPlane` 的授权与审批；一个通过的离线 eval 不自动接通 live provider。
+
+### 34-B.8 评分、门槛与回归政策
+
+建议输出两类结果：维度分数和硬性阻断。维度分数用于趋势和诊断，硬性规则用于安全与发布。
+
+```text
+QualityScore = weighted_mean(
+  functional_correctness,
+  recovery_correctness,
+  context_relevance,
+  cost_efficiency,
+  latency,
+  semantic_quality
+)
+
+blocking =
+  policy_safety == pass
+  && evidence_completeness == pass
+  && replay_correctness == pass
+  && forbidden_effects == empty
+  && fixture_integrity == pass
+  && no_unclassified_infra_failure
+```
+
+默认策略：
+
+- 安全、权限、secret redaction、terminal/recovery 合同为硬门，不参与平均；
+- replay divergence 首项即阻断 Promote；
+- functional/semantic 允许在 suite 中设置绝对阈值、相对 baseline 的最大下降和最小样本数；
+- latency/cost 只在指定 performance suite 中作为门，不能覆盖安全失败；
+- `flake` 需要按固定 seed 重跑一次。第二次相同失败为真实失败；两次不同且无安全问题才进入 quarantine，并让 suite 处于 `needs_review`，不能 pass；
+- 多 case 聚合使用 Wilson/bootstrap 置信区间或明确的最小样本规则；样本不足标为 `insufficient_evidence`；
+- 失败报告必须列出 `new_failures`、`fixed_failures`、`known_regressions`、`out_of_scope`、`no_golden` 和 `infra_failures`。
+
+### 34-B.9 Candidate、Feedback 与 Drift
+
+#### Candidate 状态机
+
+```text
+Draft → OfflineEvaluated → Shadowed → Approved → Deprecated
+OfflineEvaluated → Rejected
+Shadowed → RolledBack
+```
+
+进入 `Shadowed` 需要固定流量/样本上限、持续时间、回滚版本和 owner。任何 `route`、`model`、`prompt`、`tool_catalog`、`memory_index` 或 `workflow` 变更都必须创建新 Candidate；不允许直接编辑已批准版本。
+
+#### Feedback
+
+Feedback 只能指向 canonical `run/turn/tool_call/memory/workflow/artifact/receipt`，由服务端派生 provenance 和 privacy scope。`feedback → diagnosed pattern → candidate patch → eval suite → gate` 是唯一学习路径。反馈不得直接改 Policy、Grant、Approval、Acceptance criteria、Receipt 或 Memory ACL。
+
+#### Drift
+
+按版本和 workload 分桶观测：tool selection、policy deny、approval wait、Unknown/cancel、rework/acceptance、memory source、prompt cache、provider error、token/cost、latency、replay divergence、MCP/Skill schema。漂移只触发告警、shadow、降级或 rollback；自动修复必须产生 Candidate 和新的 EvalExperiment。
+
+### 34-B.10 执行层级、CI 门与产物
+
+| 层级 | 触发 | 内容 | 目标时长/范围 | 失败动作 |
+|---|---|---|---|---|
+| PR curated | 每次相关 Rust/fixture/schema/quality 变更 | 8–20 个最高风险 case；拒绝、工具生命周期、Receipt、replay、redaction、无副作用 | 快速、串行 daemon/core | 阻断 PR；输出 JSON/JUnit 和首个 divergence |
+| PR package | 相关 crate 改动 | `kiana-quality` 单测、commands/entrypoints eval、workspace check/fmt/clippy | 受影响 package + 邻接 contract | 阻断 PR |
+| Nightly deep | 定时或手动 | 全量 regression catalog、provider matrix、fault plan、性能 smoke、memory/context/workflow 分桶 | 可并行 case，但单 case 内串行；固定 worker 数 | 标记 regression/flake，生成趋势 artifact |
+| Release candidate | 发布候选 tag/手动批准 | curated + deep + release-smoke + evidence pack + supply-chain/fixture provenance | 稳定快照、完整证据 | 不允许 Promote；需要人工处理 blocker |
+| Shadow/live（解冻范围内） | 显式 opt-in | 脱敏采样、online evaluator、drift、rollback rehearsal | 受 budget/retention 限制 | 只告警/rollback，不改权限 |
+
+建议新增脚本入口：
+
+```text
+scripts/eval-curated.sh
+scripts/eval-deep.sh
+scripts/eval-capture-golden.sh
+scripts/eval-compare.sh
+scripts/eval-package-evidence.sh
+```
+
+所有脚本使用显式环境白名单和临时 `KIANA_HOME`，不继承 provider key、代理、MCP 配置或用户的 `.kiana`。输出至少包括 `report.json`、`evidence-manifest.json`、可选 `junit.xml`、`trace-diff.json` 和 `reproduction.sh`；产物 manifest 绑定 source snapshot、命令 argv、cwd/environment 摘要、fixture digest、exit code 和限制。
+
+### 34-B.11 详细实施步骤（EQ-00–EQ-51）
+
+以下步骤是本专项的执行索引。每一步都遵循“先拒绝/越权/损坏/重放/Unknown，再成功路径”，步骤编号是局部编号，不重排既有 roadmap。
+
+#### 波次 A：基线、schema 与边界（先建立可审计合同）
+
+| Step | 目标与代码落点 | 最小验收 |
+|---|---|---|
+| `EQ-00` | 固定当前源码快照、工作树状态和现有 `eval` 行为；在 `docs/roadmap.md`/`CURRENT_STATUS.md` 建立本专项证据模板 | `eval_baseline_inventory_is_reproducible`；报告现有能力为 partial/local_behavior |
+| `EQ-01` | 从 `kiana-commands/src/eval.rs` 提取 schema 常量、错误码和 JSON 兼容测试清单，禁止无记录的字段删除 | `legacy_eval_v1_contract_is_pinned` |
+| `EQ-02` | 在 `kiana-domain/src/quality.rs` 加稳定 ID、digest、状态枚举和 `deny_unknown_fields` DTO | `quality_ids_and_state_transitions_are_validated` |
+| `EQ-03` | 定义 `EvalDataset`/`EvalSuite`/`EvalCase`/`GoldenTrace` schema、版本和 provenance | `unknown_quality_schema_is_rejected` |
+| `EQ-04` | 定义 case split、privacy class、owner、expires_at、minimum sample 和 workload tags | `expired_or_unowned_dataset_is_not_admitted` |
+| `EQ-05` | 把 `kiana.eval-suite.v1`/baseline/report 与新 domain DTO 做显式 adapter，保留旧 CLI 输出字段 | `legacy_eval_cli_round_trips_through_quality_dto` |
+| `EQ-06` | 在 `kiana-protocol` 登记 `eval.run/capture/compare` 和 `quality.feedback/promote/rollback` 命令/事件 | `quality_protocol_has_no_unversioned_events` |
+| `EQ-07` | 在 `kiana-ports` 增加 `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink` | `quality_ports_are_free_of_daemon_or_provider_types` |
+
+#### 波次 B：fixture、隔离执行与事实采集
+
+| Step | 目标与代码落点 | 最小验收 |
+|---|---|---|
+| `EQ-08` | 建立 `tests/eval/` 目录、case manifest、fixture size/path/schema 限制和 deterministic loader | `fixture_path_escape_and_unknown_fields_fail_closed` |
+| `EQ-09` | 在 `kiana-daemon/src/eval_runtime.rs` 实现临时 workspace、临时 `KIANA_HOME`、固定 clock/random seed | `eval_target_isolated_from_operator_home` |
+| `EQ-10` | 实现 fake provider adapter，支持完整 reply、分块 stream、tool call、malformed stream、provider error | `fake_provider_replays_normalized_stream_without_network` |
+| `EQ-11` | 实现 deny-by-default broker；将真实 network/secret/MCP/payment/publish/desktop effect 映射为稳定拒绝 | `forbidden_capability_never_reaches_real_executor` |
+| `EQ-12` | 通过 `DaemonHost`/`ControlPlane` 启动 target，禁止 quality crate 自行创建 runner loop | `eval_uses_the_same_daemonhost_spine` |
+| `EQ-13` | 将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store | `initial_state_digest_is_bound_to_experiment` |
+| `EQ-14` | 采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown | `event_flush_failure_never_returns_eval_pass` |
+| `EQ-15` | 增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown | `fault_plan_preserves_unknown_and_stop_evidence` |
+| `EQ-16` | 对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture | `eval_evidence_has_no_unredacted_secret` |
+
+#### 波次 C：TraceNormalizer、GoldenTrace 与差分
+
+| Step | 目标与代码落点 | 最小验收 |
+|---|---|---|
+| `EQ-17` | 在 `kiana-quality/src/normalize.rs` 实现 durable event 选择和 sequence/terminal/correlation 校验 | `invalid_event_cursor_or_multiple_terminal_is_rejected` |
+| `EQ-18` | 实现 canonical JSON、稳定数组策略、字段白名单和 redaction 复用 | `normalization_is_stable_and_redacts_payloads` |
+| `EQ-19` | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `undeclared_volatile_field_is_not_silently_normalized` |
+| `EQ-20` | 计算 event/trace/artifact/receipt digest，绑定 `normalization_version` | `same_fixture_has_same_trace_digest` |
+| `EQ-21` | 实现 `TraceDiff`：首个 divergence、字段路径、cursor、expected/actual 摘要和分类 | `trace_diff_reports_first_divergence_deterministically` |
+| `EQ-22` | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `assertion_modes_do_not_change_unrelated_fields` |
+| `EQ-23` | 添加 `eval capture`：只从明确 source run/fixture 生成新 GoldenTrace，原文件不可覆盖 | `golden_capture_requires_source_and_writes_new_version` |
+| `EQ-24` | 添加 Beads 风格 reference/candidate scenario runner、环境清理、in-scope/out-of-scope predicate | `candidate_diff_uses_scrubbed_environment_and_scope_report` |
+| `EQ-25` | 支持 curated/deep catalog、no-golden、skip reason、scenario dedupe 和 stable ordering | `deep_catalog_is_opt_in_and_no_golden_is_visible` |
+| `EQ-26` | 为 Runtime、Approval、Hook、Memory、Workflow、Swarm 各补 provider-independent trace fixture | `core_negative_fixture_matrix_is_complete` |
+
+#### 波次 D：Evaluator、评分与统计
+
+| Step | 目标与代码落点 | 最小验收 |
+|---|---|---|
+| `EQ-27` | 实现 deterministic evaluator trait 和 finding schema（code/expected/actual/message/evidence_ref） | `every_finding_has_stable_code_and_evidence` |
+| `EQ-28` | 实现 runtime correctness evaluator：事件顺序、调用关联、terminal、retry、approval、cancel、Unknown | `runtime_evaluator_catches_unmatched_and_duplicate_terminal` |
+| `EQ-29` | 实现 capability/safety evaluator：schema、grant scope、policy verdict、hook、network/process/file effect | `safety_failure_blocks_even_with_good_final_text` |
+| `EQ-30` | 实现 evidence/receipt evaluator：artifact hash、receipt assertions、redaction、provenance、source cursor | `missing_evidence_is_blocking` |
+| `EQ-31` | 实现 recovery/replay evaluator：crash/restart、fence、result_unknown、logic version、divergence | `replay_divergence_and_unknown_are_distinct_findings` |
+| `EQ-32` | 实现 context/memory evaluator：ACL-before-ranking、provenance、freshness、compaction、budget | `unauthorized_memory_hit_is_blocking` |
+| `EQ-33` | 实现 workflow/swarm evaluator：DAG、attempt、fan-in/out、child scope、merge、compensation | `child_scope_expansion_fails_quality_gate` |
+| `EQ-34` | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `budget_and_latency_thresholds_are_explicit` |
+| `EQ-35` | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `judge_unavailable_is_not_a_success` |
+| `EQ-36` | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `insufficient_sample_is_blocked_or_needs_review` |
+| `EQ-37` | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `flake_is_never_counted_as_pass` |
+
+#### 波次 E：Baseline、Candidate 与 QualityGate
+
+| Step | 目标与代码落点 | 最小验收 |
+|---|---|---|
+| `EQ-38` | 定义 `EvalExperiment` admission/terminal 状态和 case result 索引 | `experiment_state_is_replayable_from_events` |
+| `EQ-39` | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `stale_or_incompatible_baseline_cannot_compare` |
+| `EQ-40` | 实现 `QualityCandidate` 单主变更维度和版本快照绑定 | `candidate_cannot_hide_model_or_prompt_drift` |
+| `EQ-41` | 实现 `QualityGate` 配置与 `QualityGateDecision` 裁决分离、不可改写 | `gate_config_update_does_not_mutate_old_decision` |
+| `EQ-42` | 实现 blocking rules：safety/evidence/replay/forbidden effect/fixture integrity/infra | `blocking_rule_precedes_weighted_score` |
+| `EQ-43` | 实现 `quality.promote`/`quality.rollback` 的 ControlPlane 二次授权、审批、scope 和 epoch 重查 | `passing_eval_cannot_promote_without_authority` |
+| `EQ-44` | 实现 shadow admission、sample/TTL/rollback route 和自动回滚证据 | `shadow_regression_rolls_back_without_grant_change` |
+
+#### 波次 F：Feedback、Drift、CLI 与 CI
+
+| Step | 目标与代码落点 | 最小验收 |
+|---|---|---|
+| `EQ-45` | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `feedback_cannot_edit_policy_or_receipt` |
+| `EQ-46` | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `drift_alert_does_not_change_route_or_grant` |
+| `EQ-47` | 扩展 `kiana eval`：`run/capture/compare/explain/list`，旧 `run --suite` 参数保持兼容 | `cli_eval_commands_route_through_control_plane` |
+| `EQ-48` | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `report_is_machine_readable_and_redacted` |
+| `EQ-49` | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `scripts_use_explicit_environment_allowlist` |
+| `EQ-50` | 接入 PR curated/package、nightly deep、release candidate workflow，daemon/core 测试串行 | `ci_lanes_have_distinct_scope_and_fail_closed` |
+| `EQ-51` | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `quality_evidence_block_is_complete` |
+
+> `EQ-45`–`EQ-51` 是本专项的补充步骤，不要求把旧有 `P1-L1-01` 或其他历史 step 改名；若某个实现已经由当前 agent 完成，应将其验收绑定到对应 EQ step，并补充证据，而不是把未验证能力标成完成。
+
+### 34-B.12 依赖波次与建议执行顺序
+
+```text
+A contracts: EQ-00 → EQ-01 → EQ-02 ∥ EQ-03 → EQ-04 → EQ-05 → EQ-06 → EQ-07
+      ↓
+B isolated target: EQ-08 → EQ-09 → EQ-10 ∥ EQ-11 → EQ-12 → EQ-13 → EQ-14 → EQ-15 → EQ-16
+      ↓
+C trace: EQ-17 → EQ-18 → EQ-19 → EQ-20 → EQ-21 ∥ EQ-22 → EQ-23 → EQ-24 → EQ-25 → EQ-26
+      ↓
+D evaluators: EQ-27 → EQ-28 ∥ EQ-29 ∥ EQ-30 → EQ-31 → EQ-32 ∥ EQ-33 ∥ EQ-34 → EQ-35 → EQ-36 → EQ-37
+      ↓
+E gate: EQ-38 → EQ-39 → EQ-40 → EQ-41 → EQ-42 → EQ-43 → EQ-44
+      ↓
+F operations: EQ-45 → EQ-46 ∥ EQ-47 → EQ-48 → EQ-49 → EQ-50 → EQ-51
+```
+
+可并行的步骤只共享只读 fixture 或独立模块；修改 `Cargo.toml`、`Cargo.lock`、protocol registry、CI workflow 和公共 schema 的集成由一个负责人串行合并。任何依赖步骤的拒绝、schema 不兼容或安全失败，都取消其后续 Promote 相关步骤，保留可独立完成的诊断和证据工作。
+
+### 34-B.13 最低验收矩阵
+
+| 证据面 | 必须先证明的拒绝路径 | 成功路径 | 证明上限 |
+|---|---|---|---|
+| Fixture/admission | untrusted project、unknown schema、path escape、expired dataset、budget overflow | 合法 suite/case 被 admit | `local_behavior` |
+| Side effect | network/secret/MCP/payment/publish/write effect 被 deny | fake broker 完成只读或临时 workspace 任务 | `local_behavior` |
+| Runtime | malformed stream、unmatched result、duplicate terminal、stale epoch、Unknown | normalized event/Receipt 完整 | `local_behavior`，有持久 EventStore 时再申请 `durable` |
+| Trace/diff | cursor gap、redaction failure、undeclared volatile、首个 divergence | exact/multiset/tolerance 按声明比较 | `local_behavior` |
+| Safety | policy bypass、scope expansion、hook failure、secret leak | 全部安全 evaluator pass | `local_behavior` |
+| Recovery | crash、cancel race、stop 未确认、flush 失败、replay unknown version | 恢复到明确状态或保留 Unknown | `local_behavior`/`durable` 取决于证据 |
+| Scoring | missing evidence、judge unavailable、insufficient sample、flake | 维度分数和 finding 可解释 | `local_behavior` |
+| Promote | gate pass 但无 authority/approval、candidate digest 漂移 | 二次授权后追加 route fact | `local_behavior`，不能自动声称 live |
+| CI/release | curated fail、deep no-golden、out-of-scope 被隐藏、artifact 缺失 | 分层门、报告、重现命令和证据归档 | `local_behavior` |
+
+### 34-B.14 与现有路线图的接点
+
+| 既有单元 | 关系 |
+|---|---|
+| `P0-A-01b` | 注册 Eval/Quality schema、unknown field/migration 规则 |
+| `P0-G-02a/b`、`P0-G-04` | 提供 durable event、model-visible history、replay source；`EQ-17` 依赖其事件合同 |
+| `P0-J1-*`、`P0-F-*` | cancellation、approval、Unknown 和恢复 fault plan 的被测对象 |
+| `P1-J2/J3` | context/memory evaluator、prompt/tool budget、provenance 和 freshness 分桶 |
+| `P1-J4`、`P1-H-*` | tool catalog、MCP schema、argument/path/safety evaluator |
+| `P1-J8-01` | observability 字段和 trace/receipt 关联；`EQ-34` 消费其 usage/cost |
+| `P1-K5-01` | runtime/project budget 与 cost evaluator，不能把 cost ledger 当 quality gate 事实源 |
+| `P1-L1-01` | 本专项的原始单元；由 `EQ-17..26`、`EQ-38..44` 具体化 |
+| `P1-L4-01` | RepositorySnapshot/RepoMap 作为 case 输入和 freshness evaluator |
+| `P2-K6/K7` | 对账、删除传播、retention 对 EvalStore/evidence 的生命周期约束 |
+| `P2-M*` | CLI/Web 的 eval report、gate 状态和人工反馈只做投影 |
+| `P3-I-04/I-06` | Acceptance、Review 和 fake-model coding golden 闭环接入 business outcome evaluator |
+| `P4-J3-05/J6/J7`、`P4-L3/L5/L6` | Swarm、stream、版本 drift、扩展供应链的 deep/release eval |
+
+### 34-B.15 交付与状态口径
+
+本专项在 `EQ-00..26` 完成前只能声明“有统一 fixture/trace 的局部基础”；在 `EQ-27..44` 完成前不能声明“有质量评分或 Promote gate”；在 `EQ-45..51` 完成前不能声明“有持续反馈、漂移监控或发布质量平台”。每次状态更新必须在 `CURRENT_STATUS.md` 写证据块：
+
+```text
+source_snapshot / worktree_status / command_argv / cwd·environment /
+fixture·cassette / exit_code / status change / proof-level change /
+limitations / reviewer
+```
+
+当前已存在的 `kiana eval run`、release smoke 和 crate focused tests 只能作为 `EQ-00`/`EQ-01`/部分 `EQ-05` 的基线证据；它们没有证明真实模型质量、跨重启 durable EvalStore、在线 drift、外部 side effect 安全或 live Promote。评测报告、GoldenTrace、Baseline、QualityGate 和 Feedback 都必须服从同一事实源和授权链，不能成为第二个执行循环。
+
+<a id="billing-quota-cost-plan"></a>
+
+## 35. 计费、配额与成本：实际代码设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本专项补全 [`module-map.md`](module-map.md) 第 18 模块，并把现有 `P1-K5-01`、`CP-11`、`P4-J7-24/25`、`ER-12`、`CO-45`、`OA-08` 的交叉要求收敛成一个可执行设计。旧路线图中“只做简单 usage”“不接账单”的限制不阻塞本专项设计；当前状态仍由 [`CURRENT_STATUS.md`](../CURRENT_STATUS.md) 决定，本节所有条目初始为 `feature_status=target`、`proof_level=source`。
+>
+> 本次调研先对 `reference/` 的项目目录和 `docs/reference-agent-audit/` 做全量关键词盘点，再对代表性实现做源码级核对。参考项目只提供行为对照，不复制其源码、凭据格式、许可证、遥测目的或第二条执行循环。第一阶段只实现本地事实、预算和对账边界，不实现支付、发票开具或企业多租户结算。
+
+### 35.1 设计结论和范围
+
+成本系统要回答四个不同问题：这次运行消耗了什么、当前还允许消耗多少、应把消耗归属给谁、外部 Provider 最终收了多少钱。四个问题必须由不同的对象和状态回答：
+
+| 问题 | 权威对象 | 可以做的决定 | 不能推导的结论 |
+|---|---|---|---|
+| 本次实际消耗 | `UsageRecord`（每个 model/effect attempt 一条） | 生成 Receipt、运行指标和重放输入 | 缺失 usage 不是零成本；模型文本不是事实 |
+| 当前运行能否继续 | `RuntimeBudget`、`BudgetLease`、`QuotaReservation` | 在副作用前允许、排队或拒绝 | 预算剩余不代表项目达成目标，也不代表已付款 |
+| 成本如何归属 | `CostLedger`、`CostAllocation`、`RateCard` | 按 org/project/workflow/cell/run/model/provider 聚合 | 聚合视图不能复制扣费；计划成本不是实际成本 |
+| 外部账单是否结清 | `MeasuredCost` + `ProviderReceipt` + `CostCorrection` | 对账、差异告警、导出给财务系统 | 没有 Provider receipt 不能声称已结算，FinancialBudget 首发不实现 |
+
+预算层次固定为：
+
+```text
+FinancialBudget       组织/合同/付款承诺（首发只保留接口，不授权执行）
+  └── ProjectBudget   项目周期成本、容量和时间基线
+        └── RuntimeBudget   一次 Run 的硬上限
+              └── BudgetLease   Cell/子任务从父预算派生的更窄租约
+
+ProviderBudget        Provider/credential/model 的速率、并发和容量限制（横切层）
+```
+
+以下关系是硬不变量：
+
+```text
+BudgetLease consumed  ≠ RuntimeBudget achieved
+RuntimeBudget spent  ≠ ProjectBudget settled
+estimated cost       ≠ measured provider bill
+provider bill        ≠ FinancialBudget authorization
+```
+
+本专项覆盖模型 token、缓存/推理 token、模型请求次数、工具调用、外部 effect 次数、并发槽、墙钟、输出/日志/Artifact 字节、Provider RPM/TPM 和可选成本上限。工具或本地模型没有外部价格时，仍记录资源用量；`cost=0` 只在 RateCard 明确给出零价且来源已固定时成立。
+
+### 35.2 Reference 调研归纳
+
+| 参考项目/材料 | 源码中观察到的模式 | Kiana 采用方式 | 明确不照搬 |
+|---|---|---|---|
+| DeepSeek Harness | provider stream 在终态才确认 usage；坏流、截断流和失败 attempt 保留错误与 usage；fixture 能断言请求数 | `NormalizedUsage` 按 attempt 提交；终态/EOF/取消分开；Fake Provider 断言 reservation 与真实请求数 | 不把 stdout JSONL 或 observer 当作账本；不让 SDK 自己重试 |
+| Codex | thread usage 同时区分 `net_new_input_tokens`、cached、input、output、total 和 estimated USD；缺失字段保留 `null`；analytics 可选择是否发送 usage | UsageVector 允许未知；cache 与 total 的包含关系由协议 schema 声明；敏感数据默认不外发 | 不把 telemetry 或 workload token 当 Kiana 授权；不采用远程账号作为 Principal |
+| Pydantic AI | `RequestUsage`/`RunUsage` 按字段可加；requests、input/output/tool calls、每请求 input 与累计 limit 分开；cost limit 对未知价格保持不可强制；显式 0 不被当作 unset | 采用 typed usage vector、per-attempt 与 cumulative 两层；0 与 unknown 分离；限制失败返回稳定 reason | 不直接把异常/回调当持久事实；不让任意 provider 字段进入核心 schema |
+| OpenAI Agents | retry attempt 的 usage 会进入 run usage；trace 与 usage 可关闭敏感数据；turn/tool/output limit 分层 | retry 产生新 attempt，usage 保留；Trace/Metric 与 EventLog 分开；每类限制独立计数 | 不把 tracing callback 作为预算闸门；不让 trace 数据扩大 DataBoundary |
+| Agno / MetaGPT / AutoGen / Agency Swarm / ChatDev | 有 run/team round、token 或 cost budget，常以进程内汇总和最大轮数终止 | 只吸收维度分桶、round/retry 成本可见性和 team 汇总 | 不采用进程内全局计数；不把 round 结束等同 durable settlement |
+| Aider / Continue / Roo / Cline | 上下文 token 估算、切换模型保留历史/成本、abort 和 context exhaustion；Roo 维护 token 统计与 provider rate limit | 估算值带 `basis`；Continue/restart 不重置 Run 链累计；Provider capacity 独立于 Run budget | 不把字节估算说成 tokenizer 精确值；不由 UI 历史计算权威费用 |
+| Goose / Crush / OpenCode | accepted run reservation、dispatch/cancel race、RunID 终态、projector/hydration、terminal event 保障并发安全 | 采用 reservation→dispatch→settlement、单终态和重启恢复；查询读模型可重建 | 不保留双 Agent loop；不以 bus publish 代替 commit |
+| Mini-SWE-agent | 每次调用检查 `n_calls`、cost 和 wall clock；format error/retry 有上限，但存在 off-by-one 风险 | 把预算检查放在原子 reservation；用 property test 覆盖边界和 0/1 限额 | 不把本地 cost float 直接当账务金额；不接受隐式重试 |
+| 12-factor agents | 清晰展示事件累积和人类审批，但没有持久预算、取消、重试或并发版本 | 只采用“控制流由服务端掌握”的原则，补齐事实与限制 | 不把内存 Map、类型断言或模型意图当授权/账本 |
+| LangGraph / Temporal SDK | checkpoint/history replay、super-step 或 activity/effect 边界；重试与恢复围绕持久事件历史 | 让 reservation、provider attempt 和 reconciliation 成为可重放边界；每个 effect 绑定 attempt/fence | 不把 workflow checkpoint 当 usage ledger；不把 activity retry 当 exactly-once 外部扣费 |
+| Beads / OpenSpec / Archon | 有序事件 journal、迁移/保留 watermark、artifact/plan 版本和 schema 校验 | 采用稠密 cursor、迁移前置检查、版本化 RateCard/CostCorrection 和 artifact evidence | 不引入其项目级 CLI 或另一路执行器 |
+| MemPalace / claude-memory / Graphiti | 原始会话、抽取结果、provenance、validity window 和索引分层；检索是派生数据 | 将 usage/cost 原始事实与 rollup、cache、memory retrieval cost 分离；删除/撤销可传播 | 不用向量索引或 memory summary 作为成本事实，也不把命中次数当质量结果 |
+| OpenTelemetry（参考规范） | logs、metrics、traces 分离，指标标签需控制基数；观测失败不能改变业务状态 | 保留 `UsageRecord`/EventLog 为事实，cost/queue/retry 为低基数 metrics，Trace 只存关联 ref | 不把 exporter、span 或 callback 当授权、审批或结算证据 |
+| CompanyOS 规范、现有 Provider/CP/ER 设计 | 明确 `UsageRecord`、`CostLedger`、`RateCard`、`CostCorrection`、`Backpressure`；EventLog 是事实源，Receipt 是投影 | 将已有合同细化为字段、事件、CAS、对账和迁移；复用现有 `UsageRecord`/`CostLedger`，不建第二套账 | 规范目标不当作已实现；`estimated_cost` 不用于 FinancialBudget 结算 |
+
+全量盘点的结论是：参考项目普遍实现了运行时 usage 或 cost 显示，却很少同时具备 durable reservation、价格版本、未知结果和外部账单对账。Kiana 的差异点必须放在“副作用前预留、事件后结算、未知不归零、修正可追溯”四个边界，而不是再增加一个 UI cost counter。
+
+可复核的调研材料包括 [`docs/reference-agent-audit/01-codex.md`](reference-agent-audit/01-codex.md)、[`02-deepseek-harness.md`](reference-agent-audit/02-deepseek-harness.md)、[`07-goose.md`](reference-agent-audit/07-goose.md)、[`08-opencode.md`](reference-agent-audit/08-opencode.md)、[`09-continue.md`](reference-agent-audit/09-continue.md)、[`10-roo-code.md`](reference-agent-audit/10-roo-code.md)、[`11-crush.md`](reference-agent-audit/11-crush.md)、[`13-mini-swe-agent.md`](reference-agent-audit/13-mini-swe-agent.md)、[`17-openai-agents-python.md`](reference-agent-audit/17-openai-agents-python.md)、[`18-pydantic-ai.md`](reference-agent-audit/18-pydantic-ai.md)、[`21-agno.md`](reference-agent-audit/21-agno.md)、[`24-metagpt.md`](reference-agent-audit/24-metagpt.md)、[`26-12-factor-agents.md`](reference-agent-audit/26-12-factor-agents.md)、[`99-kiana-mapping.md`](reference-agent-audit/99-kiana-mapping.md)，以及本仓库的 [`provider-design-research.md`](provider-design-research.md)、[`company-os-operations-governance.md`](company-os-operations-governance.md) 和 [`company-os-spec-index.md`](company-os-spec-index.md)。补充核对了 `reference/langgraph/`、`reference/temporal-sdk-python/`、`reference/beads/`、`reference/MemPalace/`、`reference/claude-memory/`、`reference/graphiti/` 中的 checkpoint、journal、retention 和 provenance 实现。这些报告记录了源码路径和限制；未列出的 `reference/` 项目已参与关键词/入口盘点，但不被描述为逐行审计或已运行。
+
+### 35.3 目标领域合同
+
+以下类型优先落在 `kiana-domain`，使用整数和 checked 运算；不能使用浮点数表达钱或配额。`Debug`、`Display`、serde、错误文本和事件投影只能输出 opaque ID、digest、状态和范围，不输出 credential、完整 prompt 或原始 provider response。
+
+```text
+UsageId / AttemptId / InvocationId / ReservationId / LedgerEntryId
+OrganizationId / ProjectId / WorkflowInstanceId / CellId / RunId
+ProviderId / ModelId / CredentialGroupId / RateCardId / ProviderReceiptRef
+
+UsageVector {
+  input_tokens: Option<u64>,
+  output_tokens: Option<u64>,
+  cache_read_tokens: Option<u64>,
+  cache_write_tokens: Option<u64>,
+  reasoning_output_tokens: Option<u64>,
+  audio_input_tokens: Option<u64>,
+  audio_output_tokens: Option<u64>,
+  tool_calls: u64,
+  effect_count: u64,
+  wall_time_ms: u64,
+  output_bytes: u64,
+  artifact_bytes: u64,
+  storage_bytes: u64,
+}
+
+NormalizedUsage {
+  usage_id, attempt_id, invocation_id?, run_id, cell_id?, project_id?, organization_id?,
+  provider_id, requested_model_id, served_model_id?, route_id, retry_ordinal,
+  vector: UsageVector, source: provider|local_executor|derived,
+  observation: snapshot|delta|final, sequence?, observed_at,
+  confidence: known|partial|unknown, basis, raw_digest,
+  rate_card_ref?, estimated_cost?, measured_cost?, provider_receipt_ref?
+}
+
+RateCard {
+  rate_card_id, provider_id, model_selector, currency, unit_scale,
+  input_price_per_unit?, output_price_per_unit?, cache_read_price_per_unit?,
+  cache_write_price_per_unit?, reasoning_price_per_unit?, audio_price_per_unit?,
+  request_price?, tool_price?, effective_from, effective_to?, version, source, digest
+}
+
+Money { currency, micros: i128 }
+
+RuntimeBudget { max_model_calls, max_tokens, max_tool_calls, max_effects,
+                max_wall_time_ms, max_output_bytes, max_storage_bytes }
+ProjectBudget { project_id, period_start, period_end, max_runs?, max_tokens?,
+                max_estimated_cost?, max_measured_cost?, max_concurrency }
+BudgetLease { lease_id, parent_ref, owner_cell, limits, reserved, consumed,
+              authority_epoch, budget_epoch, expires_at, state }
+ProviderBudget { quota_group, provider_id, model_selector?, window,
+                 max_requests, max_input_tokens?, max_output_tokens?, max_cost?,
+                 max_concurrency, queue_limit, retry_after_policy }
+QuotaReservation { reservation_id, dimensions, limits_snapshot, amounts,
+                   owner_run, owner_attempt, authority_epoch, config_revision,
+                   expires_at, state: reserved|settled|released|unknown|expired }
+
+CostLedgerEntry { entry_id, kind: reservation|consumption|release|correction,
+                  usage_ref?, reservation_ref?, allocation_ref?, amount,
+                  estimated_cost?, measured_cost?, currency, rate_card_ref?,
+                  provider_receipt_ref?, created_at, source_event, digest }
+CostCorrection { correction_id, target_entry_ref, delta_estimated?, delta_measured?,
+                 reason, evidence_refs, requested_by, approval_ref, created_at }
+```
+
+字段规则：
+
+1. `Option<u64>` 表示未知，不表示零；只有 provider 明确报告零才写 `Some(0)`。同理，`estimated_cost=None` 代表没有可用价格或 usage 不完整。
+2. `UsageVector` 是叶子事实。一条 attempt 只生成一条逻辑 usage；按 project、role、workflow 等维度聚合时只生成 allocation 引用，不能把同一消费复制到多个账本再相加。
+3. 流式 provider 的 `snapshot` 取同一 attempt 的最后一个单调有效快照；`delta` 按 sequence 去重后相加；重复 sequence + 不同 digest、计数回退、溢出和字段包含关系矛盾都拒绝结算。
+4. `total_tokens` 不作为独立可加字段存储；由协议映射表明确 `input + output` 是否包含 cache/reasoning。无法证明包含关系时保留 raw 字段摘要并把 billable 部分标为 unknown。
+5. 价格使用货币最小单位整数和 `checked_mul/checked_add`；RateCard 变更只能新增版本。历史记录永远引用旧版本，不能按当前价格重算历史账单。
+6. `measured_cost` 只有在 provider receipt、发票导入或受信本地计量带有稳定 ref 时才能写入；估算成本可用于 admission 预留、告警和背压，不能清算 FinancialBudget。
+7. correction 只能追加事件，不能 UPDATE/DELETE 原始记录；正负调整都必须有原因、证据、审批和目标 digest。修正后的查询视图是原始 entries 加 corrections 的确定性折叠。
+
+### 35.4 统一处理流程
+
+```text
+入口请求
+  → DaemonHost/ControlPlane 认证并固定 AuthoritySnapshot
+  → 解析 ConfigSnapshot、Provider route、DataBoundary 和 RateCard revision
+  → 编译最终 model/effect 请求，计算可解释的估算上界
+  → 检查 RuntimeBudget、BudgetLease、ProjectBudget、ProviderBudget、容量和期限
+  → 原子提交 QuotaReservation + BudgetLease reserved + command receipt
+       ├─ Denied / Queued / Delayed：不产生 provider 或 handler effect
+       ├─ Replayed：校验相同 digest，复用原 settlement/receipt
+       └─ Committed：签发一次性 permit，进入 provider/broker
+  → 创建 attempt；发送前再次校验 epoch、route、rate-card、reservation 和 cancel
+  → provider/handler 执行；采集 normalized result、usage、receipt、stop report
+  → 原子追加 attempt terminal + usage observed + settlement/release + artifact refs
+       ├─ Known：结算已知消耗，释放未使用预留
+       ├─ Partial：结算已知部分，剩余保持 reserved/unknown
+       └─ Unknown：保留保守预留，进入 Incident/Reconciliation，不自动重试
+  → projector 按 source_cursor 更新 run/project/provider usage rollup
+  → Receipt 显示 usage、estimated/measured/unknown、reservation、retry、queue wait 和限制
+  → 外部账单导入按 ProviderReceipt 对账，差异只产生 CostCorrection
+```
+
+模型请求和工具 effect 共用这条流程，但计量维度不同：模型请求至少计 requests、input/output/cache/reasoning tokens 和 provider latency；工具 effect 至少计 tool calls、effect count、wall time、output/artifact/storage bytes。一个模型产生多个工具声明时，模型 token 只在 model attempt 结算，工具 effect 只有在 Broker 真正启动后才计为 effect；被拒绝或未执行的声明不能伪造工具消费。
+
+### 35.5 预算、配额和背压语义
+
+**Admission。** `ControlPlane` 在发送 provider 请求或调用 Broker 前计算 `ReservationPlan`。输入 token 若没有可信 tokenizer，只能用 `basis=bytes_upper_bound` 或配置上界，并在 Receipt 标记估算；输出必须把 provider 能强制的 `max_output` 纳入上界。若 provider 没有可强制的输出限额或可靠价格，硬门只使用 requests/tokens/capacity，`cost_hard_limit_enforced=false`，不能声称费用不会超。
+
+**层级取交集。** 可用额度是 `parent lease ∩ project policy ∩ role/template ∩ provider budget ∩ current authority`。child 预留从 parent 的 `remaining_reserved` 中扣除；兄弟总预留不能超过 parent。Continue、新 turn、重启和模型切换都不能清掉同一 Run 链的已消费量或 in-flight unknown reservation。
+
+**窗口。** Provider RPM/TPM 和组织周期配额使用带时区的 UTC 窗口和注入时钟；窗口滚动只影响新 reservation，旧窗口中已接受的 attempt 仍按原 limits snapshot 结算。时钟回退、窗口溢出或 epoch 不一致时拒绝新 reservation，不提前释放旧 reservation。
+
+**背压。** 所有队列有明确的 item、字节和等待时限上限，顺序为 `Accept → Queue → Delay → Coalesce（只用于声明幂等且保存 occurrence/digest）→ Reject(retry_after) → Escalate`。等待审批、退避和排队不占 active provider/concurrency slot；取消必须从队列移除并追加事实。退避不消耗新的 token/cost reservation，重新发送必须创建新的 attempt 并重新准入。
+
+**释放和未知。** 预留未执行部分可释放；已知 usage 不退款；模型在请求已发出后失联、进程停止但 effect 未确认、provider receipt 缺失时状态是 `unknown`，保持保守占用并创建 reconciliation case。只有明确的 provider receipt、只读查询或人工批准的 reconcile 才能把 unknown 转为 settled/released/abandoned。
+
+**重试和 fallback。** 只有发送前可证明未被 provider 接受的 transient error 才允许在同一逻辑命令中排队重试；每次重试是新 attempt、独立 usage 和独立 reservation。发送后 EOF、连接断开、取消或未知 HTTP 结果一律不自动重发。fallback 必须重新校验 capability、context/data boundary、credential、RateCard、ProviderBudget 和审批，不能把两个 provider 的部分结果拼成一个 usage。
+
+### 35.6 代码落点和接口边界
+
+| 层 | 目标改动 | 约束和现有锚点 |
+|---|---|---|
+| `kiana-domain` | 扩展 `usage.rs` 为 `UsageVector`、`NormalizedUsage`、`Money`、`RateCard`、`CostLedgerEntry`、`CostCorrection`、`ReservationPlan`、typed unknown/reason；补 ID、schema 和状态转移 | 只放纯值对象和 checked arithmetic；复用现有 `UsageRecord`/`CostLedger` 名称，提供旧字段 upcaster；不依赖 provider、Tokio 或文件系统 |
+| `kiana-protocol` | versioned usage/quota/cost query、reservation、settlement、correction、backpressure 和 receipt DTO | wire 不接受 caller 自报的 project/role/budget；金额用整数 micros + currency；未知和估算必须可序列化 |
+| `kiana-ports` | `UsageLedgerPort`、`QuotaReservationPort`、`RateCardPort`、`CostReconciliationPort`、`CapacityPort`、`ClockPort` | port 返回结构化错误和 opaque refs；reserve/settle/release/correct 都幂等并支持 expected versions |
+| `kiana-core` | `BudgetAdmission`、`QuotaService`、层级 reservation/CAS、ProviderBudget window、backpressure、retry/fallback 再准入、correction approval | 复用 `model_budget.rs`、`cell_registry.rs`、`company.rs`；模型/工具都从 ControlPlane 进入；不在 daemon 或 UI 复制预算判断 |
+| `kiana-provider` / `kiana-daemon` | provider usage normalization、stream snapshot/delta、RateCard route、credential quota group、capacity queue、ProviderReceipt adapter | `Connection` 不持久化 raw secret；每个 attempt 绑定 route/config/authority/rate-card revision；synthetic stream 不标 native |
+| `kiana-eventlog` | `usage.reserved`、`usage.observed`、`usage.settled`、`usage.released`、`usage.unknown`、`cost.corrected` facts；CAS/dedup/projector checkpoint | EventLog 是唯一事实源；append 未确认不得 dispatch；same attempt 只能 settle 一次；旧事件通过显式 upcaster 读取 |
+| `kiana-query` | org/project/run/provider/model/workflow rollup、daily/window query、unknown/reconciliation、cost-per-accepted-delivery 计算 | 查询来自可重建 projection，带 `source_cursor`、`projection_version`、`data_epoch`；不能从 UI cache 反推成本 |
+| `kiana-entrypoints` / UI | 预算摘要、reservation/queue 状态、estimated/measured/unknown、rate-card version、reconcile/correction inbox | 只读投影；审批和 correction 走 versioned command；不显示“已付款”或把估算渲染成实测 |
+| `scripts` / tests / `CURRENT_STATUS.md` | fake provider/broker、invoice cassette、concurrency/fault/replay fixtures、evidence block | 每步先 deny 再 success；真实 provider 仅显式 opt-in；状态和证明等级分开记录 |
+
+现有代码的迁移重点：`kiana-domain/src/usage.rs` 当前 `CostLedger.cost_micros` 永远为 `None`，`Quota` 只有 scope/model_calls/tokens/concurrency；`kiana-core/src/model_budget.rs` 当前按 `text_bytes_plus_output_limit` 做模型预留，尚未覆盖 provider 价格、工具 effect 和 project rollup；`kiana-core/src/receipts.rs::cost_ledger_from_events` 只从 `run.model_turn` 聚合 input/output。实施时先扩展这些路径和事件，再删除/隔离任何旧的进程内计数器，避免出现第二成本账本。
+
+### 35.7 详细实施步骤（BQ-00–BQ-30）
+
+每张卡都是一个最小可验证切片。先跑拒绝验收，确认 provider/handler dispatch 数为零，再跑成功和恢复验收。编号是本专项局部索引，不重排既有 P0–P6、P1-K5-01 或 P4-J7 编号。
+
+| Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功/回归验收 |
+|---|---|---|---|---|
+| `BQ-00` | 基线、快照和冲突清单；盘点 `usage.rs`、`model_budget.rs`、`receipts.rs`、Provider response、CellRegistry、现有事件和测试 | — | 复现 `CostLedger`/`Quota`/预算类型混用、缺 usage 不得写 0；记录当前 RED，不篡改历史证据 | 形成 source snapshot、WIP 边界、事件/字段迁移表和 fixture 命名 |
+| `BQ-01` | 稳定 ID、schema major、unknown/reason、状态枚举与错误码；`kiana-domain`/contracts | BQ-00 | 未知 major、未知枚举、重复 ID、跨 run/cell/project 绑定、负无符号金额全拒绝 | 所有 DTO round-trip；错误码稳定且不含 secret |
+| `BQ-02` | `UsageVector` 和 `NormalizedUsage`；区分 absent/zero/partial、source/basis/sequence | BQ-01 | 缺失 usage 被当零、负数/溢出、unknown source 进入 measured、跨 attempt 混用全拒绝 | provider/local/fake 三类 usage 可序列化，字段含义表固定 |
+| `BQ-03` | snapshot/delta/final stream 累计器；按 sequence 去重、单调性和包含关系校验 | BQ-02 | 重复 sequence 不同 digest、回退、截断、重复 cumulative 相加、终态后 delta 全拒绝 | cumulative 取最后快照、delta 恰好相加；usage-only chunk 保留 |
+| `BQ-04` | `Money`、整数 micros、checked pricing arithmetic；`RateCard` 版本和有效时间 | BQ-01,BQ-02 | 浮点/负 unsigned、乘加溢出、重叠有效期、缺 currency/source、旧记录被当前价格重算全拒绝 | 相同 rate card 得到稳定 estimate；价格变更新增 version |
+| `BQ-05` | `RateCardStore` 与模型/provider/缓存/音频/工具单价映射 | BQ-04 | unknown model、过期卡、cache/reasoning 重复计价、估算引用缺 version 全拒绝 | 受支持模型按 pinned card 生成可解释 breakdown；unknown price 保持 null |
+| `BQ-06` | 五类预算合同和交集算法；`RuntimeBudget`、`BudgetLease`、`ProjectBudget`、`ProviderBudget` | BQ-01,BQ-04 | child union/提升、Continue 重置累计、FinancialBudget 误授予执行权、project/runtime 互换全拒绝 | 交集和 remaining 计算纯函数稳定；保留 `runtime_and_project_budgets_are_not_interchangeable` |
+| `BQ-07` | Quota dimension/window、UTC/clock、quota group（alias/credential/model） | BQ-06 | 时钟回退、窗口错位、同 credential 别名绕过、空 scope/超限全拒绝 | 固定时钟下窗口滚动、quota group 聚合和 retry-after 可复现 |
+| `BQ-08` | durable `QuotaReservation`、lease/fence/authority/config revision、CAS/dedup | BQ-06,BQ-07 | 并发 reserve 超卖、旧 epoch/fence、digest 冲突、重复 command、过期 permit 全拒绝且 0 dispatch | 两进程竞争只有一个 commit；replay 返回原 receipt；兄弟总预留不超 parent |
+| `BQ-09` | admission estimator：最终 wire 请求、输出上限、retry allowance、tool/effect/storage 预算 | BQ-02,BQ-05,BQ-08 | 估算遗漏 schema/缓存/重试、unknown tokenizer 宣称 exact、价格未知仍硬性声称费用上限全拒绝 | estimate 带 basis/upper bound；fake provider 请求前能看到正确 reservation |
+| `BQ-10` | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | BQ-02,BQ-03,BQ-05,BQ-09 | malformed usage、requested/served model 混淆、reported total 矛盾、provider 自报 token 直接授权全拒绝 | 每协议 fixture 映射到同一中立 vector；缺字段保留 unknown |
+| `BQ-11` | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | BQ-08,BQ-10 | 未 prepared、无 permit、同 attempt 多次 settle、append 未 flush 却 dispatch 全拒绝 | `run→turn→attempt→usage→receipt` 关联完整；失败 attempt 也留 usage/error |
+| `BQ-12` | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | BQ-11 | cancel/timeout/EOF 自动归零、unknown 自动释放、已知 usage 退款、重复 settle 双扣全拒绝 | known/partial/unknown 三路得到确定性账本；reconcile 前保守占用 |
+| `BQ-13` | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | BQ-05,BQ-12 | 无 RateCard/不完整 usage 写 measured、估算进入 FinancialBudget、cost=0 伪造全拒绝 | estimate 引用 rate-card version；measured 只带 provider receipt；unknown 显示原因 |
+| `BQ-14` | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | BQ-13,CP-11,ER-12 | 原地 UPDATE/DELETE、模型文本改账、无 evidence/approval、target digest 不匹配全拒绝 | correction 只追加且可重放；原始/修正值和 approver 可追溯 |
+| `BQ-15` | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | BQ-06,BQ-08,BQ-11 | 被拒绝声明计 effect、未启动工具计成功、路径/owner/lease 漂移、输出洪泛绕过 quota 全拒绝 | model/tool/effect 账目分层；实际启动数、字节和 wall time 与 Receipt 对齐 |
+| `BQ-16` | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | BQ-07,BQ-08,BQ-15 | 无界队列、取消后仍发送、退避占槽、别名绕过 quota、释放非 owner 许可全拒绝 | Accept/Queue/Delay/Reject 可观测；公平性、queue wait、RAII release 有测试 |
+| `BQ-17` | Retry classifier、attempt reservation、Retry-After 和 cancellation | BQ-11,BQ-12,BQ-16,P4-J7-23 | post-send unknown 自动 retry、TLS/auth 永久错误重试、retry 超过 budget、cancel race 双终态全拒绝 | pre-send 429/408 按 bounded policy 新 attempt；实际请求数与账目一致 |
+| `BQ-18` | 白名单 fallback 与 route/authority/data/price 重新准入 | BQ-05,BQ-08,BQ-10,BQ-17 | fallback 降低 capability、跨 data boundary、无 credential/预算或复用旧 permit 全拒绝 | 每个 fallback attempt 有独立 route、usage、rate-card 和 receipt |
+| `BQ-19` | project/org/workflow/cell/run allocation；避免父子/多维重复相加 | BQ-13,BQ-14,BQ-15 | 同一 usage 多次扣费、跨项目无 SharingGrant、归属字段由 wire 自报全拒绝 | leaf usage 唯一；各维度 rollup 与总账一致；CO-45 portfolio 视图可重算 |
+| `BQ-20` | EventLog ledger projector、source cursor、projection version、daily/window rollups | BQ-11,BQ-14,BQ-19,PD-05 | 先推进 cursor 再写 projection、跳过坏事件、projection 反写事实、stale 被标 fresh 全拒绝 | 新进程从 EventLog 重建同一汇总；失败 cursor/quarantine 可查询 |
+| `BQ-21` | Restart/continue/replay/recovery；in-flight reservation、unknown attempt 和 fencing | BQ-08,BQ-12,BQ-20,ER-21 | 重启重发已完成 attempt、Continue 重置累计、旧 lease/epoch 继续结算、unknown 自动成功全拒绝 | 恢复默认 paused/needs-reconciliation；显式 reconcile 后只结算一次 |
+| `BQ-22` | Provider invoice/receipt import、差异检测、correction workflow | BQ-05,BQ-14,BQ-20 | 未认证 receipt、重复 invoice、period/model/usage 不匹配、差异静默覆盖全拒绝 | 账单导入生成 measured/correction；差异、未知和待人工项可追踪 |
+| `BQ-23` | query/protocol API：预算摘要、usage breakdown、cost export、reconciliation inbox | BQ-20,BQ-22 | 查询跨 DataBoundary、查询消费 reservation/approval、分页跳过 cursor、估算标实测全拒绝 | CLI/Web/Workbench 返回同一 projection、freshness、unknown 和 provenance |
+| `BQ-24` | UI/入口展示与命令；只读预算卡、队列、超额原因、correction approval | BQ-23,UI-00 | UI 本地计算剩余额度、乐观扣费未 commit、隐藏 unknown、输入 actor/project 覆盖服务端全拒绝 | 同一 Run 在四入口显示一致；审批/重试/对账走 versioned command |
+| `BQ-25` | Redaction、DataClass、telemetry separation；Event/Log/Metric/Trace/Receipt 安全 | BQ-11,BQ-13,BQ-23,OA-08 | API key、prompt、raw response、invoice secret、路径/高基数 ID 进入 metric 全拒绝 | digest/ref/低基数标签可关联；secret scan 和 redaction fixture 全绿 |
+| `BQ-26` | 并发、崩溃、磁盘满、网络 EOF、provider 429/5xx、clock fault 注入 | BQ-08,BQ-12,BQ-16,BQ-20 | CAS race、partial frame、flush 失败、settlement 丢失、未知自动重试、超额继续 dispatch 全拒绝 | 故障后事实可重放，reservation/lease/queue 无泄漏；incident 有 action |
+| `BQ-27` | Legacy usage/cassette/config upcaster 和迁移；旧 `CostLedger`/`Quota` 字段 | BQ-01,BQ-02,BQ-04,BQ-20 | unknown major 静默接受、旧 `cost_micros=0` 被当 measured、重复迁移覆盖历史全拒绝 | 旧 cassette 可读并标 `legacy/unknown`；迁移有版本、digest、rollback/read-only 说明 |
+| `BQ-28` | 性能、容量、retention 和归档；usage/index/receipt 保留边界 | BQ-20,BQ-25,BQ-26 | rollup 无界内存、高基数标签、删除 retained evidence、archive 后仍可结算旧 lease 全拒绝 | 固定 fixture 测 p50/p95、磁盘/queue 上限；保留/归档不改账本事实 |
+| `BQ-29` | GoldenTrace 与跨入口端到端：model→tool→event→receipt→invoice correction | BQ-21,BQ-22,BQ-23,BQ-24,BQ-26,BQ-27 | 任一入口绕过 DaemonHost、provider/handler 调用数与 reservation 不符、Receipt 把 runtime success 写 business outcome 全拒绝 | Fake provider、local executor、synthetic stream、known failure、unknown、retry、fallback、correction 全链可重放 |
+| `BQ-30` | 发布门、状态账本和逐连接 live 证据；更新 `CURRENT_STATUS.md`/`module-map.md` | BQ-00..BQ-29 | 只有类型/单测/估算不能宣称 billing live；无 provider receipt 不能宣称 measured；限制未记录阻断 Promote | 每步有 evidence block；offline durable 与 opt-in live 分开；P1-K5/CP-11/P4-J7-24/ER-12/OA-08/CO-45 接点全部回填 |
+
+### 35.8 执行波次和现有 roadmap 接点
+
+```text
+Wave A  Contracts:  BQ-00 → BQ-01 → BQ-02 → BQ-03 ∥ BQ-04 → BQ-05
+Wave B  Budgets:    BQ-06 → BQ-07 → BQ-08 → BQ-09
+Wave C  Attempts:   BQ-10 → BQ-11 → BQ-12 → BQ-13 → BQ-14
+Wave D  Capacity:   BQ-15 → BQ-16 → BQ-17 ∥ BQ-18
+Wave E  Rollups:    BQ-19 → BQ-20 → BQ-21 → BQ-22
+Wave F  Surfaces:   BQ-23 → BQ-24 → BQ-25 → BQ-26
+Wave G  Migration:  BQ-27 → BQ-28 → BQ-29 → BQ-30
+```
+
+与已有专项的边界固定如下：
+
+| 已有卡片/专项 | 本节承接 | 不重复建设 |
+|---|---|---|
+| `P1-K5-01` | CostLedger、Quota、Runtime/Project 分层总入口 | 不再另建一套 usage ledger |
+| `CP-11` / `CP-13/14` | budget reserve、effect admission、settlement 和 fencing | 不在 Provider/daemon 做独立授权 |
+| `P4-J7-24/25` | 协议 usage 归一化、价格快照、Provider capacity/fallback | 不把 provider-specific usage 直接当 project cost |
+| `ER-12` / `ER-21` | Receipt 聚合、Unknown、reconcile、replay | 不把 Receipt 当第二事实源 |
+| `CO-45` | Project/Portfolio capacity 和成本视图 | 不把 runtime token 当业务收益或 FinancialBudget |
+| `OA-08` / `OA-23/25` | cost/cache/retry metrics、eval、容量和迁移证据 | 不用 trace/metric 覆盖事实或授权 |
+| `PD-05/10/11/20/24` | EventStore、projector、Budget/Lease、backup、retention | 不把 SQLite/index/cache 写成第二账本 |
+
+若既有卡片与本节在 reservation、Unknown 或 measured/estimated 上有冲突，采用更严格的规则：**先提交事实和预留，后产生副作用；Unknown 保守挂账；只有带 receipt 的 measured 才能对账；所有 correction 追加且需授权。**
+
+
+### 35.9 最低验收矩阵、指标和证据口径
+
+**拒绝矩阵。** 至少覆盖：未信任项目、伪造 actor/project/role、budget 类型互换、空或未知 scope、窗口回退、并发超卖、旧 epoch/fence、重复 command/attempt/sequence、缺失 usage 被归零、累计 usage 重复相加、价格缺失却标 measured、RateCard 重叠/改写、post-send unknown 自动 retry、取消后仍发送、退避占槽、fallback 跨 DataBoundary、被拒工具计 effect、project/cell 多重扣费、账单 receipt 重放、correction 无审批、projection cursor 跳过、查询越权、secret/高基数泄漏和任一入口绕过 `DaemonHost`。每个拒绝都要有稳定 error/reason、事件或 incident，并证明 provider/broker handler effect 数为零。
+
+**成功和恢复矩阵。** 至少覆盖：known usage、显式 zero、partial/unknown usage、cumulative/delta stream、缓存和 reasoning 字段、多个并发 reservation、queue fairness、cancel/timeout、pre-send retry、白名单 fallback、model+tool+artifact 账目、跨 Run/Project/Organization rollup、重启与 Continue、EventLog 重建、invoice measured、CostCorrection、retention/archive、CLI/TTY/Web/Desktop 同一 Receipt。没有 provider receipt 的真实调用最多提升到 `durable` 的本地事实链，不能提升为外部 bill settled 或业务 outcome。
+
+**Canonical 指标。** 只注册低基数标签（`provider_id`、`model_id`、`route_id`、`reason_class`、`outcome`、`sandbox_profile`、`window`、`environment`）；`run_id`、`attempt_id`、prompt/tool hash、路径和主体 ID 只进事件/Receipt 查询。至少提供：
+
+```text
+kiana.usage.input_tokens / output_tokens / cache_read_tokens / cache_write_tokens
+kiana.usage.requests / tool_calls / effects / wall_time_ms / bytes
+kiana.cost.estimated_total / measured_total / unknown_total
+kiana.quota.reserved / consumed / released / unknown / rejected
+kiana.capacity.queue_depth / queue_wait_ms / active / retry_after
+kiana.cost_per_accepted_delivery
+kiana.workflow_retry_cost / swarm_duplicate_work_cost / budget_burn_rate
+```
+
+`estimated_total` 和 `measured_total` 永远分开；没有 `provider_receipt_ref` 的金额不能进入 measured。`cost_per_accepted_delivery` 只在 accepted delivery 非零且 project/data boundary 一致时计算，否则返回 unknown；平均 token 不是质量指标。
+
+**证据块。** 每张 `BQ-*` 完成时在 `CURRENT_STATUS.md` 写入：
+
+```text
+source_snapshot / worktree_status / command_argv / cwd·environment /
+fixture·cassette / exit_code / status change / proof-level change /
+limitations / reviewer
+```
+
+`feature_status` 和 `proof_level` 分开填写。`UsageRecord` 类型、一次本地单测、Receipt 字段、RateCard 文件或 Provider 返回的 token 都不能单独提升状态。发生 unknown、迁移、projection 落后、invoice 缺失、价格未覆盖、连接未实跑或 retention 限制时，Receipt、query 和证据块都必须保留可定位的 limitation；本专项只补设计和执行步骤，不改变现有实现状态。
+
+<a id="deployment-operations-migration-design"></a>
+
+## 36. 部署、运维与迁移专项：实际代码设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本节补全 [`module-map.md`](module-map.md) 第 19 模块。它把 `kiana-daemon`、`kiana-core`、`kiana-eventlog`、`kiana-query`、配置/身份、调度、可观测性和发布脚本串成一条可执行的部署生命周期。这里的 `DEP-*` 是本专项的局部实施索引，不改变 P0–P6 或其他专项的 canonical step，也不把当前脚本、类型或单机 smoke 误写成已经具备 durable/live 的云部署能力。
+
+### 36.1 调研结论：可借鉴的机制与明确边界
+
+这次调研先看完整的 `reference/` 和 `docs/reference-agent-audit/`，再对照 Temporal、SQLite、Kubernetes、Flyway 和 12-factor agents 的公开机制。参考项目只提供形状和失败模式；Kiana 仍以自己的 `DaemonHost → ControlPlane → Broker → EventStore → Receipt` 为唯一事实与副作用路径。
+
+| 来源 | 观察到的机制 | Kiana 采用 | 不直接照搬的部分 |
+|---|---|---|---|
+| [`00-unified-agent-flow`](reference-agent-audit/00-unified-agent-flow.md)、[`01-codex`](reference-agent-audit/01-codex.md)、[`02-deepseek-harness`](reference-agent-audit/02-deepseek-harness.md) | 事件优先、flush/shutdown、torn-tail 修复、恢复前重新授权、取消后排空已启动工作 | 把 deployment operation、drain、backup、migration 也写成可审计的事实和 Receipt；恢复默认暂停并保留 `Unknown` | 不把 transcript、后台 writer 或内存 snapshot 当作权威；不假设静态审计已经证明真实部署时序 |
+| [`07-goose`](reference-agent-audit/07-goose.md)、[`08-opencode`](reference-agent-audit/08-opencode.md)、[`24-metagpt`](reference-agent-audit/24-metagpt.md)、[`11-crush`](reference-agent-audit/11-crush.md) | 持久 session/state、projector 与 source 分离、文件系统恢复和 terminal 事实 | 使用 source cursor、generation、projection rebuild、quarantine root 和显式 reconcile | 不引入第二个 session store、UI 状态源或自动重试副作用 |
+| [`12-factor-agents`](../reference/12-factor-agents/README.md) | 确定性控制流、部署动作由工具/人工批准驱动、先检查环境和版本 | 把发布、迁移、回滚拆成可审批的 operation plan；计划由代码生成，执行仍回到 ControlPlane | 不让模型决定版本、环境、权限或发布顺序；不把示例 deploy tool 当作 Kiana 的连接器实现 |
+| [`container-use`](../reference/container-use/docs/README.md) | environment 持有状态，副作用经过受控 environment，发布有明确 release/checksum 步骤 | 以 `StorageRoot`、`EnvironmentProfile`、`ReleaseManifest`、artifact digest 作为部署边界 | 不把容器本身当作安全边界；容器内仍须有 lease、sandbox、policy 和审计 |
+| [`temporal-sdk-python`](../reference/temporal-sdk-python/README.md) 与 [worker versioning](https://github.com/temporalio/documentation/blob/main/docs/production-deployment/worker-deployments/worker-versioning.mdx) | deterministic workflow replay、worker build ID、pinned/auto-upgrade、旧 worker drain | 对 WorkflowDefinition、Provider、Skill/Plugin 保存 digest 和兼容窗口；运行实例固定版本，旧 revision drain 后才退休 | 不引入 Temporal server、外部 exactly-once 或任意 replay-safe 的假设 |
+| [SQLite backup API](https://www.sqlite.org/backup.html)、[WAL](https://www.sqlite.org/wal.html)、[atomic commit](https://www.sqlite.org/atomiccommit.html) | 备份必须形成一致快照；WAL、主文件和 checkpoint 需要共同处理；单写者与锁语义影响恢复 | JSONL/WAL/SQLite adapter 都输出统一 `BackupManifest`、cursor、epoch、hash 和 restore verification | 不把 SQLite/ WAL 作为第二事实账本；当前适配器没有因此自动获得生产 durability |
+| [Kubernetes probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/)、[rolling update](https://kubernetes.io/docs/tasks/run-application/update-deployment/)、[health checks](https://kubernetes.io/docs/reference/using-api/health-checks/) | startup、readiness、liveness 语义不同；readiness 可摘流；滚动更新要有进度、暂停和回滚 | 定义 `startupz/readyz/livez/drainz` 等同一 `HealthSnapshot` 的投影，并将 rollout 分成 preflight、drain、serve、rollback | 不宣称当前已有 Kubernetes controller；orchestrated profile 只是目标适配器，单写者和数据根 fencing 先于副本数 |
+| [Flyway validate](https://documentation.red-gate.com/flyway/reference/commands/validate) | migration checksum、版本顺序和 drift 检测是发布门 | MigrationRegistry 保存 checksum、前置版本、owner、兼容窗口和 `MigrationRecord` | 不采用可随意编辑的 SQL 目录；事实数据迁移默认 forward-only，降级走 restore/兼容二进制 |
+| `beads`、`a2a`、`graphiti/mem0` 等审计材料 | claim/lease、TaskState、artifact 引用、时间/操作生命周期 | 复用 stable ID、lease/fence、artifact ref、source cursor 和 retention 术语 | 不把外部 TaskState、claim API 或 memory store 变成 Kiana 的权限事实源 |
+
+从这些机制可归纳出六条工程结论：
+
+1. 部署、迁移、备份、恢复和运维命令都是 ControlPlane command；运维适配器只能提交 intent、读取 snapshot 或执行已经授权的 permit。
+2. 版本必须拆成 application build、protocol/domain schema、store format、projection、workflow/provider/extension、config、authority epoch 和 data epoch；单个 `version` 字段不能覆盖兼容性。
+3. 任何会改变事实或可能产生外部副作用的操作，都先写 admission/preflight，再写 committed operation，最后才执行；`result_unknown` 不得被当作失败自动重试。
+4. 一个 `StorageRoot` 同时只允许一个有效 writer/lease。新进程、新容器或 restore root 必须用 fencing token 和更高 epoch 使旧实例失效。
+5. readiness 只表示当前 revision 可以接收新的受控命令，不表示所有历史业务已经完成；projector 落后、migration 未完成、存在未对账 Unknown 或没有有效 lease 时必须保持未 ready。
+6. 备份和回滚证明的是本机事实链可以恢复；外部 provider、webhook、支付或用户业务 outcome 需要独立的 effect receipt/reconcile 证据。
+
+### 36.2 总体边界、部署形态与权威对象
+
+#### 部署形态
+
+四种 profile 共享同一个 `DaemonHost` 和 ControlPlane，只替换宿主生命周期与存储适配器：
+
+| Profile | 目标场景 | 进程/存储约束 | 当前口径 |
+|---|---|---|---|
+| `embedded-local` | CLI、Workbench、Desktop 的本地运行 | 一个 `DaemonHost`、一个 `StorageRoot`、本地 JSONL/文件 artifact；退出前 drain + flush | 当前路径的主要兼容目标；需用 `DEP-00` 基线确认实际证明等级 |
+| `managed-local` | systemd、launchd、Windows service 或桌面后台服务 | supervisor 只重启进程，不保存业务状态；数据根、配置根、secret ref 分离 | 目标适配器；不得在 supervisor 中复制执行循环 |
+| `container` | OCI image、单机 compose、带持久卷的任务 | image immutable；`StorageRoot` 挂载；单 writer lease；健康探针和优雅终止可观察 | 目标适配器；容器编排不自动提供数据一致性 |
+| `orchestrated` | Kubernetes 或其他编排器 | replica、rollout、PDB、探针、卷和身份均由 adapter 映射，仍由 Kiana lease/fence 决定 active writer | deferred/target；在 durable store、identity、backup 和 migration gate 完成前不得宣称可用 |
+
+部署 profile 不能新增一条模型循环或权限判断。Supervisor 可以发送 `SIGTERM`、停止容器或摘除服务，但“是否允许停止/迁移/回滚”由 operation admission 决定；宿主动作的结果通过 `OperationObservation` 回写。
+
+#### 权威对象
+
+| 对象 | 必填字段 | 权威位置与用途 |
+|---|---|---|
+| `ReleaseManifest` | `release_id`、git/source digest、target、build/toolchain、Cargo.lock digest、protocol/schema/store/projection version、minimum/maximum compatible versions、artifact digests、signature refs | 发布 artifact 与 CI 产物；不可由运行时自述覆盖 |
+| `EnvironmentProfile` | environment ID、StorageRoot ref、config revision、secret refs、allowed capabilities、platform/filesystem、maintenance policy | `kiana-daemon` 解析后的不可变快照；secret value 不进入事件或诊断 |
+| `DeploymentRevision` | revision/build ID、release ID、profile、instance ID、parent revision、phase、health、start/drain/retire timestamps | EventStore 的部署生命周期事实；旧 revision 可查询但不可接收新工作 |
+| `OperationLease` | operation ID、owner/instance ID、StorageRoot、fence token、authority/data epoch、expires/heartbeat、scope | 单 writer、migration、backup、restore、rollout 的互斥和过期判断 |
+| `HealthSnapshot` | startup/live/ready/draining、source cursor、projection cursor、migration/backup/lease 状态、capacity、reason codes | 由 daemon/core 聚合，CLI/Web/Desktop 只投影；不能由 HTTP 200 自行推断 ready |
+| `BackupManifest` | backup ID、root/store identity、source cursor、generation、epochs、file/chunk hashes、artifact refs、config revision、encryption/key ref、created/verified | 恢复和审计的不可变材料；不含 secret 明文 |
+| `MigrationPlan` / `MigrationRecord` | from/to schema/store/projection、ordered steps、checksums、preflight result、backup ID、owner、started/completed/failed、resume token | EventStore migration registry；一个版本只允许一次兼容记录，checksum drift fail-closed |
+| `RunbookEvidence` | operation ID、source snapshot、commands、fixture/cassette、exit code、status/proof level、limitations、reviewer | `CURRENT_STATUS.md` 与 artifact manifest 的证据投影，不把文字说明当事实源 |
+
+#### 版本轴与兼容矩阵
+
+所有启动、迁移、恢复和 rollout 都计算下面的 tuple，并把结果写入 preflight receipt：
+
+```text
+(app_build, protocol_version, domain_schema, store_format, projection_version,
+ workflow_definition_digest, provider_route_digest, extension_digest,
+ config_revision, authority_epoch, data_epoch, generation)
+```
+
+`app_build` 可用于替换进程，但不能单独证明数据兼容；`store_format` 与 `domain_schema` 的 major 不兼容时不得启动；`projection_version` 落后可以停在 `rebuilding`，不能接受新业务命令；workflow/provider/extension 版本必须通过 run pin 或兼容窗口；`authority_epoch`、`data_epoch` 或 `generation` 回退视为 stale root。
+
+### 36.3 生命周期状态机与统一处理流
+
+#### 状态机
+
+```text
+discovered
+  -> preflight
+  -> quiescing -> draining -> backed_up
+  -> migrated -> starting -> ready -> serving
+  -> maintenance/draining -> stopped
+
+任何阶段 --拒绝/失败--> needs_recovery 或 degraded
+serving --外部结果不确定--> result_unknown（保持事实，不自动 retry）
+restore --验证前--> quarantine；验证通过后才可 activate
+```
+
+`ready`、`serving`、`degraded`、`needs_recovery`、`result_unknown` 是不同维度：健康状态不能覆盖 operation 状态，operation 状态不能覆盖外部 effect 状态。终态只由带相同 `operation_id`、`revision`、`fence token` 的事实推进；late observation 不得 resurrect 已停止的 revision。
+
+#### 安装与启动
+
+```text
+resolve executable + EnvironmentProfile + secret refs
+  -> verify ReleaseManifest/signature/digest/toolchain
+  -> resolve StorageRoot and ProjectTrust
+  -> acquire OperationLease and fence stale instance
+  -> read store header, scan frames/WAL/artifacts, classify integrity
+  -> migration/compatibility/capacity/clock/filesystem preflight
+  -> rebuild or catch up projector/indexes
+  -> publish startup HealthSnapshot
+  -> ready only when cursor, epoch, policy and drain state are valid
+```
+
+启动失败要返回稳定错误码和 remediation（例如 `store_major_unsupported`、`lease_conflict`、`migration_required`、`backup_missing`、`projection_lag`、`trust_denied`），不能只返回泛化 I/O 错误。
+
+#### 正常运行、维护与关闭
+
+```text
+ready -> accept command -> ControlPlane admission -> canonical commit
+      -> dispatch prepared permit -> append observation/effect receipt
+      -> project -> metrics/logs/receipt
+
+maintenance requested -> reject new work -> stop scheduler intake
+  -> drain started work -> reconcile Unknown -> flush EventStore/artifacts
+  -> write stopped/drained fact -> release lease -> supervisor may stop
+```
+
+关闭超时不得伪造 `stopped`；只能记录 `drain_timeout`，保留 active/unknown execution 和 lease evidence，下一次启动进入 `needs_recovery`。
+
+#### 迁移与发布
+
+```text
+candidate ReleaseManifest
+  -> read-only preflight + compatibility matrix
+  -> acquire migration/operation lease
+  -> create and verify backup
+  -> quiesce/drain old revision
+  -> apply ordered idempotent migration steps
+  -> rebuild projector/index and verify source cursor/generation
+  -> start new revision with pinned workflow/provider routes
+  -> readiness gate + canary/blue-green observation
+  -> promote, or fence/drain/restore previous revision
+```
+
+事实数据迁移默认 forward-only；需要回退时优先恢复已验证的旧 root 或启动仍兼容的旧二进制。没有 verified backup、旧 revision 仍可能写入、checksum drift、未知 migration 或未对账 effect 时，rollback/promotion 都拒绝。
+
+### 36.4 实际代码设计与接口边界
+
+#### crate 落点
+
+| 层 | 代码设计 | 不能做什么 |
+|---|---|---|
+| `kiana-domain` | `ReleaseId`、`DeploymentRevision`、`OperationLease`、`FenceToken`、`HealthSnapshot`、`BackupManifest`、`MigrationRecord`、状态转移和稳定错误码 | 不读取文件、网络、进程或 secret；不持有 Tokio runtime |
+| `kiana-protocol` | `kiana.protocol.v1` 下的 ops command/query/event DTO、operation receipt、health/backup/migration payload、unknown/error envelope | 不接受 caller 自报的 actor/role/epoch 作为权威；不直接调用 handler |
+| `kiana-ports` | `StorageRootResolver`、`ClockPort`、`LeaseStore`、`HealthPort`、`BackupPort`、`MigrationPort`、`SupervisorPort`、`ConfigSource` 的窄接口 | 不把 daemon、provider、shell 或编排器依赖下沉到 domain |
+| `kiana-core` | operation admission、ProjectTrust、policy/gate/approval、epoch/fence、maintenance/drain、migration decision、restore activation、reconcile | 不在 core 之外做第二次权限判断；不把“请求 supervisor”当作已完成 |
+| `kiana-eventlog` | operation facts、flush ack、cursor/generation、journal/WAL/JSONL scan、CAS/dedup、snapshot manifest、migration registry | append 成功不等于外部 effect 成功；事实不可由 projector/cache 改写 |
+| `kiana-daemon` | `DaemonHost` 内的 lifecycle coordinator、bounded channels、probe aggregator、supervisor adapter、config/root resolution、startup/shutdown | 不另起模型循环、scheduler 或 capability dispatch；不将宿主 pid 当唯一事实 |
+| `kiana-query` | deployment/health/backup/migration/incident projections，按 source cursor 和 generation 查询 | 查询不取得 lease、approval 或 capability；projection 可删除并重建 |
+| `kiana-workflow` / `kiana-runner` / `kiana-provider` | workflow/build pin、replay compatibility、drain/cancel/stop observation、provider route digest | 旧 run 不可静默切到新 definition/provider；未知 effect 不自动 retry |
+| `scripts/`、`.github/workflows/`、`contrib/desktop/` | artifact build/sign/checksum、release smoke、安装/卸载/探针/服务适配、runbook command | 脚本不能成为事实源或绕过 ControlPlane；CI green 不等于 live deployment |
+
+#### 领域/端口草案
+
+下面的形状用于指导实现，字段名可在 protocol review 时调整，但语义不可省略：
+
+```rust
+struct DeploymentRevision {
+    revision_id: RevisionId,
+    release_id: ReleaseId,
+    profile: DeploymentProfile,
+    instance_id: InstanceId,
+    storage_root: StorageRootId,
+    build_id: BuildId,
+    data_epoch: DataEpoch,
+    authority_epoch: AuthorityEpoch,
+    phase: DeploymentPhase,
+}
+
+struct OperationLease {
+    operation_id: OperationId,
+    owner: InstanceId,
+    fence: FenceToken,
+    storage_root: StorageRootId,
+    expires_at: Timestamp,
+    heartbeat_seq: u64,
+}
+
+trait DeploymentPort {
+    async fn preflight(&self, request: PreflightRequest) -> Result<PreflightReport, DeployError>;
+    async fn observe(&self, operation: OperationId) -> Result<OperationObservation, DeployError>;
+    async fn drain(&self, lease: OperationLease) -> Result<DrainReport, DeployError>;
+}
+```
+
+`DeploymentPort` 只描述宿主动作和观察结果；它不能直接获得 `CapabilityRequest`，也不能把 `PreflightReport` 伪造成 `Committed`。`BackupPort`、`MigrationPort`、`HealthPort` 同样返回结构化结果、source cursor、fence 和 evidence refs。
+
+### 36.5 健康、配置、凭据与运维命令
+
+#### 健康语义
+
+| 探针/状态 | 判断内容 | 失败动作 |
+|---|---|---|
+| `startupz` | executable、config、trust、store header、lease、migration preflight、projector bootstrap 是否完成 | 不进入 ready；返回 reason code 和 operation id |
+| `livez` | 进程事件循环、ControlPlane、EventStore 写入/读取线程是否仍能响应；不把 provider 可用性混入 | supervisor 可重启；重启前仍执行受控 drain |
+| `readyz` | 当前 revision 是否可接收新命令：lease/fence、policy epoch、projection lag、capacity、migration、Unknown gate 均合格 | 摘流/拒绝新 admission；不自动杀进程 |
+| `drainz` | 是否已停止新 intake、started work 是否排空、flush ack 是否完成、lease 是否释放 | 未完成时保留 `draining`，超时转 `needs_recovery` |
+| `maintenance` | backup、migration、restore、repair、retention 的 operation phase、owner、deadline 和 next action | 维持受控拒绝；不得由 UI 直接继续 |
+
+`HealthSnapshot` 必须携带 `observed_at`、monotonic sequence、source/projection cursor、revision/build、storage root、epoch、reason codes、redacted diagnostics 和 `proof_level`。`readyz=200` 只代表 admission ready，不代表业务 outcome 或外部连接器健康。
+
+#### 配置与凭据
+
+配置解析顺序固定为：compiled defaults → user/KIANA_HOME file → project file（先 ProjectTrust）→ explicit environment allowlist → command-line override（仅本次 operation）。解析后生成 immutable `ConfigSnapshot { config_revision, source_refs, redacted_digest, capabilities }`；运行过程中不原地修改。secret 只以 `SecretRef` 和 provider handle 存在，manifest、EventLog、health、backup、doctor 输出都只能出现 redacted ref/digest。
+
+配置变更先生成 diff 和影响面（是否需要 restart、migration、lease 或重新审批），再由 ControlPlane 提交 `ConfigRevisionCommitted`；旧 run 使用创建时的 config revision，不能被隐式改写。
+
+#### 建议的运维命令面
+
+这些命令是 versioned protocol command 的 CLI 投影，Workbench/Web/Desktop 复用相同 DTO；命令本身不直接执行副作用：
+
+```text
+kiana ops status [--json]
+kiana ops doctor [--json] [--include-evidence]
+kiana ops preflight --release <id> [--profile <id>]
+kiana ops drain --reason <reason> [--deadline <duration>]
+kiana ops backup create|list|verify [--scope <root>]
+kiana ops restore verify|plan|activate --backup <id>
+kiana ops migrate plan|preflight|apply|resume|verify --to <version>
+kiana ops projector status|rebuild|verify --from <cursor>
+kiana ops reconcile list|show|commit --operation <id>
+kiana ops rollout status|pause|resume|promote|rollback --revision <id>
+kiana ops maintenance open|close --window <id>
+```
+
+`plan/preflight/status/verify` 是只读或生成待授权计划；`apply/activate/promote/rollback/reconcile/maintenance` 必须带 actor、scope、authority/approval、当前 epoch 和 operation id，并在提交前再次 CAS 检查。`doctor` 可暴露 remediation，但不能替用户自动修复。
+
+### 36.6 备份、恢复、迁移与回滚的实际处理规则
+
+#### 备份
+
+1. `backup create` 先检查 trust、容量、retention/legal hold、operation scope 和 active lease；没有稳定 source cursor 或存在未处理的 torn tail 时拒绝。
+2. 进入 `quiescing`，停止新的 scheduler intake，等待已开始的 append/flush/observation；不需要停止纯查询，但要记录 query cursor 和 projector lag。
+3. 对 EventLog/JSONL、SQLite/WAL adapter、ArtifactStore、projection checkpoint、config revision 和 migration registry 生成 manifest。每个文件/块有大小、mtime（仅诊断）、SHA-256、logical cursor、generation 和相对路径；路径必须经过 StorageRoot resolver，禁止 symlink/hardlink escape。
+4. manifest 写入临时文件后 fsync，再原子 rename；备份对象自身另有 digest/signature/encryption key ref。secret 不复制到 manifest，外部 secret 通过 ref 在恢复时重新绑定。
+5. 备份完成后写 `BackupCreated` 与 `BackupVerified`；若任何对象只达到 local_behavior，manifest 必须标出限制，不能写 `durable`。
+
+增量备份以 source cursor/generation 和 artifact chunk digest 为边界；不能只依赖 mtime。retention 由 backup ID、保留窗口、legal hold、依赖链和删除传播共同决定；删除一个父备份前必须证明所有增量仍可恢复或被另一个完整备份覆盖。
+
+#### 恢复
+
+```text
+select backup -> verify signature/hash/manifest schema
+  -> restore into new quarantine StorageRoot
+  -> scan facts/WAL/artifacts and rebuild projections/indexes
+  -> verify cursor/generation/epochs/receipt invariants
+  -> reconcile in-flight/Unknown external effects
+  -> acquire new lease and fence old root/revision
+  -> explicit activate -> ready gate
+```
+
+恢复不能覆盖当前活动 root；必须先使用新 root 完成验证。`authority_epoch`、`data_epoch` 或 generation 比当前活动 root 小时拒绝激活；相同 identity 但不同 hash 进入 quarantine；丢失 artifact、cursor gap、migration checksum drift、未解析 Unknown 或 secrets 无法重新绑定都保持 `needs_recovery`。激活后旧 root 只读保留至 retention 到期，不能立即删除。
+
+#### 迁移
+
+MigrationRegistry 每条记录包含 `migration_id`、from/to tuple、checksum、ordered step list、precondition、reversible classification、owner、required backup、compatibility window 和 source cursor bounds。runner 算法：
+
+```text
+read-only preflight
+  -> verify release/store/schema/projection compatibility
+  -> verify required backup and free space
+  -> acquire migration lease/fence
+  -> record MigrationStarted
+  -> run ordered, bounded, idempotent steps
+  -> checkpoint after each step (cursor + checksum + resume token)
+  -> rebuild/verify projections and indexes
+  -> record MigrationCompleted and new data_epoch
+```
+
+迁移脚本只能通过 `MigrationPort` 读写受控 storage，不可以调用 provider、shell、MCP、webhook 或模型。推荐 expand → backfill → verify → switch → contract；compatibility window 内旧/新 revision 的 wire/schema 交集必须明确。遇到 checksum 改变、未知版本、并发 runner、空间不足、step partial、downgrade 请求或 fence 过期，runner 停止并记录 `MigrationBlocked`，可从 checkpoint resume，不得跳过失败 step。
+
+#### 回滚和 result reconciliation
+
+rollback 分为三种：
+
+| 类型 | 允许条件 | 处理 |
+|---|---|---|
+| binary rollback | store/schema 向后兼容，或新版本只完成 expand | fence 新 revision、恢复旧 build、保持旧 workflow/provider pin，重新过 ready gate |
+| data rollback | 有 verified backup 且已停止所有 writer | 新 root restore + verify + explicit activate；旧 root 保留审计 |
+| effect reconciliation | provider/webhook 已发出但结果未知 | 不回滚本机事实来掩盖外部动作；进入 reconcile case，先查 external idempotency key/receipt，再 commit `reconcile`、`retry_without_effect`、`abandon` 或 `compensate` |
+
+没有可验证 backup 或存在可能仍写入的旧 revision 时，`rollback` 只生成拒绝 receipt。任何自动化 retry 都要重新检查 authority、approval、budget、path lock、config revision、workflow digest 和 idempotency descriptor。
+
+### 36.7 观测、告警、容量与事故处理
+
+部署运维指标与产品 EventLog 分开建模，但都关联 `operation_id`、`revision_id`、`storage_root`、`source_cursor` 和 `trace_id`：
+
+| 面 | 最低字段/指标 | 告警或动作 |
+|---|---|---|
+| 生命周期 | startup duration、ready transitions、drain duration、restart count、lease heartbeat age/fence conflicts | startup timeout、频繁重启、lease split-brain 进入 degraded/needs_recovery |
+| 存储 | append/fsync latency、queue depth、disk bytes/inodes、torn-tail count、cursor gap、WAL/checkpoint size | 容量阈值触发 backpressure；完整性异常停止 admission |
+| 投影 | source cursor、projection cursor、lag、rebuild duration、failed projection count | lag 超阈值未 ready；projector 失败只重建，不改事实 |
+| 备份/恢复 | last verified backup、age、bytes、hash failures、restore verification duration、RPO/RTO | 过期/未验证备份阻断 migration/rollout；restore fail 保持 quarantine |
+| 迁移/发布 | current/target version、step/row progress、checksum、phase duration、canary sample、rollback count | 进度 deadline、checksum drift、回滚阈值触发 pause |
+| 安全/合规 | trust denial、secret redaction failure、signature failure、policy denial、audit append failure、retention/legal hold errors | 任一红线错误 fail-closed，并生成 incident evidence |
+
+容量策略必须有硬上限和明确 backpressure：EventLog append、artifact bytes、pending operations、backup size、migration batch、diagnostic output、log rate 都不能无限增长。达到阈值时新 admission 返回结构化 `capacity_exceeded`，已开始的 append/flush 仍完成或转 `Unknown`；不通过删除事实来恢复空间。
+
+事故状态建议使用 `observed → triaged → contained → recovering → verified → closed`，每次转移引用 operation/evidence。runbook 至少包含：症状、影响范围、只读诊断、停止/摘流条件、恢复/迁移/回滚决策树、所需审批、验证命令、RPO/RTO、复盘和证据归档。自动告警不能直接扩大 capability scope 或执行补偿。
+
+### 36.8 详细实施步骤（`DEP-00`–`DEP-41`）
+
+每个步骤先证明拒绝路径，再证明成功路径；依赖项只表示实现顺序，不表示已完成。步骤中的 “代码落点” 是建议归属，集成负责人最终按现有 crate 边界调整。
+
+#### 波次 A：合同、身份与发布输入
+
+| Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
+|---|---|---|---|---|
+| `DEP-00` | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | 发现第二 execution loop、直接 supervisor/capability 入口或状态账本冲突即阻断 | 形成代码/脚本/平台矩阵、fixture 名称、proof ceiling 和限制清单 |
+| `DEP-01` | 在 `kiana-domain` 定义 `DeploymentProfile`、`EnvironmentProfile`、`StorageRootId`、`InstanceId`、`DeploymentRevision` | DEP-00 | 空 root、跨 project root、未信任 project、未知 profile、路径 escape 全拒绝且无写入 | 同一输入得到稳定 profile digest；local/container/orchestrated profile round-trip |
+| `DEP-02` | 定义 `ReleaseManifest`、artifact digest/signature、build/toolchain/Cargo.lock/source provenance | DEP-00 | digest/signature/toolchain/target 不匹配、manifest 缺字段、secret 明文均拒绝 | release manifest 可由 CI 生成、验证、redact 并绑定 artifact |
+| `DEP-03` | 定义 app/protocol/domain/store/projection/workflow/provider/extension/config/authority/data 兼容矩阵 | DEP-01, DEP-02 | unknown major、downgrade、schema/store mismatch、workflow digest 漂移不得启动或接新工作 | 兼容/不兼容结果有稳定 reason code 和可重放 fixture |
+| `DEP-04` | 在 `kiana-protocol` 注册 `ops.*` commands、query、events、error/unknown envelope、idempotency key | DEP-01 | caller 伪造 actor/epoch、重复 operation 不同 digest、未知 command 或超 scope 0 broker calls | CLI/Web/Workbench/Desktop 都能 round-trip 同一 DTO |
+| `DEP-05` | 定义 lifecycle/operation 状态机、OperationJournal、phase deadlines、terminal/unknown 语义 | DEP-04 | 旧 revision late event、跳过 preflight、drain timeout 写 stopped、重复 terminal 均失败 | replay 可重建 operation；每次状态有 source cursor/reason/evidence |
+| `DEP-06` | 实现 `OperationLease`、heartbeat、fence token、authority/data epoch 与单 writer CAS | DEP-01, DEP-05 | stale owner、过期 lease、错误 fence、epoch 回退、双 writer 均 0 dispatch | 两个进程竞争只有一个 active；安全失效后可重新 acquire |
+| `DEP-07` | 实现 StorageRoot resolver、ProjectTrust、symlink/hardlink/path/capability/filesystem preflight | DEP-01, DEP-06 | 未信任路径、root escape、远程/不支持 FS、权限/空间/inode 不足均 fail-closed | root identity、mount/capability 和 remediation 可查询 |
+
+#### 波次 B：配置、启动、健康与关闭
+
+| Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
+|---|---|---|---|---|
+| `DEP-08` | 实现 ConfigSource 优先级、immutable `ConfigSnapshot`、config revision、SecretRef/redaction | DEP-01, DEP-02, DEP-07 | 未允许 env、project config 未过 trust、secret 出现在 log/manifest、运行中隐式改配置均拒绝 | 配置 diff、影响面、redacted digest 和 restart/migration requirement 稳定 |
+| `DEP-09` | 定义 `SupervisorPort`，接入 systemd/launchd/Windows/container stop/start/restart 的窄 adapter | DEP-04, DEP-05, DEP-06 | adapter 直接调用模型/Capability、pid 代替 lease、强杀未生成 observation 均失败 | fake supervisor 可验证 signal、timeout、observation 和重启 fencing |
+| `DEP-10` | 在 `DaemonHost` 内实现 startup coordinator：manifest/root/trust/lease/store/migration/projector/capacity 顺序 | DEP-03, DEP-06, DEP-07, DEP-08 | 任一 preflight 未完成仍发布 ready、旧 epoch 自动 resume、坏 journal 自动覆盖均失败 | 启动失败 reason 可重放；成功启动得到 `startupz` evidence |
+| `DEP-11` | 实现 `HealthSnapshot` aggregator 与 startup/live/ready/drain/maintenance probe DTO | DEP-05, DEP-10 | provider 健康伪造 ready、projection lag/Unknown/lease conflict 被隐藏、HTTP 200 代替事实均失败 | fake clock/fixture 驱动 probe transitions；CLI/UI 只读 projection |
+| `DEP-12` | 实现 ready admission、maintenance window、pause intake、drain deadline 与摘流语义 | DEP-05, DEP-06, DEP-11 | maintenance 中仍接新工作、过期 window 自动延长、ready 与 migration/backup 并存均拒绝 | 新命令被结构化拒绝；已开始工作可继续到 drain/reconcile |
+| `DEP-13` | 把 cancellation、scheduler stop、runner/tool drain、EventStore/artifact flush ack 接入统一 shutdown | DEP-09, DEP-12 | flush 未确认写 stopped、started work 未排空、强杀丢 ack、late result resurrect 均失败 | 正常/超时关闭分别得到 stopped 或 needs_recovery，重启不重复 effect |
+| `DEP-14` | 接入 lifecycle/operation metrics、structured logs、trace/evidence refs 和 audit event schema | DEP-04, DEP-05, DEP-11 | secret/path 泄漏、无 operation/revision/cursor 关联、audit append 失败被吞掉均阻断 | status/health/receipt/metrics 可用同一 operation 查询 |
+| `DEP-15` | 实现 `ops status/doctor/preflight`，输出 redacted diagnostics、remediation 和 reproduction command | DEP-08, DEP-11, DEP-14 | doctor 修改事实、显示 secret、将未知/缺证据写成 healthy 均失败 | JSON/human 输出稳定，路径和限制脱敏，exit code 可用于 CI |
+| `DEP-16` | 实现 projector/index/queue/lease repair 与 `ops reconcile` 只读检查/显式提交 | DEP-05, DEP-06, DEP-10, DEP-14 | repair 改 EventLog、自动重跑 Unknown、跳过 fence/approval、修复越权 cursor 均拒绝 | repair 产出新 projection generation；reconcile 决策有 actor/evidence |
+| `DEP-17` | 实现 append/artifact/operation/log/diagnostic/migration capacity、backpressure 和 shutdown limits | DEP-10, DEP-13, DEP-14 | 无界 channel、磁盘满继续写、超限静默丢事件、关闭 deadline 被忽略均失败 | capacity threshold 可测试；拒绝带 stable code，不破坏已提交事实 |
+| `DEP-18` | 建立 incident schema、runbook refs、phase deadline/alert routing 和 `RunbookEvidence` | DEP-14, DEP-15, DEP-16 | 告警直接扩大权限/自动补偿、incident 无 operation/evidence、关闭前未验证均失败 | observed→triaged→contained→recovering→verified→closed 可重放 |
+
+#### 波次 C：备份、恢复与灾难演练
+
+| Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
+|---|---|---|---|---|
+| `DEP-19` | 在 `kiana-eventlog`/`kiana-ports` 定义 `BackupManifest`、hash/chunk、cursor/generation/epoch、artifact/config refs | DEP-02, DEP-07, DEP-14 | manifest 缺 source cursor、hash mismatch、绝对路径/secret、torn tail 或 unknown integrity 均拒绝 | full backup manifest 可验证、可重放、可 redacted 导出 |
+| `DEP-20` | 实现 quiesce snapshot：EventLog JSONL/WAL、ArtifactStore、projection checkpoint、migration registry 的一致快照 | DEP-12, DEP-13, DEP-19 | active writer、未 flush、WAL/主文件不一致、projector cursor 越过 source、并发 backup 均拒绝 | fake store 验证 quiesce→manifest→fsync→verify→resume 顺序 |
+| `DEP-21` | 实现 incremental backup、retention、legal hold、archive、encryption/key ref 和删除依赖图 | DEP-19, DEP-20 | 只按 mtime 增量、删除仍被依赖的父备份、key ref 缺失、hold 被忽略均失败 | 增量链可还原；保留/归档/删除事件和容量可查询 |
+| `DEP-22` | 实现 restore quarantine root、manifest/signature/hash/schema/cursor/epoch 校验和 projector/index rebuild | DEP-19, DEP-20, DEP-21 | 覆盖 active root、hash/identity/generation/epoch 回退、缺 artifact、unknown/migration 未处理均拒绝 | 新 root 在 quarantine 完成完整 scan/rebuild/verification |
+| `DEP-23` | 实现 restore activation、new lease/fence、old root read-only、activation readiness gate | DEP-06, DEP-11, DEP-22 | 旧 writer 未 fence、相同 identity 不同 hash、未有 explicit activate、ready 前接新命令均失败 | activate 后只有新 root ready；旧 root 可审计且不能写入 |
+| `DEP-24` | 建立 crash/restore/backup fault fixtures，测量 RPO/RTO 并生成演练证据 | DEP-20, DEP-22, DEP-23 | backup partial、restore 中断、损坏 frame、磁盘满、时钟回退、恢复后误 dispatch 均失败 | 定期演练输出 source/command/fixture/exit/RPO/RTO/limitations |
+| `DEP-25` | 实现 external effect receipt lookup、idempotency key、Unknown reconciliation 与 compensation gate | DEP-13, DEP-16, DEP-23 | result_unknown 自动 retry、没有 external ref 伪造 success、旧 approval/epoch 复用均拒绝 | reconcile、retry_without_effect、abandon、compensate 各有独立 receipt |
+| `DEP-26` | 把 retention/deletion/revocation 与 PD-25/PD-26、audit/backup/artifact/memory 生命周期接通 | DEP-18, DEP-21, DEP-25 | legal hold 下删除、只删 projection 不留事实、artifact/backup 引用悬空、revocation 不传播均失败 | deletion plan 有依赖、dry-run、commit receipt 和重建验证 |
+
+#### 波次 D：迁移、兼容与回滚
+
+| Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
+|---|---|---|---|---|
+| `DEP-27` | 定义 MigrationRegistry、checksum、ordered steps、precondition、owner、backup requirement、compatibility window | DEP-03, DEP-19 | unknown migration、checksum drift、重复版本、无 owner/backup requirement、伪造 down migration 均失败 | registry 可排序、签名/校验并绑定 ReleaseManifest |
+| `DEP-28` | 实现 read-only migration preflight：store/schema/projection/workflow/provider/config/space/clock/lease 矩阵 | DEP-07, DEP-08, DEP-27 | major mismatch、downgrade、并发 runner、空间不足、active Unknown/old writer、未 verified backup 均阻断 | preflight report 含每一轴结果、remediation 和不变事实证明 |
+| `DEP-29` | 实现 expand/backfill/verify/switch/contract 的 idempotent bounded migration primitives | DEP-27, DEP-28 | step 触碰 provider/shell/MCP、无 bounded batch、partial 后跳步、旧 reader 读到不可兼容字段均失败 | fixture migration 可重跑、checkpoint 后 resume，source cursor 不回退 |
+| `DEP-30` | 实现 migration runner lock/fence、`MigrationStarted/Step/Blocked/Completed`、resume token 和 failure quarantine | DEP-06, DEP-27, DEP-28, DEP-29 | 第二 runner、lease 过期、checksum 改变、错误 resume token、失败后继续写均拒绝 | 崩溃后从最后 verified step resume；失败可查询且不伪造 completed |
+| `DEP-31` | 实现 post-migration projector/index rebuild、source/projection cursor/generation/receipt invariant 验证 | DEP-16, DEP-22, DEP-30 | projection 越过 facts、旧 generation 伪 ready、index 不可重建、receipt 关联丢失均失败 | rebuild 后 query/receipt 与 source replay 一致，ready gate 只在 verify 后开放 |
+| `DEP-32` | 实现 binary/data rollback decision gate、restore fallback、old root retention 和 rollback receipt | DEP-23, DEP-28, DEP-30, DEP-31 | destructive migration 后无 backup、writer 未停、旧 build 不兼容、未知 effect 未对账均拒绝 | compatible binary rollback 或 verified restore 均有可审计 phase 和验证命令 |
+| `DEP-33` | 在 workflow/runner/provider/skills/plugins 中实现 build/digest pin、replay compatibility 和 old revision drain | DEP-03, DEP-28, DEP-31 | running workflow 静默换 definition/provider/extension、未知 replay version、project skill 未重新 trust 均拒绝 | 新 run 用新 digest，旧 run 保持 pin；旧 revision drain/retire 有证据 |
+
+#### 波次 E：发布、滚动升级与供应链
+
+| Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
+|---|---|---|---|---|
+| `DEP-34` | 扩展 release preflight：reproducible build、Cargo.lock、target matrix、SBOM/checksum/signature、migration/backup gate | DEP-02, DEP-03, DEP-18, DEP-27, DEP-28 | artifact 缺失/未签名、source drift、测试/manifest/migration gate 失败、秘密进入包均 fail-closed | `release-smoke.sh` 与 CI 生成可重现 manifest/evidence |
+| `DEP-35` | 实现 managed-local/embedded-local 单机 rollout：plan→preflight→backup→drain→replace→ready→promote | DEP-10, DEP-13, DEP-20, DEP-28, DEP-34 | 新进程抢 lease、旧进程未 drain、ready 前接命令、失败自动重试副作用均拒绝 | 同一 root 的升级/重启不丢事实、不重复 effect；旧 revision 可查询 |
+| `DEP-36` | 实现 container adapter：immutable image、volume/root identity、env allowlist、SIGTERM、startup/readiness/liveness probe | DEP-09, DEP-11, DEP-17, DEP-35 | image digest 漂移、volume 未验证、多个 writer、探针语义混淆、强杀无 evidence 均失败 | fake/container harness 验证启动、摘流、drain、restart、fence |
+| `DEP-37` | 设计 orchestrated canary/blue-green/rainbow rollout 与 worker build routing；标记真实编排器为 target | DEP-33, DEP-35, DEP-36 | 未 pinned workflow、无 progress deadline、旧 worker 仍写、canary 失败却 promote 均拒绝 | adapter contract 能模拟 pause/resume/rollback；未接真实集群也不升 proof level |
+| `DEP-38` | 实现 rollout pause/resume/promote/rollback、old revision retirement、retention 和 post-deploy verification | DEP-32, DEP-35, DEP-37 | 未授权 promote、指标/health 未达门槛、rollback 后旧 writer 存活、过早删除旧 root 均失败 | rollout state、decision、health window、retire evidence 完整可查 |
+| `DEP-39` | 接入供应链、签名、SBOM、依赖许可、desktop package/checksum、secret scanning/compliance gate | DEP-02, DEP-34, DEP-38 | signature/SBOM/license/secret scan failure 被忽略、unsigned desktop binary 发布均阻断 | CI artifact、package、checksum、reviewer 和 policy decision 可关联 |
+| `DEP-40` | 编写 release/upgrade/rollback/backup/restore/migration/health 的跨 CLI/Web/Workbench/Desktop E2E/UAT | DEP-15, DEP-24, DEP-31, DEP-36, DEP-38, DEP-39 | 任一入口分叉 DaemonHost、直接 broker、权限并集、Unknown 自动 retry、证据缺项均失败 | fake provider/effect + local durable fixture 覆盖 deny/success/restart/replay；真实 provider 仅显式 opt-in |
+| `DEP-41` | 维护 runbook、operator reference、CURRENT_STATUS 证据块、release gate 和 capability/proof matrix | DEP-00..DEP-40 | 文档把 target 写 implemented/durable/live、遗漏限制、没有 reviewer/命令/fixture 均不能关闭 | 每个切片有 source snapshot、worktree、argv/env、fixture、exit、status/proof、limitations、reviewer |
+
+### 36.9 依赖波次与现有路线图接点
+
+```text
+A contracts: DEP-00 → DEP-01 → DEP-02 ∥ DEP-03 → DEP-04 → DEP-05 → DEP-06 → DEP-07
+      ↓
+B lifecycle: DEP-08 → DEP-09 → DEP-10 → DEP-11 → DEP-12 → DEP-13
+             ∥ DEP-14 → DEP-15 → DEP-16 → DEP-17 → DEP-18
+      ↓
+C backup/DR: DEP-19 → DEP-20 → DEP-21 → DEP-22 → DEP-23 → DEP-24
+                                  ∥ DEP-25 → DEP-26
+      ↓
+D migration: DEP-27 → DEP-28 → DEP-29 → DEP-30 → DEP-31 → DEP-32 ∥ DEP-33
+      ↓
+E release:   DEP-34 → DEP-35 → DEP-36 → DEP-37 → DEP-38 → DEP-39 → DEP-40 → DEP-41
+```
+
+与已有 roadmap 的关系：
+
+| 既有单元 | 在本专项中的接点 |
+|---|---|
+| `PD-00..PD-35` | StorageRoot、EventStore、cursor/generation、backup/restore、migration、retention、capacity、health、fault injection 和 UAT 的数据层基础；`DEP-19..32` 不能另造事实源 |
+| `OA-01..OA-28` | operation/revision/trace/evidence/metrics/audit 字段；`DEP-14..18` 消费并补充 deployment 生命周期，不把 EventLog 直接当指标系统 |
+| `AUT-05/AUT-08/AUT-09/AUT-15/AUT-17/AUT-21` | queue/lease/fence、DaemonHost service、stop/drain、Unknown、boot recovery；`DEP-06/10/13/16/25/33` 必须保持同一 epoch 语义 |
+| `CI-01..CI-12` | config revision、secret ref、identity、rotation、environment allowlist；`DEP-01/08/34/39` 只引用其 contract，不把 secret 写入 deployment facts |
+| `P0-A-01b`、`P0-G-02a/b`、`P0-J1-*` | versioned protocol、durable event、approval、cancel、recovery 的公共合同；部署 command 不能绕过它们 |
+| `P1-J8-01`、`P1-K5-01` | usage/cost、trace、budget 与容量/发布门；成本指标不能替代 health 或 quality gate |
+| `P2-K6/K7`、`P2-M*` | deletion/retention/CLI/Web projection；运维查询只能读 projection，删除需保留 audit/hold 语义 |
+| `P4-J3-05/J6/J7`、`P4-L3/L5/L6` | swarm、stream、version drift、extension supply chain；`DEP-33/37/39` 约束旧 revision 和扩展 digest |
+| `scripts/release-smoke.sh`、`.github/workflows/release.yml` | `DEP-34/39/40` 的执行入口；现有通过仅是基线，不能直接提高 proof level |
+
+同一 integration owner 串行修改 `Cargo.toml`、`Cargo.lock`、protocol registry、CI workflow、migration registry 和公共 schema；独立 fixture、文档、诊断 projection 可以并行。任一 gate 拒绝时，取消依赖该 gate 的 promote/activate/retire，保留只读诊断、备份验证和证据归档。
+
+### 36.10 最低验收矩阵与状态口径
+
+| 证据面 | 必须先证明的拒绝路径 | 成功/恢复路径 | 证明上限 |
+|---|---|---|---|
+| Release/provenance | source/artifact/signature/lock/toolchain/target mismatch、secret leak、unknown major | manifest 可验证、artifact 可重现、CI/package evidence 可关联 | `local_behavior` |
+| Root/trust/lease | untrusted root、path escape、symlink/hardlink、remote FS unsupported、stale owner/fence/epoch、双 writer | acquire/heartbeat/fence/release、重启后唯一 active writer | `local_behavior`；有跨重启 durable 证据才可升级 |
+| Startup/health | migration 未完成、projector lag、Unknown、容量不足、provider 自报 ready、drain 中接新命令 | startup→ready、live/readiness 摘流、maintenance、timeout recovery | `local_behavior` |
+| Shutdown | flush 未确认、started work 未排空、强杀、late result、重复 terminal | graceful drain、stop evidence、重启恢复/不重复 effect | `local_behavior`/`durable` 取决于 EventStore 证据 |
+| Backup/restore | torn tail、cursor gap、hash/signature mismatch、WAL 不一致、覆盖 active root、epoch/generation 回退 | full/incremental backup、quarantine restore、rebuild、explicit activate、RPO/RTO 演练 | `durable` 只有跨重启/介质证据支持时成立 |
+| Migration | checksum drift、unknown/downgrade、无 backup、并发 runner、partial step、space/clock failure | preflight、ordered idempotent resume、expand/contract、post-verify、rollback gate | `local_behavior`/`durable` 取决于 manifest 和恢复证据 |
+| Effect reconciliation | `result_unknown` 自动 retry、无 external ref 伪 success、旧 approval/epoch 复用 | reconcile/retry_without_effect/abandon/compensate 各有 receipt | 不能据此声称外部业务 outcome |
+| Rollout | old writer 存活、workflow/provider drift、canary 未达标、无 progress deadline、未授权 promote | local/container rollout、pause/resume、blue-green target adapter、rollback/retire | `local_behavior`；真实 orchestrated/live 需环境证据 |
+| Operations/security | doctor 泄密、audit append 丢失、告警扩大权限、legal hold 绕过、capacity 静默丢事实 | status/doctor/runbook、redacted evidence、incident lifecycle、retention/deletion | `local_behavior` |
+
+每个 `DEP-*` 完成时必须在 `CURRENT_STATUS.md` 产生以下证据块，且把 `feature_status` 与 `proof_level` 分开：
+
+```text
+source_snapshot / worktree_status / command_argv / cwd·environment /
+fixture·cassette / exit_code / status change / proof-level change /
+limitations / reviewer
+```
+
+“有 `ReleaseManifest`”“有健康端点”“迁移测试通过”“备份文件存在”“CI green”都不能单独证明 deployed、durable、live 或 physical。当前 release smoke、单 crate 测试和本地 JSONL 只能作为基线；只有完成相应跨重启、恢复介质、真实 supervisor/编排器或显式 provider cassette 的证据，才能提高证明等级。任何未完成的云、多副本、自动备份、自动回滚、外部 effect exactly-once 和合规认证都必须保留 `target`、`partial` 或 `deferred` 口径。
+<a id="security-compliance-plan"></a>
+
+## 37. 安全与合规专项：实际代码设计、处理流程与详细实施步骤（2026-09-14 追加）
+
+> 本节补全 [module-map.md](module-map.md) 第 20 模块。完整的威胁模型、reference 调研、领域对象、端口、数据生命周期、端到端流程、SEC 映射和 SC-00–SC-43 详细卡片见 [安全与合规专项](roadmap/security-compliance.md)。本节只建立总路线图中的架构结论、依赖和发布门，不改变 CURRENT_STATUS.md 的现状。
+
+### 37.1 设计结论
+
+安全与合规是横切的控制链，不是新的执行器或第二个模型循环。唯一有效的路径仍是：
+
+~~~text
+entrypoint -> versioned protocol -> DaemonHost
+  -> ControlPlane admission/policy/gate/approval
+  -> Capability Broker + OS sandbox + SecretStore
+  -> handler/provider/connector effect
+  -> EventLog fact -> Receipt/Audit/Query projection
+~~~
+
+实现时固定以下规则：
+
+1. Principal、ProjectTrust、RoleAssignment、PolicyRevision、AuthorityEpoch 和 DataEpoch 由服务端解析和绑定；入口自报的 actor、project、role、trust、budget 和 endpoint 不能授予权限。
+2. Grant 只做父级、模板、部门、项目、WorkPacket、Cell 和 approval 的交集；读、写、删除、网络、进程、secret、外部账户和高风险 effect 是独立 scope。
+3. 先做 deny-first admission，再以 CAS 追加 AdmissionCommitted、预留预算并签发短 permit；Broker 在 effect 前重验 payload/target digest、path、endpoint、lease、fence、epoch 和 idempotency。
+4. 模型、项目资源、skill/plugin/hook、MCP 描述、provider response、Webhook、环境变量、旧事件和恢复请求都是不可信输入；它们可以触发 approval 或 quarantine，不能直接扩大能力。
+5. Secret 只以 opaque SecretRef 进入协议；SecretStore 的短期、单次 lease 只在 Broker 受控内存中解析，EventLog、Receipt、log、metric、trace、backup 和错误只保留 ref/digest。
+6. EventLog 是产品事实源；Audit、Receipt、Trace、Metric、Transcript、Memory、Index、UI 和通知是不同投影，不能互相取代。result_unknown、取消、重放和删除传播都保留原事实。
+7. 每个决定、effect、恢复、删除、供应链验证和事故都关联 operation/run/attempt、revision、source cursor、epoch、digest 和 evidence ref；没有这些字段不能提高 proof level。
+
+### 37.2 威胁与控制面
+
+| 威胁 | 首先拒绝或隔离的条件 | 主要 SC |
+|---|---|---|
+| 提示/间接注入、过度代理 | 低信任内容试图改变 policy、role、scope 或调用隐藏工具 | SC-21、SC-24、SC-26、SC-39 |
+| confused deputy、权限升级 | audience、主体、account、purpose、父 Grant 或 approval 不匹配 | SC-04、SC-07、SC-09、SC-10、SC-17 |
+| Secret 泄露 | 未分类、无目的、无法全链路 redaction 或超出 Broker | SC-18–SC-20、SC-39 |
+| TOCTOU、重放、重复 effect | generation/fence/digest/sequence/epoch/idempotency 不匹配 | SC-12–SC-15 |
+| SSRF、网络越界 | endpoint 不在 allowlist、解析后地址改变、token audience 错误 | SC-14、SC-17 |
+| 资源耗尽 | quota、并发、bytes、wall time、retention 空间无余量 | SC-16、SC-22、SC-40 |
+| 事实篡改、删除违规 | cursor/hash/source、purpose、hold、tombstone 不一致 | SC-23、SC-31、SC-32 |
+| 供应链投毒 | lockfile、digest、license、SBOM、provenance、signature 缺失 | SC-25–SC-30 |
+
+### 37.3 代码设计和数据生命周期
+
+| 层 | 目标代码合同 | 边界 |
+|---|---|---|
+| kiana-domain | Principal、SecurityContext、Grant、Approval、SecretRef、DataClass、Purpose、Incident、EvidenceManifest、稳定 reason code | 只承载值和不变量，不读文件、网络、进程或 secret |
+| kiana-protocol | versioned security context、command intent、permit、approval、audit、unknown、delete/export、evidence DTO | 不接受 caller 自报身份/epoch，不直接执行 |
+| kiana-ports | IdentityResolver、PolicyEvaluator、SecretStore、DataGovernancePort、SupplyChainVerifier、SandboxPort、AuditSink、ClockPort | 窄接口、结构化错误、可替换 fixture |
+| kiana-core | admission、grant intersection、approval digest、budget/path/endpoint gate、epoch/fence、cancel/unknown、incident/reconcile | 唯一授权和生命周期决策点 |
+| kiana-capability-broker | permit 消费、effect-time recheck、sandbox、egress、secret lease、进程树和输出边界 | 不能接收模型/插件自行扩大的 profile |
+| kiana-eventlog | append-only decision/effect/observation、CAS、redaction、source cursor、tombstone、retention | projection/cache/transcript 不能反写事实 |
+| kiana-daemon | DaemonHost 组装、trust/config/secret root、connector/MCP ingress、bounded channels、health | 不另起 runner、scheduler、connector 执行循环 |
+| kiana-query 和 UI | redacted audit/receipt/retention/incident projection、purpose/scope 查询 | 只读或提交 versioned command，不能本地 allow/删除 |
+
+数据按 Public、Internal、Confidential、Restricted、Secret、Regulated 分类；未知分类取更严格级别。每次读取、provider 请求、telemetry、索引、memory 和 export 都带 Purpose，目的变化必须重新授权。Secret 不写 EventLog；不可改写的事实通过追加 DeletionTombstone 和 data epoch 表示，projection/index/cache/export/backup adapter 返回独立 receipt 或 unknown。删除证明只覆盖 Kiana 管辖的数据根，不代表外部系统已物理删除。
+
+### 37.4 统一处理流
+
+~~~text
+startup/config:
+  ReleaseManifest + lockfile/SBOM/signature/provenance
+  -> ProjectTrust before project resources
+  -> immutable ConfigSnapshot + SecretRef
+  -> acquire lease/epoch and scan store
+
+command/effect:
+  versioned envelope
+  -> server Principal/ProjectTrust/Role
+  -> classify DataClass/Purpose/Risk
+  -> deny-first policy/gate/approval/budget/path/endpoint
+  -> CAS AdmissionCommitted + reservation + short permit
+  -> Broker recheck + sandbox/SecretStore
+  -> Started/Observed/Succeeded/Failed/Unknown
+  -> flush EventLog -> Receipt/Audit/redacted projections
+
+cancel/recovery:
+  cancel/timeout/crash
+  -> reject new intake and fence permit
+  -> observe started work
+  -> Stopped or result_unknown
+  -> freeze related budget/data/export
+  -> reconcile external receipt/idempotency
+  -> explicit retry_without_effect/compensate/abandon/close
+~~~
+
+MCP HTTP 必须验证 resource/audience、PKCE、state、redirect 和 scope，并禁止 token passthrough；stdio MCP 仍须记录 binary/path、manifest digest、环境 allowlist 和 capability catalog。Webhook 先验证签名、nonce、时间窗、account、schema 和 idempotency，再转成 typed intent 回到 ControlPlane。
+
+### 37.5 详细实施波次（SC-00–SC-43）
+
+| 波次 | 卡片 | 交付重点 |
+|---|---|---|
+| A 合同与基线 | SC-00–SC-05 | 资产/威胁登记、版本化安全对象、稳定错误、server-owned context、deny-first policy |
+| B 身份与审批 | SC-06–SC-11 | Principal/session、ProjectTrust/Role、epoch/fence、Grant 交集、精确 approval、四入口一致 |
+| C Effect 与隔离 | SC-12–SC-17 | PendingInvocation/permit、CAS/idempotency、TOCTOU、网络/沙箱、cancel/Unknown、MCP/Webhook |
+| D Secret 与数据治理 | SC-18–SC-24 | SecretRef/lease/redaction、DataClass/Purpose、retention/legal hold、tombstone/delete、memory/index/export |
+| E 扩展与供应链 | SC-25–SC-30 | ProjectTrust、extension manifest、sandbox lifecycle、SBOM/license/advisory、release provenance/signature、route attestation |
+| F 审计与事故 | SC-31–SC-36 | Audit schema/projector、Incident/Reconcile、SEC crosswalk、EvidenceManifest、CLI/TTY/Web/Desktop parity |
+| G 验证与发布门 | SC-37–SC-43 | negative/property/fuzz/red-team/capacity、CI gate、恢复/保留演练、CURRENT_STATUS 回填 |
+
+每张卡都先覆盖 deny、越权、过期 approval、取消、unknown、重放、TOCTOU、注入和恢复，再覆盖成功路径。完整代码目标、依赖、拒绝断言、成功证据和测试边界见 [SC 详细卡片](roadmap/security-compliance.md#security-compliance-steps)。
+
+### 37.6 与现有专项的接点
+
+| 既有专项 | 安全承接 | 不重复建设 |
+|---|---|---|
+| CP-*、P0-A/B/F/G/J1 | identity、admission、approval、budget、cancel、fence、Unknown | 不在 provider/UI/workflow/connector 建第二授权 |
+| CAP-*、P4-J7-* | permit、sandbox、MCP/provider endpoint、effect/usage 证明 | provider response 和 capability catalog 不能成为安全事实 |
+| ER-*、PD-* | append/CAS、Receipt、replay、backup、migration、retention、delete | 不建立第二 EventLog，不用 projection 覆盖事实 |
+| CM-*、EXT-* | memory purpose/candidate、ProjectTrust、skill/plugin/hook 生命周期 | allowed-tools、memory origin、manifest 不能扩大 Grant |
+| INT-*、NM-*、UI-* | connector/webhook、通知、入口一致、redacted projection | 实时流、通知、UI 不构成授权或送达事实 |
+| OA-*、EQ-*、DEP-*、BQ-* | telemetry privacy、security eval、发布/恢复、quota/resource gate | metric、评测、脚本、成本账本不能替代 EventLog/ControlPlane |
+
+### 37.7 SEC 映射、验收门和证据
+
+| 条款 | 主要 SC | 最低结果 |
+|---|---|---|
+| SEC-01/02 | SC-04、SC-06–SC-11、SC-26 | server-owned identity、ProjectTrust、Grant 只交集、approval 精确绑定 |
+| SEC-03/12 | SC-09、SC-16、SC-40 | Cell/run/project/provider 的预算、并发、输出、wall time、bytes 有上限 |
+| SEC-04/07/08/09 | SC-12–SC-17、SC-37、SC-42 | exact permit、TOCTOU/cancel fencing、Unknown 不成功/不盲重试 |
+| SEC-05/06 | SC-04、SC-18–SC-20、SC-36、SC-39 | loopback 不是认证，secret 全出口 redaction，四入口同一决定 |
+| SEC-10/11 | SC-17、SC-21、SC-24–SC-36 | 不可信输入分层、EventLog append-only、审计可重放/可重建 |
+
+| Gate | 条件 | 允许证明 |
+|---|---|---|
+| S0 contract | SC-00–05 的 schema、reason、fixture、威胁登记 | source |
+| S1 deny path | SC-06–24、SC-37–39 的越权、泄露、重放、TOCTOU、删除、入口绕过均 zero effect | 局部 local_behavior |
+| S2 durable | EventLog/CAS/replay/recovery/delete/incident manifest 可跨进程重建 | 覆盖对象 durable；外部 effect 仍可能 unknown |
+| S3 opt-in live | 真实身份、密钥、网络、provider/connector、人工 approval 和外部回执均有逐连接证据 | 只提升对应连接到 live |
+| S4 physical | 独立 safety controller、现场确认和物理回执 | 当前保持 not_supported |
+
+每张 SC 卡完成时在 CURRENT_STATUS.md 写入：
+
+~~~text
+source_snapshot / worktree_status / command_argv / cwd·environment /
+fixture·cassette / exit_code / status change / proof-level change /
+limitations / reviewer
+~~~
+
+本节只新增设计，不改变现状。authenticated principal、完整 Secret redaction/TOCTOU、durable audit projector、跨进程恢复、供应链验证、删除传播和真实连接器回执仍需逐卡验收。外部调研依据包括 [MCP Authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)、[NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework)、[OWASP GenAI Top 10](https://genai.owasp.org/llm-top-10/)、[W3C Trace Context](https://www.w3.org/TR/trace-context/)、[OpenTelemetry sensitive data guidance](https://opentelemetry.io/docs/security/handling-sensitive-data/)、[SLSA](https://slsa.dev/spec/v1.2/) 和 [Sigstore security model](https://docs.sigstore.dev/about/security/)。

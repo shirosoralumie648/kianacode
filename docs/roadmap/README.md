@@ -1,17 +1,28 @@
 # Roadmap 专项文档
 
-`docs/roadmap.md` 是路线图的总入口：它保留 P0–P4 总图、当前窗口、冻结项和完成定义。这里的文件承载总图之后的长篇设计与细化执行卡，编号和状态与总图互相引用但不另立阶段。
+`docs/roadmap.md` 是路线图的总入口：它保留 P0–P4 总图、当前窗口、冻结项和完成定义。下面同时列出独立专项文件和总图内的专项章节；局部索引只用于拆分实施卡，不另立阶段，也不改变 P0–P6 的 canonical 编号。所有状态仍以 `CURRENT_STATUS.md` 的证据块为准。
 
-| 文件 | 范围 |
-|---|---|
-| [control-plane.md](control-plane.md) | CP-00–CP-30：授权、状态转移、账本与恢复 |
-| [harness.md](harness.md) | H01–H36：Agent 运行时与 Harness |
-| [provider.md](provider.md) | P4-J7-04–P4-J7-31：Provider 协议与 streaming |
-| [companyos.md](companyos.md) | CO-01–CO-48：组织、业务流程与交付 |
-| [capability.md](capability.md) | CAP-00–CAP-34：Capability、Broker 与执行边界 |
-| [event-receipt-recovery.md](event-receipt-recovery.md) | ER-00–ER-36：Event、Receipt 与 Recovery |
-| [context-memory.md](context-memory.md) | CM-00–CM-39：Context、Memory 与治理 |
-| [skills-plugins-hooks.md](skills-plugins-hooks.md) | EXT-00–EXT-31：Skills、Plugins 与 Hooks |
-| [ui-entrypoints.md](ui-entrypoints.md) | UI-00–UI-41：CLI、Workbench、Web、Desktop 与入口一致性 |
+| 专项 | 局部索引 | 位置 |
+|---|---:|---|
+| ControlPlane | CP-00–CP-30（31） | [授权、状态转移与恢复设计](control-plane.md) |
+| Harness | H01–H36（36） | [Agent 运行时设计与实施步骤](harness.md) |
+| Provider | P4-J7-04–P4-J7-31（28） | [Provider 协议与 streaming 设计](provider.md) |
+| CompanyOS | CO-01–CO-48（48） | [组织、业务流程与交付闭环](companyos.md) |
+| Capability | CAP-00–CAP-34（35） | [能力目录、Broker 与执行边界](capability.md) |
+| Event / Receipt / Recovery | ER-00–ER-36（37） | [事实账本、收据与恢复](event-receipt-recovery.md) |
+| Context / Memory | CM-00–CM-39（40） | [上下文、检索、记忆与治理](context-memory.md) |
+| Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [扩展来源、信任与生命周期](skills-plugins-hooks.md) |
+| UI / Entrypoints | UI-00–UI-41（42） | [CLI、Workbench、Web、Desktop 与入口一致性](ui-entrypoints.md) |
+| 配置 / 凭据 / 身份 | CI-01–CI-12（12） | [roadmap §29](../roadmap.md#config-credentials-identity-plan) |
+| Swarm | SW-00–SW-18（19） | [roadmap §30](../roadmap.md#swarm-coordination-design) |
+| 可观测性 / 审计 | OA-00–OA-28（29） | [roadmap §31](../roadmap.md#observability-audit-plan) |
+| 调度 / Workflow / Trigger | AUT-01–AUT-24（24） | [roadmap §32](../roadmap.md#scheduling-workflow-trigger-plan) |
+| 持久化 / 数据层 | PD-00–PD-35（36） | [独立设计](persistence-data-layer.md) · [roadmap §33](../roadmap.md#persistence-data-layer-plan) |
+| 通知 / 消息 | NM-00–NM-22（23） | [roadmap §34](../roadmap.md#notification-messaging-design) |
+| 集成 / 连接器 | INT-00–INT-33（34） | [独立设计](integrations-connectors.md) · [roadmap §34-A](../roadmap.md#integrations-connectors-plan) |
+| 评测 / 质量 | EQ-00–EQ-51（52） | [roadmap §34-B](../roadmap.md#quality-evaluation-design) |
+| 计费 / 配额 / 成本 | BQ-00–BQ-30（31） | [roadmap §35](../roadmap.md#billing-quota-cost-plan) |
+| 部署 / 运维 / 迁移 | DEP-00–DEP-41（42） | [roadmap §36](../roadmap.md#deployment-operations-migration-design) |
+| 安全 / 合规 | SC-00–SC-43（44） | [独立设计](security-compliance.md) · [roadmap §37](../roadmap.md#security-compliance-plan) |
 
 返回：[路线图总入口](../roadmap.md#appendix-navigation) · [文档总入口](../README.md) · [当前状态账本](../../CURRENT_STATUS.md)

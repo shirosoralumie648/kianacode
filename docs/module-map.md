@@ -1,7 +1,7 @@
 # Kiana 大模块地图
 
 > 文档性质：源码导读（Informative），用于解释产品边界、职责和连接关系，不定义新架构规范。
-> 整理日期：2026-09-13；参考当前源码、`CURRENT_STATUS.md` 和路线图。
+> 整理日期：2026-09-14；参考当前源码、`CURRENT_STATUS.md` 和路线图。
 > 模块存在不代表能力已经验收；实现状态和证明范围以 [CURRENT_STATUS.md](../CURRENT_STATUS.md) 为准。
 
 Kiana 不应只按 Rust crate 画地图。一个产品模块可能跨多个 crate，一个 crate 也可能承载多个模块。下面把容易被混在一起的配置、数据、可观测性、调度、集成、通知、质量、成本、部署和安全单独列出来，并标明它们与现有执行主链的关系。
@@ -21,15 +21,38 @@ Kiana 不应只按 Rust crate 画地图。一个产品模块可能跨多个 crat
 | 9 | **Event / Receipt / Recovery：执行事实与恢复** | 保存执行事实，生成 Receipt，投影运行状态和历史，处理审批恢复、结果未知、重放和恢复前校验 | [事件投影](../kiana-core/src/projection.rs)、[历史](../kiana-core/src/history.rs)、[收据](../kiana-core/src/receipts.rs)、[恢复](../kiana-core/src/recovery.rs)；EventLog 是事实源，但不等价于指标、Trace、审计报表或所有业务数据 |
 | 10 | **可观测性与审计** | 结构化 logs、metrics、traces、token/成本观测、健康检查、告警、操作审计和安全调查 | [Runtime 事件](../kiana-core/src/events.rs)、[运行流](../kiana-daemon/src/run_stream.rs)、[脚本与 CI](../scripts/)、[当前状态证据](../CURRENT_STATUS.md)；EventLog 记录产品事实，不能自动替代指标、分布式追踪、告警或合规审计管线，后者需要独立 schema 和保留边界 |
 | 11 | **调度、工作流与触发器** | 队列、定时、重试、幂等、持久工作流、Webhook/事件触发和运行编排 | [Workflow](../kiana-workflow/src/lib.rs)、[自动化](../kiana-core/src/automation.rs)、[协议命令](../kiana-protocol/src/lib.rs)；`kiana-workflow` 当前主要是小型状态机定义，不能据此推断已有完整持久工作流引擎或可靠调度器 |
-| 12 | **多 Agent 协调 / Swarm** | Cell、SpawnPlan、预算、并发、路径锁、工单派发、监督、合并和跨角色协作 | [Cell 注册表](../kiana-core/src/cell_registry.rs)、[协作](../kiana-core/src/collaboration.rs)、[Swarm](../kiana-core/src/swarm.rs)、[领域模型](../kiana-domain/src/swarm.rs)；这是产品级协调模块，单个 Agent 的模型循环仍由 Harness 驱动 |
-| 13 | **集成与连接器** | GitHub、Jira、Slack、Notion、浏览器、搜索、OAuth、Webhook 以及其他外部系统的账号绑定、限流、映射和失败处理 | [连接器领域模型](../kiana-domain/src/connectors.rs)、[Daemon 连接器](../kiana-daemon/src/connectors.rs)、[MCP stdio](../kiana-daemon/src/mcp_stdio.rs)；MCP 只描述部分工具调用通道，连接器还需要凭据、对象映射、幂等和外部结果确认 |
-| 14 | **通知与消息** | 审批、任务、会议、工单变更、失败、提醒和实时协作消息；包含订阅、投递、去重和已读状态 | [运行流订阅](../kiana-daemon/src/run_stream.rs)、[协议事件](../kiana-protocol/src/lib.rs)、[人类操作入口](../kiana-entrypoints/src/workbench_chat.rs)；当前主要是运行流和入口展示，尚无可以替代业务事件的独立通知总线 |
+| 12 | **多 Agent 协调 / Swarm** | Cell、SpawnPlan、预算、并发、路径锁、工单派发、监督、合并和跨角色协作 | [Cell 注册表](../kiana-core/src/cell_registry.rs)、[协作](../kiana-core/src/collaboration.rs)、[Swarm](../kiana-core/src/swarm.rs)、[领域模型](../kiana-domain/src/swarm.rs)；这是产品级协调模块，单个 Agent 的模型循环仍由 Harness 驱动；详细代码设计、处理流和实施步骤见 [roadmap §30](roadmap.md#swarm-coordination-design) |
+| 13 | **集成与连接器** | GitHub、Jira、Slack、Notion、浏览器、搜索、OAuth、Webhook 以及其他外部系统的账号绑定、限流、映射和失败处理 | [连接器领域模型](../kiana-domain/src/connectors.rs)、[Daemon 连接器](../kiana-daemon/src/connectors.rs)、[MCP stdio](../kiana-daemon/src/mcp_stdio.rs)；当前源码可核对的实现边界是 `local_fixture`，MCP 只描述部分工具调用通道，连接器还需要凭据、对象映射、幂等和外部结果确认；详细设计、处理流程和 `INT-00`–`INT-33` 见 [连接器专项](roadmap/integrations-connectors.md) |
+| 14 | **通知与消息** | 审批、任务、会议、工单变更、失败、提醒和实时协作消息；包含订阅、投递、去重和已读状态 | [运行流订阅](../kiana-daemon/src/run_stream.rs)、[协议事件](../kiana-protocol/src/lib.rs)、[人类操作入口](../kiana-entrypoints/src/workbench_chat.rs)、[通知与消息专项](roadmap.md#notification-messaging-design)；当前主要是运行流和入口展示，尚无可以替代业务事件的独立通知总线 |
 | 15 | **Skills / Plugins / Hooks：扩展** | 加载技能说明、插件、钩子和本地扩展，在受信任范围内接入运行阶段 | [Skills](../kiana-skills/src/lib.rs)、[技能注入](../kiana-daemon/src/harness_skills.rs)、[前置钩子](../kiana-daemon/src/pre_tool_hooks.rs)；项目本地资源必须先过 ProjectTrust，扩展不能新增第二条执行路径 |
 | 16 | **UI / Entrypoints：用户入口** | CLI、终端工作台、Web、Electron、状态卡、审批卡、对话、文件变化、收据和实时进度展示 | [入口注册](../kiana-entrypoints/src/lib.rs)、[CLI](../kiana-entrypoints/src/cli.rs)、[Web](../kiana-entrypoints/src/web.rs)、[Desktop](../contrib/desktop/main.js)；UI 只能投影状态和事件，不能自行创建 Agent loop 或权限边界 |
 | 17 | **评测与质量** | 评测集、回归用例、评分、实验、数据收集、黄金轨迹、smoke 和发布门 | [crate 测试](../kiana-domain/src/tests.rs)、[脚本](../scripts/)、[CI](../.github/workflows/)、[质量规范](coding-pack-matrix.md)；CI 通过不等于产品能力完成，评测结果需要绑定源码快照和证据等级 |
-| 18 | **计费、配额与成本** | token 核算、模型/工具预算、限流、配额、账单维度、成本归属和超额处理 | [用量领域模型](../kiana-domain/src/usage.rs)、[模型预算](../kiana-core/src/model_budget.rs)、[Provider 用量](../kiana-provider/src/response.rs)；当前有运行预算和部分用量记录，不应推断已有账单系统、组织级计费或完整成本报表 |
-| 19 | **部署、运维与迁移** | 升级、备份、恢复演练、多环境配置、本地/云部署、版本迁移、健康检查和运维工具 | [发布脚本](../scripts/)、[Desktop 壳](../contrib/desktop/)、[schema 版本](../kiana-domain/src/contracts.rs)、[运行配置](../kiana-daemon/src/lib.rs)；本地优先不等于已经具备云部署、多环境迁移或自动备份 |
-| 20 | **安全与合规** | 加密、秘密处理、审计、隐私、数据保留、删除、最小权限、供应链和合规证明 | [安全宪法](company-os-security-constitution.md)、[Policy/Gates](../kiana-policy/src/lib.rs)、[脱敏](../kiana-domain/src/redaction.rs)、[数据治理](../kiana-core/src/data_governance.rs)；安全控制分布在执行链中，合规要求仍需独立的策略、证据和生命周期设计 |
+| 18 | **计费、配额与成本** | token 核算、模型/工具预算、限流、配额、账单维度、成本归属和超额处理 | [用量领域模型](../kiana-domain/src/usage.rs)、[模型预算](../kiana-core/src/model_budget.rs)、[Provider 用量](../kiana-provider/src/response.rs)；当前有运行预算和部分用量记录，不应推断已有账单系统、组织级计费或完整成本报表；实际代码设计、处理流程和 `BQ-*` 实施步骤见 [计费专项](roadmap.md#billing-quota-cost-plan) |
+| 19 | **部署、运维与迁移** | 升级、备份、恢复演练、多环境配置、本地/云部署、版本迁移、健康检查和运维工具 | [发布脚本](../scripts/)、[Desktop 壳](../contrib/desktop/)、[schema 版本](../kiana-domain/src/contracts.rs)、[运行配置](../kiana-daemon/src/lib.rs)；本地优先不等于已经具备云部署、多环境迁移或自动备份；实际代码设计、处理流程和 `DEP-*` 实施步骤见 [roadmap §36](roadmap.md#deployment-operations-migration-design) |
+| 20 | **安全与合规** | 加密、秘密处理、审计、隐私、数据保留、删除、最小权限、供应链和合规证明 | [安全宪法](company-os-security-constitution.md)、[Policy/Gates](../kiana-policy/src/lib.rs)、[脱敏](../kiana-domain/src/redaction.rs)、[数据治理](../kiana-core/src/data_governance.rs)；安全控制分布在执行链中，合规要求仍需独立的策略、证据和生命周期设计；完整的威胁模型、代码边界、处理流和 SC-00–SC-43 实施卡见 [roadmap §37](roadmap.md#security-compliance-plan) 与 [安全与合规专项](roadmap/security-compliance.md) |
+
+## 产品平面与事实源
+
+产品模块跨越多个 crate。先按产品平面阅读，可以看出哪些模块共同决定一次运行，哪些模块只保存或解释已经提交的事实：
+
+| 产品平面 | 包含模块 | 共同问题 | 统一约束 |
+|---|---|---|---|
+| **权威与准入** | 配置/凭据/身份、ControlPlane、安全与合规 | 谁在什么项目里，以什么版本和权限提出请求 | 主体、ProjectTrust、assignment、policy、approval、budget 和 epoch 由服务端解析；调用者自报字段不能成为授权事实 |
+| **执行与编排** | Harness、Provider、Capability、调度/Workflow/Trigger、Swarm、集成/连接器 | 已准入的请求如何排队、执行、重试和收敛结果 | 所有副作用复用 `DaemonHost → ControlPlane → Broker`；Workflow、Swarm 和 Connector 都不能另起执行循环或权限中心 |
+| **事实与查询** | 持久化/数据层、Event/Receipt/Recovery、Context/Memory、通知/消息 | 哪些内容是事实，哪些内容可以重建、缓存或投递 | EventLog/事实存储是唯一写入权威；Receipt、Memory、Index、Notification 和 RunStream 都是带 cursor/generation 的投影或派生视图 |
+| **产品交付** | CompanyOS、扩展、UI/Entrypoints | 组织如何消费、协作和操作这些事实 | 业务命令和人类动作回到 ControlPlane；扩展先过 ProjectTrust；所有入口投影同一状态和事件 |
+| **质量与运维** | 可观测性/审计、评测/质量、计费/配额/成本、部署/运维/迁移 | 如何证明、计量、维护和发布一次运行 | Logs/Metrics/Traces/Audit 分开建模；质量门只能提交质量事实；运维必须经过 health、backup、migration、lease/fence 和回滚门 |
+
+下面的事实源矩阵用于审查“谁拥有字段”和“谁只能读取”。它是阅读辅助，不是对当前完成度的声明。
+
+| 事实域 | canonical owner | 可派生的视图或适配器 | 不能从中推断 |
+|---|---|---|---|
+| 配置、凭据、身份 | `ConfigSnapshot`、`SecretRef`/`CredentialLease`、`Principal`/`Assignment`、`AuthoritySnapshot` | Provider route、Connector binding、UI profile | API key 可用不等于项目授权；Provider account 不等于 Kiana 主体 |
+| 命令、策略、审批 | ControlPlane admission、Grant、Approval、Budget reservation | pending inbox、UI action、dispatch queue | UI 点击、模型文本或通知 ACK 不等于已批准或已执行 |
+| 运行事实与结果 | EventLog/Transition、Invocation、Receipt、RecoveryCase | Run/Cell/History projection、reconciliation view | Transcript、缓存、单次 handler 返回值不等于事实或现实业务 outcome |
+| 工作流、Swarm、连接器 | Workflow definition/version、DispatchIntent、Connector operation/receipt | queue、child summary、external reconciliation | child completed、HTTP 2xx 或 MCP tool result 不等于外部效果已确认 |
+| 观测、审计、通知 | committed event 投影出的 `Metric`、`Trace`、`AuditRecord`、`Notification` | dashboards、Human Inbox、RunStream、outbox | trace/metric 丢失不能改变授权；实时流或投递 ACK 不等于终局事实 |
+| 用量、成本、部署、安全 | `UsageRecord`/`CostLedger`、`ReleaseManifest`/`OperationJournal`、DataClass/retention policy | quota summary、health/doctor、quality and release reports | 估算 cost 不等于 measured invoice；health 通过不等于业务成功；合规设计不等于外部认证 |
 
 ## 一次运行如何经过这些模块
 
@@ -55,6 +78,10 @@ flowchart TD
     Cost["配额 / 成本 / 计费"] -.核算.-> Provider
     Security["安全 / 合规"] -.约束.-> Identity
     Security -.约束.-> Core
+    Security -.约束.-> Broker
+    Security -.约束.-> Data
+    Security -.约束.-> Quality
+    Security -.验证.-> Ops
     Ops["部署 / 运维 / 迁移"] -.维护.-> Data
 ```
 
@@ -65,7 +92,7 @@ flowchart TD
 - **EventLog / Receipt / Recovery**负责执行事实和恢复判断；logs、metrics、traces 和审计查询需要额外的观测模型。
 - **Workflow / Trigger**可以安排和重试命令，但命令每次真正执行仍必须回到同一个 ControlPlane。
 - **Connector**可以代表外部系统提交能力请求，但不能直接执行外部副作用；OAuth 和账号绑定归配置、凭据与身份模块管理。
-- **通知**是事件的投递视图，不是新的事实源；用户界面也只能消费它。
+- **通知**是已提交事件的投递视图，不是新的事实源；用户界面只能消费它并提交带版本/幂等键的 ControlPlane 动作。可靠通知必须能从 EventLog/Human Inbox 查询补回，实时流本身不构成送达或应用证明。
 - **Swarm**可以拆分和协调 WorkPacket，但子 Cell 的权限只能是父级能力的交集。
 
 ## 连接模块的基础设施
