@@ -987,7 +987,7 @@
 | 2026-09-14 | `P1-J3-01` 收口：模型记忆写入服务端固定为 `origin=model` + `candidate/draft`，默认检索排除；补 v1 存量兼容和 operator `memory.review` 晋升链；不运行本地测试，静态检查通过，CI 已触发但未等待 | `758ffbe` |
 | 2026-09-14 | `CP-00` 收口：固定 DaemonHost/ControlPlane/Runner/Broker/Approval/Hook 入口矩阵、失败分类、源码测试索引和 CP-04/05 handoff；不运行本地测试，静态检查通过，CI 已触发但未等待 | `f366436` |
 | 2026-09-14 | `ER-00` 收口：固定 Event/Receipt/Recovery 事实边界、EventStore capabilities、最小 ID 链、缓存与空/失败读取区分、结果未知分类和 source-only 验收索引；不运行本地测试，静态检查通过，CI 已触发但未等待 | `0a29de5` |
-| 2026-09-14 | `CAP-00` 收口：固定 Capability registry、scope、cancel、patch、MCP、memory 六条调用链，五工具与 operator-only 边界、timeout/失败口径、CP/H handoff 和 source-indexed CI 验收索引；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本次提交 |
+| 2026-09-14 | `CAP-00` 收口：固定 Capability registry、scope、cancel、patch、MCP、memory 六条调用链，五工具与 operator-only 边界、timeout/失败口径、CP/H handoff 和 source-indexed CI 验收索引；不运行本地测试，静态检查通过，CI 已触发但未等待 | `19b6fe6` |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
