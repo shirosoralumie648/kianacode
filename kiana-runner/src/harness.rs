@@ -1571,17 +1571,55 @@ mod tests {
             {"text": "third", "tool_calls": [{"id": "c3", "name": "memory.search", "arguments": {"query": "step-2", "collection": "role"}}]},
             {"text": "must not run"}
         ])).unwrap()))
-        .with_max_steps(3);
+        .with_max_steps(8);
         let run_id = RunId::new();
 
         let started = harness
-            .send(RunnerCommand::start(run_id, "go"))
+            .send(RunnerCommand::start_in_with_history(
+                run_id,
+                "go",
+                Vec::new(),
+                String::new(),
+                DEFAULT_HARNESS_SANDBOX,
+                String::new(),
+                false,
+                3,
+            ))
             .await
             .unwrap();
         let second =
             send_capability_success(&harness, run_id, capability_request_id(&started)).await;
         let third = send_capability_success(&harness, run_id, capability_request_id(&second)).await;
         let fourth = send_capability_success(&harness, run_id, capability_request_id(&third)).await;
+
+        assert_eq!(
+            started
+                .iter()
+                .filter(|event| matches!(event, RunnerEvent::ModelTurn { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            second
+                .iter()
+                .filter(|event| matches!(event, RunnerEvent::ModelTurn { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            third
+                .iter()
+                .filter(|event| matches!(event, RunnerEvent::ModelTurn { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            fourth
+                .iter()
+                .filter(|event| matches!(event, RunnerEvent::ModelTurn { .. }))
+                .count(),
+            0
+        );
 
         assert_eq!(
             fourth.last(),

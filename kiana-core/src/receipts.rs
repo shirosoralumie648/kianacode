@@ -274,6 +274,9 @@ pub(crate) fn receipt_from_events(
             "actor_id": context.actor_id,
             "role_id": worker.role_id,
             "department_id": worker.department_id,
+            "max_steps_per_turn": events.iter().find(|event| event.kind == "run.authorized")
+                .and_then(|event| event.data.get("max_steps_per_turn"))
+                .cloned().unwrap_or_else(|| json!(worker.max_steps)),
             "prompt_hash": events.iter().rev().find(|event| event.kind == "run.model_turn")
                 .and_then(|event| event.data.get("prompt_hash")).cloned().unwrap_or_else(|| json!(worker.prompt_hash)),
             "model_turns": model_turns_from_events(events),

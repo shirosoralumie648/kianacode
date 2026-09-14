@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::{DaemonHost, LocalModelConfig, ProjectTrustAuthority};
+use kiana_domain::PromptBundle;
 use kiana_protocol::{
     ApprovalChallenge, ApprovalDecision, ExecutionStatus, PermissionProfile, RequestEnvelope,
     RequestMetadata, ResponseEnvelope, RoleSpec, RunId, RunStreamEvent, SessionId, WorkPacket,
@@ -136,6 +137,154 @@ fn compacting_host(outputs: serde_json::Value, trigger: usize, retain: usize) ->
 struct CapturingModel {
     inner: ScriptedModel,
     seen: Mutex<Vec<ModelRequest>>,
+}
+
+struct RoleCountingModel {
+    calls: Mutex<Vec<(String, String)>>,
+}
+
+impl RoleCountingModel {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            calls: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn count(&self, role: &str, prompt: &str) -> usize {
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(call_role, call_prompt)| call_role == role && call_prompt == prompt)
+            .count()
+    }
+}
+
+#[async_trait]
+impl ModelClient for RoleCountingModel {
+    async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+        let role = request
+            .messages
+            .iter()
+            .find_map(|message| {
+                (message.role == ModelRole::System)
+                    .then(|| PromptBundle::decode(&message.text).ok())
+                    .flatten()
+                    .map(|bundle| bundle.role_id)
+            })
+            .unwrap_or_else(|| "unknown".to_owned());
+        let prompt = request
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == ModelRole::User)
+            .map(|message| message.text.clone())
+            .unwrap_or_default();
+        let step = {
+            let mut calls = self.calls.lock().unwrap();
+            let step = calls
+                .iter()
+                .filter(|(call_role, call_prompt)| call_role == &role && call_prompt == &prompt)
+                .count()
+                + 1;
+            calls.push((role.clone(), prompt.clone()));
+            step
+        };
+        Ok(ModelOutput {
+            text: format!("{role} step {step}"),
+            tool_calls: vec![ModelToolCall {
+                id: format!("{role}-{step}"),
+                name: "memory.search".to_owned(),
+                arguments: json!({
+                    "query": format!("{prompt}-{step}"),
+                    "collection": "project"
+                }),
+            }],
+            ..ModelOutput::default()
+        })
+    }
+}
+
+struct RoleIsolationModel {
+    calls: Mutex<Vec<(String, String)>>,
+}
+
+impl RoleIsolationModel {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            calls: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn count(&self, role: &str, prompt: &str) -> usize {
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(call_role, call_prompt)| call_role == role && call_prompt == prompt)
+            .count()
+    }
+}
+
+#[async_trait]
+impl ModelClient for RoleIsolationModel {
+    async fn complete(&self, request: ModelRequest) -> Result<ModelOutput, String> {
+        let role = request
+            .messages
+            .iter()
+            .find_map(|message| {
+                (message.role == ModelRole::System)
+                    .then(|| PromptBundle::decode(&message.text).ok())
+                    .flatten()
+                    .map(|bundle| bundle.role_id)
+            })
+            .unwrap_or_else(|| "unknown".to_owned());
+        let prompt = request
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == ModelRole::User)
+            .map(|message| message.text.clone())
+            .unwrap_or_default();
+        let step = {
+            let mut calls = self.calls.lock().unwrap();
+            let step = calls
+                .iter()
+                .filter(|(call_role, call_prompt)| call_role == &role && call_prompt == &prompt)
+                .count()
+                + 1;
+            calls.push((role.clone(), prompt.clone()));
+            step
+        };
+
+        if prompt == "timeout run" && step == 1 {
+            return Ok(ModelOutput {
+                text: "waiting for the first turn".to_owned(),
+                tool_calls: vec![ModelToolCall {
+                    id: "timeout-shell".to_owned(),
+                    name: "shell".to_owned(),
+                    arguments: json!({
+                        "command": "sleep 0.15",
+                        "timeout_ms": 1000
+                    }),
+                }],
+                ..ModelOutput::default()
+            });
+        }
+
+        Ok(ModelOutput {
+            text: format!("{role} {prompt} step {step}"),
+            tool_calls: vec![ModelToolCall {
+                id: format!("{role}-{prompt}-{step}"),
+                name: "memory.search".to_owned(),
+                arguments: json!({
+                    "query": format!("{prompt}-{step}"),
+                    "collection": "project"
+                }),
+            }],
+            ..ModelOutput::default()
+        })
+    }
 }
 
 impl CapturingModel {
@@ -315,6 +464,180 @@ async fn run_brokers_kiana_harness_tools() {
 }
 
 #[tokio::test]
+async fn role_max_steps_reaches_the_harness() {
+    let _environment_lock = environment_lock();
+    let _max_steps = EnvGuard::remove("KIANA_HARNESS_MAX_STEPS");
+    let _wall_time = EnvGuard::remove("KIANA_HARNESS_WALL_TIME_MS");
+    let model = RoleCountingModel::new();
+    let host = Arc::new(
+        trusted_harness_host(KianaHarness::new(model.clone())).expect("role-limit daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+
+    let architect = RoleSpec::architect();
+    let mut architect_metadata = trusted_metadata_in(&root);
+    architect_metadata.session_id = SessionId::new("architect-role-limit");
+    architect_metadata.assign_role(&architect);
+    let architect_prompt = "architect role budget";
+    let architect_response = client
+        .run(architect_metadata.clone(), architect_prompt, None)
+        .await
+        .unwrap();
+    assert_eq!(architect_response.status, ExecutionStatus::Failed);
+    assert_eq!(
+        architect_response.error.as_deref(),
+        Some("max_steps_per_turn")
+    );
+    assert_eq!(
+        model.count(&architect.role_id, architect_prompt),
+        architect.max_steps as usize
+    );
+    let architect_run_id =
+        RunId::parse_str(architect_response.output["run_id"].as_str().unwrap()).unwrap();
+    let architect_receipt = client
+        .receipt(architect_metadata, Some(architect_run_id))
+        .await
+        .unwrap();
+    assert_eq!(architect_receipt.status, ExecutionStatus::Failed);
+    assert_eq!(
+        architect_receipt.output["max_steps_per_turn"],
+        architect.max_steps
+    );
+    assert_eq!(
+        architect_receipt.output["model_turns"]
+            .as_array()
+            .unwrap()
+            .len(),
+        architect.max_steps as usize
+    );
+
+    let builder = RoleSpec::builder();
+    let mut builder_metadata = trusted_metadata_in(&root);
+    builder_metadata.session_id = SessionId::new("builder-role-limit");
+    builder_metadata.assign_role(&builder);
+    let builder_prompt = "builder role budget";
+    let builder_response = client
+        .run(builder_metadata.clone(), builder_prompt, None)
+        .await
+        .unwrap();
+    assert_eq!(builder_response.status, ExecutionStatus::Failed);
+    assert_eq!(
+        builder_response.error.as_deref(),
+        Some("max_steps_per_turn")
+    );
+    assert_eq!(
+        model.count(&builder.role_id, builder_prompt),
+        builder.max_steps as usize
+    );
+    let builder_run_id =
+        RunId::parse_str(builder_response.output["run_id"].as_str().unwrap()).unwrap();
+    let builder_receipt = client
+        .receipt(builder_metadata, Some(builder_run_id))
+        .await
+        .unwrap();
+    assert_eq!(builder_receipt.status, ExecutionStatus::Failed);
+    assert_eq!(
+        builder_receipt.output["max_steps_per_turn"],
+        builder.max_steps
+    );
+    assert_eq!(
+        builder_receipt.output["model_turns"]
+            .as_array()
+            .unwrap()
+            .len(),
+        builder.max_steps as usize
+    );
+}
+
+#[tokio::test]
+async fn environment_max_steps_overrides_role_in_product_run() {
+    let _environment_lock = environment_lock();
+    let _max_steps = EnvGuard::set("KIANA_HARNESS_MAX_STEPS", "2");
+    let _wall_time = EnvGuard::remove("KIANA_HARNESS_WALL_TIME_MS");
+    let model = RoleCountingModel::new();
+    let host = Arc::new(
+        trusted_harness_host(KianaHarness::new(model.clone()))
+            .expect("environment role-limit daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+    let role = RoleSpec::architect();
+    let mut metadata = trusted_metadata_in(&root);
+    metadata.assign_role(&role);
+    let prompt = "environment role budget";
+    let response = client.run(metadata.clone(), prompt, None).await.unwrap();
+
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("max_steps_per_turn"));
+    assert_eq!(model.count(&role.role_id, prompt), 2);
+    let run_id = RunId::parse_str(response.output["run_id"].as_str().unwrap()).unwrap();
+    let receipt = client.receipt(metadata, Some(run_id)).await.unwrap();
+    assert_eq!(receipt.status, ExecutionStatus::Failed, "{receipt:?}");
+    assert_eq!(receipt.output["max_steps_per_turn"], 2);
+    assert_eq!(receipt.output["model_turns"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn role_step_limits_are_isolated_across_runs_and_continue() {
+    let _environment_lock = environment_lock();
+    let _max_steps = EnvGuard::remove("KIANA_HARNESS_MAX_STEPS");
+    let model = RoleIsolationModel::new();
+    let harness = KianaHarness::new(model.clone())
+        .with_max_steps(3)
+        .with_wall_time_budget(std::time::Duration::from_millis(50));
+    let host = Arc::new(trusted_harness_host(harness).expect("isolation daemon"));
+    let client = KianaClient::new(InProcessTransport { host });
+    let root = temp_project();
+
+    let role = RoleSpec::builder();
+    let mut first_metadata = trusted_write_metadata_in(&root);
+    first_metadata.assign_role(&role);
+    let first = client
+        .run(
+            first_metadata.clone(),
+            "timeout run",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.status, ExecutionStatus::Failed, "{first:?}");
+    assert_eq!(
+        first.error.as_deref(),
+        Some("run_budget_exceeded:wall_time")
+    );
+    assert_eq!(model.count(&role.role_id, "timeout run"), 1);
+
+    let continued = client
+        .continue_run(
+            first_metadata,
+            "continue",
+            Some("workspace-write".to_owned()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(continued.status, ExecutionStatus::Failed, "{continued:?}");
+    assert_eq!(continued.error.as_deref(), Some("max_steps_per_turn"));
+    assert_eq!(model.count(&role.role_id, "continue"), 3);
+
+    let mut second_metadata = trusted_write_metadata_in(&root);
+    second_metadata.session_id = SessionId::new("isolated-second-run");
+    second_metadata.assign_role(&role);
+    let second = client
+        .run(
+            second_metadata,
+            "second run",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.status, ExecutionStatus::Failed, "{second:?}");
+    assert_eq!(second.error.as_deref(), Some("max_steps_per_turn"));
+    assert_eq!(model.count(&role.role_id, "second run"), 3);
+}
+
+#[tokio::test]
 async fn role_max_steps_reaches_harness_runtime_config() {
     let _environment_lock = environment_lock();
     let _environment = EnvGuard {
@@ -381,21 +704,22 @@ fn model_config_rejects_invalid_wall_time_budget() {
     let _environment_lock = environment_lock();
     let home = temp_project();
     let _home = EnvGuard::set("KIANA_HOME", &home);
-    let _wall_time = EnvGuard::set("KIANA_HARNESS_WALL_TIME_MS", "not-a-number");
+    for value in ["0", "not-a-number"] {
+        let _wall_time = EnvGuard::set("KIANA_HARNESS_WALL_TIME_MS", value);
+        let result = DaemonHost::local_with_model_config(LocalModelConfig {
+            provider: Some("fake".to_owned()),
+            ..LocalModelConfig::default()
+        });
+        let error = match result {
+            Ok(_) => panic!("invalid wall-time configuration must fail before model setup"),
+            Err(error) => error,
+        };
 
-    let result = DaemonHost::local_with_model_config(LocalModelConfig {
-        provider: Some("fake".to_owned()),
-        ..LocalModelConfig::default()
-    });
-    let error = match result {
-        Ok(_) => panic!("invalid wall-time configuration must fail before model setup"),
-        Err(error) => error,
-    };
-
-    assert_eq!(
-        error.to_string(),
-        "runtime_config_invalid:KIANA_HARNESS_WALL_TIME_MS:expected_positive_integer"
-    );
+        assert_eq!(
+            error.to_string(),
+            "runtime_config_invalid:KIANA_HARNESS_WALL_TIME_MS:expected_positive_integer"
+        );
+    }
 }
 
 #[tokio::test]
@@ -433,6 +757,14 @@ async fn model_config_wall_time_budget_fails_closed() {
         event.kind == "run.failed" && event.data["error"] == "run_budget_exceeded:wall_time"
     }));
     assert!(!events.iter().any(|event| event.kind == "run.completed"));
+    assert!(
+        events
+            .iter()
+            .filter(|event| event.kind == "run.model_turn")
+            .count()
+            <= 1,
+        "wall-time exhaustion must not permit a subsequent model turn"
+    );
 }
 
 #[tokio::test]
@@ -2415,6 +2747,12 @@ impl EnvGuard {
     fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
         let previous = std::env::var(key).ok();
         std::env::set_var(key, value);
+        Self { key, previous }
+    }
+
+    fn remove(key: &'static str) -> Self {
+        let previous = std::env::var(key).ok();
+        std::env::remove_var(key);
         Self { key, previous }
     }
 }
