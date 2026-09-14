@@ -129,6 +129,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; read-only role-limit audit; no runtime test reviewer
 ```
 
+### P1-J3-01 memory candidate admission evidence (2026-09-14)
+
+```text
+source_snapshot: 758ffbe; kiana-daemon/src/harness_memory.rs, kiana-daemon/tests/daemon_host.rs
+worktree_status: source commit is on master and pushed to origin/master; roadmap and CURRENT_STATUS backfill is included in the follow-up documentation commit
+command_argv:
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo stable; locked offline dependency cache; no test binaries executed
+fixture or cassette: scripted PM model writes department:planning while attempting to spoof origin/admission/state; fresh DaemonHost search before and after the existing memory.review approval proof; legacy kiana.memory-record.v1 project fixture
+exit_code: 0 for compile, format, and diff checks; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: P1-J3-01 implementation and product-path acceptance coverage completed. The memory broker derives model writes as origin=model and persistent candidate/draft, ignores model-supplied lifecycle/provenance fields, excludes candidates from default search, and promotes only through the operator-bound memory.review approval flow with an exact record revision. v1 records missing the new lifecycle fields retain legacy searchable admission/state while origin remains Unknown and hits remain unverifiable.
+proof-level_change: source plus compile/static-check evidence only; no local_behavior promotion until GitHub CI supplies the runtime receipt
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; the new acceptance, approval continuation, and v1 compatibility behavior remain remote-CI evidence; full memory lifecycle (proposal extraction, expiry/revocation propagation, durable index rebuild) remains outside this step
+reviewer: Codex root implementation review; no runtime test reviewer
+```
+
 ### Run state event projection evidence (2026-09-10)
 
 ```text

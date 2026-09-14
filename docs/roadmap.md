@@ -92,7 +92,7 @@
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ⏳ |
 | `P1-J2-04` | P1 | J2 Context/Cache | `P1-J2-03` | 角色 prompt 从角色包加载；`prompt_hash` 进收据可复现 | ⏳ |
-| `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ⏳ |
+| `P1-J3-01` | P1 | J3 Memory | `P0-A-01a` | 模型写入一律 candidate+draft；`origin` 服务端派生；默认检索排除 | ✅ |
 | `P1-J3-02` | P1 | J3 Memory | `P1-J3-01` | 检索带相关性打分且命中进收据可追溯；grants ACL 两端一致 | ⏳ |
 | `P1-J3-03` | P1 | J3 Memory | `P1-J3-01`、`P0-F-01` | 抽取建议包带 evidence 与相似旧记录；三档准入落地 | ⏳ |
 | `P1-J3-04` | P1 | J3 Memory | `P1-J3-02` | hybrid 检索（BM25+本地向量+RRF+MMR）确定性可复现；模型 hash 校验 fail-closed | ⏳ |
@@ -174,7 +174,7 @@
 | 007 | W0 | 基础 | [`P2-M5-02`](#step-p2-m5-02) | P2 基础 · 重启后列出历史会话 | `P0-G-01` | ✅ | [基础卡](#step-p2-m5-02) |
 | 008 | W0 | 基础 | [`P0-J1-05a`](#step-p0-j1-05a) | P0 基础 · 重复调用检测与 wall-time 预算接线 | — | ✅ | [基础卡](#step-p0-j1-05a) |
 | 009 | W0 | 基础 | [`P0-J1-05b`](#step-p0-j1-05b) | P0 基础 · 按角色的 max_steps | `P0-J1-05a` | ✅ | [基础卡](#step-p0-j1-05b) |
-| 010 | W0 | 基础 | [`P1-J3-01`](#step-p1-j3-01) | P1 基础 · Memory 写入候选制 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-j3-01) |
+| 010 | W0 | 基础 | [`P1-J3-01`](#step-p1-j3-01) | P1 基础 · Memory 写入候选制 | `P0-A-01a` | ✅ | [基础卡](#step-p1-j3-01) |
 | 011 | W0 | 专项 | [`CP-00`](roadmap/control-plane.md#step-cp-00) | ControlPlane · 固定基线，列出所有有后果的入口 | — | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-00) |
 | 012 | W0 | 专项 | [`ER-00`](roadmap/event-receipt-recovery.md#step-er-00) | Event / Receipt / Recovery · 固定基线与事实边界 | — | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-00) |
 | 013 | W0 | 专项 | [`CAP-00`](roadmap/capability.md#step-cap-00) | Capability · 固定可复核基线，消除计划与 WIP 重叠 | — | ⏳ | [专项卡](roadmap/capability.md#step-cap-00) |
@@ -934,19 +934,18 @@
 | 核对基线 | 源码快照与 WIP | `db77c24` 是本次源码审查基线；工作树另有恢复、取消、记忆、提示词等 WIP，文档已按用户指示直接回填 | 测试前记录相关文件快照与 WIP 清单；逐项核验新增实现，不批量套用历史完成态 |
 | 当前 1 | `P0-J1-05a` 回归 | 已修复 `local_with_model_config` 丢失 wall-time 配置的问题，并补上非法配置与预算耗尽的 daemon 级验收；源码提交 `dd6a8d5` 已推送，CI 尚未等待 | 保留历史 wall-time 证据；远端 CI 负责行为测试回执 |
 | 当前 2 | `P0-J1-05b` 接线 | `bd9dea0` 已补真实 DaemonHost 角色/环境/Continue 产品链断言，并加强 Start 命令限额；已推送，CI 尚未等待 | 保留每 run 的角色快照、构造上限取 `min`、wall-time Continue 语义；远端 CI 负责行为回执 |
-| 当前之后 | `P1-J3-01` | 已有实施计划 `superpowers/plans/2026-09-10-memory-j3-01-j3-02.md`；共享 WIP 不能视为已验收 | `05b` 收口后单独推进候选写入，先覆盖伪造来源、自批、ACL 与旧记录降级 |
+| 当前 3 | `P1-J3-01` 候选写入 | `758ffbe` 已将模型持久写入固定为 `origin=model`、`candidate/draft`，默认检索排除；补齐审批前后产品链和 v1 兼容验收，已推送，CI 尚未等待 | 保留模型不能自批/伪造来源，v1 存量可检索但 provenance 不可验证；远端 CI 负责行为回执 |
+| 下一步 | `CP-00` 固定基线 | 按全量队列第 011 项推进 ControlPlane 入口盘点；不跳到后续 P1-J3 子项 | 先读取专项卡并固定 source snapshot、入口清单和证据边界 |
 | 恢复线重开 | `P0-G-04` | 历史证据只覆盖 Run 只读投影；WIP 已新增 Invocation 折叠与恢复代码，产品消费、未决集合及缓存替换尚待证明 | 保留完整退出条件；依赖此单元的条目不得因历史 Run 测试通过而视为已满足依赖 |
 
-**当前切片的验收缺口（以下名称为待补/待加强，不代表已有测试通过）**
+**当前切片的验收断言（P1-J3-01；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
 |---|---|---|
-| 先拒绝 | `model_config_rejects_invalid_wall_time_budget` | 经实际 model-config 构造路径输入零值、非数字配置，创建失败；不请求模型 |
-| 先拒绝 | `model_config_wall_time_budget_fails_closed` | 有效 wall-time 预算耗尽后返回 `run_budget_exceeded:wall_time`，无后续模型调用或完成态 |
-| 先拒绝 | `role_max_steps_reaches_the_harness` | 从同一 DaemonHost 发起两种不同角色的 run，超各自上限均失败；断言模型实际调用次数与 Receipt，不能仅调用配置 helper |
-| 先拒绝 | `start_command_max_steps_limits_that_run`（加强现有） | harness 构造限额与 Start 命令限额刻意不同；命令限额真正生效，不靠 `.with_max_steps(3)` 代替接线证明 |
-| 再成功 / 回归 | `environment_max_steps_overrides_role_in_product_run` | 用 fake model 跑完整产品链，在覆盖限额内完成、越界失败；配置非法时 fail-closed |
-| 再成功 / 回归 | `role_step_limits_are_isolated_across_runs_and_continue` | 同 host 不同 run 的预算互不串扰；Continue 沿已有每 turn 重置语义且保留该 run 的角色限额 |
+| 先拒绝 | `model_written_memory_stays_unsearchable_until_approved` | 模型传入伪造的 origin/admission/state 不生效；持久层记录为 `model` + `candidate` + `draft`，审批前默认检索为空 |
+| 先拒绝 | `builder_project_search_hits_land_on_receipt`（v1 fixture） | v1 缺失字段恢复为存量可检索语义，但 origin 保持 Unknown，命中不得标记 verified |
+| 再成功 / 回归 | `model_written_memory_stays_unsearchable_until_approved` | 操作者对精确 record/revision 审批后追加 v2 版本，状态变为 `qualified` + `active`，随后同一 collection 可检索 |
+| 再成功 / 回归 | `model_written_memory_stays_unsearchable_until_approved` | 审批走现有 `memory.review` approval proof，不能由模型工具调用或模型参数自批 |
 
 验证顺序：聚焦失败复现 → runner/core/daemon 回归（daemon/control-plane 串行）→ workspace check/fmt/clippy → 全量 release gate。每轮只修当前切片；记录精确命令、命中测试数、退出码、源码快照与限制。
 
@@ -980,6 +979,7 @@
 | 2026-09-10 | `P0-J1-05a` 收口：wall-time 预算接线进产品路径（`KIANA_HARNESS_WALL_TIME_MS` / `KIANA_HARNESS_MAX_STEPS`，默认不变）；直跑 `34381844056` 红于 CI 环境 apt 问题（`c83a357`/`5f9ce29` 修复后覆盖跑绿）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` → 覆盖 CI `34389804309` ✅ |
 | 2026-09-14 | `P0-J1-05a` 回归：model-config daemon 复用完整 `RuntimeConfig`，wall-time 非法值与耗尽路径 fail-closed 验收已入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | `dd6a8d5` |
 | 2026-09-14 | `P0-J1-05b` 收口：角色/环境 max_steps 经 DaemonHost 产品链生效，Receipt 记录授权上限，Start 命令与 Continue/run 隔离行为断言入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | `bd9dea0` |
+| 2026-09-14 | `P1-J3-01` 收口：模型记忆写入服务端固定为 `origin=model` + `candidate/draft`，默认检索排除；补 v1 存量兼容和 operator `memory.review` 晋升链；不运行本地测试，静态检查通过，CI 已触发但未等待 | `758ffbe` |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1624,14 +1624,14 @@
 
 <a id="step-p1-j3-01"></a>
 
-### P1-J3-01 Memory 写入候选制　⏳
+### P1-J3-01 Memory 写入候选制　✅
 
-- **现状**：模型写入的 memory 可能直接进入可检索集合。
-- **做什么**：`memory.write` 由模型写入一律落 candidate + draft；`origin` 由服务端派生（model / hook / git / user）；默认检索排除 candidate，只有操作者或目标层 owner 显式批准才转 active。
-- **风险**：模型不能自批；instance-scratch 层保持默认可见。
+- **现状**：`memory.write` 已由 broker 生成 v2 记录；持久层 candidate 默认不满足 `searchable()`，旧 v1 记录缺字段时的兼容语义此前未显式恢复。
+- **做什么**：保持模型写入的服务端 `origin=model`、持久层 `candidate + draft` 和 scratch 例外；补 v1 存量可检索但 provenance 不可验证的解析边界，并用现有 `memory.review` 审批链完成晋升。
+- **风险**：模型不能自批或伪造 origin/admission/state；instance-scratch 层保持默认可见，持久层必须先审批。
 - **验收**：`model_written_memory_stays_unsearchable_until_approved`
 - **依赖 / 边界**：依赖 `P0-A-01a`；持久层 candidate 默认不可检索。
-- **依据**：`company-os-implementation-outline.md` §Slice J3
+- **依据**：`company-os-implementation-outline.md` §Slice J3；源码提交 `758ffbe`；本次证据块「P1-J3-01 memory candidate admission evidence (2026-09-14)」。
 
 
 
