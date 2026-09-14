@@ -2,7 +2,7 @@
 
 > 本文件是“当前状态”的唯一汇总入口。  
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
-> 当前工作树：与 HEAD 快照一致；以下结论绑定该快照与证据块。
+> 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
 ## 1. 状态与证明等级
 
@@ -64,6 +64,34 @@ reviewer: focused adversarial regression review
 | 支付、外卖、打车、旅行预订 | not_supported | source | 尚无满足身份、审批、幂等、对账和证据要求的 adapter |
 | 智能家居和物理设备控制 | not_supported | source | 尚无独立安全控制器、watchdog、急停和物理证据 |
 | 企业租户、RBAC、远程执行 | deferred | source | 必须先完成个人本地核心并重新设计身份和租户边界 |
+
+### Roadmap source reconciliation evidence (2026-09-12)
+
+```text
+source_snapshot: db77c2485bcafecbb1da17ec57ee509ad2ee32b4; inspected immutable git blobs, including kiana-runner/src/harness.rs, kiana-daemon/src/lib.rs, kiana-daemon/tests/daemon_host.rs, kiana-core/src/lifecycle.rs and the existing evidence below; supplementary WIP source observation at 2026-09-12 16:12 +08:00, not a tested snapshot
+worktree_status: shared checkout contains pre-existing cross-slice WIP and changed during read-only review; the documentation draft from /tmp/kiana-roadmap-20260912-vx1fopqv is now applied to docs/roadmap.md and CURRENT_STATUS.md after the user's instruction superseded the old single-writer handoff restriction; unrelated edits preserved; no product source edit, commit, push, merge, reset or worktree deletion by this documentation task
+command_argv:
+  git rev-parse HEAD
+  git status --short
+  git show --stat HEAD
+  git show db77c2485bcafecbb1da17ec57ee509ad2ee32b4:kiana-runner/src/harness.rs
+  git show db77c2485bcafecbb1da17ec57ee509ad2ee32b4:kiana-daemon/src/lib.rs
+  git show db77c2485bcafecbb1da17ec57ee509ad2ee32b4:kiana-daemon/tests/daemon_host.rs
+  git show db77c2485bcafecbb1da17ec57ee509ad2ee32b4:kiana-core/src/lifecycle.rs
+  cargo check --workspace --locked --offline
+  git apply --check /tmp/kiana-roadmap-20260912-vx1fopqv/roadmap.patch
+  git apply /tmp/kiana-roadmap-20260912-vx1fopqv/roadmap.patch
+  python3 /tmp/kiana-roadmap-20260912-vx1fopqv/validate_documents.py
+  git diff --check -- docs/roadmap.md CURRENT_STATUS.md
+cwd/environment: repository commands at /media/shirosora/4A183E5C183E46EB/codestorage/kianacode; Linux; Cargo locked/offline; source findings pinned to git blobs; documentation draft applied to the repository and updated for the user's current instruction
+fixture or cassette: none; source inspection only. The listed Cargo check observed a moving WIP snapshot and is not a product behavior fixture
+exit_code: git inspection commands=0; patch applicability check=0; patch application=0; document validation=0 (74 table rows/cards, matching statuses/dependencies, acyclic graph, unchanged historical evidence); scoped diff check=0; shared-WIP cargo check=101 (runner Value/prompt_sources errors and core non-exhaustive ExecutionStatus matches); files subsequently changed by another writer, so this is neither a stable HEAD build result nor validation of later WIP
+artifact paths and SHA-256: /tmp/kiana-roadmap-20260912-vx1fopqv/snapshot.json records SHA-256 of the inspected immutable source/document copies; proposed roadmap/status documents and roadmap.patch are local review artifacts, not CI evidence
+status change: roadmap P0-J1-05a reopened from completed to in-progress because the HEAD model-config constructor loses wall-time configuration/invalid-value rejection; P0-G-04 reopened because existing evidence does not establish the full Invocation/projection-cache scope; P0-J1-05b moves from queued to in-progress because db77c24 adds a command limit without consuming it or supplying a role snapshot. Later WIP now selects role limits in core and consumes them per run in the harness, and adds Invocation projection/recovery source; these changes still require product-path validation. Product feature_status declarations are not promoted
+proof-level change: none; these are source findings and evidence-scope corrections. Historical wall-time and Run projection local_behavior evidence remains bound to its original snapshots; existing provider/streaming live evidence is unaffected
+limitations: no focused RED/GREEN run or complete regression on a stable implementation snapshot; no remote CI query; no claim that db77c24 passes or fails compilation. Role tests at that snapshot exercise a config helper or constructor limit, not the required whole product chain. Pending tests in the roadmap are plans, not executed evidence. Subsequent WIP requires separate implementation validation; applying these documents is not a capability promotion
+reviewer: Codex root source review plus independent read-only roadmap_review agent; no independent runtime validation or human acceptance
+```
 
 ### Run state event projection evidence (2026-09-10)
 
