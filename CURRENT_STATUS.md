@@ -147,7 +147,30 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
-### CP-00 ControlPlane entry baseline evidence (2026-09-14)
+### H01 Harness wiring baseline and acceptance skeleton evidence (2026-09-14)
+
+```text
+source_snapshot: 8709b71a54549fd7fa894904b55a4d501e68148a (fixture commit); docs/roadmap/harness-baseline.md; kiana-runner/tests/harness_contract.rs; kiana-daemon/tests/harness_runtime.rs; call-chain files hashed in the baseline doc
+worktree_status: fixture commit 8709b71 was clean and pushed; CI-blocking repairs landed first (6b18a49 hash assertions + provider metadata; 8c8f3d7 fmt/unused-import); assertion fix plus baseline docs are this step's commit
+command_argv:
+  git rev-parse HEAD
+  git status --short
+  sha256sum kiana-entrypoints/src/cli.rs kiana-entrypoints/src/harness_run.rs kiana-daemon/src/lib.rs kiana-core/src/lib.rs kiana-core/src/lifecycle.rs kiana-core/src/capabilities.rs kiana-core/src/dispatch.rs kiana-core/src/history.rs kiana-runner/src/harness.rs kiana-runner/src/tools.rs kiana-runner-protocol/src/lib.rs kiana-ports/src/model.rs kiana-capability-broker/src/lib.rs kiana-daemon/src/model_client.rs
+  grep -rn '"run.tool_result"' --include='*.rs' kiana-core/src kiana-daemon/src kiana-runner/src
+  grep -rn 'capability.completed' kiana-core/src/capabilities.rs kiana-core/src/history.rs
+  cargo check --workspace --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked/offline dependency resolution; source inspection and static compilation only; no test binaries executed
+fixture or cassette: CountingModel/BlockingModel/EventWriteFault/InjectedClock runner fixtures and CountingModel/CountingBroker daemon fixtures committed in 8709b71; roundtrip assertion corrected from run.tool_result to capability.completed this round; no fixture executed locally
+exit_code: source inspection=0; workspace tests static compile=0; format check=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: H01 completed. Six-segment call-chain reconciliation recorded in docs/roadmap/harness-baseline.md with source hashes; acceptance skeleton tests registered; key fact boundaries fixed: successful tool outcomes are journaled as capability.completed with capability_request_id linkage while run.tool_result is cancel/not-executed-only; run terminal vocabulary is completed/failed/cancelled/result_unknown; initial trust decision is daemon-side; harness.rs:703 emitted_delta dead code flagged for H05/H06; ModelClient admission contract (prepare_call/complete_prepared/complete_admitted) located in kiana-ports. No implementation status promoted for H02 or later.
+proof-level_change: source plus compile/static-check evidence only; runtime behavior of the new tests is delegated to GitHub CI; no local_behavior promotion claimed in this commit
+limitations: runtime receipt for untrusted-deny and roundtrip tests arrives via Release Smoke CI, not locally; the six CI-failing pushes before 6b18a49 were caused by pre-existing baseline issues (stale 16-char hash assertions, missing provider repository metadata), repaired outside H01 scope to unblock the gate; call-chain hashes will drift as H02+ lands and must be re-verified per step
+reviewer: multi-agent source survey with adversarial gap verification (37 agents); no runtime test reviewer
+```
+
+
 
 ```text
 source_snapshot: f366436a0a232c2a9a31b3ab2968da4a6824aa90; docs/roadmap/control-plane-entry-matrix.md; kiana-daemon/src/lib.rs; kiana-core/src/{lifecycle,approvals,capabilities,commands,company,sessions}.rs; kiana-core/tests/control_plane.rs; kiana-daemon/tests/daemon_host.rs

@@ -194,14 +194,17 @@ async fn host_model_tool_result_next_step_receipt_roundtrip() {
     assert!(events.iter().any(|event| {
         event.kind == "run.capability_requested" && event.data["run_id"] == json!(run_id)
     }));
-    assert!(events
-        .iter()
-        .any(|event| { event.kind == "run.tool_result" && event.data["run_id"] == json!(run_id) }));
+    // Successful capability outcomes are journaled as capability.completed with
+    // capability_request_id linking back to run.capability_requested;
+    // run.tool_result is only written on cancelled/not-executed paths.
+    assert!(events.iter().any(|event| {
+        event.kind == "capability.completed" && event.data["run_id"] == json!(run_id)
+    }));
     assert!(events
         .iter()
         .any(|event| { event.kind == "run.completed" && event.data["run_id"] == json!(run_id) }));
     assert!(events.iter().any(|event| {
-        event.kind == "run.tool_result" && event.data.to_string().contains("h01")
+        event.kind == "capability.completed" && event.data.to_string().contains("h01")
     }));
 }
 
