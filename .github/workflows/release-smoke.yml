@@ -39,5 +39,17 @@ jobs:
           export CARGO_LOCK_HASH=$(sha256sum Cargo.lock | awk '{print $1}')
           export SOURCE_HASH=$(git rev-parse HEAD)
           python3 scripts/record-build-inputs.py
+      - name: Static checks (clippy)
+        # AGENTS.md §2 documents clippy as a build gate; run it in CI so local
+        # checkouts are not the only place it can catch a deny-by-default error.
+        run: cargo clippy --workspace --all-targets --locked --offline
       - run: bash scripts/release-preflight.sh --local-rc
       - run: bash scripts/release-smoke.sh
+      # AGENTS.md §2 gates that no workflow ran before. release-smoke.sh already
+      # built target/release/kiana, so the smokes reuse it instead of rebuilding.
+      - name: Harness golden smoke (cassette, local_behavior)
+        run: KIANA_BIN="$PWD/target/release/kiana" bash scripts/harness-golden-smoke.sh
+      - name: v1.0 workbench smoke (folder workbench on DaemonHost)
+        run: KIANA_BIN="$PWD/target/release/kiana" bash scripts/v10-workbench-smoke.sh
+      - name: v1.0 P0 closeout smoke (matrix rows + NOTICE)
+        run: bash scripts/v10-p0-closeout-smoke.sh
