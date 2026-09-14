@@ -180,7 +180,7 @@
 | 013 | W0 | 专项 | [`CAP-00`](roadmap/capability.md#step-cap-00) | Capability · 固定可复核基线，消除计划与 WIP 重叠 | — | ✅ | [专项卡](roadmap/capability.md#step-cap-00) |
 | 014 | W0 | 专项 | [`H01`](roadmap/harness.md#step-h01) | Harness · 固定接线基线与可执行验收骨架 | — | ✅ | [专项卡](roadmap/harness.md#step-h01) |
 | 015 | W0 | 专项 | [`P4-J7-04`](roadmap/provider.md#step-p4-j7-04) | Provider · Provider 基线、快照和现有测试 | `P0-J7-01` | ✅ | [专项卡](roadmap/provider.md#step-p4-j7-04) |
-| 016 | W0 | 专项 | [`CM-00`](roadmap/context-memory.md#step-cm-00) | Context / Memory · 固定源码快照、差异与证据边界 | — | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-00) |
+| 016 | W0 | 专项 | [`CM-00`](roadmap/context-memory.md#step-cm-00) | Context / Memory · 固定源码快照、差异与证据边界 | — | ✅ | [专项卡](roadmap/context-memory.md#step-cm-00) |
 | 017 | W0 | 专项 | [`EXT-00`](roadmap/skills-plugins-hooks.md#step-ext-00) | Skills / Plugins / Hooks · 基线与决策回执 | — | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-00) |
 | 018 | W0 | 专项 | [`UI-00`](roadmap/ui-entrypoints.md#step-ui-00) | UI / Entrypoints · 建立入口基线与验收矩阵 | — | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-00) |
 | 019 | W0 | 专项 | [`CO-01`](roadmap/companyos.md#step-co-01) | CompanyOS · 锁定当前实现与计划的交接基线 | — | ⏳ | [专项卡](roadmap/companyos.md#step-co-01) |
@@ -939,7 +939,7 @@
 | 当前 5 | `ER-00` 固定事实边界 | `0a29de5` 源码快照上新增 Event/Receipt/Recovery 基线矩阵，登记 EventStore capabilities、事实所有权、ID 链、缓存边界与失败分类；已推送，CI 尚未等待 | 不提升 ER-01+ 或 durable/live 证明；运行时 fixture 由 GitHub CI 负责 |
 | 当前 6 | `CAP-00` 固定可复核基线 | 本次文档提交新增 [Capability 基线](roadmap/capability-baseline.md)，绑定 `b49cd62` 源码快照、相关 hash、registry/scope/cancel/patch/MCP/memory 六条链、五工具边界、timeout 分层和 CP/H handoff；已推送，CI 尚未等待 | 仅 baseline artifact 为 `implemented/source`；产品 capability 保持 `partial/target/deferred`，运行时 fixture 由 GitHub CI 负责 |
 | 当前 | `P4-J7-04` Provider 基线 | 已收口：`roadmap/provider-baseline.md` 固定产品路径与 legacy_fixtures 分界、调研缺口复核（10 项中 7 已修）和测试索引（kiana-provider 零测试为 RED） | 运行时回执由 GitHub CI 负责 |
-| 下一步 | `CM-00` Context/Memory 基线 | 按全量队列第 016 项推进；P4-J7-04 已收口，不跳到 J7-05 或 H02 | CM-00 卡要求固定源码快照、差异与证据边界 |
+| 下一步 | `EXT-00` Skills/Plugins/Hooks 基线 | 按全量队列第 017 项推进；CM-00 已收口（见 `roadmap/context-memory-baseline.md`） | EXT-00 卡要求基线与决策回执 |
 | 恢复线重开 | `P0-G-04` | 历史证据只覆盖 Run 只读投影；WIP 已新增 Invocation 折叠与恢复代码，产品消费、未决集合及缓存替换尚待证明 | 保留完整退出条件；依赖此单元的条目不得因历史 Run 测试通过而视为已满足依赖 |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
@@ -992,6 +992,7 @@
 | 2026-09-14 | CI 基线修复：kiana-query 六处陈旧 hash 长度断言对齐 `sha256:<hex>`、kiana-provider 补 `repository.workspace`（连续 8 个 CI run 红的三个 preflight 阻塞之二）；rustfmt 漂移与 unused import 清理 | `6b18a49` + `8c8f3d7` |
 | 2026-09-14 | `H01` 收口：六段调用链对账（CLI/Host/Core/Runner/Broker/Provider-Receipt）落 `roadmap/harness-baseline.md`；runner/daemon 验收骨架入库（`8709b71`）；修正 roundtrip 断言为 `capability.completed`（成功路径不产 `run.tool_result`，该 kind 仅取消路径）；静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-14 | `P4-J7-04` 收口：固定 Provider 产品路径与 `#[cfg(test)] legacy_fixtures` 分界（model_client.rs 产品代码仅 1–39 行，kiana-provider 是唯一网络化产品路径且零测试）；调研 §2 十项缺口逐条复核，7 项已被 kiana-provider 修复、3 项部分成立；五个验收测试的代码归属索引入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-14 | `CM-00` 收口：`kiana-query/tests/context_memory_baseline.rs` 落地两个验收测试（12 入口文件 SHA-256 快照 + 72 目录 reference inventory，漂移即红）；29-agent survey + 24 项对抗复核确认 §24.2 缺口全部仍成立，含蒸馏零测试、ONNX 未实现、JSONL 双提交点等；基线文档 `roadmap/context-memory-baseline.md`；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

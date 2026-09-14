@@ -147,7 +147,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
-### P4-J7-04 Provider baseline evidence (2026-09-14)
+### CM-00 Context/Memory baseline evidence (2026-09-14)
+
+```text
+source_snapshot: e098cc8fcb84bcb2b062f07f054bcbbe02fc1f6d (P4-J7-04 closure); docs/roadmap/context-memory-baseline.md; kiana-query/tests/context_memory_baseline.rs; the 12 hashed entry files listed in the baseline doc §1
+worktree_status: source snapshot was clean and pushed; baseline tests plus baseline doc and roadmap/status backfill are this step's commit
+command_argv:
+  git rev-parse HEAD
+  sha256sum kiana-domain/src/prompts.rs kiana-domain/src/memory.rs kiana-query/src/index.rs kiana-query/src/repo_map.rs kiana-core/src/context_query.rs kiana-daemon/src/context_query.rs kiana-daemon/src/harness_memory.rs kiana-daemon/src/memory_retrieval.rs kiana-core/src/memory_proposals.rs kiana-core/src/memory_distillation.rs kiana-runner/src/compact.rs kiana-daemon/src/data_governance.rs
+  ls reference/ | sort | wc -l
+  grep -c '#\[test\]|cfg(test)' over the surveyed files
+  cargo check -p kiana-query --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked/offline dependency resolution; source inspection and static compilation only; no test binaries executed
+fixture or cassette: none executed; the two acceptance tests are source-snapshot assertions (file hashes and directory inventory), not product behavior
+exit_code: source inspection=0; kiana-query tests static compile=0; format check=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: CM-00 baseline completed. Acceptance tests context_memory_baseline_is_reproducible and reference_inventory_covers_all_directories landed in kiana-query/tests/context_memory_baseline.rs pinning 12 entry-file hashes and the 72-directory reference inventory. Survey with adversarial verification (29 agents, 24 verified gap claims, all still-true) fixed: no selection-list/source-version/lifecycle in prompts.rs; no chunk provenance, total-scan caps, authorized snapshots, or index generations in kiana-query; 64-dim hardcoded hash embedding; MemoryRecord lacks typed subject/scope, sensitivity labels, purpose/expiry; revoked-source filtering is substring contains; JSONL append and capability event are two commit points; promote/reject not idempotent; content_hash is text-only sha256; compact emits (no summary available) placeholder; memory distillation has ZERO tests workspace-wide despite being product-reachable; ONNX explicitly not implemented. No implementation status promoted for CM-01 or later.
+proof-level_change: source plus compile/static-check evidence only; runtime receipt of the two snapshot tests delegated to GitHub CI; no local_behavior promotion
+limitations: hash-pinning tests make any intentional edit to the 12 files red until the baseline doc and table are updated together — this is by design; the 72-directory count excludes hidden .claude-flow and 4 top-level data files; survey line references are point-in-time and will drift
+reviewer: multi-agent source survey with adversarial gap verification (29 agents); no runtime test reviewer
+```
+
+
 
 ```text
 source_snapshot: 55cac10251feebbdca7233f8e64da44b5500e394 (H01 closure); docs/roadmap/provider-baseline.md; kiana-daemon/src/model_client.rs; kiana-provider/src/{lib,config,request,transport,response}.rs; kiana-services/src/api/{provider,client,retry,streaming}.rs; kiana-runner/src/model.rs; kiana-domain/src/{model,usage}.rs; kiana-services/tests/provider_standard.rs

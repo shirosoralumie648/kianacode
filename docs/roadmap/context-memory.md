@@ -266,7 +266,7 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-00 · 固定源码快照、差异与证据边界　⏳
+##### CM-00 · 固定源码快照、差异与证据边界　✅
 
 记录 HEAD、dirty 状态、WIP 文件摘要、参考目录 inventory、关键入口行号和本卡前已有测试。把 `CURRENT_STATUS.md` 历史证据与当前 WIP 分开；不因源文件已有类型提升状态。验收：`context_memory_baseline_is_reproducible`、`reference_inventory_covers_all_directories`。
 
