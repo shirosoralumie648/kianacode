@@ -183,7 +183,7 @@
 | 016 | W0 | 专项 | [`CM-00`](roadmap/context-memory.md#step-cm-00) | Context / Memory · 固定源码快照、差异与证据边界 | — | ✅ | [专项卡](roadmap/context-memory.md#step-cm-00) |
 | 017 | W0 | 专项 | [`EXT-00`](roadmap/skills-plugins-hooks.md#step-ext-00) | Skills / Plugins / Hooks · 基线与决策回执 | — | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-00) |
 | 018 | W0 | 专项 | [`UI-00`](roadmap/ui-entrypoints.md#step-ui-00) | UI / Entrypoints · 建立入口基线与验收矩阵 | — | ✅ | [专项卡](roadmap/ui-entrypoints.md#step-ui-00) |
-| 019 | W0 | 专项 | [`CO-01`](roadmap/companyos.md#step-co-01) | CompanyOS · 锁定当前实现与计划的交接基线 | — | ⏳ | [专项卡](roadmap/companyos.md#step-co-01) |
+| 019 | W0 | 专项 | [`CO-01`](roadmap/companyos.md#step-co-01) | CompanyOS · 锁定当前实现与计划的交接基线 | — | ✅ | [专项卡](roadmap/companyos.md#step-co-01) |
 | 020 | W0 | 基础 | [`P0-G-04`](#step-p0-g-04) | P0 基础 · 事件重建投影 | `P0-G-01` | 🔄 | [基础卡](#step-p0-g-04) |
 | 021 | W0 | 专项 | [`CI-01`](#step-ci-01) | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | ⏳ | [专项卡](#step-ci-01) |
 | 022 | W0 | 专项 | [`SW-00`](#step-sw-00) | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | ⏳ | [专项卡](#step-sw-00) |
@@ -939,7 +939,7 @@
 | 当前 5 | `ER-00` 固定事实边界 | `0a29de5` 源码快照上新增 Event/Receipt/Recovery 基线矩阵，登记 EventStore capabilities、事实所有权、ID 链、缓存边界与失败分类；已推送，CI 尚未等待 | 不提升 ER-01+ 或 durable/live 证明；运行时 fixture 由 GitHub CI 负责 |
 | 当前 6 | `CAP-00` 固定可复核基线 | 本次文档提交新增 [Capability 基线](roadmap/capability-baseline.md)，绑定 `b49cd62` 源码快照、相关 hash、registry/scope/cancel/patch/MCP/memory 六条链、五工具边界、timeout 分层和 CP/H handoff；已推送，CI 尚未等待 | 仅 baseline artifact 为 `implemented/source`；产品 capability 保持 `partial/target/deferred`，运行时 fixture 由 GitHub CI 负责 |
 | 当前 | `P4-J7-04` Provider 基线 | 已收口：`roadmap/provider-baseline.md` 固定产品路径与 legacy_fixtures 分界、调研缺口复核（10 项中 7 已修）和测试索引（kiana-provider 零测试为 RED） | 运行时回执由 GitHub CI 负责 |
-| 下一步 | `CO-01` CompanyOS 交接基线 | 按全量队列第 019 项推进；UI-00 已收口（见 `roadmap/ui-entrypoints-baseline.md`），4 项 RED 覆盖缺口已列 | CO-01 卡要求锁定当前实现与计划的交接基线 |
+| 下一步 | `P0-G-04` 事件重建投影（恢复线重开） | 按全量队列第 020 项推进（W0 最后一张卡）；CO-01 已收口（见 `roadmap/companyos-baseline.md`），46 命令零测试已登记 | P0-G-04 是 🔄 状态：历史证据只覆盖 Run 只读投影，Invocation 折叠与恢复消费待证明 |
 | 恢复线重开 | `P0-G-04` | 历史证据只覆盖 Run 只读投影；WIP 已新增 Invocation 折叠与恢复代码，产品消费、未决集合及缓存替换尚待证明 | 保留完整退出条件；依赖此单元的条目不得因历史 Run 测试通过而视为已满足依赖 |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
@@ -995,6 +995,7 @@
 | 2026-09-14 | `CM-00` 收口：`kiana-query/tests/context_memory_baseline.rs` 落地两个验收测试（12 入口文件 SHA-256 快照 + 72 目录 reference inventory，漂移即红）；29-agent survey + 24 项对抗复核确认 §24.2 缺口全部仍成立，含蒸馏零测试、ONNX 未实现、JSONL 双提交点等；基线文档 `roadmap/context-memory-baseline.md`；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-14 | `EXT-00` 收口：固定 skills/plugins/hooks 基线（11 文件 hash + 研究文档 hash），三列 gap matrix 入库——`activate_conditional_skills_for_paths` 与 `register_extension_static` 均零调用者、plugins.rs 明文 manifest 与 ExtensionRegistry 签名验证两套并行、daemon/query 两侧 UpdateInput 语义分裂、domain extensions.rs 339 行零测试；三项架构阻断检查（无第二 runner loop、入口不判权、Prompt 非授权来源）全部通过；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-14 | `UI-00` 收口：四入口（CLI/Web/Workbench/Desktop）→ DaemonHost 调用图表 + 8 文件 hash 固定；7 项拒绝需求对抗复核：3 已覆盖（untrusted write、Host/Origin、unknown command），4 项 RED 全部有实现锚点但零测试（stale cursor、foreign-session cancel、响应丢失 result_unknown 呈现、旧 epoch 409）；`tui` 维持 parked；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-14 | `CO-01` 收口：CompanyOS 交接基线（13 文件 hash）——46 个 CompanyCommand 变体全部接线（事件溯源聚合 + revision CAS + 幂等重放 + spawn_from_packet）但经命令路径零测试；卡上两个验收测试均为 docs-only 目标；CO-27 等待环触发条件定位（RequestAcceptance 全完成检查 + milestone 依赖 Accepted 检查即环本身）；五部门六角色验证通过；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

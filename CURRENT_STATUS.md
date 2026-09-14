@@ -147,7 +147,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
-### UI-00 Entrypoints baseline evidence (2026-09-14)
+### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
+
+```text
+source_snapshot: edf82307ccaf2cb7089de890434878b1dba68c00 (UI-00 closure); docs/roadmap/companyos-baseline.md; 13 hashed files spanning kiana-domain company/business/closeout/roles/work_packets/symposiums/packet_graph/swarm and kiana-core company/company_business/collaboration/automation/swarm
+worktree_status: source snapshot was clean and pushed; baseline doc plus roadmap/status backfill is this step's commit
+command_argv:
+  git rev-parse HEAD
+  sha256sum <13 CompanyOS files listed in baseline doc §1>
+  rg -n 'company_unapproved_project_cannot_dispatch|company_approved_packet_reaches_existing_harness|milestone_acceptance_cannot_use_other_milestone' --type rust
+  rg -c 'cfg(test)|#\[test\]' over company source files
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; source inspection only; no product code modified
+fixture or cassette: none executed; wired/types-only classification from source reading
+exit_code: source inspection=0; format check=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: CO-01 baseline completed. Wired facts: CompanyState is a fully event-sourced aggregate (17 state maps + revision CAS + idempotent replay) rebuilt from the 'company' stream; all 46 CompanyCommand variants implemented through handle_company_command with byte caps, proof checks, StartRun->spawn_from_packet and cancel sweeps; five departments and six roles verified in the catalog (the only key claim that holds as tested). RED facts: zero of 46 command variants have any test through the command path (daemon/entrypoints test files contain zero company references); both CO-01 acceptance tests are docs-only targets that do not exist as code; the CO-27 waiting loop trigger is located (RequestAcceptance requires all project runs/packets complete at company.rs:1846/1859 plus milestone start requires dependencies Accepted at :1705-1713 — these checks ARE the loop, nothing detects or breaks it); dependency-DAG cycle checks exist but an acyclic graph still deadlocks the acceptance semantics; company core/daemon files (company.rs 1242 lines, company_business.rs 718, swarm, collaboration, automation, platform, durable.rs 1016) have no cfg(test) modules. Old doc claims of "business objects do not exist" are superseded by the current implementation; recorded as such.
+proof-level_change: source-only evidence; no local_behavior promotion
+limitations: the two named acceptance tests are "reproduce" targets — implementations exist, tests are yet to be written and should assert zero broker/model counts (deny) and the full spawn/receipt chain (happy); CO-27 requires a design change, not just tests; the 46-command test debt is the largest single gap handed to CO-02+
+reviewer: multi-agent source survey with adversarial key-claim verification (9 agents); no runtime test reviewer
+```
+
+
 
 ```text
 source_snapshot: 05c3b288198d53e0363d84a30acb8cca9e56edad (EXT-00 closure); docs/roadmap/ui-entrypoints-baseline.md; kiana-entrypoints/src/{cli,web,workbench,workbench_chat,harness_run}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/run_stream.rs; contrib/desktop/tests/
