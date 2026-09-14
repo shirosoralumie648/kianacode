@@ -147,7 +147,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
-### EXT-00 Skills/Plugins/Hooks baseline evidence (2026-09-14)
+### UI-00 Entrypoints baseline evidence (2026-09-14)
+
+```text
+source_snapshot: 05c3b288198d53e0363d84a30acb8cca9e56edad (EXT-00 closure); docs/roadmap/ui-entrypoints-baseline.md; kiana-entrypoints/src/{cli,web,workbench,workbench_chat,harness_run}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/run_stream.rs; contrib/desktop/tests/
+worktree_status: source snapshot was clean and pushed; baseline matrix plus roadmap/status backfill is this step's commit
+command_argv:
+  git rev-parse HEAD
+  sha256sum kiana-entrypoints/src/cli.rs kiana-entrypoints/src/web.rs kiana-entrypoints/src/workbench.rs kiana-entrypoints/src/workbench_chat.rs kiana-entrypoints/src/harness_run.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-daemon/src/run_stream.rs
+  rg -n 'ui_action_stale|claim_ui_action|advance_cursor|stream_cursor_invalid' --type rust
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; source inspection only; no product code modified
+fixture or cassette: none executed; existing test bindings were established by reading test files, not running them
+exit_code: source inspection=0; format check=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: UI-00 baseline completed. Four entry surfaces mapped to DaemonHost with per-lifecycle-action coverage (start/run/approval/cancel/resume/receipt/export); bare 'kiana resume' falls through to unknown-command (only product_command resume with --session-id, web /api/resume, workbench /resume reach recovery); all four surfaces route through LocalDaemonTransport -> DaemonHost::handle -> ControlPlane with no second execution loop; tui confirmed parked on the legacy SDK stream. Denial matrix verified adversarially: covered = untrusted workspace write (cli_run.rs:439 spawns the real binary), web Host/Origin exact-listener (cli_web.rs:647), unknown command command_unregistered (control_plane.rs:82); RED with implementation anchors but zero tests = stale SSE cursor (subscribe_after/advance_cursor logic exists, no test sends last-event-id), foreign-session cancel (resolve_mutable_session exists, continue has an owner test but cancel does not), lost responses surfacing result_unknown at the UI layer (branches exist: stream_closed_before_terminal / stream_terminal_missing:closed, untested), old-epoch 409 after restart (claim_ui_action -> ui_action_stale wiring exists, zero tests). No implementation status promoted for UI-01 or later.
+proof-level_change: source-only evidence; no local_behavior promotion
+limitations: the 4 RED items are coverage gaps, not defects — implementations exist and the named tests should pass once written; desktop coverage classified from test-file reading, its node --test execution belongs to CI; line references drift as UI-01+ lands
+reviewer: multi-agent source survey with adversarial denial-coverage verification (12 agents); no runtime test reviewer
+```
+
+
 
 ```text
 source_snapshot: c8e9578ab9e0d8a9c299a27b7ace0e9530f8a8c4 (CM-00 closure); docs/roadmap/skills-plugins-hooks-baseline.md; docs/skills-plugins-hooks-design-research.md (hashed); kiana-skills/src/{lib,types,loader,bundled,dynamic,plugins,mcp}.rs; kiana-daemon/src/{harness_skills,extensions,pre_tool_hooks}.rs; kiana-domain/src/extensions.rs

@@ -159,7 +159,7 @@ UiActionResult {
 
 
 
-#### UI-00 · 建立入口基线与验收矩阵　⏳
+#### UI-00 · 建立入口基线与验收矩阵　✅
 
 - 依赖：无。代码/文档：`docs/module-map.md`、`CURRENT_STATUS.md`、`kiana-entrypoints` 与 `contrib/desktop` 测试清单。
 - 步骤：从新的 source snapshot 开始，记录 CLI/Workbench/Web/Desktop 的启动、session attach、run、approval、cancel、resume、receipt、export 路径；把既有测试按 deny/happy/reconnect/recovery/physical 分类，标出 baseline failure。
