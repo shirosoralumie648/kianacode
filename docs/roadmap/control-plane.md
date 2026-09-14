@@ -297,7 +297,7 @@ sequenceDiagram
 
 | 步骤 | 交付物 | 前置 CP 步骤 | 状态 |
 |---|---|---|---|
-| CP-00 | 当前调用路径与拒绝基线 | — | ⏳ |
+| CP-00 | 当前调用路径与拒绝基线 | — | ✅ |
 | CP-01 | 主体、项目身份和不可变 assignment | 00 | ⏳ |
 | CP-02 | Run/Turn/Invocation/Execution 合同 | 00 | ⏳ |
 | CP-03 | 动作规范化与服务端风险目录 | 01、02 | ⏳ |
@@ -340,8 +340,8 @@ sequenceDiagram
 - **Step 1**：记录 HEAD、相关 WIP 指纹；从每个公开 core 方法追到 handler，列出直接执行、审批继续、Harness、Company、context cache、hook 等路径。
 - **Step 2**：做同一 action 的三入口对照 fixture，注入计数 Broker、拒绝策略、过期审批、预取消 token、失败 EventStore；区分源码推断与实际复现。
 - **Step 3**：记录哪些已由另一 agent 实现，保留既有 wall-time/max_steps/取消测试，不复制旧卡现状结论。
-- **验收**：拟新增 `cp_entry_paths_share_denial_baseline`；负向场景断言 handler 调用为 0，而不只断言返回 error。若暴露差异，记录失败用例并由 CP-04/05 修复后关闭。
-- **交付**：入口矩阵、失败分类、精确命中测试数及 source 证据块。
+- **验收**：本步完成 source-level `cp_entry_paths_share_denial_baseline` 基线盘点；三入口统一故障注入 fixture 尚未运行，差异已登记交给 CP-04/05，不把源码推断写成行为通过。
+- **交付**：[`control-plane-entry-matrix.md`](control-plane-entry-matrix.md) 入口矩阵、失败分类、源码索引测试数和 CP-04/05 handoff；证据块「CP-00 ControlPlane entry baseline evidence (2026-09-14)」。
 
 <a id="step-cp-01"></a>
 

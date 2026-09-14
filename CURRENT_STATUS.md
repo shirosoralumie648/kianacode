@@ -147,6 +147,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
+### CP-00 ControlPlane entry baseline evidence (2026-09-14)
+
+```text
+source_snapshot: f366436a0a232c2a9a31b3ab2968da4a6824aa90; docs/roadmap/control-plane-entry-matrix.md; kiana-daemon/src/lib.rs; kiana-core/src/{lifecycle,approvals,capabilities,commands,company,sessions}.rs; kiana-core/tests/control_plane.rs; kiana-daemon/tests/daemon_host.rs
+worktree_status: baseline source snapshot was clean and pushed; matrix plus roadmap/status backfill is the follow-up documentation commit for this step
+command_argv:
+  git rev-parse HEAD
+  git status --short
+  rg -c '^async fn ' kiana-core/tests/control_plane.rs kiana-daemon/tests/daemon_host.rs kiana-client/tests/client_methods.rs
+  rg -n 'entry route and failure fixture symbols' kiana-entrypoints/src kiana-client/src kiana-core/src kiana-daemon/src
+  cargo check -p kiana-core --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo stable; locked offline dependency cache; source inspection and static compilation only; no test binaries executed
+fixture or cassette: source-indexed direct capability, Harness, approval-resume, Company, context query, broker registration, hook and cancellation paths; shared three-entry fault-injection fixture is explicitly handed to CP-04/05 and was not run in this baseline step
+exit_code: source inspection=0; static compile/format/diff checks=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: CP-00 baseline completed. The matrix records all public DaemonHost request routes, the three capability entry paths, broker registrations, failure classes, precise source-index test counts (core 108, daemon 74, client 2 async tests), and the remaining direct/Harness/approval convergence gaps. No implementation status was promoted for CP-04/05.
+proof-level_change: source plus compile/static-check evidence only; no local_behavior promotion
+limitations: runtime denial/zero-handler-count proof for one shared three-entry fixture remains pending in CP-04/05; direct and Run-bound approval paths retain distinct continuation/event semantics; full durable authority/transaction/fencing work remains open
+reviewer: Codex root source review; no runtime test reviewer
+```
+
 ### Run state event projection evidence (2026-09-10)
 
 ```text

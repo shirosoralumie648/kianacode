@@ -175,7 +175,7 @@
 | 008 | W0 | 基础 | [`P0-J1-05a`](#step-p0-j1-05a) | P0 基础 · 重复调用检测与 wall-time 预算接线 | — | ✅ | [基础卡](#step-p0-j1-05a) |
 | 009 | W0 | 基础 | [`P0-J1-05b`](#step-p0-j1-05b) | P0 基础 · 按角色的 max_steps | `P0-J1-05a` | ✅ | [基础卡](#step-p0-j1-05b) |
 | 010 | W0 | 基础 | [`P1-J3-01`](#step-p1-j3-01) | P1 基础 · Memory 写入候选制 | `P0-A-01a` | ✅ | [基础卡](#step-p1-j3-01) |
-| 011 | W0 | 专项 | [`CP-00`](roadmap/control-plane.md#step-cp-00) | ControlPlane · 固定基线，列出所有有后果的入口 | — | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-00) |
+| 011 | W0 | 专项 | [`CP-00`](roadmap/control-plane.md#step-cp-00) | ControlPlane · 固定基线，列出所有有后果的入口 | — | ✅ | [专项卡](roadmap/control-plane.md#step-cp-00) |
 | 012 | W0 | 专项 | [`ER-00`](roadmap/event-receipt-recovery.md#step-er-00) | Event / Receipt / Recovery · 固定基线与事实边界 | — | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-00) |
 | 013 | W0 | 专项 | [`CAP-00`](roadmap/capability.md#step-cap-00) | Capability · 固定可复核基线，消除计划与 WIP 重叠 | — | ⏳ | [专项卡](roadmap/capability.md#step-cap-00) |
 | 014 | W0 | 专项 | [`H01`](roadmap/harness.md#step-h01) | Harness · 固定接线基线与可执行验收骨架 | — | ⏳ | [专项卡](roadmap/harness.md#step-h01) |
@@ -935,7 +935,8 @@
 | 当前 1 | `P0-J1-05a` 回归 | 已修复 `local_with_model_config` 丢失 wall-time 配置的问题，并补上非法配置与预算耗尽的 daemon 级验收；源码提交 `dd6a8d5` 已推送，CI 尚未等待 | 保留历史 wall-time 证据；远端 CI 负责行为测试回执 |
 | 当前 2 | `P0-J1-05b` 接线 | `bd9dea0` 已补真实 DaemonHost 角色/环境/Continue 产品链断言，并加强 Start 命令限额；已推送，CI 尚未等待 | 保留每 run 的角色快照、构造上限取 `min`、wall-time Continue 语义；远端 CI 负责行为回执 |
 | 当前 3 | `P1-J3-01` 候选写入 | `758ffbe` 已将模型持久写入固定为 `origin=model`、`candidate/draft`，默认检索排除；补齐审批前后产品链和 v1 兼容验收，已推送，CI 尚未等待 | 保留模型不能自批/伪造来源，v1 存量可检索但 provenance 不可验证；远端 CI 负责行为回执 |
-| 下一步 | `CP-00` 固定基线 | 按全量队列第 011 项推进 ControlPlane 入口盘点；不跳到后续 P1-J3 子项 | 先读取专项卡并固定 source snapshot、入口清单和证据边界 |
+| 当前 4 | `CP-00` 固定基线 | `f366436` 源码盘点后新增入口矩阵，明确 DaemonHost/ControlPlane/Runner/Broker/Approval/Hook 边界和 CP-04/05 handoff；已推送，CI 尚未等待 | 保持差异显式，不把三入口共用部分 helper 写成已完成的原子统一处理器 |
+| 下一步 | `ER-00` 固定事实边界 | 按全量队列第 012 项推进 Event/Receipt/Recovery 基线；不跳到 CP-01 | 先读取专项卡并固定 source snapshot、账本/收据/恢复入口与证据边界 |
 | 恢复线重开 | `P0-G-04` | 历史证据只覆盖 Run 只读投影；WIP 已新增 Invocation 折叠与恢复代码，产品消费、未决集合及缓存替换尚待证明 | 保留完整退出条件；依赖此单元的条目不得因历史 Run 测试通过而视为已满足依赖 |
 
 **当前切片的验收断言（P1-J3-01；仅由 GitHub CI 执行运行时测试）**
@@ -980,6 +981,7 @@
 | 2026-09-14 | `P0-J1-05a` 回归：model-config daemon 复用完整 `RuntimeConfig`，wall-time 非法值与耗尽路径 fail-closed 验收已入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | `dd6a8d5` |
 | 2026-09-14 | `P0-J1-05b` 收口：角色/环境 max_steps 经 DaemonHost 产品链生效，Receipt 记录授权上限，Start 命令与 Continue/run 隔离行为断言入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | `bd9dea0` |
 | 2026-09-14 | `P1-J3-01` 收口：模型记忆写入服务端固定为 `origin=model` + `candidate/draft`，默认检索排除；补 v1 存量兼容和 operator `memory.review` 晋升链；不运行本地测试，静态检查通过，CI 已触发但未等待 | `758ffbe` |
+| 2026-09-14 | `CP-00` 收口：固定 DaemonHost/ControlPlane/Runner/Broker/Approval/Hook 入口矩阵、失败分类、源码测试索引和 CP-04/05 handoff；不运行本地测试，静态检查通过，CI 已触发但未等待 | `f366436` |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
