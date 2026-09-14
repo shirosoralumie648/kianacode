@@ -2193,7 +2193,8 @@ mod tests {
         assert_eq!(paths, vec!["notes.md", "src/lib.rs"]);
         assert_eq!(index.files[1].language.as_deref(), Some("rust"));
         assert_eq!(index.skipped_files, 0);
-        assert_eq!(index.files[1].content_hash.len(), 16);
+        assert!(index.files[1].content_hash.starts_with("sha256:"));
+        assert_eq!(index.files[1].content_hash.len(), "sha256:".len() + 64);
 
         let _ = fs::remove_dir_all(root);
     }
@@ -2320,7 +2321,7 @@ mod tests {
         assert_eq!(results.hits.len(), 1);
         assert_eq!(results.hits[0].path, "src/checkout.rs");
         assert_eq!(results.hits[0].language.as_deref(), Some("rust"));
-        assert_eq!(results.hits[0].content_hash.len(), 16);
+        assert_eq!(results.hits[0].content_hash.len(), "sha256:".len() + 64);
         assert!(results.hits[0].score > 0.0);
         assert!(results.hits[0].token_overlap >= 1);
 
@@ -2370,7 +2371,7 @@ mod tests {
         assert_eq!(pack.snippets[0].start_line, 1);
         assert_eq!(pack.snippets[0].end_line, 2);
         assert!(pack.snippets[0].excerpt.contains("prepare checkout flow"));
-        assert_eq!(pack.snippets[0].content_hash.len(), 16);
+        assert_eq!(pack.snippets[0].content_hash.len(), "sha256:".len() + 64);
 
         let _ = fs::remove_dir_all(root);
     }
@@ -2419,7 +2420,7 @@ mod tests {
         assert_eq!(first.artifact_graph.nodes[0].path, "src/lib.rs");
         assert_eq!(first.artifact_graph.nodes[0].start_line, 1);
         assert_eq!(first.artifact_graph.nodes[0].end_line, 1);
-        assert_eq!(first.artifact_graph.nodes[0].content_hash.len(), 16);
+        assert_eq!(first.artifact_graph.nodes[0].content_hash.len(), "sha256:".len() + 64);
         assert_eq!(first.artifact_graph.edges.len(), 1);
         assert_eq!(first.artifact_graph.edges[0].source, "query:release");
         assert_eq!(
@@ -2518,7 +2519,7 @@ mod tests {
         assert_eq!(report.artifacts[0].kind, "file");
         assert_eq!(report.artifacts[0].path, "src/lib.rs");
         assert_eq!(report.artifacts[0].language.as_deref(), Some("rust"));
-        assert_eq!(report.artifacts[0].content_hash.len(), 16);
+        assert_eq!(report.artifacts[0].content_hash.len(), "sha256:".len() + 64);
         assert!(report.artifacts[0].id.starts_with("file:src/lib.rs:"));
 
         let _ = fs::remove_dir_all(root);
@@ -2787,7 +2788,7 @@ mod tests {
                 && artifact
                     .stored_path
                     .starts_with(".kiana/context-ingest/files/")
-                && artifact.content_hash.len() == 16));
+                && artifact.content_hash.len() == "sha256:".len() + 64));
         for artifact in &report.artifacts {
             assert!(root.join(&artifact.stored_path).is_file());
         }
