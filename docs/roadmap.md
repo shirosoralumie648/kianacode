@@ -1,6 +1,6 @@
 # Kiana 执行路线图（P0–P6 执行骨架 + 进度）
 
-> **一屏看进度** → §1 总图。**查 canonical Step** → §1.1 索引；**查专项局部 Step** → 专项设计导航。**看基础卡** → §4–§8。**看专项卡** → 专项拆分文档。**你想加东西** → §11 追加区。
+> **一屏看进度** → §1 总图。**按顺序逐条执行** → §1.1 的 749 张 Step 总队列；每行都有明确前置、状态和详细卡链接。**看设计说明** → 专项设计导航。**看基础卡** → §4–§8。**你想加东西** → §11 追加区。
 > 当前事实以 [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) 为准；本文只排顺序、记进度、写验收口径，**不定义新规范**。
 > 阶段编号以 [`company-os-spec-index.md`](company-os-spec-index.md) §7 的 P0–P6 为唯一 canonical。
 > 单元清单来源：`company-os-implementation-outline.md` §3 的切片 A–M 与子切片 J1–M7（共 38 个）；产品特有单元（角色目录、会议、六层记忆、提示词来源）另见 `COMPANY.md` §3/§4/§5/§7。
@@ -135,30 +135,32 @@
 
 <a id="all-step-index"></a>
 
-### 1.1 Canonical Step 总图：依赖波次（403 张）
+### 1.1 全量 Step 总图：依赖波次（749 张）
 
-> 这里列出基础路线图 74 张验收卡与 9 个历史专项 329 张实施卡，共 403 张 canonical 登记项。基础卡是阶段验收口径，专项卡是实现拆分；两者有意重叠，不能相加当作 403 份独立交付。2026-09-13 起追加的专项使用独立局部索引，并在导航中单独列出。
+> 这里把基础路线图 74 张验收卡、既有专项 329 张实施卡，以及本轮新增的 `CI-*`、`SW-*`、`OA-*`、`AUT-*`、`NM-*`、`PD-*`、`INT-*`、`EQ-*`、`BQ-*`、`DEP-*`、`SC-*` 346 张实施卡统一登记，共 749 张可逐条领取的 Step。基础卡是阶段验收口径，专项卡是实现拆分；两者有意重叠，749 不是 749 份独立功能。
 >
-> 后续追加的 `CI-*`、`SW-*`、`OA-*`、`AUT-*`、`NM-*`、`PD-*`、`INT-*`、`EQ-*`、`BQ-*`、`DEP-*` 和 `SC-*` 是专项局部索引，统一从“专项设计导航”进入，不回写这份历史 canonical 计数，也不改变 P0–P6 编号。专项导航同时给出每条局部索引的完整实施卡入口，避免把 403 张 canonical 卡误读成全部专项步骤。
+> 本表是唯一的逐步执行队列：所有 Step 都在这里出现，按依赖拓扑和 W0–W11 波次排序；同一波次中原本可并行的卡也按表内顺序串行化，方便 agent 一个接一个领取。专项设计导航和独立文件只承载设计说明与详细验收，不再拥有另一套执行顺序。
 
 **排序原则**：先固定事实基线和已验证基础，再收口当前 wall-time/role-limit 与共享契约；随后建立权威账本、运行时、执行和恢复；再推进跨模块编排与 CompanyOS；最后做入口一致性、后置平台扩展和发布门。`W0–W11` 只是建议执行波次，不是新的 P 阶段或完成状态。
 
 | 波次 | 名称 | 登记项 | 说明 |
 |---|---|---:|---|
-| W0 | 已有证据与当前收口 | 20 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W1 | 共享契约与身份 | 55 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W2 | 事实账本、授权与资源 | 43 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W3 | 实际执行、取消与恢复 | 54 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W4 | 上下文、记忆与扩展 | 68 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W5 | Provider 协议与调用链 | 17 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W6 | 投影与可用入口 | 39 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W7 | CompanyOS 业务闭环 | 42 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W8 | 并行、治理与复用 | 13 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W9 | 离线联合验收 | 35 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W10 | 后置平台与能力扩展 | 7 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
-| W11 | 真实环境与发布证据 | 10 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W0 | 已有证据与当前收口 | 29 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W1 | 共享契约与身份 | 93 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W2 | 事实账本、授权与资源 | 92 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W3 | 实际执行、取消与恢复 | 91 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W4 | 上下文、记忆与扩展 | 82 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W5 | Provider 协议与调用链 | 29 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W6 | 投影与可用入口 | 88 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W7 | CompanyOS 业务闭环 | 80 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W8 | 并行、治理与复用 | 39 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W9 | 离线联合验收 | 87 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W10 | 后置平台与能力扩展 | 16 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
+| W11 | 真实环境与发布证据 | 23 | 只有明确前置完成后才进入下一波；同波按表内顺序执行 |
 
-**依赖字段说明**：表中的“前置”只收录卡片明确写出的硬依赖；“关联原单元”是接口对齐关系，不会被误当作整项完成门。Event/Receipt、Context/Memory 的线性项遵循各专项已经发布的保守顺序。
+**依赖字段说明**：表中的“前置”是把各专项卡明确写出的硬依赖展开成已登记的 Step ID；`CP-04/08/13`、`PD-01..03` 这类缩写已展开，`P0-J1`、`CM` 等模块级引用只映射到对应的合同/门，不把整模块隐式设为前置。Event/Receipt、Context/Memory 的线性项遵循各专项已经发布的保守顺序；评测中原可并行的分组按本表顺序串行化，便于 agent 逐条领取。
+
+**Agent 领取规则**：从上到下找到第一条“所有前置均为 ✅”且自身不是 ✅ 的行，只领取这一条；完成后按 `CURRENT_STATUS.md` 的证据块更新状态，再领取下一条。`⏳`、`🔄` 和 `⚠️` 都不能被当作已满足前置；没有前置的基线卡也必须先完成盘点和证据记录。
 
 | 顺序 | 波次 | 类型 | Step | 工作项 | 前置 | 状态 | 详细卡 |
 |---:|---|---|---|---|---|---|---|
@@ -183,401 +185,746 @@
 | 018 | W0 | 专项 | [`UI-00`](roadmap/ui-entrypoints.md#step-ui-00) | UI / Entrypoints · 建立入口基线与验收矩阵 | — | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-00) |
 | 019 | W0 | 专项 | [`CO-01`](roadmap/companyos.md#step-co-01) | CompanyOS · 锁定当前实现与计划的交接基线 | — | ⏳ | [专项卡](roadmap/companyos.md#step-co-01) |
 | 020 | W0 | 基础 | [`P0-G-04`](#step-p0-g-04) | P0 基础 · 事件重建投影 | `P0-G-01` | 🔄 | [基础卡](#step-p0-g-04) |
+| 021 | W0 | 专项 | [`CI-01`](#step-ci-01) | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | ⏳ | [专项卡](#step-ci-01) |
+| 022 | W0 | 专项 | [`SW-00`](#step-sw-00) | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | ⏳ | [专项卡](#step-sw-00) |
+| 023 | W0 | 专项 | [`OA-00`](#step-oa-00) | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | ⏳ | [专项卡](#step-oa-00) |
+| 024 | W0 | 专项 | [`AUT-01`](#step-aut-01) | 基线与迁移护栏；盘点 `module-map`、现有 automation tests、`CURRENT_STATUS`，记录旧 `watch_scheduled_tasks` 兼容边界 | — | ⏳ | [专项卡](#step-aut-01) |
+| 025 | W0 | 专项 | [`NM-00`](#step-nm-00) | 现状/事件种类/入口 inventory；`run_stream.rs`、`platform.rs`、`web.rs`、`workbench_chat.rs`、`CURRENT_STATUS.md` | — | ⏳ | [专项卡](#step-nm-00) |
+| 026 | W0 | 专项 | [`EQ-00`](#step-eq-00) | 固定当前源码快照、工作树状态和现有 `eval` 行为；在 `docs/roadmap.md`/`CURRENT_STATUS.md` 建立本专项证据模板 | — | ⏳ | [专项卡](#step-eq-00) |
+| 027 | W0 | 专项 | [`PD-00`](roadmap/persistence-data-layer.md#step-pd-00) | 固定数据层基线、事实/投影/Artifact/Memory/Index/Approval 现状；`docs/roadmap*`、`CURRENT_STATUS.md` | — | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-00) |
+| 028 | W0 | 专项 | [`INT-00`](roadmap/integrations-connectors.md#step-int-00) | 基线、现状和能力矩阵；`docs/`、`CURRENT_STATUS.md`、现有 connector tests | — | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-00) |
+| 029 | W0 | 专项 | [`SC-00`](roadmap/security-compliance.md#step-sc-00) | CURRENT_STATUS.md、docs/module-map.md、专项 manifest | — | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-00) |
 | **W1** | **共享契约与身份** |  |  |  |  |  |  |
-| 021 | W1 | 专项 | [`CP-01`](roadmap/control-plane.md#step-cp-01) | ControlPlane · 服务端主体与项目身份 | `CP-00` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-01) |
-| 022 | W1 | 专项 | [`CP-02`](roadmap/control-plane.md#step-cp-02) | ControlPlane · 使用既有 ID，明确状态机和 Continue/Resume | `CP-00` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-02) |
-| 023 | W1 | 专项 | [`CP-03`](roadmap/control-plane.md#step-cp-03) | ControlPlane · 规范化 action，风险与执行元数据服务端所有 | `CP-01`、`CP-02` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-03) |
-| 024 | W1 | 专项 | [`CP-04`](roadmap/control-plane.md#step-cp-04) | ControlPlane · 权限交集与单调决策在 core 强制 | `CP-03` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-04) |
-| 025 | W1 | 专项 | [`CP-05`](roadmap/control-plane.md#step-cp-05) | ControlPlane · 合并三条授权执行路径 | `CP-04` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-05) |
-| 026 | W1 | 专项 | [`CP-06`](roadmap/control-plane.md#step-cp-06) | ControlPlane · 定义原子状态转移端口 | `CP-02`、`CP-04` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-06) |
-| 027 | W1 | 专项 | [`ER-01`](roadmap/event-receipt-recovery.md#step-er-01) | Event / Receipt / Recovery · 事件 schema、kind registry 与迁移规则 | `ER-00` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-01) |
-| 028 | W1 | 专项 | [`ER-02`](roadmap/event-receipt-recovery.md#step-er-02) | Event / Receipt / Recovery · 统一身份、关联和顺序语义 | `ER-01` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-02) |
-| 029 | W1 | 专项 | [`ER-03`](roadmap/event-receipt-recovery.md#step-er-03) | Event / Receipt / Recovery · 事件边界脱敏和 Artifact 引用 | `ER-02` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-03) |
-| 030 | W1 | 专项 | [`ER-04`](roadmap/event-receipt-recovery.md#step-er-04) | Event / Receipt / Recovery · CommandReceipt 与 transition read-set | `ER-03` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-04) |
-| 031 | W1 | 专项 | [`CAP-01`](roadmap/capability.md#step-cap-01) | Capability · descriptor、schema、policy metadata 与 handler binding 单一来源 | `CAP-00` | ⏳ | [专项卡](roadmap/capability.md#step-cap-01) |
-| 032 | W1 | 专项 | [`CAP-02`](roadmap/capability.md#step-cap-02) | Capability · 统一参数边界与输入摘要 | `CAP-01` | ⏳ | [专项卡](roadmap/capability.md#step-cap-02) |
-| 033 | W1 | 专项 | [`CAP-03`](roadmap/capability.md#step-cap-03) | Capability · 从 authority chain 派生不可变 ExecutionScope | `CAP-02` | ⏳ | [专项卡](roadmap/capability.md#step-cap-03) |
-| 034 | W1 | 专项 | [`CAP-04`](roadmap/capability.md#step-cap-04) | Capability · 状态与 outcome 不再依赖字符串猜测 | `CAP-02` | ⏳ | [专项卡](roadmap/capability.md#step-cap-04) |
-| 035 | W1 | 专项 | [`H02`](roadmap/harness.md#step-h02) | Harness · Session / Run / Turn / Step 的身份与生命周期 | `H01` | ⏳ | [专项卡](roadmap/harness.md#step-h02) |
-| 036 | W1 | 专项 | [`H03`](roadmap/harness.md#step-h03) | Harness · 将 KianaHarness 收敛为单一状态驱动器 | `H02` | ⏳ | [专项卡](roadmap/harness.md#step-h03) |
-| 037 | W1 | 专项 | [`H04`](roadmap/harness.md#step-h04) | Harness · 结构化模型消息与无损 Provider 转换 | `H03` | ⏳ | [专项卡](roadmap/harness.md#step-h04) |
-| 038 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类 | `H04` | ⏳ | [专项卡](roadmap/harness.md#step-h05) |
-| 039 | W1 | 专项 | [`P4-J7-05`](roadmap/provider.md#step-p4-j7-05) | Provider · 非流式工具响应必须严格解析 | `P4-J7-04` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-05) |
-| 040 | W1 | 专项 | [`CM-01`](roadmap/context-memory.md#step-cm-01) | Context / Memory · 建立共享来源与 scope 值对象 | `CM-00` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-01) |
-| 041 | W1 | 专项 | [`CM-02`](roadmap/context-memory.md#step-cm-02) | Context / Memory · 统一 MemoryRecord 生命周期与兼容导入 | `CM-01` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-02) |
-| 042 | W1 | 专项 | [`CM-03`](roadmap/context-memory.md#step-cm-03) | Context / Memory · 服务端派生 read/write scope 与 purpose | `CM-02` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-03) |
-| 043 | W1 | 专项 | [`CM-04`](roadmap/context-memory.md#step-cm-04) | Context / Memory · 统一 Memory mutation 与幂等键 | `CM-03` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-04) |
-| 044 | W1 | 专项 | [`EXT-01`](roadmap/skills-plugins-hooks.md#step-ext-01) | Skills / Plugins / Hooks · 稳定扩展领域合同 | `EXT-00` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-01) |
-| 045 | W1 | 专项 | [`EXT-02`](roadmap/skills-plugins-hooks.md#step-ext-02) | Skills / Plugins / Hooks · SourceResolver、ProjectTrust 与路径根 | `EXT-01` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-02) |
-| 046 | W1 | 专项 | [`EXT-03`](roadmap/skills-plugins-hooks.md#step-ext-03) | Skills / Plugins / Hooks · 严格解析器与兼容层 | `EXT-02` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-03) |
-| 047 | W1 | 专项 | [`EXT-04`](roadmap/skills-plugins-hooks.md#step-ext-04) | Skills / Plugins / Hooks · Catalog、优先级、重复和可解释性 | `EXT-03` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-04) |
-| 048 | W1 | 专项 | [`EXT-05`](roadmap/skills-plugins-hooks.md#step-ext-05) | Skills / Plugins / Hooks · 快照与失效 | `EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-05) |
-| 049 | W1 | 专项 | [`UI-01`](roadmap/ui-entrypoints.md#step-ui-01) | UI / Entrypoints · 定义 versioned UI protocol DTO | `UI-00` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-01) |
-| 050 | W1 | 专项 | [`UI-02`](roadmap/ui-entrypoints.md#step-ui-02) | UI / Entrypoints · 统一错误、能力和 surface handshake | `UI-01` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-02) |
-| 051 | W1 | 专项 | [`UI-03`](roadmap/ui-entrypoints.md#step-ui-03) | UI / Entrypoints · 本地实例身份、发现和 transport | `UI-01`、`UI-02` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-03) |
-| 052 | W1 | 专项 | [`CO-02`](roadmap/companyos.md#step-co-02) | CompanyOS · 稳定组织、业务项目与工作区绑定 | `CO-01` | ⏳ | [专项卡](roadmap/companyos.md#step-co-02) |
-| 053 | W1 | 专项 | [`CO-03`](roadmap/companyos.md#step-co-03) | CompanyOS · 角色任命、有效期与撤销接入服务端身份 | `CO-02` | ⏳ | [专项卡](roadmap/companyos.md#step-co-03) |
-| 054 | W1 | 专项 | [`CO-04`](roadmap/companyos.md#step-co-04) | CompanyOS · 五部门与专业岗位成为版本化目录 | `CO-03` | ⏳ | [专项卡](roadmap/companyos.md#step-co-04) |
-| 055 | W1 | 专项 | [`CO-05`](roadmap/companyos.md#step-co-05) | CompanyOS · 业务命令权限、责任和人工决定合同 | `CO-03`、`CO-04` | ⏳ | [专项卡](roadmap/companyos.md#step-co-05) |
-| 056 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同 | `CO-02`、`CO-05` | ⏳ | [专项卡](roadmap/companyos.md#step-co-06) |
-| 057 | W1 | 专项 | [`CO-07`](roadmap/companyos.md#step-co-07) | CompanyOS · 版本化业务事实与稳定命令回执 | `CO-05`、`CO-06` | ⏳ | [专项卡](roadmap/companyos.md#step-co-07) |
-| 058 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | ⏳ | [专项卡](roadmap/companyos.md#step-co-08) |
-| 059 | W1 | 基础 | [`P0-A-01b`](#step-p0-a-01b) | P0 基础 · schema 注册表与 unknown field/migration 规则 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-a-01b) |
-| 060 | W1 | 基础 | [`P0-A-02`](#step-p0-a-02) | P0 基础 · 稳定错误码枚举 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-a-02) |
-| 061 | W1 | 专项 | [`P4-J7-06`](roadmap/provider.md#step-p4-j7-06) | Provider · 中立内容、调用身份、错误与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-06) |
-| 062 | W1 | 专项 | [`P4-J7-07`](roadmap/provider.md#step-p4-j7-07) | Provider · 提取 kiana-provider 并迁移装配 | `P4-J7-06` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-07) |
-| 063 | W1 | 专项 | [`P4-J7-08`](roadmap/provider.md#step-p4-j7-08) | Provider · 连接、profile 和配置快照 | `P4-J7-07` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-08) |
-| 064 | W1 | 专项 | [`P4-J7-09`](roadmap/provider.md#step-p4-j7-09) | Provider · 凭据管理与 HTTP 目标校验 | `P4-J7-08` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-09) |
-| 065 | W1 | 专项 | [`P4-J7-10`](roadmap/provider.md#step-p4-j7-10) | Provider · 能力目录、未知能力和显式 discovery | `P4-J7-08` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-10) |
-| 066 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-b-01) |
-| 067 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ⏳ | [基础卡](#step-p0-k1-01) |
-| 068 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-c-01) |
-| 069 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-03) |
-| 070 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-d-01) |
-| 071 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-02) |
-| 072 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ⏳ | [基础卡](#step-p1-e-01) |
-| 073 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ⏳ | [基础卡](#step-p1-h-01) |
-| 074 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ⏳ | [基础卡](#step-p1-h-03) |
-| 075 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p3-i-01) |
+| 030 | W1 | 专项 | [`CP-01`](roadmap/control-plane.md#step-cp-01) | ControlPlane · 服务端主体与项目身份 | `CP-00` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-01) |
+| 031 | W1 | 专项 | [`CP-02`](roadmap/control-plane.md#step-cp-02) | ControlPlane · 使用既有 ID，明确状态机和 Continue/Resume | `CP-00` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-02) |
+| 032 | W1 | 专项 | [`CP-03`](roadmap/control-plane.md#step-cp-03) | ControlPlane · 规范化 action，风险与执行元数据服务端所有 | `CP-01`、`CP-02` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-03) |
+| 033 | W1 | 专项 | [`CP-04`](roadmap/control-plane.md#step-cp-04) | ControlPlane · 权限交集与单调决策在 core 强制 | `CP-03` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-04) |
+| 034 | W1 | 专项 | [`CP-05`](roadmap/control-plane.md#step-cp-05) | ControlPlane · 合并三条授权执行路径 | `CP-04` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-05) |
+| 035 | W1 | 专项 | [`CP-06`](roadmap/control-plane.md#step-cp-06) | ControlPlane · 定义原子状态转移端口 | `CP-02`、`CP-04` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-06) |
+| 036 | W1 | 专项 | [`ER-01`](roadmap/event-receipt-recovery.md#step-er-01) | Event / Receipt / Recovery · 事件 schema、kind registry 与迁移规则 | `ER-00` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-01) |
+| 037 | W1 | 专项 | [`ER-02`](roadmap/event-receipt-recovery.md#step-er-02) | Event / Receipt / Recovery · 统一身份、关联和顺序语义 | `ER-01` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-02) |
+| 038 | W1 | 专项 | [`ER-03`](roadmap/event-receipt-recovery.md#step-er-03) | Event / Receipt / Recovery · 事件边界脱敏和 Artifact 引用 | `ER-02` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-03) |
+| 039 | W1 | 专项 | [`ER-04`](roadmap/event-receipt-recovery.md#step-er-04) | Event / Receipt / Recovery · CommandReceipt 与 transition read-set | `ER-03` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-04) |
+| 040 | W1 | 专项 | [`CAP-01`](roadmap/capability.md#step-cap-01) | Capability · descriptor、schema、policy metadata 与 handler binding 单一来源 | `CAP-00` | ⏳ | [专项卡](roadmap/capability.md#step-cap-01) |
+| 041 | W1 | 专项 | [`CAP-02`](roadmap/capability.md#step-cap-02) | Capability · 统一参数边界与输入摘要 | `CAP-01` | ⏳ | [专项卡](roadmap/capability.md#step-cap-02) |
+| 042 | W1 | 专项 | [`CAP-03`](roadmap/capability.md#step-cap-03) | Capability · 从 authority chain 派生不可变 ExecutionScope | `CAP-02` | ⏳ | [专项卡](roadmap/capability.md#step-cap-03) |
+| 043 | W1 | 专项 | [`CAP-04`](roadmap/capability.md#step-cap-04) | Capability · 状态与 outcome 不再依赖字符串猜测 | `CAP-02` | ⏳ | [专项卡](roadmap/capability.md#step-cap-04) |
+| 044 | W1 | 专项 | [`H02`](roadmap/harness.md#step-h02) | Harness · Session / Run / Turn / Step 的身份与生命周期 | `H01` | ⏳ | [专项卡](roadmap/harness.md#step-h02) |
+| 045 | W1 | 专项 | [`H03`](roadmap/harness.md#step-h03) | Harness · 将 KianaHarness 收敛为单一状态驱动器 | `H02` | ⏳ | [专项卡](roadmap/harness.md#step-h03) |
+| 046 | W1 | 专项 | [`H04`](roadmap/harness.md#step-h04) | Harness · 结构化模型消息与无损 Provider 转换 | `H03` | ⏳ | [专项卡](roadmap/harness.md#step-h04) |
+| 047 | W1 | 专项 | [`H05`](roadmap/harness.md#step-h05) | Harness · 统一停止原因、错误与重试分类 | `H04` | ⏳ | [专项卡](roadmap/harness.md#step-h05) |
+| 048 | W1 | 专项 | [`P4-J7-05`](roadmap/provider.md#step-p4-j7-05) | Provider · 非流式工具响应必须严格解析 | `P4-J7-04` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-05) |
+| 049 | W1 | 专项 | [`CM-01`](roadmap/context-memory.md#step-cm-01) | Context / Memory · 建立共享来源与 scope 值对象 | `CM-00` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-01) |
+| 050 | W1 | 专项 | [`CM-02`](roadmap/context-memory.md#step-cm-02) | Context / Memory · 统一 MemoryRecord 生命周期与兼容导入 | `CM-01` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-02) |
+| 051 | W1 | 专项 | [`CM-03`](roadmap/context-memory.md#step-cm-03) | Context / Memory · 服务端派生 read/write scope 与 purpose | `CM-02` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-03) |
+| 052 | W1 | 专项 | [`CM-04`](roadmap/context-memory.md#step-cm-04) | Context / Memory · 统一 Memory mutation 与幂等键 | `CM-03` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-04) |
+| 053 | W1 | 专项 | [`EXT-01`](roadmap/skills-plugins-hooks.md#step-ext-01) | Skills / Plugins / Hooks · 稳定扩展领域合同 | `EXT-00` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-01) |
+| 054 | W1 | 专项 | [`EXT-02`](roadmap/skills-plugins-hooks.md#step-ext-02) | Skills / Plugins / Hooks · SourceResolver、ProjectTrust 与路径根 | `EXT-01` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-02) |
+| 055 | W1 | 专项 | [`EXT-03`](roadmap/skills-plugins-hooks.md#step-ext-03) | Skills / Plugins / Hooks · 严格解析器与兼容层 | `EXT-02` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-03) |
+| 056 | W1 | 专项 | [`EXT-04`](roadmap/skills-plugins-hooks.md#step-ext-04) | Skills / Plugins / Hooks · Catalog、优先级、重复和可解释性 | `EXT-03` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-04) |
+| 057 | W1 | 专项 | [`EXT-05`](roadmap/skills-plugins-hooks.md#step-ext-05) | Skills / Plugins / Hooks · 快照与失效 | `EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-05) |
+| 058 | W1 | 专项 | [`UI-01`](roadmap/ui-entrypoints.md#step-ui-01) | UI / Entrypoints · 定义 versioned UI protocol DTO | `UI-00` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-01) |
+| 059 | W1 | 专项 | [`UI-02`](roadmap/ui-entrypoints.md#step-ui-02) | UI / Entrypoints · 统一错误、能力和 surface handshake | `UI-01` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-02) |
+| 060 | W1 | 专项 | [`UI-03`](roadmap/ui-entrypoints.md#step-ui-03) | UI / Entrypoints · 本地实例身份、发现和 transport | `UI-01`、`UI-02` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-03) |
+| 061 | W1 | 专项 | [`CO-02`](roadmap/companyos.md#step-co-02) | CompanyOS · 稳定组织、业务项目与工作区绑定 | `CO-01` | ⏳ | [专项卡](roadmap/companyos.md#step-co-02) |
+| 062 | W1 | 专项 | [`CO-03`](roadmap/companyos.md#step-co-03) | CompanyOS · 角色任命、有效期与撤销接入服务端身份 | `CO-02` | ⏳ | [专项卡](roadmap/companyos.md#step-co-03) |
+| 063 | W1 | 专项 | [`CO-04`](roadmap/companyos.md#step-co-04) | CompanyOS · 五部门与专业岗位成为版本化目录 | `CO-03` | ⏳ | [专项卡](roadmap/companyos.md#step-co-04) |
+| 064 | W1 | 专项 | [`CO-05`](roadmap/companyos.md#step-co-05) | CompanyOS · 业务命令权限、责任和人工决定合同 | `CO-03`、`CO-04` | ⏳ | [专项卡](roadmap/companyos.md#step-co-05) |
+| 065 | W1 | 专项 | [`CO-06`](roadmap/companyos.md#step-co-06) | CompanyOS · 不可变工件、Evidence 与 Criterion 引用合同 | `CO-02`、`CO-05` | ⏳ | [专项卡](roadmap/companyos.md#step-co-06) |
+| 066 | W1 | 专项 | [`CO-07`](roadmap/companyos.md#step-co-07) | CompanyOS · 版本化业务事实与稳定命令回执 | `CO-05`、`CO-06` | ⏳ | [专项卡](roadmap/companyos.md#step-co-07) |
+| 067 | W1 | 专项 | [`CO-08`](roadmap/companyos.md#step-co-08) | CompanyOS · 业务状态机、历史重放与兼容迁移 | `CO-07` | ⏳ | [专项卡](roadmap/companyos.md#step-co-08) |
+| 068 | W1 | 基础 | [`P0-A-01b`](#step-p0-a-01b) | P0 基础 · schema 注册表与 unknown field/migration 规则 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-a-01b) |
+| 069 | W1 | 基础 | [`P0-A-02`](#step-p0-a-02) | P0 基础 · 稳定错误码枚举 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-a-02) |
+| 070 | W1 | 专项 | [`P4-J7-06`](roadmap/provider.md#step-p4-j7-06) | Provider · 中立内容、调用身份、错误与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-06) |
+| 071 | W1 | 专项 | [`P4-J7-07`](roadmap/provider.md#step-p4-j7-07) | Provider · 提取 kiana-provider 并迁移装配 | `P4-J7-06` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-07) |
+| 072 | W1 | 专项 | [`P4-J7-08`](roadmap/provider.md#step-p4-j7-08) | Provider · 连接、profile 和配置快照 | `P4-J7-07` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-08) |
+| 073 | W1 | 专项 | [`P4-J7-09`](roadmap/provider.md#step-p4-j7-09) | Provider · 凭据管理与 HTTP 目标校验 | `P4-J7-08` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-09) |
+| 074 | W1 | 专项 | [`P4-J7-10`](roadmap/provider.md#step-p4-j7-10) | Provider · 能力目录、未知能力和显式 discovery | `P4-J7-08` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-10) |
+| 075 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ⏳ | [基础卡](#step-p0-b-01) |
+| 076 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ⏳ | [基础卡](#step-p0-k1-01) |
+| 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-c-01) |
+| 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-03) |
+| 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-d-01) |
+| 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-02) |
+| 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ⏳ | [基础卡](#step-p1-e-01) |
+| 082 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ⏳ | [基础卡](#step-p1-h-01) |
+| 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ⏳ | [基础卡](#step-p1-h-03) |
+| 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p3-i-01) |
+| 085 | W1 | 专项 | [`CI-02`](#step-ci-02) | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | `CI-01` | ⏳ | [专项卡](#step-ci-02) |
+| 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | ⏳ | [专项卡](#step-ci-03) |
+| 087 | W1 | 专项 | [`CI-04`](#step-ci-04) | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | `CI-02`、`CI-03` | ⏳ | [专项卡](#step-ci-04) |
+| 088 | W1 | 专项 | [`CI-05`](#step-ci-05) | Durable Membership/RoleAssignment/ProjectAssignment/PolicyProfile/DataBoundary/SharingGrant 与 authority epoch；`kiana-core`、`kiana-domain` | `CI-02`、`CI-04` | ⏳ | [专项卡](#step-ci-05) |
+| 089 | W1 | 专项 | [`SW-01`](#step-sw-01) | 稳定 ID、schema 和 lineage；domain + protocol + ports | `SW-00` | ⏳ | [专项卡](#step-sw-01) |
+| 090 | W1 | 专项 | [`SW-02`](#step-sw-02) | 显式 Partition/WorkGraph validator；复用 `packet_graph` | `SW-01` | ⏳ | [专项卡](#step-sw-02) |
+| 091 | W1 | 专项 | [`SW-03`](#step-sw-03) | Swarm/Partition/Attempt 状态 reducer 与 typed transition events；core/domain events | `SW-02` | ⏳ | [专项卡](#step-sw-03) |
+| 092 | W1 | 专项 | [`OA-01`](#step-oa-01) | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | `OA-00` | ⏳ | [专项卡](#step-oa-01) |
+| 093 | W1 | 专项 | [`OA-02`](#step-oa-02) | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | `OA-01` | ⏳ | [专项卡](#step-oa-02) |
+| 094 | W1 | 专项 | [`OA-03`](#step-oa-03) | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | `OA-01` | ⏳ | [专项卡](#step-oa-03) |
+| 095 | W1 | 专项 | [`OA-04`](#step-oa-04) | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | `OA-01`、`OA-03` | ⏳ | [专项卡](#step-oa-04) |
+| 096 | W1 | 专项 | [`OA-05`](#step-oa-05) | `ObservabilityPort`/`TraceSink`/`MetricSink`/`AuditQueryPort`/`HealthProbePort`；Memory/JSONL fake adapters | `OA-01`、`OA-04`、`OA-02`、`OA-03` | ⏳ | [专项卡](#step-oa-05) |
+| 097 | W1 | 专项 | [`NM-01`](#step-nm-01) | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | `NM-00` | ⏳ | [专项卡](#step-nm-01) |
+| 098 | W1 | 专项 | [`NM-02`](#step-nm-02) | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | `P1-E-01`、`NM-01` | ⏳ | [专项卡](#step-nm-02) |
+| 099 | W1 | 专项 | [`NM-03`](#step-nm-03) | Event kind registry 与分类规则；`kiana-domain/contracts.rs`、`kiana-core/events.rs` | `ER-01`、`NM-01` | ⏳ | [专项卡](#step-nm-03) |
+| 100 | W1 | 专项 | [`EQ-01`](#step-eq-01) | 从 `kiana-commands/src/eval.rs` 提取 schema 常量、错误码和 JSON 兼容测试清单，禁止无记录的字段删除 | `EQ-00` | ⏳ | [专项卡](#step-eq-01) |
+| 101 | W1 | 专项 | [`EQ-02`](#step-eq-02) | 在 `kiana-domain/src/quality.rs` 加稳定 ID、digest、状态枚举和 `deny_unknown_fields` DTO | `EQ-01` | ⏳ | [专项卡](#step-eq-02) |
+| 102 | W1 | 专项 | [`EQ-03`](#step-eq-03) | 定义 `EvalDataset`/`EvalSuite`/`EvalCase`/`GoldenTrace` schema、版本和 provenance | `EQ-02` | ⏳ | [专项卡](#step-eq-03) |
+| 103 | W1 | 专项 | [`EQ-04`](#step-eq-04) | 定义 case split、privacy class、owner、expires_at、minimum sample 和 workload tags | `EQ-03` | ⏳ | [专项卡](#step-eq-04) |
+| 104 | W1 | 专项 | [`EQ-05`](#step-eq-05) | 把 `kiana.eval-suite.v1`/baseline/report 与新 domain DTO 做显式 adapter，保留旧 CLI 输出字段 | `EQ-04` | ⏳ | [专项卡](#step-eq-05) |
+| 105 | W1 | 专项 | [`EQ-06`](#step-eq-06) | 在 `kiana-protocol` 登记 `eval.run/capture/compare` 和 `quality.feedback/promote/rollback` 命令/事件 | `EQ-05` | ⏳ | [专项卡](#step-eq-06) |
+| 106 | W1 | 专项 | [`EQ-07`](#step-eq-07) | 在 `kiana-ports` 增加 `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink` | `EQ-06` | ⏳ | [专项卡](#step-eq-07) |
+| 107 | W1 | 专项 | [`EQ-08`](#step-eq-08) | 建立 `tests/eval/` 目录、case manifest、fixture size/path/schema 限制和 deterministic loader | `EQ-07` | ⏳ | [专项卡](#step-eq-08) |
+| 108 | W1 | 专项 | [`PD-01`](roadmap/persistence-data-layer.md#step-pd-01) | 定义 `StorageRoot`、`StoreIdentity`、owner scope、逻辑 namespace 和锁；`kiana-domain`、`kiana-daemon` | `PD-00` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-01) |
+| 109 | W1 | 专项 | [`PD-02`](roadmap/persistence-data-layer.md#step-pd-02) | 建立 schema registry、canonical JSON/bytes、upcaster 和 unknown-field/major 规则；`kiana-domain`、`kiana-protocol` | `PD-00` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-02) |
+| 110 | W1 | 专项 | [`PD-03`](roadmap/persistence-data-layer.md#step-pd-03) | 统一 `StorageError`、`StoreHealth`、`IntegrityIncident`、能力限制和错误码；`kiana-domain`、`kiana-ports` | `PD-01`、`PD-02` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-03) |
+| 111 | W1 | 专项 | [`PD-04`](roadmap/persistence-data-layer.md#step-pd-04) | 下沉 `ProjectionStorePort`、`ArtifactStorePort`、`BackupStorePort`、`MigrationRunnerPort`、`RetentionStorePort`；`kiana-ports` | `PD-01`、`PD-02`、`PD-03` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-04) |
+| 112 | W1 | 专项 | [`SC-01`](roadmap/security-compliance.md#step-sc-01) | docs threat register、security fixture catalog | `SC-00` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-01) |
+| 113 | W1 | 专项 | [`SC-02`](roadmap/security-compliance.md#step-sc-02) | kiana-domain security IDs/schema registry | `SC-00` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-02) |
+| 114 | W1 | 专项 | [`SC-03`](roadmap/security-compliance.md#step-sc-03) | kiana-domain/kiana-protocol reason codes | `SC-02` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-03) |
+| 115 | W1 | 专项 | [`SC-04`](roadmap/security-compliance.md#step-sc-04) | kiana-core SecurityContext、入口身份边界 | `SC-02`、`SC-03` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-04) |
+| 116 | W1 | 专项 | [`SC-05`](roadmap/security-compliance.md#step-sc-05) | kiana-policy PolicyBundle/DecisionTrace/PolicyRevision | `SC-03`、`SC-04` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-05) |
+| 117 | W1 | 专项 | [`SC-06`](roadmap/security-compliance.md#step-sc-06) | kiana-domain/kiana-daemon Principal、session、authn adapter | `SC-04`、`SC-05` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-06) |
+| 118 | W1 | 专项 | [`SC-07`](roadmap/security-compliance.md#step-sc-07) | kiana-core ProjectTrust、RoleAssignment、DepartmentSnapshot | `SC-06` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-07) |
+| 119 | W1 | 专项 | [`SC-08`](roadmap/security-compliance.md#step-sc-08) | kiana-core authority epoch、session fence、policy refresh | `SC-06`、`SC-07` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-08) |
+| 120 | W1 | 专项 | [`SC-09`](roadmap/security-compliance.md#step-sc-09) | kiana-policy GrantScope intersection、Cell inheritance | `SC-07`、`SC-08` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-09) |
+| 121 | W1 | 专项 | [`SC-10`](roadmap/security-compliance.md#step-sc-10) | kiana-core Approval binding、Human Inbox | `SC-05`、`SC-08`、`SC-09` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-10) |
+| 122 | W1 | 专项 | [`SC-11`](roadmap/security-compliance.md#step-sc-11) | kiana-entrypoints、scheduler/workflow/swarm/connector parity | `SC-04`、`SC-09`、`SC-10` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-11) |
 | **W2** | **事实账本、授权与资源** |  |  |  |  |  |  |
-| 076 | W2 | 专项 | [`CP-07`](roadmap/control-plane.md#step-cp-07) | ControlPlane · 实现 JSONL 事务帧及失败恢复 | `CP-06` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-07) |
-| 077 | W2 | 专项 | [`CP-08`](roadmap/control-plane.md#step-cp-08) | ControlPlane · Grant 账本与 authority epoch | `CP-01`、`CP-04`、`CP-07` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-08) |
-| 078 | W2 | 专项 | [`CP-09`](roadmap/control-plane.md#step-cp-09) | ControlPlane · 精确审批 subject 与可恢复材料 | `CP-03`、`CP-07`、`CP-08` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-09) |
-| 079 | W2 | 专项 | [`CP-10`](roadmap/control-plane.md#step-cp-10) | ControlPlane · 审批决定、单次消费和 pending 持久化 | `CP-05`、`CP-07`、`CP-09` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-10) |
-| 080 | W2 | 专项 | [`CP-11`](roadmap/control-plane.md#step-cp-11) | ControlPlane · 模型与工具统一消耗预算 | `CP-02`、`CP-07`、`CP-08` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-11) |
-| 081 | W2 | 专项 | [`CP-12`](roadmap/control-plane.md#step-cp-12) | ControlPlane · 路径锁、资源租约和 fencing token | `CP-07`、`CP-08` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-12) |
-| 082 | W2 | 专项 | [`CP-13`](roadmap/control-plane.md#step-cp-13) | ControlPlane · 执行许可与派发线性化点 | `CP-05`、`CP-10`、`CP-11`、`CP-12` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-13) |
-| 083 | W2 | 专项 | [`CP-14`](roadmap/control-plane.md#step-cp-14) | ControlPlane · 统一执行结果、核销和结果回灌 | `CP-13` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-14) |
-| 084 | W2 | 专项 | [`ER-05`](roadmap/event-receipt-recovery.md#step-er-05) | Event / Receipt / Recovery · JSONL v2 原子 frame、锁与损坏策略 | `ER-04` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-05) |
-| 085 | W2 | 专项 | [`ER-06`](roadmap/event-receipt-recovery.md#step-er-06) | Event / Receipt / Recovery · 异步写入、背压与 shutdown ack | `ER-05` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-06) |
-| 086 | W2 | 专项 | [`ER-07`](roadmap/event-receipt-recovery.md#step-er-07) | Event / Receipt / Recovery · 通用 replay reader 和 projector checkpoint | `ER-06` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-07) |
-| 087 | W2 | 专项 | [`ER-08`](roadmap/event-receipt-recovery.md#step-er-08) | Event / Receipt / Recovery · Run/Turn 状态投影和 terminal 约束 | `ER-07` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-08) |
-| 088 | W2 | 专项 | [`ER-09`](roadmap/event-receipt-recovery.md#step-er-09) | Event / Receipt / Recovery · Invocation/Execution/Attempt 投影 | `ER-08` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-09) |
-| 089 | W2 | 专项 | [`ER-10`](roadmap/event-receipt-recovery.md#step-er-10) | Event / Receipt / Recovery · Approval、Budget、Lease 和 pending projection | `ER-09` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-10) |
-| 090 | W2 | 专项 | [`ER-11`](roadmap/event-receipt-recovery.md#step-er-11) | Event / Receipt / Recovery · Receipt DTO、redacted view 与 source cursor | `ER-10` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-11) |
-| 091 | W2 | 专项 | [`ER-12`](roadmap/event-receipt-recovery.md#step-er-12) | Event / Receipt / Recovery · Cost、files、model turns 与 evidence aggregation | `ER-11` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-12) |
-| 092 | W2 | 专项 | [`ER-13`](roadmap/event-receipt-recovery.md#step-er-13) | Event / Receipt / Recovery · 统一 result commit 和 result delivery | `ER-12` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-13) |
-| 093 | W2 | 专项 | [`ER-14`](roadmap/event-receipt-recovery.md#step-er-14) | Event / Receipt / Recovery · Effect Receipt 与外部 provider receipt | `ER-13` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-14) |
-| 094 | W2 | 专项 | [`ER-15`](roadmap/event-receipt-recovery.md#step-er-15) | Event / Receipt / Recovery · Hook、MCP、Memory、Patch 结果统一边界 | `ER-14` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-15) |
-| 095 | W2 | 专项 | [`ER-16`](roadmap/event-receipt-recovery.md#step-er-16) | Event / Receipt / Recovery · 终态事件唯一性与 terminal 必达 | `ER-15` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-16) |
-| 096 | W2 | 专项 | [`CAP-05`](roadmap/capability.md#step-cap-05) | Capability · 核验授权事实，原子领取一次执行 | `CAP-03`、`CAP-04` | ⏳ | [专项卡](roadmap/capability.md#step-cap-05) |
-| 097 | W2 | 专项 | [`CAP-06`](roadmap/capability.md#step-cap-06) | Capability · 审批看见并绑定将被执行的最终计划 | `CAP-05` | ⏳ | [专项卡](roadmap/capability.md#step-cap-06) |
-| 098 | W2 | 专项 | [`H06`](roadmap/harness.md#step-h06) | Harness · 一个流归一化器产生增量与完整响应 | `H05` | ⏳ | [专项卡](roadmap/harness.md#step-h06) |
-| 099 | W2 | 专项 | [`H07`](roadmap/harness.md#step-h07) | Harness · 贯通预算配置、预留与累计结算 | `H05` | ⏳ | [专项卡](roadmap/harness.md#step-h07) |
-| 100 | W2 | 专项 | [`H08`](roadmap/harness.md#step-h08) | Harness · 将 deadline 和取消贯穿静默 I/O | `H03`、`H06`、`H07` | ⏳ | [专项卡](roadmap/harness.md#step-h08) |
-| 101 | W2 | 专项 | [`H09`](roadmap/harness.md#step-h09) | Harness · 工具目录成为单一、可版本化的数据源 | `H04`、`H05` | ⏳ | [专项卡](roadmap/harness.md#step-h09) |
-| 102 | W2 | 专项 | [`H10`](roadmap/harness.md#step-h10) | Harness · 一次生成、全程稳定的调用身份 | `H02`、`H09` | ⏳ | [专项卡](roadmap/harness.md#step-h10) |
-| 103 | W2 | 专项 | [`H11`](roadmap/harness.md#step-h11) | Harness · 工具结果分类与给模型的可修复反馈 | `H05`、`H10` | ⏳ | [专项卡](roadmap/harness.md#step-h11) |
-| 104 | W2 | 专项 | [`H12`](roadmap/harness.md#step-h12) | Harness · 串行批次先完整闭环，再考虑并行 | `H08`、`H10`、`H11` | ⏳ | [专项卡](roadmap/harness.md#step-h12) |
-| 105 | W2 | 专项 | [`H13`](roadmap/harness.md#step-h13) | Harness · Invocation 账本与结果立即持久化 | `H10`、`H11`、`H12` | ⏳ | [专项卡](roadmap/harness.md#step-h13) |
-| 106 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复 | `H12`、`H13` | ⏳ | [专项卡](roadmap/harness.md#step-h14) |
-| 107 | W2 | 专项 | [`CM-05`](roadmap/context-memory.md#step-cm-05) | Context / Memory · EventStore 唯一提交点与 JSONL/index 投影 | `CM-04` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-05) |
-| 108 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-06) |
-| 109 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ⏳ | [基础卡](#step-p0-f-01) |
-| 110 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ⏳ | [基础卡](#step-p0-f-02) |
-| 111 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ⏳ | [基础卡](#step-p0-j1-01) |
-| 112 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-02) |
-| 113 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-03) |
-| 114 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ⏳ | [基础卡](#step-p1-j8-01) |
-| 115 | W2 | 基础 | [`P1-K5-01`](#step-p1-k5-01) | P1 基础 · 成本与容量账本 | `P0-G-04` | ⏳ | [基础卡](#step-p1-k5-01) |
-| 116 | W2 | 基础 | [`P3-I-02`](#step-p3-i-02) | P3 基础 · 命令与事件冻结 | `P3-I-01` | ⏳ | [基础卡](#step-p3-i-02) |
-| 117 | W2 | 基础 | [`P4-J7-02`](#step-p4-j7-02) | P4 基础 · wire 加 `sequence`/`epoch` | `P0-J7-01` | ⏳ | [基础卡](#step-p4-j7-02) |
-| 118 | W2 | 基础 | [`P4-J7-03`](#step-p4-j7-03) | P4 基础 · 事件种类补齐与 terminal 必达 | `P4-J7-02` | ⏳ | [基础卡](#step-p4-j7-03) |
+| 123 | W2 | 专项 | [`CP-07`](roadmap/control-plane.md#step-cp-07) | ControlPlane · 实现 JSONL 事务帧及失败恢复 | `CP-06` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-07) |
+| 124 | W2 | 专项 | [`CP-08`](roadmap/control-plane.md#step-cp-08) | ControlPlane · Grant 账本与 authority epoch | `CP-01`、`CP-04`、`CP-07` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-08) |
+| 125 | W2 | 专项 | [`CP-09`](roadmap/control-plane.md#step-cp-09) | ControlPlane · 精确审批 subject 与可恢复材料 | `CP-03`、`CP-07`、`CP-08` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-09) |
+| 126 | W2 | 专项 | [`CP-10`](roadmap/control-plane.md#step-cp-10) | ControlPlane · 审批决定、单次消费和 pending 持久化 | `CP-05`、`CP-07`、`CP-09` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-10) |
+| 127 | W2 | 专项 | [`CP-11`](roadmap/control-plane.md#step-cp-11) | ControlPlane · 模型与工具统一消耗预算 | `CP-02`、`CP-07`、`CP-08` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-11) |
+| 128 | W2 | 专项 | [`CP-12`](roadmap/control-plane.md#step-cp-12) | ControlPlane · 路径锁、资源租约和 fencing token | `CP-07`、`CP-08` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-12) |
+| 129 | W2 | 专项 | [`CP-13`](roadmap/control-plane.md#step-cp-13) | ControlPlane · 执行许可与派发线性化点 | `CP-05`、`CP-10`、`CP-11`、`CP-12` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-13) |
+| 130 | W2 | 专项 | [`CP-14`](roadmap/control-plane.md#step-cp-14) | ControlPlane · 统一执行结果、核销和结果回灌 | `CP-13` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-14) |
+| 131 | W2 | 专项 | [`ER-05`](roadmap/event-receipt-recovery.md#step-er-05) | Event / Receipt / Recovery · JSONL v2 原子 frame、锁与损坏策略 | `ER-04` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-05) |
+| 132 | W2 | 专项 | [`ER-06`](roadmap/event-receipt-recovery.md#step-er-06) | Event / Receipt / Recovery · 异步写入、背压与 shutdown ack | `ER-05` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-06) |
+| 133 | W2 | 专项 | [`ER-07`](roadmap/event-receipt-recovery.md#step-er-07) | Event / Receipt / Recovery · 通用 replay reader 和 projector checkpoint | `ER-06` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-07) |
+| 134 | W2 | 专项 | [`ER-08`](roadmap/event-receipt-recovery.md#step-er-08) | Event / Receipt / Recovery · Run/Turn 状态投影和 terminal 约束 | `ER-07` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-08) |
+| 135 | W2 | 专项 | [`ER-09`](roadmap/event-receipt-recovery.md#step-er-09) | Event / Receipt / Recovery · Invocation/Execution/Attempt 投影 | `ER-08` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-09) |
+| 136 | W2 | 专项 | [`ER-10`](roadmap/event-receipt-recovery.md#step-er-10) | Event / Receipt / Recovery · Approval、Budget、Lease 和 pending projection | `ER-09` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-10) |
+| 137 | W2 | 专项 | [`ER-11`](roadmap/event-receipt-recovery.md#step-er-11) | Event / Receipt / Recovery · Receipt DTO、redacted view 与 source cursor | `ER-10` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-11) |
+| 138 | W2 | 专项 | [`ER-12`](roadmap/event-receipt-recovery.md#step-er-12) | Event / Receipt / Recovery · Cost、files、model turns 与 evidence aggregation | `ER-11` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-12) |
+| 139 | W2 | 专项 | [`ER-13`](roadmap/event-receipt-recovery.md#step-er-13) | Event / Receipt / Recovery · 统一 result commit 和 result delivery | `ER-12` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-13) |
+| 140 | W2 | 专项 | [`ER-14`](roadmap/event-receipt-recovery.md#step-er-14) | Event / Receipt / Recovery · Effect Receipt 与外部 provider receipt | `ER-13` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-14) |
+| 141 | W2 | 专项 | [`ER-15`](roadmap/event-receipt-recovery.md#step-er-15) | Event / Receipt / Recovery · Hook、MCP、Memory、Patch 结果统一边界 | `ER-14` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-15) |
+| 142 | W2 | 专项 | [`ER-16`](roadmap/event-receipt-recovery.md#step-er-16) | Event / Receipt / Recovery · 终态事件唯一性与 terminal 必达 | `ER-15` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-16) |
+| 143 | W2 | 专项 | [`CAP-05`](roadmap/capability.md#step-cap-05) | Capability · 核验授权事实，原子领取一次执行 | `CAP-03`、`CAP-04` | ⏳ | [专项卡](roadmap/capability.md#step-cap-05) |
+| 144 | W2 | 专项 | [`CAP-06`](roadmap/capability.md#step-cap-06) | Capability · 审批看见并绑定将被执行的最终计划 | `CAP-05` | ⏳ | [专项卡](roadmap/capability.md#step-cap-06) |
+| 145 | W2 | 专项 | [`H06`](roadmap/harness.md#step-h06) | Harness · 一个流归一化器产生增量与完整响应 | `H05` | ⏳ | [专项卡](roadmap/harness.md#step-h06) |
+| 146 | W2 | 专项 | [`H07`](roadmap/harness.md#step-h07) | Harness · 贯通预算配置、预留与累计结算 | `H05` | ⏳ | [专项卡](roadmap/harness.md#step-h07) |
+| 147 | W2 | 专项 | [`H08`](roadmap/harness.md#step-h08) | Harness · 将 deadline 和取消贯穿静默 I/O | `H03`、`H06`、`H07` | ⏳ | [专项卡](roadmap/harness.md#step-h08) |
+| 148 | W2 | 专项 | [`H09`](roadmap/harness.md#step-h09) | Harness · 工具目录成为单一、可版本化的数据源 | `H04`、`H05` | ⏳ | [专项卡](roadmap/harness.md#step-h09) |
+| 149 | W2 | 专项 | [`H10`](roadmap/harness.md#step-h10) | Harness · 一次生成、全程稳定的调用身份 | `H02`、`H09` | ⏳ | [专项卡](roadmap/harness.md#step-h10) |
+| 150 | W2 | 专项 | [`H11`](roadmap/harness.md#step-h11) | Harness · 工具结果分类与给模型的可修复反馈 | `H05`、`H10` | ⏳ | [专项卡](roadmap/harness.md#step-h11) |
+| 151 | W2 | 专项 | [`H12`](roadmap/harness.md#step-h12) | Harness · 串行批次先完整闭环，再考虑并行 | `H08`、`H10`、`H11` | ⏳ | [专项卡](roadmap/harness.md#step-h12) |
+| 152 | W2 | 专项 | [`H13`](roadmap/harness.md#step-h13) | Harness · Invocation 账本与结果立即持久化 | `H10`、`H11`、`H12` | ⏳ | [专项卡](roadmap/harness.md#step-h13) |
+| 153 | W2 | 专项 | [`H14`](roadmap/harness.md#step-h14) | Harness · 审批暂停与原调用恢复 | `H12`、`H13` | ⏳ | [专项卡](roadmap/harness.md#step-h14) |
+| 154 | W2 | 专项 | [`CM-05`](roadmap/context-memory.md#step-cm-05) | Context / Memory · EventStore 唯一提交点与 JSONL/index 投影 | `CM-04` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-05) |
+| 155 | W2 | 专项 | [`CM-06`](roadmap/context-memory.md#step-cm-06) | Context / Memory · Source dependency graph 与治理 epoch | `CM-05` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-06) |
+| 156 | W2 | 基础 | [`P0-F-01`](#step-p0-f-01) | P0 基础 · 审批一等请求/应答 | `P0-B-01` | ⏳ | [基础卡](#step-p0-f-01) |
+| 157 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ⏳ | [基础卡](#step-p0-f-02) |
+| 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ⏳ | [基础卡](#step-p0-j1-01) |
+| 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-02) |
+| 160 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-03) |
+| 161 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ⏳ | [基础卡](#step-p1-j8-01) |
+| 162 | W2 | 基础 | [`P1-K5-01`](#step-p1-k5-01) | P1 基础 · 成本与容量账本 | `P0-G-04` | ⏳ | [基础卡](#step-p1-k5-01) |
+| 163 | W2 | 基础 | [`P3-I-02`](#step-p3-i-02) | P3 基础 · 命令与事件冻结 | `P3-I-01` | ⏳ | [基础卡](#step-p3-i-02) |
+| 164 | W2 | 基础 | [`P4-J7-02`](#step-p4-j7-02) | P4 基础 · wire 加 `sequence`/`epoch` | `P0-J7-01` | ⏳ | [基础卡](#step-p4-j7-02) |
+| 165 | W2 | 基础 | [`P4-J7-03`](#step-p4-j7-03) | P4 基础 · 事件种类补齐与 terminal 必达 | `P4-J7-02` | ⏳ | [基础卡](#step-p4-j7-03) |
+| 166 | W2 | 专项 | [`CI-06`](#step-ci-06) | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | `CI-01`、`CI-03`、`CI-04` | ⏳ | [专项卡](#step-ci-06) |
+| 167 | W2 | 专项 | [`CI-07`](#step-ci-07) | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | `CI-02`、`CI-03`、`CI-06` | ⏳ | [专项卡](#step-ci-07) |
+| 168 | W2 | 专项 | [`CI-08`](#step-ci-08) | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | `CI-05`、`CI-06`、`CI-07` | ⏳ | [专项卡](#step-ci-08) |
+| 169 | W2 | 专项 | [`CI-09`](#step-ci-09) | OAuth/工作负载身份生命周期；PKCE、state、callback、refresh single-flight、generation CAS、0600 atomic file | `CI-07`、`CI-08` | ⏳ | [专项卡](#step-ci-09) |
+| 170 | W2 | 专项 | [`CI-10`](#step-ci-10) | Provider policy、只读 credential probe 与 UI/诊断边界；`kiana-policy`、`kiana-entrypoints`、protocol DTO | `CI-06`、`CI-08`、`CI-09` | ⏳ | [专项卡](#step-ci-10) |
+| 171 | W2 | 专项 | [`SW-04`](#step-sw-04) | 从 parent/template/department/project/packet/approval 派生 child grant；`kiana-core` authority/capabilities + `cell_registry` | `SW-03`、`CP-04`、`P1-C-02`、`CP-08`、`CP-13` | ⏳ | [专项卡](#step-sw-04) |
+| 172 | W2 | 专项 | [`OA-06`](#step-oa-06) | EventStore commit observer；`kiana-eventlog`、`StreamEventStore`、`TransitionBatch` | `OA-05` | ⏳ | [专项卡](#step-oa-06) |
+| 173 | W2 | 专项 | [`OA-07`](#step-oa-07) | Run/Turn/Invocation span 生命周期；`kiana-core` projection/runner bridge | `OA-02`、`OA-06` | ⏳ | [专项卡](#step-oa-07) |
+| 174 | W2 | 专项 | [`OA-08`](#step-oa-08) | Provider/model/stream/usage instrumentation；`kiana-provider`、`kiana-daemon/model_client.rs` | `OA-03`、`OA-07` | ⏳ | [专项卡](#step-oa-08) |
+| 175 | W2 | 专项 | [`OA-09`](#step-oa-09) | Broker/approval/effect/stop instrumentation；`kiana-core/capabilities.rs`、`kiana-daemon/harness_capabilities.rs` | `OA-04`、`OA-07` | ⏳ | [专项卡](#step-oa-09) |
+| 176 | W2 | 专项 | [`OA-10`](#step-oa-10) | EventLog/projector/Receipt/Artifact/Recovery metrics；`kiana-eventlog`、`projection.rs`、`receipts.rs`、`recovery.rs` | `OA-06`、`OA-09`、`OA-07`、`OA-08` | ⏳ | [专项卡](#step-oa-10) |
+| 177 | W2 | 专项 | [`AUT-02`](#step-aut-02) | `ClockPort`、wall/monotonic、clock trust/rollback；`kiana-ports`、`kiana-domain` | `AUT-01` | ⏳ | [专项卡](#step-aut-02) |
+| 178 | W2 | 专项 | [`AUT-03`](#step-aut-03) | definition/version/digest、DAG/schema/role/project validation；`kiana-domain`、`kiana-workflow` | `P0-J1-01`、`P0-B-01`、`AUT-01` | ⏳ | [专项卡](#step-aut-03) |
+| 179 | W2 | 专项 | [`AUT-04`](#step-aut-04) | TriggerDefinition、event envelope、occurrence key、approval/authority/policy 绑定；`kiana-domain`、`kiana-protocol` | `AUT-02`、`AUT-03` | ⏳ | [专项卡](#step-aut-04) |
+| 180 | W2 | 专项 | [`AUT-05`](#step-aut-05) | automation event envelope、aggregate stream、command dedup、CAS/cursor query；`kiana-eventlog`、`kiana-ports` | `AUT-03`、`AUT-04` | ⏳ | [专项卡](#step-aut-05) |
+| 181 | W2 | 专项 | [`EQ-09`](#step-eq-09) | 在 `kiana-daemon/src/eval_runtime.rs` 实现临时 workspace、临时 `KIANA_HOME`、固定 clock/random seed | `EQ-08` | ⏳ | [专项卡](#step-eq-09) |
+| 182 | W2 | 专项 | [`EQ-10`](#step-eq-10) | 实现 fake provider adapter，支持完整 reply、分块 stream、tool call、malformed stream、provider error | `EQ-09` | ⏳ | [专项卡](#step-eq-10) |
+| 183 | W2 | 专项 | [`EQ-11`](#step-eq-11) | 实现 deny-by-default broker；将真实 network/secret/MCP/payment/publish/desktop effect 映射为稳定拒绝 | `EQ-10` | ⏳ | [专项卡](#step-eq-11) |
+| 184 | W2 | 专项 | [`EQ-12`](#step-eq-12) | 通过 `DaemonHost`/`ControlPlane` 启动 target，禁止 quality crate 自行创建 runner loop | `EQ-11` | ⏳ | [专项卡](#step-eq-12) |
+| 185 | W2 | 专项 | [`EQ-13`](#step-eq-13) | 将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store | `EQ-12` | ⏳ | [专项卡](#step-eq-13) |
+| 186 | W2 | 专项 | [`EQ-14`](#step-eq-14) | 采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown | `EQ-13` | ⏳ | [专项卡](#step-eq-14) |
+| 187 | W2 | 专项 | [`EQ-15`](#step-eq-15) | 增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown | `EQ-14` | ⏳ | [专项卡](#step-eq-15) |
+| 188 | W2 | 专项 | [`EQ-16`](#step-eq-16) | 对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture | `EQ-15` | ⏳ | [专项卡](#step-eq-16) |
+| 189 | W2 | 专项 | [`BQ-00`](#step-bq-00) | 基线、快照和冲突清单；盘点 `usage.rs`、`model_budget.rs`、`receipts.rs`、Provider response、CellRegistry、现有事件和测试 | — | ⏳ | [专项卡](#step-bq-00) |
+| 190 | W2 | 专项 | [`BQ-01`](#step-bq-01) | 稳定 ID、schema major、unknown/reason、状态枚举与错误码；`kiana-domain`/contracts | `BQ-00` | ⏳ | [专项卡](#step-bq-01) |
+| 191 | W2 | 专项 | [`BQ-02`](#step-bq-02) | `UsageVector` 和 `NormalizedUsage`；区分 absent/zero/partial、source/basis/sequence | `BQ-01` | ⏳ | [专项卡](#step-bq-02) |
+| 192 | W2 | 专项 | [`BQ-03`](#step-bq-03) | snapshot/delta/final stream 累计器；按 sequence 去重、单调性和包含关系校验 | `BQ-02` | ⏳ | [专项卡](#step-bq-03) |
+| 193 | W2 | 专项 | [`BQ-04`](#step-bq-04) | `Money`、整数 micros、checked pricing arithmetic；`RateCard` 版本和有效时间 | `BQ-01`、`BQ-02` | ⏳ | [专项卡](#step-bq-04) |
+| 194 | W2 | 专项 | [`BQ-05`](#step-bq-05) | `RateCardStore` 与模型/provider/缓存/音频/工具单价映射 | `BQ-04` | ⏳ | [专项卡](#step-bq-05) |
+| 195 | W2 | 专项 | [`BQ-06`](#step-bq-06) | 五类预算合同和交集算法；`RuntimeBudget`、`BudgetLease`、`ProjectBudget`、`ProviderBudget` | `BQ-01`、`BQ-04` | ⏳ | [专项卡](#step-bq-06) |
+| 196 | W2 | 专项 | [`BQ-07`](#step-bq-07) | Quota dimension/window、UTC/clock、quota group（alias/credential/model） | `BQ-06` | ⏳ | [专项卡](#step-bq-07) |
+| 197 | W2 | 专项 | [`BQ-08`](#step-bq-08) | durable `QuotaReservation`、lease/fence/authority/config revision、CAS/dedup | `BQ-06`、`BQ-07` | ⏳ | [专项卡](#step-bq-08) |
+| 198 | W2 | 专项 | [`BQ-09`](#step-bq-09) | admission estimator：最终 wire 请求、输出上限、retry allowance、tool/effect/storage 预算 | `BQ-02`、`BQ-05`、`BQ-08` | ⏳ | [专项卡](#step-bq-09) |
+| 199 | W2 | 专项 | [`PD-05`](roadmap/persistence-data-layer.md#step-pd-05) | 为 EventStore 建立 adapter conformance；`kiana-eventlog/tests` | `ER-04`、`PD-04` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-05) |
+| 200 | W2 | 专项 | [`PD-06`](roadmap/persistence-data-layer.md#step-pd-06) | 收口 JSONL v2 frame、checksum、fsync、writer lock、尾部恢复；`kiana-eventlog` | `PD-05` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-06) |
+| 201 | W2 | 专项 | [`PD-07`](roadmap/persistence-data-layer.md#step-pd-07) | 完成 command/event/aggregate/cursor 索引和 page boundary；`kiana-eventlog` | `PD-05`、`PD-06` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-07) |
+| 202 | W2 | 专项 | [`PD-08`](roadmap/persistence-data-layer.md#step-pd-08) | 启动 integrity scan、quarantine、recovery report 和 health gate；`kiana-eventlog`、`kiana-daemon` | `PD-06`、`PD-07` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-08) |
+| 203 | W2 | 专项 | [`PD-09`](roadmap/persistence-data-layer.md#step-pd-09) | 建立 projector runner、checkpoint、重试/暂停/重建协议；`kiana-core`、`kiana-daemon` | `PD-07`、`PD-08` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-09) |
+| 204 | W2 | 专项 | [`NM-04`](#step-nm-04) | `NotificationProjector` + source cursor/checkpoint；`kiana-eventlog`/`kiana-core` | `PD-05`、`PD-06`、`PD-07`、`PD-08`、`PD-09`、`NM-03` | ⏳ | [专项卡](#step-nm-04) |
+| 205 | W2 | 专项 | [`NM-05`](#step-nm-05) | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | `CI-05`、`NM-01`、`NM-04` | ⏳ | [专项卡](#step-nm-05) |
+| 206 | W2 | 专项 | [`SC-12`](roadmap/security-compliance.md#step-sc-12) | kiana-core PendingInvocation/Permit、CAS、idempotency | `SC-08`、`SC-09`、`SC-10` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-12) |
+| 207 | W2 | 专项 | [`SC-13`](roadmap/security-compliance.md#step-sc-13) | kiana-capability-broker、kiana-daemon path/TOCTOU | `SC-12` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-13) |
+| 208 | W2 | 专项 | [`SC-14`](roadmap/security-compliance.md#step-sc-14) | Broker sandbox/network profile、endpoint resolver | `SC-12`、`SC-13` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-14) |
+| 209 | W2 | 专项 | [`SC-15`](roadmap/security-compliance.md#step-sc-15) | kiana-runner/kiana-core cancel fencing、Unknown | `SC-12`、`SC-14` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-15) |
+| 210 | W2 | 专项 | [`SC-16`](roadmap/security-compliance.md#step-sc-16) | kiana-core/Broker quotas、bounded channels、backpressure | `SC-09`、`SC-12` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-16) |
+| 211 | W2 | 专项 | [`SC-17`](roadmap/security-compliance.md#step-sc-17) | kiana-daemon MCP/connector/webhook ingress | `SC-06`、`SC-10`、`SC-14`、`SC-15` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-17) |
+| 212 | W2 | 专项 | [`SC-18`](roadmap/security-compliance.md#step-sc-18) | kiana-domain SecretRef、kiana-ports SecretStore | `SC-04`、`SC-09`、`SC-17` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-18) |
+| 213 | W2 | 专项 | [`SC-19`](roadmap/security-compliance.md#step-sc-19) | kiana-daemon secret lease、rotation/revocation | `SC-18`、`SC-15` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-19) |
+| 214 | W2 | 专项 | [`SC-20`](roadmap/security-compliance.md#step-sc-20) | kiana-domain redaction、Broker/Provider/Runner/Event boundaries | `SC-03`、`SC-18` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-20) |
 | **W3** | **实际执行、取消与恢复** |  |  |  |  |  |  |
-| 119 | W3 | 专项 | [`CP-15`](roadmap/control-plane.md#step-cp-15) | ControlPlane · 统一取消状态，覆盖审批与排队竞态 | `CP-02`、`CP-07`、`CP-13`、`CP-14` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-15) |
-| 120 | W3 | 专项 | [`CP-16`](roadmap/control-plane.md#step-cp-16) | ControlPlane · Handler 真正停止与文件提交证据 | `CP-12`、`CP-13`、`CP-15` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-16) |
-| 121 | W3 | 专项 | [`CP-17`](roadmap/control-plane.md#step-cp-17) | ControlPlane · 撤销、失败清理与 Cell 退休 | `CP-08`、`CP-11`、`CP-12`、`CP-15`、`CP-16` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-17) |
-| 122 | W3 | 专项 | [`CP-18`](roadmap/control-plane.md#step-cp-18) | ControlPlane · RunSnapshot 与安全 checkpoint | `CP-07`、`CP-09`、`CP-14`、`CP-17` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-18) |
-| 123 | W3 | 专项 | [`CP-19`](roadmap/control-plane.md#step-cp-19) | ControlPlane · 显式 Resume 与新进程重建 | `CP-10`、`CP-14`、`CP-17`、`CP-18` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-19) |
-| 124 | W3 | 专项 | [`CP-20`](roadmap/control-plane.md#step-cp-20) | ControlPlane · Unknown 对账、重试与补偿 | `CP-14`、`CP-17`、`CP-19` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-20) |
-| 125 | W3 | 专项 | [`CP-21`](roadmap/control-plane.md#step-cp-21) | ControlPlane · 投影、Receipt 和只读查询 | `CP-07`、`CP-10`、`CP-14`、`CP-19` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-21) |
-| 126 | W3 | 专项 | [`CP-22`](roadmap/control-plane.md#step-cp-22) | ControlPlane · Protocol、动作卡与各入口同一事实 | `CP-10`、`CP-15`、`CP-19`、`CP-21` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-22) |
-| 127 | W3 | 专项 | [`CP-26`](roadmap/control-plane.md#step-cp-26) | ControlPlane · 决策解释、审计关联与证据 | `CP-14`、`CP-20`、`CP-21` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-26) |
-| 128 | W3 | 专项 | [`CP-27`](roadmap/control-plane.md#step-cp-27) | ControlPlane · 非阻塞存储、时钟和资源限额 | `CP-07`、`CP-11`、`CP-15`、`CP-21` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-27) |
-| 129 | W3 | 专项 | [`CP-28`](roadmap/control-plane.md#step-cp-28) | ControlPlane · 迁移、兼容 adapter 与旁路收口 | `CP-02`、`CP-07`、`CP-19`、`CP-22` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-28) |
-| 130 | W3 | 专项 | [`ER-17`](roadmap/event-receipt-recovery.md#step-er-17) | Event / Receipt / Recovery · Serializable RunSnapshot 与 pending writes | `ER-16` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-17) |
-| 131 | W3 | 专项 | [`ER-18`](roadmap/event-receipt-recovery.md#step-er-18) | Event / Receipt / Recovery · Workspace checkpoint transaction 与 restore evidence | `ER-17` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-18) |
-| 132 | W3 | 专项 | [`ER-19`](roadmap/event-receipt-recovery.md#step-er-19) | Event / Receipt / Recovery · Worker/process handle 与 fencing token | `ER-18` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-19) |
-| 133 | W3 | 专项 | [`ER-20`](roadmap/event-receipt-recovery.md#step-er-20) | Event / Receipt / Recovery · Restart projector 与默认暂停 | `ER-19` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-20) |
-| 134 | W3 | 专项 | [`ER-21`](roadmap/event-receipt-recovery.md#step-er-21) | Event / Receipt / Recovery · Explicit resume preflight and claim | `ER-20` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-21) |
-| 135 | W3 | 专项 | [`ER-22`](roadmap/event-receipt-recovery.md#step-er-22) | Event / Receipt / Recovery · Cancel recovery and stop confirmation | `ER-21` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-22) |
-| 136 | W3 | 专项 | [`ER-23`](roadmap/event-receipt-recovery.md#step-er-23) | Event / Receipt / Recovery · Unknown incident 与 RecoveryPlan | `ER-22` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-23) |
-| 137 | W3 | 专项 | [`ER-24`](roadmap/event-receipt-recovery.md#step-er-24) | Event / Receipt / Recovery · Reconciliation commands and evidence | `ER-23` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-24) |
-| 138 | W3 | 专项 | [`ER-25`](roadmap/event-receipt-recovery.md#step-er-25) | Event / Receipt / Recovery · Retry policy and new attempt | `ER-24` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-25) |
-| 139 | W3 | 专项 | [`ER-26`](roadmap/event-receipt-recovery.md#step-er-26) | Event / Receipt / Recovery · Cursor query、snapshot 和慢消费者 | `ER-25` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-26) |
-| 140 | W3 | 专项 | [`ER-27`](roadmap/event-receipt-recovery.md#step-er-27) | Event / Receipt / Recovery · 四入口统一只读 receipt/recovery commands | `ER-26` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-27) |
-| 141 | W3 | 专项 | [`CAP-07`](roadmap/capability.md#step-cap-07) | Capability · EnvironmentPort 与可验证 backend 选择 | `CAP-03`、`CAP-04` | ⏳ | [专项卡](roadmap/capability.md#step-cap-07) |
-| 142 | W3 | 专项 | [`CAP-08`](roadmap/capability.md#step-cap-08) | Capability · 共享 PathResolver 与文件身份前置条件 | `CAP-07` | ⏳ | [专项卡](roadmap/capability.md#step-cap-08) |
-| 143 | W3 | 专项 | [`CAP-09`](roadmap/capability.md#step-cap-09) | Capability · Linux 最小文件视图与不可扩大的挂载集 | `CAP-08` | ⏳ | [专项卡](roadmap/capability.md#step-cap-09) |
-| 144 | W3 | 专项 | [`CAP-10`](roadmap/capability.md#step-cap-10) | Capability · 为严格 packet 写集提供隔离写层 | `CAP-09` | ⏳ | [专项卡](roadmap/capability.md#step-cap-10) |
-| 145 | W3 | 专项 | [`CAP-11`](roadmap/capability.md#step-cap-11) | Capability · 清理 ambient authority，落实默认断网 | `CAP-09` | ⏳ | [专项卡](roadmap/capability.md#step-cap-11) |
-| 146 | W3 | 专项 | [`CAP-12`](roadmap/capability.md#step-cap-12) | Capability · ProcessSupervisor 持有进程树与资源预算 | `CAP-07`、`CAP-11` | ⏳ | [专项卡](roadmap/capability.md#step-cap-12) |
-| 147 | W3 | 专项 | [`CAP-13`](roadmap/capability.md#step-cap-13) | Capability · 统一有界输出与脱敏工件 | `CAP-12` | ⏳ | [专项卡](roadmap/capability.md#step-cap-13) |
-| 148 | W3 | 专项 | [`CAP-14`](roadmap/capability.md#step-cap-14) | Capability · shell 适配迁入统一执行器 | `CAP-05`、`CAP-12`、`CAP-13` | ⏳ | [专项卡](roadmap/capability.md#step-cap-14) |
-| 149 | W3 | 专项 | [`CAP-15`](roadmap/capability.md#step-cap-15) | Capability · patch 一次解析，所有受影响路径可预览 | `CAP-02`、`CAP-08` | ⏳ | [专项卡](roadmap/capability.md#step-cap-15) |
-| 150 | W3 | 专项 | [`CAP-16`](roadmap/capability.md#step-cap-16) | Capability · patch 提交点、有限回滚和崩溃恢复 | `CAP-10`、`CAP-15` | ⏳ | [专项卡](roadmap/capability.md#step-cap-16) |
-| 151 | W3 | 专项 | [`CAP-17`](roadmap/capability.md#step-cap-17) | Capability · 取消与撤销作用于整个 execution 集合 | `CAP-04`、`CAP-12`、`CAP-14`、`CAP-16` | ⏳ | [专项卡](roadmap/capability.md#step-cap-17) |
-| 152 | W3 | 专项 | [`CAP-18`](roadmap/capability.md#step-cap-18) | Capability · Hook 本身受控，改写输入重新授权 | `CAP-06`、`CAP-12`、`CAP-17` | ⏳ | [专项卡](roadmap/capability.md#step-cap-18) |
-| 153 | W3 | 专项 | [`CAP-19`](roadmap/capability.md#step-cap-19) | Capability · Memory 使用逻辑资源 scope 与可靠提交监督 | `CAP-03`、`CAP-08`、`CAP-17` | ⏳ | [专项卡](roadmap/capability.md#step-cap-19) |
-| 154 | W3 | 专项 | [`CAP-20`](roadmap/capability.md#step-cap-20) | Capability · MCP 先建立可信配置与 discovery snapshot | `CAP-01`、`CAP-03`、`CAP-05`、`CAP-12` | ⏳ | [专项卡](roadmap/capability.md#step-cap-20) |
-| 155 | W3 | 专项 | [`CAP-21`](roadmap/capability.md#step-cap-21) | Capability · stdio MCP 协议和停止全过程有界 | `CAP-13`、`CAP-17`、`CAP-20` | ⏳ | [专项卡](roadmap/capability.md#step-cap-21) |
-| 156 | W3 | 专项 | [`CAP-22`](roadmap/capability.md#step-cap-22) | Capability · MCP result/schema drift 和连接复用隔离 | `CAP-06`、`CAP-21` | ⏳ | [专项卡](roadmap/capability.md#step-cap-22) |
-| 157 | W3 | 专项 | [`CAP-23`](roadmap/capability.md#step-cap-23) | Capability · 并发调度与资源冲突一致 | `CAP-10`、`CAP-17`、`CAP-19`、`CAP-22` | ⏳ | [专项卡](roadmap/capability.md#step-cap-23) |
-| 158 | W3 | 专项 | [`CAP-24`](roadmap/capability.md#step-cap-24) | Capability · 以事实重建 Invocation，限制重试并支持对账 | `CAP-05`、`CAP-06`、`CAP-16`、`CAP-17`、`CAP-22`、`CAP-23` | ⏳ | [专项卡](roadmap/capability.md#step-cap-24) |
-| 159 | W3 | 专项 | [`CAP-25`](roadmap/capability.md#step-cap-25) | Capability · Receipt、模型与四入口看到一致事实 | `CAP-04`、`CAP-13`、`CAP-24` | ⏳ | [专项卡](roadmap/capability.md#step-cap-25) |
-| 160 | W3 | 专项 | [`H15`](roadmap/harness.md#step-h15) | Harness · 工具输出有界、完整结果可按需读取 | `H09`、`H11`、`H13` | ⏳ | [专项卡](roadmap/harness.md#step-h15) |
-| 161 | W3 | 专项 | [`H16`](roadmap/harness.md#step-h16) | Harness · 有界并行工具组与独占屏障 | `H08`、`H09`、`H12`、`H13`、`H15` | ⏳ | [专项卡](roadmap/harness.md#step-h16) |
-| 162 | W3 | 专项 | [`H17`](roadmap/harness.md#step-h17) | Harness · 后台进程和长工具的可恢复句柄 | `H08`、`H13`、`H15` | ⏳ | [专项卡](roadmap/harness.md#step-h17) |
-| 163 | W3 | 专项 | [`H18`](roadmap/harness.md#step-h18) | Harness · 持久 Inbox、ACK 与原子消费 | `H02`、`H03`、`H13` | ⏳ | [专项卡](roadmap/harness.md#step-h18) |
-| 164 | W3 | 专项 | [`H19`](roadmap/harness.md#step-h19) | Harness · Continue / Steer / Inject 的产品接线 | `H08`、`H18` | ⏳ | [专项卡](roadmap/harness.md#step-h19) |
-| 165 | W3 | 基础 | [`P0-G-03`](#step-p0-g-03) | P0 基础 · `resume_run` 与协议入口 | `P0-G-02b` | ⏳ | [基础卡](#step-p0-g-03) |
-| 166 | W3 | 基础 | [`P0-F-03`](#step-p0-f-03) | P0 基础 · 续跑材料落盘与 RunSnapshot | `P0-G-02b`、`P0-G-03`、`P0-F-02` | ⏳ | [基础卡](#step-p0-f-03) |
-| 167 | W3 | 基础 | [`P0-J1-02`](#step-p0-j1-02) | P0 基础 · 排空已启动工作 + 合成未启动结果 | `P0-J1-01` | ⏳ | [基础卡](#step-p0-j1-02) |
-| 168 | W3 | 基础 | [`P0-J1-03`](#step-p0-j1-03) | P0 基础 · 进程组确认与 `stop_confirmed` | `P0-J1-01` | ⏳ | [基础卡](#step-p0-j1-03) |
-| 169 | W3 | 基础 | [`P0-J1-04`](#step-p0-j1-04) | P0 基础 · 取消竞态负向证据 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03` | ⏳ | [基础卡](#step-p0-j1-04) |
-| 170 | W3 | 基础 | [`P1-J4-01`](#step-p1-j4-01) | P1 基础 · Capability Descriptor 与 MCP 生命周期 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-j4-01) |
-| 171 | W3 | 基础 | [`P2-K4-01`](#step-p2-k4-01) | P2 基础 · Artifact 版本与编辑级 undo | `P0-G-04` | ⏳ | [基础卡](#step-p2-k4-01) |
-| 172 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ⏳ | [基础卡](#step-p2-k6-01) |
+| 215 | W3 | 专项 | [`CP-15`](roadmap/control-plane.md#step-cp-15) | ControlPlane · 统一取消状态，覆盖审批与排队竞态 | `CP-02`、`CP-07`、`CP-13`、`CP-14` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-15) |
+| 216 | W3 | 专项 | [`CP-16`](roadmap/control-plane.md#step-cp-16) | ControlPlane · Handler 真正停止与文件提交证据 | `CP-12`、`CP-13`、`CP-15` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-16) |
+| 217 | W3 | 专项 | [`CP-17`](roadmap/control-plane.md#step-cp-17) | ControlPlane · 撤销、失败清理与 Cell 退休 | `CP-08`、`CP-11`、`CP-12`、`CP-15`、`CP-16` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-17) |
+| 218 | W3 | 专项 | [`CP-18`](roadmap/control-plane.md#step-cp-18) | ControlPlane · RunSnapshot 与安全 checkpoint | `CP-07`、`CP-09`、`CP-14`、`CP-17` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-18) |
+| 219 | W3 | 专项 | [`CP-19`](roadmap/control-plane.md#step-cp-19) | ControlPlane · 显式 Resume 与新进程重建 | `CP-10`、`CP-14`、`CP-17`、`CP-18` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-19) |
+| 220 | W3 | 专项 | [`CP-20`](roadmap/control-plane.md#step-cp-20) | ControlPlane · Unknown 对账、重试与补偿 | `CP-14`、`CP-17`、`CP-19` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-20) |
+| 221 | W3 | 专项 | [`CP-21`](roadmap/control-plane.md#step-cp-21) | ControlPlane · 投影、Receipt 和只读查询 | `CP-07`、`CP-10`、`CP-14`、`CP-19` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-21) |
+| 222 | W3 | 专项 | [`CP-22`](roadmap/control-plane.md#step-cp-22) | ControlPlane · Protocol、动作卡与各入口同一事实 | `CP-10`、`CP-15`、`CP-19`、`CP-21` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-22) |
+| 223 | W3 | 专项 | [`CP-26`](roadmap/control-plane.md#step-cp-26) | ControlPlane · 决策解释、审计关联与证据 | `CP-14`、`CP-20`、`CP-21` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-26) |
+| 224 | W3 | 专项 | [`CP-27`](roadmap/control-plane.md#step-cp-27) | ControlPlane · 非阻塞存储、时钟和资源限额 | `CP-07`、`CP-11`、`CP-15`、`CP-21` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-27) |
+| 225 | W3 | 专项 | [`CP-28`](roadmap/control-plane.md#step-cp-28) | ControlPlane · 迁移、兼容 adapter 与旁路收口 | `CP-02`、`CP-07`、`CP-19`、`CP-22` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-28) |
+| 226 | W3 | 专项 | [`ER-17`](roadmap/event-receipt-recovery.md#step-er-17) | Event / Receipt / Recovery · Serializable RunSnapshot 与 pending writes | `ER-16` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-17) |
+| 227 | W3 | 专项 | [`ER-18`](roadmap/event-receipt-recovery.md#step-er-18) | Event / Receipt / Recovery · Workspace checkpoint transaction 与 restore evidence | `ER-17` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-18) |
+| 228 | W3 | 专项 | [`ER-19`](roadmap/event-receipt-recovery.md#step-er-19) | Event / Receipt / Recovery · Worker/process handle 与 fencing token | `ER-18` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-19) |
+| 229 | W3 | 专项 | [`ER-20`](roadmap/event-receipt-recovery.md#step-er-20) | Event / Receipt / Recovery · Restart projector 与默认暂停 | `ER-19` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-20) |
+| 230 | W3 | 专项 | [`ER-21`](roadmap/event-receipt-recovery.md#step-er-21) | Event / Receipt / Recovery · Explicit resume preflight and claim | `ER-20` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-21) |
+| 231 | W3 | 专项 | [`ER-22`](roadmap/event-receipt-recovery.md#step-er-22) | Event / Receipt / Recovery · Cancel recovery and stop confirmation | `ER-21` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-22) |
+| 232 | W3 | 专项 | [`ER-23`](roadmap/event-receipt-recovery.md#step-er-23) | Event / Receipt / Recovery · Unknown incident 与 RecoveryPlan | `ER-22` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-23) |
+| 233 | W3 | 专项 | [`ER-24`](roadmap/event-receipt-recovery.md#step-er-24) | Event / Receipt / Recovery · Reconciliation commands and evidence | `ER-23` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-24) |
+| 234 | W3 | 专项 | [`ER-25`](roadmap/event-receipt-recovery.md#step-er-25) | Event / Receipt / Recovery · Retry policy and new attempt | `ER-24` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-25) |
+| 235 | W3 | 专项 | [`ER-26`](roadmap/event-receipt-recovery.md#step-er-26) | Event / Receipt / Recovery · Cursor query、snapshot 和慢消费者 | `ER-25` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-26) |
+| 236 | W3 | 专项 | [`ER-27`](roadmap/event-receipt-recovery.md#step-er-27) | Event / Receipt / Recovery · 四入口统一只读 receipt/recovery commands | `ER-26` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-27) |
+| 237 | W3 | 专项 | [`CAP-07`](roadmap/capability.md#step-cap-07) | Capability · EnvironmentPort 与可验证 backend 选择 | `CAP-03`、`CAP-04` | ⏳ | [专项卡](roadmap/capability.md#step-cap-07) |
+| 238 | W3 | 专项 | [`CAP-08`](roadmap/capability.md#step-cap-08) | Capability · 共享 PathResolver 与文件身份前置条件 | `CAP-07` | ⏳ | [专项卡](roadmap/capability.md#step-cap-08) |
+| 239 | W3 | 专项 | [`CAP-09`](roadmap/capability.md#step-cap-09) | Capability · Linux 最小文件视图与不可扩大的挂载集 | `CAP-08` | ⏳ | [专项卡](roadmap/capability.md#step-cap-09) |
+| 240 | W3 | 专项 | [`CAP-10`](roadmap/capability.md#step-cap-10) | Capability · 为严格 packet 写集提供隔离写层 | `CAP-09` | ⏳ | [专项卡](roadmap/capability.md#step-cap-10) |
+| 241 | W3 | 专项 | [`CAP-11`](roadmap/capability.md#step-cap-11) | Capability · 清理 ambient authority，落实默认断网 | `CAP-09` | ⏳ | [专项卡](roadmap/capability.md#step-cap-11) |
+| 242 | W3 | 专项 | [`CAP-12`](roadmap/capability.md#step-cap-12) | Capability · ProcessSupervisor 持有进程树与资源预算 | `CAP-07`、`CAP-11` | ⏳ | [专项卡](roadmap/capability.md#step-cap-12) |
+| 243 | W3 | 专项 | [`CAP-13`](roadmap/capability.md#step-cap-13) | Capability · 统一有界输出与脱敏工件 | `CAP-12` | ⏳ | [专项卡](roadmap/capability.md#step-cap-13) |
+| 244 | W3 | 专项 | [`CAP-14`](roadmap/capability.md#step-cap-14) | Capability · shell 适配迁入统一执行器 | `CAP-05`、`CAP-12`、`CAP-13` | ⏳ | [专项卡](roadmap/capability.md#step-cap-14) |
+| 245 | W3 | 专项 | [`CAP-15`](roadmap/capability.md#step-cap-15) | Capability · patch 一次解析，所有受影响路径可预览 | `CAP-02`、`CAP-08` | ⏳ | [专项卡](roadmap/capability.md#step-cap-15) |
+| 246 | W3 | 专项 | [`CAP-16`](roadmap/capability.md#step-cap-16) | Capability · patch 提交点、有限回滚和崩溃恢复 | `CAP-10`、`CAP-15` | ⏳ | [专项卡](roadmap/capability.md#step-cap-16) |
+| 247 | W3 | 专项 | [`CAP-17`](roadmap/capability.md#step-cap-17) | Capability · 取消与撤销作用于整个 execution 集合 | `CAP-04`、`CAP-12`、`CAP-14`、`CAP-16` | ⏳ | [专项卡](roadmap/capability.md#step-cap-17) |
+| 248 | W3 | 专项 | [`CAP-18`](roadmap/capability.md#step-cap-18) | Capability · Hook 本身受控，改写输入重新授权 | `CAP-06`、`CAP-12`、`CAP-17` | ⏳ | [专项卡](roadmap/capability.md#step-cap-18) |
+| 249 | W3 | 专项 | [`CAP-19`](roadmap/capability.md#step-cap-19) | Capability · Memory 使用逻辑资源 scope 与可靠提交监督 | `CAP-03`、`CAP-08`、`CAP-17` | ⏳ | [专项卡](roadmap/capability.md#step-cap-19) |
+| 250 | W3 | 专项 | [`CAP-20`](roadmap/capability.md#step-cap-20) | Capability · MCP 先建立可信配置与 discovery snapshot | `CAP-01`、`CAP-03`、`CAP-05`、`CAP-12` | ⏳ | [专项卡](roadmap/capability.md#step-cap-20) |
+| 251 | W3 | 专项 | [`CAP-21`](roadmap/capability.md#step-cap-21) | Capability · stdio MCP 协议和停止全过程有界 | `CAP-13`、`CAP-17`、`CAP-20` | ⏳ | [专项卡](roadmap/capability.md#step-cap-21) |
+| 252 | W3 | 专项 | [`CAP-22`](roadmap/capability.md#step-cap-22) | Capability · MCP result/schema drift 和连接复用隔离 | `CAP-06`、`CAP-21` | ⏳ | [专项卡](roadmap/capability.md#step-cap-22) |
+| 253 | W3 | 专项 | [`CAP-23`](roadmap/capability.md#step-cap-23) | Capability · 并发调度与资源冲突一致 | `CAP-10`、`CAP-17`、`CAP-19`、`CAP-22` | ⏳ | [专项卡](roadmap/capability.md#step-cap-23) |
+| 254 | W3 | 专项 | [`CAP-24`](roadmap/capability.md#step-cap-24) | Capability · 以事实重建 Invocation，限制重试并支持对账 | `CAP-05`、`CAP-06`、`CAP-16`、`CAP-17`、`CAP-22`、`CAP-23` | ⏳ | [专项卡](roadmap/capability.md#step-cap-24) |
+| 255 | W3 | 专项 | [`CAP-25`](roadmap/capability.md#step-cap-25) | Capability · Receipt、模型与四入口看到一致事实 | `CAP-04`、`CAP-13`、`CAP-24` | ⏳ | [专项卡](roadmap/capability.md#step-cap-25) |
+| 256 | W3 | 专项 | [`H15`](roadmap/harness.md#step-h15) | Harness · 工具输出有界、完整结果可按需读取 | `H09`、`H11`、`H13` | ⏳ | [专项卡](roadmap/harness.md#step-h15) |
+| 257 | W3 | 专项 | [`H16`](roadmap/harness.md#step-h16) | Harness · 有界并行工具组与独占屏障 | `H08`、`H09`、`H12`、`H13`、`H15` | ⏳ | [专项卡](roadmap/harness.md#step-h16) |
+| 258 | W3 | 专项 | [`H17`](roadmap/harness.md#step-h17) | Harness · 后台进程和长工具的可恢复句柄 | `H08`、`H13`、`H15` | ⏳ | [专项卡](roadmap/harness.md#step-h17) |
+| 259 | W3 | 专项 | [`H18`](roadmap/harness.md#step-h18) | Harness · 持久 Inbox、ACK 与原子消费 | `H02`、`H03`、`H13` | ⏳ | [专项卡](roadmap/harness.md#step-h18) |
+| 260 | W3 | 专项 | [`H19`](roadmap/harness.md#step-h19) | Harness · Continue / Steer / Inject 的产品接线 | `H08`、`H18` | ⏳ | [专项卡](roadmap/harness.md#step-h19) |
+| 261 | W3 | 基础 | [`P0-G-03`](#step-p0-g-03) | P0 基础 · `resume_run` 与协议入口 | `P0-G-02b` | ⏳ | [基础卡](#step-p0-g-03) |
+| 262 | W3 | 基础 | [`P0-F-03`](#step-p0-f-03) | P0 基础 · 续跑材料落盘与 RunSnapshot | `P0-G-02b`、`P0-G-03`、`P0-F-02` | ⏳ | [基础卡](#step-p0-f-03) |
+| 263 | W3 | 基础 | [`P0-J1-02`](#step-p0-j1-02) | P0 基础 · 排空已启动工作 + 合成未启动结果 | `P0-J1-01` | ⏳ | [基础卡](#step-p0-j1-02) |
+| 264 | W3 | 基础 | [`P0-J1-03`](#step-p0-j1-03) | P0 基础 · 进程组确认与 `stop_confirmed` | `P0-J1-01` | ⏳ | [基础卡](#step-p0-j1-03) |
+| 265 | W3 | 基础 | [`P0-J1-04`](#step-p0-j1-04) | P0 基础 · 取消竞态负向证据 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03` | ⏳ | [基础卡](#step-p0-j1-04) |
+| 266 | W3 | 基础 | [`P1-J4-01`](#step-p1-j4-01) | P1 基础 · Capability Descriptor 与 MCP 生命周期 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-j4-01) |
+| 267 | W3 | 基础 | [`P2-K4-01`](#step-p2-k4-01) | P2 基础 · Artifact 版本与编辑级 undo | `P0-G-04` | ⏳ | [基础卡](#step-p2-k4-01) |
+| 268 | W3 | 基础 | [`P2-K6-01`](#step-p2-k6-01) | P2 基础 · 可靠性与对账 | `P2-K4-01` | ⏳ | [基础卡](#step-p2-k6-01) |
+| 269 | W3 | 专项 | [`CI-11`](#step-ci-11) | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | `CI-04`、`CI-10`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09` | ⏳ | [专项卡](#step-ci-11) |
+| 270 | W3 | 专项 | [`OA-11`](#step-oa-11) | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | `OA-10` | ⏳ | [专项卡](#step-oa-11) |
+| 271 | W3 | 专项 | [`OA-12`](#step-oa-12) | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | `OA-10` | ⏳ | [专项卡](#step-oa-12) |
+| 272 | W3 | 专项 | [`OA-13`](#step-oa-13) | 异步队列、背压和丢弃策略；`kiana-daemon`/`kiana-eventlog` | `OA-05`、`OA-10` | ⏳ | [专项卡](#step-oa-13) |
+| 273 | W3 | 专项 | [`OA-14`](#step-oa-14) | Trace exporter 与 W3C context adapter；可选 `kiana-observability` crate 或 daemon module | `OA-02`、`OA-07`、`OA-13` | ⏳ | [专项卡](#step-oa-14) |
+| 274 | W3 | 专项 | [`OA-15`](#step-oa-15) | AuditProjection checkpoint/rebuild；`kiana-eventlog`/`kiana-core` | `OA-04`、`OA-06`、`OA-10` | ⏳ | [专项卡](#step-oa-15) |
+| 275 | W3 | 专项 | [`AUT-06`](#step-aut-06) | 纯 planner intent：ready nodes、wait、terminal、reservation、next queue item；`kiana-workflow` | `AUT-03`、`AUT-05` | ⏳ | [专项卡](#step-aut-06) |
+| 276 | W3 | 专项 | [`AUT-07`](#step-aut-07) | WorkPacket 与 workflow queue 共用 claim/scope/budget/path-lock contract；`kiana-domain`、`kiana-core` | `AUT-05`、`AUT-06` | ⏳ | [专项卡](#step-aut-07) |
+| 277 | W3 | 专项 | [`AUT-08`](#step-aut-08) | `WorkflowQueueStore`、lease/heartbeat/fence/reclaim；`kiana-eventlog`、`kiana-ports`、`kiana-core` | `AUT-05`、`AUT-07` | ⏳ | [专项卡](#step-aut-08) |
+| 278 | W3 | 专项 | [`AUT-09`](#step-aut-09) | `DaemonHost` 内 Tokio scheduler/worker service、bounded channel、shutdown；`kiana-daemon` | `AUT-02`、`AUT-08` | ⏳ | [专项卡](#step-aut-09) |
+| 279 | W3 | 专项 | [`AUT-10`](#step-aut-10) | Interval due/cursor/missed policy；`kiana-workflow`、`kiana-core` | `AUT-02`、`AUT-04`、`AUT-09` | ⏳ | [专项卡](#step-aut-10) |
+| 280 | W3 | 专项 | [`AUT-11`](#step-aut-11) | Event/Webhook ingress、签名/source allowlist、dedupe、filter；`kiana-daemon`、`kiana-protocol` | `AUT-04`、`AUT-05`、`AUT-09` | ⏳ | [专项卡](#step-aut-11) |
+| 281 | W3 | 专项 | [`AUT-12`](#step-aut-12) | Reject/Queue/Replace/Coalesce 精确定义与有界 pending index；`kiana-workflow` | `AUT-07`、`AUT-10`、`AUT-11` | ⏳ | [专项卡](#step-aut-12) |
+| 282 | W3 | 专项 | [`NM-07`](#step-nm-07) | dedup/idempotency/OCC；dedup key、content hash、subscription revision | `NM-04`、`NM-05` | ⏳ | [专项卡](#step-nm-07) |
+| 283 | W3 | 专项 | [`EQ-17`](#step-eq-17) | 在 `kiana-quality/src/normalize.rs` 实现 durable event 选择和 sequence/terminal/correlation 校验 | `P0-G-02a`、`P0-G-02b`、`P0-G-04`、`EQ-16` | ⏳ | [专项卡](#step-eq-17) |
+| 284 | W3 | 专项 | [`EQ-18`](#step-eq-18) | 实现 canonical JSON、稳定数组策略、字段白名单和 redaction 复用 | `EQ-17` | ⏳ | [专项卡](#step-eq-18) |
+| 285 | W3 | 专项 | [`EQ-19`](#step-eq-19) | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `EQ-18` | ⏳ | [专项卡](#step-eq-19) |
+| 286 | W3 | 专项 | [`EQ-20`](#step-eq-20) | 计算 event/trace/artifact/receipt digest，绑定 `normalization_version` | `EQ-19` | ⏳ | [专项卡](#step-eq-20) |
+| 287 | W3 | 专项 | [`EQ-21`](#step-eq-21) | 实现 `TraceDiff`：首个 divergence、字段路径、cursor、expected/actual 摘要和分类 | `EQ-20` | ⏳ | [专项卡](#step-eq-21) |
+| 288 | W3 | 专项 | [`EQ-22`](#step-eq-22) | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `EQ-21` | ⏳ | [专项卡](#step-eq-22) |
+| 289 | W3 | 专项 | [`EQ-23`](#step-eq-23) | 添加 `eval capture`：只从明确 source run/fixture 生成新 GoldenTrace，原文件不可覆盖 | `EQ-22` | ⏳ | [专项卡](#step-eq-23) |
+| 290 | W3 | 专项 | [`EQ-24`](#step-eq-24) | 添加 Beads 风格 reference/candidate scenario runner、环境清理、in-scope/out-of-scope predicate | `EQ-23` | ⏳ | [专项卡](#step-eq-24) |
+| 291 | W3 | 专项 | [`EQ-25`](#step-eq-25) | 支持 curated/deep catalog、no-golden、skip reason、scenario dedupe 和 stable ordering | `EQ-24` | ⏳ | [专项卡](#step-eq-25) |
+| 292 | W3 | 专项 | [`EQ-26`](#step-eq-26) | 为 Runtime、Approval、Hook、Memory、Workflow、Swarm 各补 provider-independent trace fixture | `EQ-25` | ⏳ | [专项卡](#step-eq-26) |
+| 293 | W3 | 专项 | [`PD-10`](roadmap/persistence-data-layer.md#step-pd-10) | Run/Invocation/Attempt/Receipt 读模型；`kiana-core` | `ER-08`、`ER-09`、`ER-10`、`ER-11`、`ER-12`、`ER-13`、`ER-14`、`ER-15`、`ER-16`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-10) |
+| 294 | W3 | 专项 | [`PD-11`](roadmap/persistence-data-layer.md#step-pd-11) | Cell/Grant/Budget/Lease/Authority 状态投影；`kiana-core`、`kiana-domain` | `CP-10`、`CAP-17`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-11) |
+| 295 | W3 | 专项 | [`PD-12`](roadmap/persistence-data-layer.md#step-pd-12) | 把 ApprovalStore 从独立 JSONL 权威迁为 EventStore 事实 + 查询适配器；`kiana-daemon` | `ER-10`、`PD-10`、`PD-11` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-12) |
+| 296 | W3 | 专项 | [`PD-13`](roadmap/persistence-data-layer.md#step-pd-13) | PendingInvocation、Runner continuation、workspace checkpoint 的持久化和恢复材料；`kiana-core`、`kiana-daemon` | `ER-17`、`ER-18`、`ER-19`、`ER-20`、`ER-21`、`ER-22`、`PD-10`、`PD-11`、`PD-12` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-13) |
+| 297 | W3 | 专项 | [`PD-14`](roadmap/persistence-data-layer.md#step-pd-14) | 统一 ArtifactStore、content hash、manifest、ref、原子读写；`kiana-core`/新 port | `ER-03`、`PD-04` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-14) |
+| 298 | W3 | 专项 | [`PD-15`](roadmap/persistence-data-layer.md#step-pd-15) | Workspace patch/checkpoint、diff、undo 与 Artifact refs 绑定；`kiana-core` | `P2-K4-01`、`PD-14` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-15) |
+| 299 | W3 | 专项 | [`PD-16`](roadmap/persistence-data-layer.md#step-pd-16) | Receipt 重算器、evidence graph 和 delivery/closing 引用；`kiana-core`、`kiana-query` | `PD-10`、`PD-14`、`PD-15` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-16) |
+| 300 | W3 | 专项 | [`SC-21`](roadmap/security-compliance.md#step-sc-21) | kiana-domain DataClass/Purpose/DataBoundary | `SC-02`、`SC-05`、`SC-20` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-21) |
+| 301 | W3 | 专项 | [`SC-22`](roadmap/security-compliance.md#step-sc-22) | kiana-core/kiana-eventlog RetentionPolicy、legal hold | `PD-05`、`OA-08`、`SC-21` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-22) |
+| 302 | W3 | 专项 | [`SC-23`](roadmap/security-compliance.md#step-sc-23) | kiana-core/kiana-eventlog DeleteRequest/Tombstone/data epoch | `SC-22`、`SC-12` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-23) |
+| 303 | W3 | 专项 | [`SC-25`](roadmap/security-compliance.md#step-sc-25) | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | `SC-04`、`SC-07` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-25) |
+| 304 | W3 | 专项 | [`SC-26`](roadmap/security-compliance.md#step-sc-26) | kiana-domain ExtensionManifest/CapabilityCatalog | `SC-02`、`SC-09`、`SC-25` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-26) |
+| 305 | W3 | 专项 | [`SC-27`](roadmap/security-compliance.md#step-sc-27) | kiana-daemon hook/skill/plugin lifecycle、sandbox | `SC-14`、`SC-16`、`SC-26` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-27) |
 | **W4** | **上下文、记忆与扩展** |  |  |  |  |  |  |
-| 173 | W4 | 专项 | [`CP-25`](roadmap/control-plane.md#step-cp-25) | ControlPlane · Skills、Hooks、Memory、MCP 与 Secret 的统一边界 | `CP-03`、`CP-04`、`CP-08`、`CP-13`、`CP-18` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-25) |
-| 174 | W4 | 专项 | [`H20`](roadmap/harness.md#step-h20) | Harness · 不可变 StepContext 与可解释的上下文编译 | `H04`、`H09`、`H18` | ⏳ | [专项卡](roadmap/harness.md#step-h20) |
-| 175 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀 | `H07`、`H20` | ⏳ | [专项卡](roadmap/harness.md#step-h21) |
-| 176 | W4 | 专项 | [`H22`](roadmap/harness.md#step-h22) | Harness · 真正保留工作状态的 Compaction | `H05`、`H11`、`H15`、`H20`、`H21` | ⏳ | [专项卡](roadmap/harness.md#step-h22) |
-| 177 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播 | `H13`、`H18`、`H22` | ⏳ | [专项卡](roadmap/harness.md#step-h23) |
-| 178 | W4 | 专项 | [`H24`](roadmap/harness.md#step-h24) | Harness · 完整检查点与显式 Resume | `H13`、`H14`、`H17`、`H18`、`H23` | ⏳ | [专项卡](roadmap/harness.md#step-h24) |
-| 179 | W4 | 专项 | [`H25`](roadmap/harness.md#step-h25) | Harness · 重放、故障注入与 Unknown 对账 | `H13`、`H16`、`H23`、`H24` | ⏳ | [专项卡](roadmap/harness.md#step-h25) |
-| 180 | W4 | 专项 | [`H26`](roadmap/harness.md#step-h26) | Harness · 澄清请求与权限审批分离 | `H09`、`H14`、`H18`、`H19`、`H24` | ⏳ | [专项卡](roadmap/harness.md#step-h26) |
-| 181 | W4 | 专项 | [`H27`](roadmap/harness.md#step-h27) | Harness · 结构化输出与准确的 TurnOutcome | `H05`、`H11`、`H14`、`H26` | ⏳ | [专项卡](roadmap/harness.md#step-h27) |
-| 182 | W4 | 专项 | [`H28`](roadmap/harness.md#step-h28) | Harness · 进度、停滞检测与有界修复策略 | `H07`、`H11`、`H17`、`H27` | ⏳ | [专项卡](roadmap/harness.md#step-h28) |
-| 183 | W4 | 专项 | [`H29`](roadmap/harness.md#step-h29) | Harness · 有序、受约束的 Hooks / Skills 扩展点 | `H09`、`H20`、`H27`、`H28` | ⏳ | [专项卡](roadmap/harness.md#step-h29) |
-| 184 | W4 | 专项 | [`H30`](roadmap/harness.md#step-h30) | Harness · 检索、Memory 与代码索引进入同一 ContextPlan | `H15`、`H20`、`H21`、`H23`、`H29` | ⏳ | [专项卡](roadmap/harness.md#step-h30) |
-| 185 | W4 | 专项 | [`CM-07`](roadmap/context-memory.md#step-cm-07) | Context / Memory · Workspace/artifact snapshot 与安全读取 | `CM-06` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-07) |
-| 186 | W4 | 专项 | [`CM-08`](roadmap/context-memory.md#step-cm-08) | Context / Memory · 稳定 chunker 与 offset provenance | `CM-07` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-08) |
-| 187 | W4 | 专项 | [`CM-09`](roadmap/context-memory.md#step-cm-09) | Context / Memory · 文本规范化、语言和敏感数据边界 | `CM-08` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-09) |
-| 188 | W4 | 专项 | [`CM-10`](roadmap/context-memory.md#step-cm-10) | Context / Memory · ContextIndex generation 与原子切换 | `CM-09` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-10) |
-| 189 | W4 | 专项 | [`CM-11`](roadmap/context-memory.md#step-cm-11) | Context / Memory · 增量更新、rename/delete 与缓存失效 | `CM-10` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-11) |
-| 190 | W4 | 专项 | [`CM-12`](roadmap/context-memory.md#step-cm-12) | Context / Memory · 统一 sparse/dense/RRF/MMR 检索器 | `CM-11` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-12) |
-| 191 | W4 | 专项 | [`CM-13`](roadmap/context-memory.md#step-cm-13) | Context / Memory · Repo map 任务相关排序和依赖证据 | `CM-12` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-13) |
-| 192 | W4 | 专项 | [`CM-14`](roadmap/context-memory.md#step-cm-14) | Context / Memory · 检索结果 provenance、freshness 与 health | `CM-13` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-14) |
-| 193 | W4 | 专项 | [`CM-15`](roadmap/context-memory.md#step-cm-15) | Context / Memory · ContextPlan 选材与 omission 解释 | `CM-14` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-15) |
-| 194 | W4 | 专项 | [`CM-16`](roadmap/context-memory.md#step-cm-16) | Context / Memory · 真实 wire budget 与稳定前缀 | `CM-15` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-16) |
-| 195 | W4 | 专项 | [`CM-17`](roadmap/context-memory.md#step-cm-17) | Context / Memory · ResolvedStepContext 单一快照 | `CM-16` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-17) |
-| 196 | W4 | 专项 | [`CM-18`](roadmap/context-memory.md#step-cm-18) | Context / Memory · 工具结果有界预览与受控 spill | `CM-17` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-18) |
-| 197 | W4 | 专项 | [`CM-19`](roadmap/context-memory.md#step-cm-19) | Context / Memory · CompactSummary 结构化生成与校验 | `CM-18` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-19) |
-| 198 | W4 | 专项 | [`CM-20`](roadmap/context-memory.md#step-cm-20) | Context / Memory · ContextCheckpoint CAS 提交和新输入并发 | `CM-19` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-20) |
-| 199 | W4 | 专项 | [`CM-21`](roadmap/context-memory.md#step-cm-21) | Context / Memory · Resume、cache 和删除失效 | `CM-20` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-21) |
-| 200 | W4 | 专项 | [`CM-22`](roadmap/context-memory.md#step-cm-22) | Context / Memory · 六层 ACL 与逐记录过滤统一化 | `CM-21` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-22) |
-| 201 | W4 | 专项 | [`CM-23`](roadmap/context-memory.md#step-cm-23) | Context / Memory · candidate / scratch / user-private 负向门 | `CM-22` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-23) |
-| 202 | W4 | 专项 | [`CM-24`](roadmap/context-memory.md#step-cm-24) | Context / Memory · 相关性、时效、冲突与历史查询 | `CM-23` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-24) |
-| 203 | W4 | 专项 | [`CM-25`](roadmap/context-memory.md#step-cm-25) | Context / Memory · Turn extraction proposal 管线 | `CM-24` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-25) |
-| 204 | W4 | 专项 | [`CM-26`](roadmap/context-memory.md#step-cm-26) | Context / Memory · Distillation、decision 与 lesson 统一入库 | `CM-25` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-26) |
-| 205 | W4 | 专项 | [`CM-27`](roadmap/context-memory.md#step-cm-27) | Context / Memory · Retrieval/selection/citation receipt | `CM-26` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-27) |
-| 206 | W4 | 专项 | [`CM-28`](roadmap/context-memory.md#step-cm-28) | Context / Memory · 删除、过期、撤销传播 | `CM-27` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-28) |
-| 207 | W4 | 专项 | [`CM-29`](roadmap/context-memory.md#step-cm-29) | Context / Memory · Projection lag、recovery 与 result_unknown | `CM-28` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-29) |
-| 208 | W4 | 专项 | [`EXT-06`](roadmap/skills-plugins-hooks.md#step-ext-06) | Skills / Plugins / Hooks · 三层渐进披露 | `EXT-05` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-06) |
-| 209 | W4 | 专项 | [`EXT-07`](roadmap/skills-plugins-hooks.md#step-ext-07) | Skills / Plugins / Hooks · 显式激活与包内资源 | `EXT-06` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-07) |
-| 210 | W4 | 专项 | [`EXT-08`](roadmap/skills-plugins-hooks.md#step-ext-08) | Skills / Plugins / Hooks · 条件 Skill、路径和参数 | `EXT-07` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-08) |
-| 211 | W4 | 专项 | [`EXT-09`](roadmap/skills-plugins-hooks.md#step-ext-09) | Skills / Plugins / Hooks · Prompt provenance 与预算 | `EXT-05`、`EXT-06` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-09) |
-| 212 | W4 | 专项 | [`EXT-10`](roadmap/skills-plugins-hooks.md#step-ext-10) | Skills / Plugins / Hooks · Skill invocation 兼容 | `EXT-08`、`EXT-09` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-10) |
-| 213 | W4 | 专项 | [`EXT-11`](roadmap/skills-plugins-hooks.md#step-ext-11) | Skills / Plugins / Hooks · Hook schema 与事件 | `EXT-02` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-11) |
-| 214 | W4 | 专项 | [`EXT-12`](roadmap/skills-plugins-hooks.md#step-ext-12) | Skills / Plugins / Hooks · Discovery、匹配和聚合输入 | `EXT-11`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-12) |
-| 215 | W4 | 专项 | [`EXT-13`](roadmap/skills-plugins-hooks.md#step-ext-13) | Skills / Plugins / Hooks · ProcessSupervisor | `EXT-12` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-13) |
-| 216 | W4 | 专项 | [`EXT-14`](roadmap/skills-plugins-hooks.md#step-ext-14) | Skills / Plugins / Hooks · Outcome 与失败策略 | `EXT-13` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-14) |
-| 217 | W4 | 专项 | [`EXT-15`](roadmap/skills-plugins-hooks.md#step-ext-15) | Skills / Plugins / Hooks · PreTool 最终输入重新授权 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-15) |
-| 218 | W4 | 专项 | [`EXT-16`](roadmap/skills-plugins-hooks.md#step-ext-16) | Skills / Plugins / Hooks · 全生命周期事件接线 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-16) |
-| 219 | W4 | 专项 | [`EXT-17`](roadmap/skills-plugins-hooks.md#step-ext-17) | Skills / Plugins / Hooks · 取消、递归、异步 observer | `EXT-13`、`EXT-16` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-17) |
-| 220 | W4 | 专项 | [`EXT-18`](roadmap/skills-plugins-hooks.md#step-ext-18) | Skills / Plugins / Hooks · Receipt、重放和恢复 | `EXT-15`、`EXT-16`、`EXT-17` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-18) |
-| 221 | W4 | 专项 | [`EXT-19`](roadmap/skills-plugins-hooks.md#step-ext-19) | Skills / Plugins / Hooks · Plugin manifest v2 | `EXT-03`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-19) |
-| 222 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
-| 223 | W4 | 专项 | [`EXT-21`](roadmap/skills-plugins-hooks.md#step-ext-21) | Skills / Plugins / Hooks · 依赖图与 binding | `EXT-19`、`EXT-20` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-21) |
-| 224 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
-| 225 | W4 | 专项 | [`EXT-23`](roadmap/skills-plugins-hooks.md#step-ext-23) | Skills / Plugins / Hooks · upgrade、disable、revoke、rollback、uninstall | `EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-23) |
-| 226 | W4 | 专项 | [`EXT-24`](roadmap/skills-plugins-hooks.md#step-ext-24) | Skills / Plugins / Hooks · secret、state 和 migration | `EXT-22`、`EXT-23` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-24) |
-| 227 | W4 | 专项 | [`EXT-25`](roadmap/skills-plugins-hooks.md#step-ext-25) | Skills / Plugins / Hooks · 签名 Skill 服务端绑定 | `EXT-07`、`EXT-09`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-25) |
-| 228 | W4 | 专项 | [`EXT-26`](roadmap/skills-plugins-hooks.md#step-ext-26) | Skills / Plugins / Hooks · Plugin component adapter | `EXT-15`、`EXT-21`、`EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-26) |
-| 229 | W4 | 基础 | [`P1-J2-01`](#step-p1-j2-01) | P1 基础 · 类型化区段 + provenance | `P0-G-04` | ⏳ | [基础卡](#step-p1-j2-01) |
-| 230 | W4 | 基础 | [`P1-J2-02`](#step-p1-j2-02) | P1 基础 · 预算覆盖 tool schemas 与 system prompt | `P1-J2-01` | ⏳ | [基础卡](#step-p1-j2-02) |
-| 231 | W4 | 基础 | [`P1-J2-03`](#step-p1-j2-03) | P1 基础 · 角色 prompt 接线 | `P1-J2-01` | ⏳ | [基础卡](#step-p1-j2-03) |
-| 232 | W4 | 基础 | [`P1-J2-04`](#step-p1-j2-04) | P1 基础 · 提示词来源与角色包加载 | `P1-J2-03` | ⏳ | [基础卡](#step-p1-j2-04) |
-| 233 | W4 | 基础 | [`P1-J3-02`](#step-p1-j3-02) | P1 基础 · 分层检索与密级 | `P1-J3-01` | ⏳ | [基础卡](#step-p1-j3-02) |
-| 234 | W4 | 基础 | [`P1-J3-03`](#step-p1-j3-03) | P1 基础 · 抽取建议包与三档准入 | `P1-J3-01`、`P0-F-01` | ⏳ | [基础卡](#step-p1-j3-03) |
-| 235 | W4 | 基础 | [`P1-J3-04`](#step-p1-j3-04) | P1 基础 · hybrid 检索基建 | `P1-J3-02` | ⏳ | [基础卡](#step-p1-j3-04) |
-| 236 | W4 | 基础 | [`P1-L4-01`](#step-p1-l4-01) | P1 基础 · Code intelligence 快照 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-l4-01) |
-| 237 | W4 | 基础 | [`P2-K7-01`](#step-p2-k7-01) | P2 基础 · 数据治理与删除传播 | `P0-A-01a`、`P1-J3-04` | ⏳ | [基础卡](#step-p2-k7-01) |
-| 238 | W4 | 基础 | [`P4-J3-05`](#step-p4-j3-05) | P4 基础 · run 蒸馏与 lesson 入库 | `P1-J3-03` | ⏳ | [基础卡](#step-p4-j3-05) |
-| 239 | W4 | 基础 | [`P4-L5-01`](#step-p4-l5-01) | P4 基础 · 扩展与技能包 | `P1-H-01` | ⏳ | [基础卡](#step-p4-l5-01) |
-| 240 | W4 | 基础 | [`P4-L6-01`](#step-p4-l6-01) | P4 基础 · 供应链 | `P4-L5-01` | ⏳ | [基础卡](#step-p4-l6-01) |
+| 306 | W4 | 专项 | [`CP-25`](roadmap/control-plane.md#step-cp-25) | ControlPlane · Skills、Hooks、Memory、MCP 与 Secret 的统一边界 | `CP-03`、`CP-04`、`CP-08`、`CP-13`、`CP-18` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-25) |
+| 307 | W4 | 专项 | [`H20`](roadmap/harness.md#step-h20) | Harness · 不可变 StepContext 与可解释的上下文编译 | `H04`、`H09`、`H18` | ⏳ | [专项卡](roadmap/harness.md#step-h20) |
+| 308 | W4 | 专项 | [`H21`](roadmap/harness.md#step-h21) | Harness · 真实请求预算与稳定缓存前缀 | `H07`、`H20` | ⏳ | [专项卡](roadmap/harness.md#step-h21) |
+| 309 | W4 | 专项 | [`H22`](roadmap/harness.md#step-h22) | Harness · 真正保留工作状态的 Compaction | `H05`、`H11`、`H15`、`H20`、`H21` | ⏳ | [专项卡](roadmap/harness.md#step-h22) |
+| 310 | W4 | 专项 | [`H23`](roadmap/harness.md#step-h23) | Harness · 压缩结果提交、来源和失效传播 | `H13`、`H18`、`H22` | ⏳ | [专项卡](roadmap/harness.md#step-h23) |
+| 311 | W4 | 专项 | [`H24`](roadmap/harness.md#step-h24) | Harness · 完整检查点与显式 Resume | `H13`、`H14`、`H17`、`H18`、`H23` | ⏳ | [专项卡](roadmap/harness.md#step-h24) |
+| 312 | W4 | 专项 | [`H25`](roadmap/harness.md#step-h25) | Harness · 重放、故障注入与 Unknown 对账 | `H13`、`H16`、`H23`、`H24` | ⏳ | [专项卡](roadmap/harness.md#step-h25) |
+| 313 | W4 | 专项 | [`H26`](roadmap/harness.md#step-h26) | Harness · 澄清请求与权限审批分离 | `H09`、`H14`、`H18`、`H19`、`H24` | ⏳ | [专项卡](roadmap/harness.md#step-h26) |
+| 314 | W4 | 专项 | [`H27`](roadmap/harness.md#step-h27) | Harness · 结构化输出与准确的 TurnOutcome | `H05`、`H11`、`H14`、`H26` | ⏳ | [专项卡](roadmap/harness.md#step-h27) |
+| 315 | W4 | 专项 | [`H28`](roadmap/harness.md#step-h28) | Harness · 进度、停滞检测与有界修复策略 | `H07`、`H11`、`H17`、`H27` | ⏳ | [专项卡](roadmap/harness.md#step-h28) |
+| 316 | W4 | 专项 | [`H29`](roadmap/harness.md#step-h29) | Harness · 有序、受约束的 Hooks / Skills 扩展点 | `H09`、`H20`、`H27`、`H28` | ⏳ | [专项卡](roadmap/harness.md#step-h29) |
+| 317 | W4 | 专项 | [`H30`](roadmap/harness.md#step-h30) | Harness · 检索、Memory 与代码索引进入同一 ContextPlan | `H15`、`H20`、`H21`、`H23`、`H29` | ⏳ | [专项卡](roadmap/harness.md#step-h30) |
+| 318 | W4 | 专项 | [`CM-07`](roadmap/context-memory.md#step-cm-07) | Context / Memory · Workspace/artifact snapshot 与安全读取 | `CM-06` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-07) |
+| 319 | W4 | 专项 | [`CM-08`](roadmap/context-memory.md#step-cm-08) | Context / Memory · 稳定 chunker 与 offset provenance | `CM-07` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-08) |
+| 320 | W4 | 专项 | [`CM-09`](roadmap/context-memory.md#step-cm-09) | Context / Memory · 文本规范化、语言和敏感数据边界 | `CM-08` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-09) |
+| 321 | W4 | 专项 | [`CM-10`](roadmap/context-memory.md#step-cm-10) | Context / Memory · ContextIndex generation 与原子切换 | `CM-09` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-10) |
+| 322 | W4 | 专项 | [`CM-11`](roadmap/context-memory.md#step-cm-11) | Context / Memory · 增量更新、rename/delete 与缓存失效 | `CM-10` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-11) |
+| 323 | W4 | 专项 | [`CM-12`](roadmap/context-memory.md#step-cm-12) | Context / Memory · 统一 sparse/dense/RRF/MMR 检索器 | `CM-11` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-12) |
+| 324 | W4 | 专项 | [`CM-13`](roadmap/context-memory.md#step-cm-13) | Context / Memory · Repo map 任务相关排序和依赖证据 | `CM-12` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-13) |
+| 325 | W4 | 专项 | [`CM-14`](roadmap/context-memory.md#step-cm-14) | Context / Memory · 检索结果 provenance、freshness 与 health | `CM-13` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-14) |
+| 326 | W4 | 专项 | [`CM-15`](roadmap/context-memory.md#step-cm-15) | Context / Memory · ContextPlan 选材与 omission 解释 | `CM-14` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-15) |
+| 327 | W4 | 专项 | [`CM-16`](roadmap/context-memory.md#step-cm-16) | Context / Memory · 真实 wire budget 与稳定前缀 | `CM-15` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-16) |
+| 328 | W4 | 专项 | [`CM-17`](roadmap/context-memory.md#step-cm-17) | Context / Memory · ResolvedStepContext 单一快照 | `CM-16` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-17) |
+| 329 | W4 | 专项 | [`CM-18`](roadmap/context-memory.md#step-cm-18) | Context / Memory · 工具结果有界预览与受控 spill | `CM-17` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-18) |
+| 330 | W4 | 专项 | [`CM-19`](roadmap/context-memory.md#step-cm-19) | Context / Memory · CompactSummary 结构化生成与校验 | `CM-18` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-19) |
+| 331 | W4 | 专项 | [`CM-20`](roadmap/context-memory.md#step-cm-20) | Context / Memory · ContextCheckpoint CAS 提交和新输入并发 | `CM-19` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-20) |
+| 332 | W4 | 专项 | [`CM-21`](roadmap/context-memory.md#step-cm-21) | Context / Memory · Resume、cache 和删除失效 | `CM-20` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-21) |
+| 333 | W4 | 专项 | [`CM-22`](roadmap/context-memory.md#step-cm-22) | Context / Memory · 六层 ACL 与逐记录过滤统一化 | `CM-21` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-22) |
+| 334 | W4 | 专项 | [`CM-23`](roadmap/context-memory.md#step-cm-23) | Context / Memory · candidate / scratch / user-private 负向门 | `CM-22` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-23) |
+| 335 | W4 | 专项 | [`CM-24`](roadmap/context-memory.md#step-cm-24) | Context / Memory · 相关性、时效、冲突与历史查询 | `CM-23` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-24) |
+| 336 | W4 | 专项 | [`CM-25`](roadmap/context-memory.md#step-cm-25) | Context / Memory · Turn extraction proposal 管线 | `CM-24` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-25) |
+| 337 | W4 | 专项 | [`CM-26`](roadmap/context-memory.md#step-cm-26) | Context / Memory · Distillation、decision 与 lesson 统一入库 | `CM-25` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-26) |
+| 338 | W4 | 专项 | [`CM-27`](roadmap/context-memory.md#step-cm-27) | Context / Memory · Retrieval/selection/citation receipt | `CM-26` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-27) |
+| 339 | W4 | 专项 | [`CM-28`](roadmap/context-memory.md#step-cm-28) | Context / Memory · 删除、过期、撤销传播 | `CM-27` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-28) |
+| 340 | W4 | 专项 | [`CM-29`](roadmap/context-memory.md#step-cm-29) | Context / Memory · Projection lag、recovery 与 result_unknown | `CM-28` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-29) |
+| 341 | W4 | 专项 | [`EXT-06`](roadmap/skills-plugins-hooks.md#step-ext-06) | Skills / Plugins / Hooks · 三层渐进披露 | `EXT-05` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-06) |
+| 342 | W4 | 专项 | [`EXT-07`](roadmap/skills-plugins-hooks.md#step-ext-07) | Skills / Plugins / Hooks · 显式激活与包内资源 | `EXT-06` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-07) |
+| 343 | W4 | 专项 | [`EXT-08`](roadmap/skills-plugins-hooks.md#step-ext-08) | Skills / Plugins / Hooks · 条件 Skill、路径和参数 | `EXT-07` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-08) |
+| 344 | W4 | 专项 | [`EXT-09`](roadmap/skills-plugins-hooks.md#step-ext-09) | Skills / Plugins / Hooks · Prompt provenance 与预算 | `EXT-05`、`EXT-06` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-09) |
+| 345 | W4 | 专项 | [`EXT-10`](roadmap/skills-plugins-hooks.md#step-ext-10) | Skills / Plugins / Hooks · Skill invocation 兼容 | `EXT-08`、`EXT-09` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-10) |
+| 346 | W4 | 专项 | [`EXT-11`](roadmap/skills-plugins-hooks.md#step-ext-11) | Skills / Plugins / Hooks · Hook schema 与事件 | `EXT-02` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-11) |
+| 347 | W4 | 专项 | [`EXT-12`](roadmap/skills-plugins-hooks.md#step-ext-12) | Skills / Plugins / Hooks · Discovery、匹配和聚合输入 | `EXT-11`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-12) |
+| 348 | W4 | 专项 | [`EXT-13`](roadmap/skills-plugins-hooks.md#step-ext-13) | Skills / Plugins / Hooks · ProcessSupervisor | `EXT-12` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-13) |
+| 349 | W4 | 专项 | [`EXT-14`](roadmap/skills-plugins-hooks.md#step-ext-14) | Skills / Plugins / Hooks · Outcome 与失败策略 | `EXT-13` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-14) |
+| 350 | W4 | 专项 | [`EXT-15`](roadmap/skills-plugins-hooks.md#step-ext-15) | Skills / Plugins / Hooks · PreTool 最终输入重新授权 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-15) |
+| 351 | W4 | 专项 | [`EXT-16`](roadmap/skills-plugins-hooks.md#step-ext-16) | Skills / Plugins / Hooks · 全生命周期事件接线 | `EXT-14` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-16) |
+| 352 | W4 | 专项 | [`EXT-17`](roadmap/skills-plugins-hooks.md#step-ext-17) | Skills / Plugins / Hooks · 取消、递归、异步 observer | `EXT-13`、`EXT-16` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-17) |
+| 353 | W4 | 专项 | [`EXT-18`](roadmap/skills-plugins-hooks.md#step-ext-18) | Skills / Plugins / Hooks · Receipt、重放和恢复 | `EXT-15`、`EXT-16`、`EXT-17` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-18) |
+| 354 | W4 | 专项 | [`EXT-19`](roadmap/skills-plugins-hooks.md#step-ext-19) | Skills / Plugins / Hooks · Plugin manifest v2 | `EXT-03`、`EXT-04` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-19) |
+| 355 | W4 | 专项 | [`EXT-20`](roadmap/skills-plugins-hooks.md#step-ext-20) | Skills / Plugins / Hooks · 供应链和不可变包 | `EXT-19` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-20) |
+| 356 | W4 | 专项 | [`EXT-21`](roadmap/skills-plugins-hooks.md#step-ext-21) | Skills / Plugins / Hooks · 依赖图与 binding | `EXT-19`、`EXT-20` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-21) |
+| 357 | W4 | 专项 | [`EXT-22`](roadmap/skills-plugins-hooks.md#step-ext-22) | Skills / Plugins / Hooks · inspect → stage → install → enable | `EXT-20`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-22) |
+| 358 | W4 | 专项 | [`EXT-23`](roadmap/skills-plugins-hooks.md#step-ext-23) | Skills / Plugins / Hooks · upgrade、disable、revoke、rollback、uninstall | `EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-23) |
+| 359 | W4 | 专项 | [`EXT-24`](roadmap/skills-plugins-hooks.md#step-ext-24) | Skills / Plugins / Hooks · secret、state 和 migration | `EXT-22`、`EXT-23` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-24) |
+| 360 | W4 | 专项 | [`EXT-25`](roadmap/skills-plugins-hooks.md#step-ext-25) | Skills / Plugins / Hooks · 签名 Skill 服务端绑定 | `EXT-07`、`EXT-09`、`EXT-21` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-25) |
+| 361 | W4 | 专项 | [`EXT-26`](roadmap/skills-plugins-hooks.md#step-ext-26) | Skills / Plugins / Hooks · Plugin component adapter | `EXT-15`、`EXT-21`、`EXT-22` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-26) |
+| 362 | W4 | 基础 | [`P1-J2-01`](#step-p1-j2-01) | P1 基础 · 类型化区段 + provenance | `P0-G-04` | ⏳ | [基础卡](#step-p1-j2-01) |
+| 363 | W4 | 基础 | [`P1-J2-02`](#step-p1-j2-02) | P1 基础 · 预算覆盖 tool schemas 与 system prompt | `P1-J2-01` | ⏳ | [基础卡](#step-p1-j2-02) |
+| 364 | W4 | 基础 | [`P1-J2-03`](#step-p1-j2-03) | P1 基础 · 角色 prompt 接线 | `P1-J2-01` | ⏳ | [基础卡](#step-p1-j2-03) |
+| 365 | W4 | 基础 | [`P1-J2-04`](#step-p1-j2-04) | P1 基础 · 提示词来源与角色包加载 | `P1-J2-03` | ⏳ | [基础卡](#step-p1-j2-04) |
+| 366 | W4 | 基础 | [`P1-J3-02`](#step-p1-j3-02) | P1 基础 · 分层检索与密级 | `P1-J3-01` | ⏳ | [基础卡](#step-p1-j3-02) |
+| 367 | W4 | 基础 | [`P1-J3-03`](#step-p1-j3-03) | P1 基础 · 抽取建议包与三档准入 | `P1-J3-01`、`P0-F-01` | ⏳ | [基础卡](#step-p1-j3-03) |
+| 368 | W4 | 基础 | [`P1-J3-04`](#step-p1-j3-04) | P1 基础 · hybrid 检索基建 | `P1-J3-02` | ⏳ | [基础卡](#step-p1-j3-04) |
+| 369 | W4 | 基础 | [`P1-L4-01`](#step-p1-l4-01) | P1 基础 · Code intelligence 快照 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-l4-01) |
+| 370 | W4 | 基础 | [`P2-K7-01`](#step-p2-k7-01) | P2 基础 · 数据治理与删除传播 | `P0-A-01a`、`P1-J3-04` | ⏳ | [基础卡](#step-p2-k7-01) |
+| 371 | W4 | 基础 | [`P4-J3-05`](#step-p4-j3-05) | P4 基础 · run 蒸馏与 lesson 入库 | `P1-J3-03` | ⏳ | [基础卡](#step-p4-j3-05) |
+| 372 | W4 | 基础 | [`P4-L5-01`](#step-p4-l5-01) | P4 基础 · 扩展与技能包 | `P1-H-01` | ⏳ | [基础卡](#step-p4-l5-01) |
+| 373 | W4 | 基础 | [`P4-L6-01`](#step-p4-l6-01) | P4 基础 · 供应链 | `P4-L5-01` | ⏳ | [基础卡](#step-p4-l6-01) |
+| 374 | W4 | 专项 | [`PD-17`](roadmap/persistence-data-layer.md#step-pd-17) | Memory mutation journal、candidate/draft/qualify/approve/supersede/tombstone；`kiana-daemon`、`kiana-eventlog` | `CM-04`、`CM-05`、`PD-07`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-17) |
+| 375 | W4 | 专项 | [`PD-18`](roadmap/persistence-data-layer.md#step-pd-18) | Memory projection、ACL/治理 epoch、retention 和删除索引联动；`kiana-daemon`、`kiana-core` | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`PD-17` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-18) |
+| 376 | W4 | 专项 | [`PD-19`](roadmap/persistence-data-layer.md#step-pd-19) | ContextIndex generation、source fingerprint、freshness、原子切换；`kiana-query` | `CM-10`、`CM-11`、`CM-12`、`CM-13`、`CM-14`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-19) |
+| 377 | W4 | 专项 | [`PD-20`](roadmap/persistence-data-layer.md#step-pd-20) | RepoMap、context artifact ingest 和依赖图的持久 manifest；`kiana-query` | `PD-14`、`PD-19` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-20) |
+| 378 | W4 | 专项 | [`PD-21`](roadmap/persistence-data-layer.md#step-pd-21) | Cache 与事实/投影分离，淘汰、大小/时间上限和禁用开关；`kiana-query`、`kiana-daemon` | `PD-09`、`PD-18`、`PD-19`、`PD-20` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-21) |
+| 379 | W4 | 专项 | [`PD-22`](roadmap/persistence-data-layer.md#step-pd-22) | SnapshotManifest、增量/全量 backup、文件 hash、cursor/epoch seal；`kiana-daemon`、`kiana-eventlog` | `PD-08`、`PD-09`、`PD-10`、`PD-11`、`PD-12`、`PD-13`、`PD-14`、`PD-15`、`PD-16`、`PD-17`、`PD-18`、`PD-19`、`PD-20`、`PD-21` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-22) |
+| 380 | W4 | 专项 | [`PD-24`](roadmap/persistence-data-layer.md#step-pd-24) | 有序 migration runner、preflight、lock、checksum、MigrationRecord；`kiana-domain`、`kiana-daemon` | `PD-02`、`PD-22`、`PD-03` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-24) |
+| 381 | W4 | 专项 | [`PD-25`](roadmap/persistence-data-layer.md#step-pd-25) | Retention policy、legal/audit hold、archive、bounded prune/watermark；`kiana-core`、`kiana-eventlog` | `PD-18`、`PD-22`、`PD-24` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-25) |
+| 382 | W4 | 专项 | [`INT-01`](roadmap/integrations-connectors.md#step-int-01) | 固定 Provider/Connector/MCP/A2A/Notification 术语和边界；`docs`、module map | `INT-00` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-01) |
+| 383 | W4 | 专项 | [`INT-02`](roadmap/integrations-connectors.md#step-int-02) | Domain typed IDs、definition/binding/invocation/receipt/recovery 合同 | `INT-01` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-02) |
+| 384 | W4 | 专项 | [`INT-03`](roadmap/integrations-connectors.md#step-int-03) | Operation input/output schema、风险、scope、data class、retry/timeout 合同 | `INT-02` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-03) |
+| 385 | W4 | 专项 | [`INT-04`](roadmap/integrations-connectors.md#step-int-04) | Connector registry immutable version、hash/signature、CAS、catalog projection | `INT-02`、`INT-03` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-04) |
+| 386 | W4 | 专项 | [`INT-05`](roadmap/integrations-connectors.md#step-int-05) | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | `INT-02`、`INT-04` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-05) |
+| 387 | W4 | 专项 | [`SC-24`](roadmap/security-compliance.md#step-sc-24) | kiana-query memory/index/cache/export boundary | `CM-20`、`CM-21`、`CM-22`、`CM-23`、`CM-24`、`CM-25`、`CM-26`、`CM-27`、`CM-28`、`CM-29`、`SC-21`、`SC-22`、`SC-23` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-24) |
 | **W5** | **Provider 协议与调用链** |  |  |  |  |  |  |
-| 241 | W5 | 专项 | [`P4-J7-11`](roadmap/provider.md#step-p4-j7-11) | Provider · 类型化角色路由与每 attempt 准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-11) |
-| 242 | W5 | 专项 | [`P4-J7-12`](roadmap/provider.md#step-p4-j7-12) | Provider · 请求编译、工具映射与上下文完整性 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-12) |
-| 243 | W5 | 专项 | [`P4-J7-13`](roadmap/provider.md#step-p4-j7-13) | Provider · HTTP、SSE、NDJSON 的有界传输 | `P4-J7-07`、`P4-J7-09` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-13) |
-| 244 | W5 | 专项 | [`P4-J7-14`](roadmap/provider.md#step-p4-j7-14) | Provider · 唯一 accumulator 与协议终态 | `P4-J7-06`、`P4-J7-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-14) |
-| 245 | W5 | 专项 | [`P4-J7-15`](roadmap/provider.md#step-p4-j7-15) | Provider · Anthropic Messages 完整收口 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-15) |
-| 246 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
-| 247 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
-| 248 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-18) |
-| 249 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-19) |
-| 250 | W5 | 专项 | [`P4-J7-20`](roadmap/provider.md#step-p4-j7-20) | Provider · 推理签名、续接资料与短期保护存储 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-20) |
-| 251 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-21) |
-| 252 | W5 | 专项 | [`P4-J7-22`](roadmap/provider.md#step-p4-j7-22) | Provider · 图片输入与敏感数据出站准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-22) |
-| 253 | W5 | 专项 | [`P4-J7-23`](roadmap/provider.md#step-p4-j7-23) | Provider · 单层重试、绝对时限和取消传递 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-23) |
-| 254 | W5 | 专项 | [`P4-J7-24`](roadmap/provider.md#step-p4-j7-24) | Provider · Provider 用量、价格快照与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-24) |
-| 255 | W5 | 专项 | [`P4-J7-25`](roadmap/provider.md#step-p4-j7-25) | Provider · 容量、熔断与白名单 fallback | `P4-J7-23`、`P4-J7-24` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-25) |
-| 256 | W5 | 专项 | [`P4-J7-26`](roadmap/provider.md#step-p4-j7-26) | Provider · 模型事件、脱敏和完整关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-26) |
-| 257 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-27) |
+| 388 | W5 | 专项 | [`P4-J7-11`](roadmap/provider.md#step-p4-j7-11) | Provider · 类型化角色路由与每 attempt 准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-11) |
+| 389 | W5 | 专项 | [`P4-J7-12`](roadmap/provider.md#step-p4-j7-12) | Provider · 请求编译、工具映射与上下文完整性 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-12) |
+| 390 | W5 | 专项 | [`P4-J7-13`](roadmap/provider.md#step-p4-j7-13) | Provider · HTTP、SSE、NDJSON 的有界传输 | `P4-J7-07`、`P4-J7-09` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-13) |
+| 391 | W5 | 专项 | [`P4-J7-14`](roadmap/provider.md#step-p4-j7-14) | Provider · 唯一 accumulator 与协议终态 | `P4-J7-06`、`P4-J7-13` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-14) |
+| 392 | W5 | 专项 | [`P4-J7-15`](roadmap/provider.md#step-p4-j7-15) | Provider · Anthropic Messages 完整收口 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-15) |
+| 393 | W5 | 专项 | [`P4-J7-16`](roadmap/provider.md#step-p4-j7-16) | Provider · OpenAI Chat Completions 原生流式 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-16) |
+| 394 | W5 | 专项 | [`P4-J7-17`](roadmap/provider.md#step-p4-j7-17) | Provider · OpenAI Responses 原生适配 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-17) |
+| 395 | W5 | 专项 | [`P4-J7-18`](roadmap/provider.md#step-p4-j7-18) | Provider · Ollama 原生 NDJSON 与本地模型体验 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-18) |
+| 396 | W5 | 专项 | [`P4-J7-19`](roadmap/provider.md#step-p4-j7-19) | Provider · Gemini Interactions 原生协议 | `P4-J7-12`、`P4-J7-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-19) |
+| 397 | W5 | 专项 | [`P4-J7-20`](roadmap/provider.md#step-p4-j7-20) | Provider · 推理签名、续接资料与短期保护存储 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-20) |
+| 398 | W5 | 专项 | [`P4-J7-21`](roadmap/provider.md#step-p4-j7-21) | Provider · 结构化输出的请求与验收 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-21) |
+| 399 | W5 | 专项 | [`P4-J7-22`](roadmap/provider.md#step-p4-j7-22) | Provider · 图片输入与敏感数据出站准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-22) |
+| 400 | W5 | 专项 | [`P4-J7-23`](roadmap/provider.md#step-p4-j7-23) | Provider · 单层重试、绝对时限和取消传递 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-23) |
+| 401 | W5 | 专项 | [`P4-J7-24`](roadmap/provider.md#step-p4-j7-24) | Provider · Provider 用量、价格快照与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-24) |
+| 402 | W5 | 专项 | [`P4-J7-25`](roadmap/provider.md#step-p4-j7-25) | Provider · 容量、熔断与白名单 fallback | `P4-J7-23`、`P4-J7-24` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-25) |
+| 403 | W5 | 专项 | [`P4-J7-26`](roadmap/provider.md#step-p4-j7-26) | Provider · 模型事件、脱敏和完整关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-26) |
+| 404 | W5 | 专项 | [`P4-J7-27`](roadmap/provider.md#step-p4-j7-27) | Provider · 完整轮次恢复与 in-flight 对账 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-27) |
+| 405 | W5 | 专项 | [`BQ-10`](#step-bq-10) | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | `P4-J7-24`、`BQ-02`、`BQ-03`、`BQ-05`、`BQ-09` | ⏳ | [专项卡](#step-bq-10) |
+| 406 | W5 | 专项 | [`BQ-11`](#step-bq-11) | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | `BQ-08`、`BQ-10` | ⏳ | [专项卡](#step-bq-11) |
+| 407 | W5 | 专项 | [`BQ-12`](#step-bq-12) | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | `BQ-11` | ⏳ | [专项卡](#step-bq-12) |
+| 408 | W5 | 专项 | [`BQ-13`](#step-bq-13) | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | `BQ-05`、`BQ-12` | ⏳ | [专项卡](#step-bq-13) |
+| 409 | W5 | 专项 | [`INT-06`](roadmap/integrations-connectors.md#step-int-06) | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | `CI-07`、`INT-05` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-06) |
+| 410 | W5 | 专项 | [`INT-07`](roadmap/integrations-connectors.md#step-int-07) | `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` ports | `INT-02`、`INT-06` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-07) |
+| 411 | W5 | 专项 | [`INT-08`](roadmap/integrations-connectors.md#step-int-08) | local_fixture schema、hash、payload matching、deterministic receipts | `INT-04`、`INT-07` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-08) |
+| 412 | W5 | 专项 | [`INT-09`](roadmap/integrations-connectors.md#step-int-09) | read-only health/probe 和状态分类；daemon/query/UI | `INT-05`、`INT-07`、`INT-08` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-09) |
+| 413 | W5 | 专项 | [`INT-10`](roadmap/integrations-connectors.md#step-int-10) | stdio MCP connector adapter 与 capability handshake | `INT-07`、`INT-09` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-10) |
+| 414 | W5 | 专项 | [`INT-11`](roadmap/integrations-connectors.md#step-int-11) | HTTPS endpoint、TLS、redirect、proxy、DNS/SSRF/egress allowlist | `INT-06`、`INT-07` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-11) |
+| 415 | W5 | 专项 | [`INT-12`](roadmap/integrations-connectors.md#step-int-12) | OAuth PKCE/state/callback、account store、refresh single-flight | `CI-09`、`INT-06`、`INT-11` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-12) |
+| 416 | W5 | 专项 | [`INT-13`](roadmap/integrations-connectors.md#step-int-13) | secret redaction/echo sentinel 扫描；domain/daemon/event/UI tests | `INT-06`、`INT-08`、`INT-12` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-13) |
 | **W6** | **投影与可用入口** |  |  |  |  |  |  |
-| 258 | W6 | 专项 | [`H32`](roadmap/harness.md#step-h32) | Harness · 事实流、展示流与三入口状态一致性 | `H06`、`H13`、`H18`、`H24`、`H26`、`H27` | ⏳ | [专项卡](roadmap/harness.md#step-h32) |
-| 259 | W6 | 专项 | [`EXT-27`](roadmap/skills-plugins-hooks.md#step-ext-27) | Skills / Plugins / Hooks · 动态可见性投影 | `EXT-06`、`EXT-25`、`EXT-26` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-27) |
-| 260 | W6 | 专项 | [`EXT-28`](roadmap/skills-plugins-hooks.md#step-ext-28) | Skills / Plugins / Hooks · 命令与 UI 合同 | `EXT-22`、`EXT-23`、`EXT-27` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-28) |
-| 261 | W6 | 专项 | [`UI-04`](roadmap/ui-entrypoints.md#step-ui-04) | UI / Entrypoints · 动作 CAS、idempotency 与响应丢失 | `UI-01`、`UI-02`、`UI-03` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-04) |
-| 262 | W6 | 专项 | [`UI-05`](roadmap/ui-entrypoints.md#step-ui-05) | UI / Entrypoints · 原子 snapshot projector 与分页 | `UI-01`、`UI-02`、`UI-03`、`UI-04` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-05) |
-| 263 | W6 | 专项 | [`UI-06`](roadmap/ui-entrypoints.md#step-ui-06) | UI / Entrypoints · feed cursor、gap、replay 与背压 | `UI-05` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-06) |
-| 264 | W6 | 专项 | [`UI-07`](roadmap/ui-entrypoints.md#step-ui-07) | UI / Entrypoints · typed client query/feed/action API | `UI-02`、`UI-03`、`UI-04`、`UI-05`、`UI-06` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-07) |
-| 265 | W6 | 专项 | [`UI-08`](roadmap/ui-entrypoints.md#step-ui-08) | UI / Entrypoints · 共享 reducer/entity store | `UI-05`、`UI-06`、`UI-07` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-08) |
-| 266 | W6 | 专项 | [`UI-09`](roadmap/ui-entrypoints.md#step-ui-09) | UI / Entrypoints · schema 资产、生成和兼容门 | `UI-01`、`UI-07`、`UI-08` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-09) |
-| 267 | W6 | 专项 | [`UI-10`](roadmap/ui-entrypoints.md#step-ui-10) | UI / Entrypoints · CLI 命令和输出归一化 | `UI-07`、`UI-08`、`UI-09` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-10) |
-| 268 | W6 | 专项 | [`UI-11`](roadmap/ui-entrypoints.md#step-ui-11) | UI / Entrypoints · CLI JSON/TTY/exit code presenter | `UI-02`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-11) |
-| 269 | W6 | 专项 | [`UI-12`](roadmap/ui-entrypoints.md#step-ui-12) | UI / Entrypoints · TTY 输入状态机 | `UI-08`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-12) |
-| 270 | W6 | 专项 | [`UI-13`](roadmap/ui-entrypoints.md#step-ui-13) | UI / Entrypoints · Workbench 时间线与结果渲染 | `UI-06`、`UI-08`、`UI-12` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-13) |
-| 271 | W6 | 专项 | [`UI-14`](roadmap/ui-entrypoints.md#step-ui-14) | UI / Entrypoints · Workbench controller 与命令面板 | `UI-07`、`UI-08`、`UI-10`、`UI-11`、`UI-12`、`UI-13` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-14) |
-| 272 | W6 | 专项 | [`UI-15`](roadmap/ui-entrypoints.md#step-ui-15) | UI / Entrypoints · Workbench inbox、Diff 和 Receipt | `UI-05`、`UI-08`、`UI-13`、`UI-14` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-15) |
-| 273 | W6 | 专项 | [`UI-16`](roadmap/ui-entrypoints.md#step-ui-16) | UI / Entrypoints · Web 路由、来源校验和最小健康信息 | `UI-03`、`UI-07`、`UI-11` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-16) |
-| 274 | W6 | 专项 | [`UI-17`](roadmap/ui-entrypoints.md#step-ui-17) | UI / Entrypoints · Web snapshot hydrate、历史和分页 | `UI-05`、`UI-08`、`UI-16` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-17) |
-| 275 | W6 | 专项 | [`UI-18`](roadmap/ui-entrypoints.md#step-ui-18) | UI / Entrypoints · Web SSE reconnect、Last-Event-ID 和 gap | `UI-06`、`UI-16`、`UI-17` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-18) |
-| 276 | W6 | 专项 | [`UI-19`](roadmap/ui-entrypoints.md#step-ui-19) | UI / Entrypoints · Web session ownership 与多 tab 并发 | `UI-04`、`UI-08`、`UI-16`、`UI-17`、`UI-18` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-19) |
-| 277 | W6 | 专项 | [`UI-20`](roadmap/ui-entrypoints.md#step-ui-20) | UI / Entrypoints · Web 时间线组件迁移 | `UI-08`、`UI-13`、`UI-17`、`UI-18` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-20) |
-| 278 | W6 | 专项 | [`UI-21`](roadmap/ui-entrypoints.md#step-ui-21) | UI / Entrypoints · Web Human Inbox 与审批动作卡 | `UI-02`、`UI-04`、`UI-05`、`UI-15`、`UI-20` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-21) |
-| 279 | W6 | 专项 | [`UI-22`](roadmap/ui-entrypoints.md#step-ui-22) | UI / Entrypoints · Web artifact/diff/receipt detail | `UI-05`、`UI-15`、`UI-20`、`UI-21` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-22) |
-| 280 | W6 | 专项 | [`UI-23`](roadmap/ui-entrypoints.md#step-ui-23) | UI / Entrypoints · Web 可访问性、焦点和内容安全 | `UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-23) |
-| 281 | W6 | 专项 | [`UI-24`](roadmap/ui-entrypoints.md#step-ui-24) | UI / Entrypoints · Electron IPC sender、导航和新窗口 allowlist | `UI-02`、`UI-03`、`UI-16`、`UI-23` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-24) |
-| 282 | W6 | 专项 | [`UI-25`](roadmap/ui-entrypoints.md#step-ui-25) | UI / Entrypoints · Desktop readiness、attach 和 worker 生命周期 | `UI-03`、`UI-24` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-25) |
-| 283 | W6 | 专项 | [`UI-26`](roadmap/ui-entrypoints.md#step-ui-26) | UI / Entrypoints · Desktop workspace、托盘、通知与关闭策略 | `UI-08`、`UI-19`、`UI-24`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-26) |
-| 284 | W6 | 专项 | [`UI-27`](roadmap/ui-entrypoints.md#step-ui-27) | UI / Entrypoints · Desktop 安全持久化和 detach | `UI-04`、`UI-25`、`UI-26` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-27) |
-| 285 | W6 | 专项 | [`UI-28`](roadmap/ui-entrypoints.md#step-ui-28) | UI / Entrypoints · 共享静态资产、版本和生产打包 | `UI-20`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-28) |
-| 286 | W6 | 专项 | [`UI-29`](roadmap/ui-entrypoints.md#step-ui-29) | UI / Entrypoints · ACP/IDE session adapter | `UI-01`、`UI-02`、`UI-07`、`UI-18`、`UI-21`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-29) |
-| 287 | W6 | 专项 | [`UI-30`](roadmap/ui-entrypoints.md#step-ui-30) | UI / Entrypoints · IDE editor/terminal capability boundary | `UI-04`、`UI-07`、`UI-29` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-30) |
-| 288 | W6 | 基础 | [`P0-M1-01`](#step-p0-m1-01) | P0 基础 · Workbench 基线 | — | ⏳ | [基础卡](#step-p0-m1-01) |
-| 289 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ⏳ | [基础卡](#step-p2-k3-01) |
-| 290 | W6 | 基础 | [`P2-M2-01`](#step-p2-m2-01) | P2 基础 · UI 投影合同 | `P0-M1-01` | ⏳ | [基础卡](#step-p2-m2-01) |
-| 291 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m3-01) |
-| 292 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m4-01) |
-| 293 | W6 | 基础 | [`P2-M5-01`](#step-p2-m5-01) | P2 基础 · Web 快照水合与重连 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m5-01) |
-| 294 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-28) |
-| 295 | W6 | 基础 | [`P2-M7-01`](#step-p2-m7-01) | P2 基础 · 无障碍回退 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m7-01) |
-| 296 | W6 | 基础 | [`P4-M6-01`](#step-p4-m6-01) | P4 基础 · Desktop 壳 | `P2-M2-01` | ⏳ | [基础卡](#step-p4-m6-01) |
+| 417 | W6 | 专项 | [`H32`](roadmap/harness.md#step-h32) | Harness · 事实流、展示流与三入口状态一致性 | `H06`、`H13`、`H18`、`H24`、`H26`、`H27` | ⏳ | [专项卡](roadmap/harness.md#step-h32) |
+| 418 | W6 | 专项 | [`EXT-27`](roadmap/skills-plugins-hooks.md#step-ext-27) | Skills / Plugins / Hooks · 动态可见性投影 | `EXT-06`、`EXT-25`、`EXT-26` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-27) |
+| 419 | W6 | 专项 | [`EXT-28`](roadmap/skills-plugins-hooks.md#step-ext-28) | Skills / Plugins / Hooks · 命令与 UI 合同 | `EXT-22`、`EXT-23`、`EXT-27` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-28) |
+| 420 | W6 | 专项 | [`UI-04`](roadmap/ui-entrypoints.md#step-ui-04) | UI / Entrypoints · 动作 CAS、idempotency 与响应丢失 | `UI-01`、`UI-02`、`UI-03` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-04) |
+| 421 | W6 | 专项 | [`UI-05`](roadmap/ui-entrypoints.md#step-ui-05) | UI / Entrypoints · 原子 snapshot projector 与分页 | `UI-01`、`UI-02`、`UI-03`、`UI-04` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-05) |
+| 422 | W6 | 专项 | [`UI-06`](roadmap/ui-entrypoints.md#step-ui-06) | UI / Entrypoints · feed cursor、gap、replay 与背压 | `UI-05` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-06) |
+| 423 | W6 | 专项 | [`UI-07`](roadmap/ui-entrypoints.md#step-ui-07) | UI / Entrypoints · typed client query/feed/action API | `UI-02`、`UI-03`、`UI-04`、`UI-05`、`UI-06` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-07) |
+| 424 | W6 | 专项 | [`UI-08`](roadmap/ui-entrypoints.md#step-ui-08) | UI / Entrypoints · 共享 reducer/entity store | `UI-05`、`UI-06`、`UI-07` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-08) |
+| 425 | W6 | 专项 | [`UI-09`](roadmap/ui-entrypoints.md#step-ui-09) | UI / Entrypoints · schema 资产、生成和兼容门 | `UI-01`、`UI-07`、`UI-08` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-09) |
+| 426 | W6 | 专项 | [`UI-10`](roadmap/ui-entrypoints.md#step-ui-10) | UI / Entrypoints · CLI 命令和输出归一化 | `UI-07`、`UI-08`、`UI-09` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-10) |
+| 427 | W6 | 专项 | [`UI-11`](roadmap/ui-entrypoints.md#step-ui-11) | UI / Entrypoints · CLI JSON/TTY/exit code presenter | `UI-02`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-11) |
+| 428 | W6 | 专项 | [`UI-12`](roadmap/ui-entrypoints.md#step-ui-12) | UI / Entrypoints · TTY 输入状态机 | `UI-08`、`UI-10` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-12) |
+| 429 | W6 | 专项 | [`UI-13`](roadmap/ui-entrypoints.md#step-ui-13) | UI / Entrypoints · Workbench 时间线与结果渲染 | `UI-06`、`UI-08`、`UI-12` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-13) |
+| 430 | W6 | 专项 | [`UI-14`](roadmap/ui-entrypoints.md#step-ui-14) | UI / Entrypoints · Workbench controller 与命令面板 | `UI-07`、`UI-08`、`UI-10`、`UI-11`、`UI-12`、`UI-13` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-14) |
+| 431 | W6 | 专项 | [`UI-15`](roadmap/ui-entrypoints.md#step-ui-15) | UI / Entrypoints · Workbench inbox、Diff 和 Receipt | `UI-05`、`UI-08`、`UI-13`、`UI-14` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-15) |
+| 432 | W6 | 专项 | [`UI-16`](roadmap/ui-entrypoints.md#step-ui-16) | UI / Entrypoints · Web 路由、来源校验和最小健康信息 | `UI-03`、`UI-07`、`UI-11` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-16) |
+| 433 | W6 | 专项 | [`UI-17`](roadmap/ui-entrypoints.md#step-ui-17) | UI / Entrypoints · Web snapshot hydrate、历史和分页 | `UI-05`、`UI-08`、`UI-16` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-17) |
+| 434 | W6 | 专项 | [`UI-18`](roadmap/ui-entrypoints.md#step-ui-18) | UI / Entrypoints · Web SSE reconnect、Last-Event-ID 和 gap | `UI-06`、`UI-16`、`UI-17` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-18) |
+| 435 | W6 | 专项 | [`UI-19`](roadmap/ui-entrypoints.md#step-ui-19) | UI / Entrypoints · Web session ownership 与多 tab 并发 | `UI-04`、`UI-08`、`UI-16`、`UI-17`、`UI-18` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-19) |
+| 436 | W6 | 专项 | [`UI-20`](roadmap/ui-entrypoints.md#step-ui-20) | UI / Entrypoints · Web 时间线组件迁移 | `UI-08`、`UI-13`、`UI-17`、`UI-18` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-20) |
+| 437 | W6 | 专项 | [`UI-21`](roadmap/ui-entrypoints.md#step-ui-21) | UI / Entrypoints · Web Human Inbox 与审批动作卡 | `UI-02`、`UI-04`、`UI-05`、`UI-15`、`UI-20` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-21) |
+| 438 | W6 | 专项 | [`UI-22`](roadmap/ui-entrypoints.md#step-ui-22) | UI / Entrypoints · Web artifact/diff/receipt detail | `UI-05`、`UI-15`、`UI-20`、`UI-21` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-22) |
+| 439 | W6 | 专项 | [`UI-23`](roadmap/ui-entrypoints.md#step-ui-23) | UI / Entrypoints · Web 可访问性、焦点和内容安全 | `UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-23) |
+| 440 | W6 | 专项 | [`UI-24`](roadmap/ui-entrypoints.md#step-ui-24) | UI / Entrypoints · Electron IPC sender、导航和新窗口 allowlist | `UI-02`、`UI-03`、`UI-16`、`UI-23` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-24) |
+| 441 | W6 | 专项 | [`UI-25`](roadmap/ui-entrypoints.md#step-ui-25) | UI / Entrypoints · Desktop readiness、attach 和 worker 生命周期 | `UI-03`、`UI-24` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-25) |
+| 442 | W6 | 专项 | [`UI-26`](roadmap/ui-entrypoints.md#step-ui-26) | UI / Entrypoints · Desktop workspace、托盘、通知与关闭策略 | `UI-08`、`UI-19`、`UI-24`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-26) |
+| 443 | W6 | 专项 | [`UI-27`](roadmap/ui-entrypoints.md#step-ui-27) | UI / Entrypoints · Desktop 安全持久化和 detach | `UI-04`、`UI-25`、`UI-26` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-27) |
+| 444 | W6 | 专项 | [`UI-28`](roadmap/ui-entrypoints.md#step-ui-28) | UI / Entrypoints · 共享静态资产、版本和生产打包 | `UI-20`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-28) |
+| 445 | W6 | 专项 | [`UI-29`](roadmap/ui-entrypoints.md#step-ui-29) | UI / Entrypoints · ACP/IDE session adapter | `UI-01`、`UI-02`、`UI-07`、`UI-18`、`UI-21`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-29) |
+| 446 | W6 | 专项 | [`UI-30`](roadmap/ui-entrypoints.md#step-ui-30) | UI / Entrypoints · IDE editor/terminal capability boundary | `UI-04`、`UI-07`、`UI-29` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-30) |
+| 447 | W6 | 基础 | [`P0-M1-01`](#step-p0-m1-01) | P0 基础 · Workbench 基线 | — | ⏳ | [基础卡](#step-p0-m1-01) |
+| 448 | W6 | 基础 | [`P2-K3-01`](#step-p2-k3-01) | P2 基础 · Human Inbox | `P0-F-02` | ⏳ | [基础卡](#step-p2-k3-01) |
+| 449 | W6 | 基础 | [`P2-M2-01`](#step-p2-m2-01) | P2 基础 · UI 投影合同 | `P0-M1-01` | ⏳ | [基础卡](#step-p2-m2-01) |
+| 450 | W6 | 基础 | [`P2-M3-01`](#step-p2-m3-01) | P2 基础 · 人工动作卡 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m3-01) |
+| 451 | W6 | 基础 | [`P2-M4-01`](#step-p2-m4-01) | P2 基础 · Run/Artifact 详情 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m4-01) |
+| 452 | W6 | 基础 | [`P2-M5-01`](#step-p2-m5-01) | P2 基础 · Web 快照水合与重连 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m5-01) |
+| 453 | W6 | 专项 | [`P4-J7-28`](roadmap/provider.md#step-p4-j7-28) | Provider · 模型选择、诊断与事件投影 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-28) |
+| 454 | W6 | 基础 | [`P2-M7-01`](#step-p2-m7-01) | P2 基础 · 无障碍回退 | `P2-M2-01` | ⏳ | [基础卡](#step-p2-m7-01) |
+| 455 | W6 | 基础 | [`P4-M6-01`](#step-p4-m6-01) | P4 基础 · Desktop 壳 | `P2-M2-01` | ⏳ | [基础卡](#step-p4-m6-01) |
+| 456 | W6 | 专项 | [`OA-16`](#step-oa-16) | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | `CP-21`、`CP-22`、`OA-15` | ⏳ | [专项卡](#step-oa-16) |
+| 457 | W6 | 专项 | [`OA-17`](#step-oa-17) | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | `OA-15`、`OA-16` | ⏳ | [专项卡](#step-oa-17) |
+| 458 | W6 | 专项 | [`OA-18`](#step-oa-18) | 审计导出、manifest、delivery evidence；`kiana-entrypoints`/ArtifactStore/ControlPlane | `OA-03`、`OA-16`、`OA-17` | ⏳ | [专项卡](#step-oa-18) |
+| 459 | W6 | 专项 | [`OA-19`](#step-oa-19) | Alert/Incident 规则、去重和 Recovery 关联；`kiana-core/recovery.rs`、daemon health | `OA-10`、`OA-11`、`OA-15` | ⏳ | [专项卡](#step-oa-19) |
+| 460 | W6 | 专项 | [`OA-20`](#step-oa-20) | DataClass/Purpose/Retention/Deletion propagation；`data_governance.rs`、Memory/Artifact/Query/Telemetry stores | `OA-03`、`OA-15`、`OA-19`、`OA-16`、`OA-17`、`OA-18` | ⏳ | [专项卡](#step-oa-20) |
+| 461 | W6 | 专项 | [`OA-21`](#step-oa-21) | Replay/reconciliation diagnostics；新增只读 `replay`/audit consistency fixture | `OA-15`、`OA-19`、`OA-20` | ⏳ | [专项卡](#step-oa-21) |
+| 462 | W6 | 专项 | [`OA-22`](#step-oa-22) | Crash/fault injection；EventStore、Broker、Provider、projector、export、shutdown | `OA-06`、`OA-21`、`OA-07`、`OA-08`、`OA-09`、`OA-10`、`OA-11`、`OA-12`、`OA-13`、`OA-14`、`OA-15`、`OA-16`、`OA-17`、`OA-18`、`OA-19`、`OA-20` | ⏳ | [专项卡](#step-oa-22) |
+| 463 | W6 | 专项 | [`NM-06`](#step-nm-06) | Notification materializer 与 HumanTask bridge；`kiana-core/platform.rs`、`kiana-domain/platform.rs` | `P2-K3-01`、`NM-04`、`NM-05` | ⏳ | [专项卡](#step-nm-06) |
+| 464 | W6 | 专项 | [`NM-08`](#step-nm-08) | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | `PD-10`、`PD-11`、`PD-12`、`PD-13`、`NM-06`、`NM-07` | ⏳ | [专项卡](#step-nm-08) |
+| 465 | W6 | 专项 | [`NM-09`](#step-nm-09) | in-process/in-app channel；NotificationStore query/page | `NM-06`、`NM-08` | ⏳ | [专项卡](#step-nm-09) |
+| 466 | W6 | 专项 | [`NM-10`](#step-nm-10) | action refs 与 HumanTask action command；审批、ACK、review、reconcile、snooze/escalate/delegate/withdraw | `CP-18`、`CP-19`、`NM-06`、`NM-09` | ⏳ | [专项卡](#step-nm-10) |
+| 467 | W6 | 专项 | [`NM-11`](#step-nm-11) | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | `NM-09`、`NM-10` | ⏳ | [专项卡](#step-nm-11) |
+| 468 | W6 | 专项 | [`NM-12`](#step-nm-12) | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | `P2-K7-01`、`NM-04`、`NM-09` | ⏳ | [专项卡](#step-nm-12) |
+| 469 | W6 | 专项 | [`NM-13`](#step-nm-13) | run stream/notification bridge；snapshot-first、after cursor、epoch、gap、heartbeat/disposed | `UI-17`、`UI-18`、`NM-04`、`NM-08` | ⏳ | [专项卡](#step-nm-13) |
+| 470 | W6 | 专项 | [`NM-14`](#step-nm-14) | CLI/TTY inbox 与运行状态；`cli.rs`、`workbench_chat.rs` | `UI-12`、`UI-15`、`NM-09`、`NM-10`、`NM-13` | ⏳ | [专项卡](#step-nm-14) |
+| 471 | W6 | 专项 | [`NM-15`](#step-nm-15) | Web REST snapshot/page + SSE；`web.rs`/`kiana-client` | `UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-21`、`NM-09`、`NM-10`、`NM-13` | ⏳ | [专项卡](#step-nm-15) |
+| 472 | W6 | 专项 | [`NM-16`](#step-nm-16) | Desktop local notification adapter；OS permission、tray、close/detach | `UI-24`、`UI-25`、`UI-26`、`UI-27`、`NM-15` | ⏳ | [专项卡](#step-nm-16) |
+| 473 | W6 | 专项 | [`EQ-27`](#step-eq-27) | 实现 deterministic evaluator trait 和 finding schema（code/expected/actual/message/evidence_ref） | `EQ-26` | ⏳ | [专项卡](#step-eq-27) |
+| 474 | W6 | 专项 | [`EQ-28`](#step-eq-28) | 实现 runtime correctness evaluator：事件顺序、调用关联、terminal、retry、approval、cancel、Unknown | `EQ-27` | ⏳ | [专项卡](#step-eq-28) |
+| 475 | W6 | 专项 | [`EQ-29`](#step-eq-29) | 实现 capability/safety evaluator：schema、grant scope、policy verdict、hook、network/process/file effect | `EQ-28` | ⏳ | [专项卡](#step-eq-29) |
+| 476 | W6 | 专项 | [`EQ-30`](#step-eq-30) | 实现 evidence/receipt evaluator：artifact hash、receipt assertions、redaction、provenance、source cursor | `EQ-29` | ⏳ | [专项卡](#step-eq-30) |
+| 477 | W6 | 专项 | [`EQ-31`](#step-eq-31) | 实现 recovery/replay evaluator：crash/restart、fence、result_unknown、logic version、divergence | `EQ-30` | ⏳ | [专项卡](#step-eq-31) |
+| 478 | W6 | 专项 | [`EQ-32`](#step-eq-32) | 实现 context/memory evaluator：ACL-before-ranking、provenance、freshness、compaction、budget | `EQ-31` | ⏳ | [专项卡](#step-eq-32) |
+| 479 | W6 | 专项 | [`EQ-33`](#step-eq-33) | 实现 workflow/swarm evaluator：DAG、attempt、fan-in/out、child scope、merge、compensation | `EQ-32` | ⏳ | [专项卡](#step-eq-33) |
+| 480 | W6 | 专项 | [`EQ-34`](#step-eq-34) | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `P1-J8-01`、`P1-K5-01`、`EQ-33` | ⏳ | [专项卡](#step-eq-34) |
+| 481 | W6 | 专项 | [`EQ-35`](#step-eq-35) | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `EQ-34` | ⏳ | [专项卡](#step-eq-35) |
+| 482 | W6 | 专项 | [`EQ-36`](#step-eq-36) | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `EQ-35` | ⏳ | [专项卡](#step-eq-36) |
+| 483 | W6 | 专项 | [`EQ-37`](#step-eq-37) | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `EQ-36` | ⏳ | [专项卡](#step-eq-37) |
+| 484 | W6 | 专项 | [`BQ-14`](#step-bq-14) | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | `CP-11`、`ER-12`、`BQ-13` | ⏳ | [专项卡](#step-bq-14) |
+| 485 | W6 | 专项 | [`BQ-15`](#step-bq-15) | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | `CAP-17`、`BQ-06`、`BQ-08`、`BQ-11` | ⏳ | [专项卡](#step-bq-15) |
+| 486 | W6 | 专项 | [`BQ-16`](#step-bq-16) | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | `BQ-07`、`BQ-08`、`BQ-15` | ⏳ | [专项卡](#step-bq-16) |
+| 487 | W6 | 专项 | [`BQ-17`](#step-bq-17) | Retry classifier、attempt reservation、Retry-After 和 cancellation | `P4-J7-23`、`BQ-11`、`BQ-12`、`BQ-16` | ⏳ | [专项卡](#step-bq-17) |
+| 488 | W6 | 专项 | [`BQ-18`](#step-bq-18) | 白名单 fallback 与 route/authority/data/price 重新准入 | `BQ-05`、`BQ-08`、`BQ-10`、`BQ-17` | ⏳ | [专项卡](#step-bq-18) |
+| 489 | W6 | 专项 | [`BQ-19`](#step-bq-19) | project/org/workflow/cell/run allocation；避免父子/多维重复相加 | `BQ-13`、`BQ-14`、`BQ-15` | ⏳ | [专项卡](#step-bq-19) |
+| 490 | W6 | 专项 | [`BQ-20`](#step-bq-20) | EventLog ledger projector、source cursor、projection version、daily/window rollups | `PD-05`、`BQ-11`、`BQ-14`、`BQ-19` | ⏳ | [专项卡](#step-bq-20) |
+| 491 | W6 | 专项 | [`INT-14`](roadmap/integrations-connectors.md#step-int-14) | `connector.manage/invoke/health/reconcile` protocol DTO 和 normalize | `INT-03`、`INT-05`、`INT-07` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-14) |
+| 492 | W6 | 专项 | [`INT-15`](roadmap/integrations-connectors.md#step-int-15) | operation risk→policy/gate/approval 映射 | `INT-03`、`INT-14` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-15) |
+| 493 | W6 | 专项 | [`INT-16`](roadmap/integrations-connectors.md#step-int-16) | invocation reservation、command digest、idempotency/CAS | `CP-13`、`ER-07`、`INT-04`、`INT-05`、`INT-14`、`INT-15` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-16) |
+| 494 | W6 | 专项 | [`INT-17`](roadmap/integrations-connectors.md#step-int-17) | connector/account/project rate、concurrency、budget reservation | `BQ-08`、`INT-16` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-17) |
+| 495 | W6 | 专项 | [`INT-18`](roadmap/integrations-connectors.md#step-int-18) | effect-time permit、authority/config/policy/credential/data epoch fencing | `INT-06`、`INT-15`、`INT-16` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-18) |
+| 496 | W6 | 专项 | [`INT-19`](roadmap/integrations-connectors.md#step-int-19) | Broker dispatch 和 adapter observation 分离 | `INT-07`、`INT-16`、`INT-18` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-19) |
+| 497 | W6 | 专项 | [`INT-20`](roadmap/integrations-connectors.md#step-int-20) | ProviderReceipt/EffectObservation schema、owner/audience、payload hash | `INT-08`、`INT-19` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-20) |
+| 498 | W6 | 专项 | [`INT-21`](roadmap/integrations-connectors.md#step-int-21) | retry classifier、attempt、timeout/backoff、idempotency policy | `INT-16`、`INT-20` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-21) |
+| 499 | W6 | 专项 | [`INT-22`](roadmap/integrations-connectors.md#step-int-22) | Unknown quarantine、ReconciliationCase、provider query/manual evidence | `INT-20`、`INT-21` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-22) |
+| 500 | W6 | 专项 | [`INT-23`](roadmap/integrations-connectors.md#step-int-23) | cancel/stop report/late result fence、lease settlement | `INT-18`、`INT-19`、`INT-22` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-23) |
+| 501 | W6 | 专项 | [`SC-28`](roadmap/security-compliance.md#step-sc-28) | scripts、CI SBOM、dependency/license/advisory scanner | `SC-02`、`SC-25` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-28) |
+| 502 | W6 | 专项 | [`SC-29`](roadmap/security-compliance.md#step-sc-29) | release artifact signing/provenance verifier | `SC-28` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-29) |
+| 503 | W6 | 专项 | [`SC-30`](roadmap/security-compliance.md#step-sc-30) | provider/model/prompt-pack/MCP route attestation | `SC-17`、`SC-26`、`SC-29` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-30) |
+| 504 | W6 | 专项 | [`SC-31`](roadmap/security-compliance.md#step-sc-31) | kiana-protocol/kiana-eventlog AuditRecord schema | `SC-02`、`SC-03`、`SC-05`、`SC-20` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-31) |
 | **W7** | **CompanyOS 业务闭环** |  |  |  |  |  |  |
-| 297 | W7 | 专项 | [`CP-23`](roadmap/control-plane.md#step-cp-23) | ControlPlane · Company 命令也使用控制面事务 | `CP-04`、`CP-07`、`CP-08`、`CP-13` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-23) |
-| 298 | W7 | 专项 | [`CP-24`](roadmap/control-plane.md#step-cp-24) | ControlPlane · 调度、WorkPacket、委派与 Workflow | `CP-11`、`CP-12`、`CP-17`、`CP-23` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-24) |
-| 299 | W7 | 专项 | [`ER-28`](roadmap/event-receipt-recovery.md#step-er-28) | Event / Receipt / Recovery · CompanyOS / Workflow / Artifact 业务引用 | `ER-27` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-28) |
-| 300 | W7 | 专项 | [`CO-09`](roadmap/companyos.md#step-co-09) | CompanyOS · Objective 与 Initiative 受理和取舍 | `CO-08` | ⏳ | [专项卡](roadmap/companyos.md#step-co-09) |
-| 301 | W7 | 专项 | [`CO-10`](roadmap/companyos.md#step-co-10) | CompanyOS · Charter 与项目 go/no-go | `CO-09`、`CO-06` | ⏳ | [专项卡](roadmap/companyos.md#step-co-10) |
-| 302 | W7 | 专项 | [`CO-11`](roadmap/companyos.md#step-co-11) | CompanyOS · 建立标准覆盖图，替换文本集合推断 | `CO-06`、`CO-10` | ⏳ | [专项卡](roadmap/companyos.md#step-co-11) |
-| 303 | W7 | 专项 | [`CO-12`](roadmap/companyos.md#step-co-12) | CompanyOS · Milestone、Plan 与依赖图提案 | `CO-10`、`CO-11` | ⏳ | [专项卡](roadmap/companyos.md#step-co-12) |
-| 304 | W7 | 专项 | [`CO-13`](roadmap/companyos.md#step-co-13) | CompanyOS · WorkPacket 扩为通用部门工作合同 | `CO-04`、`CO-06`、`CO-12` | ⏳ | [专项卡](roadmap/companyos.md#step-co-13) |
-| 305 | W7 | 专项 | [`CO-14`](roadmap/companyos.md#step-co-14) | CompanyOS · 会议、黑板和决议对象补齐 | `CO-04`、`CO-06`、`CO-13` | ⏳ | [专项卡](roadmap/companyos.md#step-co-14) |
-| 306 | W7 | 专项 | [`CO-15`](roadmap/companyos.md#step-co-15) | CompanyOS · 用现有 Harness 驱动有界角色会议 | `CO-14` | ⏳ | [专项卡](roadmap/companyos.md#step-co-15) |
-| 307 | W7 | 专项 | [`CO-16`](roadmap/companyos.md#step-co-16) | CompanyOS · 角色提案进入业务命令，原子批准计划 | `CO-07`、`CO-12`、`CO-13`、`CO-15` | ⏳ | [专项卡](roadmap/companyos.md#step-co-16) |
-| 308 | W7 | 专项 | [`CO-17`](roadmap/companyos.md#step-co-17) | CompanyOS · 跨部门交接与 ACK 责任转移 | `CO-13`、`CO-16` | ⏳ | [专项卡](roadmap/companyos.md#step-co-17) |
-| 309 | W7 | 专项 | [`CO-18`](roadmap/companyos.md#step-co-18) | CompanyOS · 唯一 ready 谓词与可解释阻塞原因 | `CO-08`、`CO-12`、`CO-17` | ⏳ | [专项卡](roadmap/companyos.md#step-co-18) |
-| 310 | W7 | 专项 | [`CO-19`](roadmap/companyos.md#step-co-19) | CompanyOS · 原子 claim、租约 fencing 与执行尝试 | `CO-07`、`CO-18` | ⏳ | [专项卡](roadmap/companyos.md#step-co-19) |
-| 311 | W7 | 专项 | [`CO-20`](roadmap/companyos.md#step-co-20) | CompanyOS · Cell 资源预留、提交与回收闭环 | `CO-03`、`CO-19` | ⏳ | [专项卡](roadmap/companyos.md#step-co-20) |
-| 312 | W7 | 专项 | [`CO-21`](roadmap/companyos.md#step-co-21) | CompanyOS · 角色任务接入 fresh Run 与明确 Company scope | `CO-04`、`CO-13`、`CO-20` | ⏳ | [专项卡](roadmap/companyos.md#step-co-21) |
-| 313 | W7 | 专项 | [`CO-22`](roadmap/companyos.md#step-co-22) | CompanyOS · 确定性 Company ProcessManager | `CO-08`、`CO-16`、`CO-17`、`CO-21` | ⏳ | [专项卡](roadmap/companyos.md#step-co-22) |
-| 314 | W7 | 专项 | [`CO-23`](roadmap/companyos.md#step-co-23) | CompanyOS · 持久唤醒队列与意图消费 | `CO-07`、`CO-19`、`CO-22` | ⏳ | [专项卡](roadmap/companyos.md#step-co-23) |
-| 315 | W7 | 专项 | [`CO-24`](roadmap/companyos.md#step-co-24) | CompanyOS · 执行结果归集为不可变 EvidenceBundle | `CO-06`、`CO-21`、`CO-23` | ⏳ | [专项卡](roadmap/companyos.md#step-co-24) |
-| 316 | W7 | 专项 | [`CO-25`](roadmap/companyos.md#step-co-25) | CompanyOS · 独立 Reviewer 与逐条证据结论 | `CO-03`、`CO-11`、`CO-24` | ⏳ | [专项卡](roadmap/companyos.md#step-co-25) |
-| 317 | W7 | 专项 | [`CO-26`](roadmap/companyos.md#step-co-26) | CompanyOS · Packet 级验收与输出接收 | `CO-24`、`CO-25` | ⏳ | [专项卡](roadmap/companyos.md#step-co-26) |
-| 318 | W7 | 专项 | [`CO-27`](roadmap/companyos.md#step-co-27) | CompanyOS · Milestone 独立验收，消除阶段依赖等待环 | `CO-12`、`CO-18`、`CO-26` | ⏳ | [专项卡](roadmap/companyos.md#step-co-27) |
-| 319 | W7 | 专项 | [`CO-28`](roadmap/companyos.md#step-co-28) | CompanyOS · Project 验收、拒绝与显式豁免 | `CO-05`、`CO-25`、`CO-27` | ⏳ | [专项卡](roadmap/companyos.md#step-co-28) |
-| 320 | W7 | 专项 | [`CO-29`](roadmap/companyos.md#step-co-29) | CompanyOS · 有界返工与 successor/attempt 历史 | `CO-19`、`CO-26`、`CO-27`、`CO-28` | ⏳ | [专项卡](roadmap/companyos.md#step-co-29) |
-| 321 | W7 | 专项 | [`CO-30`](roadmap/companyos.md#step-co-30) | CompanyOS · ChangeRequest 实际应用到整组基线 | `CO-07`、`CO-11`、`CO-16`、`CO-28`、`CO-29` | ⏳ | [专项卡](roadmap/companyos.md#step-co-30) |
-| 322 | W7 | 专项 | [`CO-31`](roadmap/companyos.md#step-co-31) | CompanyOS · 项目暂停、恢复、取消与部门传播 | `CO-03`、`CO-19`、`CO-23`、`CO-30` | ⏳ | [专项卡](roadmap/companyos.md#step-co-31) |
-| 323 | W7 | 专项 | [`CO-32`](roadmap/companyos.md#step-co-32) | CompanyOS · 风险、事故、Unknown 与对账工作流 | `CO-24`、`CO-30`、`CO-31` | ⏳ | [专项卡](roadmap/companyos.md#step-co-32) |
-| 324 | W7 | 专项 | [`CO-33`](roadmap/companyos.md#step-co-33) | CompanyOS · 版本化 DeliveryManifest 与本地交付包 | `CO-06`、`CO-28`、`CO-32` | ⏳ | [专项卡](roadmap/companyos.md#step-co-33) |
-| 325 | W7 | 专项 | [`CO-34`](roadmap/companyos.md#step-co-34) | CompanyOS · 交付授权、效果记录与接收确认 | `CO-05`、`CO-07`、`CO-32`、`CO-33` | ⏳ | [专项卡](roadmap/companyos.md#step-co-34) |
-| 326 | W7 | 专项 | [`CO-35`](roadmap/companyos.md#step-co-35) | CompanyOS · 成功、失败、取消和豁免的 ClosingReceipt | `CO-28`、`CO-31`、`CO-32`、`CO-34` | ⏳ | [专项卡](roadmap/companyos.md#step-co-35) |
-| 327 | W7 | 专项 | [`CO-36`](roadmap/companyos.md#step-co-36) | CompanyOS · Outcome 测量与目标实现判定 | `CO-09`、`CO-10`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-36) |
-| 328 | W7 | 专项 | [`CO-37`](roadmap/companyos.md#step-co-37) | CompanyOS · 部门决议、收尾经验与 Memory 候选晋升 | `CO-15`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-37) |
-| 329 | W7 | 专项 | [`CO-38`](roadmap/companyos.md#step-co-38) | CompanyOS · 组织与项目的可重建读模型 | `CO-18`、`CO-22`、`CO-28`、`CO-35`、`CO-36` | ⏳ | [专项卡](roadmap/companyos.md#step-co-38) |
-| 330 | W7 | 专项 | [`CO-39`](roadmap/companyos.md#step-co-39) | CompanyOS · 统一 Human Inbox 与有后续动作的决定卡 | `CO-05`、`CO-23`、`CO-28`、`CO-34`、`CO-38` | ⏳ | [专项卡](roadmap/companyos.md#step-co-39) |
-| 331 | W7 | 专项 | [`CO-40`](roadmap/companyos.md#step-co-40) | CompanyOS · CLI 与 Workbench 的 Company 用户流程 | `CO-38`、`CO-39` | ⏳ | [专项卡](roadmap/companyos.md#step-co-40) |
-| 332 | W7 | 专项 | [`CO-41`](roadmap/companyos.md#step-co-41) | CompanyOS · Web 与 Desktop 复用同一 Company 状态 | `CO-38`、`CO-39`、`CO-40` | ⏳ | [专项卡](roadmap/companyos.md#step-co-41) |
-| 333 | W7 | 基础 | [`P1-E-02`](#step-p1-e-02) | P1 基础 · Symposium 会议对象契约化 | `P1-E-01` | ⏳ | [基础卡](#step-p1-e-02) |
-| 334 | W7 | 基础 | [`P2-J5-01`](#step-p2-j5-01) | P2 基础 · Workflow definition 与重放 | `P0-G-04` | ⏳ | [基础卡](#step-p2-j5-01) |
-| 335 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ⏳ | [基础卡](#step-p3-i-03) |
-| 336 | W7 | 基础 | [`P3-I-04`](#step-p3-i-04) | P3 基础 · Acceptance 快照与独立 Review | `P3-I-02` | ⏳ | [基础卡](#step-p3-i-04) |
-| 337 | W7 | 基础 | [`P3-I-05`](#step-p3-i-05) | P3 基础 · Delivery / ClosingReceipt / Outcome | `P3-I-03` | ⏳ | [基础卡](#step-p3-i-05) |
-| 338 | W7 | 基础 | [`P4-E-03`](#step-p4-e-03) | P4 基础 · 五部门开会与决议入部门 RAG | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | ⏳ | [基础卡](#step-p4-e-03) |
+| 505 | W7 | 专项 | [`CP-23`](roadmap/control-plane.md#step-cp-23) | ControlPlane · Company 命令也使用控制面事务 | `CP-04`、`CP-07`、`CP-08`、`CP-13` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-23) |
+| 506 | W7 | 专项 | [`CP-24`](roadmap/control-plane.md#step-cp-24) | ControlPlane · 调度、WorkPacket、委派与 Workflow | `CP-11`、`CP-12`、`CP-17`、`CP-23` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-24) |
+| 507 | W7 | 专项 | [`ER-28`](roadmap/event-receipt-recovery.md#step-er-28) | Event / Receipt / Recovery · CompanyOS / Workflow / Artifact 业务引用 | `ER-27` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-28) |
+| 508 | W7 | 专项 | [`CO-09`](roadmap/companyos.md#step-co-09) | CompanyOS · Objective 与 Initiative 受理和取舍 | `CO-08` | ⏳ | [专项卡](roadmap/companyos.md#step-co-09) |
+| 509 | W7 | 专项 | [`CO-10`](roadmap/companyos.md#step-co-10) | CompanyOS · Charter 与项目 go/no-go | `CO-09`、`CO-06` | ⏳ | [专项卡](roadmap/companyos.md#step-co-10) |
+| 510 | W7 | 专项 | [`CO-11`](roadmap/companyos.md#step-co-11) | CompanyOS · 建立标准覆盖图，替换文本集合推断 | `CO-06`、`CO-10` | ⏳ | [专项卡](roadmap/companyos.md#step-co-11) |
+| 511 | W7 | 专项 | [`CO-12`](roadmap/companyos.md#step-co-12) | CompanyOS · Milestone、Plan 与依赖图提案 | `CO-10`、`CO-11` | ⏳ | [专项卡](roadmap/companyos.md#step-co-12) |
+| 512 | W7 | 专项 | [`CO-13`](roadmap/companyos.md#step-co-13) | CompanyOS · WorkPacket 扩为通用部门工作合同 | `CO-04`、`CO-06`、`CO-12` | ⏳ | [专项卡](roadmap/companyos.md#step-co-13) |
+| 513 | W7 | 专项 | [`CO-14`](roadmap/companyos.md#step-co-14) | CompanyOS · 会议、黑板和决议对象补齐 | `CO-04`、`CO-06`、`CO-13` | ⏳ | [专项卡](roadmap/companyos.md#step-co-14) |
+| 514 | W7 | 专项 | [`CO-15`](roadmap/companyos.md#step-co-15) | CompanyOS · 用现有 Harness 驱动有界角色会议 | `CO-14` | ⏳ | [专项卡](roadmap/companyos.md#step-co-15) |
+| 515 | W7 | 专项 | [`CO-16`](roadmap/companyos.md#step-co-16) | CompanyOS · 角色提案进入业务命令，原子批准计划 | `CO-07`、`CO-12`、`CO-13`、`CO-15` | ⏳ | [专项卡](roadmap/companyos.md#step-co-16) |
+| 516 | W7 | 专项 | [`CO-17`](roadmap/companyos.md#step-co-17) | CompanyOS · 跨部门交接与 ACK 责任转移 | `CO-13`、`CO-16` | ⏳ | [专项卡](roadmap/companyos.md#step-co-17) |
+| 517 | W7 | 专项 | [`CO-18`](roadmap/companyos.md#step-co-18) | CompanyOS · 唯一 ready 谓词与可解释阻塞原因 | `CO-08`、`CO-12`、`CO-17` | ⏳ | [专项卡](roadmap/companyos.md#step-co-18) |
+| 518 | W7 | 专项 | [`CO-19`](roadmap/companyos.md#step-co-19) | CompanyOS · 原子 claim、租约 fencing 与执行尝试 | `CO-07`、`CO-18` | ⏳ | [专项卡](roadmap/companyos.md#step-co-19) |
+| 519 | W7 | 专项 | [`CO-20`](roadmap/companyos.md#step-co-20) | CompanyOS · Cell 资源预留、提交与回收闭环 | `CO-03`、`CO-19` | ⏳ | [专项卡](roadmap/companyos.md#step-co-20) |
+| 520 | W7 | 专项 | [`CO-21`](roadmap/companyos.md#step-co-21) | CompanyOS · 角色任务接入 fresh Run 与明确 Company scope | `CO-04`、`CO-13`、`CO-20` | ⏳ | [专项卡](roadmap/companyos.md#step-co-21) |
+| 521 | W7 | 专项 | [`CO-22`](roadmap/companyos.md#step-co-22) | CompanyOS · 确定性 Company ProcessManager | `CO-08`、`CO-16`、`CO-17`、`CO-21` | ⏳ | [专项卡](roadmap/companyos.md#step-co-22) |
+| 522 | W7 | 专项 | [`CO-23`](roadmap/companyos.md#step-co-23) | CompanyOS · 持久唤醒队列与意图消费 | `CO-07`、`CO-19`、`CO-22` | ⏳ | [专项卡](roadmap/companyos.md#step-co-23) |
+| 523 | W7 | 专项 | [`CO-24`](roadmap/companyos.md#step-co-24) | CompanyOS · 执行结果归集为不可变 EvidenceBundle | `CO-06`、`CO-21`、`CO-23` | ⏳ | [专项卡](roadmap/companyos.md#step-co-24) |
+| 524 | W7 | 专项 | [`CO-25`](roadmap/companyos.md#step-co-25) | CompanyOS · 独立 Reviewer 与逐条证据结论 | `CO-03`、`CO-11`、`CO-24` | ⏳ | [专项卡](roadmap/companyos.md#step-co-25) |
+| 525 | W7 | 专项 | [`CO-26`](roadmap/companyos.md#step-co-26) | CompanyOS · Packet 级验收与输出接收 | `CO-24`、`CO-25` | ⏳ | [专项卡](roadmap/companyos.md#step-co-26) |
+| 526 | W7 | 专项 | [`CO-27`](roadmap/companyos.md#step-co-27) | CompanyOS · Milestone 独立验收，消除阶段依赖等待环 | `CO-12`、`CO-18`、`CO-26` | ⏳ | [专项卡](roadmap/companyos.md#step-co-27) |
+| 527 | W7 | 专项 | [`CO-28`](roadmap/companyos.md#step-co-28) | CompanyOS · Project 验收、拒绝与显式豁免 | `CO-05`、`CO-25`、`CO-27` | ⏳ | [专项卡](roadmap/companyos.md#step-co-28) |
+| 528 | W7 | 专项 | [`CO-29`](roadmap/companyos.md#step-co-29) | CompanyOS · 有界返工与 successor/attempt 历史 | `CO-19`、`CO-26`、`CO-27`、`CO-28` | ⏳ | [专项卡](roadmap/companyos.md#step-co-29) |
+| 529 | W7 | 专项 | [`CO-30`](roadmap/companyos.md#step-co-30) | CompanyOS · ChangeRequest 实际应用到整组基线 | `CO-07`、`CO-11`、`CO-16`、`CO-28`、`CO-29` | ⏳ | [专项卡](roadmap/companyos.md#step-co-30) |
+| 530 | W7 | 专项 | [`CO-31`](roadmap/companyos.md#step-co-31) | CompanyOS · 项目暂停、恢复、取消与部门传播 | `CO-03`、`CO-19`、`CO-23`、`CO-30` | ⏳ | [专项卡](roadmap/companyos.md#step-co-31) |
+| 531 | W7 | 专项 | [`CO-32`](roadmap/companyos.md#step-co-32) | CompanyOS · 风险、事故、Unknown 与对账工作流 | `CO-24`、`CO-30`、`CO-31` | ⏳ | [专项卡](roadmap/companyos.md#step-co-32) |
+| 532 | W7 | 专项 | [`CO-33`](roadmap/companyos.md#step-co-33) | CompanyOS · 版本化 DeliveryManifest 与本地交付包 | `CO-06`、`CO-28`、`CO-32` | ⏳ | [专项卡](roadmap/companyos.md#step-co-33) |
+| 533 | W7 | 专项 | [`CO-34`](roadmap/companyos.md#step-co-34) | CompanyOS · 交付授权、效果记录与接收确认 | `CO-05`、`CO-07`、`CO-32`、`CO-33` | ⏳ | [专项卡](roadmap/companyos.md#step-co-34) |
+| 534 | W7 | 专项 | [`CO-35`](roadmap/companyos.md#step-co-35) | CompanyOS · 成功、失败、取消和豁免的 ClosingReceipt | `CO-28`、`CO-31`、`CO-32`、`CO-34` | ⏳ | [专项卡](roadmap/companyos.md#step-co-35) |
+| 535 | W7 | 专项 | [`CO-36`](roadmap/companyos.md#step-co-36) | CompanyOS · Outcome 测量与目标实现判定 | `CO-09`、`CO-10`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-36) |
+| 536 | W7 | 专项 | [`CO-37`](roadmap/companyos.md#step-co-37) | CompanyOS · 部门决议、收尾经验与 Memory 候选晋升 | `CO-15`、`CO-35` | ⏳ | [专项卡](roadmap/companyos.md#step-co-37) |
+| 537 | W7 | 专项 | [`CO-38`](roadmap/companyos.md#step-co-38) | CompanyOS · 组织与项目的可重建读模型 | `CO-18`、`CO-22`、`CO-28`、`CO-35`、`CO-36` | ⏳ | [专项卡](roadmap/companyos.md#step-co-38) |
+| 538 | W7 | 专项 | [`CO-39`](roadmap/companyos.md#step-co-39) | CompanyOS · 统一 Human Inbox 与有后续动作的决定卡 | `CO-05`、`CO-23`、`CO-28`、`CO-34`、`CO-38` | ⏳ | [专项卡](roadmap/companyos.md#step-co-39) |
+| 539 | W7 | 专项 | [`CO-40`](roadmap/companyos.md#step-co-40) | CompanyOS · CLI 与 Workbench 的 Company 用户流程 | `CO-38`、`CO-39` | ⏳ | [专项卡](roadmap/companyos.md#step-co-40) |
+| 540 | W7 | 专项 | [`CO-41`](roadmap/companyos.md#step-co-41) | CompanyOS · Web 与 Desktop 复用同一 Company 状态 | `CO-38`、`CO-39`、`CO-40` | ⏳ | [专项卡](roadmap/companyos.md#step-co-41) |
+| 541 | W7 | 基础 | [`P1-E-02`](#step-p1-e-02) | P1 基础 · Symposium 会议对象契约化 | `P1-E-01` | ⏳ | [基础卡](#step-p1-e-02) |
+| 542 | W7 | 基础 | [`P2-J5-01`](#step-p2-j5-01) | P2 基础 · Workflow definition 与重放 | `P0-G-04` | ⏳ | [基础卡](#step-p2-j5-01) |
+| 543 | W7 | 基础 | [`P3-I-03`](#step-p3-i-03) | P3 基础 · 全链重建 | `P3-I-02`、`P0-G-04` | ⏳ | [基础卡](#step-p3-i-03) |
+| 544 | W7 | 基础 | [`P3-I-04`](#step-p3-i-04) | P3 基础 · Acceptance 快照与独立 Review | `P3-I-02` | ⏳ | [基础卡](#step-p3-i-04) |
+| 545 | W7 | 基础 | [`P3-I-05`](#step-p3-i-05) | P3 基础 · Delivery / ClosingReceipt / Outcome | `P3-I-03` | ⏳ | [基础卡](#step-p3-i-05) |
+| 546 | W7 | 基础 | [`P4-E-03`](#step-p4-e-03) | P4 基础 · 五部门开会与决议入部门 RAG | `P1-E-02`、`P1-J3-02`、`P1-J3-03` | ⏳ | [基础卡](#step-p4-e-03) |
+| 547 | W7 | 专项 | [`SW-05`](#step-sw-05) | 统一原子 admission；budget/path/data lock/claim/grant/supervision/intent 同一 CAS 边界 | `SW-04`、`CO-19`、`CO-20` | ⏳ | [专项卡](#step-sw-05) |
+| 548 | W7 | 专项 | [`SW-06`](#step-sw-06) | durable `DispatchIntent`/`QueueEntry`、容量、公平顺序、claim lease/fence/backoff；`kiana-core`/`kiana-eventlog`/`kiana-ports` | `SW-05`、`P1-D-01`、`P1-D-02`、`P1-D-03` | ⏳ | [专项卡](#step-sw-06) |
+| 549 | W7 | 专项 | [`SW-07`](#step-sw-07) | fresh child Cell/Session/Run/Attempt 和 DelegationPacket；daemon/core/runner | `SW-06`、`CO-21`、`CO-23` | ⏳ | [专项卡](#step-sw-07) |
+| 550 | W7 | 专项 | [`SW-08`](#step-sw-08) | 统一执行路由和 child correlation；复用 `DaemonHost→ControlPlane→Broker→KianaHarness` | `SW-07`、`H01`、`CP-23`、`CP-24` | ⏳ | [专项卡](#step-sw-08) |
+| 551 | W7 | 专项 | [`SW-09`](#step-sw-09) | heartbeat、checkpoint、ProgressLedger、stall/escalation 与分层预算 | `P0-J1-01`、`P0-J1-02`、`P0-J1-03`、`P0-J1-04`、`P2-K4-01`、`P4-J7-02`、`P4-J7-03`、`SW-08` | ⏳ | [专项卡](#step-sw-09) |
+| 552 | W7 | 专项 | [`SW-10`](#step-sw-10) | parent→child cancel、drain、fence、Incident/Unknown；core/daemon/process supervisor | `P0-J1-01`、`P0-J1-02`、`P0-J1-03`、`P0-J1-04`、`CP-15`、`CP-16`、`CP-20`、`SW-09` | ⏳ | [专项卡](#step-sw-10) |
+| 553 | W7 | 专项 | [`SW-11`](#step-sw-11) | EventLog replay、pending writes、崩溃恢复与显式 re-admission | `P0-G-04`、`CP-18`、`CP-19`、`SW-10` | ⏳ | [专项卡](#step-sw-11) |
+| 554 | W7 | 专项 | [`SW-12`](#step-sw-12) | TypedChildResult/ChildFailureReport 与 delegation facts；domain/core/event projection | `SW-11` | ⏳ | [专项卡](#step-sw-12) |
+| 555 | W7 | 专项 | [`AUT-13`](#step-aut-13) | `Advance` ready-node、dependency、FanOut/FanIn/SubWorkflow planner；`kiana-workflow` | `AUT-06`、`AUT-07` | ⏳ | [专项卡](#step-aut-13) |
+| 556 | W7 | 专项 | [`AUT-14`](#step-aut-14) | effect reservation、permit、action digest、authority/config/policy revision；`kiana-core`、`kiana-eventlog` | `AUT-05`、`AUT-08`、`AUT-13` | ⏳ | [专项卡](#step-aut-14) |
+| 557 | W7 | 专项 | [`AUT-15`](#step-aut-15) | worker dispatch/observation 分离；把当前 inline dispatch 改成可重取 command；`kiana-core`、`kiana-daemon` | `AUT-09`、`AUT-14` | ⏳ | [专项卡](#step-aut-15) |
+| 558 | W7 | 专项 | [`AUT-16`](#step-aut-16) | retry classifier、attempt/lease/deadline、idempotent descriptor；`kiana-workflow`、`kiana-core` | `AUT-14`、`AUT-15` | ⏳ | [专项卡](#step-aut-16) |
+| 559 | W7 | 专项 | [`AUT-17`](#step-aut-17) | cancel generation、stop report、late result fence、result_unknown；`kiana-core`、`kiana-daemon` | `AUT-08`、`AUT-15` | ⏳ | [专项卡](#step-aut-17) |
+| 560 | W7 | 专项 | [`AUT-18`](#step-aut-18) | approval/signal pause-resume、single consume、checkpoint metadata；`kiana-core`、`kiana-runner` | `AUT-14`、`AUT-17` | ⏳ | [专项卡](#step-aut-18) |
+| 561 | W7 | 专项 | [`AUT-19`](#step-aut-19) | parent-child workflow/WorkPacket fan-out、depth/concurrency/TTL、fail-fast/fan-in；`kiana-workflow`、`kiana-core` | `AUT-07`、`AUT-13`、`AUT-17` | ⏳ | [专项卡](#step-aut-19) |
+| 562 | W7 | 专项 | [`AUT-20`](#step-aut-20) | compensation workflow、原实例引用和新授权；`kiana-workflow`、`kiana-core` | `AUT-16`、`AUT-19` | ⏳ | [专项卡](#step-aut-20) |
+| 563 | W7 | 专项 | [`AUT-21`](#step-aut-21) | boot recovery、projection/index rebuild、reconcile case；`kiana-daemon`、`kiana-eventlog`、`kiana-core` | `AUT-15`、`AUT-17`、`AUT-18` | ⏳ | [专项卡](#step-aut-21) |
+| 564 | W7 | 专项 | [`NM-17`](#step-nm-17) | severity/digest/reminder/escalation；primary/fallback、quiet hours、deadline | `P2-K3-01`、`CO-39`、`NM-06`、`NM-11` | ⏳ | [专项卡](#step-nm-17) |
+| 565 | W7 | 专项 | [`NM-18`](#step-nm-18) | cancellation/revocation/expiry/reconciliation；`recovery.rs`、`connectors.rs` | `P2-K6-01`、`NM-08`、`NM-10` | ⏳ | [专项卡](#step-nm-18) |
+| 566 | W7 | 专项 | [`NM-20`](#step-nm-20) | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | `NM-04`、`NM-08`、`NM-13`、`NM-18` | ⏳ | [专项卡](#step-nm-20) |
+| 567 | W7 | 专项 | [`NM-21`](#step-nm-21) | 跨入口 E2E 与消息/通知/动作对账；CLI/TTY/Web/Desktop、fake model/provider | `CO-39`、`CO-40`、`CO-41`、`NM-14`、`NM-15`、`NM-16`、`NM-20` | ⏳ | [专项卡](#step-nm-21) |
+| 568 | W7 | 专项 | [`EQ-38`](#step-eq-38) | 定义 `EvalExperiment` admission/terminal 状态和 case result 索引 | `EQ-37` | ⏳ | [专项卡](#step-eq-38) |
+| 569 | W7 | 专项 | [`EQ-39`](#step-eq-39) | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `EQ-38` | ⏳ | [专项卡](#step-eq-39) |
+| 570 | W7 | 专项 | [`EQ-40`](#step-eq-40) | 实现 `QualityCandidate` 单主变更维度和版本快照绑定 | `EQ-39` | ⏳ | [专项卡](#step-eq-40) |
+| 571 | W7 | 专项 | [`EQ-41`](#step-eq-41) | 实现 `QualityGate` 配置与 `QualityGateDecision` 裁决分离、不可改写 | `EQ-40` | ⏳ | [专项卡](#step-eq-41) |
+| 572 | W7 | 专项 | [`EQ-42`](#step-eq-42) | 实现 blocking rules：safety/evidence/replay/forbidden effect/fixture integrity/infra | `EQ-41` | ⏳ | [专项卡](#step-eq-42) |
+| 573 | W7 | 专项 | [`EQ-43`](#step-eq-43) | 实现 `quality.promote`/`quality.rollback` 的 ControlPlane 二次授权、审批、scope 和 epoch 重查 | `EQ-42` | ⏳ | [专项卡](#step-eq-43) |
+| 574 | W7 | 专项 | [`EQ-44`](#step-eq-44) | 实现 shadow admission、sample/TTL/rollback route 和自动回滚证据 | `EQ-43` | ⏳ | [专项卡](#step-eq-44) |
+| 575 | W7 | 专项 | [`BQ-21`](#step-bq-21) | Restart/continue/replay/recovery；in-flight reservation、unknown attempt 和 fencing | `ER-21`、`BQ-08`、`BQ-12`、`BQ-20` | ⏳ | [专项卡](#step-bq-21) |
+| 576 | W7 | 专项 | [`BQ-22`](#step-bq-22) | Provider invoice/receipt import、差异检测、correction workflow | `BQ-05`、`BQ-14`、`BQ-20` | ⏳ | [专项卡](#step-bq-22) |
+| 577 | W7 | 专项 | [`BQ-23`](#step-bq-23) | query/protocol API：预算摘要、usage breakdown、cost export、reconciliation inbox | `BQ-20`、`BQ-22` | ⏳ | [专项卡](#step-bq-23) |
+| 578 | W7 | 专项 | [`PD-23`](roadmap/persistence-data-layer.md#step-pd-23) | Restore verifier、替换 fencing、外部 effect reconciliation；`kiana-daemon`、`kiana-core` | `ER-23`、`ER-24`、`ER-25`、`ER-26`、`ER-27`、`ER-28`、`PD-22` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-23) |
+| 579 | W7 | 专项 | [`INT-24`](roadmap/integrations-connectors.md#step-int-24) | webhook/A2A ingress auth、signature、timestamp、nonce、dedupe | `AUT-11`、`INT-01`、`INT-04`、`INT-07`、`INT-22` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-24) |
+| 580 | W7 | 专项 | [`INT-25`](roadmap/integrations-connectors.md#step-int-25) | object mapping、input artifact、schema/provenance、pagination cursor | `INT-03`、`INT-09`、`INT-24` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-25) |
+| 581 | W7 | 专项 | [`INT-26`](roadmap/integrations-connectors.md#step-int-26) | DataClass/Purpose/SharingGrant/retention/revocation propagation | `INT-05`、`INT-22`、`INT-25` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-26) |
+| 582 | W7 | 专项 | [`INT-27`](roadmap/integrations-connectors.md#step-int-27) | Connector health/invocation/reconcile/approval 的通知投影 | `INT-20`、`INT-22`、`INT-26` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-27) |
+| 583 | W7 | 专项 | [`INT-28`](roadmap/integrations-connectors.md#step-int-28) | CLI/Web/Workbench/MCP 查询与人工 reconcile UI | `INT-14`、`INT-22`、`INT-27` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-28) |
+| 584 | W7 | 专项 | [`INT-29`](roadmap/integrations-connectors.md#step-int-29) | restart/recovery、projection rebuild、stale worker/lease fencing | `INT-16`、`INT-19`、`INT-22`、`INT-23`、`INT-26` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-29) |
 | **W8** | **并行、治理与复用** |  |  |  |  |  |  |
-| 339 | W8 | 专项 | [`ER-29`](roadmap/event-receipt-recovery.md#step-er-29) | Event / Receipt / Recovery · Data governance、retention 和 deletion propagation | `ER-28` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-29) |
-| 340 | W8 | 专项 | [`ER-30`](roadmap/event-receipt-recovery.md#step-er-30) | Event / Receipt / Recovery · Health、metrics、trace correlation and operator evidence | `ER-29` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-30) |
-| 341 | W8 | 专项 | [`H31`](roadmap/harness.md#step-h31) | Harness · 受控子 Agent 的 Harness 接缝 | `H07`、`H09`、`H13`、`H24`、`H27`、`H30` | ⏳ | [专项卡](roadmap/harness.md#step-h31) |
-| 342 | W8 | 专项 | [`H33`](roadmap/harness.md#step-h33) | Harness · 运行资源、关闭和异常退出的完整清理 | `H08`、`H17`、`H24`、`H31`、`H32` | ⏳ | [专项卡](roadmap/harness.md#step-h33) |
-| 343 | W8 | 专项 | [`H34`](roadmap/harness.md#step-h34) | Harness · 旧协议、cassette 与入口迁移 | `H02`、`H04`、`H19`、`H24`、`H27`、`H32`、`H33` | ⏳ | [专项卡](roadmap/harness.md#step-h34) |
-| 344 | W8 | 专项 | [`CO-42`](roadmap/companyos.md#step-co-42) | CompanyOS · 全业务链跨进程恢复与 schema 升级演练 | `CO-08`、`CO-23`、`CO-29`、`CO-30`、`CO-32`、`CO-35`、`CO-39` | ⏳ | [专项卡](roadmap/companyos.md#step-co-42) |
-| 345 | W8 | 专项 | [`CO-43`](roadmap/companyos.md#step-co-43) | CompanyOS · 有界多角色/多 Builder 并行 | `CO-18`、`CO-19`、`CO-20`、`CO-21`、`CO-29`、`CO-42` | ⏳ | [专项卡](roadmap/companyos.md#step-co-43) |
-| 346 | W8 | 专项 | [`CO-44`](roadmap/companyos.md#step-co-44) | CompanyOS · Integrator、冲突处理与 MergeReceipt | `CO-25`、`CO-26`、`CO-43` | ⏳ | [专项卡](roadmap/companyos.md#step-co-44) |
-| 347 | W8 | 专项 | [`CO-45`](roadmap/companyos.md#step-co-45) | CompanyOS · 多项目优先级、容量与组织成本账 | `CO-02`、`CO-20`、`CO-23`、`CO-36`、`CO-38`、`CO-43` | ⏳ | [专项卡](roadmap/companyos.md#step-co-45) |
-| 348 | W8 | 专项 | [`CO-46`](roadmap/companyos.md#step-co-46) | CompanyOS · 版本化流程模板、组织配置升级与第二种业务样例 | `CO-04`、`CO-13`、`CO-22`、`CO-37`、`CO-42`、`CO-45` | ⏳ | [专项卡](roadmap/companyos.md#step-co-46) |
-| 349 | W8 | 基础 | [`P4-J6-01`](#step-p4-j6-01) | P4 基础 · 有界 Swarm | `P1-C-02` | ⏳ | [基础卡](#step-p4-j6-01) |
-| 350 | W8 | 基础 | [`P4-K2-01`](#step-p4-k2-01) | P4 基础 · 触发器与调度 | `P0-B-01` | ⏳ | [基础卡](#step-p4-k2-01) |
-| 351 | W8 | 基础 | [`P4-K8-01`](#step-p4-k8-01) | P4 基础 · Connector | `P0-A-01a` | ⏳ | [基础卡](#step-p4-k8-01) |
+| 585 | W8 | 专项 | [`ER-29`](roadmap/event-receipt-recovery.md#step-er-29) | Event / Receipt / Recovery · Data governance、retention 和 deletion propagation | `ER-28` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-29) |
+| 586 | W8 | 专项 | [`ER-30`](roadmap/event-receipt-recovery.md#step-er-30) | Event / Receipt / Recovery · Health、metrics、trace correlation and operator evidence | `ER-29` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-30) |
+| 587 | W8 | 专项 | [`H31`](roadmap/harness.md#step-h31) | Harness · 受控子 Agent 的 Harness 接缝 | `H07`、`H09`、`H13`、`H24`、`H27`、`H30` | ⏳ | [专项卡](roadmap/harness.md#step-h31) |
+| 588 | W8 | 专项 | [`H33`](roadmap/harness.md#step-h33) | Harness · 运行资源、关闭和异常退出的完整清理 | `H08`、`H17`、`H24`、`H31`、`H32` | ⏳ | [专项卡](roadmap/harness.md#step-h33) |
+| 589 | W8 | 专项 | [`H34`](roadmap/harness.md#step-h34) | Harness · 旧协议、cassette 与入口迁移 | `H02`、`H04`、`H19`、`H24`、`H27`、`H32`、`H33` | ⏳ | [专项卡](roadmap/harness.md#step-h34) |
+| 590 | W8 | 专项 | [`CO-42`](roadmap/companyos.md#step-co-42) | CompanyOS · 全业务链跨进程恢复与 schema 升级演练 | `CO-08`、`CO-23`、`CO-29`、`CO-30`、`CO-32`、`CO-35`、`CO-39` | ⏳ | [专项卡](roadmap/companyos.md#step-co-42) |
+| 591 | W8 | 专项 | [`CO-43`](roadmap/companyos.md#step-co-43) | CompanyOS · 有界多角色/多 Builder 并行 | `CO-18`、`CO-19`、`CO-20`、`CO-21`、`CO-29`、`CO-42` | ⏳ | [专项卡](roadmap/companyos.md#step-co-43) |
+| 592 | W8 | 专项 | [`CO-44`](roadmap/companyos.md#step-co-44) | CompanyOS · Integrator、冲突处理与 MergeReceipt | `CO-25`、`CO-26`、`CO-43` | ⏳ | [专项卡](roadmap/companyos.md#step-co-44) |
+| 593 | W8 | 专项 | [`CO-45`](roadmap/companyos.md#step-co-45) | CompanyOS · 多项目优先级、容量与组织成本账 | `CO-02`、`CO-20`、`CO-23`、`CO-36`、`CO-38`、`CO-43` | ⏳ | [专项卡](roadmap/companyos.md#step-co-45) |
+| 594 | W8 | 专项 | [`CO-46`](roadmap/companyos.md#step-co-46) | CompanyOS · 版本化流程模板、组织配置升级与第二种业务样例 | `CO-04`、`CO-13`、`CO-22`、`CO-37`、`CO-42`、`CO-45` | ⏳ | [专项卡](roadmap/companyos.md#step-co-46) |
+| 595 | W8 | 基础 | [`P4-J6-01`](#step-p4-j6-01) | P4 基础 · 有界 Swarm | `P1-C-02` | ⏳ | [基础卡](#step-p4-j6-01) |
+| 596 | W8 | 基础 | [`P4-K2-01`](#step-p4-k2-01) | P4 基础 · 触发器与调度 | `P0-B-01` | ⏳ | [基础卡](#step-p4-k2-01) |
+| 597 | W8 | 基础 | [`P4-K8-01`](#step-p4-k8-01) | P4 基础 · Connector | `P0-A-01a` | ⏳ | [基础卡](#step-p4-k8-01) |
+| 598 | W8 | 专项 | [`SW-13`](#step-sw-13) | versioned deterministic reducer、冲突和完整覆盖检查 | `CO-43`、`CO-44`、`SW-12` | ⏳ | [专项卡](#step-sw-13) |
+| 599 | W8 | 专项 | [`SW-14`](#step-sw-14) | Independent Review、MergeDecision、MergeReceipt；`company` review + core swarm | `P3-I-04`、`CO-44`、`SW-13` | ⏳ | [专项卡](#step-sw-14) |
+| 600 | W8 | 专项 | [`SW-15`](#step-sw-15) | exactly-once release/retire、残余预算与事实保留 | `SW-14` | ⏳ | [专项卡](#step-sw-15) |
+| 601 | W8 | 专项 | [`SW-16`](#step-sw-16) | 定向 WorkPacket/Handoff ACK/StatusReport/Evidence/Incident；可选 bounded Symposium | `P1-E-01`、`P1-E-02`、`P4-E-03`、`SW-15` | ⏳ | [专项卡](#step-sw-16) |
+| 602 | W8 | 专项 | [`SW-17`](#step-sw-17) | parent-child UI/event projection、sequence/epoch/cursor、terminal replay/hydration | `P4-J7-02`、`P4-J7-03`、`P2-M5-01`、`P2-M5-02`、`SW-16` | ⏳ | [专项卡](#step-sw-17) |
+| 603 | W8 | 专项 | [`SW-18`](#step-sw-18) | deny-first 全矩阵、fake golden、崩溃/竞态/replay 和发布证据 | `P4-J6-01`、`CO-42`、`CO-43`、`CO-44`、`SW-17` | ⏳ | [专项卡](#step-sw-18) |
+| 604 | W8 | 专项 | [`NM-19`](#step-nm-19) | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | `P4-K8-01`、`NM-08`、`NM-18` | ⏳ | [专项卡](#step-nm-19) |
+| 605 | W8 | 专项 | [`DEP-00`](#step-dep-00) | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | ⏳ | [专项卡](#step-dep-00) |
+| 606 | W8 | 专项 | [`DEP-01`](#step-dep-01) | 在 `kiana-domain` 定义 `DeploymentProfile`、`EnvironmentProfile`、`StorageRootId`、`InstanceId`、`DeploymentRevision` | `DEP-00` | ⏳ | [专项卡](#step-dep-01) |
+| 607 | W8 | 专项 | [`DEP-02`](#step-dep-02) | 定义 `ReleaseManifest`、artifact digest/signature、build/toolchain/Cargo.lock/source provenance | `DEP-00` | ⏳ | [专项卡](#step-dep-02) |
+| 608 | W8 | 专项 | [`DEP-03`](#step-dep-03) | 定义 app/protocol/domain/store/projection/workflow/provider/extension/config/authority/data 兼容矩阵 | `DEP-01`、`DEP-02` | ⏳ | [专项卡](#step-dep-03) |
+| 609 | W8 | 专项 | [`DEP-04`](#step-dep-04) | 在 `kiana-protocol` 注册 `ops.*` commands、query、events、error/unknown envelope、idempotency key | `DEP-01` | ⏳ | [专项卡](#step-dep-04) |
+| 610 | W8 | 专项 | [`DEP-05`](#step-dep-05) | 定义 lifecycle/operation 状态机、OperationJournal、phase deadlines、terminal/unknown 语义 | `DEP-04` | ⏳ | [专项卡](#step-dep-05) |
+| 611 | W8 | 专项 | [`DEP-06`](#step-dep-06) | 实现 `OperationLease`、heartbeat、fence token、authority/data epoch 与单 writer CAS | `DEP-01`、`DEP-05` | ⏳ | [专项卡](#step-dep-06) |
+| 612 | W8 | 专项 | [`DEP-07`](#step-dep-07) | 实现 StorageRoot resolver、ProjectTrust、symlink/hardlink/path/capability/filesystem preflight | `DEP-01`、`DEP-06` | ⏳ | [专项卡](#step-dep-07) |
+| 613 | W8 | 专项 | [`DEP-08`](#step-dep-08) | 实现 ConfigSource 优先级、immutable `ConfigSnapshot`、config revision、SecretRef/redaction | `DEP-01`、`DEP-02`、`DEP-07` | ⏳ | [专项卡](#step-dep-08) |
+| 614 | W8 | 专项 | [`DEP-09`](#step-dep-09) | 定义 `SupervisorPort`，接入 systemd/launchd/Windows/container stop/start/restart 的窄 adapter | `DEP-04`、`DEP-05`、`DEP-06` | ⏳ | [专项卡](#step-dep-09) |
+| 615 | W8 | 专项 | [`DEP-10`](#step-dep-10) | 在 `DaemonHost` 内实现 startup coordinator：manifest/root/trust/lease/store/migration/projector/capacity 顺序 | `DEP-03`、`DEP-06`、`DEP-07`、`DEP-08` | ⏳ | [专项卡](#step-dep-10) |
+| 616 | W8 | 专项 | [`DEP-11`](#step-dep-11) | 实现 `HealthSnapshot` aggregator 与 startup/live/ready/drain/maintenance probe DTO | `DEP-05`、`DEP-10` | ⏳ | [专项卡](#step-dep-11) |
+| 617 | W8 | 专项 | [`DEP-12`](#step-dep-12) | 实现 ready admission、maintenance window、pause intake、drain deadline 与摘流语义 | `DEP-05`、`DEP-06`、`DEP-11` | ⏳ | [专项卡](#step-dep-12) |
+| 618 | W8 | 专项 | [`PD-26`](roadmap/persistence-data-layer.md#step-pd-26) | data revocation/delete/expire 到 facts、Artifact、Memory、Index、cache、checkpoint 的传播；`kiana-core` | `ER-29`、`PD-18`、`PD-21`、`PD-25` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-26) |
+| 619 | W8 | 专项 | [`PD-27`](roadmap/persistence-data-layer.md#step-pd-27) | 多进程 writer、backpressure、flush/shutdown、取消和资源上限；`kiana-eventlog`、`kiana-daemon` | `ER-30`、`PD-06`、`PD-09` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-27) |
+| 620 | W8 | 专项 | [`SC-32`](roadmap/security-compliance.md#step-sc-32) | kiana-query audit projector、CAS/cursor/rebuild | `PD-09`、`PD-26`、`SC-12`、`SC-23`、`SC-31` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-32) |
+| 621 | W8 | 专项 | [`SC-33`](roadmap/security-compliance.md#step-sc-33) | kiana-core Incident、Vulnerability、Reconcile workflow | `SC-15`、`SC-22`、`SC-31`、`SC-32` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-33) |
+| 622 | W8 | 专项 | [`SC-34`](roadmap/security-compliance.md#step-sc-34) | docs control crosswalk、policy registry | `SC-01`、`SC-05`、`SC-31`、`SC-33` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-34) |
+| 623 | W8 | 专项 | [`SC-35`](roadmap/security-compliance.md#step-sc-35) | scripts EvidenceManifest、fixture/cassette registry | `SC-29`、`SC-31`、`SC-34` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-35) |
 | **W9** | **离线联合验收** |  |  |  |  |  |  |
-| 352 | W9 | 专项 | [`CP-29`](roadmap/control-plane.md#step-cp-29) | ControlPlane · 状态机性质、并发与崩溃验收 | `CP-05`、`CP-07`、`CP-13`、`CP-14`、`CP-15`、`CP-16`、`CP-17`、`CP-18`、`CP-19`、`CP-20`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-29) |
-| 353 | W9 | 专项 | [`CP-30`](roadmap/control-plane.md#step-cp-30) | ControlPlane · 产品流程和证据收口 | `CP-21`、`CP-22`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28`、`CP-29` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-30) |
-| 354 | W9 | 专项 | [`ER-31`](roadmap/event-receipt-recovery.md#step-er-31) | Event / Receipt / Recovery · Crash-point and fault-injection matrix | `ER-30` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-31) |
-| 355 | W9 | 专项 | [`ER-32`](roadmap/event-receipt-recovery.md#step-er-32) | Event / Receipt / Recovery · Property/conformance tests for adapters | `ER-31` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-32) |
-| 356 | W9 | 专项 | [`ER-33`](roadmap/event-receipt-recovery.md#step-er-33) | Event / Receipt / Recovery · Performance、容量和迁移演练 | `ER-32` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-33) |
-| 357 | W9 | 专项 | [`ER-34`](roadmap/event-receipt-recovery.md#step-er-34) | Event / Receipt / Recovery · Local durable gate | `ER-33` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-34) |
-| 358 | W9 | 专项 | [`ER-35`](roadmap/event-receipt-recovery.md#step-er-35) | Event / Receipt / Recovery · Cross-entry and CompanyOS gate | `ER-34` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-35) |
-| 359 | W9 | 专项 | [`CAP-26`](roadmap/capability.md#step-cap-26) | Capability · 本地五工具 + Hook 的完整执行闭环验收 | `CAP-14`、`CAP-15`、`CAP-16`、`CAP-17`、`CAP-18`、`CAP-19`、`CAP-20`、`CAP-21`、`CAP-22`、`CAP-23`、`CAP-24`、`CAP-25` | ⏳ | [专项卡](roadmap/capability.md#step-cap-26) |
-| 360 | W9 | 专项 | [`H35`](roadmap/harness.md#step-h35) | Harness · Harness 轨迹评测与性能验证 | `H25`、`H27`、`H28`、`H30`、`H34` | ⏳ | [专项卡](roadmap/harness.md#step-h35) |
-| 361 | W9 | 专项 | [`P4-J7-29`](roadmap/provider.md#step-p4-j7-29) | Provider · 离线合同矩阵、属性测试与故障语料 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-29) |
-| 362 | W9 | 专项 | [`P4-J7-30`](roadmap/provider.md#step-p4-j7-30) | Provider · 产品链和四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-30) |
-| 363 | W9 | 专项 | [`CM-30`](roadmap/context-memory.md#step-cm-30) | Context / Memory · Golden ContextPlan / retrieval fixture | `CM-29` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-30) |
-| 364 | W9 | 专项 | [`CM-31`](roadmap/context-memory.md#step-cm-31) | Context / Memory · Retrieval quality and safety evaluation | `CM-30` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-31) |
-| 365 | W9 | 专项 | [`CM-32`](roadmap/context-memory.md#step-cm-32) | Context / Memory · Context/Memory Inspector 与用户纠正 | `CM-31` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-32) |
-| 366 | W9 | 专项 | [`CM-33`](roadmap/context-memory.md#step-cm-33) | Context / Memory · Code graph / temporal fact 后置扩展 | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-33) |
-| 367 | W9 | 专项 | [`CM-34`](roadmap/context-memory.md#step-cm-34) | Context / Memory · Local embedding package and model rotation | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-34) |
-| 368 | W9 | 专项 | [`CM-35`](roadmap/context-memory.md#step-cm-35) | Context / Memory · External context/resource adapter | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-35) |
-| 369 | W9 | 专项 | [`CM-36`](roadmap/context-memory.md#step-cm-36) | Context / Memory · User memory workbench and bulk operations | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-36) |
-| 370 | W9 | 专项 | [`CM-37`](roadmap/context-memory.md#step-cm-37) | Context / Memory · Cache, index and retention maintenance | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-37) |
-| 371 | W9 | 专项 | [`EXT-29`](roadmap/skills-plugins-hooks.md#step-ext-29) | Skills / Plugins / Hooks · 本地 fake golden | `EXT-10`、`EXT-18`、`EXT-25`、`EXT-28` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-29) |
-| 372 | W9 | 专项 | [`EXT-30`](roadmap/skills-plugins-hooks.md#step-ext-30) | Skills / Plugins / Hooks · Durable、故障注入和恢复 | `EXT-18`、`EXT-23`、`EXT-24`、`EXT-29` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-30) |
-| 373 | W9 | 专项 | [`EXT-31`](roadmap/skills-plugins-hooks.md#step-ext-31) | Skills / Plugins / Hooks · 性能、供应链回归和文档收口 | `EXT-29`、`EXT-30` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-31) |
-| 374 | W9 | 专项 | [`UI-31`](roadmap/ui-entrypoints.md#step-ui-31) | UI / Entrypoints · CLI/Workbench/Web/Desktop 行为 parity | `UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27`、`UI-28`、`UI-29`、`UI-30` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-31) |
-| 375 | W9 | 专项 | [`UI-32`](roadmap/ui-entrypoints.md#step-ui-32) | UI / Entrypoints · deny-first 安全路径集成测试 | `UI-04`、`UI-16`、`UI-19`、`UI-21`、`UI-23`、`UI-24`、`UI-30`、`UI-31` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-32) |
-| 376 | W9 | 专项 | [`UI-33`](roadmap/ui-entrypoints.md#step-ui-33) | UI / Entrypoints · reconnect/replay/gap/crash recovery e2e | `UI-05`、`UI-06`、`UI-07`、`UI-08`、`UI-18`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-33) |
-| 377 | W9 | 专项 | [`UI-34`](roadmap/ui-entrypoints.md#step-ui-34) | UI / Entrypoints · 性能、资源上限和可访问性验收 | `UI-13`、`UI-20`、`UI-23`、`UI-28`、`UI-33` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-34) |
-| 378 | W9 | 专项 | [`UI-35`](roadmap/ui-entrypoints.md#step-ui-35) | UI / Entrypoints · 旧 Web/CLI 迁移与兼容收口 | `UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-31` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-35) |
-| 379 | W9 | 专项 | [`UI-36`](roadmap/ui-entrypoints.md#step-ui-36) | UI / Entrypoints · 生产构建、安装和发布前 smoke | `UI-28`、`UI-34`、`UI-35` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-36) |
-| 380 | W9 | 专项 | [`UI-37`](roadmap/ui-entrypoints.md#step-ui-37) | UI / Entrypoints · 用户文档、模块图和操作 runbook | `UI-31`、`UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-37) |
-| 381 | W9 | 专项 | [`UI-38`](roadmap/ui-entrypoints.md#step-ui-38) | UI / Entrypoints · 协议/入口 conformance 集成门 | `UI-01`、`UI-02`、`UI-03`、`UI-04`、`UI-05`、`UI-06`、`UI-07`、`UI-08`、`UI-09`、`UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27`、`UI-28`、`UI-29`、`UI-30`、`UI-31`、`UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-38) |
-| 382 | W9 | 专项 | [`CO-47`](roadmap/companyos.md#step-co-47) | CompanyOS · fake-model Company 黄金闭环与故障矩阵 | `CO-35`、`CO-36`、`CO-37`、`CO-40`、`CO-41`、`CO-42`、`CO-44`、`CO-46` | ⏳ | [专项卡](roadmap/companyos.md#step-co-47) |
-| 383 | W9 | 基础 | [`P1-L1-01`](#step-p1-l1-01) | P1 基础 · EvalSuite 与 GoldenTrace | `P0-G-04` | ⏳ | [基础卡](#step-p1-l1-01) |
-| 384 | W9 | 基础 | [`P2-L2-01`](#step-p2-l2-01) | P2 基础 · 反馈与候选改进 | `P1-L1-01` | ⏳ | [基础卡](#step-p2-l2-01) |
-| 385 | W9 | 基础 | [`P3-I-06`](#step-p3-i-06) | P3 基础 · fake-model coding 黄金闭环 | `P3-I-05` | ⏳ | [基础卡](#step-p3-i-06) |
-| 386 | W9 | 基础 | [`P4-L3-01`](#step-p4-l3-01) | P4 基础 · 版本治理与 drift | `P1-L1-01` | ⏳ | [基础卡](#step-p4-l3-01) |
+| 624 | W9 | 专项 | [`CP-29`](roadmap/control-plane.md#step-cp-29) | ControlPlane · 状态机性质、并发与崩溃验收 | `CP-05`、`CP-07`、`CP-13`、`CP-14`、`CP-15`、`CP-16`、`CP-17`、`CP-18`、`CP-19`、`CP-20`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-29) |
+| 625 | W9 | 专项 | [`CP-30`](roadmap/control-plane.md#step-cp-30) | ControlPlane · 产品流程和证据收口 | `CP-21`、`CP-22`、`CP-23`、`CP-24`、`CP-25`、`CP-26`、`CP-27`、`CP-28`、`CP-29` | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-30) |
+| 626 | W9 | 专项 | [`ER-31`](roadmap/event-receipt-recovery.md#step-er-31) | Event / Receipt / Recovery · Crash-point and fault-injection matrix | `ER-30` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-31) |
+| 627 | W9 | 专项 | [`ER-32`](roadmap/event-receipt-recovery.md#step-er-32) | Event / Receipt / Recovery · Property/conformance tests for adapters | `ER-31` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-32) |
+| 628 | W9 | 专项 | [`ER-33`](roadmap/event-receipt-recovery.md#step-er-33) | Event / Receipt / Recovery · Performance、容量和迁移演练 | `ER-32` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-33) |
+| 629 | W9 | 专项 | [`ER-34`](roadmap/event-receipt-recovery.md#step-er-34) | Event / Receipt / Recovery · Local durable gate | `ER-33` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-34) |
+| 630 | W9 | 专项 | [`ER-35`](roadmap/event-receipt-recovery.md#step-er-35) | Event / Receipt / Recovery · Cross-entry and CompanyOS gate | `ER-34` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-35) |
+| 631 | W9 | 专项 | [`CAP-26`](roadmap/capability.md#step-cap-26) | Capability · 本地五工具 + Hook 的完整执行闭环验收 | `CAP-14`、`CAP-15`、`CAP-16`、`CAP-17`、`CAP-18`、`CAP-19`、`CAP-20`、`CAP-21`、`CAP-22`、`CAP-23`、`CAP-24`、`CAP-25` | ⏳ | [专项卡](roadmap/capability.md#step-cap-26) |
+| 632 | W9 | 专项 | [`H35`](roadmap/harness.md#step-h35) | Harness · Harness 轨迹评测与性能验证 | `H25`、`H27`、`H28`、`H30`、`H34` | ⏳ | [专项卡](roadmap/harness.md#step-h35) |
+| 633 | W9 | 专项 | [`P4-J7-29`](roadmap/provider.md#step-p4-j7-29) | Provider · 离线合同矩阵、属性测试与故障语料 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-29) |
+| 634 | W9 | 专项 | [`P4-J7-30`](roadmap/provider.md#step-p4-j7-30) | Provider · 产品链和四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-30) |
+| 635 | W9 | 专项 | [`CM-30`](roadmap/context-memory.md#step-cm-30) | Context / Memory · Golden ContextPlan / retrieval fixture | `CM-29` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-30) |
+| 636 | W9 | 专项 | [`CM-31`](roadmap/context-memory.md#step-cm-31) | Context / Memory · Retrieval quality and safety evaluation | `CM-30` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-31) |
+| 637 | W9 | 专项 | [`CM-32`](roadmap/context-memory.md#step-cm-32) | Context / Memory · Context/Memory Inspector 与用户纠正 | `CM-31` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-32) |
+| 638 | W9 | 专项 | [`CM-33`](roadmap/context-memory.md#step-cm-33) | Context / Memory · Code graph / temporal fact 后置扩展 | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-33) |
+| 639 | W9 | 专项 | [`CM-34`](roadmap/context-memory.md#step-cm-34) | Context / Memory · Local embedding package and model rotation | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-34) |
+| 640 | W9 | 专项 | [`CM-35`](roadmap/context-memory.md#step-cm-35) | Context / Memory · External context/resource adapter | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-35) |
+| 641 | W9 | 专项 | [`CM-36`](roadmap/context-memory.md#step-cm-36) | Context / Memory · User memory workbench and bulk operations | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-36) |
+| 642 | W9 | 专项 | [`CM-37`](roadmap/context-memory.md#step-cm-37) | Context / Memory · Cache, index and retention maintenance | `CM-06`、`CM-14`、`CM-28`、`CM-32` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-37) |
+| 643 | W9 | 专项 | [`EXT-29`](roadmap/skills-plugins-hooks.md#step-ext-29) | Skills / Plugins / Hooks · 本地 fake golden | `EXT-10`、`EXT-18`、`EXT-25`、`EXT-28` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-29) |
+| 644 | W9 | 专项 | [`EXT-30`](roadmap/skills-plugins-hooks.md#step-ext-30) | Skills / Plugins / Hooks · Durable、故障注入和恢复 | `EXT-18`、`EXT-23`、`EXT-24`、`EXT-29` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-30) |
+| 645 | W9 | 专项 | [`EXT-31`](roadmap/skills-plugins-hooks.md#step-ext-31) | Skills / Plugins / Hooks · 性能、供应链回归和文档收口 | `EXT-29`、`EXT-30` | ⏳ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-31) |
+| 646 | W9 | 专项 | [`UI-31`](roadmap/ui-entrypoints.md#step-ui-31) | UI / Entrypoints · CLI/Workbench/Web/Desktop 行为 parity | `UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27`、`UI-28`、`UI-29`、`UI-30` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-31) |
+| 647 | W9 | 专项 | [`UI-32`](roadmap/ui-entrypoints.md#step-ui-32) | UI / Entrypoints · deny-first 安全路径集成测试 | `UI-04`、`UI-16`、`UI-19`、`UI-21`、`UI-23`、`UI-24`、`UI-30`、`UI-31` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-32) |
+| 648 | W9 | 专项 | [`UI-33`](roadmap/ui-entrypoints.md#step-ui-33) | UI / Entrypoints · reconnect/replay/gap/crash recovery e2e | `UI-05`、`UI-06`、`UI-07`、`UI-08`、`UI-18`、`UI-25` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-33) |
+| 649 | W9 | 专项 | [`UI-34`](roadmap/ui-entrypoints.md#step-ui-34) | UI / Entrypoints · 性能、资源上限和可访问性验收 | `UI-13`、`UI-20`、`UI-23`、`UI-28`、`UI-33` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-34) |
+| 650 | W9 | 专项 | [`UI-35`](roadmap/ui-entrypoints.md#step-ui-35) | UI / Entrypoints · 旧 Web/CLI 迁移与兼容收口 | `UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-31` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-35) |
+| 651 | W9 | 专项 | [`UI-36`](roadmap/ui-entrypoints.md#step-ui-36) | UI / Entrypoints · 生产构建、安装和发布前 smoke | `UI-28`、`UI-34`、`UI-35` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-36) |
+| 652 | W9 | 专项 | [`UI-37`](roadmap/ui-entrypoints.md#step-ui-37) | UI / Entrypoints · 用户文档、模块图和操作 runbook | `UI-31`、`UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-37) |
+| 653 | W9 | 专项 | [`UI-38`](roadmap/ui-entrypoints.md#step-ui-38) | UI / Entrypoints · 协议/入口 conformance 集成门 | `UI-01`、`UI-02`、`UI-03`、`UI-04`、`UI-05`、`UI-06`、`UI-07`、`UI-08`、`UI-09`、`UI-10`、`UI-11`、`UI-12`、`UI-13`、`UI-14`、`UI-15`、`UI-16`、`UI-17`、`UI-18`、`UI-19`、`UI-20`、`UI-21`、`UI-22`、`UI-23`、`UI-24`、`UI-25`、`UI-26`、`UI-27`、`UI-28`、`UI-29`、`UI-30`、`UI-31`、`UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-38) |
+| 654 | W9 | 专项 | [`CO-47`](roadmap/companyos.md#step-co-47) | CompanyOS · fake-model Company 黄金闭环与故障矩阵 | `CO-35`、`CO-36`、`CO-37`、`CO-40`、`CO-41`、`CO-42`、`CO-44`、`CO-46` | ⏳ | [专项卡](roadmap/companyos.md#step-co-47) |
+| 655 | W9 | 基础 | [`P1-L1-01`](#step-p1-l1-01) | P1 基础 · EvalSuite 与 GoldenTrace | `P0-G-04` | ⏳ | [基础卡](#step-p1-l1-01) |
+| 656 | W9 | 基础 | [`P2-L2-01`](#step-p2-l2-01) | P2 基础 · 反馈与候选改进 | `P1-L1-01` | ⏳ | [基础卡](#step-p2-l2-01) |
+| 657 | W9 | 基础 | [`P3-I-06`](#step-p3-i-06) | P3 基础 · fake-model coding 黄金闭环 | `P3-I-05` | ⏳ | [基础卡](#step-p3-i-06) |
+| 658 | W9 | 基础 | [`P4-L3-01`](#step-p4-l3-01) | P4 基础 · 版本治理与 drift | `P1-L1-01` | ⏳ | [基础卡](#step-p4-l3-01) |
+| 659 | W9 | 专项 | [`CI-12`](#step-ci-12) | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | `CI-01`、`CI-11`、`CI-02`、`CI-03`、`CI-04`、`CI-05`、`CI-06`、`CI-07`、`CI-08`、`CI-09`、`CI-10` | ⏳ | [专项卡](#step-ci-12) |
+| 660 | W9 | 专项 | [`OA-23`](#step-oa-23) | Provider-independent eval suite；fake model/provider/broker、GoldenTrace、Promptfoo 风格断言 | `P1-L1-01`、`OA-08`、`OA-09`、`OA-21` | ⏳ | [专项卡](#step-oa-23) |
+| 661 | W9 | 专项 | [`OA-24`](#step-oa-24) | 四入口审计/健康/Receipt parity；CLI/Web/Workbench/Desktop | `P2-M2-01`、`P2-M3-01`、`P2-M4-01`、`P2-M5-01`、`P2-M5-02`、`OA-16`、`OA-23`、`OA-17`、`OA-18`、`OA-19`、`OA-20`、`OA-21`、`OA-22` | ⏳ | [专项卡](#step-oa-24) |
+| 662 | W9 | 专项 | [`OA-25`](#step-oa-25) | 容量、性能和迁移演练；journal/projector/query/export benchmark | `OA-12`、`OA-13`、`OA-17`、`OA-20` | ⏳ | [专项卡](#step-oa-25) |
+| 663 | W9 | 专项 | [`OA-26`](#step-oa-26) | Local durable observability gate；release/smoke/CURRENT_STATUS | `ER-34`、`OA-22`、`OA-25`、`OA-23`、`OA-24` | ⏳ | [专项卡](#step-oa-26) |
+| 664 | W9 | 专项 | [`OA-27`](#step-oa-27) | Cross-entry/company governance gate；`ER-35`、CompanyOS Review/Delivery/Close、Cost/Memory/Data governance | `OA-24`、`OA-26`、`OA-25` | ⏳ | [专项卡](#step-oa-27) |
+| 665 | W9 | 专项 | [`AUT-22`](#step-aut-22) | scheduler/workflow/trigger snapshot、Receipt、incident query/UI adapter；`kiana-query`、`kiana-protocol` | `AUT-05`、`AUT-21` | ⏳ | [专项卡](#step-aut-22) |
+| 666 | W9 | 专项 | [`AUT-23`](#step-aut-23) | 跨 CLI/Web/Workbench/Desktop/MCP 的同一 DaemonHost 端到端 UAT；entrypoints、daemon、core | `AUT-09`、`AUT-11`、`AUT-18`、`AUT-22` | ⏳ | [专项卡](#step-aut-23) |
+| 667 | W9 | 专项 | [`AUT-24`](#step-aut-24) | durable/live 证据与发布门；scripts、fixtures、`CURRENT_STATUS.md` | `AUT-01`、`AUT-23`、`AUT-02`、`AUT-03`、`AUT-04`、`AUT-05`、`AUT-06`、`AUT-07`、`AUT-08`、`AUT-09`、`AUT-10`、`AUT-11`、`AUT-12`、`AUT-13`、`AUT-14`、`AUT-15`、`AUT-16`、`AUT-17`、`AUT-18`、`AUT-19`、`AUT-20`、`AUT-21`、`AUT-22` | ⏳ | [专项卡](#step-aut-24) |
+| 668 | W9 | 专项 | [`EQ-45`](#step-eq-45) | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `EQ-44` | ⏳ | [专项卡](#step-eq-45) |
+| 669 | W9 | 专项 | [`EQ-46`](#step-eq-46) | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `EQ-45` | ⏳ | [专项卡](#step-eq-46) |
+| 670 | W9 | 专项 | [`EQ-47`](#step-eq-47) | 扩展 `kiana eval`：`run/capture/compare/explain/list`，旧 `run --suite` 参数保持兼容 | `EQ-46` | ⏳ | [专项卡](#step-eq-47) |
+| 671 | W9 | 专项 | [`EQ-48`](#step-eq-48) | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `EQ-47` | ⏳ | [专项卡](#step-eq-48) |
+| 672 | W9 | 专项 | [`EQ-49`](#step-eq-49) | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `EQ-48` | ⏳ | [专项卡](#step-eq-49) |
+| 673 | W9 | 专项 | [`EQ-50`](#step-eq-50) | 接入 PR curated/package、nightly deep、release candidate workflow，daemon/core 测试串行 | `EQ-49` | ⏳ | [专项卡](#step-eq-50) |
+| 674 | W9 | 专项 | [`EQ-51`](#step-eq-51) | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `EQ-50` | ⏳ | [专项卡](#step-eq-51) |
+| 675 | W9 | 专项 | [`BQ-24`](#step-bq-24) | UI/入口展示与命令；只读预算卡、队列、超额原因、correction approval | `UI-00`、`BQ-23` | ⏳ | [专项卡](#step-bq-24) |
+| 676 | W9 | 专项 | [`BQ-25`](#step-bq-25) | Redaction、DataClass、telemetry separation；Event/Log/Metric/Trace/Receipt 安全 | `OA-08`、`BQ-11`、`BQ-13`、`BQ-23` | ⏳ | [专项卡](#step-bq-25) |
+| 677 | W9 | 专项 | [`BQ-26`](#step-bq-26) | 并发、崩溃、磁盘满、网络 EOF、provider 429/5xx、clock fault 注入 | `BQ-08`、`BQ-12`、`BQ-16`、`BQ-20` | ⏳ | [专项卡](#step-bq-26) |
+| 678 | W9 | 专项 | [`BQ-27`](#step-bq-27) | Legacy usage/cassette/config upcaster 和迁移；旧 `CostLedger`/`Quota` 字段 | `BQ-01`、`BQ-02`、`BQ-04`、`BQ-20` | ⏳ | [专项卡](#step-bq-27) |
+| 679 | W9 | 专项 | [`BQ-28`](#step-bq-28) | 性能、容量、retention 和归档；usage/index/receipt 保留边界 | `BQ-20`、`BQ-25`、`BQ-26` | ⏳ | [专项卡](#step-bq-28) |
+| 680 | W9 | 专项 | [`BQ-29`](#step-bq-29) | GoldenTrace 与跨入口端到端：model→tool→event→receipt→invoice correction | `BQ-21`、`BQ-22`、`BQ-23`、`BQ-24`、`BQ-26`、`BQ-27` | ⏳ | [专项卡](#step-bq-29) |
+| 681 | W9 | 专项 | [`BQ-30`](#step-bq-30) | 发布门、状态账本和逐连接 live 证据；更新 `CURRENT_STATUS.md`/`module-map.md` | `BQ-00`、`BQ-29`、`BQ-01`、`BQ-02`、`BQ-03`、`BQ-04`、`BQ-05`、`BQ-06`、`BQ-07`、`BQ-08`、`BQ-09`、`BQ-10`、`BQ-11`、`BQ-12`、`BQ-13`、`BQ-14`、`BQ-15`、`BQ-16`、`BQ-17`、`BQ-18`、`BQ-19`、`BQ-20`、`BQ-21`、`BQ-22`、`BQ-23`、`BQ-24`、`BQ-25`、`BQ-26`、`BQ-27`、`BQ-28` | ⏳ | [专项卡](#step-bq-30) |
+| 682 | W9 | 专项 | [`DEP-13`](#step-dep-13) | 把 cancellation、scheduler stop、runner/tool drain、EventStore/artifact flush ack 接入统一 shutdown | `DEP-09`、`DEP-12` | ⏳ | [专项卡](#step-dep-13) |
+| 683 | W9 | 专项 | [`DEP-14`](#step-dep-14) | 接入 lifecycle/operation metrics、structured logs、trace/evidence refs 和 audit event schema | `DEP-04`、`DEP-05`、`DEP-11` | ⏳ | [专项卡](#step-dep-14) |
+| 684 | W9 | 专项 | [`DEP-15`](#step-dep-15) | 实现 `ops status/doctor/preflight`，输出 redacted diagnostics、remediation 和 reproduction command | `DEP-08`、`DEP-11`、`DEP-14` | ⏳ | [专项卡](#step-dep-15) |
+| 685 | W9 | 专项 | [`DEP-16`](#step-dep-16) | 实现 projector/index/queue/lease repair 与 `ops reconcile` 只读检查/显式提交 | `DEP-05`、`DEP-06`、`DEP-10`、`DEP-14` | ⏳ | [专项卡](#step-dep-16) |
+| 686 | W9 | 专项 | [`DEP-17`](#step-dep-17) | 实现 append/artifact/operation/log/diagnostic/migration capacity、backpressure 和 shutdown limits | `DEP-10`、`DEP-13`、`DEP-14` | ⏳ | [专项卡](#step-dep-17) |
+| 687 | W9 | 专项 | [`DEP-18`](#step-dep-18) | 建立 incident schema、runbook refs、phase deadline/alert routing 和 `RunbookEvidence` | `DEP-14`、`DEP-15`、`DEP-16` | ⏳ | [专项卡](#step-dep-18) |
+| 688 | W9 | 专项 | [`DEP-19`](#step-dep-19) | 在 `kiana-eventlog`/`kiana-ports` 定义 `BackupManifest`、hash/chunk、cursor/generation/epoch、artifact/config refs | `DEP-02`、`DEP-07`、`DEP-14` | ⏳ | [专项卡](#step-dep-19) |
+| 689 | W9 | 专项 | [`DEP-20`](#step-dep-20) | 实现 quiesce snapshot：EventLog JSONL/WAL、ArtifactStore、projection checkpoint、migration registry 的一致快照 | `DEP-12`、`DEP-13`、`DEP-19` | ⏳ | [专项卡](#step-dep-20) |
+| 690 | W9 | 专项 | [`DEP-21`](#step-dep-21) | 实现 incremental backup、retention、legal hold、archive、encryption/key ref 和删除依赖图 | `DEP-19`、`DEP-20` | ⏳ | [专项卡](#step-dep-21) |
+| 691 | W9 | 专项 | [`DEP-22`](#step-dep-22) | 实现 restore quarantine root、manifest/signature/hash/schema/cursor/epoch 校验和 projector/index rebuild | `DEP-19`、`DEP-20`、`DEP-21` | ⏳ | [专项卡](#step-dep-22) |
+| 692 | W9 | 专项 | [`DEP-23`](#step-dep-23) | 实现 restore activation、new lease/fence、old root read-only、activation readiness gate | `DEP-06`、`DEP-11`、`DEP-22` | ⏳ | [专项卡](#step-dep-23) |
+| 693 | W9 | 专项 | [`DEP-24`](#step-dep-24) | 建立 crash/restore/backup fault fixtures，测量 RPO/RTO 并生成演练证据 | `DEP-20`、`DEP-22`、`DEP-23` | ⏳ | [专项卡](#step-dep-24) |
+| 694 | W9 | 专项 | [`DEP-25`](#step-dep-25) | 实现 external effect receipt lookup、idempotency key、Unknown reconciliation 与 compensation gate | `DEP-13`、`DEP-16`、`DEP-23` | ⏳ | [专项卡](#step-dep-25) |
+| 695 | W9 | 专项 | [`DEP-26`](#step-dep-26) | 把 retention/deletion/revocation 与 PD-25/PD-26、audit/backup/artifact/memory 生命周期接通 | `DEP-18`、`DEP-21`、`DEP-25` | ⏳ | [专项卡](#step-dep-26) |
+| 696 | W9 | 专项 | [`PD-28`](roadmap/persistence-data-layer.md#step-pd-28) | 路径/权限/secret redaction/可选加密/文件身份安全边界；`kiana-core`、`kiana-eventlog` | `CI-07`、`CI-11`、`PD-14` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-28) |
+| 697 | W9 | 专项 | [`PD-29`](roadmap/persistence-data-layer.md#step-pd-29) | storage health、projection lag、backup/migration/retention metrics 和诊断 DTO；`kiana-core`、`kiana-daemon` | `PD-03`、`PD-09`、`PD-22`、`PD-25` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-29) |
+| 698 | W9 | 专项 | [`PD-30`](roadmap/persistence-data-layer.md#step-pd-30) | 故障注入矩阵：kill-9、磁盘满、权限、锁争用、坏帧、崩溃时机、网络 Unknown；各 adapter tests | `PD-05`、`PD-06`、`PD-07`、`PD-08`、`PD-09`、`PD-10`、`PD-11`、`PD-12`、`PD-13`、`PD-14`、`PD-15`、`PD-16`、`PD-17`、`PD-18`、`PD-19`、`PD-20`、`PD-21`、`PD-22`、`PD-23`、`PD-24`、`PD-25`、`PD-26`、`PD-27`、`PD-28`、`PD-29` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-30) |
+| 699 | W9 | 专项 | [`PD-31`](roadmap/persistence-data-layer.md#step-pd-31) | Memory/JSONL/durable/未来 SQLite adapter conformance；`kiana-eventlog/tests`、`kiana-ports` | `PD-05`、`PD-09`、`PD-22` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-31) |
+| 700 | W9 | 专项 | [`NM-22`](#step-nm-22) | 发布门、证据和 `CURRENT_STATUS` 回填；feature/proof 分离 | `ER-34`、`PD-30`、`PD-31`、`UI-31`、`UI-32`、`UI-33`、`NM-01`、`NM-21`、`NM-02`、`NM-03`、`NM-04`、`NM-05`、`NM-06`、`NM-07`、`NM-08`、`NM-09`、`NM-10`、`NM-11`、`NM-12`、`NM-13`、`NM-14`、`NM-15`、`NM-16`、`NM-17`、`NM-18`、`NM-19`、`NM-20` | ⏳ | [专项卡](#step-nm-22) |
+| 701 | W9 | 专项 | [`PD-32`](roadmap/persistence-data-layer.md#step-pd-32) | 平台和文件系统矩阵：Linux ext4/tmpfs、Windows/macOS fallback、网络 FS、时钟/编码 | `PD-06`、`PD-14`、`PD-27`、`PD-28` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-32) |
+| 702 | W9 | 专项 | [`INT-30`](roadmap/integrations-connectors.md#step-int-30) | adapter/registry/protocol conformance 和 property tests | `INT-02`、`INT-03`、`INT-04`、`INT-05`、`INT-06`、`INT-07`、`INT-08`、`INT-09`、`INT-10`、`INT-11`、`INT-12`、`INT-13`、`INT-14`、`INT-15`、`INT-16`、`INT-17`、`INT-18`、`INT-19`、`INT-20`、`INT-21`、`INT-22`、`INT-23`、`INT-24`、`INT-25`、`INT-26`、`INT-27`、`INT-28`、`INT-29` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-30) |
+| 703 | W9 | 专项 | [`INT-31`](roadmap/integrations-connectors.md#step-int-31) | 一个只读外部 connector pilot（隔离账号，默认关闭） | `INT-09`、`INT-11`、`INT-12`、`INT-20`、`INT-30` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-31) |
+| 704 | W9 | 专项 | [`INT-32`](roadmap/integrations-connectors.md#step-int-32) | 一个受控写 connector pilot（每 operation 独立） | `INT-15`、`INT-16`、`INT-18`、`INT-20`、`INT-21`、`INT-22`、`INT-23`、`INT-31` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-32) |
+| 705 | W9 | 专项 | [`INT-33`](roadmap/integrations-connectors.md#step-int-33) | 发布门、live/physical 证据和 `CURRENT_STATUS` 收口 | `INT-00`、`INT-01`、`INT-02`、`INT-03`、`INT-04`、`INT-05`、`INT-06`、`INT-07`、`INT-08`、`INT-09`、`INT-10`、`INT-11`、`INT-12`、`INT-13`、`INT-14`、`INT-15`、`INT-16`、`INT-17`、`INT-18`、`INT-19`、`INT-20`、`INT-21`、`INT-22`、`INT-23`、`INT-24`、`INT-25`、`INT-26`、`INT-27`、`INT-28`、`INT-29`、`INT-30`、`INT-31`、`INT-32` | ⏳ | [专项卡](roadmap/integrations-connectors.md#step-int-33) |
+| 706 | W9 | 专项 | [`SC-36`](roadmap/security-compliance.md#step-sc-36) | CLI/Workbench/Web/Desktop/daemon protocol parity | `SC-11`、`SC-32`、`SC-35` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-36) |
+| 707 | W9 | 专项 | [`SC-37`](roadmap/security-compliance.md#step-sc-37) | crate negative tests、integration fixtures | `SC-12`、`SC-13`、`SC-15`、`SC-18`、`SC-21`、`SC-31` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-37) |
+| 708 | W9 | 专项 | [`SC-38`](roadmap/security-compliance.md#step-sc-38) | property/fuzz/serialization/replay tests | `SC-02`、`SC-05`、`SC-09`、`SC-12`、`SC-31` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-38) |
+| 709 | W9 | 专项 | [`SC-39`](roadmap/security-compliance.md#step-sc-39) | security red-team/eval fixtures | `SC-01`、`SC-20`、`SC-24`、`SC-26`、`SC-30` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-39) |
+| 710 | W9 | 专项 | [`SC-40`](roadmap/security-compliance.md#step-sc-40) | capacity/resource fault injection | `SC-16`、`SC-22`、`SC-32` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-40) |
 | **W10** | **后置平台与能力扩展** |  |  |  |  |  |  |
-| 387 | W10 | 专项 | [`CAP-27`](roadmap/capability.md#step-cap-27) | Capability · 长任务、process handle 与 PTY | `CAP-12`、`CAP-13`、`CAP-17`、`CAP-23`、`CAP-25`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-27) |
-| 388 | W10 | 专项 | [`CAP-28`](roadmap/capability.md#step-cap-28) | Capability · 受控 egress 与最小凭据注入 | `CAP-03`、`CAP-06`、`CAP-11`、`CAP-17`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-28) |
-| 389 | W10 | 专项 | [`CAP-29`](roadmap/capability.md#step-cap-29) | Capability · Streamable HTTP MCP | `CAP-22`、`CAP-24`、`CAP-28` | ⏳ | [专项卡](roadmap/capability.md#step-cap-29) |
-| 390 | W10 | 专项 | [`CAP-30`](roadmap/capability.md#step-cap-30) | Capability · 动态工具搜索与受控扩展准入 | `CAP-01`、`CAP-02`、`CAP-05`、`CAP-22`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-30) |
-| 391 | W10 | 专项 | [`CAP-31`](roadmap/capability.md#step-cap-31) | Capability · macOS 原生后端 | `CAP-07`、`CAP-08`、`CAP-10`、`CAP-12`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-31) |
-| 392 | W10 | 专项 | [`CAP-32`](roadmap/capability.md#step-cap-32) | Capability · Windows 原生后端 | `CAP-07`、`CAP-08`、`CAP-10`、`CAP-12`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-32) |
-| 393 | W10 | 专项 | [`CAP-33`](roadmap/capability.md#step-cap-33) | Capability · Container / gVisor 可选执行环境 | `CAP-07`、`CAP-10`、`CAP-12`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-33) |
+| 711 | W10 | 专项 | [`CAP-27`](roadmap/capability.md#step-cap-27) | Capability · 长任务、process handle 与 PTY | `CAP-12`、`CAP-13`、`CAP-17`、`CAP-23`、`CAP-25`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-27) |
+| 712 | W10 | 专项 | [`CAP-28`](roadmap/capability.md#step-cap-28) | Capability · 受控 egress 与最小凭据注入 | `CAP-03`、`CAP-06`、`CAP-11`、`CAP-17`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-28) |
+| 713 | W10 | 专项 | [`CAP-29`](roadmap/capability.md#step-cap-29) | Capability · Streamable HTTP MCP | `CAP-22`、`CAP-24`、`CAP-28` | ⏳ | [专项卡](roadmap/capability.md#step-cap-29) |
+| 714 | W10 | 专项 | [`CAP-30`](roadmap/capability.md#step-cap-30) | Capability · 动态工具搜索与受控扩展准入 | `CAP-01`、`CAP-02`、`CAP-05`、`CAP-22`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-30) |
+| 715 | W10 | 专项 | [`CAP-31`](roadmap/capability.md#step-cap-31) | Capability · macOS 原生后端 | `CAP-07`、`CAP-08`、`CAP-10`、`CAP-12`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-31) |
+| 716 | W10 | 专项 | [`CAP-32`](roadmap/capability.md#step-cap-32) | Capability · Windows 原生后端 | `CAP-07`、`CAP-08`、`CAP-10`、`CAP-12`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-32) |
+| 717 | W10 | 专项 | [`CAP-33`](roadmap/capability.md#step-cap-33) | Capability · Container / gVisor 可选执行环境 | `CAP-07`、`CAP-10`、`CAP-12`、`CAP-26` | ⏳ | [专项卡](roadmap/capability.md#step-cap-33) |
+| 718 | W10 | 专项 | [`DEP-27`](#step-dep-27) | 定义 MigrationRegistry、checksum、ordered steps、precondition、owner、backup requirement、compatibility window | `DEP-03`、`DEP-19` | ⏳ | [专项卡](#step-dep-27) |
+| 719 | W10 | 专项 | [`DEP-28`](#step-dep-28) | 实现 read-only migration preflight：store/schema/projection/workflow/provider/config/space/clock/lease 矩阵 | `DEP-07`、`DEP-08`、`DEP-27` | ⏳ | [专项卡](#step-dep-28) |
+| 720 | W10 | 专项 | [`DEP-29`](#step-dep-29) | 实现 expand/backfill/verify/switch/contract 的 idempotent bounded migration primitives | `DEP-27`、`DEP-28` | ⏳ | [专项卡](#step-dep-29) |
+| 721 | W10 | 专项 | [`DEP-30`](#step-dep-30) | 实现 migration runner lock/fence、`MigrationStarted/Step/Blocked/Completed`、resume token 和 failure quarantine | `DEP-06`、`DEP-27`、`DEP-28`、`DEP-29` | ⏳ | [专项卡](#step-dep-30) |
+| 722 | W10 | 专项 | [`DEP-31`](#step-dep-31) | 实现 post-migration projector/index rebuild、source/projection cursor/generation/receipt invariant 验证 | `DEP-16`、`DEP-22`、`DEP-30` | ⏳ | [专项卡](#step-dep-31) |
+| 723 | W10 | 专项 | [`DEP-32`](#step-dep-32) | 实现 binary/data rollback decision gate、restore fallback、old root retention 和 rollback receipt | `DEP-23`、`DEP-28`、`DEP-30`、`DEP-31` | ⏳ | [专项卡](#step-dep-32) |
+| 724 | W10 | 专项 | [`DEP-33`](#step-dep-33) | 在 workflow/runner/provider/skills/plugins 中实现 build/digest pin、replay compatibility 和 old revision drain | `DEP-03`、`DEP-28`、`DEP-31` | ⏳ | [专项卡](#step-dep-33) |
+| 725 | W10 | 专项 | [`DEP-34`](#step-dep-34) | 扩展 release preflight：reproducible build、Cargo.lock、target matrix、SBOM/checksum/signature、migration/backup gate | `DEP-02`、`DEP-03`、`DEP-18`、`DEP-27`、`DEP-28` | ⏳ | [专项卡](#step-dep-34) |
+| 726 | W10 | 专项 | [`DEP-35`](#step-dep-35) | 实现 managed-local/embedded-local 单机 rollout：plan→preflight→backup→drain→replace→ready→promote | `DEP-10`、`DEP-13`、`DEP-20`、`DEP-28`、`DEP-34` | ⏳ | [专项卡](#step-dep-35) |
 | **W11** | **真实环境与发布证据** |  |  |  |  |  |  |
-| 394 | W11 | 专项 | [`ER-36`](roadmap/event-receipt-recovery.md#step-er-36) | Event / Receipt / Recovery · Physical/live boundary and handoff | `ER-35` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-36) |
-| 395 | W11 | 专项 | [`CAP-34`](roadmap/capability.md#step-cap-34) | Capability · 扩展组合验收与证据收口 | `CAP-27`、`CAP-28`、`CAP-29`、`CAP-30`、`CAP-31`、`CAP-32`、`CAP-33` | ⏳ | [专项卡](roadmap/capability.md#step-cap-34) |
-| 396 | W11 | 专项 | [`H36`](roadmap/harness.md#step-h36) | Harness · 三入口集成、真实 Provider 和证据收口 | `H35` | ⏳ | [专项卡](roadmap/harness.md#step-h36) |
-| 397 | W11 | 专项 | [`P4-J7-31`](roadmap/provider.md#step-p4-j7-31) | Provider · 逐协议、逐连接 live 验收与迁移收口 | `P4-J7-30` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-31) |
-| 398 | W11 | 专项 | [`CM-38`](roadmap/context-memory.md#step-cm-38) | Context / Memory · End-to-end fake Provider / live opt-in evidence | `CM-33`、`CM-34`、`CM-35`、`CM-36`、`CM-37` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-38) |
-| 399 | W11 | 专项 | [`CM-39`](roadmap/context-memory.md#step-cm-39) | Context / Memory · 文档、状态和交接收口 | `CM-38` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-39) |
-| 400 | W11 | 专项 | [`UI-39`](roadmap/ui-entrypoints.md#step-ui-39) | UI / Entrypoints · live ACP/IDE opt-in 验证 | `UI-29`、`UI-30`、`UI-33`、`UI-38` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-39) |
-| 401 | W11 | 专项 | [`UI-40`](roadmap/ui-entrypoints.md#step-ui-40) | UI / Entrypoints · 发布门与证据收口 | `UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37`、`UI-38`、`UI-39` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-40) |
-| 402 | W11 | 专项 | [`UI-41`](roadmap/ui-entrypoints.md#step-ui-41) | UI / Entrypoints · 交接、审查和后续缺口 | `UI-40` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-41) |
-| 403 | W11 | 专项 | [`CO-48`](roadmap/companyos.md#step-co-48) | CompanyOS · 真实模型闭环验证、文档回填与交接 | `CO-47` | ⏳ | [专项卡](roadmap/companyos.md#step-co-48) |
-
+| 727 | W11 | 专项 | [`ER-36`](roadmap/event-receipt-recovery.md#step-er-36) | Event / Receipt / Recovery · Physical/live boundary and handoff | `ER-35` | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-36) |
+| 728 | W11 | 专项 | [`CAP-34`](roadmap/capability.md#step-cap-34) | Capability · 扩展组合验收与证据收口 | `CAP-27`、`CAP-28`、`CAP-29`、`CAP-30`、`CAP-31`、`CAP-32`、`CAP-33` | ⏳ | [专项卡](roadmap/capability.md#step-cap-34) |
+| 729 | W11 | 专项 | [`H36`](roadmap/harness.md#step-h36) | Harness · 三入口集成、真实 Provider 和证据收口 | `H35` | ⏳ | [专项卡](roadmap/harness.md#step-h36) |
+| 730 | W11 | 专项 | [`P4-J7-31`](roadmap/provider.md#step-p4-j7-31) | Provider · 逐协议、逐连接 live 验收与迁移收口 | `P4-J7-30` | ⏳ | [专项卡](roadmap/provider.md#step-p4-j7-31) |
+| 731 | W11 | 专项 | [`CM-38`](roadmap/context-memory.md#step-cm-38) | Context / Memory · End-to-end fake Provider / live opt-in evidence | `CM-33`、`CM-34`、`CM-35`、`CM-36`、`CM-37` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-38) |
+| 732 | W11 | 专项 | [`CM-39`](roadmap/context-memory.md#step-cm-39) | Context / Memory · 文档、状态和交接收口 | `CM-38` | ⏳ | [专项卡](roadmap/context-memory.md#step-cm-39) |
+| 733 | W11 | 专项 | [`UI-39`](roadmap/ui-entrypoints.md#step-ui-39) | UI / Entrypoints · live ACP/IDE opt-in 验证 | `UI-29`、`UI-30`、`UI-33`、`UI-38` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-39) |
+| 734 | W11 | 专项 | [`UI-40`](roadmap/ui-entrypoints.md#step-ui-40) | UI / Entrypoints · 发布门与证据收口 | `UI-32`、`UI-33`、`UI-34`、`UI-35`、`UI-36`、`UI-37`、`UI-38`、`UI-39` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-40) |
+| 735 | W11 | 专项 | [`UI-41`](roadmap/ui-entrypoints.md#step-ui-41) | UI / Entrypoints · 交接、审查和后续缺口 | `UI-40` | ⏳ | [专项卡](roadmap/ui-entrypoints.md#step-ui-41) |
+| 736 | W11 | 专项 | [`CO-48`](roadmap/companyos.md#step-co-48) | CompanyOS · 真实模型闭环验证、文档回填与交接 | `CO-47` | ⏳ | [专项卡](roadmap/companyos.md#step-co-48) |
+| 737 | W11 | 专项 | [`OA-28`](#step-oa-28) | Physical/live handoff；目标 OS、OTLP backend、隔离 provider/connector 和 operator runbook | `ER-36`、`OA-26`、`OA-27` | ⏳ | [专项卡](#step-oa-28) |
+| 738 | W11 | 专项 | [`DEP-36`](#step-dep-36) | 实现 container adapter：immutable image、volume/root identity、env allowlist、SIGTERM、startup/readiness/liveness probe | `DEP-09`、`DEP-11`、`DEP-17`、`DEP-35` | ⏳ | [专项卡](#step-dep-36) |
+| 739 | W11 | 专项 | [`DEP-37`](#step-dep-37) | 设计 orchestrated canary/blue-green/rainbow rollout 与 worker build routing；标记真实编排器为 target | `DEP-33`、`DEP-35`、`DEP-36` | ⏳ | [专项卡](#step-dep-37) |
+| 740 | W11 | 专项 | [`DEP-38`](#step-dep-38) | 实现 rollout pause/resume/promote/rollback、old revision retirement、retention 和 post-deploy verification | `DEP-32`、`DEP-35`、`DEP-37` | ⏳ | [专项卡](#step-dep-38) |
+| 741 | W11 | 专项 | [`DEP-39`](#step-dep-39) | 接入供应链、签名、SBOM、依赖许可、desktop package/checksum、secret scanning/compliance gate | `DEP-02`、`DEP-34`、`DEP-38` | ⏳ | [专项卡](#step-dep-39) |
+| 742 | W11 | 专项 | [`DEP-40`](#step-dep-40) | 编写 release/upgrade/rollback/backup/restore/migration/health 的跨 CLI/Web/Workbench/Desktop E2E/UAT | `DEP-15`、`DEP-24`、`DEP-31`、`DEP-36`、`DEP-38`、`DEP-39` | ⏳ | [专项卡](#step-dep-40) |
+| 743 | W11 | 专项 | [`DEP-41`](#step-dep-41) | 维护 runbook、operator reference、CURRENT_STATUS 证据块、release gate 和 capability/proof matrix | `DEP-00`、`DEP-40`、`DEP-01`、`DEP-02`、`DEP-03`、`DEP-04`、`DEP-05`、`DEP-06`、`DEP-07`、`DEP-08`、`DEP-09`、`DEP-10`、`DEP-11`、`DEP-12`、`DEP-13`、`DEP-14`、`DEP-15`、`DEP-16`、`DEP-17`、`DEP-18`、`DEP-19`、`DEP-20`、`DEP-21`、`DEP-22`、`DEP-23`、`DEP-24`、`DEP-25`、`DEP-26`、`DEP-27`、`DEP-28`、`DEP-29`、`DEP-30`、`DEP-31`、`DEP-32`、`DEP-33`、`DEP-34`、`DEP-35`、`DEP-36`、`DEP-37`、`DEP-38`、`DEP-39` | ⏳ | [专项卡](#step-dep-41) |
+| 744 | W11 | 专项 | [`PD-33`](roadmap/persistence-data-layer.md#step-pd-33) | 备份→恢复→升级→重启→治理删除的端到端 UAT；CLI/Web/Workbench 共用 DaemonHost | `ER-33`、`ER-34`、`ER-35`、`ER-36`、`PD-22`、`PD-23`、`PD-24`、`PD-25`、`PD-26`、`PD-27`、`PD-28`、`PD-29`、`PD-30`、`PD-31`、`PD-32` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-33) |
+| 745 | W11 | 专项 | [`PD-34`](roadmap/persistence-data-layer.md#step-pd-34) | 容量、吞吐、延迟和退化预算；事件帧、Artifact、索引、backup/prune 的压力测试 | `PD-27`、`PD-29`、`PD-33` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-34) |
+| 746 | W11 | 专项 | [`PD-35`](roadmap/persistence-data-layer.md#step-pd-35) | 收口文档、CURRENT_STATUS 证据、发布门与迁移 runbook；`docs/`、scripts、CI | `PD-00`、`PD-01`、`PD-02`、`PD-03`、`PD-04`、`PD-05`、`PD-06`、`PD-07`、`PD-08`、`PD-09`、`PD-10`、`PD-11`、`PD-12`、`PD-13`、`PD-14`、`PD-15`、`PD-16`、`PD-17`、`PD-18`、`PD-19`、`PD-20`、`PD-21`、`PD-22`、`PD-23`、`PD-24`、`PD-25`、`PD-26`、`PD-27`、`PD-28`、`PD-29`、`PD-30`、`PD-31`、`PD-32`、`PD-33`、`PD-34` | ⏳ | [专项卡](roadmap/persistence-data-layer.md#step-pd-35) |
+| 747 | W11 | 专项 | [`SC-41`](roadmap/security-compliance.md#step-sc-41) | .github/workflows、release scripts、security gate | `SC-28`、`SC-29`、`SC-34`、`SC-37`、`SC-40` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-41) |
+| 748 | W11 | 专项 | [`SC-42`](roadmap/security-compliance.md#step-sc-42) | scripts smoke、recovery/retention rehearsal | `SC-23`、`SC-32`、`SC-33`、`SC-41` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-42) |
+| 749 | W11 | 专项 | [`SC-43`](roadmap/security-compliance.md#step-sc-43) | CURRENT_STATUS.md、module map、review record | `SC-34`、`SC-35`、`SC-36`、`SC-41`、`SC-42` | ⏳ | [专项卡](roadmap/security-compliance.md#step-sc-43) |
 ---
 
 ## 2. 当前窗口
@@ -645,6 +992,7 @@
 | 2026-09-14 | 追加计费、配额与成本专项：UsageVector/RateCard/CostLedger、层级预算与 ProviderBudget、原子预留/结算、Unknown/对账、背压和 `BQ-00`–`BQ-30` 实施批次 | 文档规划未提交；基于 reference 全目录、Provider/ControlPlane/CompanyOS 规范和相关项目源码调研；无源码状态变更 |
 | 2026-09-14 | 追加安全与合规专项：身份、授权、Secret、数据治理、供应链、审计、事故响应和 `SC-00`–`SC-43` 实施批次 | 文档规划未提交；独立设计见 `roadmap/security-compliance.md`；无源码状态变更 |
 | 2026-09-14 | 重排模块地图与专项导航：补产品平面/事实源矩阵、稳定锚点、独立文件入口，并将追加章节标为 `34-A`/`34-B` | 文档规划未提交；无源码状态变更 |
+| 2026-09-14 | 将 11 个新增专项的 346 张 Step 并入 §1.1 总队列；与原 403 张卡合并为 749 张，展开前置、补详细卡锚点并按 W0–W11 拓扑串行化 | 文档规划未提交；无源码状态变更 |
 
 ---
 
@@ -2003,7 +2351,7 @@
 
 ## 专项设计导航（拆分文档）
 
-> 为了让总图可快速扫描，以下同时列出独立专项文件和本页内的专项章节。主文档承载 P0–P6 基础执行单元、当前窗口、canonical Step 索引、冻结项与完成定义；专项章节/文件承载设计说明和细化步骤。两层编号互不替代，状态仍以本页总图与 `CURRENT_STATUS.md` 的证据块为准。
+> §1.1 是 749 张 Step 的唯一执行队列；以下导航只帮助定位设计说明、代码归属和验收背景。专项章节/文件不另设执行顺序，状态仍以本页总图与 `CURRENT_STATUS.md` 的证据块为准。
 
 | 专项 | 细化卡 | 位置 |
 |---|---:|---|
@@ -2336,18 +2684,18 @@ Ingress
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝的验收 | 成功/回归验收 |
 |---|---|---|---|---|
-| `CI-01` | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | raw secret sentinel 在 debug/error/event/receipt/argv/env/cache 任一通道出现即失败；重复 profile parser 行为差异被测试捕获 | 固化当前 env/profile precedence、旧 `local-user` 兼容事件和 config migration fixture |
-| `CI-02` | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | CI-01 | 空/非法/跨类型 ID、过期状态转移、`Debug`/serde 泄漏 secret、authority epoch 回退拒绝 | round-trip schema、状态机合法转移、只输出 ref/hash 的 Receipt projection |
-| `CI-03` | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | CI-02 | port 不能返回 raw secret 到 core/runner；错误 resolver、取消、版本不匹配 fail-closed | fake stores 支持 deterministic snapshot、lease 生命周期和故障注入 |
-| `CI-04` | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | CI-02, CI-03 | 无/错 bearer 或 Unix credential、伪造 actor/role/trust、错误 Origin/Host、他人 session/project 全部拒绝且 0 broker calls | `LocalInstance → LocalHumanPrincipal → ProjectTrust → SessionOwnership` 可从事件重建；旧 local-user 只通过显式 migration event 兼容 |
-| `CI-05` | Durable Membership/RoleAssignment/ProjectAssignment/PolicyProfile/DataBoundary/SharingGrant 与 authority epoch；`kiana-core`、`kiana-domain` | CI-02, CI-04 | revoked/expired assignment、跨项目无 grant、scope 超集、旧 epoch 的 run/grant/approval/scheduler dispatch 拒绝 | effective capability 正确取交集；角色、部门、项目、packet 和 approval 全链路绑定 |
-| `CI-06` | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | CI-01, CI-03, CI-04 | unknown field/major、未信任 workspace config、非法 URL/redirect、profile 缺失、配置超限拒绝且不请求 provider | precedence、canonical snapshot、原子 reload、revision fencing；同一输入跨入口得到同一 snapshot |
-| `CI-07` | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | CI-02, CI-03, CI-06 | missing/expired/revoked/wrong-purpose/wrong-endpoint SecretRef、one-shot 重放、lease 超时、secret sentinel 泄漏均 0 effect | fake secret store 注入成功，Broker 只在 effect boundary 解析并在完成后销毁 lease |
-| `CI-08` | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | CI-05, CI-06, CI-07 | route/config/authority/credential revision 在 admission 后漂移、provider 试图反推 actor、redirect/proxy/host 变更拒绝 | `Connection` 不保存 raw credential；fake provider 收到正确 opaque account binding 和一次注入，usage/receipt 不含 secret |
-| `CI-09` | OAuth/工作负载身份生命周期；PKCE、state、callback、refresh single-flight、generation CAS、0600 atomic file | CI-07, CI-08 | state/redirect mismatch、坏/超限 token response、scope 不足、旧 refresh 覆盖新 token、并发 refresh 重复发请求 | 提前 skew refresh、瞬态错误保留有效 token、永久错误 reauth/revoked、rotation/revoke 立即 fencing |
-| `CI-10` | Provider policy、只读 credential probe 与 UI/诊断边界；`kiana-policy`、`kiana-entrypoints`、protocol DTO | CI-06, CI-08, CI-09 | denied provider 被插件/默认 route 重新启用；probe 把 `missing_scope` 当 invalid credential；诊断/HTTP/Receipt 返回 secret | provider.use 按明确 precedence/last-match 评估；用户看到 configured/expired/reauth/scope 状态而不是凭据值 |
-| `CI-11` | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | CI-04..CI-10 | event replay 遇 unknown schema、stale epoch/revision、lease 缺失、credential refresh failure 不得自动 resume | 重启默认暂停；回放 identity/config/assignment/credential binding 后显式重新 admission；审计可按 ref/generation 查询 |
-| `CI-12` | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | CI-01..CI-11 | 缺认证、未信任项目、越权/跨项目、过期审批、secret 泄漏、TOCTOU、重放、result_unknown 全矩阵 | fake provider 完整黄金链；按连接/协议的 live 只在显式 opt-in、有脱敏 fixture 和独立 evidence block 时宣称 `live` |
+| <a id="step-ci-01"></a>`CI-01` | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | raw secret sentinel 在 debug/error/event/receipt/argv/env/cache 任一通道出现即失败；重复 profile parser 行为差异被测试捕获 | 固化当前 env/profile precedence、旧 `local-user` 兼容事件和 config migration fixture |
+| <a id="step-ci-02"></a>`CI-02` | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | CI-01 | 空/非法/跨类型 ID、过期状态转移、`Debug`/serde 泄漏 secret、authority epoch 回退拒绝 | round-trip schema、状态机合法转移、只输出 ref/hash 的 Receipt projection |
+| <a id="step-ci-03"></a>`CI-03` | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | CI-02 | port 不能返回 raw secret 到 core/runner；错误 resolver、取消、版本不匹配 fail-closed | fake stores 支持 deterministic snapshot、lease 生命周期和故障注入 |
+| <a id="step-ci-04"></a>`CI-04` | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | CI-02, CI-03 | 无/错 bearer 或 Unix credential、伪造 actor/role/trust、错误 Origin/Host、他人 session/project 全部拒绝且 0 broker calls | `LocalInstance → LocalHumanPrincipal → ProjectTrust → SessionOwnership` 可从事件重建；旧 local-user 只通过显式 migration event 兼容 |
+| <a id="step-ci-05"></a>`CI-05` | Durable Membership/RoleAssignment/ProjectAssignment/PolicyProfile/DataBoundary/SharingGrant 与 authority epoch；`kiana-core`、`kiana-domain` | CI-02, CI-04 | revoked/expired assignment、跨项目无 grant、scope 超集、旧 epoch 的 run/grant/approval/scheduler dispatch 拒绝 | effective capability 正确取交集；角色、部门、项目、packet 和 approval 全链路绑定 |
+| <a id="step-ci-06"></a>`CI-06` | 单一配置解析器与 schema/migration；新增 `ConfigResolver`，删除 daemon legacy parser；`kiana-provider`/`kiana-daemon` | CI-01, CI-03, CI-04 | unknown field/major、未信任 workspace config、非法 URL/redirect、profile 缺失、配置超限拒绝且不请求 provider | precedence、canonical snapshot、原子 reload、revision fencing；同一输入跨入口得到同一 snapshot |
+| <a id="step-ci-07"></a>`CI-07` | SecretStore 与 CredentialLease；env/keyring/file/OS backend 的窄适配器；`kiana-provider`/`kiana-capability-broker` | CI-02, CI-03, CI-06 | missing/expired/revoked/wrong-purpose/wrong-endpoint SecretRef、one-shot 重放、lease 超时、secret sentinel 泄漏均 0 effect | fake secret store 注入成功，Broker 只在 effect boundary 解析并在完成后销毁 lease |
+| <a id="step-ci-08"></a>`CI-08` | ProviderGateway 接线与 route admission；`kiana-provider`、`kiana-daemon`、`kiana-core` | CI-05, CI-06, CI-07 | route/config/authority/credential revision 在 admission 后漂移、provider 试图反推 actor、redirect/proxy/host 变更拒绝 | `Connection` 不保存 raw credential；fake provider 收到正确 opaque account binding 和一次注入，usage/receipt 不含 secret |
+| <a id="step-ci-09"></a>`CI-09` | OAuth/工作负载身份生命周期；PKCE、state、callback、refresh single-flight、generation CAS、0600 atomic file | CI-07, CI-08 | state/redirect mismatch、坏/超限 token response、scope 不足、旧 refresh 覆盖新 token、并发 refresh 重复发请求 | 提前 skew refresh、瞬态错误保留有效 token、永久错误 reauth/revoked、rotation/revoke 立即 fencing |
+| <a id="step-ci-10"></a>`CI-10` | Provider policy、只读 credential probe 与 UI/诊断边界；`kiana-policy`、`kiana-entrypoints`、protocol DTO | CI-06, CI-08, CI-09 | denied provider 被插件/默认 route 重新启用；probe 把 `missing_scope` 当 invalid credential；诊断/HTTP/Receipt 返回 secret | provider.use 按明确 precedence/last-match 评估；用户看到 configured/expired/reauth/scope 状态而不是凭据值 |
+| <a id="step-ci-11"></a>`CI-11` | 审计、redaction、rotation/revoke、recovery projection；`kiana-core`、`kiana-eventlog`、`kiana-daemon` | CI-04..CI-10 | event replay 遇 unknown schema、stale epoch/revision、lease 缺失、credential refresh failure 不得自动 resume | 重启默认暂停；回放 identity/config/assignment/credential binding 后显式重新 admission；审计可按 ref/generation 查询 |
+| <a id="step-ci-12"></a>`CI-12` | 产品链 deny-first/UAT 与发布证据收口；CLI/Web/Workbench/Desktop、fake provider、live opt-in | CI-01..CI-11 | 缺认证、未信任项目、越权/跨项目、过期审批、secret 泄漏、TOCTOU、重放、result_unknown 全矩阵 | fake provider 完整黄金链；按连接/协议的 live 只在显式 opt-in、有脱敏 fixture 和独立 evidence block 时宣称 `live` |
 
 ### 29.9 依赖批次与现有 roadmap 对接
 
@@ -2551,50 +2899,50 @@ Attempt:     admitted → dispatched → active → paused | stopping
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
 |---|---|---|---|---|
-| `SW-00` | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas`；记录当前状态、WIP hash、已有测试和未证明窗口 | 生成“已接线/仅类型/缺测试/未实现”表；把 `P4-J6-01`、CO-43/44 与 SW 步骤一一映射，不重建已有 Cell/Packet 类型 |
-| `SW-01` | 稳定 ID、schema 和 lineage；domain + protocol + ports | SW-00 | unknown major/field、空 ID、cross-swarm partition、revision/epoch 回退、canonical bytes 不稳定均拒绝 | `SwarmPlanId/PartitionId/ChildCellId/AttemptId/DispatchIntentId/QueueEntryId/MergeDecisionId` round-trip；parent/root/workflow/correlation/causation 可定位 |
-| `SW-02` | 显式 Partition/WorkGraph validator；复用 `packet_graph` | SW-01 | `swarm_plan_rejects_partition_overlap_and_unbound_input`、cycle/missing ref、重复 key/fingerprint、first_success、超 count/depth/concurrency/spawn-rate/TTL/budget 均拒绝 | ready/blocked/failed 输出稳定排序；每 partition 有 disjoint path/data scope、input digest、output contract 和 canonical fingerprint |
-| `SW-03` | Swarm/Partition/Attempt 状态 reducer 与 typed transition events；core/domain events | SW-02 | 非法回退、重复 terminal、unknown→success、merge 前缺 review、terminal 后继续 dispatch 均拒绝 | 每次转移产生一条 `delegation_*`/state event；replay 与 live reducer 结果一致，单一 terminal 可核验 |
+| <a id="step-sw-00"></a>`SW-00` | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas`；记录当前状态、WIP hash、已有测试和未证明窗口 | 生成“已接线/仅类型/缺测试/未实现”表；把 `P4-J6-01`、CO-43/44 与 SW 步骤一一映射，不重建已有 Cell/Packet 类型 |
+| <a id="step-sw-01"></a>`SW-01` | 稳定 ID、schema 和 lineage；domain + protocol + ports | SW-00 | unknown major/field、空 ID、cross-swarm partition、revision/epoch 回退、canonical bytes 不稳定均拒绝 | `SwarmPlanId/PartitionId/ChildCellId/AttemptId/DispatchIntentId/QueueEntryId/MergeDecisionId` round-trip；parent/root/workflow/correlation/causation 可定位 |
+| <a id="step-sw-02"></a>`SW-02` | 显式 Partition/WorkGraph validator；复用 `packet_graph` | SW-01 | `swarm_plan_rejects_partition_overlap_and_unbound_input`、cycle/missing ref、重复 key/fingerprint、first_success、超 count/depth/concurrency/spawn-rate/TTL/budget 均拒绝 | ready/blocked/failed 输出稳定排序；每 partition 有 disjoint path/data scope、input digest、output contract 和 canonical fingerprint |
+| <a id="step-sw-03"></a>`SW-03` | Swarm/Partition/Attempt 状态 reducer 与 typed transition events；core/domain events | SW-02 | 非法回退、重复 terminal、unknown→success、merge 前缺 review、terminal 后继续 dispatch 均拒绝 | 每次转移产生一条 `delegation_*`/state event；replay 与 live reducer 结果一致，单一 terminal 可核验 |
 
 #### 波次 B：授权交集与原子准入
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
 |---|---|---|---|---|
-| `SW-04` | 从 parent/template/department/project/packet/approval 派生 child grant；`kiana-core` authority/capabilities + `cell_registry` | SW-03；CP-04/08/13、P1-C-02 | `swarm_rejects_grant_superset_and_controller_delegation`；伪造 role/path/provider/secret、旧 authority epoch、跨项目无 SharingGrant 均 0 broker effect | controller 是无模型 admission/supervision Cell；child 仅有 partition-specific 交集，reviewer/acceptor 身份与 author 分离 |
-| `SW-05` | 统一原子 admission；budget/path/data lock/claim/grant/supervision/intent 同一 CAS 边界 | SW-04；CO-19/20 | `swarm_spawn_reservation_is_atomic_and_idempotent`；任一资源失败无 partial reservation；重复 key 同 payload 返回原 receipt，改 payload/authority 冲突 | 一次 admission 绑定 authority/config/policy revisions；WorkFingerprint 活跃复用被拒，已终态结果按显式复用策略只读引用 |
+| <a id="step-sw-04"></a>`SW-04` | 从 parent/template/department/project/packet/approval 派生 child grant；`kiana-core` authority/capabilities + `cell_registry` | SW-03；CP-04/08/13、P1-C-02 | `swarm_rejects_grant_superset_and_controller_delegation`；伪造 role/path/provider/secret、旧 authority epoch、跨项目无 SharingGrant 均 0 broker effect | controller 是无模型 admission/supervision Cell；child 仅有 partition-specific 交集，reviewer/acceptor 身份与 author 分离 |
+| <a id="step-sw-05"></a>`SW-05` | 统一原子 admission；budget/path/data lock/claim/grant/supervision/intent 同一 CAS 边界 | SW-04；CO-19/20 | `swarm_spawn_reservation_is_atomic_and_idempotent`；任一资源失败无 partial reservation；重复 key 同 payload 返回原 receipt，改 payload/authority 冲突 | 一次 admission 绑定 authority/config/policy revisions；WorkFingerprint 活跃复用被拒，已终态结果按显式复用策略只读引用 |
 
 #### 波次 C：持久调度与 fresh child
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
 |---|---|---|---|---|
-| `SW-06` | durable `DispatchIntent`/`QueueEntry`、容量、公平顺序、claim lease/fence/backoff；`kiana-core`/`kiana-eventlog`/`kiana-ports` | SW-05；P1-D-01/02/03 | `swarm_queue_claim_fences_late_worker`；ready 查询不得取得执行权，容量超售、过期 lease、旧 worker result、无界 retry 均拒绝 | 同一 snapshot 在多入口得到同一 queue order；仅 confirmed stop 后 requeue；失败 attempt 与 successor attempt 可区分 |
-| `SW-07` | fresh child Cell/Session/Run/Attempt 和 DelegationPacket；daemon/core/runner | SW-06；CO-21/23 | `swarm_child_uses_fresh_session_without_parent_private_history`；父 session 重用、输入/secret 漏传、child scope 超集、duplicate materialization 均拒绝 | 每 Partition 恰好一个 active attempt；冻结 input refs、authorized retrieval、lineage、template/policy/config/authority snapshot 进入 receipt |
-| `SW-08` | 统一执行路由和 child correlation；复用 `DaemonHost→ControlPlane→Broker→KianaHarness` | SW-07；H01、CP-23/24 | `swarm_no_second_runtime_or_delegate_tool_reaches_harness`；模型生成 delegate/free message、直接 shell/provider、未授权 child run 均 0 effect | fake model 的 child tool call 与 parent/child/partition/attempt/correlation 事件可对齐；五个模型工具集合保持不变 |
+| <a id="step-sw-06"></a>`SW-06` | durable `DispatchIntent`/`QueueEntry`、容量、公平顺序、claim lease/fence/backoff；`kiana-core`/`kiana-eventlog`/`kiana-ports` | SW-05；P1-D-01/02/03 | `swarm_queue_claim_fences_late_worker`；ready 查询不得取得执行权，容量超售、过期 lease、旧 worker result、无界 retry 均拒绝 | 同一 snapshot 在多入口得到同一 queue order；仅 confirmed stop 后 requeue；失败 attempt 与 successor attempt 可区分 |
+| <a id="step-sw-07"></a>`SW-07` | fresh child Cell/Session/Run/Attempt 和 DelegationPacket；daemon/core/runner | SW-06；CO-21/23 | `swarm_child_uses_fresh_session_without_parent_private_history`；父 session 重用、输入/secret 漏传、child scope 超集、duplicate materialization 均拒绝 | 每 Partition 恰好一个 active attempt；冻结 input refs、authorized retrieval、lineage、template/policy/config/authority snapshot 进入 receipt |
+| <a id="step-sw-08"></a>`SW-08` | 统一执行路由和 child correlation；复用 `DaemonHost→ControlPlane→Broker→KianaHarness` | SW-07；H01、CP-23/24 | `swarm_no_second_runtime_or_delegate_tool_reaches_harness`；模型生成 delegate/free message、直接 shell/provider、未授权 child run 均 0 effect | fake model 的 child tool call 与 parent/child/partition/attempt/correlation 事件可对齐；五个模型工具集合保持不变 |
 
 #### 波次 D：监督、取消与恢复
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
 |---|---|---|---|---|
-| `SW-09` | heartbeat、checkpoint、ProgressLedger、stall/escalation 与分层预算 | SW-08；P0-J1、P2-K4、P4-J7 | `swarm_progress_ledger_escalates_stall_within_budget`；缺 heartbeat、超 turns/messages/tokens/effects/wall/TTL/stalls、checkpoint 越权均 typed failure | model turn/tool batch/side-effect boundary 可恢复；进度报告定向到 parent，重试预算与运行预算分离 |
-| `SW-10` | parent→child cancel、drain、fence、Incident/Unknown；core/daemon/process supervisor | SW-09；P0-J1、CP-15/16/20 | `swarm_cancel_drains_started_children_and_marks_unknown`；取消后新 dispatch 被挡，已启动 effect 排空，未启动项有 synthetic terminal，旧 epoch 结果不能完成/释放 | 区分 cancelled/stopping/result_unknown；无法确认的现实效果永不自动 retry 或 merge |
-| `SW-11` | EventLog replay、pending writes、崩溃恢复与显式 re-admission | SW-10；P0-G-04、CP-18/19 | `swarm_replay_rejects_gap_unknown_schema_and_terminal_conflict`；崩溃窗口、缺 checkpoint、审批/authority/lease 失效均暂停且 0 effect | `swarm_recovery_preserves_successful_siblings`；重启重建 queue/attempt/child tree，成功 sibling 不重跑，恢复必须重新过 grant/approval/fence |
+| <a id="step-sw-09"></a>`SW-09` | heartbeat、checkpoint、ProgressLedger、stall/escalation 与分层预算 | SW-08；P0-J1、P2-K4、P4-J7 | `swarm_progress_ledger_escalates_stall_within_budget`；缺 heartbeat、超 turns/messages/tokens/effects/wall/TTL/stalls、checkpoint 越权均 typed failure | model turn/tool batch/side-effect boundary 可恢复；进度报告定向到 parent，重试预算与运行预算分离 |
+| <a id="step-sw-10"></a>`SW-10` | parent→child cancel、drain、fence、Incident/Unknown；core/daemon/process supervisor | SW-09；P0-J1、CP-15/16/20 | `swarm_cancel_drains_started_children_and_marks_unknown`；取消后新 dispatch 被挡，已启动 effect 排空，未启动项有 synthetic terminal，旧 epoch 结果不能完成/释放 | 区分 cancelled/stopping/result_unknown；无法确认的现实效果永不自动 retry 或 merge |
+| <a id="step-sw-11"></a>`SW-11` | EventLog replay、pending writes、崩溃恢复与显式 re-admission | SW-10；P0-G-04、CP-18/19 | `swarm_replay_rejects_gap_unknown_schema_and_terminal_conflict`；崩溃窗口、缺 checkpoint、审批/authority/lease 失效均暂停且 0 effect | `swarm_recovery_preserves_successful_siblings`；重启重建 queue/attempt/child tree，成功 sibling 不重跑，恢复必须重新过 grant/approval/fence |
 
 #### 波次 E：结果、reduce 与独立合并
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
 |---|---|---|---|---|
-| `SW-12` | TypedChildResult/ChildFailureReport 与 delegation facts；domain/core/event projection | SW-11 | `swarm_child_failure_is_typed_and_persisted`；伪造 producer、缺 output/evidence/attempt、transcript 自述、secret sentinel、错误 status 组合均拒绝 | `delegation_started/completed/failed/reconciled` 带 parent/child/run/partition/attempt/causation/correlation/epoch；结果只引用 immutable artifact/evidence |
-| `SW-13` | versioned deterministic reducer、冲突和完整覆盖检查 | SW-12；CO-43/44 | `swarm_merge_is_canonical_and_rejects_result_unknown`；unordered input、path/data/output conflict、missing partition、first_success 或 unknown result 均拒绝 | canonical partition order + strategy/version；v1 all-success/all-settled 可重放，partial acceptance 必须显式 policy 和证据 |
-| `SW-14` | Independent Review、MergeDecision、MergeReceipt；`company` review + core swarm | SW-13；P3-I-04、CO-44 | `swarm_merge_covers_each_partition_once`；reviewer=author、旧 review/criteria、duplicate decision、未验证 output、reviewer 自己修改事实均拒绝 | 一 partition 一 immutable decision；receipt 绑定 reviewer/acceptor/policy/evidence/conflict refs；Swarm merge 不等于 Project Acceptance |
-| `SW-15` | exactly-once release/retire、残余预算与事实保留 | SW-14 | `swarm_retire_releases_only_owned_resources_once`；unknown/in-flight/foreign Cell 不能释放，重复 retire 不退还未知成本 | child→controller 级联回收 grant/lease/claim/locks/unused budget；Packet/Attempt/Event/Evidence/Receipt 保留可查，controller 最后 retire |
+| <a id="step-sw-12"></a>`SW-12` | TypedChildResult/ChildFailureReport 与 delegation facts；domain/core/event projection | SW-11 | `swarm_child_failure_is_typed_and_persisted`；伪造 producer、缺 output/evidence/attempt、transcript 自述、secret sentinel、错误 status 组合均拒绝 | `delegation_started/completed/failed/reconciled` 带 parent/child/run/partition/attempt/causation/correlation/epoch；结果只引用 immutable artifact/evidence |
+| <a id="step-sw-13"></a>`SW-13` | versioned deterministic reducer、冲突和完整覆盖检查 | SW-12；CO-43/44 | `swarm_merge_is_canonical_and_rejects_result_unknown`；unordered input、path/data/output conflict、missing partition、first_success 或 unknown result 均拒绝 | canonical partition order + strategy/version；v1 all-success/all-settled 可重放，partial acceptance 必须显式 policy 和证据 |
+| <a id="step-sw-14"></a>`SW-14` | Independent Review、MergeDecision、MergeReceipt；`company` review + core swarm | SW-13；P3-I-04、CO-44 | `swarm_merge_covers_each_partition_once`；reviewer=author、旧 review/criteria、duplicate decision、未验证 output、reviewer 自己修改事实均拒绝 | 一 partition 一 immutable decision；receipt 绑定 reviewer/acceptor/policy/evidence/conflict refs；Swarm merge 不等于 Project Acceptance |
+| <a id="step-sw-15"></a>`SW-15` | exactly-once release/retire、残余预算与事实保留 | SW-14 | `swarm_retire_releases_only_owned_resources_once`；unknown/in-flight/foreign Cell 不能释放，重复 retire 不退还未知成本 | child→controller 级联回收 grant/lease/claim/locks/unused budget；Packet/Attempt/Event/Evidence/Receipt 保留可查，controller 最后 retire |
 
 #### 波次 F：通信、投影和总验收
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功与退出条件 |
 |---|---|---|---|---|
-| `SW-16` | 定向 WorkPacket/Handoff ACK/StatusReport/Evidence/Incident；可选 bounded Symposium | SW-15；P1-E-01/02、P4-E-03 | `swarm_no_free_message_or_broadcast_reaches_harness`；共享 transcript、未认证 recipient、超 round/message/token/stall、Builder 列席规划/监控均拒绝 | parent 只向具名 recipient 发结构化输入；ACK/negative ACK、progress、failure、replan 都可回放 |
-| `SW-17` | parent-child UI/event projection、sequence/epoch/cursor、terminal replay/hydration | SW-16；P4-J7-02/03、P2-M5 | `swarm_late_subscriber_gets_terminal_without_duplicate_effect`；乱序/陈旧 event、断线 hydration 覆盖新事件、UI action 越权均拒绝 | CLI/Web/Workbench/desktop 展示同一树和 next action；UI 只读投影，terminal must-deliver，重连不重做 dispatch |
-| `SW-18` | deny-first 全矩阵、fake golden、崩溃/竞态/replay 和发布证据 | SW-17；P4-J6-01、CO-42/43/44 | 覆盖未信任、越权、cycle/overlap/dup fingerprint、budget/concurrency/TTL/depth/spawn-rate、stale claim/heartbeat、cancel race、unknown、merge conflict、schema gap、crash-after-reserve/dispatch/effect、secret injection | `swarm_full_fake_model_golden_flow_is_deterministic`：两 disjoint partitions → fresh builders → reconcile → independent review/merge → release/retire；跨进程重启每个边界均不重复副作用 |
+| <a id="step-sw-16"></a>`SW-16` | 定向 WorkPacket/Handoff ACK/StatusReport/Evidence/Incident；可选 bounded Symposium | SW-15；P1-E-01/02、P4-E-03 | `swarm_no_free_message_or_broadcast_reaches_harness`；共享 transcript、未认证 recipient、超 round/message/token/stall、Builder 列席规划/监控均拒绝 | parent 只向具名 recipient 发结构化输入；ACK/negative ACK、progress、failure、replan 都可回放 |
+| <a id="step-sw-17"></a>`SW-17` | parent-child UI/event projection、sequence/epoch/cursor、terminal replay/hydration | SW-16；P4-J7-02/03、P2-M5 | `swarm_late_subscriber_gets_terminal_without_duplicate_effect`；乱序/陈旧 event、断线 hydration 覆盖新事件、UI action 越权均拒绝 | CLI/Web/Workbench/desktop 展示同一树和 next action；UI 只读投影，terminal must-deliver，重连不重做 dispatch |
+| <a id="step-sw-18"></a>`SW-18` | deny-first 全矩阵、fake golden、崩溃/竞态/replay 和发布证据 | SW-17；P4-J6-01、CO-42/43/44 | 覆盖未信任、越权、cycle/overlap/dup fingerprint、budget/concurrency/TTL/depth/spawn-rate、stale claim/heartbeat、cancel race、unknown、merge conflict、schema gap、crash-after-reserve/dispatch/effect、secret injection | `swarm_full_fake_model_golden_flow_is_deterministic`：两 disjoint partitions → fresh builders → reconcile → independent review/merge → release/retire；跨进程重启每个边界均不重复副作用 |
 
 ### 30.7 依赖波次、现有 roadmap 接点与实现顺序
 
@@ -2941,35 +3289,35 @@ AuditExportRequest
 
 | Step | 代码归属与交付物 | 依赖 | 先拒绝的验收 | 成功与回归验收 |
 |---|---|---|---|---|
-| `OA-00` | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | 找出任何把 UI/transcript/cache/metric 当事实、把 trace 当授权、把 receipt 当 Outcome 的路径；重复/私自命名的观测字段列为 issue | 生成 signal matrix、代码 owner、当前 proof ceiling 和迁移清单；不改历史证据 |
-| `OA-01` | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | OA-00 | unknown major/required field、非法 status、空 cursor、错误 digest、未注册 metric 或过长 attribute fail-closed | serde round-trip、canonical bytes、minor additive compatibility、schema owner/版本测试 |
-| `OA-02` | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | OA-01 | 伪造 actor/authority、无效 traceparent、跨 project/session 关联、attempt/command 错配不得改变授权或查询范围 | ingress→run→turn→invocation→provider→broker→eventlog 的关联稳定；异步恢复使用 link 和新 span |
-| `OA-03` | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | OA-01 | secret sentinel、prompt/tool args/path/env/header/token 进入任一信号或错误通道时阻断发布；redactor error 不回退原文 | split chunk、nested JSON、UTF-8/NUL、oversize、provider echo、artifact/export 全通道扫描；profile hash 可定位 |
-| `OA-04` | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | OA-01, OA-03 | 模型/UI/plugin 伪造批准、完成、导出；原 record 被覆盖；未绑定 source event 的审计行不可见 | command/deny/approval/capability/credential/recovery/query/export 均有 stable action/decision/digest/source cursor |
-| `OA-05` | `ObservabilityPort`/`TraceSink`/`MetricSink`/`AuditQueryPort`/`HealthProbePort`；Memory/JSONL fake adapters | OA-01..OA-04 | exporter 报错不得授予权限；不支持 durable/flush/capability 的 adapter 被依赖时 fail-closed；sink 不能调用 Broker | fake sink 可记录、注入失败、flush ack、取消和容量；接口依赖方向通过 boundary test |
-| `OA-06` | EventStore commit observer；`kiana-eventlog`、`StreamEventStore`、`TransitionBatch` | OA-05 | pre-commit 观测不能让未提交事件出现在 Receipt/Audit/metric；重放不重复发通知/副作用 | 仅 `Committed` 发布一次；`Replayed` 可关联原 receipt；cursor/commit boundary、CAS conflict、Unknown evidence 可重建 |
-| `OA-07` | Run/Turn/Invocation span 生命周期；`kiana-core` projection/runner bridge | OA-02, OA-06 | span end 不能制造 terminal；late delta、duplicate end、stale run/attempt 不覆盖事实 | 每次合法状态转移都有 start/end/status/error/unknown；取消、pause、compact、retry、resume、terminal 一一可定位 |
-| `OA-08` | Provider/model/stream/usage instrumentation；`kiana-provider`、`kiana-daemon/model_client.rs` | OA-03, OA-07 | malformed/truncated/timeout/retry 不标 `ok`；secret header、prompt、raw response 不进 telemetry | provider/model/route/prompt version、latency、stop reason、usage、retry class、cache usage 可在 Receipt/Audit/metrics 对齐 |
-| `OA-09` | Broker/approval/effect/stop instrumentation；`kiana-core/capabilities.rs`、`kiana-daemon/harness_capabilities.rs` | OA-04, OA-07 | policy deny/hook block/expired approval/lease mismatch/TOCTOU 均 zero effect 且可查询；cancel 不等于 stop confirmed | admission→permit→dispatch→execution→result/stop 的 attempt 证据完整；effect unknown 保留 fencing |
-| `OA-10` | EventLog/projector/Receipt/Artifact/Recovery metrics；`kiana-eventlog`、`projection.rs`、`receipts.rs`、`recovery.rs` | OA-06..OA-09 | projector 读空、artifact 读错、cursor gap 不被计为 healthy/zero work；Receipt 不用 metric 补事实 | append/flush/rebuild/query latency、durable cursor、projector lag、orphan/unknown、artifact bytes、last error 可解释 |
-| `OA-11` | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | OA-10 | stale heartbeat、unknown exporter、cursor divergence、corrupt journal、missing audit projection 不返回 healthy/ready | DaemonHost/ControlPlane/EventStore/Projector/Provider/Broker/Artifact/Telemetry 各有 bounded probe、version、state、last success、limitation |
-| `OA-12` | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | OA-10 | raw IDs/path/prompt/secret 作为 label、cardinality overflow、estimated-as-measured、counter reset 伪造成功均拒绝 | event replay 与 live reducer 对同一 cursor 一致；counter/gauge/histogram 单位、label allowlist、overflow 计数和版本稳定 |
-| `OA-13` | 异步队列、背压和丢弃策略；`kiana-daemon`/`kiana-eventlog` | OA-05, OA-10 | queue full 不丢 Event/Audit/Approval/Recovery/terminal，不阻塞 commit 到死；slow consumer 不能改事实 | best-effort log/trace 丢弃有 reason/counter；flush/shutdown ack、bounded memory、reopen spool、Health degraded 可观察 |
-| `OA-14` | Trace exporter 与 W3C context adapter；可选 `kiana-observability` crate 或 daemon module | OA-02, OA-07, OA-13 | invalid parent、exporter failure、sampled=false、foreign baggage 不影响 authority；关闭 exporter 不改变 receipt | local no-op/JSONL exporter、可选 OTLP mapping、span links、sampling decision、shutdown flush；不声明外部 backend durable |
-| `OA-15` | AuditProjection checkpoint/rebuild；`kiana-eventlog`/`kiana-core` | OA-04, OA-06, OA-10 | unknown audit schema、矛盾 decision、source cursor 回退、projection checksum 错误 fail-closed；不得删除原事实 | 新进程从 EventLog + Artifact refs 产生稳定 AuditRecord；同 cursor/version/hash 输出一致，gap 可重放 |
-| `OA-16` | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | OA-15, `CP-21/22` | 未认证、跨组织/project/session、客户端 owner/scope 覆盖、无限 limit、raw event endpoint 全部拒绝且 zero effect | CLI/Web/Workbench/Desktop 调用同一只读 query；字段 redaction、limitations、source cursor、projection version 一致 |
-| `OA-17` | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | OA-15, OA-16 | cursor epoch/filter digest/version 不符、越界 page、projection lag/retention revoke 继续返回旧数据均拒绝 | stable next cursor、bounded page、empty-vs-unavailable 区分、replay during query、multi-tab/reconnect 一致 |
-| `OA-18` | 审计导出、manifest、delivery evidence；`kiana-entrypoints`/ArtifactStore/ControlPlane | OA-03, OA-16, OA-17 | 无 `audit.export`/purpose/recipient/retention、scope 超集、未完成 artifact hash、delivery unknown 不能声称 exported/delivered | redacted JSONL/CSV/JSON export 绑定 query digest + source cursor + manifest hash + schema + DeliveryReceipt |
-| `OA-19` | Alert/Incident 规则、去重和 Recovery 关联；`kiana-core/recovery.rs`、daemon health | OA-10, OA-11, OA-15 | alert 不能自动 approve/retry/close；同一 incident 重复风暴、模型自报恢复、unknown 被关闭均拒绝 | projector lag、audit loss、redaction failure、queue overflow、journal corruption、effect unknown 产生可重放 Incident/RecoveryPlan |
-| `OA-20` | DataClass/Purpose/Retention/Deletion propagation；`data_governance.rs`、Memory/Artifact/Query/Telemetry stores | OA-03, OA-15..OA-19 | 删除只删 UI/cache、retention 绕过 scope、secret/PII 留在 trace/export/spool、audit metadata 与 payload ref 混淆均 fail | payload expiry 与 audit metadata 分离；revoke/deletion/data epoch 传播到 Receipt/Audit/Artifact/Memory/Index/Cache/export，重启后仍一致 |
-| `OA-21` | Replay/reconciliation diagnostics；新增只读 `replay`/audit consistency fixture | OA-15, OA-19, OA-20 | replay 调模型/Provider/Broker、unknown schema 猜测、divergence 被吞、metric/trace 反写事实均拒绝 | `(invocation_id, attempt, input_digest, status, error_code)` 首个 divergence 可定位；Audit/Receipt/Health projector 与 baseline 一致 |
-| `OA-22` | Crash/fault injection；EventStore、Broker、Provider、projector、export、shutdown | OA-06..OA-21 | 每个注入点证明 no duplicate effect、no false success、unknown queryable、resource fenced；固定 sleep 不算证据 | prepare/commit/dispatch/result/flush/projector/export 各 fault seed 可重放并生成同分类、cursor 和 limitations |
-| `OA-23` | Provider-independent eval suite；fake model/provider/broker、GoldenTrace、Promptfoo 风格断言 | OA-08, OA-09, OA-21, `P1-L1-01` | secret、forbidden effect、policy safety、evidence completeness、replay divergence 任一失败阻断 Promote | expected normalized events、audit rows、metrics、spans、receipt assertions、final status、cost/latency bucket 可重现 |
-| `OA-24` | 四入口审计/健康/Receipt parity；CLI/Web/Workbench/Desktop | OA-16..OA-23, `P2-M2..M5` | 入口自拼字段、自读 EventLog、自行判断成功/健康、自行触发恢复均拒绝 | 同一 run/cursor/query 在四入口的 owner filtering、status、limitations、source refs、unknown、retention 结果一致 |
-| `OA-25` | 容量、性能和迁移演练；journal/projector/query/export benchmark | OA-12, OA-13, OA-17, OA-20 | 高基数/大 artifact/大 page/慢 exporter 导致事实丢失或无界内存、迁移 unknown version 静默通过均拒绝 | p50/p95/p99 append/flush/project/rebuild/query/export 基线；quota/backpressure/rotation/archive/upgrade/downgrade read-only 有证据 |
-| `OA-26` | Local durable observability gate；release/smoke/CURRENT_STATUS | OA-22..OA-25, `ER-34` | 历史 CI、内存 sink、单测 mock、无 artifact hash 不能声称 durable；缺限制/审计 scope 测试不放行 | deny→commit→effect→receipt/audit→restart→unknown/reconcile；journal/artifact/export hashes、process/queue/cursor/secret scan 全部记录 |
-| `OA-27` | Cross-entry/company governance gate；`ER-35`、CompanyOS Review/Delivery/Close、Cost/Memory/Data governance | OA-24..OA-26 | Runtime completed 不能直接变 Delivery/Outcome；audit query/export 不能跨 DataBoundary；Review 不能改 Builder facts | Objective→Project→Packet→Run→Review→Acceptance→Delivery→ClosingReceipt 的 trace/audit/evidence refs 可重建 |
-| `OA-28` | Physical/live handoff；目标 OS、OTLP backend、隔离 provider/connector 和 operator runbook | OA-26, OA-27, `ER-36` | 无目标 backend/credential/provider receipt/独立账户时只能证明 deny/local；不能把 OTLP export 或 mock receipt 写成 live/physical | 每个 provider/backend/connector 组合单独记录环境、版本、权限、采样、retention、incident、cleanup 和失败矩阵 |
+| <a id="step-oa-00"></a>`OA-00` | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | 找出任何把 UI/transcript/cache/metric 当事实、把 trace 当授权、把 receipt 当 Outcome 的路径；重复/私自命名的观测字段列为 issue | 生成 signal matrix、代码 owner、当前 proof ceiling 和迁移清单；不改历史证据 |
+| <a id="step-oa-01"></a>`OA-01` | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | OA-00 | unknown major/required field、非法 status、空 cursor、错误 digest、未注册 metric 或过长 attribute fail-closed | serde round-trip、canonical bytes、minor additive compatibility、schema owner/版本测试 |
+| <a id="step-oa-02"></a>`OA-02` | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | OA-01 | 伪造 actor/authority、无效 traceparent、跨 project/session 关联、attempt/command 错配不得改变授权或查询范围 | ingress→run→turn→invocation→provider→broker→eventlog 的关联稳定；异步恢复使用 link 和新 span |
+| <a id="step-oa-03"></a>`OA-03` | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | OA-01 | secret sentinel、prompt/tool args/path/env/header/token 进入任一信号或错误通道时阻断发布；redactor error 不回退原文 | split chunk、nested JSON、UTF-8/NUL、oversize、provider echo、artifact/export 全通道扫描；profile hash 可定位 |
+| <a id="step-oa-04"></a>`OA-04` | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | OA-01, OA-03 | 模型/UI/plugin 伪造批准、完成、导出；原 record 被覆盖；未绑定 source event 的审计行不可见 | command/deny/approval/capability/credential/recovery/query/export 均有 stable action/decision/digest/source cursor |
+| <a id="step-oa-05"></a>`OA-05` | `ObservabilityPort`/`TraceSink`/`MetricSink`/`AuditQueryPort`/`HealthProbePort`；Memory/JSONL fake adapters | OA-01..OA-04 | exporter 报错不得授予权限；不支持 durable/flush/capability 的 adapter 被依赖时 fail-closed；sink 不能调用 Broker | fake sink 可记录、注入失败、flush ack、取消和容量；接口依赖方向通过 boundary test |
+| <a id="step-oa-06"></a>`OA-06` | EventStore commit observer；`kiana-eventlog`、`StreamEventStore`、`TransitionBatch` | OA-05 | pre-commit 观测不能让未提交事件出现在 Receipt/Audit/metric；重放不重复发通知/副作用 | 仅 `Committed` 发布一次；`Replayed` 可关联原 receipt；cursor/commit boundary、CAS conflict、Unknown evidence 可重建 |
+| <a id="step-oa-07"></a>`OA-07` | Run/Turn/Invocation span 生命周期；`kiana-core` projection/runner bridge | OA-02, OA-06 | span end 不能制造 terminal；late delta、duplicate end、stale run/attempt 不覆盖事实 | 每次合法状态转移都有 start/end/status/error/unknown；取消、pause、compact、retry、resume、terminal 一一可定位 |
+| <a id="step-oa-08"></a>`OA-08` | Provider/model/stream/usage instrumentation；`kiana-provider`、`kiana-daemon/model_client.rs` | OA-03, OA-07 | malformed/truncated/timeout/retry 不标 `ok`；secret header、prompt、raw response 不进 telemetry | provider/model/route/prompt version、latency、stop reason、usage、retry class、cache usage 可在 Receipt/Audit/metrics 对齐 |
+| <a id="step-oa-09"></a>`OA-09` | Broker/approval/effect/stop instrumentation；`kiana-core/capabilities.rs`、`kiana-daemon/harness_capabilities.rs` | OA-04, OA-07 | policy deny/hook block/expired approval/lease mismatch/TOCTOU 均 zero effect 且可查询；cancel 不等于 stop confirmed | admission→permit→dispatch→execution→result/stop 的 attempt 证据完整；effect unknown 保留 fencing |
+| <a id="step-oa-10"></a>`OA-10` | EventLog/projector/Receipt/Artifact/Recovery metrics；`kiana-eventlog`、`projection.rs`、`receipts.rs`、`recovery.rs` | OA-06..OA-09 | projector 读空、artifact 读错、cursor gap 不被计为 healthy/zero work；Receipt 不用 metric 补事实 | append/flush/rebuild/query latency、durable cursor、projector lag、orphan/unknown、artifact bytes、last error 可解释 |
+| <a id="step-oa-11"></a>`OA-11` | Health snapshot、readiness/liveness、component capability；`kiana-daemon`/`kiana-core` | OA-10 | stale heartbeat、unknown exporter、cursor divergence、corrupt journal、missing audit projection 不返回 healthy/ready | DaemonHost/ControlPlane/EventStore/Projector/Provider/Broker/Artifact/Telemetry 各有 bounded probe、version、state、last success、limitation |
+| <a id="step-oa-12"></a>`OA-12` | Metric catalog/reducer/cardinality guard；`kiana-core`/`kiana-eventlog` | OA-10 | raw IDs/path/prompt/secret 作为 label、cardinality overflow、estimated-as-measured、counter reset 伪造成功均拒绝 | event replay 与 live reducer 对同一 cursor 一致；counter/gauge/histogram 单位、label allowlist、overflow 计数和版本稳定 |
+| <a id="step-oa-13"></a>`OA-13` | 异步队列、背压和丢弃策略；`kiana-daemon`/`kiana-eventlog` | OA-05, OA-10 | queue full 不丢 Event/Audit/Approval/Recovery/terminal，不阻塞 commit 到死；slow consumer 不能改事实 | best-effort log/trace 丢弃有 reason/counter；flush/shutdown ack、bounded memory、reopen spool、Health degraded 可观察 |
+| <a id="step-oa-14"></a>`OA-14` | Trace exporter 与 W3C context adapter；可选 `kiana-observability` crate 或 daemon module | OA-02, OA-07, OA-13 | invalid parent、exporter failure、sampled=false、foreign baggage 不影响 authority；关闭 exporter 不改变 receipt | local no-op/JSONL exporter、可选 OTLP mapping、span links、sampling decision、shutdown flush；不声明外部 backend durable |
+| <a id="step-oa-15"></a>`OA-15` | AuditProjection checkpoint/rebuild；`kiana-eventlog`/`kiana-core` | OA-04, OA-06, OA-10 | unknown audit schema、矛盾 decision、source cursor 回退、projection checksum 错误 fail-closed；不得删除原事实 | 新进程从 EventLog + Artifact refs 产生稳定 AuditRecord；同 cursor/version/hash 输出一致，gap 可重放 |
+| <a id="step-oa-16"></a>`OA-16` | Audit query command/wire DTO；`kiana-protocol`、`kiana-client`、`DaemonHost` | OA-15, `CP-21/22` | 未认证、跨组织/project/session、客户端 owner/scope 覆盖、无限 limit、raw event endpoint 全部拒绝且 zero effect | CLI/Web/Workbench/Desktop 调用同一只读 query；字段 redaction、limitations、source cursor、projection version 一致 |
+| <a id="step-oa-17"></a>`OA-17` | Query cursor、snapshot、分页和慢查询；`kiana-eventlog` cursor API、protocol | OA-15, OA-16 | cursor epoch/filter digest/version 不符、越界 page、projection lag/retention revoke 继续返回旧数据均拒绝 | stable next cursor、bounded page、empty-vs-unavailable 区分、replay during query、multi-tab/reconnect 一致 |
+| <a id="step-oa-18"></a>`OA-18` | 审计导出、manifest、delivery evidence；`kiana-entrypoints`/ArtifactStore/ControlPlane | OA-03, OA-16, OA-17 | 无 `audit.export`/purpose/recipient/retention、scope 超集、未完成 artifact hash、delivery unknown 不能声称 exported/delivered | redacted JSONL/CSV/JSON export 绑定 query digest + source cursor + manifest hash + schema + DeliveryReceipt |
+| <a id="step-oa-19"></a>`OA-19` | Alert/Incident 规则、去重和 Recovery 关联；`kiana-core/recovery.rs`、daemon health | OA-10, OA-11, OA-15 | alert 不能自动 approve/retry/close；同一 incident 重复风暴、模型自报恢复、unknown 被关闭均拒绝 | projector lag、audit loss、redaction failure、queue overflow、journal corruption、effect unknown 产生可重放 Incident/RecoveryPlan |
+| <a id="step-oa-20"></a>`OA-20` | DataClass/Purpose/Retention/Deletion propagation；`data_governance.rs`、Memory/Artifact/Query/Telemetry stores | OA-03, OA-15..OA-19 | 删除只删 UI/cache、retention 绕过 scope、secret/PII 留在 trace/export/spool、audit metadata 与 payload ref 混淆均 fail | payload expiry 与 audit metadata 分离；revoke/deletion/data epoch 传播到 Receipt/Audit/Artifact/Memory/Index/Cache/export，重启后仍一致 |
+| <a id="step-oa-21"></a>`OA-21` | Replay/reconciliation diagnostics；新增只读 `replay`/audit consistency fixture | OA-15, OA-19, OA-20 | replay 调模型/Provider/Broker、unknown schema 猜测、divergence 被吞、metric/trace 反写事实均拒绝 | `(invocation_id, attempt, input_digest, status, error_code)` 首个 divergence 可定位；Audit/Receipt/Health projector 与 baseline 一致 |
+| <a id="step-oa-22"></a>`OA-22` | Crash/fault injection；EventStore、Broker、Provider、projector、export、shutdown | OA-06..OA-21 | 每个注入点证明 no duplicate effect、no false success、unknown queryable、resource fenced；固定 sleep 不算证据 | prepare/commit/dispatch/result/flush/projector/export 各 fault seed 可重放并生成同分类、cursor 和 limitations |
+| <a id="step-oa-23"></a>`OA-23` | Provider-independent eval suite；fake model/provider/broker、GoldenTrace、Promptfoo 风格断言 | OA-08, OA-09, OA-21, `P1-L1-01` | secret、forbidden effect、policy safety、evidence completeness、replay divergence 任一失败阻断 Promote | expected normalized events、audit rows、metrics、spans、receipt assertions、final status、cost/latency bucket 可重现 |
+| <a id="step-oa-24"></a>`OA-24` | 四入口审计/健康/Receipt parity；CLI/Web/Workbench/Desktop | OA-16..OA-23, `P2-M2..M5` | 入口自拼字段、自读 EventLog、自行判断成功/健康、自行触发恢复均拒绝 | 同一 run/cursor/query 在四入口的 owner filtering、status、limitations、source refs、unknown、retention 结果一致 |
+| <a id="step-oa-25"></a>`OA-25` | 容量、性能和迁移演练；journal/projector/query/export benchmark | OA-12, OA-13, OA-17, OA-20 | 高基数/大 artifact/大 page/慢 exporter 导致事实丢失或无界内存、迁移 unknown version 静默通过均拒绝 | p50/p95/p99 append/flush/project/rebuild/query/export 基线；quota/backpressure/rotation/archive/upgrade/downgrade read-only 有证据 |
+| <a id="step-oa-26"></a>`OA-26` | Local durable observability gate；release/smoke/CURRENT_STATUS | OA-22..OA-25, `ER-34` | 历史 CI、内存 sink、单测 mock、无 artifact hash 不能声称 durable；缺限制/审计 scope 测试不放行 | deny→commit→effect→receipt/audit→restart→unknown/reconcile；journal/artifact/export hashes、process/queue/cursor/secret scan 全部记录 |
+| <a id="step-oa-27"></a>`OA-27` | Cross-entry/company governance gate；`ER-35`、CompanyOS Review/Delivery/Close、Cost/Memory/Data governance | OA-24..OA-26 | Runtime completed 不能直接变 Delivery/Outcome；audit query/export 不能跨 DataBoundary；Review 不能改 Builder facts | Objective→Project→Packet→Run→Review→Acceptance→Delivery→ClosingReceipt 的 trace/audit/evidence refs 可重建 |
+| <a id="step-oa-28"></a>`OA-28` | Physical/live handoff；目标 OS、OTLP backend、隔离 provider/connector 和 operator runbook | OA-26, OA-27, `ER-36` | 无目标 backend/credential/provider receipt/独立账户时只能证明 deny/local；不能把 OTLP export 或 mock receipt 写成 live/physical | 每个 provider/backend/connector 组合单独记录环境、版本、权限、采样、retention、incident、cleanup 和失败矩阵 |
 
 ### 31.7 执行波次与依赖
 
@@ -3253,30 +3601,30 @@ open EventLog -> validate frames/schema/cursor -> rebuild projections/indexes
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝的验收 | 成功/回归验收 |
 |---|---|---|---|---|
-| `AUT-01` | 基线与迁移护栏；盘点 `module-map`、现有 automation tests、`CURRENT_STATUS`，记录旧 `watch_scheduled_tasks` 兼容边界 | — | 发现第二 scheduler、直接 capability 入口或旧事件无法区分时阻断 | 形成 source snapshot、缺口清单、fixture 命名和不提高 proof 的迁移说明 |
-| `AUT-02` | `ClockPort`、wall/monotonic、clock trust/rollback；`kiana-ports`、`kiana-domain` | AUT-01 | 回退、零/溢出、未可信 clock 不得延长 lease、approval、trigger expiry | fake clock 可重复驱动 timer、deadline、catch-up；跨重启保存 `ClockObservation` |
-| `AUT-03` | definition/version/digest、DAG/schema/role/project validation；`kiana-domain`、`kiana-workflow` | AUT-01 | cycle、missing dependency、unknown field、超步数/超时、未授权 role/project、原地覆盖已用版本全拒绝且 0 effect | 同输入产生稳定 digest；旧实例固定使用原 definition version；migration 有显式事件 |
-| `AUT-04` | TriggerDefinition、event envelope、occurrence key、approval/authority/policy 绑定；`kiana-domain`、`kiana-protocol` | AUT-02, AUT-03 | 伪造 source/event kind、重复 key、过期/超额/跨项目 trigger、event payload 超限均不创建 instance | Manual/Event/Interval 注册和 schema round-trip；event_ref 与证据一一对应 |
-| `AUT-05` | automation event envelope、aggregate stream、command dedup、CAS/cursor query；`kiana-eventlog`、`kiana-ports` | AUT-03, AUT-04 | 同 key 不同 digest/actor/epoch、revision race、torn tail、flush 未确认不得返回 committed | 多 scheduler 对同一 aggregate 只有一个 commit；分页/重放与全量结果一致 |
-| `AUT-06` | 纯 planner intent：ready nodes、wait、terminal、reservation、next queue item；`kiana-workflow` | AUT-03, AUT-05 | planner 触碰 I/O、随机、当前系统时间或产生越权 node/empty dependency 不通过 | 相同 history/clock snapshot 字节等价；planner replay 不重复已 committed effect |
-| `AUT-07` | WorkPacket 与 workflow queue 共用 claim/scope/budget/path-lock contract；`kiana-domain`、`kiana-core` | AUT-05, AUT-06 | 父 scope/预算缺失、并行超限、循环依赖、重复 claim、过期 packet 全拒绝 | `ready_packets`、queue ready view、parent-child intersection 一致；一个 item 只有一个有效 claim |
-| `AUT-08` | `WorkflowQueueStore`、lease/heartbeat/fence/reclaim；`kiana-eventlog`、`kiana-ports`、`kiana-core` | AUT-05, AUT-07 | 旧 fence/错误 owner/lease 回退、可能执行中的 lease 直接重领、heartbeat 越权均 0 dispatch | 两个 worker 竞争只一胜；安全过期 item 可重领；未知 effect 进入 recovery |
-| `AUT-09` | `DaemonHost` 内 Tokio scheduler/worker service、bounded channel、shutdown；`kiana-daemon` | AUT-02, AUT-08 | service 绕过 ControlPlane、无限 channel、入口自建模型 loop、关闭时丢 claim ack 均阻断 | fake clock/queue 驱动 tick→claim→command；优雅关闭能 flush/fence，重启不重复执行 |
-| `AUT-10` | Interval due/cursor/missed policy；`kiana-workflow`、`kiana-core` | AUT-02, AUT-04, AUT-09 | Skip/FireOnce/CatchUp 产生重复或无限 catch-up；`next_at` 与 occurrence 不一致拒绝 | 同一 `scheduled_at` 只一次；CatchUp 有固定批量和 incident；重启后 cursor 继续 |
-| `AUT-11` | Event/Webhook ingress、签名/source allowlist、dedupe、filter；`kiana-daemon`、`kiana-protocol` | AUT-04, AUT-05, AUT-09 | 未认证、错误签名、未知 schema、重放 event、跨项目 source、payload 注入均 0 broker calls | event→occurrence→Fire 可重放；payload 只按 input schema 映射，不直接成为 capability request |
-| `AUT-12` | Reject/Queue/Replace/Coalesce 精确定义与有界 pending index；`kiana-workflow` | AUT-07, AUT-10, AUT-11 | Replace 未 stop 就启动 successor、Coalesce 丢 occurrence digest、Queue 超上限无稳定错误均失败 | concurrency matrix 覆盖 active/terminal/race/restart；firing budget 精确结算 |
-| `AUT-13` | `Advance` ready-node、dependency、FanOut/FanIn/SubWorkflow planner；`kiana-workflow` | AUT-06, AUT-07 | fan-out 越过深度/子 scope/预算、fan-in 缺结果、子定义版本漂移不得 dispatch | 并行节点各有 execution/attempt；fan-in 输入顺序稳定；子实例可恢复 |
-| `AUT-14` | effect reservation、permit、action digest、authority/config/policy revision；`kiana-core`、`kiana-eventlog` | AUT-05, AUT-08, AUT-13 | 未 reservation、旧 epoch、scope/approval/budget/path drift、未知 execution ID 均 0 broker calls | reservation CAS 后可安全重取；一 reservation 只产生一个有效 attempt |
-| `AUT-15` | worker dispatch/observation 分离；把当前 inline dispatch 改成可重取 command；`kiana-core`、`kiana-daemon` | AUT-09, AUT-14 | commit 后崩溃、重复 worker、observation revision race 不得重复 effect 或伪造 success | execution/result facts 可重放；已知失败反馈结构化结果，提交不确定返回 Unknown |
-| `AUT-16` | retry classifier、attempt/lease/deadline、idempotent descriptor；`kiana-workflow`、`kiana-core` | AUT-14, AUT-15 | Unknown、effect receipt 缺失、审批过期、预算不足、非幂等 capability 禁止自动 retry | pure/no-dispatch 和明确幂等失败按 bounded policy 新建 attempt；每次 attempt 可审计 |
-| `AUT-17` | cancel generation、stop report、late result fence、result_unknown；`kiana-core`、`kiana-daemon` | AUT-08, AUT-15 | queued/claimed/running/unknown 各阶段取消不一致、late result resurrect、stop 未确认却标 cancelled 全失败 | 未启动项 `not_executed`；已启动项有 stop/effect evidence；Unknown 进入 recovery |
-| `AUT-18` | approval/signal pause-resume、single consume、checkpoint metadata；`kiana-core`、`kiana-runner` | AUT-14, AUT-17 | approver 越权、参数/path/epoch 变化、重复 signal/approval、UI 自带 context 全拒绝且不 dispatch | 重启后 owner/definition/action digest 匹配才恢复；signal 顺序和 dedupe 稳定 |
-| `AUT-19` | parent-child workflow/WorkPacket fan-out、depth/concurrency/TTL、fail-fast/fan-in；`kiana-workflow`、`kiana-core` | AUT-07, AUT-13, AUT-17 | 子 scope/预算/role 超父级、循环 parent、失败后未启动 child 仍执行全拒绝 | child result/evidence 按稳定顺序合并；parent 状态由事实唯一推导 |
-| `AUT-20` | compensation workflow、原实例引用和新授权；`kiana-workflow`、`kiana-core` | AUT-16, AUT-19 | 成功/Unknown 原实例被错误补偿、补偿复用旧 approval/lease、补偿越权全拒绝 | failed/cancelled 实例可显式选择 compensation；补偿独立 receipt 和 audit trail |
-| `AUT-21` | boot recovery、projection/index rebuild、reconcile case；`kiana-daemon`、`kiana-eventlog`、`kiana-core` | AUT-15, AUT-17, AUT-18 | journal/schema/cursor 损坏、stale lease、Unknown、旧 epoch 不得自动 resume/dispatch | 重启默认 Paused/NeedsRecovery；显式 reconcile/resume 后只执行新 commit |
-| `AUT-22` | scheduler/workflow/trigger snapshot、Receipt、incident query/UI adapter；`kiana-query`、`kiana-protocol` | AUT-05, AUT-21 | 查询消费 claim/approval、投影缺 source cursor、Receipt 将 business outcome 写成 runtime success 全失败 | 同 cursor/version 重算稳定；展示 due/blocked/unknown/reason/evidence/limitations |
-| `AUT-23` | 跨 CLI/Web/Workbench/Desktop/MCP 的同一 DaemonHost 端到端 UAT；entrypoints、daemon、core | AUT-09, AUT-11, AUT-18, AUT-22 | 入口分叉 loop、直接 broker、伪造 actor、跨项目 trigger、权限并集、TOCTOU 全矩阵 | manual/event/interval→workflow→effect→receipt；deny path 记录 0 broker calls |
-| `AUT-24` | durable/live 证据与发布门；scripts、fixtures、`CURRENT_STATUS.md` | AUT-01..AUT-23 | 只有类型/单测、内存 queue、未 flush journal、未对账 Unknown 不得宣称 durable/live | 每个切片有 source_snapshot/worktree/argv/env/fixture/exit/status/proof/limitations/reviewer；真实 provider 仅显式 opt-in |
+| <a id="step-aut-01"></a>`AUT-01` | 基线与迁移护栏；盘点 `module-map`、现有 automation tests、`CURRENT_STATUS`，记录旧 `watch_scheduled_tasks` 兼容边界 | — | 发现第二 scheduler、直接 capability 入口或旧事件无法区分时阻断 | 形成 source snapshot、缺口清单、fixture 命名和不提高 proof 的迁移说明 |
+| <a id="step-aut-02"></a>`AUT-02` | `ClockPort`、wall/monotonic、clock trust/rollback；`kiana-ports`、`kiana-domain` | AUT-01 | 回退、零/溢出、未可信 clock 不得延长 lease、approval、trigger expiry | fake clock 可重复驱动 timer、deadline、catch-up；跨重启保存 `ClockObservation` |
+| <a id="step-aut-03"></a>`AUT-03` | definition/version/digest、DAG/schema/role/project validation；`kiana-domain`、`kiana-workflow` | AUT-01 | cycle、missing dependency、unknown field、超步数/超时、未授权 role/project、原地覆盖已用版本全拒绝且 0 effect | 同输入产生稳定 digest；旧实例固定使用原 definition version；migration 有显式事件 |
+| <a id="step-aut-04"></a>`AUT-04` | TriggerDefinition、event envelope、occurrence key、approval/authority/policy 绑定；`kiana-domain`、`kiana-protocol` | AUT-02, AUT-03 | 伪造 source/event kind、重复 key、过期/超额/跨项目 trigger、event payload 超限均不创建 instance | Manual/Event/Interval 注册和 schema round-trip；event_ref 与证据一一对应 |
+| <a id="step-aut-05"></a>`AUT-05` | automation event envelope、aggregate stream、command dedup、CAS/cursor query；`kiana-eventlog`、`kiana-ports` | AUT-03, AUT-04 | 同 key 不同 digest/actor/epoch、revision race、torn tail、flush 未确认不得返回 committed | 多 scheduler 对同一 aggregate 只有一个 commit；分页/重放与全量结果一致 |
+| <a id="step-aut-06"></a>`AUT-06` | 纯 planner intent：ready nodes、wait、terminal、reservation、next queue item；`kiana-workflow` | AUT-03, AUT-05 | planner 触碰 I/O、随机、当前系统时间或产生越权 node/empty dependency 不通过 | 相同 history/clock snapshot 字节等价；planner replay 不重复已 committed effect |
+| <a id="step-aut-07"></a>`AUT-07` | WorkPacket 与 workflow queue 共用 claim/scope/budget/path-lock contract；`kiana-domain`、`kiana-core` | AUT-05, AUT-06 | 父 scope/预算缺失、并行超限、循环依赖、重复 claim、过期 packet 全拒绝 | `ready_packets`、queue ready view、parent-child intersection 一致；一个 item 只有一个有效 claim |
+| <a id="step-aut-08"></a>`AUT-08` | `WorkflowQueueStore`、lease/heartbeat/fence/reclaim；`kiana-eventlog`、`kiana-ports`、`kiana-core` | AUT-05, AUT-07 | 旧 fence/错误 owner/lease 回退、可能执行中的 lease 直接重领、heartbeat 越权均 0 dispatch | 两个 worker 竞争只一胜；安全过期 item 可重领；未知 effect 进入 recovery |
+| <a id="step-aut-09"></a>`AUT-09` | `DaemonHost` 内 Tokio scheduler/worker service、bounded channel、shutdown；`kiana-daemon` | AUT-02, AUT-08 | service 绕过 ControlPlane、无限 channel、入口自建模型 loop、关闭时丢 claim ack 均阻断 | fake clock/queue 驱动 tick→claim→command；优雅关闭能 flush/fence，重启不重复执行 |
+| <a id="step-aut-10"></a>`AUT-10` | Interval due/cursor/missed policy；`kiana-workflow`、`kiana-core` | AUT-02, AUT-04, AUT-09 | Skip/FireOnce/CatchUp 产生重复或无限 catch-up；`next_at` 与 occurrence 不一致拒绝 | 同一 `scheduled_at` 只一次；CatchUp 有固定批量和 incident；重启后 cursor 继续 |
+| <a id="step-aut-11"></a>`AUT-11` | Event/Webhook ingress、签名/source allowlist、dedupe、filter；`kiana-daemon`、`kiana-protocol` | AUT-04, AUT-05, AUT-09 | 未认证、错误签名、未知 schema、重放 event、跨项目 source、payload 注入均 0 broker calls | event→occurrence→Fire 可重放；payload 只按 input schema 映射，不直接成为 capability request |
+| <a id="step-aut-12"></a>`AUT-12` | Reject/Queue/Replace/Coalesce 精确定义与有界 pending index；`kiana-workflow` | AUT-07, AUT-10, AUT-11 | Replace 未 stop 就启动 successor、Coalesce 丢 occurrence digest、Queue 超上限无稳定错误均失败 | concurrency matrix 覆盖 active/terminal/race/restart；firing budget 精确结算 |
+| <a id="step-aut-13"></a>`AUT-13` | `Advance` ready-node、dependency、FanOut/FanIn/SubWorkflow planner；`kiana-workflow` | AUT-06, AUT-07 | fan-out 越过深度/子 scope/预算、fan-in 缺结果、子定义版本漂移不得 dispatch | 并行节点各有 execution/attempt；fan-in 输入顺序稳定；子实例可恢复 |
+| <a id="step-aut-14"></a>`AUT-14` | effect reservation、permit、action digest、authority/config/policy revision；`kiana-core`、`kiana-eventlog` | AUT-05, AUT-08, AUT-13 | 未 reservation、旧 epoch、scope/approval/budget/path drift、未知 execution ID 均 0 broker calls | reservation CAS 后可安全重取；一 reservation 只产生一个有效 attempt |
+| <a id="step-aut-15"></a>`AUT-15` | worker dispatch/observation 分离；把当前 inline dispatch 改成可重取 command；`kiana-core`、`kiana-daemon` | AUT-09, AUT-14 | commit 后崩溃、重复 worker、observation revision race 不得重复 effect 或伪造 success | execution/result facts 可重放；已知失败反馈结构化结果，提交不确定返回 Unknown |
+| <a id="step-aut-16"></a>`AUT-16` | retry classifier、attempt/lease/deadline、idempotent descriptor；`kiana-workflow`、`kiana-core` | AUT-14, AUT-15 | Unknown、effect receipt 缺失、审批过期、预算不足、非幂等 capability 禁止自动 retry | pure/no-dispatch 和明确幂等失败按 bounded policy 新建 attempt；每次 attempt 可审计 |
+| <a id="step-aut-17"></a>`AUT-17` | cancel generation、stop report、late result fence、result_unknown；`kiana-core`、`kiana-daemon` | AUT-08, AUT-15 | queued/claimed/running/unknown 各阶段取消不一致、late result resurrect、stop 未确认却标 cancelled 全失败 | 未启动项 `not_executed`；已启动项有 stop/effect evidence；Unknown 进入 recovery |
+| <a id="step-aut-18"></a>`AUT-18` | approval/signal pause-resume、single consume、checkpoint metadata；`kiana-core`、`kiana-runner` | AUT-14, AUT-17 | approver 越权、参数/path/epoch 变化、重复 signal/approval、UI 自带 context 全拒绝且不 dispatch | 重启后 owner/definition/action digest 匹配才恢复；signal 顺序和 dedupe 稳定 |
+| <a id="step-aut-19"></a>`AUT-19` | parent-child workflow/WorkPacket fan-out、depth/concurrency/TTL、fail-fast/fan-in；`kiana-workflow`、`kiana-core` | AUT-07, AUT-13, AUT-17 | 子 scope/预算/role 超父级、循环 parent、失败后未启动 child 仍执行全拒绝 | child result/evidence 按稳定顺序合并；parent 状态由事实唯一推导 |
+| <a id="step-aut-20"></a>`AUT-20` | compensation workflow、原实例引用和新授权；`kiana-workflow`、`kiana-core` | AUT-16, AUT-19 | 成功/Unknown 原实例被错误补偿、补偿复用旧 approval/lease、补偿越权全拒绝 | failed/cancelled 实例可显式选择 compensation；补偿独立 receipt 和 audit trail |
+| <a id="step-aut-21"></a>`AUT-21` | boot recovery、projection/index rebuild、reconcile case；`kiana-daemon`、`kiana-eventlog`、`kiana-core` | AUT-15, AUT-17, AUT-18 | journal/schema/cursor 损坏、stale lease、Unknown、旧 epoch 不得自动 resume/dispatch | 重启默认 Paused/NeedsRecovery；显式 reconcile/resume 后只执行新 commit |
+| <a id="step-aut-22"></a>`AUT-22` | scheduler/workflow/trigger snapshot、Receipt、incident query/UI adapter；`kiana-query`、`kiana-protocol` | AUT-05, AUT-21 | 查询消费 claim/approval、投影缺 source cursor、Receipt 将 business outcome 写成 runtime success 全失败 | 同 cursor/version 重算稳定；展示 due/blocked/unknown/reason/evidence/limitations |
+| <a id="step-aut-23"></a>`AUT-23` | 跨 CLI/Web/Workbench/Desktop/MCP 的同一 DaemonHost 端到端 UAT；entrypoints、daemon、core | AUT-09, AUT-11, AUT-18, AUT-22 | 入口分叉 loop、直接 broker、伪造 actor、跨项目 trigger、权限并集、TOCTOU 全矩阵 | manual/event/interval→workflow→effect→receipt；deny path 记录 0 broker calls |
+| <a id="step-aut-24"></a>`AUT-24` | durable/live 证据与发布门；scripts、fixtures、`CURRENT_STATUS.md` | AUT-01..AUT-23 | 只有类型/单测、内存 queue、未 flush journal、未对账 Unknown 不得宣称 durable/live | 每个切片有 source_snapshot/worktree/argv/env/fixture/exit/status/proof/limitations/reviewer；真实 provider 仅显式 opt-in |
 
 ### 32.9 依赖批次和现有 roadmap 对接
 
@@ -3623,29 +3971,29 @@ trait DeliveryChannel {
 
 | Step | 代码与交付物 | 依赖 | 先拒绝的验收 | 成功与回归验收 |
 |---|---|---|---|---|
-| `NM-00` | 现状/事件种类/入口 inventory；`run_stream.rs`、`platform.rs`、`web.rs`、`workbench_chat.rs`、`CURRENT_STATUS.md` | — | 证明当前没有 durable notification bus/read state；列出任何把 transcript/UI event 当事实的路径 | 产出 event→recipient→channel matrix、owner、proof ceiling 和迁移清单，不改历史证据 |
-| `NM-01` | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | NM-00 | unknown kind/schema、空 recipient、scope 超集、超长正文、错误 TTL、secret in `Debug/Serialize` fail-closed | serde/canonical bytes、状态转移、兼容 upcast、bounded value 和 digest 测试 |
-| `NM-02` | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | NM-01、P1-E-01 | Chat/StatusReport/Evidence 文本不能授予 Grant；Handoff 无 recipient、ACK 前 dispatch、Command 伪造 actor/role 全拒绝 | 定向 Handoff ACK/reject、Decision authority/evidence、Incident escalation 均写 committed facts；不进入共享 transcript |
-| `NM-03` | Event kind registry 与分类规则；`kiana-domain/contracts.rs`、`kiana-core/events.rs` | NM-01、ER-01 | 未注册事件、伪造 source event、模型/UI 自报 approval/completion、无 owner 的 critical event 拒绝投影 | approval/run terminal/unknown/handoff/status/evidence/incident/reminder 映射确定且可版本化 |
-| `NM-04` | `NotificationProjector` + source cursor/checkpoint；`kiana-eventlog`/`kiana-core` | NM-03、PD-05..PD-09 | projector 读空、cursor 回退、gap、checksum 错误、pre-commit observer 不能产生通知 | committed-only、分页扫描、重启从 cursor 补齐、同一事件重放字节等价；observer 仅作 wake hint |
-| `NM-05` | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | NM-01、NM-04、CI-05 | 客户端 owner/project/recipient/filter 扩权、跨项目、revoked/expired epoch、未信任项目、role 自报全拒绝且无投递 | 同一主体三入口得到相同可见集合；订阅只能收窄服务端最大 scope，revision/expiry 可重建 |
-| `NM-06` | Notification materializer 与 HumanTask bridge；`kiana-core/platform.rs`、`kiana-domain/platform.rs` | NM-04、NM-05、P2-K3-01 | approval/review/acceptance/incident/reconciliation 缺 source/event/evidence/due 或错误 decider 不可见 | 每个可行动事实有 redacted summary、action refs、due/expiry、source cursor；HumanTask 权威状态仍来自原对象 |
-| `NM-07` | dedup/idempotency/OCC；dedup key、content hash、subscription revision | NM-04、NM-05 | 同 key 不同 digest、重复 claim、旧 revision、重放/多进程竞争不能多发或覆盖 | at-least-once 输入折叠为一次 intent；重复请求返回原 notification/receipt；并发 CAS 只有一个赢家 |
-| `NM-08` | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | NM-06、NM-07、PD-10..PD-13 | outbox claim 后 crash、lease 过期、revoked subscription、队列超限不能丢 critical/terminal/approval，也不能重复动作 | pending→claimed→submitted→ack/failed/unknown 可重建；重启继续安全处理，best-effort 丢弃有理由和计数 |
-| `NM-09` | in-process/in-app channel；NotificationStore query/page | NM-06、NM-08 | 越权查询、无限 page、projection unavailable 当空、已读当批准、删除历史事实全拒绝 | `list/mark_read/ack` 只写投影/治理事实；empty 与 unavailable 区分；同 cursor 重算一致 |
-| `NM-10` | action refs 与 HumanTask action command；审批、ACK、review、reconcile、snooze/escalate/delegate/withdraw | NM-06、NM-09、CP-18/19 | stale target、wrong decider、payload/criteria/epoch drift、double consume、read/ACK 伪造 approval、未知 action 全拒绝且 zero broker effect | action 提交回原 ControlPlane；一次决定唤醒一个 wait key；Applied/Failed/Unknown 与 delivery ACK 分开 |
-| `NM-11` | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | NM-09、NM-10 | 客户端时间/预选按钮/沉默改变优先级或批准；snooze 隐藏 critical/Unknown；排序泄露他人范围 | urgency→due→source sequence 确定排序；已读跨重启保留；关键项始终可查询 |
-| `NM-12` | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | NM-04、NM-09、P2-K7-01 | 删除只删 UI/cache、retention 越权、withdraw 覆盖历史、payload ref 与 audit metadata 混淆 | source cursor 重建同一未读/状态；过期/撤回只追加事实；数据 epoch 传播到摘要、artifact、index、cache |
-| `NM-13` | run stream/notification bridge；snapshot-first、after cursor、epoch、gap、heartbeat/disposed | NM-04、NM-08、UI-17/18 | lagged/old epoch/foreign run/late socket、delta gap 被当 completed、terminal 丢失无告警 | 先订阅再 hydrate（或保留合并窗口）；按 ID 去重；`run.finished`/approval/incident 可 query 回放；delta 仍是易失展示 |
-| `NM-14` | CLI/TTY inbox 与运行状态；`cli.rs`、`workbench_chat.rs` | NM-09、NM-10、NM-13、UI-12/15 | `/approve` 伪造 scope、读已读即消费、错 session action、连接断开隐式 cancel/resume 全拒绝 | `/inbox`、`/approvals`、ACK/decision、retry/reconcile 共用协议；多会话徽标按服务端 projection 渲染 |
-| `NM-15` | Web REST snapshot/page + SSE；`web.rs`/`kiana-client` | NM-09、NM-10、NM-13、UI-16/17/18/19/21 | wrong Host/Origin/bearer、cross-session/project、旧 cursor、无限 body、旧 socket 覆盖新状态全拒绝 | loopback-only；snapshot + after cursor hydrate、1–30 秒退避、connection/auth/conversation 错误分层；跨 tab action CAS 一致 |
-| `NM-16` | Desktop local notification adapter；OS permission、tray、close/detach | NM-15、UI-24/25/26/27 | OS toast 泄露 private payload、托盘越权 command、close 隐式 resume/cancel、无权限仍声称 delivered | 仅 redacted title/summary；系统拒绝权限不影响 durable inbox；reopen 后从 cursor/receipt 恢复 |
-| `NM-17` | severity/digest/reminder/escalation；primary/fallback、quiet hours、deadline | NM-06、NM-11、K3/CO-39 | digest 吞 critical/Unknown、模型自报恢复、重复提醒风暴、自动 approve/retry/close 全拒绝 | high/critical 立即/同日提醒，medium digest，low 可抑制；每次折叠带 source IDs、owner、next action 和 escalation 事实 |
-| `NM-18` | cancellation/revocation/expiry/reconciliation；`recovery.rs`、`connectors.rs` | NM-08、NM-10、P2-K6-01 | cancel_requested 写成 delivered、in-flight 到达未知却重发、authority revoke 后继续发送、Unknown 自动 retry 全拒绝 | known pre-send failure bounded retry；send/ack 不确定进入 dead-letter/reconcile；新授权和新 delivery key 才能重试 |
-| `NM-19` | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | NM-08、NM-18、P4-K8-01 | HTTP/A2A push、任意 URL、SSRF、无 auth/重放/超时/幂等、外部 ACK 伪造应用全拒绝 | fake connector 只验证 envelope/receipt/reconcile；真实外部通道仅显式 opt-in，未验收保持 `not_supported` |
-| `NM-20` | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | NM-04、NM-08、NM-13、NM-18 | duplicate/out-of-order/gap、crash windows、slow consumer、queue full、disk full、secret sentinel、projection loss 不得丢关键事实或产生 effect | bounded queue/backpressure、checkpoint/rebuild、redaction、lease reclaim、multi-subscriber isolation、critical delivery query fallback |
-| `NM-21` | 跨入口 E2E 与消息/通知/动作对账；CLI/TTY/Web/Desktop、fake model/provider | NM-14、NM-15、NM-16、NM-20、CO-39/40/41 | 不同入口各自 bus/loop、一个入口已读影响另一个权限、消息文本改变 run、terminal/approval/incident 丢失全阻断 | 同一 EventLog/source cursor 在四入口产生同一 inbox/action/result；fresh process 重建未读、pending、delivery 和 terminal |
-| `NM-22` | 发布门、证据和 `CURRENT_STATUS` 回填；feature/proof 分离 | NM-01..NM-21、ER/PD/UI 相关门 | 只有类型/单测/内存 broadcast/一次 toast 不能宣称 durable/live；unknown、audit 写失败或 scope 不确定阻断发布 | 每步有拒绝+成功+恢复证据；in-app/run stream 可按实际 proof 标记，外部 push 只有独立 live 证据才能提升 |
+| <a id="step-nm-00"></a>`NM-00` | 现状/事件种类/入口 inventory；`run_stream.rs`、`platform.rs`、`web.rs`、`workbench_chat.rs`、`CURRENT_STATUS.md` | — | 证明当前没有 durable notification bus/read state；列出任何把 transcript/UI event 当事实的路径 | 产出 event→recipient→channel matrix、owner、proof ceiling 和迁移清单，不改历史证据 |
+| <a id="step-nm-01"></a>`NM-01` | Domain contracts 与 schema registry；Message/Notification/Subscription/Attempt/ActionRef/DeliveryReceipt | NM-00 | unknown kind/schema、空 recipient、scope 超集、超长正文、错误 TTL、secret in `Debug/Serialize` fail-closed | serde/canonical bytes、状态转移、兼容 upcast、bounded value 和 digest 测试 |
+| <a id="step-nm-02"></a>`NM-02` | 七类 `CommunicationMessage` 命令与生命周期；`kiana-domain`/`kiana-core` | NM-01、P1-E-01 | Chat/StatusReport/Evidence 文本不能授予 Grant；Handoff 无 recipient、ACK 前 dispatch、Command 伪造 actor/role 全拒绝 | 定向 Handoff ACK/reject、Decision authority/evidence、Incident escalation 均写 committed facts；不进入共享 transcript |
+| <a id="step-nm-03"></a>`NM-03` | Event kind registry 与分类规则；`kiana-domain/contracts.rs`、`kiana-core/events.rs` | NM-01、ER-01 | 未注册事件、伪造 source event、模型/UI 自报 approval/completion、无 owner 的 critical event 拒绝投影 | approval/run terminal/unknown/handoff/status/evidence/incident/reminder 映射确定且可版本化 |
+| <a id="step-nm-04"></a>`NM-04` | `NotificationProjector` + source cursor/checkpoint；`kiana-eventlog`/`kiana-core` | NM-03、PD-05..PD-09 | projector 读空、cursor 回退、gap、checksum 错误、pre-commit observer 不能产生通知 | committed-only、分页扫描、重启从 cursor 补齐、同一事件重放字节等价；observer 仅作 wake hint |
+| <a id="step-nm-05"></a>`NM-05` | recipient/scope/subscription resolver；Principal/Assignment/ProjectTrust/authority epoch | NM-01、NM-04、CI-05 | 客户端 owner/project/recipient/filter 扩权、跨项目、revoked/expired epoch、未信任项目、role 自报全拒绝且无投递 | 同一主体三入口得到相同可见集合；订阅只能收窄服务端最大 scope，revision/expiry 可重建 |
+| <a id="step-nm-06"></a>`NM-06` | Notification materializer 与 HumanTask bridge；`kiana-core/platform.rs`、`kiana-domain/platform.rs` | NM-04、NM-05、P2-K3-01 | approval/review/acceptance/incident/reconciliation 缺 source/event/evidence/due 或错误 decider 不可见 | 每个可行动事实有 redacted summary、action refs、due/expiry、source cursor；HumanTask 权威状态仍来自原对象 |
+| <a id="step-nm-07"></a>`NM-07` | dedup/idempotency/OCC；dedup key、content hash、subscription revision | NM-04、NM-05 | 同 key 不同 digest、重复 claim、旧 revision、重放/多进程竞争不能多发或覆盖 | at-least-once 输入折叠为一次 intent；重复请求返回原 notification/receipt；并发 CAS 只有一个赢家 |
+| <a id="step-nm-08"></a>`NM-08` | durable outbox + DeliveryWorker；attempt lease/fence、shutdown drain | NM-06、NM-07、PD-10..PD-13 | outbox claim 后 crash、lease 过期、revoked subscription、队列超限不能丢 critical/terminal/approval，也不能重复动作 | pending→claimed→submitted→ack/failed/unknown 可重建；重启继续安全处理，best-effort 丢弃有理由和计数 |
+| <a id="step-nm-09"></a>`NM-09` | in-process/in-app channel；NotificationStore query/page | NM-06、NM-08 | 越权查询、无限 page、projection unavailable 当空、已读当批准、删除历史事实全拒绝 | `list/mark_read/ack` 只写投影/治理事实；empty 与 unavailable 区分；同 cursor 重算一致 |
+| <a id="step-nm-10"></a>`NM-10` | action refs 与 HumanTask action command；审批、ACK、review、reconcile、snooze/escalate/delegate/withdraw | NM-06、NM-09、CP-18/19 | stale target、wrong decider、payload/criteria/epoch drift、double consume、read/ACK 伪造 approval、未知 action 全拒绝且 zero broker effect | action 提交回原 ControlPlane；一次决定唤醒一个 wait key；Applied/Failed/Unknown 与 delivery ACK 分开 |
+| <a id="step-nm-11"></a>`NM-11` | unread/read/ack/snooze/digest 投影和排序；server time、due/urgency | NM-09、NM-10 | 客户端时间/预选按钮/沉默改变优先级或批准；snooze 隐藏 critical/Unknown；排序泄露他人范围 | urgency→due→source sequence 确定排序；已读跨重启保留；关键项始终可查询 |
+| <a id="step-nm-12"></a>`NM-12` | durable inbox rebuild、retention/withdraw/supersede；`NotificationProjector`/PD-24..PD-26 | NM-04、NM-09、P2-K7-01 | 删除只删 UI/cache、retention 越权、withdraw 覆盖历史、payload ref 与 audit metadata 混淆 | source cursor 重建同一未读/状态；过期/撤回只追加事实；数据 epoch 传播到摘要、artifact、index、cache |
+| <a id="step-nm-13"></a>`NM-13` | run stream/notification bridge；snapshot-first、after cursor、epoch、gap、heartbeat/disposed | NM-04、NM-08、UI-17/18 | lagged/old epoch/foreign run/late socket、delta gap 被当 completed、terminal 丢失无告警 | 先订阅再 hydrate（或保留合并窗口）；按 ID 去重；`run.finished`/approval/incident 可 query 回放；delta 仍是易失展示 |
+| <a id="step-nm-14"></a>`NM-14` | CLI/TTY inbox 与运行状态；`cli.rs`、`workbench_chat.rs` | NM-09、NM-10、NM-13、UI-12/15 | `/approve` 伪造 scope、读已读即消费、错 session action、连接断开隐式 cancel/resume 全拒绝 | `/inbox`、`/approvals`、ACK/decision、retry/reconcile 共用协议；多会话徽标按服务端 projection 渲染 |
+| <a id="step-nm-15"></a>`NM-15` | Web REST snapshot/page + SSE；`web.rs`/`kiana-client` | NM-09、NM-10、NM-13、UI-16/17/18/19/21 | wrong Host/Origin/bearer、cross-session/project、旧 cursor、无限 body、旧 socket 覆盖新状态全拒绝 | loopback-only；snapshot + after cursor hydrate、1–30 秒退避、connection/auth/conversation 错误分层；跨 tab action CAS 一致 |
+| <a id="step-nm-16"></a>`NM-16` | Desktop local notification adapter；OS permission、tray、close/detach | NM-15、UI-24/25/26/27 | OS toast 泄露 private payload、托盘越权 command、close 隐式 resume/cancel、无权限仍声称 delivered | 仅 redacted title/summary；系统拒绝权限不影响 durable inbox；reopen 后从 cursor/receipt 恢复 |
+| <a id="step-nm-17"></a>`NM-17` | severity/digest/reminder/escalation；primary/fallback、quiet hours、deadline | NM-06、NM-11、K3/CO-39 | digest 吞 critical/Unknown、模型自报恢复、重复提醒风暴、自动 approve/retry/close 全拒绝 | high/critical 立即/同日提醒，medium digest，low 可抑制；每次折叠带 source IDs、owner、next action 和 escalation 事实 |
+| <a id="step-nm-18"></a>`NM-18` | cancellation/revocation/expiry/reconciliation；`recovery.rs`、`connectors.rs` | NM-08、NM-10、P2-K6-01 | cancel_requested 写成 delivered、in-flight 到达未知却重发、authority revoke 后继续发送、Unknown 自动 retry 全拒绝 | known pre-send failure bounded retry；send/ack 不确定进入 dead-letter/reconcile；新授权和新 delivery key 才能重试 |
+| <a id="step-nm-19"></a>`NM-19` | 外部 Connector/webhook contract（默认关闭）；签名、allowlist、nonce、provider receipt | NM-08、NM-18、P4-K8-01 | HTTP/A2A push、任意 URL、SSRF、无 auth/重放/超时/幂等、外部 ACK 伪造应用全拒绝 | fake connector 只验证 envelope/receipt/reconcile；真实外部通道仅显式 opt-in，未验收保持 `not_supported` |
+| <a id="step-nm-20"></a>`NM-20` | fault injection 与容量/安全测试；EventLog/Projector/Worker/Channel/UI 全链 | NM-04、NM-08、NM-13、NM-18 | duplicate/out-of-order/gap、crash windows、slow consumer、queue full、disk full、secret sentinel、projection loss 不得丢关键事实或产生 effect | bounded queue/backpressure、checkpoint/rebuild、redaction、lease reclaim、multi-subscriber isolation、critical delivery query fallback |
+| <a id="step-nm-21"></a>`NM-21` | 跨入口 E2E 与消息/通知/动作对账；CLI/TTY/Web/Desktop、fake model/provider | NM-14、NM-15、NM-16、NM-20、CO-39/40/41 | 不同入口各自 bus/loop、一个入口已读影响另一个权限、消息文本改变 run、terminal/approval/incident 丢失全阻断 | 同一 EventLog/source cursor 在四入口产生同一 inbox/action/result；fresh process 重建未读、pending、delivery 和 terminal |
+| <a id="step-nm-22"></a>`NM-22` | 发布门、证据和 `CURRENT_STATUS` 回填；feature/proof 分离 | NM-01..NM-21、ER/PD/UI 相关门 | 只有类型/单测/内存 broadcast/一次 toast 不能宣称 durable/live；unknown、audit 写失败或 scope 不确定阻断发布 | 每步有拒绝+成功+恢复证据；in-app/run stream 可按实际 proof 标记，外部 push 只有独立 live 证据才能提升 |
 
 ### 34.10 依赖批次
 
@@ -4125,83 +4473,83 @@ scripts/eval-package-evidence.sh
 
 | Step | 目标与代码落点 | 最小验收 |
 |---|---|---|
-| `EQ-00` | 固定当前源码快照、工作树状态和现有 `eval` 行为；在 `docs/roadmap.md`/`CURRENT_STATUS.md` 建立本专项证据模板 | `eval_baseline_inventory_is_reproducible`；报告现有能力为 partial/local_behavior |
-| `EQ-01` | 从 `kiana-commands/src/eval.rs` 提取 schema 常量、错误码和 JSON 兼容测试清单，禁止无记录的字段删除 | `legacy_eval_v1_contract_is_pinned` |
-| `EQ-02` | 在 `kiana-domain/src/quality.rs` 加稳定 ID、digest、状态枚举和 `deny_unknown_fields` DTO | `quality_ids_and_state_transitions_are_validated` |
-| `EQ-03` | 定义 `EvalDataset`/`EvalSuite`/`EvalCase`/`GoldenTrace` schema、版本和 provenance | `unknown_quality_schema_is_rejected` |
-| `EQ-04` | 定义 case split、privacy class、owner、expires_at、minimum sample 和 workload tags | `expired_or_unowned_dataset_is_not_admitted` |
-| `EQ-05` | 把 `kiana.eval-suite.v1`/baseline/report 与新 domain DTO 做显式 adapter，保留旧 CLI 输出字段 | `legacy_eval_cli_round_trips_through_quality_dto` |
-| `EQ-06` | 在 `kiana-protocol` 登记 `eval.run/capture/compare` 和 `quality.feedback/promote/rollback` 命令/事件 | `quality_protocol_has_no_unversioned_events` |
-| `EQ-07` | 在 `kiana-ports` 增加 `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink` | `quality_ports_are_free_of_daemon_or_provider_types` |
+| <a id="step-eq-00"></a>`EQ-00` | 固定当前源码快照、工作树状态和现有 `eval` 行为；在 `docs/roadmap.md`/`CURRENT_STATUS.md` 建立本专项证据模板 | `eval_baseline_inventory_is_reproducible`；报告现有能力为 partial/local_behavior |
+| <a id="step-eq-01"></a>`EQ-01` | 从 `kiana-commands/src/eval.rs` 提取 schema 常量、错误码和 JSON 兼容测试清单，禁止无记录的字段删除 | `legacy_eval_v1_contract_is_pinned` |
+| <a id="step-eq-02"></a>`EQ-02` | 在 `kiana-domain/src/quality.rs` 加稳定 ID、digest、状态枚举和 `deny_unknown_fields` DTO | `quality_ids_and_state_transitions_are_validated` |
+| <a id="step-eq-03"></a>`EQ-03` | 定义 `EvalDataset`/`EvalSuite`/`EvalCase`/`GoldenTrace` schema、版本和 provenance | `unknown_quality_schema_is_rejected` |
+| <a id="step-eq-04"></a>`EQ-04` | 定义 case split、privacy class、owner、expires_at、minimum sample 和 workload tags | `expired_or_unowned_dataset_is_not_admitted` |
+| <a id="step-eq-05"></a>`EQ-05` | 把 `kiana.eval-suite.v1`/baseline/report 与新 domain DTO 做显式 adapter，保留旧 CLI 输出字段 | `legacy_eval_cli_round_trips_through_quality_dto` |
+| <a id="step-eq-06"></a>`EQ-06` | 在 `kiana-protocol` 登记 `eval.run/capture/compare` 和 `quality.feedback/promote/rollback` 命令/事件 | `quality_protocol_has_no_unversioned_events` |
+| <a id="step-eq-07"></a>`EQ-07` | 在 `kiana-ports` 增加 `EvalStore`、`FixtureStore`、`TraceSource`、`ArtifactReader`、`Judge`、`MetricsSink` | `quality_ports_are_free_of_daemon_or_provider_types` |
 
 #### 波次 B：fixture、隔离执行与事实采集
 
 | Step | 目标与代码落点 | 最小验收 |
 |---|---|---|
-| `EQ-08` | 建立 `tests/eval/` 目录、case manifest、fixture size/path/schema 限制和 deterministic loader | `fixture_path_escape_and_unknown_fields_fail_closed` |
-| `EQ-09` | 在 `kiana-daemon/src/eval_runtime.rs` 实现临时 workspace、临时 `KIANA_HOME`、固定 clock/random seed | `eval_target_isolated_from_operator_home` |
-| `EQ-10` | 实现 fake provider adapter，支持完整 reply、分块 stream、tool call、malformed stream、provider error | `fake_provider_replays_normalized_stream_without_network` |
-| `EQ-11` | 实现 deny-by-default broker；将真实 network/secret/MCP/payment/publish/desktop effect 映射为稳定拒绝 | `forbidden_capability_never_reaches_real_executor` |
-| `EQ-12` | 通过 `DaemonHost`/`ControlPlane` 启动 target，禁止 quality crate 自行创建 runner loop | `eval_uses_the_same_daemonhost_spine` |
-| `EQ-13` | 将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store | `initial_state_digest_is_bound_to_experiment` |
-| `EQ-14` | 采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown | `event_flush_failure_never_returns_eval_pass` |
-| `EQ-15` | 增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown | `fault_plan_preserves_unknown_and_stop_evidence` |
-| `EQ-16` | 对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture | `eval_evidence_has_no_unredacted_secret` |
+| <a id="step-eq-08"></a>`EQ-08` | 建立 `tests/eval/` 目录、case manifest、fixture size/path/schema 限制和 deterministic loader | `fixture_path_escape_and_unknown_fields_fail_closed` |
+| <a id="step-eq-09"></a>`EQ-09` | 在 `kiana-daemon/src/eval_runtime.rs` 实现临时 workspace、临时 `KIANA_HOME`、固定 clock/random seed | `eval_target_isolated_from_operator_home` |
+| <a id="step-eq-10"></a>`EQ-10` | 实现 fake provider adapter，支持完整 reply、分块 stream、tool call、malformed stream、provider error | `fake_provider_replays_normalized_stream_without_network` |
+| <a id="step-eq-11"></a>`EQ-11` | 实现 deny-by-default broker；将真实 network/secret/MCP/payment/publish/desktop effect 映射为稳定拒绝 | `forbidden_capability_never_reaches_real_executor` |
+| <a id="step-eq-12"></a>`EQ-12` | 通过 `DaemonHost`/`ControlPlane` 启动 target，禁止 quality crate 自行创建 runner loop | `eval_uses_the_same_daemonhost_spine` |
+| <a id="step-eq-13"></a>`EQ-13` | 将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store | `initial_state_digest_is_bound_to_experiment` |
+| <a id="step-eq-14"></a>`EQ-14` | 采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown | `event_flush_failure_never_returns_eval_pass` |
+| <a id="step-eq-15"></a>`EQ-15` | 增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown | `fault_plan_preserves_unknown_and_stop_evidence` |
+| <a id="step-eq-16"></a>`EQ-16` | 对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture | `eval_evidence_has_no_unredacted_secret` |
 
 #### 波次 C：TraceNormalizer、GoldenTrace 与差分
 
 | Step | 目标与代码落点 | 最小验收 |
 |---|---|---|
-| `EQ-17` | 在 `kiana-quality/src/normalize.rs` 实现 durable event 选择和 sequence/terminal/correlation 校验 | `invalid_event_cursor_or_multiple_terminal_is_rejected` |
-| `EQ-18` | 实现 canonical JSON、稳定数组策略、字段白名单和 redaction 复用 | `normalization_is_stable_and_redacts_payloads` |
-| `EQ-19` | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `undeclared_volatile_field_is_not_silently_normalized` |
-| `EQ-20` | 计算 event/trace/artifact/receipt digest，绑定 `normalization_version` | `same_fixture_has_same_trace_digest` |
-| `EQ-21` | 实现 `TraceDiff`：首个 divergence、字段路径、cursor、expected/actual 摘要和分类 | `trace_diff_reports_first_divergence_deterministically` |
-| `EQ-22` | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `assertion_modes_do_not_change_unrelated_fields` |
-| `EQ-23` | 添加 `eval capture`：只从明确 source run/fixture 生成新 GoldenTrace，原文件不可覆盖 | `golden_capture_requires_source_and_writes_new_version` |
-| `EQ-24` | 添加 Beads 风格 reference/candidate scenario runner、环境清理、in-scope/out-of-scope predicate | `candidate_diff_uses_scrubbed_environment_and_scope_report` |
-| `EQ-25` | 支持 curated/deep catalog、no-golden、skip reason、scenario dedupe 和 stable ordering | `deep_catalog_is_opt_in_and_no_golden_is_visible` |
-| `EQ-26` | 为 Runtime、Approval、Hook、Memory、Workflow、Swarm 各补 provider-independent trace fixture | `core_negative_fixture_matrix_is_complete` |
+| <a id="step-eq-17"></a>`EQ-17` | 在 `kiana-quality/src/normalize.rs` 实现 durable event 选择和 sequence/terminal/correlation 校验 | `invalid_event_cursor_or_multiple_terminal_is_rejected` |
+| <a id="step-eq-18"></a>`EQ-18` | 实现 canonical JSON、稳定数组策略、字段白名单和 redaction 复用 | `normalization_is_stable_and_redacts_payloads` |
+| <a id="step-eq-19"></a>`EQ-19` | 实现受控 volatile normalization（timestamp/UUID/temp path/actor）并记录替换计数 | `undeclared_volatile_field_is_not_silently_normalized` |
+| <a id="step-eq-20"></a>`EQ-20` | 计算 event/trace/artifact/receipt digest，绑定 `normalization_version` | `same_fixture_has_same_trace_digest` |
+| <a id="step-eq-21"></a>`EQ-21` | 实现 `TraceDiff`：首个 divergence、字段路径、cursor、expected/actual 摘要和分类 | `trace_diff_reports_first_divergence_deterministically` |
+| <a id="step-eq-22"></a>`EQ-22` | 支持 exact、ordered、multiset、numeric tolerance、regex/contains 等声明式 assertion | `assertion_modes_do_not_change_unrelated_fields` |
+| <a id="step-eq-23"></a>`EQ-23` | 添加 `eval capture`：只从明确 source run/fixture 生成新 GoldenTrace，原文件不可覆盖 | `golden_capture_requires_source_and_writes_new_version` |
+| <a id="step-eq-24"></a>`EQ-24` | 添加 Beads 风格 reference/candidate scenario runner、环境清理、in-scope/out-of-scope predicate | `candidate_diff_uses_scrubbed_environment_and_scope_report` |
+| <a id="step-eq-25"></a>`EQ-25` | 支持 curated/deep catalog、no-golden、skip reason、scenario dedupe 和 stable ordering | `deep_catalog_is_opt_in_and_no_golden_is_visible` |
+| <a id="step-eq-26"></a>`EQ-26` | 为 Runtime、Approval、Hook、Memory、Workflow、Swarm 各补 provider-independent trace fixture | `core_negative_fixture_matrix_is_complete` |
 
 #### 波次 D：Evaluator、评分与统计
 
 | Step | 目标与代码落点 | 最小验收 |
 |---|---|---|
-| `EQ-27` | 实现 deterministic evaluator trait 和 finding schema（code/expected/actual/message/evidence_ref） | `every_finding_has_stable_code_and_evidence` |
-| `EQ-28` | 实现 runtime correctness evaluator：事件顺序、调用关联、terminal、retry、approval、cancel、Unknown | `runtime_evaluator_catches_unmatched_and_duplicate_terminal` |
-| `EQ-29` | 实现 capability/safety evaluator：schema、grant scope、policy verdict、hook、network/process/file effect | `safety_failure_blocks_even_with_good_final_text` |
-| `EQ-30` | 实现 evidence/receipt evaluator：artifact hash、receipt assertions、redaction、provenance、source cursor | `missing_evidence_is_blocking` |
-| `EQ-31` | 实现 recovery/replay evaluator：crash/restart、fence、result_unknown、logic version、divergence | `replay_divergence_and_unknown_are_distinct_findings` |
-| `EQ-32` | 实现 context/memory evaluator：ACL-before-ranking、provenance、freshness、compaction、budget | `unauthorized_memory_hit_is_blocking` |
-| `EQ-33` | 实现 workflow/swarm evaluator：DAG、attempt、fan-in/out、child scope、merge、compensation | `child_scope_expansion_fails_quality_gate` |
-| `EQ-34` | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `budget_and_latency_thresholds_are_explicit` |
-| `EQ-35` | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `judge_unavailable_is_not_a_success` |
-| `EQ-36` | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `insufficient_sample_is_blocked_or_needs_review` |
-| `EQ-37` | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `flake_is_never_counted_as_pass` |
+| <a id="step-eq-27"></a>`EQ-27` | 实现 deterministic evaluator trait 和 finding schema（code/expected/actual/message/evidence_ref） | `every_finding_has_stable_code_and_evidence` |
+| <a id="step-eq-28"></a>`EQ-28` | 实现 runtime correctness evaluator：事件顺序、调用关联、terminal、retry、approval、cancel、Unknown | `runtime_evaluator_catches_unmatched_and_duplicate_terminal` |
+| <a id="step-eq-29"></a>`EQ-29` | 实现 capability/safety evaluator：schema、grant scope、policy verdict、hook、network/process/file effect | `safety_failure_blocks_even_with_good_final_text` |
+| <a id="step-eq-30"></a>`EQ-30` | 实现 evidence/receipt evaluator：artifact hash、receipt assertions、redaction、provenance、source cursor | `missing_evidence_is_blocking` |
+| <a id="step-eq-31"></a>`EQ-31` | 实现 recovery/replay evaluator：crash/restart、fence、result_unknown、logic version、divergence | `replay_divergence_and_unknown_are_distinct_findings` |
+| <a id="step-eq-32"></a>`EQ-32` | 实现 context/memory evaluator：ACL-before-ranking、provenance、freshness、compaction、budget | `unauthorized_memory_hit_is_blocking` |
+| <a id="step-eq-33"></a>`EQ-33` | 实现 workflow/swarm evaluator：DAG、attempt、fan-in/out、child scope、merge、compensation | `child_scope_expansion_fails_quality_gate` |
+| <a id="step-eq-34"></a>`EQ-34` | 实现 performance/cost metrics evaluator：duration、tokens、tool calls、cache、cost buckets | `budget_and_latency_thresholds_are_explicit` |
+| <a id="step-eq-35"></a>`EQ-35` | 实现可选 semantic judge port；固定 judge prompt/model/version，judge 不可用不降级为 pass | `judge_unavailable_is_not_a_success` |
+| <a id="step-eq-36"></a>`EQ-36` | 实现维度聚合、absolute/relative threshold、minimum sample 和置信区间策略 | `insufficient_sample_is_blocked_or_needs_review` |
+| <a id="step-eq-37"></a>`EQ-37` | 实现 retry-once flake classifier、quarantine 记录和 infra failure 分类 | `flake_is_never_counted_as_pass` |
 
 #### 波次 E：Baseline、Candidate 与 QualityGate
 
 | Step | 目标与代码落点 | 最小验收 |
 |---|---|---|
-| `EQ-38` | 定义 `EvalExperiment` admission/terminal 状态和 case result 索引 | `experiment_state_is_replayable_from_events` |
-| `EQ-39` | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `stale_or_incompatible_baseline_cannot_compare` |
-| `EQ-40` | 实现 `QualityCandidate` 单主变更维度和版本快照绑定 | `candidate_cannot_hide_model_or_prompt_drift` |
-| `EQ-41` | 实现 `QualityGate` 配置与 `QualityGateDecision` 裁决分离、不可改写 | `gate_config_update_does_not_mutate_old_decision` |
-| `EQ-42` | 实现 blocking rules：safety/evidence/replay/forbidden effect/fixture integrity/infra | `blocking_rule_precedes_weighted_score` |
-| `EQ-43` | 实现 `quality.promote`/`quality.rollback` 的 ControlPlane 二次授权、审批、scope 和 epoch 重查 | `passing_eval_cannot_promote_without_authority` |
-| `EQ-44` | 实现 shadow admission、sample/TTL/rollback route 和自动回滚证据 | `shadow_regression_rolls_back_without_grant_change` |
+| <a id="step-eq-38"></a>`EQ-38` | 定义 `EvalExperiment` admission/terminal 状态和 case result 索引 | `experiment_state_is_replayable_from_events` |
+| <a id="step-eq-39"></a>`EQ-39` | 实现 baseline registry：suite/case/target/evaluator digest、owner、expiry、refresh provenance | `stale_or_incompatible_baseline_cannot_compare` |
+| <a id="step-eq-40"></a>`EQ-40` | 实现 `QualityCandidate` 单主变更维度和版本快照绑定 | `candidate_cannot_hide_model_or_prompt_drift` |
+| <a id="step-eq-41"></a>`EQ-41` | 实现 `QualityGate` 配置与 `QualityGateDecision` 裁决分离、不可改写 | `gate_config_update_does_not_mutate_old_decision` |
+| <a id="step-eq-42"></a>`EQ-42` | 实现 blocking rules：safety/evidence/replay/forbidden effect/fixture integrity/infra | `blocking_rule_precedes_weighted_score` |
+| <a id="step-eq-43"></a>`EQ-43` | 实现 `quality.promote`/`quality.rollback` 的 ControlPlane 二次授权、审批、scope 和 epoch 重查 | `passing_eval_cannot_promote_without_authority` |
+| <a id="step-eq-44"></a>`EQ-44` | 实现 shadow admission、sample/TTL/rollback route 和自动回滚证据 | `shadow_regression_rolls_back_without_grant_change` |
 
 #### 波次 F：Feedback、Drift、CLI 与 CI
 
 | Step | 目标与代码落点 | 最小验收 |
 |---|---|---|
-| `EQ-45` | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `feedback_cannot_edit_policy_or_receipt` |
-| `EQ-46` | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `drift_alert_does_not_change_route_or_grant` |
-| `EQ-47` | 扩展 `kiana eval`：`run/capture/compare/explain/list`，旧 `run --suite` 参数保持兼容 | `cli_eval_commands_route_through_control_plane` |
-| `EQ-48` | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `report_is_machine_readable_and_redacted` |
-| `EQ-49` | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `scripts_use_explicit_environment_allowlist` |
-| `EQ-50` | 接入 PR curated/package、nightly deep、release candidate workflow，daemon/core 测试串行 | `ci_lanes_have_distinct_scope_and_fail_closed` |
-| `EQ-51` | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `quality_evidence_block_is_complete` |
+| <a id="step-eq-45"></a>`EQ-45` | 实现 `quality.feedback`，只引用 canonical target，服务端派生 provenance/privacy scope | `feedback_cannot_edit_policy_or_receipt` |
+| <a id="step-eq-46"></a>`EQ-46` | 实现版本分桶 drift metrics、告警和 `drift.alerted` 事件 | `drift_alert_does_not_change_route_or_grant` |
+| <a id="step-eq-47"></a>`EQ-47` | 扩展 `kiana eval`：`run/capture/compare/explain/list`，旧 `run --suite` 参数保持兼容 | `cli_eval_commands_route_through_control_plane` |
+| <a id="step-eq-48"></a>`EQ-48` | 输出 JSON report、JUnit、human summary、evidence manifest、reproduction command；路径和 secret 脱敏 | `report_is_machine_readable_and_redacted` |
+| <a id="step-eq-49"></a>`EQ-49` | 新增 `scripts/eval-curated.sh`、`eval-deep.sh`、`eval-capture-golden.sh`、`eval-compare.sh` | `scripts_use_explicit_environment_allowlist` |
+| <a id="step-eq-50"></a>`EQ-50` | 接入 PR curated/package、nightly deep、release candidate workflow，daemon/core 测试串行 | `ci_lanes_have_distinct_scope_and_fail_closed` |
+| <a id="step-eq-51"></a>`EQ-51` | 归档 report/trace-diff/evidence/reproduction，生成 `CURRENT_STATUS.md` 证据块 | `quality_evidence_block_is_complete` |
 
 > `EQ-45`–`EQ-51` 是本专项的补充步骤，不要求把旧有 `P1-L1-01` 或其他历史 step 改名；若某个实现已经由当前 agent 完成，应将其验收绑定到对应 EQ step，并补充证据，而不是把未验证能力标成完成。
 
@@ -4466,37 +4814,37 @@ CostCorrection { correction_id, target_entry_ref, delta_estimated?, delta_measur
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功/回归验收 |
 |---|---|---|---|---|
-| `BQ-00` | 基线、快照和冲突清单；盘点 `usage.rs`、`model_budget.rs`、`receipts.rs`、Provider response、CellRegistry、现有事件和测试 | — | 复现 `CostLedger`/`Quota`/预算类型混用、缺 usage 不得写 0；记录当前 RED，不篡改历史证据 | 形成 source snapshot、WIP 边界、事件/字段迁移表和 fixture 命名 |
-| `BQ-01` | 稳定 ID、schema major、unknown/reason、状态枚举与错误码；`kiana-domain`/contracts | BQ-00 | 未知 major、未知枚举、重复 ID、跨 run/cell/project 绑定、负无符号金额全拒绝 | 所有 DTO round-trip；错误码稳定且不含 secret |
-| `BQ-02` | `UsageVector` 和 `NormalizedUsage`；区分 absent/zero/partial、source/basis/sequence | BQ-01 | 缺失 usage 被当零、负数/溢出、unknown source 进入 measured、跨 attempt 混用全拒绝 | provider/local/fake 三类 usage 可序列化，字段含义表固定 |
-| `BQ-03` | snapshot/delta/final stream 累计器；按 sequence 去重、单调性和包含关系校验 | BQ-02 | 重复 sequence 不同 digest、回退、截断、重复 cumulative 相加、终态后 delta 全拒绝 | cumulative 取最后快照、delta 恰好相加；usage-only chunk 保留 |
-| `BQ-04` | `Money`、整数 micros、checked pricing arithmetic；`RateCard` 版本和有效时间 | BQ-01,BQ-02 | 浮点/负 unsigned、乘加溢出、重叠有效期、缺 currency/source、旧记录被当前价格重算全拒绝 | 相同 rate card 得到稳定 estimate；价格变更新增 version |
-| `BQ-05` | `RateCardStore` 与模型/provider/缓存/音频/工具单价映射 | BQ-04 | unknown model、过期卡、cache/reasoning 重复计价、估算引用缺 version 全拒绝 | 受支持模型按 pinned card 生成可解释 breakdown；unknown price 保持 null |
-| `BQ-06` | 五类预算合同和交集算法；`RuntimeBudget`、`BudgetLease`、`ProjectBudget`、`ProviderBudget` | BQ-01,BQ-04 | child union/提升、Continue 重置累计、FinancialBudget 误授予执行权、project/runtime 互换全拒绝 | 交集和 remaining 计算纯函数稳定；保留 `runtime_and_project_budgets_are_not_interchangeable` |
-| `BQ-07` | Quota dimension/window、UTC/clock、quota group（alias/credential/model） | BQ-06 | 时钟回退、窗口错位、同 credential 别名绕过、空 scope/超限全拒绝 | 固定时钟下窗口滚动、quota group 聚合和 retry-after 可复现 |
-| `BQ-08` | durable `QuotaReservation`、lease/fence/authority/config revision、CAS/dedup | BQ-06,BQ-07 | 并发 reserve 超卖、旧 epoch/fence、digest 冲突、重复 command、过期 permit 全拒绝且 0 dispatch | 两进程竞争只有一个 commit；replay 返回原 receipt；兄弟总预留不超 parent |
-| `BQ-09` | admission estimator：最终 wire 请求、输出上限、retry allowance、tool/effect/storage 预算 | BQ-02,BQ-05,BQ-08 | 估算遗漏 schema/缓存/重试、unknown tokenizer 宣称 exact、价格未知仍硬性声称费用上限全拒绝 | estimate 带 basis/upper bound；fake provider 请求前能看到正确 reservation |
-| `BQ-10` | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | BQ-02,BQ-03,BQ-05,BQ-09 | malformed usage、requested/served model 混淆、reported total 矛盾、provider 自报 token 直接授权全拒绝 | 每协议 fixture 映射到同一中立 vector；缺字段保留 unknown |
-| `BQ-11` | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | BQ-08,BQ-10 | 未 prepared、无 permit、同 attempt 多次 settle、append 未 flush 却 dispatch 全拒绝 | `run→turn→attempt→usage→receipt` 关联完整；失败 attempt 也留 usage/error |
-| `BQ-12` | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | BQ-11 | cancel/timeout/EOF 自动归零、unknown 自动释放、已知 usage 退款、重复 settle 双扣全拒绝 | known/partial/unknown 三路得到确定性账本；reconcile 前保守占用 |
-| `BQ-13` | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | BQ-05,BQ-12 | 无 RateCard/不完整 usage 写 measured、估算进入 FinancialBudget、cost=0 伪造全拒绝 | estimate 引用 rate-card version；measured 只带 provider receipt；unknown 显示原因 |
-| `BQ-14` | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | BQ-13,CP-11,ER-12 | 原地 UPDATE/DELETE、模型文本改账、无 evidence/approval、target digest 不匹配全拒绝 | correction 只追加且可重放；原始/修正值和 approver 可追溯 |
-| `BQ-15` | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | BQ-06,BQ-08,BQ-11 | 被拒绝声明计 effect、未启动工具计成功、路径/owner/lease 漂移、输出洪泛绕过 quota 全拒绝 | model/tool/effect 账目分层；实际启动数、字节和 wall time 与 Receipt 对齐 |
-| `BQ-16` | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | BQ-07,BQ-08,BQ-15 | 无界队列、取消后仍发送、退避占槽、别名绕过 quota、释放非 owner 许可全拒绝 | Accept/Queue/Delay/Reject 可观测；公平性、queue wait、RAII release 有测试 |
-| `BQ-17` | Retry classifier、attempt reservation、Retry-After 和 cancellation | BQ-11,BQ-12,BQ-16,P4-J7-23 | post-send unknown 自动 retry、TLS/auth 永久错误重试、retry 超过 budget、cancel race 双终态全拒绝 | pre-send 429/408 按 bounded policy 新 attempt；实际请求数与账目一致 |
-| `BQ-18` | 白名单 fallback 与 route/authority/data/price 重新准入 | BQ-05,BQ-08,BQ-10,BQ-17 | fallback 降低 capability、跨 data boundary、无 credential/预算或复用旧 permit 全拒绝 | 每个 fallback attempt 有独立 route、usage、rate-card 和 receipt |
-| `BQ-19` | project/org/workflow/cell/run allocation；避免父子/多维重复相加 | BQ-13,BQ-14,BQ-15 | 同一 usage 多次扣费、跨项目无 SharingGrant、归属字段由 wire 自报全拒绝 | leaf usage 唯一；各维度 rollup 与总账一致；CO-45 portfolio 视图可重算 |
-| `BQ-20` | EventLog ledger projector、source cursor、projection version、daily/window rollups | BQ-11,BQ-14,BQ-19,PD-05 | 先推进 cursor 再写 projection、跳过坏事件、projection 反写事实、stale 被标 fresh 全拒绝 | 新进程从 EventLog 重建同一汇总；失败 cursor/quarantine 可查询 |
-| `BQ-21` | Restart/continue/replay/recovery；in-flight reservation、unknown attempt 和 fencing | BQ-08,BQ-12,BQ-20,ER-21 | 重启重发已完成 attempt、Continue 重置累计、旧 lease/epoch 继续结算、unknown 自动成功全拒绝 | 恢复默认 paused/needs-reconciliation；显式 reconcile 后只结算一次 |
-| `BQ-22` | Provider invoice/receipt import、差异检测、correction workflow | BQ-05,BQ-14,BQ-20 | 未认证 receipt、重复 invoice、period/model/usage 不匹配、差异静默覆盖全拒绝 | 账单导入生成 measured/correction；差异、未知和待人工项可追踪 |
-| `BQ-23` | query/protocol API：预算摘要、usage breakdown、cost export、reconciliation inbox | BQ-20,BQ-22 | 查询跨 DataBoundary、查询消费 reservation/approval、分页跳过 cursor、估算标实测全拒绝 | CLI/Web/Workbench 返回同一 projection、freshness、unknown 和 provenance |
-| `BQ-24` | UI/入口展示与命令；只读预算卡、队列、超额原因、correction approval | BQ-23,UI-00 | UI 本地计算剩余额度、乐观扣费未 commit、隐藏 unknown、输入 actor/project 覆盖服务端全拒绝 | 同一 Run 在四入口显示一致；审批/重试/对账走 versioned command |
-| `BQ-25` | Redaction、DataClass、telemetry separation；Event/Log/Metric/Trace/Receipt 安全 | BQ-11,BQ-13,BQ-23,OA-08 | API key、prompt、raw response、invoice secret、路径/高基数 ID 进入 metric 全拒绝 | digest/ref/低基数标签可关联；secret scan 和 redaction fixture 全绿 |
-| `BQ-26` | 并发、崩溃、磁盘满、网络 EOF、provider 429/5xx、clock fault 注入 | BQ-08,BQ-12,BQ-16,BQ-20 | CAS race、partial frame、flush 失败、settlement 丢失、未知自动重试、超额继续 dispatch 全拒绝 | 故障后事实可重放，reservation/lease/queue 无泄漏；incident 有 action |
-| `BQ-27` | Legacy usage/cassette/config upcaster 和迁移；旧 `CostLedger`/`Quota` 字段 | BQ-01,BQ-02,BQ-04,BQ-20 | unknown major 静默接受、旧 `cost_micros=0` 被当 measured、重复迁移覆盖历史全拒绝 | 旧 cassette 可读并标 `legacy/unknown`；迁移有版本、digest、rollback/read-only 说明 |
-| `BQ-28` | 性能、容量、retention 和归档；usage/index/receipt 保留边界 | BQ-20,BQ-25,BQ-26 | rollup 无界内存、高基数标签、删除 retained evidence、archive 后仍可结算旧 lease 全拒绝 | 固定 fixture 测 p50/p95、磁盘/queue 上限；保留/归档不改账本事实 |
-| `BQ-29` | GoldenTrace 与跨入口端到端：model→tool→event→receipt→invoice correction | BQ-21,BQ-22,BQ-23,BQ-24,BQ-26,BQ-27 | 任一入口绕过 DaemonHost、provider/handler 调用数与 reservation 不符、Receipt 把 runtime success 写 business outcome 全拒绝 | Fake provider、local executor、synthetic stream、known failure、unknown、retry、fallback、correction 全链可重放 |
-| `BQ-30` | 发布门、状态账本和逐连接 live 证据；更新 `CURRENT_STATUS.md`/`module-map.md` | BQ-00..BQ-29 | 只有类型/单测/估算不能宣称 billing live；无 provider receipt 不能宣称 measured；限制未记录阻断 Promote | 每步有 evidence block；offline durable 与 opt-in live 分开；P1-K5/CP-11/P4-J7-24/ER-12/OA-08/CO-45 接点全部回填 |
+| <a id="step-bq-00"></a>`BQ-00` | 基线、快照和冲突清单；盘点 `usage.rs`、`model_budget.rs`、`receipts.rs`、Provider response、CellRegistry、现有事件和测试 | — | 复现 `CostLedger`/`Quota`/预算类型混用、缺 usage 不得写 0；记录当前 RED，不篡改历史证据 | 形成 source snapshot、WIP 边界、事件/字段迁移表和 fixture 命名 |
+| <a id="step-bq-01"></a>`BQ-01` | 稳定 ID、schema major、unknown/reason、状态枚举与错误码；`kiana-domain`/contracts | BQ-00 | 未知 major、未知枚举、重复 ID、跨 run/cell/project 绑定、负无符号金额全拒绝 | 所有 DTO round-trip；错误码稳定且不含 secret |
+| <a id="step-bq-02"></a>`BQ-02` | `UsageVector` 和 `NormalizedUsage`；区分 absent/zero/partial、source/basis/sequence | BQ-01 | 缺失 usage 被当零、负数/溢出、unknown source 进入 measured、跨 attempt 混用全拒绝 | provider/local/fake 三类 usage 可序列化，字段含义表固定 |
+| <a id="step-bq-03"></a>`BQ-03` | snapshot/delta/final stream 累计器；按 sequence 去重、单调性和包含关系校验 | BQ-02 | 重复 sequence 不同 digest、回退、截断、重复 cumulative 相加、终态后 delta 全拒绝 | cumulative 取最后快照、delta 恰好相加；usage-only chunk 保留 |
+| <a id="step-bq-04"></a>`BQ-04` | `Money`、整数 micros、checked pricing arithmetic；`RateCard` 版本和有效时间 | BQ-01,BQ-02 | 浮点/负 unsigned、乘加溢出、重叠有效期、缺 currency/source、旧记录被当前价格重算全拒绝 | 相同 rate card 得到稳定 estimate；价格变更新增 version |
+| <a id="step-bq-05"></a>`BQ-05` | `RateCardStore` 与模型/provider/缓存/音频/工具单价映射 | BQ-04 | unknown model、过期卡、cache/reasoning 重复计价、估算引用缺 version 全拒绝 | 受支持模型按 pinned card 生成可解释 breakdown；unknown price 保持 null |
+| <a id="step-bq-06"></a>`BQ-06` | 五类预算合同和交集算法；`RuntimeBudget`、`BudgetLease`、`ProjectBudget`、`ProviderBudget` | BQ-01,BQ-04 | child union/提升、Continue 重置累计、FinancialBudget 误授予执行权、project/runtime 互换全拒绝 | 交集和 remaining 计算纯函数稳定；保留 `runtime_and_project_budgets_are_not_interchangeable` |
+| <a id="step-bq-07"></a>`BQ-07` | Quota dimension/window、UTC/clock、quota group（alias/credential/model） | BQ-06 | 时钟回退、窗口错位、同 credential 别名绕过、空 scope/超限全拒绝 | 固定时钟下窗口滚动、quota group 聚合和 retry-after 可复现 |
+| <a id="step-bq-08"></a>`BQ-08` | durable `QuotaReservation`、lease/fence/authority/config revision、CAS/dedup | BQ-06,BQ-07 | 并发 reserve 超卖、旧 epoch/fence、digest 冲突、重复 command、过期 permit 全拒绝且 0 dispatch | 两进程竞争只有一个 commit；replay 返回原 receipt；兄弟总预留不超 parent |
+| <a id="step-bq-09"></a>`BQ-09` | admission estimator：最终 wire 请求、输出上限、retry allowance、tool/effect/storage 预算 | BQ-02,BQ-05,BQ-08 | 估算遗漏 schema/缓存/重试、unknown tokenizer 宣称 exact、价格未知仍硬性声称费用上限全拒绝 | estimate 带 basis/upper bound；fake provider 请求前能看到正确 reservation |
+| <a id="step-bq-10"></a>`BQ-10` | Provider normalized usage adapters；Anthropic/OpenAI/Ollama/Gemini/Fake 字段包含关系 | BQ-02,BQ-03,BQ-05,BQ-09 | malformed usage、requested/served model 混淆、reported total 矛盾、provider 自报 token 直接授权全拒绝 | 每协议 fixture 映射到同一中立 vector；缺字段保留 unknown |
+| <a id="step-bq-11"></a>`BQ-11` | Model attempt 生命周期和事件：prepared/dispatching/observed/settled/unknown | BQ-08,BQ-10 | 未 prepared、无 permit、同 attempt 多次 settle、append 未 flush 却 dispatch 全拒绝 | `run→turn→attempt→usage→receipt` 关联完整；失败 attempt 也留 usage/error |
+| <a id="step-bq-12"></a>`BQ-12` | settlement/release/unknown fold；已知消费、未用预留和 result_unknown 分离 | BQ-11 | cancel/timeout/EOF 自动归零、unknown 自动释放、已知 usage 退款、重复 settle 双扣全拒绝 | known/partial/unknown 三路得到确定性账本；reconcile 前保守占用 |
+| <a id="step-bq-13"></a>`BQ-13` | estimated/measured cost 计算和 Receipt breakdown；`receipts.rs`、query projector | BQ-05,BQ-12 | 无 RateCard/不完整 usage 写 measured、估算进入 FinancialBudget、cost=0 伪造全拒绝 | estimate 引用 rate-card version；measured 只带 provider receipt；unknown 显示原因 |
+| <a id="step-bq-14"></a>`BQ-14` | append-only `CostLedgerEntry` 和 `CostCorrection` command/approval | BQ-13,CP-11,ER-12 | 原地 UPDATE/DELETE、模型文本改账、无 evidence/approval、target digest 不匹配全拒绝 | correction 只追加且可重放；原始/修正值和 approver 可追溯 |
+| <a id="step-bq-15"></a>`BQ-15` | Tool/effect/resource usage；Broker invocation、shell/MCP、Artifact/log/storage 计量 | BQ-06,BQ-08,BQ-11 | 被拒绝声明计 effect、未启动工具计成功、路径/owner/lease 漂移、输出洪泛绕过 quota 全拒绝 | model/tool/effect 账目分层；实际启动数、字节和 wall time 与 Receipt 对齐 |
+| <a id="step-bq-16"></a>`BQ-16` | Provider capacity、RPM/TPM、semaphore、bounded fair queue、backpressure | BQ-07,BQ-08,BQ-15 | 无界队列、取消后仍发送、退避占槽、别名绕过 quota、释放非 owner 许可全拒绝 | Accept/Queue/Delay/Reject 可观测；公平性、queue wait、RAII release 有测试 |
+| <a id="step-bq-17"></a>`BQ-17` | Retry classifier、attempt reservation、Retry-After 和 cancellation | BQ-11,BQ-12,BQ-16,P4-J7-23 | post-send unknown 自动 retry、TLS/auth 永久错误重试、retry 超过 budget、cancel race 双终态全拒绝 | pre-send 429/408 按 bounded policy 新 attempt；实际请求数与账目一致 |
+| <a id="step-bq-18"></a>`BQ-18` | 白名单 fallback 与 route/authority/data/price 重新准入 | BQ-05,BQ-08,BQ-10,BQ-17 | fallback 降低 capability、跨 data boundary、无 credential/预算或复用旧 permit 全拒绝 | 每个 fallback attempt 有独立 route、usage、rate-card 和 receipt |
+| <a id="step-bq-19"></a>`BQ-19` | project/org/workflow/cell/run allocation；避免父子/多维重复相加 | BQ-13,BQ-14,BQ-15 | 同一 usage 多次扣费、跨项目无 SharingGrant、归属字段由 wire 自报全拒绝 | leaf usage 唯一；各维度 rollup 与总账一致；CO-45 portfolio 视图可重算 |
+| <a id="step-bq-20"></a>`BQ-20` | EventLog ledger projector、source cursor、projection version、daily/window rollups | BQ-11,BQ-14,BQ-19,PD-05 | 先推进 cursor 再写 projection、跳过坏事件、projection 反写事实、stale 被标 fresh 全拒绝 | 新进程从 EventLog 重建同一汇总；失败 cursor/quarantine 可查询 |
+| <a id="step-bq-21"></a>`BQ-21` | Restart/continue/replay/recovery；in-flight reservation、unknown attempt 和 fencing | BQ-08,BQ-12,BQ-20,ER-21 | 重启重发已完成 attempt、Continue 重置累计、旧 lease/epoch 继续结算、unknown 自动成功全拒绝 | 恢复默认 paused/needs-reconciliation；显式 reconcile 后只结算一次 |
+| <a id="step-bq-22"></a>`BQ-22` | Provider invoice/receipt import、差异检测、correction workflow | BQ-05,BQ-14,BQ-20 | 未认证 receipt、重复 invoice、period/model/usage 不匹配、差异静默覆盖全拒绝 | 账单导入生成 measured/correction；差异、未知和待人工项可追踪 |
+| <a id="step-bq-23"></a>`BQ-23` | query/protocol API：预算摘要、usage breakdown、cost export、reconciliation inbox | BQ-20,BQ-22 | 查询跨 DataBoundary、查询消费 reservation/approval、分页跳过 cursor、估算标实测全拒绝 | CLI/Web/Workbench 返回同一 projection、freshness、unknown 和 provenance |
+| <a id="step-bq-24"></a>`BQ-24` | UI/入口展示与命令；只读预算卡、队列、超额原因、correction approval | BQ-23,UI-00 | UI 本地计算剩余额度、乐观扣费未 commit、隐藏 unknown、输入 actor/project 覆盖服务端全拒绝 | 同一 Run 在四入口显示一致；审批/重试/对账走 versioned command |
+| <a id="step-bq-25"></a>`BQ-25` | Redaction、DataClass、telemetry separation；Event/Log/Metric/Trace/Receipt 安全 | BQ-11,BQ-13,BQ-23,OA-08 | API key、prompt、raw response、invoice secret、路径/高基数 ID 进入 metric 全拒绝 | digest/ref/低基数标签可关联；secret scan 和 redaction fixture 全绿 |
+| <a id="step-bq-26"></a>`BQ-26` | 并发、崩溃、磁盘满、网络 EOF、provider 429/5xx、clock fault 注入 | BQ-08,BQ-12,BQ-16,BQ-20 | CAS race、partial frame、flush 失败、settlement 丢失、未知自动重试、超额继续 dispatch 全拒绝 | 故障后事实可重放，reservation/lease/queue 无泄漏；incident 有 action |
+| <a id="step-bq-27"></a>`BQ-27` | Legacy usage/cassette/config upcaster 和迁移；旧 `CostLedger`/`Quota` 字段 | BQ-01,BQ-02,BQ-04,BQ-20 | unknown major 静默接受、旧 `cost_micros=0` 被当 measured、重复迁移覆盖历史全拒绝 | 旧 cassette 可读并标 `legacy/unknown`；迁移有版本、digest、rollback/read-only 说明 |
+| <a id="step-bq-28"></a>`BQ-28` | 性能、容量、retention 和归档；usage/index/receipt 保留边界 | BQ-20,BQ-25,BQ-26 | rollup 无界内存、高基数标签、删除 retained evidence、archive 后仍可结算旧 lease 全拒绝 | 固定 fixture 测 p50/p95、磁盘/queue 上限；保留/归档不改账本事实 |
+| <a id="step-bq-29"></a>`BQ-29` | GoldenTrace 与跨入口端到端：model→tool→event→receipt→invoice correction | BQ-21,BQ-22,BQ-23,BQ-24,BQ-26,BQ-27 | 任一入口绕过 DaemonHost、provider/handler 调用数与 reservation 不符、Receipt 把 runtime success 写 business outcome 全拒绝 | Fake provider、local executor、synthetic stream、known failure、unknown、retry、fallback、correction 全链可重放 |
+| <a id="step-bq-30"></a>`BQ-30` | 发布门、状态账本和逐连接 live 证据；更新 `CURRENT_STATUS.md`/`module-map.md` | BQ-00..BQ-29 | 只有类型/单测/估算不能宣称 billing live；无 provider receipt 不能宣称 measured；限制未记录阻断 Promote | 每步有 evidence block；offline durable 与 opt-in live 分开；P1-K5/CP-11/P4-J7-24/ER-12/OA-08/CO-45 接点全部回填 |
 
 ### 35.8 执行波次和现有 roadmap 接点
 
@@ -4863,68 +5211,68 @@ rollback 分为三种：
 
 | Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
 |---|---|---|---|---|
-| `DEP-00` | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | 发现第二 execution loop、直接 supervisor/capability 入口或状态账本冲突即阻断 | 形成代码/脚本/平台矩阵、fixture 名称、proof ceiling 和限制清单 |
-| `DEP-01` | 在 `kiana-domain` 定义 `DeploymentProfile`、`EnvironmentProfile`、`StorageRootId`、`InstanceId`、`DeploymentRevision` | DEP-00 | 空 root、跨 project root、未信任 project、未知 profile、路径 escape 全拒绝且无写入 | 同一输入得到稳定 profile digest；local/container/orchestrated profile round-trip |
-| `DEP-02` | 定义 `ReleaseManifest`、artifact digest/signature、build/toolchain/Cargo.lock/source provenance | DEP-00 | digest/signature/toolchain/target 不匹配、manifest 缺字段、secret 明文均拒绝 | release manifest 可由 CI 生成、验证、redact 并绑定 artifact |
-| `DEP-03` | 定义 app/protocol/domain/store/projection/workflow/provider/extension/config/authority/data 兼容矩阵 | DEP-01, DEP-02 | unknown major、downgrade、schema/store mismatch、workflow digest 漂移不得启动或接新工作 | 兼容/不兼容结果有稳定 reason code 和可重放 fixture |
-| `DEP-04` | 在 `kiana-protocol` 注册 `ops.*` commands、query、events、error/unknown envelope、idempotency key | DEP-01 | caller 伪造 actor/epoch、重复 operation 不同 digest、未知 command 或超 scope 0 broker calls | CLI/Web/Workbench/Desktop 都能 round-trip 同一 DTO |
-| `DEP-05` | 定义 lifecycle/operation 状态机、OperationJournal、phase deadlines、terminal/unknown 语义 | DEP-04 | 旧 revision late event、跳过 preflight、drain timeout 写 stopped、重复 terminal 均失败 | replay 可重建 operation；每次状态有 source cursor/reason/evidence |
-| `DEP-06` | 实现 `OperationLease`、heartbeat、fence token、authority/data epoch 与单 writer CAS | DEP-01, DEP-05 | stale owner、过期 lease、错误 fence、epoch 回退、双 writer 均 0 dispatch | 两个进程竞争只有一个 active；安全失效后可重新 acquire |
-| `DEP-07` | 实现 StorageRoot resolver、ProjectTrust、symlink/hardlink/path/capability/filesystem preflight | DEP-01, DEP-06 | 未信任路径、root escape、远程/不支持 FS、权限/空间/inode 不足均 fail-closed | root identity、mount/capability 和 remediation 可查询 |
+| <a id="step-dep-00"></a>`DEP-00` | 盘点 `module-map`、`CURRENT_STATUS`、release scripts、DaemonHost、EventLog、现有 schema/migration/WIP；建立 source snapshot 与缺口分类 | — | 发现第二 execution loop、直接 supervisor/capability 入口或状态账本冲突即阻断 | 形成代码/脚本/平台矩阵、fixture 名称、proof ceiling 和限制清单 |
+| <a id="step-dep-01"></a>`DEP-01` | 在 `kiana-domain` 定义 `DeploymentProfile`、`EnvironmentProfile`、`StorageRootId`、`InstanceId`、`DeploymentRevision` | DEP-00 | 空 root、跨 project root、未信任 project、未知 profile、路径 escape 全拒绝且无写入 | 同一输入得到稳定 profile digest；local/container/orchestrated profile round-trip |
+| <a id="step-dep-02"></a>`DEP-02` | 定义 `ReleaseManifest`、artifact digest/signature、build/toolchain/Cargo.lock/source provenance | DEP-00 | digest/signature/toolchain/target 不匹配、manifest 缺字段、secret 明文均拒绝 | release manifest 可由 CI 生成、验证、redact 并绑定 artifact |
+| <a id="step-dep-03"></a>`DEP-03` | 定义 app/protocol/domain/store/projection/workflow/provider/extension/config/authority/data 兼容矩阵 | DEP-01, DEP-02 | unknown major、downgrade、schema/store mismatch、workflow digest 漂移不得启动或接新工作 | 兼容/不兼容结果有稳定 reason code 和可重放 fixture |
+| <a id="step-dep-04"></a>`DEP-04` | 在 `kiana-protocol` 注册 `ops.*` commands、query、events、error/unknown envelope、idempotency key | DEP-01 | caller 伪造 actor/epoch、重复 operation 不同 digest、未知 command 或超 scope 0 broker calls | CLI/Web/Workbench/Desktop 都能 round-trip 同一 DTO |
+| <a id="step-dep-05"></a>`DEP-05` | 定义 lifecycle/operation 状态机、OperationJournal、phase deadlines、terminal/unknown 语义 | DEP-04 | 旧 revision late event、跳过 preflight、drain timeout 写 stopped、重复 terminal 均失败 | replay 可重建 operation；每次状态有 source cursor/reason/evidence |
+| <a id="step-dep-06"></a>`DEP-06` | 实现 `OperationLease`、heartbeat、fence token、authority/data epoch 与单 writer CAS | DEP-01, DEP-05 | stale owner、过期 lease、错误 fence、epoch 回退、双 writer 均 0 dispatch | 两个进程竞争只有一个 active；安全失效后可重新 acquire |
+| <a id="step-dep-07"></a>`DEP-07` | 实现 StorageRoot resolver、ProjectTrust、symlink/hardlink/path/capability/filesystem preflight | DEP-01, DEP-06 | 未信任路径、root escape、远程/不支持 FS、权限/空间/inode 不足均 fail-closed | root identity、mount/capability 和 remediation 可查询 |
 
 #### 波次 B：配置、启动、健康与关闭
 
 | Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
 |---|---|---|---|---|
-| `DEP-08` | 实现 ConfigSource 优先级、immutable `ConfigSnapshot`、config revision、SecretRef/redaction | DEP-01, DEP-02, DEP-07 | 未允许 env、project config 未过 trust、secret 出现在 log/manifest、运行中隐式改配置均拒绝 | 配置 diff、影响面、redacted digest 和 restart/migration requirement 稳定 |
-| `DEP-09` | 定义 `SupervisorPort`，接入 systemd/launchd/Windows/container stop/start/restart 的窄 adapter | DEP-04, DEP-05, DEP-06 | adapter 直接调用模型/Capability、pid 代替 lease、强杀未生成 observation 均失败 | fake supervisor 可验证 signal、timeout、observation 和重启 fencing |
-| `DEP-10` | 在 `DaemonHost` 内实现 startup coordinator：manifest/root/trust/lease/store/migration/projector/capacity 顺序 | DEP-03, DEP-06, DEP-07, DEP-08 | 任一 preflight 未完成仍发布 ready、旧 epoch 自动 resume、坏 journal 自动覆盖均失败 | 启动失败 reason 可重放；成功启动得到 `startupz` evidence |
-| `DEP-11` | 实现 `HealthSnapshot` aggregator 与 startup/live/ready/drain/maintenance probe DTO | DEP-05, DEP-10 | provider 健康伪造 ready、projection lag/Unknown/lease conflict 被隐藏、HTTP 200 代替事实均失败 | fake clock/fixture 驱动 probe transitions；CLI/UI 只读 projection |
-| `DEP-12` | 实现 ready admission、maintenance window、pause intake、drain deadline 与摘流语义 | DEP-05, DEP-06, DEP-11 | maintenance 中仍接新工作、过期 window 自动延长、ready 与 migration/backup 并存均拒绝 | 新命令被结构化拒绝；已开始工作可继续到 drain/reconcile |
-| `DEP-13` | 把 cancellation、scheduler stop、runner/tool drain、EventStore/artifact flush ack 接入统一 shutdown | DEP-09, DEP-12 | flush 未确认写 stopped、started work 未排空、强杀丢 ack、late result resurrect 均失败 | 正常/超时关闭分别得到 stopped 或 needs_recovery，重启不重复 effect |
-| `DEP-14` | 接入 lifecycle/operation metrics、structured logs、trace/evidence refs 和 audit event schema | DEP-04, DEP-05, DEP-11 | secret/path 泄漏、无 operation/revision/cursor 关联、audit append 失败被吞掉均阻断 | status/health/receipt/metrics 可用同一 operation 查询 |
-| `DEP-15` | 实现 `ops status/doctor/preflight`，输出 redacted diagnostics、remediation 和 reproduction command | DEP-08, DEP-11, DEP-14 | doctor 修改事实、显示 secret、将未知/缺证据写成 healthy 均失败 | JSON/human 输出稳定，路径和限制脱敏，exit code 可用于 CI |
-| `DEP-16` | 实现 projector/index/queue/lease repair 与 `ops reconcile` 只读检查/显式提交 | DEP-05, DEP-06, DEP-10, DEP-14 | repair 改 EventLog、自动重跑 Unknown、跳过 fence/approval、修复越权 cursor 均拒绝 | repair 产出新 projection generation；reconcile 决策有 actor/evidence |
-| `DEP-17` | 实现 append/artifact/operation/log/diagnostic/migration capacity、backpressure 和 shutdown limits | DEP-10, DEP-13, DEP-14 | 无界 channel、磁盘满继续写、超限静默丢事件、关闭 deadline 被忽略均失败 | capacity threshold 可测试；拒绝带 stable code，不破坏已提交事实 |
-| `DEP-18` | 建立 incident schema、runbook refs、phase deadline/alert routing 和 `RunbookEvidence` | DEP-14, DEP-15, DEP-16 | 告警直接扩大权限/自动补偿、incident 无 operation/evidence、关闭前未验证均失败 | observed→triaged→contained→recovering→verified→closed 可重放 |
+| <a id="step-dep-08"></a>`DEP-08` | 实现 ConfigSource 优先级、immutable `ConfigSnapshot`、config revision、SecretRef/redaction | DEP-01, DEP-02, DEP-07 | 未允许 env、project config 未过 trust、secret 出现在 log/manifest、运行中隐式改配置均拒绝 | 配置 diff、影响面、redacted digest 和 restart/migration requirement 稳定 |
+| <a id="step-dep-09"></a>`DEP-09` | 定义 `SupervisorPort`，接入 systemd/launchd/Windows/container stop/start/restart 的窄 adapter | DEP-04, DEP-05, DEP-06 | adapter 直接调用模型/Capability、pid 代替 lease、强杀未生成 observation 均失败 | fake supervisor 可验证 signal、timeout、observation 和重启 fencing |
+| <a id="step-dep-10"></a>`DEP-10` | 在 `DaemonHost` 内实现 startup coordinator：manifest/root/trust/lease/store/migration/projector/capacity 顺序 | DEP-03, DEP-06, DEP-07, DEP-08 | 任一 preflight 未完成仍发布 ready、旧 epoch 自动 resume、坏 journal 自动覆盖均失败 | 启动失败 reason 可重放；成功启动得到 `startupz` evidence |
+| <a id="step-dep-11"></a>`DEP-11` | 实现 `HealthSnapshot` aggregator 与 startup/live/ready/drain/maintenance probe DTO | DEP-05, DEP-10 | provider 健康伪造 ready、projection lag/Unknown/lease conflict 被隐藏、HTTP 200 代替事实均失败 | fake clock/fixture 驱动 probe transitions；CLI/UI 只读 projection |
+| <a id="step-dep-12"></a>`DEP-12` | 实现 ready admission、maintenance window、pause intake、drain deadline 与摘流语义 | DEP-05, DEP-06, DEP-11 | maintenance 中仍接新工作、过期 window 自动延长、ready 与 migration/backup 并存均拒绝 | 新命令被结构化拒绝；已开始工作可继续到 drain/reconcile |
+| <a id="step-dep-13"></a>`DEP-13` | 把 cancellation、scheduler stop、runner/tool drain、EventStore/artifact flush ack 接入统一 shutdown | DEP-09, DEP-12 | flush 未确认写 stopped、started work 未排空、强杀丢 ack、late result resurrect 均失败 | 正常/超时关闭分别得到 stopped 或 needs_recovery，重启不重复 effect |
+| <a id="step-dep-14"></a>`DEP-14` | 接入 lifecycle/operation metrics、structured logs、trace/evidence refs 和 audit event schema | DEP-04, DEP-05, DEP-11 | secret/path 泄漏、无 operation/revision/cursor 关联、audit append 失败被吞掉均阻断 | status/health/receipt/metrics 可用同一 operation 查询 |
+| <a id="step-dep-15"></a>`DEP-15` | 实现 `ops status/doctor/preflight`，输出 redacted diagnostics、remediation 和 reproduction command | DEP-08, DEP-11, DEP-14 | doctor 修改事实、显示 secret、将未知/缺证据写成 healthy 均失败 | JSON/human 输出稳定，路径和限制脱敏，exit code 可用于 CI |
+| <a id="step-dep-16"></a>`DEP-16` | 实现 projector/index/queue/lease repair 与 `ops reconcile` 只读检查/显式提交 | DEP-05, DEP-06, DEP-10, DEP-14 | repair 改 EventLog、自动重跑 Unknown、跳过 fence/approval、修复越权 cursor 均拒绝 | repair 产出新 projection generation；reconcile 决策有 actor/evidence |
+| <a id="step-dep-17"></a>`DEP-17` | 实现 append/artifact/operation/log/diagnostic/migration capacity、backpressure 和 shutdown limits | DEP-10, DEP-13, DEP-14 | 无界 channel、磁盘满继续写、超限静默丢事件、关闭 deadline 被忽略均失败 | capacity threshold 可测试；拒绝带 stable code，不破坏已提交事实 |
+| <a id="step-dep-18"></a>`DEP-18` | 建立 incident schema、runbook refs、phase deadline/alert routing 和 `RunbookEvidence` | DEP-14, DEP-15, DEP-16 | 告警直接扩大权限/自动补偿、incident 无 operation/evidence、关闭前未验证均失败 | observed→triaged→contained→recovering→verified→closed 可重放 |
 
 #### 波次 C：备份、恢复与灾难演练
 
 | Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
 |---|---|---|---|---|
-| `DEP-19` | 在 `kiana-eventlog`/`kiana-ports` 定义 `BackupManifest`、hash/chunk、cursor/generation/epoch、artifact/config refs | DEP-02, DEP-07, DEP-14 | manifest 缺 source cursor、hash mismatch、绝对路径/secret、torn tail 或 unknown integrity 均拒绝 | full backup manifest 可验证、可重放、可 redacted 导出 |
-| `DEP-20` | 实现 quiesce snapshot：EventLog JSONL/WAL、ArtifactStore、projection checkpoint、migration registry 的一致快照 | DEP-12, DEP-13, DEP-19 | active writer、未 flush、WAL/主文件不一致、projector cursor 越过 source、并发 backup 均拒绝 | fake store 验证 quiesce→manifest→fsync→verify→resume 顺序 |
-| `DEP-21` | 实现 incremental backup、retention、legal hold、archive、encryption/key ref 和删除依赖图 | DEP-19, DEP-20 | 只按 mtime 增量、删除仍被依赖的父备份、key ref 缺失、hold 被忽略均失败 | 增量链可还原；保留/归档/删除事件和容量可查询 |
-| `DEP-22` | 实现 restore quarantine root、manifest/signature/hash/schema/cursor/epoch 校验和 projector/index rebuild | DEP-19, DEP-20, DEP-21 | 覆盖 active root、hash/identity/generation/epoch 回退、缺 artifact、unknown/migration 未处理均拒绝 | 新 root 在 quarantine 完成完整 scan/rebuild/verification |
-| `DEP-23` | 实现 restore activation、new lease/fence、old root read-only、activation readiness gate | DEP-06, DEP-11, DEP-22 | 旧 writer 未 fence、相同 identity 不同 hash、未有 explicit activate、ready 前接新命令均失败 | activate 后只有新 root ready；旧 root 可审计且不能写入 |
-| `DEP-24` | 建立 crash/restore/backup fault fixtures，测量 RPO/RTO 并生成演练证据 | DEP-20, DEP-22, DEP-23 | backup partial、restore 中断、损坏 frame、磁盘满、时钟回退、恢复后误 dispatch 均失败 | 定期演练输出 source/command/fixture/exit/RPO/RTO/limitations |
-| `DEP-25` | 实现 external effect receipt lookup、idempotency key、Unknown reconciliation 与 compensation gate | DEP-13, DEP-16, DEP-23 | result_unknown 自动 retry、没有 external ref 伪造 success、旧 approval/epoch 复用均拒绝 | reconcile、retry_without_effect、abandon、compensate 各有独立 receipt |
-| `DEP-26` | 把 retention/deletion/revocation 与 PD-25/PD-26、audit/backup/artifact/memory 生命周期接通 | DEP-18, DEP-21, DEP-25 | legal hold 下删除、只删 projection 不留事实、artifact/backup 引用悬空、revocation 不传播均失败 | deletion plan 有依赖、dry-run、commit receipt 和重建验证 |
+| <a id="step-dep-19"></a>`DEP-19` | 在 `kiana-eventlog`/`kiana-ports` 定义 `BackupManifest`、hash/chunk、cursor/generation/epoch、artifact/config refs | DEP-02, DEP-07, DEP-14 | manifest 缺 source cursor、hash mismatch、绝对路径/secret、torn tail 或 unknown integrity 均拒绝 | full backup manifest 可验证、可重放、可 redacted 导出 |
+| <a id="step-dep-20"></a>`DEP-20` | 实现 quiesce snapshot：EventLog JSONL/WAL、ArtifactStore、projection checkpoint、migration registry 的一致快照 | DEP-12, DEP-13, DEP-19 | active writer、未 flush、WAL/主文件不一致、projector cursor 越过 source、并发 backup 均拒绝 | fake store 验证 quiesce→manifest→fsync→verify→resume 顺序 |
+| <a id="step-dep-21"></a>`DEP-21` | 实现 incremental backup、retention、legal hold、archive、encryption/key ref 和删除依赖图 | DEP-19, DEP-20 | 只按 mtime 增量、删除仍被依赖的父备份、key ref 缺失、hold 被忽略均失败 | 增量链可还原；保留/归档/删除事件和容量可查询 |
+| <a id="step-dep-22"></a>`DEP-22` | 实现 restore quarantine root、manifest/signature/hash/schema/cursor/epoch 校验和 projector/index rebuild | DEP-19, DEP-20, DEP-21 | 覆盖 active root、hash/identity/generation/epoch 回退、缺 artifact、unknown/migration 未处理均拒绝 | 新 root 在 quarantine 完成完整 scan/rebuild/verification |
+| <a id="step-dep-23"></a>`DEP-23` | 实现 restore activation、new lease/fence、old root read-only、activation readiness gate | DEP-06, DEP-11, DEP-22 | 旧 writer 未 fence、相同 identity 不同 hash、未有 explicit activate、ready 前接新命令均失败 | activate 后只有新 root ready；旧 root 可审计且不能写入 |
+| <a id="step-dep-24"></a>`DEP-24` | 建立 crash/restore/backup fault fixtures，测量 RPO/RTO 并生成演练证据 | DEP-20, DEP-22, DEP-23 | backup partial、restore 中断、损坏 frame、磁盘满、时钟回退、恢复后误 dispatch 均失败 | 定期演练输出 source/command/fixture/exit/RPO/RTO/limitations |
+| <a id="step-dep-25"></a>`DEP-25` | 实现 external effect receipt lookup、idempotency key、Unknown reconciliation 与 compensation gate | DEP-13, DEP-16, DEP-23 | result_unknown 自动 retry、没有 external ref 伪造 success、旧 approval/epoch 复用均拒绝 | reconcile、retry_without_effect、abandon、compensate 各有独立 receipt |
+| <a id="step-dep-26"></a>`DEP-26` | 把 retention/deletion/revocation 与 PD-25/PD-26、audit/backup/artifact/memory 生命周期接通 | DEP-18, DEP-21, DEP-25 | legal hold 下删除、只删 projection 不留事实、artifact/backup 引用悬空、revocation 不传播均失败 | deletion plan 有依赖、dry-run、commit receipt 和重建验证 |
 
 #### 波次 D：迁移、兼容与回滚
 
 | Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
 |---|---|---|---|---|
-| `DEP-27` | 定义 MigrationRegistry、checksum、ordered steps、precondition、owner、backup requirement、compatibility window | DEP-03, DEP-19 | unknown migration、checksum drift、重复版本、无 owner/backup requirement、伪造 down migration 均失败 | registry 可排序、签名/校验并绑定 ReleaseManifest |
-| `DEP-28` | 实现 read-only migration preflight：store/schema/projection/workflow/provider/config/space/clock/lease 矩阵 | DEP-07, DEP-08, DEP-27 | major mismatch、downgrade、并发 runner、空间不足、active Unknown/old writer、未 verified backup 均阻断 | preflight report 含每一轴结果、remediation 和不变事实证明 |
-| `DEP-29` | 实现 expand/backfill/verify/switch/contract 的 idempotent bounded migration primitives | DEP-27, DEP-28 | step 触碰 provider/shell/MCP、无 bounded batch、partial 后跳步、旧 reader 读到不可兼容字段均失败 | fixture migration 可重跑、checkpoint 后 resume，source cursor 不回退 |
-| `DEP-30` | 实现 migration runner lock/fence、`MigrationStarted/Step/Blocked/Completed`、resume token 和 failure quarantine | DEP-06, DEP-27, DEP-28, DEP-29 | 第二 runner、lease 过期、checksum 改变、错误 resume token、失败后继续写均拒绝 | 崩溃后从最后 verified step resume；失败可查询且不伪造 completed |
-| `DEP-31` | 实现 post-migration projector/index rebuild、source/projection cursor/generation/receipt invariant 验证 | DEP-16, DEP-22, DEP-30 | projection 越过 facts、旧 generation 伪 ready、index 不可重建、receipt 关联丢失均失败 | rebuild 后 query/receipt 与 source replay 一致，ready gate 只在 verify 后开放 |
-| `DEP-32` | 实现 binary/data rollback decision gate、restore fallback、old root retention 和 rollback receipt | DEP-23, DEP-28, DEP-30, DEP-31 | destructive migration 后无 backup、writer 未停、旧 build 不兼容、未知 effect 未对账均拒绝 | compatible binary rollback 或 verified restore 均有可审计 phase 和验证命令 |
-| `DEP-33` | 在 workflow/runner/provider/skills/plugins 中实现 build/digest pin、replay compatibility 和 old revision drain | DEP-03, DEP-28, DEP-31 | running workflow 静默换 definition/provider/extension、未知 replay version、project skill 未重新 trust 均拒绝 | 新 run 用新 digest，旧 run 保持 pin；旧 revision drain/retire 有证据 |
+| <a id="step-dep-27"></a>`DEP-27` | 定义 MigrationRegistry、checksum、ordered steps、precondition、owner、backup requirement、compatibility window | DEP-03, DEP-19 | unknown migration、checksum drift、重复版本、无 owner/backup requirement、伪造 down migration 均失败 | registry 可排序、签名/校验并绑定 ReleaseManifest |
+| <a id="step-dep-28"></a>`DEP-28` | 实现 read-only migration preflight：store/schema/projection/workflow/provider/config/space/clock/lease 矩阵 | DEP-07, DEP-08, DEP-27 | major mismatch、downgrade、并发 runner、空间不足、active Unknown/old writer、未 verified backup 均阻断 | preflight report 含每一轴结果、remediation 和不变事实证明 |
+| <a id="step-dep-29"></a>`DEP-29` | 实现 expand/backfill/verify/switch/contract 的 idempotent bounded migration primitives | DEP-27, DEP-28 | step 触碰 provider/shell/MCP、无 bounded batch、partial 后跳步、旧 reader 读到不可兼容字段均失败 | fixture migration 可重跑、checkpoint 后 resume，source cursor 不回退 |
+| <a id="step-dep-30"></a>`DEP-30` | 实现 migration runner lock/fence、`MigrationStarted/Step/Blocked/Completed`、resume token 和 failure quarantine | DEP-06, DEP-27, DEP-28, DEP-29 | 第二 runner、lease 过期、checksum 改变、错误 resume token、失败后继续写均拒绝 | 崩溃后从最后 verified step resume；失败可查询且不伪造 completed |
+| <a id="step-dep-31"></a>`DEP-31` | 实现 post-migration projector/index rebuild、source/projection cursor/generation/receipt invariant 验证 | DEP-16, DEP-22, DEP-30 | projection 越过 facts、旧 generation 伪 ready、index 不可重建、receipt 关联丢失均失败 | rebuild 后 query/receipt 与 source replay 一致，ready gate 只在 verify 后开放 |
+| <a id="step-dep-32"></a>`DEP-32` | 实现 binary/data rollback decision gate、restore fallback、old root retention 和 rollback receipt | DEP-23, DEP-28, DEP-30, DEP-31 | destructive migration 后无 backup、writer 未停、旧 build 不兼容、未知 effect 未对账均拒绝 | compatible binary rollback 或 verified restore 均有可审计 phase 和验证命令 |
+| <a id="step-dep-33"></a>`DEP-33` | 在 workflow/runner/provider/skills/plugins 中实现 build/digest pin、replay compatibility 和 old revision drain | DEP-03, DEP-28, DEP-31 | running workflow 静默换 definition/provider/extension、未知 replay version、project skill 未重新 trust 均拒绝 | 新 run 用新 digest，旧 run 保持 pin；旧 revision drain/retire 有证据 |
 
 #### 波次 E：发布、滚动升级与供应链
 
 | Step | 代码落点与目标 | 依赖 | 先拒绝的验收 | 成功路径与证据 |
 |---|---|---|---|---|
-| `DEP-34` | 扩展 release preflight：reproducible build、Cargo.lock、target matrix、SBOM/checksum/signature、migration/backup gate | DEP-02, DEP-03, DEP-18, DEP-27, DEP-28 | artifact 缺失/未签名、source drift、测试/manifest/migration gate 失败、秘密进入包均 fail-closed | `release-smoke.sh` 与 CI 生成可重现 manifest/evidence |
-| `DEP-35` | 实现 managed-local/embedded-local 单机 rollout：plan→preflight→backup→drain→replace→ready→promote | DEP-10, DEP-13, DEP-20, DEP-28, DEP-34 | 新进程抢 lease、旧进程未 drain、ready 前接命令、失败自动重试副作用均拒绝 | 同一 root 的升级/重启不丢事实、不重复 effect；旧 revision 可查询 |
-| `DEP-36` | 实现 container adapter：immutable image、volume/root identity、env allowlist、SIGTERM、startup/readiness/liveness probe | DEP-09, DEP-11, DEP-17, DEP-35 | image digest 漂移、volume 未验证、多个 writer、探针语义混淆、强杀无 evidence 均失败 | fake/container harness 验证启动、摘流、drain、restart、fence |
-| `DEP-37` | 设计 orchestrated canary/blue-green/rainbow rollout 与 worker build routing；标记真实编排器为 target | DEP-33, DEP-35, DEP-36 | 未 pinned workflow、无 progress deadline、旧 worker 仍写、canary 失败却 promote 均拒绝 | adapter contract 能模拟 pause/resume/rollback；未接真实集群也不升 proof level |
-| `DEP-38` | 实现 rollout pause/resume/promote/rollback、old revision retirement、retention 和 post-deploy verification | DEP-32, DEP-35, DEP-37 | 未授权 promote、指标/health 未达门槛、rollback 后旧 writer 存活、过早删除旧 root 均失败 | rollout state、decision、health window、retire evidence 完整可查 |
-| `DEP-39` | 接入供应链、签名、SBOM、依赖许可、desktop package/checksum、secret scanning/compliance gate | DEP-02, DEP-34, DEP-38 | signature/SBOM/license/secret scan failure 被忽略、unsigned desktop binary 发布均阻断 | CI artifact、package、checksum、reviewer 和 policy decision 可关联 |
-| `DEP-40` | 编写 release/upgrade/rollback/backup/restore/migration/health 的跨 CLI/Web/Workbench/Desktop E2E/UAT | DEP-15, DEP-24, DEP-31, DEP-36, DEP-38, DEP-39 | 任一入口分叉 DaemonHost、直接 broker、权限并集、Unknown 自动 retry、证据缺项均失败 | fake provider/effect + local durable fixture 覆盖 deny/success/restart/replay；真实 provider 仅显式 opt-in |
-| `DEP-41` | 维护 runbook、operator reference、CURRENT_STATUS 证据块、release gate 和 capability/proof matrix | DEP-00..DEP-40 | 文档把 target 写 implemented/durable/live、遗漏限制、没有 reviewer/命令/fixture 均不能关闭 | 每个切片有 source snapshot、worktree、argv/env、fixture、exit、status/proof、limitations、reviewer |
+| <a id="step-dep-34"></a>`DEP-34` | 扩展 release preflight：reproducible build、Cargo.lock、target matrix、SBOM/checksum/signature、migration/backup gate | DEP-02, DEP-03, DEP-18, DEP-27, DEP-28 | artifact 缺失/未签名、source drift、测试/manifest/migration gate 失败、秘密进入包均 fail-closed | `release-smoke.sh` 与 CI 生成可重现 manifest/evidence |
+| <a id="step-dep-35"></a>`DEP-35` | 实现 managed-local/embedded-local 单机 rollout：plan→preflight→backup→drain→replace→ready→promote | DEP-10, DEP-13, DEP-20, DEP-28, DEP-34 | 新进程抢 lease、旧进程未 drain、ready 前接命令、失败自动重试副作用均拒绝 | 同一 root 的升级/重启不丢事实、不重复 effect；旧 revision 可查询 |
+| <a id="step-dep-36"></a>`DEP-36` | 实现 container adapter：immutable image、volume/root identity、env allowlist、SIGTERM、startup/readiness/liveness probe | DEP-09, DEP-11, DEP-17, DEP-35 | image digest 漂移、volume 未验证、多个 writer、探针语义混淆、强杀无 evidence 均失败 | fake/container harness 验证启动、摘流、drain、restart、fence |
+| <a id="step-dep-37"></a>`DEP-37` | 设计 orchestrated canary/blue-green/rainbow rollout 与 worker build routing；标记真实编排器为 target | DEP-33, DEP-35, DEP-36 | 未 pinned workflow、无 progress deadline、旧 worker 仍写、canary 失败却 promote 均拒绝 | adapter contract 能模拟 pause/resume/rollback；未接真实集群也不升 proof level |
+| <a id="step-dep-38"></a>`DEP-38` | 实现 rollout pause/resume/promote/rollback、old revision retirement、retention 和 post-deploy verification | DEP-32, DEP-35, DEP-37 | 未授权 promote、指标/health 未达门槛、rollback 后旧 writer 存活、过早删除旧 root 均失败 | rollout state、decision、health window、retire evidence 完整可查 |
+| <a id="step-dep-39"></a>`DEP-39` | 接入供应链、签名、SBOM、依赖许可、desktop package/checksum、secret scanning/compliance gate | DEP-02, DEP-34, DEP-38 | signature/SBOM/license/secret scan failure 被忽略、unsigned desktop binary 发布均阻断 | CI artifact、package、checksum、reviewer 和 policy decision 可关联 |
+| <a id="step-dep-40"></a>`DEP-40` | 编写 release/upgrade/rollback/backup/restore/migration/health 的跨 CLI/Web/Workbench/Desktop E2E/UAT | DEP-15, DEP-24, DEP-31, DEP-36, DEP-38, DEP-39 | 任一入口分叉 DaemonHost、直接 broker、权限并集、Unknown 自动 retry、证据缺项均失败 | fake provider/effect + local durable fixture 覆盖 deny/success/restart/replay；真实 provider 仅显式 opt-in |
+| <a id="step-dep-41"></a>`DEP-41` | 维护 runbook、operator reference、CURRENT_STATUS 证据块、release gate 和 capability/proof matrix | DEP-00..DEP-40 | 文档把 target 写 implemented/durable/live、遗漏限制、没有 reviewer/命令/fixture 均不能关闭 | 每个切片有 source snapshot、worktree、argv/env、fixture、exit、status/proof、limitations、reviewer |
 
 ### 36.9 依赖波次与现有路线图接点
 

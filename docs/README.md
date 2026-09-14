@@ -26,7 +26,7 @@
 | 身份、调度、成本、恢复、数据治理怎么管 | [`company-os-operations-governance.md`](company-os-operations-governance.md) | [`company-os-security-constitution.md`](company-os-security-constitution.md) |
 | 如何评测、防退步、扩展插件 | [`company-os-quality-ecosystem.md`](company-os-quality-ecosystem.md) | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) |
 | 现在该实现什么、验收标准是什么 | [`company-os-implementation-outline.md`](company-os-implementation-outline.md) | [`../PHASES.md`](../PHASES.md)、[`../PROCESS.md`](../PROCESS.md) |
-| 接下来每一步做什么、怎么排序、怎么算做完 | [`roadmap.md`](roadmap.md)（含 403 张全量 Step 索引） | [`company-os-implementation-outline.md`](company-os-implementation-outline.md)、[`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
+| 接下来每一步做什么、怎么排序、怎么算做完 | [`roadmap.md`](roadmap.md)（含 749 张全量 Step 执行队列） | [`company-os-implementation-outline.md`](company-os-implementation-outline.md)、[`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
 | 什么事绝对不能发生（安全底线） | [`company-os-security-constitution.md`](company-os-security-constitution.md) | [`company-os-platform-architecture.md`](company-os-platform-architecture.md) |
 | Coding 能力哪些完成了、哪些冻结了 | [`coding-pack-matrix.md`](coding-pack-matrix.md) | [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) |
 | 参考项目为什么这样取舍 | [`company-os-reference-matrix.md`](company-os-reference-matrix.md) | [`reference-agent-audit/README.md`](reference-agent-audit/README.md)、[`reference-agent-audit/00-unified-agent-flow.md`](reference-agent-audit/00-unified-agent-flow.md) |

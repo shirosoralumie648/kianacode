@@ -303,40 +303,40 @@ Connector 输入、输出和缓存都要带 `DataClass`、`Purpose`、owner proj
 
 | Step | 目标与代码归属 | 依赖 | 先拒绝验收 | 成功/回归验收 |
 |---|---|---|---|---|
-| `INT-00` | 基线、现状和能力矩阵；`docs/`、`CURRENT_STATUS.md`、现有 connector tests | — | 识别第二执行循环、直达 Broker、raw secret 和外部默认网络；发现即阻断 | 记录 source snapshot、fixture、旧命令兼容边界和 proof 限制 |
-| `INT-01` | 固定 Provider/Connector/MCP/A2A/Notification 术语和边界；`docs`、module map | INT-00 | MCP tool list、A2A message 或 provider account 被当成授权证据 | 每种入口都能映射到唯一 ControlPlane path |
-| `INT-02` | Domain typed IDs、definition/binding/invocation/receipt/recovery 合同 | INT-01 | 空/跨类型 ID、unknown field、非法状态、secret 出现在 Debug/serde | schema round-trip、canonical digest 和合法转移测试 |
-| `INT-03` | Operation input/output schema、风险、scope、data class、retry/timeout 合同 | INT-02 | caller 降级 risk、未声明 field/operation/scope、超限 payload | 同一 canonical payload 产生稳定 action/payload digest |
-| `INT-04` | Connector registry immutable version、hash/signature、CAS、catalog projection | INT-02/03 | 原地覆盖版本、hash/signature 不符、registry race、未知 adapter 自动启用 | list/inspect 可从事实重建；同版本内容唯一 |
-| `INT-05` | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | INT-02/04 | 跨项目无 grant、binding owner 伪造、scope 超集、revoked/expired binding | binding snapshot 固化并可审计；撤销递增 revision |
-| `INT-06` | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | INT-05 | raw token 到 Core/Runner/Event/UI、wrong purpose/audience、lease replay/expiry | 只在 adapter effect boundary 解析一次并销毁 |
-| `INT-07` | `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` ports | INT-02/06 | adapter 直接访问 EventStore/approval、port 返回 raw secret、缺能力却宣称支持 | fake adapter 可注入 known/unknown/stop/health 结果 |
-| `INT-08` | local_fixture schema、hash、payload matching、deterministic receipts | INT-04/07 | fixture 越界/替换/重复 payload、未知 operation、external_effect=true | fixture bind/invoke/replay/reconcile 与现有实现一致 |
-| `INT-09` | read-only health/probe 和状态分类；daemon/query/UI | INT-05/07/08 | destructive probe、scope error 被标为 credential invalid、非 JSON error 删除凭据 | verified/connectivity-only/invalid/scope/unreachable 可区分且脱敏 |
-| `INT-10` | stdio MCP connector adapter 与 capability handshake | INT-07/09 | HTTP/remote MCP 绕过 unsupported、server tool schema 直接授予 scope、session 泄漏 | stdio startup/timeout/disconnect/conditional tool 可回收和审计 |
-| `INT-11` | HTTPS endpoint、TLS、redirect、proxy、DNS/SSRF/egress allowlist | INT-06/07 | URL userinfo、非 HTTPS、跨 origin redirect、内网地址、代理泄漏均 0 dispatch | fake HTTPS transport 只连 pinned origin，错误有结构化分类 |
-| `INT-12` | OAuth PKCE/state/callback、account store、refresh single-flight | INT-06/11 | state/redirect mismatch、code reuse、scope downgrade、旧 refresh 覆盖新 generation | 提前刷新、CAS rotate、reauth/revoked 和锁内重读测试 |
-| `INT-13` | secret redaction/echo sentinel 扫描；domain/daemon/event/UI tests | INT-06/08/12 | token 出现在 prompt/transcript/event/receipt/stdout/stderr/argv/env/cache | provider raw error、URL/header/JWT 形状和 fixture 结果均安全投影 |
-| `INT-14` | `connector.manage/invoke/health/reconcile` protocol DTO 和 normalize | INT-03/05/07 | wire actor/role/risk/binding/endpoint 覆盖服务端值；未 trust/未 auth 0 Broker calls | CLI/Web/Workbench/MCP 得到同一 normalized intent |
-| `INT-15` | operation risk→policy/gate/approval 映射 | INT-03/14 | R3 无 final payload approval、R4 被默认放行、拒绝后仍 dispatch | R0/R1 只读、R2 data grant、R3 once approval 结果稳定 |
-| `INT-16` | invocation reservation、command digest、idempotency/CAS | INT-04/05/14/15 | 同 key 不同 digest、revision race、未提交 reservation、旧 permit 均 0 effect | replay 返回原 receipt；一个 attempt 只消费一个 permit |
-| `INT-17` | connector/account/project rate、concurrency、budget reservation | INT-16 | 内存计数重启归零、超额无稳定错误、并发越限仍 dispatch | 多 worker 竞争只有一个 claim；配额结算可重放 |
-| `INT-18` | effect-time permit、authority/config/policy/credential/data epoch fencing | INT-06/15/16 | admission 后撤销/轮换/配置漂移仍调用 adapter | permit 可验证 scope、digest、epoch、expiry，旧 snapshot 被拒 |
-| `INT-19` | Broker dispatch 和 adapter observation 分离 | INT-07/16/18 | connector handler 自己授权/写 EventLog、commit 后重复 effect、late result resurrect | prepared→dispatching→observation→result committed 可重放 |
-| `INT-20` | ProviderReceipt/EffectObservation schema、owner/audience、payload hash | INT-08/19 | receipt 属于其他 binding/account/operation/key、raw response 泄漏 | succeeded/failed/unknown 和 evidence refs 稳定投影 |
-| `INT-21` | retry classifier、attempt、timeout/backoff、idempotency policy | INT-16/20 | Unknown、非幂等写、审批/epoch/scope 错误自动 retry | 仅 known no-effect/declared-idempotent 按 bounded policy 新 attempt |
-| `INT-22` | Unknown quarantine、ReconciliationCase、provider query/manual evidence | INT-20/21 | timeout 映射 failed、没有 receipt 直接 retry、reconcile 覆盖原事件 | explicit reconcile 追加事实；安全/禁止动作进入 Human Inbox |
-| `INT-23` | cancel/stop report/late result fence、lease settlement | INT-18/19/22 | 未 stop 却 cancelled、started effect 被释放锁、late result resurrect | not_executed、stop_confirmed、Unknown 三类结果可重建 |
-| `INT-24` | webhook/A2A ingress auth、signature、timestamp、nonce、dedupe | INT-01/04/07/22 | 未认证、重放、错误 tenant/source、超限 payload、注入字段均 0 Broker calls | event→occurrence→Workflow/Run 可重放，签名证据可查询 |
-| `INT-25` | object mapping、input artifact、schema/provenance、pagination cursor | INT-03/09/24 | 外部字段直接成为 capability 参数、分页 cursor 越权、隐式跨账号 | 映射可版本化、可审计、输入输出顺序稳定 |
-| `INT-26` | DataClass/Purpose/SharingGrant/retention/revocation propagation | INT-05/22/25 | connector 结果进入无 scope Memory/Index、撤销后 cache 继续返回 | tombstone/data epoch 使所有派生视图失效 |
-| `INT-27` | Connector health/invocation/reconcile/approval 的通知投影 | INT-20/22/26 | 通知被当事实、重复投递推进两次、消息带 secret | 至少一次投递可去重，UI 显示 source cursor/evidence/limitation |
-| `INT-28` | CLI/Web/Workbench/MCP 查询与人工 reconcile UI | INT-14/22/27 | UI 自带 actor/approval/context、查询消费 lease、跨项目枚举 binding | 四入口读取同一 projection，错误和状态一致 |
-| `INT-29` | restart/recovery、projection rebuild、stale worker/lease fencing | INT-16/19/22/23/26 | 重启自动 resume Unknown、损坏 journal 当空库、旧 approval 复活 | 默认 Paused/NeedsRecovery；显式新命令重新 admission |
-| `INT-30` | adapter/registry/protocol conformance 和 property tests | INT-02..29 | 只有单元类型测试、没有 deny/TOCTOU/replay/unknown 证据 | fake fixture、MCP fake、HTTP fake 共享同一 conformance |
-| `INT-31` | 一个只读外部 connector pilot（隔离账号，默认关闭） | INT-09/11/12/20/30 | 缺 endpoint/credential/receipt/revocation/cleanup 证据不得启用 | whoami/list live proof 单独绑定环境、scope、版本和限制 |
-| `INT-32` | 一个受控写 connector pilot（每 operation 独立） | INT-15/16/18/20/21/22/23/31 | 无 provider idempotency/receipt/query、无 cancel/compensation、R3/R4 混用即阻断 | 单次 final payload、receipt、对账、失败/Unknown runbook 完整 |
-| `INT-33` | 发布门、live/physical 证据和 `CURRENT_STATUS` 收口 | INT-00..32 | fixture/mock/历史 CI 冒充 live；secret、越权、第二 loop、外部默认网络均阻断 | 每个 connector/operation/account 有 evidence block、feature/proof/limitations 和回滚记录 |
+| <a id="step-int-00"></a>`INT-00` | 基线、现状和能力矩阵；`docs/`、`CURRENT_STATUS.md`、现有 connector tests | — | 识别第二执行循环、直达 Broker、raw secret 和外部默认网络；发现即阻断 | 记录 source snapshot、fixture、旧命令兼容边界和 proof 限制 |
+| <a id="step-int-01"></a>`INT-01` | 固定 Provider/Connector/MCP/A2A/Notification 术语和边界；`docs`、module map | INT-00 | MCP tool list、A2A message 或 provider account 被当成授权证据 | 每种入口都能映射到唯一 ControlPlane path |
+| <a id="step-int-02"></a>`INT-02` | Domain typed IDs、definition/binding/invocation/receipt/recovery 合同 | INT-01 | 空/跨类型 ID、unknown field、非法状态、secret 出现在 Debug/serde | schema round-trip、canonical digest 和合法转移测试 |
+| <a id="step-int-03"></a>`INT-03` | Operation input/output schema、风险、scope、data class、retry/timeout 合同 | INT-02 | caller 降级 risk、未声明 field/operation/scope、超限 payload | 同一 canonical payload 产生稳定 action/payload digest |
+| <a id="step-int-04"></a>`INT-04` | Connector registry immutable version、hash/signature、CAS、catalog projection | INT-02/03 | 原地覆盖版本、hash/signature 不符、registry race、未知 adapter 自动启用 | list/inspect 可从事实重建；同版本内容唯一 |
+| <a id="step-int-05"></a>`INT-05` | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | INT-02/04 | 跨项目无 grant、binding owner 伪造、scope 超集、revoked/expired binding | binding snapshot 固化并可审计；撤销递增 revision |
+| <a id="step-int-06"></a>`INT-06` | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | INT-05 | raw token 到 Core/Runner/Event/UI、wrong purpose/audience、lease replay/expiry | 只在 adapter effect boundary 解析一次并销毁 |
+| <a id="step-int-07"></a>`INT-07` | `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` ports | INT-02/06 | adapter 直接访问 EventStore/approval、port 返回 raw secret、缺能力却宣称支持 | fake adapter 可注入 known/unknown/stop/health 结果 |
+| <a id="step-int-08"></a>`INT-08` | local_fixture schema、hash、payload matching、deterministic receipts | INT-04/07 | fixture 越界/替换/重复 payload、未知 operation、external_effect=true | fixture bind/invoke/replay/reconcile 与现有实现一致 |
+| <a id="step-int-09"></a>`INT-09` | read-only health/probe 和状态分类；daemon/query/UI | INT-05/07/08 | destructive probe、scope error 被标为 credential invalid、非 JSON error 删除凭据 | verified/connectivity-only/invalid/scope/unreachable 可区分且脱敏 |
+| <a id="step-int-10"></a>`INT-10` | stdio MCP connector adapter 与 capability handshake | INT-07/09 | HTTP/remote MCP 绕过 unsupported、server tool schema 直接授予 scope、session 泄漏 | stdio startup/timeout/disconnect/conditional tool 可回收和审计 |
+| <a id="step-int-11"></a>`INT-11` | HTTPS endpoint、TLS、redirect、proxy、DNS/SSRF/egress allowlist | INT-06/07 | URL userinfo、非 HTTPS、跨 origin redirect、内网地址、代理泄漏均 0 dispatch | fake HTTPS transport 只连 pinned origin，错误有结构化分类 |
+| <a id="step-int-12"></a>`INT-12` | OAuth PKCE/state/callback、account store、refresh single-flight | INT-06/11 | state/redirect mismatch、code reuse、scope downgrade、旧 refresh 覆盖新 generation | 提前刷新、CAS rotate、reauth/revoked 和锁内重读测试 |
+| <a id="step-int-13"></a>`INT-13` | secret redaction/echo sentinel 扫描；domain/daemon/event/UI tests | INT-06/08/12 | token 出现在 prompt/transcript/event/receipt/stdout/stderr/argv/env/cache | provider raw error、URL/header/JWT 形状和 fixture 结果均安全投影 |
+| <a id="step-int-14"></a>`INT-14` | `connector.manage/invoke/health/reconcile` protocol DTO 和 normalize | INT-03/05/07 | wire actor/role/risk/binding/endpoint 覆盖服务端值；未 trust/未 auth 0 Broker calls | CLI/Web/Workbench/MCP 得到同一 normalized intent |
+| <a id="step-int-15"></a>`INT-15` | operation risk→policy/gate/approval 映射 | INT-03/14 | R3 无 final payload approval、R4 被默认放行、拒绝后仍 dispatch | R0/R1 只读、R2 data grant、R3 once approval 结果稳定 |
+| <a id="step-int-16"></a>`INT-16` | invocation reservation、command digest、idempotency/CAS | INT-04/05/14/15 | 同 key 不同 digest、revision race、未提交 reservation、旧 permit 均 0 effect | replay 返回原 receipt；一个 attempt 只消费一个 permit |
+| <a id="step-int-17"></a>`INT-17` | connector/account/project rate、concurrency、budget reservation | INT-16 | 内存计数重启归零、超额无稳定错误、并发越限仍 dispatch | 多 worker 竞争只有一个 claim；配额结算可重放 |
+| <a id="step-int-18"></a>`INT-18` | effect-time permit、authority/config/policy/credential/data epoch fencing | INT-06/15/16 | admission 后撤销/轮换/配置漂移仍调用 adapter | permit 可验证 scope、digest、epoch、expiry，旧 snapshot 被拒 |
+| <a id="step-int-19"></a>`INT-19` | Broker dispatch 和 adapter observation 分离 | INT-07/16/18 | connector handler 自己授权/写 EventLog、commit 后重复 effect、late result resurrect | prepared→dispatching→observation→result committed 可重放 |
+| <a id="step-int-20"></a>`INT-20` | ProviderReceipt/EffectObservation schema、owner/audience、payload hash | INT-08/19 | receipt 属于其他 binding/account/operation/key、raw response 泄漏 | succeeded/failed/unknown 和 evidence refs 稳定投影 |
+| <a id="step-int-21"></a>`INT-21` | retry classifier、attempt、timeout/backoff、idempotency policy | INT-16/20 | Unknown、非幂等写、审批/epoch/scope 错误自动 retry | 仅 known no-effect/declared-idempotent 按 bounded policy 新 attempt |
+| <a id="step-int-22"></a>`INT-22` | Unknown quarantine、ReconciliationCase、provider query/manual evidence | INT-20/21 | timeout 映射 failed、没有 receipt 直接 retry、reconcile 覆盖原事件 | explicit reconcile 追加事实；安全/禁止动作进入 Human Inbox |
+| <a id="step-int-23"></a>`INT-23` | cancel/stop report/late result fence、lease settlement | INT-18/19/22 | 未 stop 却 cancelled、started effect 被释放锁、late result resurrect | not_executed、stop_confirmed、Unknown 三类结果可重建 |
+| <a id="step-int-24"></a>`INT-24` | webhook/A2A ingress auth、signature、timestamp、nonce、dedupe | INT-01/04/07/22 | 未认证、重放、错误 tenant/source、超限 payload、注入字段均 0 Broker calls | event→occurrence→Workflow/Run 可重放，签名证据可查询 |
+| <a id="step-int-25"></a>`INT-25` | object mapping、input artifact、schema/provenance、pagination cursor | INT-03/09/24 | 外部字段直接成为 capability 参数、分页 cursor 越权、隐式跨账号 | 映射可版本化、可审计、输入输出顺序稳定 |
+| <a id="step-int-26"></a>`INT-26` | DataClass/Purpose/SharingGrant/retention/revocation propagation | INT-05/22/25 | connector 结果进入无 scope Memory/Index、撤销后 cache 继续返回 | tombstone/data epoch 使所有派生视图失效 |
+| <a id="step-int-27"></a>`INT-27` | Connector health/invocation/reconcile/approval 的通知投影 | INT-20/22/26 | 通知被当事实、重复投递推进两次、消息带 secret | 至少一次投递可去重，UI 显示 source cursor/evidence/limitation |
+| <a id="step-int-28"></a>`INT-28` | CLI/Web/Workbench/MCP 查询与人工 reconcile UI | INT-14/22/27 | UI 自带 actor/approval/context、查询消费 lease、跨项目枚举 binding | 四入口读取同一 projection，错误和状态一致 |
+| <a id="step-int-29"></a>`INT-29` | restart/recovery、projection rebuild、stale worker/lease fencing | INT-16/19/22/23/26 | 重启自动 resume Unknown、损坏 journal 当空库、旧 approval 复活 | 默认 Paused/NeedsRecovery；显式新命令重新 admission |
+| <a id="step-int-30"></a>`INT-30` | adapter/registry/protocol conformance 和 property tests | INT-02..29 | 只有单元类型测试、没有 deny/TOCTOU/replay/unknown 证据 | fake fixture、MCP fake、HTTP fake 共享同一 conformance |
+| <a id="step-int-31"></a>`INT-31` | 一个只读外部 connector pilot（隔离账号，默认关闭） | INT-09/11/12/20/30 | 缺 endpoint/credential/receipt/revocation/cleanup 证据不得启用 | whoami/list live proof 单独绑定环境、scope、版本和限制 |
+| <a id="step-int-32"></a>`INT-32` | 一个受控写 connector pilot（每 operation 独立） | INT-15/16/18/20/21/22/23/31 | 无 provider idempotency/receipt/query、无 cancel/compensation、R3/R4 混用即阻断 | 单次 final payload、receipt、对账、失败/Unknown runbook 完整 |
+| <a id="step-int-33"></a>`INT-33` | 发布门、live/physical 证据和 `CURRENT_STATUS` 收口 | INT-00..32 | fixture/mock/历史 CI 冒充 live；secret、越权、第二 loop、外部默认网络均阻断 | 每个 connector/operation/account 有 evidence block、feature/proof/limitations 和回滚记录 |
 
 ## 8. 依赖波次、验收矩阵和证据
 

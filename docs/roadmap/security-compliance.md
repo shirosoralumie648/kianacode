@@ -419,80 +419,80 @@ cancel/timeout/crash
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-00 | CURRENT_STATUS.md、docs/module-map.md、专项 manifest | 无 | 把规范、类型、静态审计写成 implemented；遗漏现有 partial/unknown | 资产/入口/控制/证据清单，标注 feature_status 与 proof_level |
-| SC-01 | docs threat register、security fixture catalog | SC-00 | 未登记 prompt injection、secret、TOCTOU、replay、retention 或供应链威胁 | T01-T12 abuse case、影响、控制、owner 和回归 fixture |
-| SC-02 | kiana-domain security IDs/schema registry | SC-00 | unknown major、重复 ID、digest/epoch/sequence 回退、secret 字段 serde | 版本化对象、生成/解析规则、upcaster 拒绝测试 |
-| SC-03 | kiana-domain/kiana-protocol reason codes | SC-02 | 所有拒绝塌缩成 I/O/unauthorized；错误回显原文 | 稳定 AUTH_* 至 UNKNOWN_* code、retryability/remediation 合同 |
-| SC-04 | kiana-core SecurityContext、入口身份边界 | SC-02,SC-03 | caller 自报 actor/project/role/trust 被采信；匿名 loopback 直接执行 | server-owned context fixture，四入口同一解析结果 |
-| SC-05 | kiana-policy PolicyBundle/DecisionTrace/PolicyRevision | SC-03,SC-04 | policy 版本漂移、默认 allow、无法解释 deny、旧 revision 继续授权 | deny-first evaluator、可重放输入摘要、revision/epoch 绑定 |
+| <a id="step-sc-00"></a>SC-00 | CURRENT_STATUS.md、docs/module-map.md、专项 manifest | 无 | 把规范、类型、静态审计写成 implemented；遗漏现有 partial/unknown | 资产/入口/控制/证据清单，标注 feature_status 与 proof_level |
+| <a id="step-sc-01"></a>SC-01 | docs threat register、security fixture catalog | SC-00 | 未登记 prompt injection、secret、TOCTOU、replay、retention 或供应链威胁 | T01-T12 abuse case、影响、控制、owner 和回归 fixture |
+| <a id="step-sc-02"></a>SC-02 | kiana-domain security IDs/schema registry | SC-00 | unknown major、重复 ID、digest/epoch/sequence 回退、secret 字段 serde | 版本化对象、生成/解析规则、upcaster 拒绝测试 |
+| <a id="step-sc-03"></a>SC-03 | kiana-domain/kiana-protocol reason codes | SC-02 | 所有拒绝塌缩成 I/O/unauthorized；错误回显原文 | 稳定 AUTH_* 至 UNKNOWN_* code、retryability/remediation 合同 |
+| <a id="step-sc-04"></a>SC-04 | kiana-core SecurityContext、入口身份边界 | SC-02,SC-03 | caller 自报 actor/project/role/trust 被采信；匿名 loopback 直接执行 | server-owned context fixture，四入口同一解析结果 |
+| <a id="step-sc-05"></a>SC-05 | kiana-policy PolicyBundle/DecisionTrace/PolicyRevision | SC-03,SC-04 | policy 版本漂移、默认 allow、无法解释 deny、旧 revision 继续授权 | deny-first evaluator、可重放输入摘要、revision/epoch 绑定 |
 
 ### Wave B：身份、权限和审批
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-06 | kiana-domain/kiana-daemon Principal、session、authn adapter | SC-04,SC-05 | 伪造 session、过期 assertion、主体切换、低 assurance 执行高风险 effect | Principal snapshot、过期/吊销/重启测试；未完成的外部认证保持 partial |
-| SC-07 | kiana-core ProjectTrust、RoleAssignment、DepartmentSnapshot | SC-06 | 未信任项目加载资源；wire role 覆盖 server assignment；项目边界混用 | trust/role 来源和 revision 可查询，项目隔离拒绝矩阵 |
-| SC-08 | kiana-core authority epoch、session fence、policy refresh | SC-06,SC-07 | 旧进程、旧 token、旧 approval 在撤销/配置变更后继续运行 | monotonic epoch、CAS/fence、late observation 不 resurrect |
-| SC-09 | kiana-policy GrantScope intersection、Cell inheritance | SC-07,SC-08 | 子 Cell 权限并集、Grant 转移、读写/网络/secret/外部账户混成一种权限 | typed scope intersection、父子/模板/packet 交集 property tests |
-| SC-10 | kiana-core Approval binding、Human Inbox | SC-05,SC-08,SC-09 | 只批准 tool name 不批准 args；过期/重复/跨项目 approval；自批 | exact command/target/payload digest、approver scope、一次性消费和回执 |
-| SC-11 | kiana-entrypoints、scheduler/workflow/swarm/connector parity | SC-04,SC-09,SC-10 | 任一入口绕过 DaemonHost/ControlPlane；UI 本地决定 allow | CLI/TTY/Web/Desktop/scheduler/swarm 同一 command fixture 和 zero-handler-on-deny |
+| <a id="step-sc-06"></a>SC-06 | kiana-domain/kiana-daemon Principal、session、authn adapter | SC-04,SC-05 | 伪造 session、过期 assertion、主体切换、低 assurance 执行高风险 effect | Principal snapshot、过期/吊销/重启测试；未完成的外部认证保持 partial |
+| <a id="step-sc-07"></a>SC-07 | kiana-core ProjectTrust、RoleAssignment、DepartmentSnapshot | SC-06 | 未信任项目加载资源；wire role 覆盖 server assignment；项目边界混用 | trust/role 来源和 revision 可查询，项目隔离拒绝矩阵 |
+| <a id="step-sc-08"></a>SC-08 | kiana-core authority epoch、session fence、policy refresh | SC-06,SC-07 | 旧进程、旧 token、旧 approval 在撤销/配置变更后继续运行 | monotonic epoch、CAS/fence、late observation 不 resurrect |
+| <a id="step-sc-09"></a>SC-09 | kiana-policy GrantScope intersection、Cell inheritance | SC-07,SC-08 | 子 Cell 权限并集、Grant 转移、读写/网络/secret/外部账户混成一种权限 | typed scope intersection、父子/模板/packet 交集 property tests |
+| <a id="step-sc-10"></a>SC-10 | kiana-core Approval binding、Human Inbox | SC-05,SC-08,SC-09 | 只批准 tool name 不批准 args；过期/重复/跨项目 approval；自批 | exact command/target/payload digest、approver scope、一次性消费和回执 |
+| <a id="step-sc-11"></a>SC-11 | kiana-entrypoints、scheduler/workflow/swarm/connector parity | SC-04,SC-09,SC-10 | 任一入口绕过 DaemonHost/ControlPlane；UI 本地决定 allow | CLI/TTY/Web/Desktop/scheduler/swarm 同一 command fixture 和 zero-handler-on-deny |
 
 ### Wave C：effect、隔离、网络和资源
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-12 | kiana-core PendingInvocation/Permit、CAS、idempotency | SC-08,SC-09,SC-10 | 重复 command、digest/sequence/fence 不匹配、无 admission 直接 dispatch | committed permit、dedup 原 receipt、并发只有一个 effect |
-| SC-13 | kiana-capability-broker、kiana-daemon path/TOCTOU | SC-12 | symlink/hardlink、rename、root 漂移、patch lock 过期、检查后文件替换 | root-relative open/update、generation/inode/fence、拒绝零 effect |
-| SC-14 | Broker sandbox/network profile、endpoint resolver | SC-12,SC-13 | 任意 URL、DNS rebinding、metadata/loopback escape、跨 DataBoundary | endpoint allowlist、解析后再校验、egress audit、sandbox fixture |
-| SC-15 | kiana-runner/kiana-core cancel fencing、Unknown | SC-12,SC-14 | cancel 后仍发新请求；timeout/EOF 自动 retry；unknown 归零或成功 | Started/Stopped/Unknown 生命周期、reconcile inbox、无双终态 |
-| SC-16 | kiana-core/Broker quotas、bounded channels、backpressure | SC-09,SC-12 | 无限输入/输出/queue/retry/process/bytes；退避占槽；超额仍 dispatch | 每 Cell/run/project/provider 维度的 reservation、释放和容量指标 |
-| SC-17 | kiana-daemon MCP/connector/webhook ingress | SC-06,SC-10,SC-14,SC-15 | token audience 不符、passthrough、坏签名、重放、未绑定 account/目的 | typed connector intent、signature/nonce/receipt、下游 token 分离 |
+| <a id="step-sc-12"></a>SC-12 | kiana-core PendingInvocation/Permit、CAS、idempotency | SC-08,SC-09,SC-10 | 重复 command、digest/sequence/fence 不匹配、无 admission 直接 dispatch | committed permit、dedup 原 receipt、并发只有一个 effect |
+| <a id="step-sc-13"></a>SC-13 | kiana-capability-broker、kiana-daemon path/TOCTOU | SC-12 | symlink/hardlink、rename、root 漂移、patch lock 过期、检查后文件替换 | root-relative open/update、generation/inode/fence、拒绝零 effect |
+| <a id="step-sc-14"></a>SC-14 | Broker sandbox/network profile、endpoint resolver | SC-12,SC-13 | 任意 URL、DNS rebinding、metadata/loopback escape、跨 DataBoundary | endpoint allowlist、解析后再校验、egress audit、sandbox fixture |
+| <a id="step-sc-15"></a>SC-15 | kiana-runner/kiana-core cancel fencing、Unknown | SC-12,SC-14 | cancel 后仍发新请求；timeout/EOF 自动 retry；unknown 归零或成功 | Started/Stopped/Unknown 生命周期、reconcile inbox、无双终态 |
+| <a id="step-sc-16"></a>SC-16 | kiana-core/Broker quotas、bounded channels、backpressure | SC-09,SC-12 | 无限输入/输出/queue/retry/process/bytes；退避占槽；超额仍 dispatch | 每 Cell/run/project/provider 维度的 reservation、释放和容量指标 |
+| <a id="step-sc-17"></a>SC-17 | kiana-daemon MCP/connector/webhook ingress | SC-06,SC-10,SC-14,SC-15 | token audience 不符、passthrough、坏签名、重放、未绑定 account/目的 | typed connector intent、signature/nonce/receipt、下游 token 分离 |
 
 ### Wave D：秘密、隐私与数据治理
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-18 | kiana-domain SecretRef、kiana-ports SecretStore | SC-04,SC-09,SC-17 | wire/log/event 带 secret value；未知 provider/account/目的；SecretRef 可转移 | opaque ref schema、store adapter、sentinel secret negative fixture |
-| SC-19 | kiana-daemon secret lease、rotation/revocation | SC-18,SC-15 | lease 过期仍注入、重复使用、吊销后继续请求、恢复复制明文 | one-shot TTL、revoke/rotate receipt、crash/restore 无 secret 泄露 |
-| SC-20 | kiana-domain redaction、Broker/Provider/Runner/Event boundaries | SC-03,SC-18 | key 外 secret、Bearer/API key、provider echo、argv/env/stdout/stderr 未脱敏 | schema + recursive text redaction、失败时 fail closed、fixture 覆盖所有出口 |
-| SC-21 | kiana-domain DataClass/Purpose/DataBoundary | SC-02,SC-05,SC-20 | 未分类内容进入 provider/trace/index/export；purpose 变更不重审 | ingress label、目的/范围 evaluator、unknown 按高敏等级处理 |
-| SC-22 | kiana-core/kiana-eventlog RetentionPolicy、legal hold | SC-21,PD-05,OA-08 | 默认无限保留、删除 audit 事实、hold 被静默覆盖、保留跨项目 | policy revision、retention scan、hold receipt、source/projection 边界 |
-| SC-23 | kiana-core/kiana-eventlog DeleteRequest/Tombstone/data epoch | SC-22,SC-12 | 只删 UI/缓存；旧 projection 恢复原文；未知外部删除标成功 | append tombstone、crypto erase/delete adapter、传播 manifest 和 unknown |
-| SC-24 | kiana-query memory/index/cache/export boundary | SC-21,SC-22,SC-23,CM | memory 自批、自写跨 project、索引残留、导出越 scope | candidate/draft/origin/purpose、rebuild-after-delete、最小导出 receipt |
+| <a id="step-sc-18"></a>SC-18 | kiana-domain SecretRef、kiana-ports SecretStore | SC-04,SC-09,SC-17 | wire/log/event 带 secret value；未知 provider/account/目的；SecretRef 可转移 | opaque ref schema、store adapter、sentinel secret negative fixture |
+| <a id="step-sc-19"></a>SC-19 | kiana-daemon secret lease、rotation/revocation | SC-18,SC-15 | lease 过期仍注入、重复使用、吊销后继续请求、恢复复制明文 | one-shot TTL、revoke/rotate receipt、crash/restore 无 secret 泄露 |
+| <a id="step-sc-20"></a>SC-20 | kiana-domain redaction、Broker/Provider/Runner/Event boundaries | SC-03,SC-18 | key 外 secret、Bearer/API key、provider echo、argv/env/stdout/stderr 未脱敏 | schema + recursive text redaction、失败时 fail closed、fixture 覆盖所有出口 |
+| <a id="step-sc-21"></a>SC-21 | kiana-domain DataClass/Purpose/DataBoundary | SC-02,SC-05,SC-20 | 未分类内容进入 provider/trace/index/export；purpose 变更不重审 | ingress label、目的/范围 evaluator、unknown 按高敏等级处理 |
+| <a id="step-sc-22"></a>SC-22 | kiana-core/kiana-eventlog RetentionPolicy、legal hold | SC-21,PD-05,OA-08 | 默认无限保留、删除 audit 事实、hold 被静默覆盖、保留跨项目 | policy revision、retention scan、hold receipt、source/projection 边界 |
+| <a id="step-sc-23"></a>SC-23 | kiana-core/kiana-eventlog DeleteRequest/Tombstone/data epoch | SC-22,SC-12 | 只删 UI/缓存；旧 projection 恢复原文；未知外部删除标成功 | append tombstone、crypto erase/delete adapter、传播 manifest 和 unknown |
+| <a id="step-sc-24"></a>SC-24 | kiana-query memory/index/cache/export boundary | SC-21,SC-22,SC-23,CM | memory 自批、自写跨 project、索引残留、导出越 scope | candidate/draft/origin/purpose、rebuild-after-delete、最小导出 receipt |
 
 ### Wave E：扩展、依赖和发布供应链
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-25 | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | SC-04,SC-07 | 未信任目录的 skill/plugin/hook/MCP 被加载；路径伪造 trust | trust scope、来源优先级、deny reason 和加载前审计 |
-| SC-26 | kiana-domain ExtensionManifest/CapabilityCatalog | SC-02,SC-09,SC-25 | manifest 的 allowed-tools 产生授权；摘要/能力/版本漂移仍运行 | manifest digest、capability intersection、read-only/write negative tests |
-| SC-27 | kiana-daemon hook/skill/plugin lifecycle、sandbox | SC-14,SC-16,SC-26 | 安装脚本任意 shell/网络/secret；hook 直接改事实或开第二循环 | lifecycle phase、sandbox profile、permit-only callback、卸载/撤销 |
-| SC-28 | scripts、CI SBOM、dependency/license/advisory scanner | SC-02,SC-25 | 未锁定依赖、许可证未知、已知高危漏洞仍发布、lockfile drift | lockfile digest、SPDX/CycloneDX manifest、阈值和 quarantine |
-| SC-29 | release artifact signing/provenance verifier | SC-28 | 文件名/tag 伪造、builder/source/toolchain 不匹配、subject digest 不符 | ReleaseManifest、SLSA-style provenance、签名/透明日志验证 |
-| SC-30 | provider/model/prompt-pack/MCP route attestation | SC-17,SC-26,SC-29 | provider 自报 model/route、未审 prompt pack、下游 token 混用 | route digest、data/use policy、credential/account/audience 绑定 |
+| <a id="step-sc-25"></a>SC-25 | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | SC-04,SC-07 | 未信任目录的 skill/plugin/hook/MCP 被加载；路径伪造 trust | trust scope、来源优先级、deny reason 和加载前审计 |
+| <a id="step-sc-26"></a>SC-26 | kiana-domain ExtensionManifest/CapabilityCatalog | SC-02,SC-09,SC-25 | manifest 的 allowed-tools 产生授权；摘要/能力/版本漂移仍运行 | manifest digest、capability intersection、read-only/write negative tests |
+| <a id="step-sc-27"></a>SC-27 | kiana-daemon hook/skill/plugin lifecycle、sandbox | SC-14,SC-16,SC-26 | 安装脚本任意 shell/网络/secret；hook 直接改事实或开第二循环 | lifecycle phase、sandbox profile、permit-only callback、卸载/撤销 |
+| <a id="step-sc-28"></a>SC-28 | scripts、CI SBOM、dependency/license/advisory scanner | SC-02,SC-25 | 未锁定依赖、许可证未知、已知高危漏洞仍发布、lockfile drift | lockfile digest、SPDX/CycloneDX manifest、阈值和 quarantine |
+| <a id="step-sc-29"></a>SC-29 | release artifact signing/provenance verifier | SC-28 | 文件名/tag 伪造、builder/source/toolchain 不匹配、subject digest 不符 | ReleaseManifest、SLSA-style provenance、签名/透明日志验证 |
+| <a id="step-sc-30"></a>SC-30 | provider/model/prompt-pack/MCP route attestation | SC-17,SC-26,SC-29 | provider 自报 model/route、未审 prompt pack、下游 token 混用 | route digest、data/use policy、credential/account/audience 绑定 |
 
 ### Wave F：审计、事故和跨入口保证
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-31 | kiana-protocol/kiana-eventlog AuditRecord schema | SC-02,SC-03,SC-05,SC-20 | 审计缺 actor/decision/reason/source cursor；原始 secret/prompt 进入记录 | append-only schema、redacted field contract、versioned event tests |
-| SC-32 | kiana-query audit projector、CAS/cursor/rebuild | SC-12,SC-23,SC-31,PD | projection 覆盖事实、cursor 跳过、旧视图标 fresh、查询越 scope | 可删除可重建 projection、hash/cursor/freshness、审计查询授权 |
-| SC-33 | kiana-core Incident、Vulnerability、Reconcile workflow | SC-15,SC-22,SC-31,SC-32 | unknown/secret leak/供应链漂移无 incident；关闭后无法追溯 | severity/owner/deadline/evidence、contain/fence/reconcile/close |
-| SC-34 | docs control crosswalk、policy registry | SC-01,SC-05,SC-31,SC-33 | 把单测或类型宣称为法规认证；控制与证据没有 owner | SEC/NIST/OWASP/内部控制映射，scope、假设、proof ceiling |
-| SC-35 | scripts EvidenceManifest、fixture/cassette registry | SC-29,SC-31,SC-34 | 命令、环境、源码、fixture、限制缺失；证据被手工改写 | digest/source snapshot、命令 argv、退出码、reviewer、签名/链路 |
-| SC-36 | CLI/Workbench/Web/Desktop/daemon protocol parity | SC-11,SC-32,SC-35 | 入口显示不同状态、局部 approve、不同 redaction 或本地计算权限 | 同一 receipt/golden trace、deny/unknown/approval 视觉和协议一致 |
+| <a id="step-sc-31"></a>SC-31 | kiana-protocol/kiana-eventlog AuditRecord schema | SC-02,SC-03,SC-05,SC-20 | 审计缺 actor/decision/reason/source cursor；原始 secret/prompt 进入记录 | append-only schema、redacted field contract、versioned event tests |
+| <a id="step-sc-32"></a>SC-32 | kiana-query audit projector、CAS/cursor/rebuild | SC-12,SC-23,SC-31,PD | projection 覆盖事实、cursor 跳过、旧视图标 fresh、查询越 scope | 可删除可重建 projection、hash/cursor/freshness、审计查询授权 |
+| <a id="step-sc-33"></a>SC-33 | kiana-core Incident、Vulnerability、Reconcile workflow | SC-15,SC-22,SC-31,SC-32 | unknown/secret leak/供应链漂移无 incident；关闭后无法追溯 | severity/owner/deadline/evidence、contain/fence/reconcile/close |
+| <a id="step-sc-34"></a>SC-34 | docs control crosswalk、policy registry | SC-01,SC-05,SC-31,SC-33 | 把单测或类型宣称为法规认证；控制与证据没有 owner | SEC/NIST/OWASP/内部控制映射，scope、假设、proof ceiling |
+| <a id="step-sc-35"></a>SC-35 | scripts EvidenceManifest、fixture/cassette registry | SC-29,SC-31,SC-34 | 命令、环境、源码、fixture、限制缺失；证据被手工改写 | digest/source snapshot、命令 argv、退出码、reviewer、签名/链路 |
+| <a id="step-sc-36"></a>SC-36 | CLI/Workbench/Web/Desktop/daemon protocol parity | SC-11,SC-32,SC-35 | 入口显示不同状态、局部 approve、不同 redaction 或本地计算权限 | 同一 receipt/golden trace、deny/unknown/approval 视觉和协议一致 |
 
 ### Wave G：验证、发布门和状态回填
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| SC-37 | crate negative tests、integration fixtures | SC-12,SC-13,SC-15,SC-18,SC-21,SC-31 | 每类越权、重放、泄露、TOCTOU、删除和入口绕过没有 zero-effect 证明 | deny-first matrix、稳定 reason、handler/provider dispatch count 为零 |
-| SC-38 | property/fuzz/serialization/replay tests | SC-02,SC-05,SC-09,SC-12,SC-31 | 随机 payload、截断事件、重复 frame、乱序 cursor、unknown major 导致 allow | invariant/property、fuzz corpus、upcaster 和 replay determinism |
-| SC-39 | security red-team/eval fixtures | SC-01,SC-20,SC-24,SC-26,SC-30 | prompt injection、间接注入、secret exfil、恶意插件/MCP 描述能触发 effect | attack corpus、预期 deny/approval/unknown、无真实 secret/外部 effect |
-| SC-40 | capacity/resource fault injection | SC-16,SC-22,SC-32 | 无界 queue、输出洪泛、磁盘满、clock rollback、provider 429/5xx 后越额 | bounded latency/queue/bytes、backpressure、恢复后 reservation 无泄漏 |
-| SC-41 | .github/workflows、release scripts、security gate | SC-28,SC-29,SC-34,SC-37,SC-40 | fmt/test/scan 失败仍发布；只跑 happy path；artifact 无签名/manifest | CI 阻断规则、offline focused commands、签名/审计/证据检查 |
-| SC-42 | scripts smoke、recovery/retention rehearsal | SC-23,SC-32,SC-33,SC-41 | 重启/恢复/删除/重放后丢事实、旧租约继续 effect、retention 破坏 evidence | local durable rehearsal、quarantine/restore/reconcile、限制清单 |
-| SC-43 | CURRENT_STATUS.md、module map、review record | SC-34,SC-35,SC-36,SC-41,SC-42 | 只因卡片完成或单测通过就 Promote；limitations 未记录 | 每卡 evidence block、reviewer 签字、feature/proof 分离、下一步明确 |
+| <a id="step-sc-37"></a>SC-37 | crate negative tests、integration fixtures | SC-12,SC-13,SC-15,SC-18,SC-21,SC-31 | 每类越权、重放、泄露、TOCTOU、删除和入口绕过没有 zero-effect 证明 | deny-first matrix、稳定 reason、handler/provider dispatch count 为零 |
+| <a id="step-sc-38"></a>SC-38 | property/fuzz/serialization/replay tests | SC-02,SC-05,SC-09,SC-12,SC-31 | 随机 payload、截断事件、重复 frame、乱序 cursor、unknown major 导致 allow | invariant/property、fuzz corpus、upcaster 和 replay determinism |
+| <a id="step-sc-39"></a>SC-39 | security red-team/eval fixtures | SC-01,SC-20,SC-24,SC-26,SC-30 | prompt injection、间接注入、secret exfil、恶意插件/MCP 描述能触发 effect | attack corpus、预期 deny/approval/unknown、无真实 secret/外部 effect |
+| <a id="step-sc-40"></a>SC-40 | capacity/resource fault injection | SC-16,SC-22,SC-32 | 无界 queue、输出洪泛、磁盘满、clock rollback、provider 429/5xx 后越额 | bounded latency/queue/bytes、backpressure、恢复后 reservation 无泄漏 |
+| <a id="step-sc-41"></a>SC-41 | .github/workflows、release scripts、security gate | SC-28,SC-29,SC-34,SC-37,SC-40 | fmt/test/scan 失败仍发布；只跑 happy path；artifact 无签名/manifest | CI 阻断规则、offline focused commands、签名/审计/证据检查 |
+| <a id="step-sc-42"></a>SC-42 | scripts smoke、recovery/retention rehearsal | SC-23,SC-32,SC-33,SC-41 | 重启/恢复/删除/重放后丢事实、旧租约继续 effect、retention 破坏 evidence | local durable rehearsal、quarantine/restore/reconcile、限制清单 |
+| <a id="step-sc-43"></a>SC-43 | CURRENT_STATUS.md、module map、review record | SC-34,SC-35,SC-36,SC-41,SC-42 | 只因卡片完成或单测通过就 Promote；limitations 未记录 | 每卡 evidence block、reviewer 签字、feature/proof 分离、下一步明确 |
 
 ## 8. 执行波次、依赖和现有专项接点
 
