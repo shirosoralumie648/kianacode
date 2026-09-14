@@ -93,6 +93,24 @@ limitations: no focused RED/GREEN run or complete regression on a stable impleme
 reviewer: Codex root source review plus independent read-only roadmap_review agent; no independent runtime validation or human acceptance
 ```
 
+### P0-J1-05a model-config wall-time regression evidence (2026-09-14)
+
+```text
+source_snapshot: dd6a8d5cde8da4e10ede0479109a0ba7eaaf086f; kiana-daemon/src/lib.rs and kiana-daemon/tests/daemon_host.rs
+worktree_status: committed on master and pushed to origin/master; documentation backfill is the only follow-up change in this step
+command_argv:
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo stable; offline dependency cache; no test binaries executed
+fixture or cassette: daemon model-config construction with fake provider; wall-time environment values `not-a-number` and `1`
+exit_code: 0 for compile, format, and diff checks; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status change: P0-J1-05a implementation completed. `DaemonHost::local_with_model_config` now parses the full `RuntimeConfig`, so `KIANA_HARNESS_WALL_TIME_MS` is preserved and invalid values fail before model setup. Added daemon acceptance coverage for invalid configuration and wall-time exhaustion with no completion event.
+proof-level change: source plus compile/static-check evidence only; no local_behavior promotion until the remote CI job supplies its test receipt
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; the next step P0-J1-05b still needs product-path role-limit behavior coverage
+reviewer: Codex root implementation review; read-only role/wall-time audits; no runtime test reviewer
+```
+
 ### Run state event projection evidence (2026-09-10)
 
 ```text
