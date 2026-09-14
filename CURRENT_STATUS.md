@@ -169,6 +169,30 @@ limitations: runtime denial/zero-handler-count proof for one shared three-entry 
 reviewer: Codex root source review; no runtime test reviewer
 ```
 
+### ER-00 Event/Receipt/Recovery fact-boundary baseline evidence (2026-09-14)
+
+```text
+source_snapshot: 0a29de510c240584a972dad6ef14c4ca6a0dfced; docs/roadmap/event-receipt-recovery-baseline.md; docs/module-map.md; kiana-domain/src/{journal,states}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/{journal_core,jsonl,memory}.rs; kiana-core/src/{events,history,projection,receipts,recovery}.rs; kiana-daemon/src/{approval_store,journal_approvals,run_stream}.rs; kiana-query/src/index.rs
+worktree_status: source snapshot was clean and pushed before this documentation follow-up; baseline matrix, module-map, roadmap and status backfill are the step documentation commit
+command_argv:
+  git rev-parse HEAD
+  git status --short
+  sha256sum kiana-eventlog/src/{lib,event_store_core,journal_core,jsonl,memory}.rs kiana-domain/src/{journal,states}.rs kiana-core/src/{events,receipts,projection,recovery,history}.rs kiana-daemon/src/{approval_store,journal_approvals,run_stream}.rs kiana-query/src/index.rs
+  rg -o --no-filename '"(?:request|run|approval|capability|execution|invocation|model|resource|workspace|memory|hook|mcp|swarm|workflow|company|connector|extension|session|data|result|cell|packet|command|process|provider|usage|failure|review|closing|feedback|version|trace|golden|human|authority|budget|lease|artifact|reconciliation|recovery)\.[A-Za-z0-9_.-]+"' kiana-core/src kiana-daemon/src kiana-eventlog/src kiana-domain/src | tr -d '"' | sort -u | wc -l
+  rg -c '^async fn ' kiana-core/tests/control_plane.rs kiana-daemon/tests/daemon_host.rs kiana-client/tests/client_methods.rs
+  cargo check -p kiana-eventlog --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked/offline dependency resolution; source inspection and static compilation only; no test binaries executed
+fixture or cassette: source-indexed run/tool/approval/unknown ID chain; EventStore Memory/JSONL capability matrix; cache-vs-fact matrix; source-indexed denial, read-failure, missing-terminal and restart receipt assertions; no runtime fixture executed locally
+exit_code: source inspection=0; eventlog/core static checks=0; format/diff checks=0; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status_change: ER-00 fact-boundary baseline completed. Snapshot, hashes, EventStore capabilities, fact ownership, command/event/effect/receipt boundaries, minimum correlation chain, cache distinction and failure classes are recorded. No implementation status promoted for ER-01 or later.
+proof-level_change: source plus compile/static-check evidence only; no local_behavior, durable, live or physical promotion
+limitations: event-literal count includes action/schema compatibility strings and is not a registry; some legacy events lack complete causation/typed-turn metadata; Memory is non-durable; JSONL capability flags are source declarations rather than runtime durability proof; external effect exactly-once and reconciliation remain later ER steps; CI runtime evidence was intentionally not awaited
+reviewer: Codex root source review; no runtime test reviewer
+```
+
 ### Run state event projection evidence (2026-09-10)
 
 ```text

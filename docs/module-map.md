@@ -115,6 +115,42 @@ DaemonHost 负责组装，ControlPlane 负责决策和推进状态，Harness 负
 - Provider 的模型凭据、DaemonHost 的本地主体、Policy 的项目可信度和 Domain 的角色目录目前是分布式边界；后续实现应通过明确的配置/身份契约收敛，不能靠隐式字段约定。
 - `kiana-tools`、`kiana-commands`、旧 SDK/runner 等仍包含兼容实现；排查产品行为时，应从 DaemonHost 的实际调用链追踪到具体函数。
 
+## ER-00 事实边界基线（2026-09-14）
+
+本节绑定源码快照 `0a29de510c240584a972dad6ef14c4ca6a0dfced`，只记录
+Event / Receipt / Recovery 的当前事实边界，不把后续 ER 步骤的目标写成已实现。
+可复核的文件 hash、事件 inventory 和 source-only 证据索引见
+[ER-00 基线矩阵](roadmap/event-receipt-recovery-baseline.md)。
+
+| 事实域 | 当前权威 | 只能作为派生视图或缓存的对象 |
+|---|---|---|
+| 命令提交 | `TransitionBatch`、`CommandReceipt`、`CommitOutcome`、`EventStorePort` | handler 返回值、UI command response |
+| 运行事件 | `RuntimeEvent` 写入 `MemoryEventLog` 或 `JsonlEventLog` | transcript、`RunStream`、日志和通知投递 |
+| Run/Invocation 状态 | EventLog 中的 `run.*`、`capability.*`、`approval.*`，由 core projection 折叠 | ControlPlane 内存 map、实时状态卡 |
+| Receipt | `kiana-core::receipts` 从过滤后的 EventStore 事件重建 | Receipt JSON、单次调用输出；Receipt 不证明外部效果 |
+| Approval/Recovery | approval 事件、journal approval store、run snapshot/checkpoint 与 proof | pending 列表、审批卡、Runner continuation 缓存 |
+| Context/Memory/Index | 各自的领域记录和受控 adapter | `.kiana` context/index cache、cache report、代码地图 |
+
+当前执行事实边界为：
+
+```text
+request/command -> ControlPlane admission -> EventStore commit/receipt
+  -> Broker/Runner effect -> result/terminal event -> Receipt projection
+```
+
+EventStore 端口默认对事务、command receipt、cursor 和全量读取返回明确的
+unsupported 错误；`read_all` 的 unsupported 与真实读取失败必须区分。空账本会
+得到 `receipt_not_found` 或 `run_not_found`，而不是被当成读取失败或成功。缺少或
+冲突的终态、效果已有但结果事件未提交时，Receipt/投影保持 `ResultUnknown`。
+`MemoryEventLog` 的 `durable_commits=false`；JSONL 的 atomic/durable 标志和锁、
+torn-tail 处理是 adapter 的源码能力声明，不能单独升级为已验证的磁盘恢复证明。
+
+最小关联链目前由 `request_id`、`command_id/command_digest`、`run_id`、
+`session_id`、turn payload、`capability_request_id`、`approval_id`、`event_id`、
+aggregate/stream version、idempotency key 以及 `CommandReceipt` cursor 组成。
+部分 legacy event 仍缺少完整的 causation/typed turn 链，外部 effect 的 exactly-once
+和 reconciliation 也尚未建立；这些属于 ER-01、ER-02、ER-13、ER-14+ 的后续范围。
+
 ## 如何判断完成程度
 
 这张图描述职责和边界，具体能力仍须结合证据。[状态账本](../CURRENT_STATUS.md) 记录当前源码快照、命令、测试和证明等级。规范里的 `target`、`partial`、`deferred` 或模块名称本身，都不能推断功能已经交付。

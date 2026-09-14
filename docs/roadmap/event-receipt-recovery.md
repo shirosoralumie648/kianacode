@@ -208,12 +208,12 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-00 — 固定基线与事实边界　⏳
+##### ER-00 — 固定基线与事实边界　✅
 
 - **落点：** `docs/module-map.md`、`CURRENT_STATUS.md`、`kiana-eventlog`、`kiana-core`、`kiana-domain`；关联 `CP-00`、`H01`、`CAP-00`。
-- **动作：** 记录精确 HEAD、相关 WIP 文件 hash、EventStore capabilities、已有事件 kind 和当前失败；画出 command/event/effect/receipt 四个边界。标记哪些 map 是缓存、哪些文件是事实、哪些现有测试只证明 source/local behavior。
+- **动作：** 已记录精确 HEAD、相关源文件 hash、EventStore capabilities、已有事件 kind inventory 和当前失败；已在 [ER-00 基线矩阵](event-receipt-recovery-baseline.md) 与 `docs/module-map.md` 画出 command/event/effect/receipt 四个边界，并标记缓存、事实文件和 source-only 测试索引。
 - **先拒绝：** `recovery_baseline_does_not_treat_cache_as_fact`、`empty_store_is_not_read_failure`。
-- **成功/证据：** 一个最小 run/tool/approval/unknown fixture 能列出完整 ID 链和事实来源；无代码状态提升。
+- **成功/证据：** 基线矩阵列出最小 run/tool/approval/unknown fixture 的 ID 链、事实来源、Memory/JSONL 能力和“空账本不等于读取失败”边界；本步只有文档状态提升，无代码状态提升。运行时验收由 GitHub CI 负责，本地测试按任务要求未运行。
 
 <a id="step-er-01"></a>
 
@@ -682,7 +682,7 @@ limitations: unsupported backend, unverified effect, projection lag, data bounds
 reviewer: named reviewer; self-review marked as self-review
 ```
 
-本专项本次只完成研究和路线图追加：没有运行产品测试、没有提升任何原 P/CP/H/CAP/CO 状态，也没有提交、推送、合并或修改产品源码。后续实施必须从 `ER-00` 重新采集稳定快照；WIP 中已有的 journal/recovery 方法只能作为待验收实现，不得直接抵扣本节步骤。
+专项设计阶段的历史说明（2026-09-14 之前）是：只完成研究和路线图追加，未运行产品测试，也未提升原 P/CP/H/CAP/CO 状态。ER-00 已按总队列单独完成基线文档回填并提交推送；后续实现仍必须从新的精确快照重新核验，WIP 中已有的 journal/recovery 方法只能作为待验收实现，不得直接抵扣本节步骤。
 
 ---
 
