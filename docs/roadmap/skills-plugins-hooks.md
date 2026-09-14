@@ -98,7 +98,7 @@ flowchart TD
 
 
 
-#### EXT-00 · 基线与决策回执　⏳
+#### EXT-00 · 基线与决策回执　✅
 
 记录 `git rev-parse HEAD`、工作树状态、研究文档哈希和 agent WIP 文件清单，把“现有行为 / 目标行为 / 未证明”分成三列；对 P4-L5、P4-L6、CP-25、H29、CAP-18、CAP-20–22、CAP-30、CAP-34 做交叉引用，标出重复字段、命名冲突和要复用的 port；产出 `extension-gap-matrix` 与 schema 变更清单。本卡不改变产品状态。
 

@@ -147,7 +147,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
-### CM-00 Context/Memory baseline evidence (2026-09-14)
+### EXT-00 Skills/Plugins/Hooks baseline evidence (2026-09-14)
+
+```text
+source_snapshot: c8e9578ab9e0d8a9c299a27b7ace0e9530f8a8c4 (CM-00 closure); docs/roadmap/skills-plugins-hooks-baseline.md; docs/skills-plugins-hooks-design-research.md (hashed); kiana-skills/src/{lib,types,loader,bundled,dynamic,plugins,mcp}.rs; kiana-daemon/src/{harness_skills,extensions,pre_tool_hooks}.rs; kiana-domain/src/extensions.rs
+worktree_status: source snapshot was clean and pushed; baseline gap-matrix doc plus roadmap/status backfill is this step's commit
+command_argv:
+  git rev-parse HEAD
+  sha256sum docs/skills-plugins-hooks-design-research.md kiana-skills/src/lib.rs kiana-skills/src/types.rs kiana-skills/src/loader.rs kiana-skills/src/bundled.rs kiana-skills/src/dynamic.rs kiana-skills/src/plugins.rs kiana-skills/src/mcp.rs kiana-daemon/src/harness_skills.rs kiana-daemon/src/extensions.rs kiana-daemon/src/pre_tool_hooks.rs kiana-domain/src/extensions.rs
+  rg -n 'activate_conditional_skills_for_paths|register_extension_static' --type rust
+  rg -c '#\[test\]|#\[tokio::test\]' over surveyed files
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; source inspection only; no product code modified
+fixture or cassette: none; documentation-only baseline with adversarially verified gap matrix
+exit_code: source inspection=0; format check=0; local tests deliberately not run per user instruction; GitHub CI not required for a docs-only step but the push still triggers it without being awaited
+status_change: EXT-00 baseline completed. Gap matrix records: no SkillDescriptor type (Command has no version/namespace/content-hash; Frontmatter.version parsed but never propagated); static registry has no generation/mtime invalidation (clear_caches only); dynamic.rs ACTIVATED_SKILL_NAMES write-only and activate_conditional_skills_for_paths has ZERO callers (path-gated skills never activate); plugins.rs loads plain-JSON manifests with no signature verification (parallel to ExtensionRegistry's signed path); broker register_extension_static and ExtensionHandler are dead code (non-Skill components stay staged); kiana-query stop_hooks merges without dedup (same command can run multiple times); daemon blocks UpdateInput while the query-side runner honors it (semantic split); hook timeout/nonzero branches and the replay digest guard have no daemon tests; kiana-domain extensions.rs (339 lines) has zero tests. Architecture blockers checked and clear: no second runner loop, no entry-point authorization, Prompt fields are not a capability source (allowed-tools not in policy is current fact, PromptBundle.extensions unconsumed in authorization paths).
+proof-level_change: source-only evidence; no local_behavior promotion
+limitations: dead-code findings are coverage/wiring facts, not defect claims; the two parallel plugin systems (plugins.rs vs ExtensionRegistry) need a convergence decision in EXT-01 before migration; line references drift as EXT-01+ lands
+reviewer: multi-agent source survey with adversarial gap verification (25 agents); no runtime test reviewer
+```
+
+
 
 ```text
 source_snapshot: e098cc8fcb84bcb2b062f07f054bcbbe02fc1f6d (P4-J7-04 closure); docs/roadmap/context-memory-baseline.md; kiana-query/tests/context_memory_baseline.rs; the 12 hashed entry files listed in the baseline doc §1
