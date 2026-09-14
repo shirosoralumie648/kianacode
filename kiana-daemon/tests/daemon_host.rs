@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
-use kiana_daemon::{DaemonHost, ProjectTrustAuthority};
+use kiana_daemon::{DaemonHost, LocalModelConfig, ProjectTrustAuthority};
 use kiana_protocol::{
     ApprovalChallenge, ApprovalDecision, ExecutionStatus, PermissionProfile, RequestEnvelope,
     RequestMetadata, ResponseEnvelope, RoleSpec, RunId, RunStreamEvent, SessionId, WorkPacket,
@@ -374,6 +374,65 @@ async fn default_harness_max_steps_does_not_apply_role_budget() {
 
     assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
     assert_eq!(response.output["output"]["text"], "architecture mapped");
+}
+
+#[test]
+fn model_config_rejects_invalid_wall_time_budget() {
+    let _environment_lock = environment_lock();
+    let home = temp_project();
+    let _home = EnvGuard::set("KIANA_HOME", &home);
+    let _wall_time = EnvGuard::set("KIANA_HARNESS_WALL_TIME_MS", "not-a-number");
+
+    let result = DaemonHost::local_with_model_config(LocalModelConfig {
+        provider: Some("fake".to_owned()),
+        ..LocalModelConfig::default()
+    });
+    let error = match result {
+        Ok(_) => panic!("invalid wall-time configuration must fail before model setup"),
+        Err(error) => error,
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "runtime_config_invalid:KIANA_HARNESS_WALL_TIME_MS:expected_positive_integer"
+    );
+}
+
+#[tokio::test]
+async fn model_config_wall_time_budget_fails_closed() {
+    let _environment_lock = environment_lock();
+    let home = temp_project();
+    let _home = EnvGuard::set("KIANA_HOME", &home);
+    let _wall_time = EnvGuard::set("KIANA_HARNESS_WALL_TIME_MS", "1");
+    let root = temp_project();
+    let host = Arc::new(
+        DaemonHost::local_with_model_config(LocalModelConfig {
+            provider: Some("fake".to_owned()),
+            ..LocalModelConfig::default()
+        })
+        .expect("model-config daemon"),
+    );
+    let client = KianaClient::new(InProcessTransport { host: host.clone() });
+
+    let response = client
+        .run(trusted_metadata_in(&root), "return a short response", None)
+        .await
+        .expect("request response");
+
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("run_budget_exceeded:wall_time")
+    );
+    let events = host
+        .persisted_events()
+        .await
+        .expect("event store")
+        .expect("persistent event store");
+    assert!(events.iter().any(|event| {
+        event.kind == "run.failed" && event.data["error"] == "run_budget_exceeded:wall_time"
+    }));
+    assert!(!events.iter().any(|event| event.kind == "run.completed"));
 }
 
 #[tokio::test]

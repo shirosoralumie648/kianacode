@@ -280,10 +280,11 @@ impl DaemonHost {
     }
 
     pub fn local_with_model_config(config: LocalModelConfig) -> Result<Self, PortError> {
+        let runtime_config = runtime_config_from_env()?;
         Self::with_runner_and_events(
             Arc::new(KianaHarness::with_config(
                 model_client::from_config(config),
-                harness_runtime_config_from_env()?.into_runtime_config(None),
+                runtime_config,
             )),
             Arc::new(JsonlEventLog::open_default()?),
         )
