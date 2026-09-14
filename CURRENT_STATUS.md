@@ -111,6 +111,24 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; read-only role/wall-time audits; no runtime test reviewer
 ```
 
+### P0-J1-05b role max-steps product-path evidence (2026-09-14)
+
+```text
+source_snapshot: bd9dea0; kiana-core/src/lifecycle.rs, kiana-core/src/receipts.rs, kiana-runner/src/harness.rs, kiana-daemon/tests/daemon_host.rs
+worktree_status: committed on master and pushed to origin/master; roadmap and CURRENT_STATUS backfill is the only follow-up change in this step
+command_argv:
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo fmt --all --check
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo stable; offline dependency cache; no test binaries executed
+fixture or cassette: RoleCountingModel through one DaemonHost for architect/builder role snapshots; environment max-step override; RoleIsolationModel covering wall-time Continue reset and independent second run; runner Start command cap differs from constructor cap
+exit_code: 0 for compile, format, and diff checks; local tests deliberately not run per user instruction; GitHub CI triggered by push and not awaited
+status change: P0-J1-05b implementation and planned product-path coverage completed. ControlPlane resolves the role max-step snapshot (environment override first), records it in run.authorized, passes it through Start, and the harness enforces the per-run minimum of command and constructor caps. Receipt projection exposes the authorized max-step value. Continue resets only the selected run's step/clock state and preserves its cap; independent runs receive independent counters.
+proof-level change: source plus compile/static-check evidence only; no local_behavior promotion until GitHub CI supplies the test receipt
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; model-counting behavior, Receipt assertions, and Continue isolation remain remote-CI evidence; wall-time policy still has the separate assignment bound documented by the existing runtime budget code
+reviewer: Codex root implementation review; read-only role-limit audit; no runtime test reviewer
+```
+
 ### Run state event projection evidence (2026-09-10)
 
 ```text

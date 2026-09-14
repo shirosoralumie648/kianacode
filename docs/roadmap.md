@@ -73,7 +73,7 @@
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ⏳ |
 | `P0-J1-04` | P0 | J1 Runtime | `P0-J1-01`–`03` | 保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 语义 | ⏳ |
 | `P0-J1-05a` | P0 | J1 Runtime | — | 重复工具调用与 run 级 wall-time 预算 fail-closed，阈值进 `RuntimeConfig` 且在产品路径生效 | ✅ |
-| `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | 角色步数经 ControlPlane 命令在 harness 生效；环境覆盖、run 间隔离与原有 wall-time 均有行为断言 | 🔄 |
+| `P0-J1-05b` | P0 | J1 Runtime | `P0-J1-05a` | 角色步数经 ControlPlane 命令在 harness 生效；环境覆盖、run 间隔离与原有 wall-time 均有行为断言 | ✅ |
 | `P0-J7-01` | P0 | J7 Provider/Output | — | 账本粒度、不完整流 fail-closed、默认开启均已落地并有证据块 | ✅ |
 | `P0-K1-01` | P0 | K1 Identity | `P0-A-01a` | 由受保护入口解析身份；服务端从不可变 assignment 派生 role/department | ⏳ |
 | `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ⏳ |
@@ -173,7 +173,7 @@
 | 006 | W0 | 基础 | [`P1-H-02`](#step-p1-h-02) | P1 基础 · 参数 schema 校验 | — | ✅ | [基础卡](#step-p1-h-02) |
 | 007 | W0 | 基础 | [`P2-M5-02`](#step-p2-m5-02) | P2 基础 · 重启后列出历史会话 | `P0-G-01` | ✅ | [基础卡](#step-p2-m5-02) |
 | 008 | W0 | 基础 | [`P0-J1-05a`](#step-p0-j1-05a) | P0 基础 · 重复调用检测与 wall-time 预算接线 | — | ✅ | [基础卡](#step-p0-j1-05a) |
-| 009 | W0 | 基础 | [`P0-J1-05b`](#step-p0-j1-05b) | P0 基础 · 按角色的 max_steps | `P0-J1-05a` | 🔄 | [基础卡](#step-p0-j1-05b) |
+| 009 | W0 | 基础 | [`P0-J1-05b`](#step-p0-j1-05b) | P0 基础 · 按角色的 max_steps | `P0-J1-05a` | ✅ | [基础卡](#step-p0-j1-05b) |
 | 010 | W0 | 基础 | [`P1-J3-01`](#step-p1-j3-01) | P1 基础 · Memory 写入候选制 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-j3-01) |
 | 011 | W0 | 专项 | [`CP-00`](roadmap/control-plane.md#step-cp-00) | ControlPlane · 固定基线，列出所有有后果的入口 | — | ⏳ | [专项卡](roadmap/control-plane.md#step-cp-00) |
 | 012 | W0 | 专项 | [`ER-00`](roadmap/event-receipt-recovery.md#step-er-00) | Event / Receipt / Recovery · 固定基线与事实边界 | — | ⏳ | [专项卡](roadmap/event-receipt-recovery.md#step-er-00) |
@@ -933,8 +933,8 @@
 |---|---|---|---|
 | 核对基线 | 源码快照与 WIP | `db77c24` 是本次源码审查基线；工作树另有恢复、取消、记忆、提示词等 WIP，文档已按用户指示直接回填 | 测试前记录相关文件快照与 WIP 清单；逐项核验新增实现，不批量套用历史完成态 |
 | 当前 1 | `P0-J1-05a` 回归 | 已修复 `local_with_model_config` 丢失 wall-time 配置的问题，并补上非法配置与预算耗尽的 daemon 级验收；源码提交 `dd6a8d5` 已推送，CI 尚未等待 | 保留历史 wall-time 证据；远端 CI 负责行为测试回执 |
-| 当前 2 | `P0-J1-05b` 接线 | `db77c24` 的 harness 丢弃命令限额；未提交 WIP 已补 core 角色选择与 per-run 接线，真实产品链尚待验收 | 先做下表中的真实链路负向验收；核验角色/环境/构造上限的组合，保住 `05a` |
-| 当前之后 | `P1-J3-01` | 已有实施计划 `superpowers/plans/2026-09-10-memory-j3-01-j3-02.md`；共享 WIP 不能视为已验收 | 保留记忆线原顺序；`05b` 收口后单独推进候选写入，先覆盖伪造来源、自批、ACL 与旧记录降级 |
+| 当前 2 | `P0-J1-05b` 接线 | `bd9dea0` 已补真实 DaemonHost 角色/环境/Continue 产品链断言，并加强 Start 命令限额；已推送，CI 尚未等待 | 保留每 run 的角色快照、构造上限取 `min`、wall-time Continue 语义；远端 CI 负责行为回执 |
+| 当前之后 | `P1-J3-01` | 已有实施计划 `superpowers/plans/2026-09-10-memory-j3-01-j3-02.md`；共享 WIP 不能视为已验收 | `05b` 收口后单独推进候选写入，先覆盖伪造来源、自批、ACL 与旧记录降级 |
 | 恢复线重开 | `P0-G-04` | 历史证据只覆盖 Run 只读投影；WIP 已新增 Invocation 折叠与恢复代码，产品消费、未决集合及缓存替换尚待证明 | 保留完整退出条件；依赖此单元的条目不得因历史 Run 测试通过而视为已满足依赖 |
 
 **当前切片的验收缺口（以下名称为待补/待加强，不代表已有测试通过）**
@@ -979,6 +979,7 @@
 | 2026-09-10 | 新进程凭事件重建 Run 状态（projection，矛盾终态 fail-closed）；证据块「Run state event projection evidence (2026-09-10)」 | `3a319be` + `c5de094` → CI `34500579350` ✅ |
 | 2026-09-10 | `P0-J1-05a` 收口：wall-time 预算接线进产品路径（`KIANA_HARNESS_WALL_TIME_MS` / `KIANA_HARNESS_MAX_STEPS`，默认不变）；直跑 `34381844056` 红于 CI 环境 apt 问题（`c83a357`/`5f9ce29` 修复后覆盖跑绿）；证据块「Run-level wall-time budget evidence (2026-09-10)」 | `409cfc7` + `747ff8b` → 覆盖 CI `34389804309` ✅ |
 | 2026-09-14 | `P0-J1-05a` 回归：model-config daemon 复用完整 `RuntimeConfig`，wall-time 非法值与耗尽路径 fail-closed 验收已入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | `dd6a8d5` |
+| 2026-09-14 | `P0-J1-05b` 收口：角色/环境 max_steps 经 DaemonHost 产品链生效，Receipt 记录授权上限，Start 命令与 Continue/run 隔离行为断言入库；不运行本地测试，静态检查通过，CI 已触发但未等待 | `bd9dea0` |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1296,14 +1297,14 @@
 
 <a id="step-p0-j1-05b"></a>
 
-### P0-J1-05b 按角色的 max_steps　🔄
+### P0-J1-05b 按角色的 max_steps　✅
 
-- **现状**：`db77c24` 丢弃 Start 限额且未传角色快照；本次观察 WIP 已在 core 选择角色限额、harness 按 run 保存和消费，并与构造上限取 `min`；原 helper / 构造参数测试尚不足以证明完整产品链。
-- **做什么**：沿既有 Start 字段将服务端角色限额传入每个 run；显式环境覆盖优先，未覆盖时使用角色快照，无角色的底层默认保持 32。
-- **风险**：必须断言模型调用次数和拒绝结果，避免 helper 通过但执行仍无约束；不以改变共享 harness 全局配置实现不同角色限额。
-- **验收**：`role_max_steps_reaches_the_harness`（待补）、`start_command_max_steps_limits_that_run`（加强），及 §2 的环境覆盖、run/Continue 隔离行为断言。
+- **现状**：`bd9dea0` 已将角色快照经 ControlPlane 的 Start 命令传入 harness；每个 run 保存 `min(command, harness)` 上限，Continue 只重置该 run 的步数与时钟，不共享其他 run 的预算。
+- **做什么**：保持角色上限、显式环境覆盖优先、无角色默认 32，以及构造上限与 Start 命令的交集语义。
+- **风险**：角色/环境/Continue 的行为依赖模型调用计数与 Receipt；测试只在 GitHub CI 执行，本地仅做静态编译。
+- **验收**：`role_max_steps_reaches_the_harness`、`start_command_max_steps_limits_that_run`、`environment_max_steps_overrides_role_in_product_run`、`role_step_limits_are_isolated_across_runs_and_continue`。
 - **依赖 / 边界**：依赖 `P0-J1-05a`；不改 `RoleSpec` 现有字段语义。
-- **依据**：`company-os-implementation-outline.md` §Slice J1；现有提交 `db77c24`；账本「Roadmap source reconciliation evidence (2026-09-12)」，尚无本单元完成证据。
+- **依据**：`company-os-implementation-outline.md` §Slice J1｜`bd9dea0`；本次证据块「P0-J1-05b role max-steps product-path evidence (2026-09-14)」。
 
 
 
