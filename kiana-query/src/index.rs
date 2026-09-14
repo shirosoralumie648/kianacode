@@ -2420,7 +2420,10 @@ mod tests {
         assert_eq!(first.artifact_graph.nodes[0].path, "src/lib.rs");
         assert_eq!(first.artifact_graph.nodes[0].start_line, 1);
         assert_eq!(first.artifact_graph.nodes[0].end_line, 1);
-        assert_eq!(first.artifact_graph.nodes[0].content_hash.len(), "sha256:".len() + 64);
+        assert_eq!(
+            first.artifact_graph.nodes[0].content_hash.len(),
+            "sha256:".len() + 64
+        );
         assert_eq!(first.artifact_graph.edges.len(), 1);
         assert_eq!(first.artifact_graph.edges[0].source, "query:release");
         assert_eq!(
