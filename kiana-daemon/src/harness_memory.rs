@@ -772,10 +772,25 @@ fn read_records_file(file: &File) -> Result<Vec<MemoryRecord>, PortError> {
         }
         let raw = kiana_domain::parse_bounded_json(line.as_bytes())
             .map_err(|_| failed("memory_record_invalid"))?;
-        let record: MemoryRecord =
-            serde_json::from_value(raw).map_err(|_| failed("memory_record_invalid"))?;
+        let mut record: MemoryRecord =
+            serde_json::from_value(raw.clone()).map_err(|_| failed("memory_record_invalid"))?;
         if record.schema != MEMORY_RECORD_SCHEMA && record.schema != MEMORY_RECORD_SCHEMA_V2 {
             return Err(failed("memory_record_schema_unsupported"));
+        }
+        // v1 predates admission/state/classification fields. Keep existing records visible
+        // while leaving origin Unknown, so legacy source strings cannot become provenance.
+        if record.schema == MEMORY_RECORD_SCHEMA {
+            if raw.get("admission_state").is_none() {
+                record.admission_state = MemoryAdmission::Qualified;
+            }
+            if raw.get("state").is_none() {
+                record.state = MemoryState::Active;
+            }
+            if raw.get("classification").is_none() {
+                if let Some(collection) = MemoryCollection::parse(&record.collection) {
+                    record.classification = MemoryClassification::for_collection(&collection);
+                }
+            }
         }
         if let Some(previous) = records.get(&record.id) {
             if record.revision != previous.revision.saturating_add(1)

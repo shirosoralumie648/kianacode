@@ -3368,6 +3368,27 @@ fn memory_write_cassette(collection: &str, text: &str, source: &str) -> serde_js
     ])
 }
 
+fn spoofed_memory_write_cassette() -> serde_json::Value {
+    json!([
+        {
+            "text": "writing candidate memory",
+            "tool_calls": [{
+                "id": "c-mem-candidate",
+                "name": "memory.write",
+                "arguments": {
+                    "collection": "department:planning",
+                    "text": "candidate memory requires approval",
+                    "source": "model-claimed-user-source",
+                    "origin": "user",
+                    "admission_state": "qualified",
+                    "state": "active"
+                }
+            }]
+        },
+        { "text": "wrote candidate memory" }
+    ])
+}
+
 fn seed_memory_record(path: &Path, collection: &str, layer: &str, text: &str, source: &str) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -3392,6 +3413,13 @@ fn project_memory_path(root: &Path) -> PathBuf {
         .join("memory")
         .join("project")
         .join("project.jsonl")
+}
+
+fn planning_memory_path(root: &Path) -> PathBuf {
+    root.join(".kiana")
+        .join("memory")
+        .join("department")
+        .join("planning.jsonl")
 }
 
 #[tokio::test]
@@ -3423,8 +3451,134 @@ async fn builder_project_search_hits_land_on_receipt() {
     assert_eq!(hits[0]["layer"], "project");
     assert_eq!(hits[0]["collection"], "project");
     assert_eq!(hits[0]["source"], "docs/acceptance.md");
-    assert_eq!(hits[0]["verified"], true);
+    assert_eq!(hits[0]["verified"], false);
+    assert_eq!(hits[0]["provenance"], "unverifiable");
     assert!(!root.join("GOLDEN_PATH.txt").exists());
+}
+
+#[tokio::test]
+async fn model_written_memory_stays_unsearchable_until_approved() {
+    let _environment_lock = environment_lock();
+    let root = temp_project();
+
+    let writer_host = scripted_host(spoofed_memory_write_cassette());
+    let writer = KianaClient::new(InProcessTransport { host: writer_host });
+    let mut writer_metadata = trusted_write_metadata_in(&root);
+    writer_metadata.assign_role(&RoleSpec::pm());
+    let written = writer
+        .run(
+            writer_metadata,
+            "remember this planning candidate",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(written.status, ExecutionStatus::Completed, "{written:?}");
+
+    let raw_record = fs::read_to_string(planning_memory_path(&root))
+        .unwrap()
+        .lines()
+        .next()
+        .map(str::to_owned)
+        .expect("candidate record");
+    let record: serde_json::Value = serde_json::from_str(&raw_record).unwrap();
+    let record_id = record["id"].as_str().unwrap().to_owned();
+    assert_eq!(record["origin"], "model");
+    assert_eq!(record["admission_state"], "candidate");
+    assert_eq!(record["state"], "draft");
+
+    let search_host = scripted_host(memory_search_cassette(
+        "department:planning",
+        "candidate memory",
+    ));
+    let search = KianaClient::new(InProcessTransport { host: search_host });
+    let mut search_metadata = trusted_write_metadata_in(&root);
+    search_metadata.assign_role(&RoleSpec::pm());
+    let before_review = search
+        .run(
+            search_metadata,
+            "search planning memory before approval",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        before_review.status,
+        ExecutionStatus::Completed,
+        "{before_review:?}"
+    );
+    assert!(
+        before_review.output["memory_hits"]
+            .as_array()
+            .is_some_and(Vec::is_empty),
+        "{before_review:?}"
+    );
+
+    let review_host = scripted_host(json!([{"text": "unused"}]));
+    let review = KianaClient::new(InProcessTransport { host: review_host });
+    let mut review_metadata = trusted_write_metadata_in(&root);
+    review_metadata.assign_role(&RoleSpec::pm());
+    let awaiting = review
+        .command(
+            review_metadata,
+            "memory.review",
+            json!({
+                "action": "promote",
+                "collection": "department:planning",
+                "record_id": record_id,
+                "reason": "operator approved planning candidate",
+                "expected_revision": 1
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting.status,
+        ExecutionStatus::AwaitingApproval,
+        "{awaiting:?}"
+    );
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+    let mut approval_metadata = trusted_write_metadata_in(&root);
+    approval_metadata.assign_role(&RoleSpec::pm());
+    let approved = review
+        .approval_decision_with_proof(
+            approval_metadata,
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+            Some(challenge.request_hash.clone()),
+            Some(challenge.nonce.clone()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(approved.status, ExecutionStatus::Completed, "{approved:?}");
+
+    let search_host = scripted_host(memory_search_cassette(
+        "department:planning",
+        "candidate memory",
+    ));
+    let search = KianaClient::new(InProcessTransport { host: search_host });
+    let mut search_metadata = trusted_write_metadata_in(&root);
+    search_metadata.assign_role(&RoleSpec::pm());
+    let after_review = search
+        .run(
+            search_metadata,
+            "search planning memory after approval",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        after_review.status,
+        ExecutionStatus::Completed,
+        "{after_review:?}"
+    );
+    let hits = after_review.output["memory_hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1, "{after_review:?}");
+    assert_eq!(hits[0]["id"], record_id);
+    assert_eq!(hits[0]["origin"], "model");
+    assert_eq!(hits[0]["admission_state"], "qualified");
+    assert_eq!(hits[0]["state"], "active");
 }
 
 fn spoofed_pm_memory_search_cassette() -> serde_json::Value {
