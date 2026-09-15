@@ -1,4 +1,113 @@
 use super::*;
+use kiana_domain::{
+    DataGovernanceSnapshot, DataPayloadState, DataPolicy, RuntimeEvent, MAX_SOURCE_EVENT_IDS,
+};
+use serde_json::Value;
+use std::collections::HashSet;
+
+/// Rebuild data visibility and derived-store propagation from a server-owned policy and the
+/// committed invalidation facts. This is a projection only: it never erases EventLog facts.
+pub fn project_data_governance_snapshot(
+    policy: &DataPolicy,
+    project_ref: &str,
+    events: &[RuntimeEvent],
+    now_ms: u64,
+) -> Result<DataGovernanceSnapshot, String> {
+    if events.is_empty() {
+        return Err("data_governance_source_empty".to_owned());
+    }
+    let first_cursor = events
+        .first()
+        .and_then(|event| event.data.get("source_cursor"))
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    if first_cursor == 0 || events.len() > MAX_SOURCE_EVENT_IDS {
+        return Err("data_governance_source_cursor_invalid".to_owned());
+    }
+    let mut ids = Vec::with_capacity(events.len());
+    let mut seen = HashSet::new();
+    let mut revoked_sources = HashSet::new();
+    let mut pending_invalidation = false;
+    let mut last_cursor = first_cursor;
+    for (index, event) in events.iter().enumerate() {
+        if !seen.insert(event.event_id.to_string()) {
+            return Err("data_governance_source_event_duplicate".to_owned());
+        }
+        ids.push(event.event_id);
+        let expected = first_cursor
+            .checked_add(index as u64)
+            .ok_or_else(|| "data_governance_source_cursor_overflow".to_owned())?;
+        last_cursor = expected;
+        if let Some(cursor) = event.data.get("source_cursor").and_then(Value::as_u64) {
+            if cursor != expected {
+                return Err("data_governance_source_cursor_gap".to_owned());
+            }
+        }
+        if event.kind == "data.revocation_requested" || event.kind == "workspace.restore_requested"
+        {
+            pending_invalidation = true;
+        }
+        let output = if event.kind == "execution.result_committed" {
+            event
+                .data
+                .get("result")
+                .and_then(|result| result.get("output"))
+        } else {
+            Some(&event.data)
+        };
+        if let Some(output) = output {
+            if output.get("schema").and_then(Value::as_str)
+                == Some("kiana.data-governance-result.v1")
+            {
+                pending_invalidation = false;
+                if let Some(paths) = output
+                    .pointer("/policy/revoked_sources")
+                    .and_then(Value::as_array)
+                {
+                    revoked_sources
+                        .extend(paths.iter().filter_map(Value::as_str).map(str::to_owned));
+                }
+            }
+        }
+    }
+    let mut snapshot =
+        kiana_domain::project_data_governance(policy, project_ref, last_cursor, ids, now_ms)?;
+    if pending_invalidation {
+        for observation in &mut snapshot.observations {
+            observation.payload = DataPayloadState::Unknown;
+        }
+        for state in snapshot.derived_store_states.values_mut() {
+            *state = DataPayloadState::Unknown;
+        }
+    } else if !revoked_sources.is_empty() {
+        for observation in &mut snapshot.observations {
+            if revoked_sources.contains(&observation.source_ref) {
+                observation.payload = DataPayloadState::Revoked;
+            }
+        }
+        if snapshot
+            .observations
+            .iter()
+            .any(|observation| observation.payload == DataPayloadState::Revoked)
+        {
+            for state in snapshot.derived_store_states.values_mut() {
+                *state = DataPayloadState::Revoked;
+            }
+        }
+    }
+    snapshot.snapshot_digest = snapshot.digest();
+    snapshot.validate()?;
+    Ok(snapshot)
+}
+
+pub fn project_data_governance(
+    policy: &DataPolicy,
+    project_ref: &str,
+    events: &[RuntimeEvent],
+    now_ms: u64,
+) -> Result<DataGovernanceSnapshot, String> {
+    project_data_governance_snapshot(policy, project_ref, events, now_ms)
+}
 impl ControlPlane {
     pub(crate) async fn begin_project_invalidation(
         &self,
@@ -249,5 +358,21 @@ impl ControlPlane {
             }
         }
         Ok(())
+    }
+
+    /// Rebuild a scoped data-governance projection from committed facts and a server-owned
+    /// policy. The policy is supplied by the daemon adapter; this method never reads arbitrary
+    /// files or mutates the policy itself.
+    pub async fn data_governance_snapshot(
+        &self,
+        policy: &DataPolicy,
+        project_ref: &str,
+        now_ms: u64,
+    ) -> Result<DataGovernanceSnapshot, CoreError> {
+        let events = self.read_all_events().await?.ok_or_else(|| {
+            PortError::Unavailable("data_governance_read_all_unsupported".to_owned())
+        })?;
+        project_data_governance_snapshot(policy, project_ref, &events, now_ms)
+            .map_err(|error| PortError::Failed(error).into())
     }
 }

@@ -76,11 +76,16 @@ fn read_policy_file(file: &mut File) -> Result<DataPolicy, PortError> {
         .split(|byte| *byte == b'\n')
         .filter(|line| !line.is_empty())
     {
-        let next: DataPolicy =
+        let mut next: DataPolicy =
             serde_json::from_slice(line).map_err(|_| failed("governance_policy_invalid"))?;
         if next.revision < policy.revision {
             return Err(failed("governance_revision_regressed"));
         }
+        if next.policy_digest.is_empty() {
+            next.refresh_digest();
+        }
+        next.validate()
+            .map_err(|_| failed("governance_policy_integrity_failed"))?;
         policy = next;
     }
     Ok(policy)
@@ -97,7 +102,11 @@ fn apply(arguments: &Value) -> Result<Value, PortError> {
         .as_str()
         .ok_or_else(|| failed("governance_action_required"))?;
     if action == "list" {
-        return Ok(json!({"schema":"kiana.data-policy.v1","policy":read_policy(&root)?}));
+        let mut policy = read_policy(&root)?;
+        policy.refresh_digest();
+        return Ok(
+            json!({"schema":"kiana.data-policy.v1","policy":policy,"data_epoch":policy.data_epoch}),
+        );
     }
     let managed = root.join(".kiana");
     if managed.exists()
@@ -203,9 +212,16 @@ fn apply(arguments: &Value) -> Result<Value, PortError> {
         return Err(failed("governance_action_invalid"));
     }
     write_policy(&mut file, &policy)?;
+    let propagation_state = if affected.is_empty() {
+        "available"
+    } else {
+        "revoked"
+    };
     Ok(
         json!({"schema":"kiana.data-governance-result.v1","project_root":root,"revision":policy.revision,"action":action,
         "affected_grants":affected,"erased_sources":erased,"policy":policy,
+        "data_epoch":policy.data_epoch,
+        "propagation":{"receipt":propagation_state,"audit":if policy.grants.values().any(|grant| grant.retention.retain_audit_metadata) {"metadata_retained"} else {propagation_state},"artifact":propagation_state,"memory":propagation_state,"index":propagation_state,"cache":propagation_state,"export":propagation_state},
         "cache_policy":"revoked_sources_excluded","runner_snapshots":"require_fresh_context",
         "audit_metadata_retained":true}),
     )

@@ -1,0 +1,47 @@
+name: oa20-data-governance
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/governance.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/data_governance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-daemon/src/data_governance.rs"
+      - "kiana-domain/tests/oa20_data_governance.rs"
+      - "kiana-core/tests/oa20_data_governance_projection.rs"
+      - ".github/workflows/oa20-data-governance.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/governance.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/data_governance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-daemon/src/data_governance.rs"
+      - "kiana-domain/tests/oa20_data_governance.rs"
+      - "kiana-core/tests/oa20_data_governance_projection.rs"
+      - ".github/workflows/oa20-data-governance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa20-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run OA-20 domain governance fixtures
+        run: cargo test -p kiana-domain --test oa20_data_governance --locked -- --test-threads=1
+      - name: Run OA-20 core propagation fixtures
+        run: cargo test -p kiana-core --test oa20_data_governance_projection --locked -- --test-threads=1

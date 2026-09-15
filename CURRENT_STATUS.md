@@ -625,6 +625,30 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-19 domain/core incident static-boundary review; no runtime test reviewer
 ```
 
+### OA-20 data governance/retention/deletion evidence (2026-09-15)
+
+```text
+source_snapshot: 54938d4; kiana-domain/src/{governance,contracts,lib}.rs; kiana-core/src/{data_governance,lib}.rs; kiana-daemon/src/data_governance.rs; kiana-domain/tests/oa20_data_governance.rs; kiana-core/tests/oa20_data_governance_projection.rs; .github/workflows/oa20-data-governance.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-20 DataPolicy schema/epoch/digest and grant validation, DataGovernanceSnapshot payload/audit metadata separation, core committed invalidation projection, daemon policy integrity/propagation output, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/governance.rs kiana-domain/src/contracts.rs kiana-core/src/data_governance.rs kiana-core/src/lib.rs kiana-daemon/src/data_governance.rs kiana-domain/tests/oa20_data_governance.rs kiana-core/tests/oa20_data_governance_projection.rs .github/workflows/oa20-data-governance.yml
+  rg -n 'DataPolicy|data_epoch|DataGovernanceSnapshot|DataRetentionObservation|project_data_governance|revocation_requested|propagation|governance_policy_integrity_failed' kiana-domain/src kiana-core/src kiana-daemon/src kiana-domain/tests kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --test oa20_data_governance --locked --offline
+  cargo check -p kiana-core --test oa20_data_governance_projection --locked --offline
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: domain/core OA-20 fixtures; policy epoch/digest and parent cascade, expiry vs retained audit metadata, pending/committed revocation propagation to derived stores, cursor gap/duplicate, tampered policy/snapshot and raw payload absence; GitHub Actions only
+exit_code: 0 for source hashes, format, domain/core/daemon OA-20 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-20 job is queued by the push and is not awaited
+status_change: OA-20 source slice is implemented. Versioned/digest-bound `DataPolicy` validates purpose/retention/grant scope, increments `data_epoch` on cascading revoke, and daemon policy reads reject integrity failures. `DataGovernanceSnapshot` and `DataRetentionObservation` separate payload Available/Expired/Revoked/Unknown from retained audit metadata and map propagation across receipt/audit/artifact/memory/index/cache/export; core pending invalidation fences all derived stores as Unknown while committed revoke/expire remains queryable by source event ID.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; policy/snapshot and derived-store propagation remain process-local/source projections, no durable policy/retention checkpoint or scheduler exists, EventLog/audit facts are never physically deleted, and Artifact/Memory/Index/Telemetry purge, legal hold, cross-process restart and live deletion evidence remain open
+reviewer: Codex root implementation review plus OA-20 domain/core/daemon governance static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

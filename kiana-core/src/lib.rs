@@ -49,6 +49,7 @@ pub use audit_projection::{
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
+pub use data_governance::{project_data_governance, project_data_governance_snapshot};
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use incident_projection::{
     project_incidents, project_observability_incidents, IncidentProjectionError,
