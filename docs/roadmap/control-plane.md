@@ -302,7 +302,7 @@ sequenceDiagram
 | CP-02 | Run/Turn/Invocation/Execution 合同 | 00 | ✅ |
 | CP-03 | 动作规范化与服务端风险目录 | 01、02 | ✅ |
 | CP-04 | 权限交集与不可绕过的拒绝 | 03 | ✅ |
-| CP-05 | 三条能力路径共用处理器 | 04 | ⏳ |
+| CP-05 | 三条能力路径共用处理器 | 04 | ✅ |
 | CP-06 | 原子状态转移与 command 幂等合同 | 02、04 | ⏳ |
 | CP-07 | 磁盘事务帧和恢复 reader | 06 | ⏳ |
 | CP-08 | Grant 权威与撤销 epoch | 01、04、07 | ⏳ |
@@ -410,6 +410,8 @@ sequenceDiagram
 
 
 #### CP-05 — 合并三条授权执行路径
+
+当前 source slice 与 CI-only 证据见 [`control-plane-entry-path-baseline.md`](control-plane-entry-path-baseline.md)。
 
 - **承接 / 前置**：`P1-H-01`、`P0-F-02`、`P0-J1`；CP-04。
 - **位置**：core approvals/capabilities，公共 action/dispatch helper；daemon Broker 组合。

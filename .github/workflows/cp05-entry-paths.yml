@@ -1,0 +1,51 @@
+name: CP-05 capability entry-path parity
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/cp05_entry_paths_guard.rs"
+      - "docs/roadmap/control-plane-entry-path-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp05-entry-paths.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/cp05_entry_paths_guard.rs"
+      - "docs/roadmap/control-plane-entry-path-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cp05-entry-paths.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  entry-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-05 source guard
+        run: cargo test -p kiana-core --test cp05_entry_paths_guard --locked -- --test-threads=1
+      - name: Run CP-05 shared-path fixtures
+        run: |
+          cargo test -p kiana-core --test control_plane approval_resumes_the_stored_request_once_with_monotonic_events --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane mismatched_direct_capability_result_is_unknown --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane mismatched_harness_capability_result_is_unknown --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane cancel_after_awaiting_approval_does_not_resume_the_pending_invocation --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane untrusted_and_unknown_commands_fail_closed_with_events --locked -- --test-threads=1

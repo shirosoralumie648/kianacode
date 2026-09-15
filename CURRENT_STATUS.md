@@ -1062,6 +1062,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-04 scope/monotonic-policy/permission-union source-boundary review; no runtime test reviewer
 ```
 
+### CP-05 capability entry-path parity evidence (2026-09-16)
+
+```text
+source_snapshot: b42a36c; kiana-core/src/{approvals,capabilities,dispatch,lifecycle}.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/cp05_entry_paths_guard.rs; kiana-domain/src/{actions,scope,capabilities}.rs; kiana-runner/src/tools.rs; kiana-daemon/src/harness_capabilities.rs; kiana-domain/tests/cp03_action_contract.rs; .github/workflows/cp05-entry-paths.yml; docs/roadmap/control-plane-entry-path-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: CP-05 direct authorize/execute, Harness broker capability and approval continuation all reuse prepare/authorize/stage-or-dispatch/finalize helpers; current decision context, action digest, Cell/Grant/permit, result/Unknown and EventLog boundaries plus focused remote fixtures/source guard are scoped to this step; no second model loop or raw Broker path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-core/src/approvals.rs kiana-core/src/capabilities.rs kiana-core/src/dispatch.rs kiana-core/src/lifecycle.rs kiana-core/src/events.rs kiana-core/tests/control_plane.rs kiana-core/tests/cp05_entry_paths_guard.rs kiana-domain/src/actions.rs kiana-domain/src/scope.rs kiana-domain/src/capabilities.rs kiana-runner/src/tools.rs kiana-daemon/src/harness_capabilities.rs kiana-domain/tests/cp03_action_contract.rs .github/workflows/cp05-entry-paths.yml docs/roadmap/control-plane-entry-path-baseline.md
+  rg -n 'authorize_and_execute|broker_harness_capability|resume_approved_invocation|execute_authorized_request|prepare_capability_action|authorize_capability_action|stage_capability_action|dispatch_capability_action|finalize_capability_action|decision_context|verify_and_consume|result_unknown' kiana-core/src kiana-core/tests/control_plane.rs kiana-core/tests/cp05_entry_paths_guard.rs docs/roadmap/control-plane-entry-path-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/control_plane.rs direct result mismatch, Harness result mismatch, approval continuation monotonic event, cancel-after-approval and untrusted command fixtures; kiana-core/tests/cp05_entry_paths_guard.rs shared-pipeline source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-05 job is queued by the push and is not awaited
+status_change: CP-05 source slice is implemented. Direct `authorize_and_execute`, Harness `broker_harness_capability`, and approval `resume_approved_invocation` all use the same ControlPlane preparation, policy/gate/hook merge, approval stage, dispatch permit/Broker, result normalization and EventLog finalization helpers. Approval continuation rebinds current decision context and exact action before dispatch; direct commands preserve explicit scope; result mismatches, cancellation, persistence ambiguity and Unknown remain fail-closed. No UI, Provider, Workflow or Runner path can call raw Broker execution.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; event sequence and adapter responses still differ by ingress, ApprovalStore/PendingInvocation/CellRegistry/cancel state have process-local parts, atomic transition/once permit and cross-process recovery remain CP-06+ and ER/PD/SC work, and fake Broker/Runner fixtures do not prove provider/connector/OS/physical effects
+reviewer: Codex root implementation review plus CP-05 direct/Harness/approval pipeline parity source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
