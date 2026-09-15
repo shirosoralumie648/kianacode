@@ -2,6 +2,75 @@ use super::events::*;
 use super::redaction::*;
 use super::*;
 
+fn effective_action_scope(
+    context: &RequestContext,
+    request: &CapabilityRequest,
+) -> Result<kiana_domain::ScopeSet, CoreError> {
+    let action_paths = kiana_domain::capability_request_paths(request)
+        .into_iter()
+        .map(|path| {
+            kiana_domain::normalize_role_path(&path)
+                .ok_or_else(|| action_error("action_path_scope_invalid"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let context_paths = if context.path_allow.is_empty()
+        || context
+            .path_allow
+            .iter()
+            .any(|path| matches!(path.trim(), "." | "*"))
+    {
+        kiana_domain::ScopeDimension::NotApplicable
+    } else {
+        kiana_domain::ScopeDimension::Restricted(
+            context
+                .path_allow
+                .iter()
+                .map(|path| {
+                    kiana_domain::normalize_role_path(path)
+                        .ok_or_else(|| action_error("context_path_scope_invalid"))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    };
+    let action_scope = kiana_domain::ScopeSet::new(
+        kiana_domain::ScopeDimension::Restricted(vec![request.operation.clone()]),
+        if action_paths.is_empty() {
+            kiana_domain::ScopeDimension::NotApplicable
+        } else {
+            kiana_domain::ScopeDimension::Restricted(action_paths)
+        },
+        request
+            .arguments
+            .get("collection")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| kiana_domain::ScopeDimension::Restricted(vec![value.to_owned()]))
+            .unwrap_or_default(),
+        request
+            .arguments
+            .get("server")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| kiana_domain::ScopeDimension::Restricted(vec![value.to_owned()]))
+            .unwrap_or_default(),
+        kiana_domain::ScopeLimit::NotApplicable,
+        kiana_domain::ScopeLimit::NotApplicable,
+    )
+    .map_err(|error| action_error(&format!("action_scope_invalid:{error}")))?;
+    let context_scope = kiana_domain::ScopeSet::new(
+        kiana_domain::ScopeDimension::NotApplicable,
+        context_paths,
+        kiana_domain::ScopeDimension::NotApplicable,
+        kiana_domain::ScopeDimension::NotApplicable,
+        kiana_domain::ScopeLimit::NotApplicable,
+        kiana_domain::ScopeLimit::NotApplicable,
+    )
+    .map_err(|error| action_error(&format!("context_scope_invalid:{error}")))?;
+    action_scope
+        .intersect(&context_scope)
+        .map_err(|error| action_error(&format!("scope_intersection_invalid:{error}")))
+}
+
 impl ControlPlane {
     pub(crate) async fn bind_cell_scope(
         &self,
@@ -145,6 +214,7 @@ impl ControlPlane {
             .await
             .map_err(CoreError::from)?;
         kiana_domain::normalize_capability_action(&mut request).map_err(action_error)?;
+        let _effective_scope = effective_action_scope(context, &request)?;
         self.bind_cell_scope(context, &mut request).await?;
         let action = kiana_domain::PreparedAction::new(request).map_err(action_error)?;
         self.pin_action_authority(context, action.request()).await?;

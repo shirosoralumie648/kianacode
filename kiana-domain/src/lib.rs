@@ -34,6 +34,7 @@ mod platform;
 mod prompts;
 mod redaction;
 mod roles;
+mod scope;
 mod states;
 mod symposiums;
 #[cfg(test)]
@@ -66,6 +67,7 @@ pub use platform::*;
 pub use prompts::*;
 pub use redaction::*;
 pub use roles::*;
+pub use scope::*;
 pub use states::*;
 pub use symposiums::*;
 pub use usage::*;

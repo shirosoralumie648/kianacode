@@ -214,7 +214,9 @@ impl CapabilityRequest {
     }
 }
 
-fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
+/// Extract path-like inputs for scope intersection and policy checks. This is intentionally
+/// conservative: unrecognized command syntax yields no inferred path rather than a wider scope.
+pub fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
     let mut paths = Vec::new();
     if let Some(path) = request
         .arguments

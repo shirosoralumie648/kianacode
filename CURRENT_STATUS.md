@@ -1041,6 +1041,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-03 catalog/normalization/risk/digest source-boundary review; no runtime test reviewer
 ```
 
+### CP-04 scope intersection and monotonic authorization evidence (2026-09-16)
+
+```text
+source_snapshot: 4903fdb; kiana-domain/src/{scope,capabilities,actions,contracts,lib}.rs; kiana-core/src/{capabilities,approvals,cell_registry}.rs; kiana-policy/src/lib.rs; kiana-gates/src/lib.rs; kiana-domain/tests/cp04_scope.rs; kiana-core/tests/cp04_scope_guard.rs; .github/workflows/cp04-scope.yml; docs/roadmap/control-plane-scope-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: CP-04 typed ScopeSet/ScopeDimension/ScopeLimit with digest, bounded values, path-aware intersection, subset checks and NotApplicable-vs-Restricted distinction, ControlPlane action/context scope guard, monotonic policy/gate/hook merge and remote fixtures/roadmap overlays are scoped to this step; no second authorization loop or permission union was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/scope.rs kiana-domain/src/capabilities.rs kiana-domain/src/actions.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/capabilities.rs kiana-core/src/approvals.rs kiana-core/src/cell_registry.rs kiana-policy/src/lib.rs kiana-gates/src/lib.rs kiana-domain/tests/cp04_scope.rs kiana-core/tests/cp04_scope_guard.rs .github/workflows/cp04-scope.yml docs/roadmap/control-plane-scope-baseline.md
+  rg -n 'ScopeSet|ScopeDimension|ScopeLimit|NotApplicable|Restricted|scope_intersection_empty|effective_action_scope|scope_intersection_invalid|grant.contains|GateDecision::AwaitingApproval|hard_policy_denial' kiana-domain/src kiana-core/src kiana-policy/src kiana-gates/src kiana-domain/tests/cp04_scope.rs kiana-core/tests/cp04_scope_guard.rs docs/roadmap/control-plane-scope-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp04_scope.rs path-aware parent/child subset, budget/depth min, NA vs empty Restricted, digest/unknown-field guards; kiana-core/tests/cp04_scope_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-04 job is queued by the push and is not awaited
+status_change: CP-04 source slice is implemented. Domain ScopeSet now separates NotApplicable from Restricted, bounds and canonicalizes values, intersects operation/path/namespace/network by narrowing (path prefixes choose the narrower path), takes min budget/depth, and rejects empty restricted intersections. ControlPlane computes action/context scope before policy/Broker; policy hard denial remains non-overridable, any Gate/Hook Deny remains denied, Ask requirements remain pending and merge deterministically, and Cell parent Grant containment remains enforced. PreparedAction/action digest, Approval and Permit remain distinct authority boundaries.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ScopeSet is not yet a durable full ExecutionContext or authority epoch ledger, Cell/Grant/Approval dimensions are only partially represented, path string intersection does not prove descriptor-relative TOCTOU/egress/OS isolation, pure monotonicity does not prove human approval or external effect, and property/fuzz/cross-process/revocation UAT remain later CP/CAP/ER/PD/SC work
+reviewer: Codex root implementation review plus CP-04 scope/monotonic-policy/permission-union source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

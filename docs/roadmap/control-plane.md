@@ -301,7 +301,7 @@ sequenceDiagram
 | CP-01 | 主体、项目身份和不可变 assignment | 00 | ✅ |
 | CP-02 | Run/Turn/Invocation/Execution 合同 | 00 | ✅ |
 | CP-03 | 动作规范化与服务端风险目录 | 01、02 | ✅ |
-| CP-04 | 权限交集与不可绕过的拒绝 | 03 | ⏳ |
+| CP-04 | 权限交集与不可绕过的拒绝 | 03 | ✅ |
 | CP-05 | 三条能力路径共用处理器 | 04 | ⏳ |
 | CP-06 | 原子状态转移与 command 幂等合同 | 02、04 | ⏳ |
 | CP-07 | 磁盘事务帧和恢复 reader | 06 | ⏳ |
@@ -394,6 +394,8 @@ sequenceDiagram
 
 
 #### CP-04 — 权限交集与单调决策在 core 强制
+
+当前 source slice 与 CI-only 证据见 [`control-plane-scope-baseline.md`](control-plane-scope-baseline.md)。
 
 - **承接 / 前置**：`P0-K1-01`、`P1-C-01`、`P1-H-01/03`；CP-03。
 - **位置**：policy/gates，core approvals，domain scope 与 role/grant helper。

@@ -1,0 +1,52 @@
+name: CP-04 scope intersection and monotonic authorization
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/scope.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp04_scope.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/cp04_scope_guard.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-gates/src/lib.rs"
+      - "docs/roadmap/control-plane-scope-baseline.md"
+      - ".github/workflows/cp04-scope.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/scope.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cp04_scope.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/approvals.rs"
+      - "kiana-core/src/cell_registry.rs"
+      - "kiana-core/tests/cp04_scope_guard.rs"
+      - "kiana-policy/src/lib.rs"
+      - "kiana-gates/src/lib.rs"
+      - "docs/roadmap/control-plane-scope-baseline.md"
+      - ".github/workflows/cp04-scope.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-04 scope fixtures
+        run: cargo test -p kiana-domain --test cp04_scope --locked -- --test-threads=1
+      - name: Run CP-04 source guard
+        run: cargo test -p kiana-core --test cp04_scope_guard --locked -- --test-threads=1
