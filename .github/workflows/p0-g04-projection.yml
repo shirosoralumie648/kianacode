@@ -1,0 +1,52 @@
+name: P0-G-04 event projection and restart recovery
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p0_g04_projection_guard.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "docs/roadmap/event-receipt-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-g04-projection.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/projection.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/tests/control_plane.rs"
+      - "kiana-core/tests/p0_g04_projection_guard.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "docs/roadmap/event-receipt-recovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-g04-projection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  projection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-G-04 source guard
+        run: cargo test -p kiana-core --test p0_g04_projection_guard --locked -- --test-threads=1
+      - name: Run P0-G-04 restart and conflict fixtures
+        run: |
+          cargo test -p kiana-core --test control_plane new_process_rebuilds_run_state_from_events_alone --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane new_process_rebuilds_invocation_state_from_events_alone --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane invocation_projection_conflicting_terminals_fail_closed --locked -- --test-threads=1
+          cargo test -p kiana-core --test control_plane projection_cache_miss_rebuilds_pending_invocations_with_authorization_recheck --locked -- --test-threads=1

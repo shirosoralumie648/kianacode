@@ -999,6 +999,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SC-00 asset/entry/control/proof-boundary reconciliation; no runtime test reviewer
 ```
 
+### P0-G-04 projection and restart recovery closure evidence (2026-09-16)
+
+```text
+source_snapshot: cb5c0a0; kiana-core/src/{events,projection,invocation_projection,recovery}.rs; kiana-core/tests/control_plane.rs; kiana-core/tests/p0_g04_projection_guard.rs; kiana-domain/src/execution_identity.rs; docs/roadmap/event-receipt-recovery-baseline.md; docs/roadmap.md; docs/module-map.md; .github/workflows/p0-g04-projection.yml
+worktree_status: P0-G-04 Run/Invocation event projection, lazy cache invalidation, restart pending approval recheck, terminal conflict guard and focused remote workflow are scoped to this closure; CP-02 typed identity fields are consumed as additive facts; no second EventLog/projection authority or unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-core/src/events.rs kiana-core/src/projection.rs kiana-core/src/invocation_projection.rs kiana-core/src/recovery.rs kiana-core/tests/control_plane.rs kiana-core/tests/p0_g04_projection_guard.rs kiana-domain/src/execution_identity.rs docs/roadmap/event-receipt-recovery-baseline.md docs/roadmap.md docs/module-map.md .github/workflows/p0-g04-projection.yml
+  rg -n 'new_process_rebuilds_run_state_from_events_alone|new_process_rebuilds_invocation_state_from_events_alone|invocation_projection_conflicting_terminals_fail_closed|projection_cache_miss_rebuilds_pending_invocations_with_authorization_recheck|project_run_state|project_invocations|cache_invocation_projection|invalidate_invocation_projection|run_snapshot_stale|result_unknown' kiana-core/src kiana-core/tests docs/roadmap/event-receipt-recovery-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/control_plane.rs focused new-process Run/Invocation rebuild, conflicting terminal, pending approval authorization recheck; kiana-core/tests/p0_g04_projection_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-G-04 job is queued by the push and is not awaited
+status_change: P0-G-04 is closed at source level. EventLog remains the authority for Run/Invocation state; restarted ControlPlane can rebuild run and invocation projections without Runner memory, cache invalidation tracks broker-side appends, pending approvals are reconstructed and re-authorized, missing request/run identity fails closed, `result_unknown` remains fenced, and conflicting/reordered terminal facts cannot be selected arbitrarily. A focused CI workflow now owns the named acceptance tests.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; the current focused tests are remote-only and still use in-memory/fake adapters, JSONL power-loss and cross-process durability are not proven, legacy events without typed identity remain compatibility-readable, full RunSnapshot/InvocationLedger/lease reconciliation and external effect receipts remain future ER/CP/PD/SC work
+reviewer: Codex root implementation review plus P0-G-04 EventLog/projection/recovery source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

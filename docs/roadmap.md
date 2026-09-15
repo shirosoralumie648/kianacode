@@ -67,7 +67,7 @@
 | `P0-G-02a` | P0 | G 事实源与恢复 | `P0-G-01` | `run.prompt`/`run.tool_call` 落账并过 `redact_event_value` | ✅ |
 | `P0-G-02b` | P0 | G 事实源与恢复 | `P0-G-02a` | 只读折叠函数可从 `run.*`/`capability.*` 重建 model-visible history | ✅ |
 | `P0-G-03` | P0 | G 事实源与恢复 | `P0-G-02b` | additive `ResumeRequest`，`PROTOCOL_SCHEMA` 不动，复用同一 `drive_run` | ⏳ |
-| `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | 🔄 |
+| `P0-G-04` | P0 | G 事实源与恢复 | `P0-G-01` | 新进程仅凭事件重建 Run/Invocation；矛盾终态 fail-closed | ✅ |
 | `P0-J1-01` | P0 | J1 Runtime | `P0-B-01` | `RunCancellationState` + 转移表；`ExecutionStatus` 补 `Queued`/`Cancelling`；每 run 恰好一条终态 | ⏳ |
 | `P0-J1-02` | P0 | J1 Runtime | `P0-J1-01` | queued tool calls 排空并合成 replay-safe 结果 | ⏳ |
 | `P0-J1-03` | P0 | J1 Runtime | `P0-J1-01` | 取消路径确认进程组停止；无法确认进 `result_unknown` | ⏳ |
@@ -184,7 +184,7 @@
 | 017 | W0 | 专项 | [`EXT-00`](roadmap/skills-plugins-hooks.md#step-ext-00) | Skills / Plugins / Hooks · 基线与决策回执 | — | ✅ | [专项卡](roadmap/skills-plugins-hooks.md#step-ext-00) |
 | 018 | W0 | 专项 | [`UI-00`](roadmap/ui-entrypoints.md#step-ui-00) | UI / Entrypoints · 建立入口基线与验收矩阵 | — | ✅ | [专项卡](roadmap/ui-entrypoints.md#step-ui-00) |
 | 019 | W0 | 专项 | [`CO-01`](roadmap/companyos.md#step-co-01) | CompanyOS · 锁定当前实现与计划的交接基线 | — | ✅ | [专项卡](roadmap/companyos.md#step-co-01) |
-| 020 | W0 | 基础 | [`P0-G-04`](#step-p0-g-04) | P0 基础 · 事件重建投影 | `P0-G-01` | 🔄 | [基础卡](#step-p0-g-04) |
+| 020 | W0 | 基础 | [`P0-G-04`](#step-p0-g-04) | P0 基础 · 事件重建投影 | `P0-G-01` | ✅ | [基础卡](#step-p0-g-04) |
 | 021 | W0 | 专项 | [`CI-01`](#step-ci-01) | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | ✅ | [专项卡](#step-ci-01) |
 | 022 | W0 | 专项 | [`SW-00`](#step-sw-00) | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | ✅ | [专项卡](#step-sw-00) |
 | 023 | W0 | 专项 | [`OA-00`](#step-oa-00) | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | ✅ | [专项卡](#step-oa-00) |
@@ -979,6 +979,7 @@
 | 当前 44 | `CP-01` 服务端主体与项目身份 | 新增 `AuthenticatedPrincipalRef`、`ProjectIdentity`、`SessionAssignment` typed contracts/schema registry；DaemonHost 由服务端固定 local principal、ProjectTrustAuthority 与 canonical root/device/inode/trust digest 派生 project identity，effectful request 先解析 identity，再同步 authority；session assignment CAS 写入 typed identity/role/department，重建时校验 digest，wire actor/role/trust 不可扩权；远端 domain/core fixtures 覆盖 deterministic identity、assignment tamper/unknown fields 与 server metadata guard；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；local-user/role allowlist 仍是本地兼容身份，OS credential/OAuth/enterprise tenant、durable principal provider、Grant epoch 与完整 cross-process auth 尚未实现；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 45 | `CP-02` Run/Turn/Invocation/Execution 合同 | 新增 `TurnIdentity`/`InvocationIdentity` typed contracts 与 schema registry；显式 `run.turn.v2` 创建新 Turn/Run 并记录 predecessor，终态旧 Run 不复活，旧 `Continue` 保留 `LegacyContinue` 兼容语义，`Resume` 仍是同一 Run 的显式恢复边界；请求事实记录 server-derived invocation/turn/attempt，Broker 在 prepared/dispatching/executing/result committed 阶段绑定真实 ExecutionId；重复 call_id 不能合并账本，direct command 不虚构 Harness Run；远端 domain/core fixtures 与 CI source guard；不运行本地测试 | `feature_status=implemented`（domain/core/dispatch/protocol/client source）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；历史无 TurnId 的 upcast、完整 durable InvocationLedger/RunSnapshot、跨进程恢复、自动重试/对账和真实外部效果仍需 CP-03+、ER/PD/INT/DEP 步骤；下一步领取总 roadmap 中下一个无前置且未完成 step |
 | 当前 46 | `SC-00` 安全与合规现状基线 | 新增 [security-compliance-baseline.md](roadmap/security-compliance-baseline.md) 与 `security_baseline` GitHub Actions source guard；固定 Principal/Session/Role/ProjectTrust、Run/Turn/Invocation/Execution、Policy/Gate/Approval/Budget/Lease、Capability/Sandbox/PathLock、Secret/Provider、EventLog/Receipt/Audit/Projection、Memory/Index/Artifact/Notification/UI、外部/物理 effect 与供应链资产边界；逐入口列出 server-owned 控制和缺口，SEC-01..12 保持 partial/target/not_supported 双维度，SC-01..43 交接与证据等级/限制护栏已登记；不运行本地测试 | `feature_status=implemented`（baseline/inventory source）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；安全能力本身仍是 partial/target/not_supported，认证、SecretStore、完整 TOCTOU/egress、durable recovery/retention/delete、SBOM/signing、外部/physical effect 和安全 UAT 仍需 SC-01..43 及 CP/CAP/ER/PD/DEP/INT；下一步领取总 roadmap 中下一个无前置且未完成 step |
+| 当前 47 | `P0-G-04` 事件重建投影与重启恢复收口 | 现有 `project_run_state`/`project_invocations`/lazy cache/recovery 已覆盖新进程 Run/Invocation 重建、pending approval 授权重检、result_unknown 和矛盾终态拒绝；新增独立 `p0_g04_projection_guard` 与 GitHub Actions 聚焦 workflow，显式绑定 EventLog 事实源和 Receipt/projection 只读边界；不运行本地测试 | `feature_status=implemented`（core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；跨进程真实持久/断电恢复、完整 snapshot/ledger、外部 receipt/reconcile、终态/取消全量故障注入仍需 ER/CP/PD/SC 后续步骤；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1074,6 +1075,7 @@
 | 2026-09-16 | `CP-01` 服务端主体与项目身份：新增 typed `AuthenticatedPrincipalRef`/`ProjectIdentity`/`SessionAssignment` 合同与 schema registry；DaemonHost 服务端派生 local principal、canonical project identity/device-inode/trust digest，effectful 请求先解析 project identity，session assignment 继续 CAS 并重建校验；wire actor/role/trust 不可扩权；新增远端 identity/metadata guard；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `CP-02` Run/Turn/Invocation/Execution：新增 typed `TurnIdentity`/`InvocationIdentity` 与 schema registry；`run.turn.v2` 显式创建新 Turn/Run 并记录 predecessor，legacy Continue 保留 `LegacyContinue`，Resume 继续复用同一 Run；请求事实记录 server-derived turn/invocation/attempt，Broker execution permit 阶段绑定真实 ExecutionId，call_id 只作关联值；新增远端 domain/core fixtures、CI workflow 与执行身份基线；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `SC-00` 安全与合规现状基线：新增 `security-compliance-baseline.md` 与 CI-only source guard；固定安全资产/入口/信任边界、SEC-01..12 当前 feature/proof 双维度、T01..T12 威胁和 SC-01..43 交接矩阵，明确 EventLog/ControlPlane/Broker 事实链与所有 partial/target/not_supported 限制；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P0-G-04` 事件重建投影与重启恢复收口：现有 Run/Invocation event projection、lazy cache invalidation、pending approval recovery/recheck 和 terminal conflict 绑定 EventLog；新增独立 source guard 与 CI-only focused workflow，覆盖新进程 Run/Invocation、pending approval gate recheck 和矛盾终态 fail-closed；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1289,14 +1291,14 @@
 
 <a id="step-p0-g-04"></a>
 
-### P0-G-04 事件重建投影　🔄
+### P0-G-04 事件重建投影　✅
 
 - **现状**：源码提交 `38f23bc` 已把 Invocation 折叠、惰性缓存、终态冲突拒绝和审批恢复接入 `kiana-core`；历史账本只证明 Run 只读投影，远程 CI 验收仍未回执。
 - **做什么**：新增 RunProjection / InvocationProjection，用 `read_stream("run", run_id)` 与 `read_all` 折叠 `run.*`/`capability.*`/`approval.*`；首次按 run_id/session 访问时惰性重建。
 - **风险**：折叠遇矛盾终态必须保持 `run_terminal_conflict`/`result_unknown` fail-closed，不能猜。
-- **验收**：新增 `new_process_rebuilds_invocation_state_from_events_alone`、冲突终态 fixture、重启 pending approval 的 authorization re-check；远程 CI 仍待执行。
+- **验收**：新增 `new_process_rebuilds_invocation_state_from_events_alone`、冲突终态 fixture、重启 pending approval 的 authorization re-check；由 `.github/workflows/p0-g04-projection.yml` 远程执行，结果按用户要求不等待。
 - **依赖 / 边界**：依赖 `P0-G-01`；内存 map 降级为写穿缓存。
-- **依据**：`company-os-implementation-outline.md` §Slice G（A-2）｜`38f23bc`；Run 子集历史证据 `3a319be` + CI `34500579350`；本次证据块「P0-G-04 invocation projection and restart recovery evidence (2026-09-15)」。
+- **依据**：`company-os-implementation-outline.md` §Slice G（A-2）｜`38f23bc`；Run 子集历史证据 `3a319be` + CI `34500579350`；本次证据块「P0-G-04 projection and restart recovery closure evidence (2026-09-16)」。
 
 
 
