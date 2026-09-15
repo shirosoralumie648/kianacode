@@ -60,7 +60,7 @@ fn forged_readonly_risk_cannot_downgrade_registered_effect() {
 }
 
 #[test]
-fn prepared_action_freezes_normalized_request_and_catalog_digest() {
+fn cp_preview_and_execution_use_identical_action() {
     let request = CapabilityRequest::new(
         RequestId::new(),
         CapabilityKind::Process,

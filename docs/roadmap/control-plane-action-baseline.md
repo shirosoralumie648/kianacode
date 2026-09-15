@@ -23,7 +23,7 @@
 | Schema/domain exports | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `5422c0b111578fe872882a9ab56943840e2e0f528adb94212aafdb0f80c72ce1`, `9ca22a4486a8eba0b9b2647d2d6eb4bc3f0aa8607532f7fc8ff139b10b2984a5` |
 | Core preparation/dispatch | `kiana-core/src/approvals.rs`, `kiana-core/src/capabilities.rs`, `kiana-core/src/dispatch.rs`, `kiana-core/src/events.rs` | `439a602ee0463d1be33ce144d787e5b7b6cbdb19db7277de2da248aa0cf28b1e`, `0b6a94174b25b4e78069488a73e3226c80c88646be46ed41a99339154134d816`, `464b68ec143743580a201b01d26e7ca8d4f1dc542acb4116edb228a885b65cd0`, `5a0348f5e1940363119d920244724428af1e1373f692f6424ccfd3b8a6dfe26e` |
 | Runner/daemon/protocol | `kiana-runner/src/tools.rs`, `kiana-daemon/src/harness_capabilities.rs`, `kiana-protocol/src/lib.rs` | `2a757b5ba06622622d949cccacbf50f4caf6d38b04c8806611853e6f4498d213`, `342dcbca27709f41821872c60ab199595f51ebc6fa9dccabbaf0b040ae5c46ce`, `46ca3fb7dce1a9c8e7cf97d07cedaac1c17817475b5986b191c1253d8260cd2f` |
-| Fixtures/guard/workflow | `kiana-domain/tests/cp03_action_contract.rs`, `kiana-core/tests/cp03_action_guard.rs`, `.github/workflows/cp03-action-contract.yml` | `a1ed98d17d54639f3687a80c920d1c88b068bd8aceadfe8fa3bb33a47fe8dd86`, `01e05a5d87507d31ecbc23a2dfe90a9a516301aa16116431e78ecdcc0ca076ff`, `ed580f3d49cafec2fc45acdf0235ed4eb939f99845f6d5a108752ee00ce6cef5` |
+| Fixtures/guard/workflow | `kiana-domain/tests/cp03_action_contract.rs`, `kiana-core/tests/cp03_action_guard.rs`, `.github/workflows/cp03-action-contract.yml` | `86c37f17fca8489d4818ab29f31fdaa3db62aa7fd331744882f28caf046fcaf7`, `01e05a5d87507d31ecbc23a2dfe90a9a516301aa16116431e78ecdcc0ca076ff`, `ed580f3d49cafec2fc45acdf0235ed4eb939f99845f6d5a108752ee00ce6cef5` |
 
 hash 是当前源码静态锚点；后续修改 catalog、schema validator、prepare 或 handler binding 必须刷新，不构成授权或外部效果证明。
 
@@ -93,7 +93,7 @@ Direct Company/context command 保持显式 Command scope；没有 Run/Turn 时�
 |---|---|
 | `action_catalog_has_complete_server_owned_descriptors` | 所有 operation descriptor/schema/resource/effect 元数据完整且 schema 边界明确 |
 | `forged_readonly_risk_cannot_downgrade_registered_effect` | apply_patch、mcp.call、memory.write 的 ReadOnly 伪造在 Broker 前拒绝 |
-| `prepared_action_freezes_normalized_request_and_catalog_digest` | 默认值、canonical operation、catalog/action digest 和 immutable snapshot |
+| `cp_preview_and_execution_use_identical_action` | 默认值、canonical operation、catalog/action digest 和 immutable snapshot |
 | `duplicate_json_and_invalid_numeric_arguments_fail_closed` | duplicate JSON key 与 zero timeout 拒绝 |
 | `action_catalog_preparation_and_execution_share_server_metadata` | core/domain/runner/daemon source guard，确保 preview/preparation/dispatch 共用动作值 |
 
