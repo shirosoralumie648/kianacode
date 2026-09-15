@@ -603,6 +603,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-18 domain/core/protocol/client/daemon export static-boundary review; no runtime test reviewer
 ```
 
+### OA-19 observability alert/incident/recovery evidence (2026-09-15)
+
+```text
+source_snapshot: 12fd3f2; kiana-domain/src/{contracts,observability}.rs; kiana-core/src/{incident_projection,metrics,lib}.rs; kiana-core/tests/oa19_incident_projection.rs; .github/workflows/oa19-observability-incidents.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-19 observability alert/incident/snapshot contracts, committed-metric/failure rule projector, stable fingerprint dedupe, reconciliation-safe recovery association, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-core/src/incident_projection.rs kiana-core/src/metrics.rs kiana-core/src/lib.rs kiana-core/tests/oa19_incident_projection.rs .github/workflows/oa19-observability-incidents.yml
+  rg -n 'ObservabilityAlert|ObservabilityIncident|project_observability_incidents|project_incidents|requires_reconciliation|unknown_cannot_close|fingerprint' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa19_incident_projection --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa19_incident_projection.rs; projector lag, effect unknown, orphan dispatch, artifact/audit loss, redaction failure, queue overflow, dedupe, fixed recovery plan, unknown cannot close and model/UI self-report rejection fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-19 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-19 job is queued by the push and is not awaited
+status_change: OA-19 source slice is implemented. `kiana.observability-alert.v1`, `kiana.observability-incident.v1` and snapshot contracts bind stable rule fingerprints, severity/state, source cursor/events, alert/incident refs and bounded recovery plans. `kiana-core::project_observability_incidents` derives deduplicated projector-lag, audit/artifact loss, redaction, queue, journal, effect-unknown and orphan incidents from committed metrics/facts; reconciliation-required incidents cannot be Verified/Closed, and model/UI self-report does not trigger a rule. The bridge is read-only and does not approve, retry, close, or mutate EventLog facts.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; incident state/checkpoint and rule evaluation are process-local, no EventLog incident fact or operator triage/reconcile action exists, queue/exporter/provider live health is not fed, and source diagnostics do not prove business Incident closure
+reviewer: Codex root implementation review plus OA-19 domain/core incident static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -82,6 +82,10 @@
 | Audit export materializer（OA-18 overlay） | `kiana-core/src/audit_export.rs` | `7294a6434b5bbf3b8f679db10b6d7e896a041a2d09693b209d4d4e07bfc6b563` |
 | Audit export core exports（OA-18 overlay） | `kiana-core/src/lib.rs` | `76edce8eff56cbd019b0925993c3620fc0001f81f9fda8f29ebebeab767540f5` |
 | Audit export protocol/client/daemon（OA-18 overlay） | `kiana-protocol/src/lib.rs`, `kiana-client/src/lib.rs`, `kiana-daemon/src/lib.rs` | `76efc57ef967fd81a2e7ad4e98acfd273cb904fcfc8012e05ed8a34105ac9b56`, `314f28d69494f53c8ece0d552a2d086ffbdf96ef332fafeb69c985882b069e78`, `2353b3f4fa00b795f03ec848081d40e265690b0cc7174c6e3f01ebc092aeece4` |
+| Observability incident contracts（OA-19 overlay） | `kiana-domain/src/observability.rs` | `19d89e13abd551e6052f0522e9a220a717cfac7d060012ca607e67543b915096` |
+| Observability incident schema registry（OA-19 overlay） | `kiana-domain/src/contracts.rs` | `da24e4a042672a464ad5b429519898770cc9b7ca30e3ed508b19988db2c22394` |
+| Observability incident reducer（OA-19 overlay） | `kiana-core/src/incident_projection.rs` | `78de0bdb32cf1a978bfe9629a12cb5863fc28038f71ba6247b6ade579027a08b` |
+| Observability incident exports（OA-19 overlay） | `kiana-core/src/lib.rs` | `941de8ac868890b0fd5ce3e177b3ef880160163a884cb33f371d37d772aef793` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -176,6 +180,7 @@
 | OA-16 | Audit query command/wire DTO | `source`；server-scoped AuditQuery request/page、ControlPlane filter、DaemonHost/client route、bounded limit/cursor and raw-event rejection 已实现；尚无 durable query index/filter snapshot, cross-entry parity, export/delivery or external auth provider |
 | OA-17 | Query cursor/snapshot/paging and slow-query boundary | `source`；AuditQueryCursor epoch/projection/source/after/filter digest binding、stale/ahead rejection and bounded next cursor 已实现；尚无 durable query index/retention snapshot, slow-query instrumentation, reconnect parity or multi-entry cursor store |
 | OA-18 | Audit export/manifest/delivery evidence | `source`；server-scoped redacted JSONL/JSON/CSV materializer、query/source/projection/artifact manifest hashes、purpose/recipient/retention guards 和 Unknown delivery receipt 已实现；尚无 durable ArtifactStore/export file、external delivery connector/confirmation 或 export audit fact |
+| OA-19 | Alert/Incident rules, dedupe and Recovery association | `source`；committed metrics/facts 规则 fingerprint 去重、bounded Alert/Incident snapshot、source cursor/event refs、固定 reconciliation-safe recovery plan 已实现；尚无 durable incident checkpoint/event, operator workflow, queue/exporter live state or automatic reconciliation |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -539,3 +544,23 @@ deny、scope/query reuse、JSONL/JSON/CSV bounded redaction、hash mismatch、ov
 unknown-vs-delivered receipt；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该
 export 仍是 source-local materialization，不等价于 durable ArtifactStore、外部 delivery、operator approval、
 export audit event 或 live delivery proof。
+
+## 25. OA-19 叠加说明
+
+OA-19 注册 `kiana.observability-alert.v1`、`kiana.observability-incident.v1` 与
+`kiana.observability-incident-snapshot.v1`。`ObservabilityAlert`/`ObservabilityIncident` 只保留 rule/category
+fingerprint、severity/state、source cursor/event IDs、bounded message、incident/alert refs 与
+reconciliation-safe recovery plan；没有 approve/retry/close action 字段，未知/需对账的事故在
+`Verified|Closed` 状态校验时 fail-closed。
+
+`kiana-core::project_observability_incidents` 仅消费 OA-10 `MetricSnapshot` 和 committed failure facts：
+projector lag/cursor gap、audit/artifact loss、redaction failure、queue overflow、journal corruption、
+effect unknown、orphan dispatch 触发稳定 rule fingerprint；重复事件聚合为一个 incident，source refs 保留
+有界集合。模型/UI 自报或普通文本不会触发规则。每条事故关联固定“检查事实→保持 fencing→显式 reconcile”
+计划，`requires_reconciliation` 事故保持 Open，不能自动 approve/retry/resolve/close；ControlPlane 只读
+`observability_incidents` bridge 不写 EventLog、不调用 Broker/Provider、不覆盖 Company Incident/FailureIncident。
+
+OA-19 远端 workflow 覆盖 lag/unknown/orphan/artifact/redaction/queue/journal triggers、fingerprint dedupe、
+source refs、recovery association、unknown cannot close、model/UI self-report rejection 和 snapshot serde；
+本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该投影仍是 source diagnostic，不等价于
+durable incident checkpoint/event、operator triage workflow、自动 reconcile、queue/exporter live state 或业务 Incident。

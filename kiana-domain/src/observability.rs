@@ -20,6 +20,9 @@ pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-che
 pub const AUDIT_QUERY_CURSOR_SCHEMA: &str = "kiana.audit-query-cursor.v1";
 pub const AUDIT_EXPORT_SCHEMA: &str = "kiana.audit-export.v1";
 pub const AUDIT_DELIVERY_RECEIPT_SCHEMA: &str = "kiana.audit-delivery-receipt.v1";
+pub const OBSERVABILITY_ALERT_SCHEMA: &str = "kiana.observability-alert.v1";
+pub const OBSERVABILITY_INCIDENT_SCHEMA: &str = "kiana.observability-incident.v1";
+pub const OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA: &str = "kiana.observability-incident-snapshot.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
@@ -33,6 +36,9 @@ pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION: SchemaVersion = SchemaVers
 pub const AUDIT_QUERY_CURSOR_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_EXPORT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_DELIVERY_RECEIPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const OBSERVABILITY_ALERT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const OBSERVABILITY_INCIDENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -56,6 +62,8 @@ pub const MAX_METRIC_SERIES: usize = 1_024;
 pub const MAX_METRIC_LABEL_VALUES: usize = 64;
 pub const MAX_AUDIT_PROJECTION_RECORDS: usize = 4_096;
 pub const MAX_AUDIT_EXPORT_RECORDS: usize = 4_096;
+pub const MAX_OBSERVABILITY_ALERTS: usize = 128;
+pub const MAX_OBSERVABILITY_INCIDENTS: usize = 128;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
@@ -1464,6 +1472,335 @@ impl AuditDeliveryReceipt {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "delivery_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlertSeverity {
+    Info,
+    Warning,
+    Error,
+    Critical,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlertState {
+    Open,
+    Acknowledged,
+    Suppressed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservabilityIncidentCategory {
+    ProjectorLag,
+    AuditLoss,
+    RedactionFailure,
+    QueueOverflow,
+    JournalCorruption,
+    EffectUnknown,
+    OrphanDispatch,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservabilityIncidentState {
+    Open,
+    Contained,
+    Recovering,
+    Verified,
+    Closed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObservabilityAlert {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub alert_id: String,
+    pub fingerprint: String,
+    pub rule: String,
+    pub severity: AlertSeverity,
+    pub state: AlertState,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub message: String,
+    #[serde(default)]
+    pub incident_id: Option<String>,
+    pub alert_digest: String,
+}
+
+impl ObservabilityAlert {
+    pub fn new(
+        alert_id: impl Into<String>,
+        fingerprint: impl Into<String>,
+        rule: impl Into<String>,
+        severity: AlertSeverity,
+        state: AlertState,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        message: impl Into<String>,
+        incident_id: Option<String>,
+    ) -> Result<Self, String> {
+        let mut alert = Self {
+            schema: OBSERVABILITY_ALERT_SCHEMA.to_owned(),
+            version: OBSERVABILITY_ALERT_SCHEMA_VERSION,
+            alert_id: alert_id.into(),
+            fingerprint: fingerprint.into(),
+            rule: rule.into(),
+            severity,
+            state,
+            source_cursor,
+            source_event_ids,
+            message: message.into(),
+            incident_id,
+            alert_digest: String::new(),
+        };
+        alert.alert_digest = alert.digest();
+        alert.validate()?;
+        Ok(alert)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            OBSERVABILITY_ALERT_SCHEMA,
+            OBSERVABILITY_ALERT_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.alert_id, "observability_alert_id", 128)?;
+        validate_digest(&self.fingerprint, "observability_alert_fingerprint")?;
+        validate_nonempty(&self.rule, "observability_alert_rule", 128)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_nonempty(
+            &self.message,
+            "observability_alert_message",
+            MAX_ATTRIBUTE_VALUE_BYTES,
+        )?;
+        if let Some(incident_id) = &self.incident_id {
+            validate_nonempty(incident_id, "observability_alert_incident_id", 128)?;
+        }
+        validate_digest(&self.alert_digest, "observability_alert_digest")?;
+        if self.alert_digest != self.digest() {
+            return Err("observability_alert_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "alert_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObservabilityIncident {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub incident_id: String,
+    pub fingerprint: String,
+    pub category: ObservabilityIncidentCategory,
+    pub severity: AlertSeverity,
+    pub state: ObservabilityIncidentState,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub requires_reconciliation: bool,
+    pub recovery_plan: Vec<String>,
+    pub alert_ids: Vec<String>,
+    pub incident_digest: String,
+}
+
+impl ObservabilityIncident {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        incident_id: impl Into<String>,
+        fingerprint: impl Into<String>,
+        category: ObservabilityIncidentCategory,
+        severity: AlertSeverity,
+        state: ObservabilityIncidentState,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        requires_reconciliation: bool,
+        recovery_plan: Vec<String>,
+        alert_ids: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut incident = Self {
+            schema: OBSERVABILITY_INCIDENT_SCHEMA.to_owned(),
+            version: OBSERVABILITY_INCIDENT_SCHEMA_VERSION,
+            incident_id: incident_id.into(),
+            fingerprint: fingerprint.into(),
+            category,
+            severity,
+            state,
+            source_cursor,
+            source_event_ids,
+            requires_reconciliation,
+            recovery_plan,
+            alert_ids,
+            incident_digest: String::new(),
+        };
+        incident.incident_digest = incident.digest();
+        incident.validate()?;
+        Ok(incident)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            OBSERVABILITY_INCIDENT_SCHEMA,
+            OBSERVABILITY_INCIDENT_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.incident_id, "observability_incident_id", 128)?;
+        validate_digest(&self.fingerprint, "observability_incident_fingerprint")?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.recovery_plan.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("observability_incident_recovery_plan_limit".to_owned());
+        }
+        for step in &self.recovery_plan {
+            validate_nonempty(
+                step,
+                "observability_incident_recovery_step",
+                MAX_ATTRIBUTE_VALUE_BYTES,
+            )?;
+        }
+        if self.requires_reconciliation && self.recovery_plan.is_empty() {
+            return Err("observability_incident_recovery_plan_required".to_owned());
+        }
+        if self.requires_reconciliation
+            && matches!(
+                self.state,
+                ObservabilityIncidentState::Verified | ObservabilityIncidentState::Closed
+            )
+        {
+            return Err("observability_incident_unknown_cannot_close".to_owned());
+        }
+        if self.alert_ids.len() > MAX_OBSERVABILITY_ALERTS {
+            return Err("observability_incident_alert_limit".to_owned());
+        }
+        let mut alert_ids = BTreeSet::new();
+        for alert_id in &self.alert_ids {
+            validate_nonempty(alert_id, "observability_incident_alert_id", 128)?;
+            if !alert_ids.insert(alert_id) {
+                return Err("observability_incident_alert_duplicate".to_owned());
+            }
+        }
+        validate_digest(&self.incident_digest, "observability_incident_digest")?;
+        if self.incident_digest != self.digest() {
+            return Err("observability_incident_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "incident_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObservabilityIncidentSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub alerts: Vec<ObservabilityAlert>,
+    pub incidents: Vec<ObservabilityIncident>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    pub snapshot_digest: String,
+}
+
+impl ObservabilityIncidentSnapshot {
+    pub fn new(
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        alerts: Vec<ObservabilityAlert>,
+        incidents: Vec<ObservabilityIncident>,
+        limitations: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self {
+            schema: OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA.to_owned(),
+            version: OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA_VERSION,
+            source_cursor,
+            source_event_ids,
+            alerts,
+            incidents,
+            limitations,
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA,
+            OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA_VERSION,
+        )?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.alerts.len() > MAX_OBSERVABILITY_ALERTS {
+            return Err("observability_snapshot_alert_limit".to_owned());
+        }
+        if self.incidents.len() > MAX_OBSERVABILITY_INCIDENTS {
+            return Err("observability_snapshot_incident_limit".to_owned());
+        }
+        let mut alert_ids = BTreeSet::new();
+        for alert in &self.alerts {
+            alert.validate()?;
+            if !alert_ids.insert(alert.alert_id.clone()) {
+                return Err("observability_snapshot_alert_duplicate".to_owned());
+            }
+        }
+        let mut incident_ids = BTreeSet::new();
+        for incident in &self.incidents {
+            incident.validate()?;
+            if !incident_ids.insert(incident.incident_id.clone()) {
+                return Err("observability_snapshot_incident_duplicate".to_owned());
+            }
+        }
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("observability_snapshot_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(
+                limitation,
+                "observability_snapshot_limitation",
+                MAX_ATTRIBUTE_VALUE_BYTES,
+            )?;
+        }
+        validate_digest(&self.snapshot_digest, "observability_snapshot_digest")?;
+        if self.snapshot_digest != self.digest() {
+            return Err("observability_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "snapshot_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

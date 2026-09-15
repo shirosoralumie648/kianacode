@@ -1,0 +1,41 @@
+name: oa19-observability-incidents
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/observability.rs"
+      - "kiana-core/src/incident_projection.rs"
+      - "kiana-core/src/metrics.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/oa19_incident_projection.rs"
+      - ".github/workflows/oa19-observability-incidents.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/observability.rs"
+      - "kiana-core/src/incident_projection.rs"
+      - "kiana-core/src/metrics.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/oa19_incident_projection.rs"
+      - ".github/workflows/oa19-observability-incidents.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa19:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa19-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run OA-19 remote-only fixtures
+        run: cargo test -p kiana-core --test oa19_incident_projection --locked -- --test-threads=1

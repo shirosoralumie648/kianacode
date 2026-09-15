@@ -19,6 +19,7 @@ mod events;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
 mod health;
 mod history;
+mod incident_projection;
 mod invocation_projection;
 mod lifecycle;
 mod memory_distillation;
@@ -49,6 +50,9 @@ pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
 pub use health::{project_health_snapshot, HealthProjectionError};
+pub use incident_projection::{
+    project_incidents, project_observability_incidents, IncidentProjectionError,
+};
 pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use metrics::{
     project_metrics, project_operational_metrics, project_run_metrics, MetricCardinalityError,
