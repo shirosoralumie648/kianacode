@@ -1,0 +1,39 @@
+name: NM-00 notifications baseline
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/tests/notifications_baseline.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "docs/roadmap/notifications-baseline.md"
+      - ".github/workflows/nm00-baseline.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/platform.rs"
+      - "kiana-core/src/platform.rs"
+      - "kiana-core/tests/notifications_baseline.rs"
+      - "kiana-daemon/src/run_stream.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - "docs/roadmap/notifications-baseline.md"
+      - ".github/workflows/nm00-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Run NM-00 source-only guard
+        run: cargo test -p kiana-core --test notifications_baseline --locked -- --test-threads=1

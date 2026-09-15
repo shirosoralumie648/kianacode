@@ -851,6 +851,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus AUT-01 automation/source-boundary reconciliation; no runtime test reviewer
 ```
 
+### NM-00 notifications/messaging baseline evidence (2026-09-16)
+
+```text
+source_snapshot: a71179b; kiana-domain/src/platform.rs; kiana-core/src/platform.rs; kiana-daemon/src/run_stream.rs; kiana-entrypoints/src/{web,workbench_chat,cli}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-domain/src/company.rs; kiana-core/src/{company_business,recovery}.rs; kiana-core/tests/notifications_baseline.rs; .github/workflows/nm00-baseline.yml; docs/roadmap/notifications-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: NM-00 source-only event→recipient→channel inventory, HumanInbox/RunStream/SSE/transcript fact-boundary guard, durable notification/read-state gap list, legacy watcher separation and NM-01..22 fixture catalog are scoped to this step; no NotificationStore/outbox/DeliveryWorker/message bus was added; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/platform.rs kiana-core/src/platform.rs kiana-daemon/src/run_stream.rs kiana-entrypoints/src/web.rs kiana-entrypoints/src/workbench_chat.rs kiana-entrypoints/src/cli.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-domain/src/company.rs kiana-core/src/company_business.rs kiana-core/src/recovery.rs kiana-core/tests/notifications_baseline.rs .github/workflows/nm00-baseline.yml docs/roadmap/notifications-baseline.md
+  rg -n 'HumanInboxItem|human_items|RunStreamBus|broadcast::channel|/api/events|/api/receipt|watch_scheduled_tasks|NotificationStore|DeliveryWorker|not.*EventLog|不是 EventLog 或 Receipt' kiana-domain/src kiana-core/src kiana-daemon/src kiana-entrypoints/src kiana-core/tests docs/roadmap/notifications-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/notifications_baseline.rs; HumanInbox/Approval/Company/Failure projection, bounded RunStream epoch/sequence/gap/terminal, Web REST/SSE and Workbench display-only source assertions, absent durable NotificationStore/read state/outbox/DeliveryWorker; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions NM-00 job is queued by the push and is not awaited
+status_change: NM-00 source baseline is implemented. EventLog/Approval/Company/Recovery facts remain canonical; `HumanInboxItem` is a bounded action projection, `RunStreamBus`/SSE is process-local best-effort display with gap/terminal replay, and Web/Workbench/CLI transcript/file summaries are disposable. No durable Notification/Message/Subscription/DeliveryAttempt/NotificationStore/DeliveryWorker/read-state or external channel exists; legacy `watch_scheduled_tasks` remains compatibility-only and cannot create notifications or scheduling authority. The source guard prevents a second message bus/loop or direct channel effect from being mistaken for product delivery.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; unread/read/ACK/subscription/outbox/lease/delivery/reconcile stores, external Email/Slack/Webhook/A2A/OS channels, cross-process restart and notification query parity remain NM-01..NM-22; RunStream delta/HTTP ACK/toast/model text never proves business action or delivery
+reviewer: Codex root implementation review plus NM-00 notification/source-boundary reconciliation; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

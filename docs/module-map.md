@@ -23,7 +23,7 @@ Kiana 不应只按 Rust crate 画地图。一个产品模块可能跨多个 crat
 | 11 | **调度、工作流与触发器** | 队列、定时、重试、幂等、持久工作流、Webhook/事件触发和运行编排 | [Workflow](../kiana-workflow/src/lib.rs)、[自动化](../kiana-core/src/automation.rs)、[AUT-01 基线](roadmap/automation-baseline.md)、[协议命令](../kiana-protocol/src/lib.rs)；`kiana-workflow` 当前主要是小型状态机定义，`sdk.rs::watch_scheduled_tasks` 仅是兼容目录 watcher，不是产品 scheduler，不能据此推断已有完整持久工作流引擎或可靠调度器 |
 | 12 | **多 Agent 协调 / Swarm** | Cell、SpawnPlan、预算、并发、路径锁、工单派发、监督、合并和跨角色协作 | [Cell 注册表](../kiana-core/src/cell_registry.rs)、[协作](../kiana-core/src/collaboration.rs)、[Swarm](../kiana-core/src/swarm.rs)、[领域模型](../kiana-domain/src/swarm.rs)；这是产品级协调模块，单个 Agent 的模型循环仍由 Harness 驱动；详细代码设计、处理流和实施步骤见 [roadmap §30](roadmap.md#swarm-coordination-design) |
 | 13 | **集成与连接器** | GitHub、Jira、Slack、Notion、浏览器、搜索、OAuth、Webhook 以及其他外部系统的账号绑定、限流、映射和失败处理 | [连接器领域模型](../kiana-domain/src/connectors.rs)、[Daemon 连接器](../kiana-daemon/src/connectors.rs)、[MCP stdio](../kiana-daemon/src/mcp_stdio.rs)；当前源码可核对的实现边界是 `local_fixture`，MCP 只描述部分工具调用通道，连接器还需要凭据、对象映射、幂等和外部结果确认；详细设计、处理流程和 `INT-00`–`INT-33` 见 [连接器专项](roadmap/integrations-connectors.md) |
-| 14 | **通知与消息** | 审批、任务、会议、工单变更、失败、提醒和实时协作消息；包含订阅、投递、去重和已读状态 | [运行流订阅](../kiana-daemon/src/run_stream.rs)、[协议事件](../kiana-protocol/src/lib.rs)、[人类操作入口](../kiana-entrypoints/src/workbench_chat.rs)、[通知与消息专项](roadmap.md#notification-messaging-design)；当前主要是运行流和入口展示，尚无可以替代业务事件的独立通知总线 |
+| 14 | **通知与消息** | 审批、任务、会议、工单变更、失败、提醒和实时协作消息；包含订阅、投递、去重和已读状态 | [运行流订阅](../kiana-daemon/src/run_stream.rs)、[Human Inbox 投影](../kiana-core/src/platform.rs)、[协议事件](../kiana-protocol/src/lib.rs)、[人类操作入口](../kiana-entrypoints/src/workbench_chat.rs)、[NM-00 基线](roadmap/notifications-baseline.md)、[通知与消息专项](roadmap.md#notification-messaging-design)；当前主要是运行流、Human Inbox 和入口展示，尚无可以替代业务事件的独立通知总线 |
 | 15 | **Skills / Plugins / Hooks：扩展** | 加载技能说明、插件、钩子和本地扩展，在受信任范围内接入运行阶段 | [Skills](../kiana-skills/src/lib.rs)、[技能注入](../kiana-daemon/src/harness_skills.rs)、[前置钩子](../kiana-daemon/src/pre_tool_hooks.rs)；项目本地资源必须先过 ProjectTrust，扩展不能新增第二条执行路径 |
 | 16 | **UI / Entrypoints：用户入口** | CLI、终端工作台、Web、Electron、状态卡、审批卡、对话、文件变化、收据和实时进度展示 | [入口注册](../kiana-entrypoints/src/lib.rs)、[CLI](../kiana-entrypoints/src/cli.rs)、[Web](../kiana-entrypoints/src/web.rs)、[Desktop](../contrib/desktop/main.js)；UI 只能投影状态和事件，不能自行创建 Agent loop 或权限边界 |
 | 17 | **评测与质量** | 评测集、回归用例、评分、实验、数据收集、黄金轨迹、smoke 和发布门 | [crate 测试](../kiana-domain/src/tests.rs)、[脚本](../scripts/)、[CI](../.github/workflows/)、[质量规范](coding-pack-matrix.md)；CI 通过不等于产品能力完成，评测结果需要绑定源码快照和证据等级 |
@@ -140,6 +140,11 @@ AUT-01 的调度基线见 [automation-baseline.md](roadmap/automation-baseline.m
 workflow 执行脊柱仍是 `DaemonHost → ControlPlane → kiana-workflow`，纯 planner 不触碰 I/O/Broker，
 而 `kiana-entrypoints::sdk::watch_scheduled_tasks` 只保留为兼容 DTO/目录创建 API。后续 ClockPort、
 trigger、queue、claim、scheduler worker 与恢复必须沿同一事实链增量接入，不能从旧 watcher 另起第二 scheduler。
+
+NM-00 的通知基线见 [notifications-baseline.md](roadmap/notifications-baseline.md)：当前
+`HumanInboxItem`、RunStream、SSE、Workbench/CLI transcript 都是从提交事实派生的展示或动作入口；没有
+durable NotificationStore、read state、outbox、DeliveryWorker 或外部消息通道。断线、ACK、toast、HTTP 2xx
+和模型文本都不能改变 Approval/Company/Recovery authority，后续 NM 步骤必须继续复用 DaemonHost/ControlPlane。
 
 ## ER-00 事实边界基线（2026-09-14）
 
