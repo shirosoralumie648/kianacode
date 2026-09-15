@@ -1,0 +1,25 @@
+name: OA-06 EventStore Commit Observer
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  commit-observer:
+    name: Committed-only observer guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run OA-06 commit observer tests
+        run: cargo test -p kiana-eventlog --test oa06_commit_observer --locked -- --test-threads=1

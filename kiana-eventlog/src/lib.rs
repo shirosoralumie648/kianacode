@@ -4,9 +4,11 @@ mod event_store_core;
 mod journal_core;
 mod jsonl;
 mod memory;
+mod stream;
 
 pub use jsonl::JsonlEventLog;
 pub use memory::MemoryEventLog;
+pub use stream::{CommitObservedEventStore, StreamEventStore};
 
 use kiana_ports::PortError;
 use std::path::PathBuf;

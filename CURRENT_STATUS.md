@@ -315,7 +315,7 @@ reviewer: Codex root implementation review plus OA-04 domain/core static-boundar
 
 ```text
 source_snapshot: bea86dc; kiana-domain/src/{observability,contracts}.rs; kiana-ports/src/lib.rs; kiana-ports/tests/oa05_observability_ports.rs; .github/workflows/oa05-ports.yml; docs/roadmap/observability-audit-baseline.md
-worktree_status: OA-05 HealthSnapshot contract, signal union, sink/query/health ports, Memory/JSONL fakes, remote-only fixtures, baseline hash overlay, roadmap/module documentation and status backfill are scoped to this step; no unrelated WIP was reverted; static verification is complete and this slice is ready to commit/push
+worktree_status: OA-05 HealthSnapshot contract, signal union, sink/query/health ports, Memory/JSONL fakes, remote-only fixtures, baseline hash overlay, roadmap/module documentation and status backfill were scoped to this step; no unrelated WIP was reverted; committed and pushed as 8c3ab48
 command_argv:
   sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-ports/src/lib.rs
   rg -n 'ObservabilityPort|TraceSink|MetricSink|AuditQueryPort|HealthProbePort|ObservabilityCapabilities|require_observability_capabilities|MemoryObservabilitySink|JsonlObservabilitySink' kiana-domain/src kiana-ports/src kiana-ports/tests
@@ -332,6 +332,29 @@ status_change: OA-05 source slice is implemented. `kiana-ports` now owns a close
 proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
 limitations: CI result was intentionally not awaited; no local test or smoke command was run; fake adapters are deliberately non-durable, no EventLog commit observer/backpressure/retention/export integration exists, query authentication and DataBoundary remain future OA-16/OA-17 work, and a health snapshot does not prove provider or business health
 reviewer: Codex root implementation review plus OA-05 ports/fake static-boundary review; no runtime test reviewer
+```
+
+### OA-06 EventStore commit observer evidence (2026-09-15)
+
+```
+source_snapshot: 8c3ab48; kiana-ports/src/lib.rs; kiana-eventlog/src/{lib,stream}.rs; kiana-eventlog/tests/oa06_commit_observer.rs; .github/workflows/oa06-commit-observer.yml; docs/roadmap/observability-audit-baseline.md
+worktree_status: OA-06 CommittedTransition/observer contract, StreamEventStore decorator, bounded observer-failure diagnostics, remote-only fixtures, baseline hash overlay, roadmap/module documentation and status backfill are scoped to this step; no unrelated WIP was reverted; static verification is complete and this slice is included in the accompanying step commit
+command_argv:
+  sha256sum kiana-ports/src/lib.rs kiana-eventlog/src/lib.rs kiana-eventlog/src/stream.rs
+  rg -n 'CommittedTransition|EventStoreCommitObserver|StreamEventStore|CommitObserverFailure' kiana-ports/src kiana-eventlog/src kiana-eventlog/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-ports --tests --locked --offline
+  cargo check -p kiana-eventlog --tests --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo 1.97.1; locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-eventlog/tests/oa06_commit_observer.rs; fresh Committed notification after inner receipt visibility, replay without duplicate observer call, CAS conflict/Unknown suppression, observer failure diagnostics, forged cursor/event identity rejection; GitHub Actions only
+exit_code: 0 for format, eventlog/ports/workspace test-target compilation, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-06 job is queued by the push and is not awaited
+status_change: OA-06 source slice is implemented. kiana-ports now validates receipt identity, contiguous source cursor and exact source event IDs in CommittedTransition; kiana-eventlog::StreamEventStore delegates all EventStore guarantees, advances a process-local committed cursor, and invokes observers only after fresh atomic commits. Replays, conflicts, unknown outcomes and underlying errors do not publish; observer failures remain bounded diagnostics and cannot rewrite a committed outcome.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; callback delivery is a best-effort wake hint and can be lost, so durable projections must rescan read_from; legacy append* paths intentionally do not synthesize transition receipts; no Audit/Metric/Trace/Receipt projection or backpressure/retention/export integration exists yet
+reviewer: Codex root implementation review plus OA-06 eventlog/observer static-boundary review; no runtime test reviewer
 ```
 
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)

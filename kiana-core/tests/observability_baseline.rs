@@ -100,7 +100,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-ports/src/lib.rs",
-        "cbc4c8a182df7f8a9bb972ca70f94dbe5a78e7b27c29cd209f48a84c9c58b5c3",
+        "36fca0363cd1aab7ca00d3a75375be99ab6aeb13de28f38e42fcf425a96b16f0",
     ),
 ];
 

@@ -27,6 +27,7 @@ use kiana_domain::{
     SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
 
 /// Read-only edit checkpoint adapter. Restoring files is deliberately absent: it is brokered.
@@ -341,6 +342,111 @@ impl CorrelationContextPort for DomainCorrelationContextPort {
             .linked_child(relationship)
             .map_err(|error| PortError::Failed(format!("correlation_context:{error}")))
     }
+}
+
+/// Immutable notification describing one newly committed transition.
+///
+/// The notification is constructed only after `EventStorePort::commit_transition` returns
+/// `CommitOutcome::Committed`. It carries the exact batch and receipt together so observers can
+/// rebuild a projection from the committed cursor without treating a callback as a fact source.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommittedTransition {
+    pub batch: kiana_domain::TransitionBatch,
+    pub receipt: kiana_domain::CommandReceipt,
+}
+
+impl CommittedTransition {
+    pub fn new(
+        batch: kiana_domain::TransitionBatch,
+        receipt: kiana_domain::CommandReceipt,
+    ) -> Result<Self, PortError> {
+        let notification = Self { batch, receipt };
+        notification.validate()?;
+        Ok(notification)
+    }
+
+    pub fn source_cursor(&self) -> kiana_domain::EventCursor {
+        self.receipt.cursor
+    }
+
+    pub fn source_event_ids(&self) -> &[kiana_domain::EventId] {
+        &self.receipt.event_ids
+    }
+
+    pub fn validate(&self) -> Result<(), PortError> {
+        self.batch
+            .validate()
+            .map_err(|error| PortError::Failed(format!("commit_notification_batch:{error}")))?;
+        if self.receipt.command_id != self.batch.command_id
+            || self.receipt.command_digest != self.batch.command_digest
+        {
+            return Err(PortError::Conflict(
+                "commit_notification_receipt_identity_mismatch".to_owned(),
+            ));
+        }
+        if self.receipt.first_cursor == 0
+            || self.receipt.cursor < self.receipt.first_cursor
+            || self.receipt.event_ids.len() != self.batch.events.len()
+        {
+            return Err(PortError::Failed(
+                "commit_notification_cursor_invalid".to_owned(),
+            ));
+        }
+        let expected_cursor = self
+            .receipt
+            .first_cursor
+            .checked_add(self.batch.events.len() as u64 - 1)
+            .ok_or_else(|| PortError::Failed("commit_notification_cursor_overflow".to_owned()))?;
+        if self.receipt.cursor != expected_cursor {
+            return Err(PortError::Conflict(
+                "commit_notification_cursor_not_contiguous".to_owned(),
+            ));
+        }
+        let expected_ids = self
+            .batch
+            .events
+            .iter()
+            .map(|event| event.event_id)
+            .collect::<Vec<_>>();
+        if self.receipt.event_ids != expected_ids {
+            return Err(PortError::Conflict(
+                "commit_notification_event_ids_mismatch".to_owned(),
+            ));
+        }
+        let unique = self
+            .receipt
+            .event_ids
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>();
+        if unique.len() != self.receipt.event_ids.len() {
+            return Err(PortError::Conflict(
+                "commit_notification_event_ids_duplicate".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Observer invoked sequentially after a fresh transition commit.
+///
+/// Observers receive a clone of committed facts and cannot participate in authorization or call
+/// the Broker through this port. An observer error is diagnostic: it must not turn an already
+/// committed transition into a false rejection or trigger a second commit attempt.
+#[async_trait]
+pub trait EventStoreCommitObserver: Send + Sync {
+    async fn on_committed(&self, transition: CommittedTransition) -> Result<(), PortError>;
+}
+
+/// Compatibility spelling for callers that use the shorter observer name.
+pub use EventStoreCommitObserver as CommitObserver;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommitObserverFailure {
+    pub command_id: kiana_domain::RequestId,
+    pub commit_id: kiana_domain::EventId,
+    pub source_cursor: kiana_domain::EventCursor,
+    pub reason: String,
 }
 
 #[async_trait]
