@@ -1,5 +1,6 @@
 //! The owned model path uses the provider gateway; legacy fixtures remain read-compatible.
 use crate::LocalModelConfig;
+use async_trait::async_trait;
 use kiana_ports::ModelClient;
 use kiana_runner::{ScriptedModel, UnavailableModel};
 use std::sync::Arc;
@@ -7,34 +8,99 @@ pub(crate) fn from_env() -> Arc<dyn ModelClient> {
     from_config(LocalModelConfig::default())
 }
 pub(crate) fn from_config(config: LocalModelConfig) -> Arc<dyn ModelClient> {
-    if let Ok(path) = std::env::var("KIANA_HARNESS_SCRIPT") {
-        if !path.trim().is_empty() {
-            return match ScriptedModel::from_json_path(path.trim()) {
-                Ok(model) => Arc::new(model),
-                Err(error) => Arc::new(UnavailableModel::new(error)),
-            };
+    let client: Arc<dyn ModelClient> = match std::env::var("KIANA_HARNESS_SCRIPT") {
+        Ok(path) if !path.trim().is_empty() => match ScriptedModel::from_json_path(path.trim()) {
+            Ok(model) => Arc::new(model),
+            Err(error) => Arc::new(UnavailableModel::new(error)),
+        },
+        _ if config
+            .provider
+            .as_deref()
+            .or(std::env::var("KIANA_PROVIDER").ok().as_deref())
+            == Some("fake") =>
+        {
+            Arc::new(ScriptedModel::new(
+                (0..128)
+                    .map(|_| {
+                        kiana_domain::ModelOutput::text("Deterministic fake provider response")
+                    })
+                    .collect(),
+            ))
         }
+        _ => match kiana_provider::ProviderGateway::from_env(kiana_provider::ProviderConfig {
+            provider: config.provider,
+            model: config.model,
+            base_url: config.base_url,
+            api_key: config.api_key,
+        }) {
+            Ok(gateway) => Arc::new(gateway),
+            Err(error) => Arc::new(UnavailableModel::new(format!("model_unavailable:{error}"))),
+        },
+    };
+    Arc::new(InstrumentedModelClient { inner: client })
+}
+
+/// The daemon composition root keeps the provider's request summary on the same model port as
+/// the Harness.  This wrapper validates that only the allow-listed model-attempt metadata can be
+/// observed; it never emits an event, calls a broker, or replaces the ControlPlane's reducer.
+struct InstrumentedModelClient {
+    inner: Arc<dyn ModelClient>,
+}
+
+#[async_trait]
+impl ModelClient for InstrumentedModelClient {
+    fn prepare_call(
+        &self,
+        request: kiana_domain::ModelRequest,
+        spec: kiana_domain::ModelCallSpec,
+    ) -> Result<kiana_domain::PreparedModelCall, kiana_domain::ModelError> {
+        let prepared = self.inner.prepare_call(request, spec)?;
+        kiana_provider::safe_prepared_metadata(&prepared)?;
+        Ok(prepared)
     }
-    if config
-        .provider
-        .as_deref()
-        .or(std::env::var("KIANA_PROVIDER").ok().as_deref())
-        == Some("fake")
-    {
-        return Arc::new(ScriptedModel::new(
-            (0..128)
-                .map(|_| kiana_domain::ModelOutput::text("Deterministic fake provider response"))
-                .collect(),
-        ));
+
+    fn request_context(
+        &self,
+        request: &kiana_domain::ModelRequest,
+    ) -> kiana_domain::ModelRequestContext {
+        self.inner.request_context(request)
     }
-    match kiana_provider::ProviderGateway::from_env(kiana_provider::ProviderConfig {
-        provider: config.provider,
-        model: config.model,
-        base_url: config.base_url,
-        api_key: config.api_key,
-    }) {
-        Ok(gateway) => Arc::new(gateway),
-        Err(error) => Arc::new(UnavailableModel::new(format!("model_unavailable:{error}"))),
+
+    async fn complete(
+        &self,
+        request: kiana_domain::ModelRequest,
+    ) -> Result<kiana_domain::ModelOutput, String> {
+        self.inner.complete(request).await
+    }
+
+    async fn complete_streaming(
+        &self,
+        request: kiana_domain::ModelRequest,
+        on_delta: &mut (dyn FnMut(kiana_domain::ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<kiana_domain::ModelOutput, String> {
+        self.inner.complete_streaming(request, on_delta).await
+    }
+
+    async fn complete_prepared(
+        &self,
+        prepared: kiana_domain::PreparedModelCall,
+        on_delta: &mut (dyn FnMut(kiana_domain::ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<kiana_domain::ModelReply, kiana_domain::ModelError> {
+        kiana_provider::safe_prepared_metadata(&prepared)?;
+        self.inner.complete_prepared(prepared, on_delta).await
+    }
+
+    async fn complete_admitted(
+        &self,
+        prepared: kiana_domain::PreparedModelCall,
+        permit: kiana_domain::ModelCallPermit,
+        admission: &dyn kiana_ports::ModelBudgetPort,
+        on_delta: &mut (dyn FnMut(kiana_domain::ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<kiana_domain::ModelReply, kiana_domain::ModelError> {
+        kiana_provider::safe_prepared_metadata(&prepared)?;
+        self.inner
+            .complete_admitted(prepared, permit, admission, on_delta)
+            .await
     }
 }
 

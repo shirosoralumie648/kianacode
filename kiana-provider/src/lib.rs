@@ -2,12 +2,14 @@
 mod config;
 mod request;
 mod response;
+mod telemetry;
 mod transport;
 use async_trait::async_trait;
 pub use config::ProviderConfig;
 use kiana_domain::*;
 use kiana_ports::{ModelBudgetPort, ModelClient};
 use std::collections::BTreeMap;
+pub use telemetry::{safe_prepared_metadata, MODEL_ATTEMPT_TELEMETRY_SCHEMA};
 
 pub struct ProviderGateway {
     connections: BTreeMap<String, config::Connection>,
@@ -71,6 +73,10 @@ impl ModelClient for ProviderGateway {
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
     ) -> Result<ModelReply, ModelError> {
         prepared.validate()?;
+        // Validate the allow-listed instrumentation view at the provider boundary.  The value is
+        // deliberately not built from wire_body or response content; the runner persists the
+        // same safe fields through its committed model-turn event.
+        let _telemetry = telemetry::safe_prepared_metadata(&prepared)?;
         let connection = self.connection(&prepared.spec)?;
         if connection.route.configuration_revision != prepared.route.configuration_revision
             || connection.route.connection_id != prepared.route.connection_id

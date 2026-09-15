@@ -6,8 +6,9 @@
 //! relationship.
 
 use crate::{
-    canonical_journal_bytes, json_digest, DataClass, EventId, ExecutionId, InvocationId, RequestId,
-    RunId, SchemaVersion, SpanId, TraceId, TurnId,
+    canonical_journal_bytes, json_digest, DataClass, EventId, ExecutionId, InvocationId,
+    ModelFinish, ModelPurpose, ModelRetryClass, ModelUsage, RequestId, RunId, SchemaVersion,
+    SpanId, TraceId, TurnId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,6 +25,8 @@ pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const SPAN_LIFECYCLE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const MODEL_ATTEMPT_SCHEMA: &str = "kiana.model-attempt.v1";
+pub const MODEL_ATTEMPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 pub const MAX_SIGNAL_ATTRIBUTES: usize = 32;
 pub const MAX_ATTRIBUTE_KEY_BYTES: usize = 64;
@@ -35,6 +38,10 @@ pub const MAX_SOURCE_EVENT_IDS: usize = 256;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
+pub const MAX_MODEL_PROVIDER_BYTES: usize = 128;
+pub const MAX_MODEL_ID_BYTES: usize = 256;
+pub const MAX_MODEL_ERROR_CODE_BYTES: usize = 128;
+pub const MAX_MODEL_USAGE_TOKENS: u64 = 1_000_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -965,6 +972,235 @@ impl SpanLifecycleRecord {
         validate_digest(&self.record_digest, "span_record_digest")?;
         if self.record_digest != self.digest() {
             return Err("span_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "record_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// Provider cache information is intentionally a low-cardinality enum.  Raw cache keys,
+/// provider headers and response metadata never cross the model-attempt projection boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelCacheUsage {
+    Hit,
+    Miss,
+    NotRequested,
+    Unknown,
+}
+
+fn validate_prompt_version(value: &str) -> Result<(), String> {
+    if value.len() > 128 {
+        return Err("model_prompt_version_too_long".to_owned());
+    }
+    if let Some(hex) = value.strip_prefix("sha256:") {
+        if hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Ok(());
+        }
+    }
+    if let Some(hex) = value.strip_prefix("fnv1a64:") {
+        if hex.len() == 16 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Ok(());
+        }
+    }
+    Err("model_prompt_version_invalid".to_owned())
+}
+
+/// One bounded provider/model attempt observation derived from a committed `run.model_turn`
+/// event.  It is a projection record, not a provider receipt or a billing proof.
+///
+/// The record deliberately carries only hashes and low-cardinality classifications for prompt,
+/// route, cache and error data.  In particular, prompt text, authentication headers and raw
+/// provider responses are not representable in this contract.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelAttemptRecord {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub trace_id: TraceId,
+    pub span_id: SpanId,
+    pub run_id: RunId,
+    #[serde(default)]
+    pub turn_id: Option<TurnId>,
+    pub model_call_id: RequestId,
+    pub model_request_id: RequestId,
+    pub attempt: u32,
+    pub provider_id: String,
+    pub model_id: String,
+    pub route_digest: String,
+    #[serde(default)]
+    pub prompt_version: Option<String>,
+    pub purpose: ModelPurpose,
+    #[serde(default)]
+    pub streaming: Option<bool>,
+    pub attempted: bool,
+    pub status: TraceStatus,
+    #[serde(default)]
+    pub stop_reason: Option<ModelFinish>,
+    #[serde(default)]
+    pub usage: Option<ModelUsage>,
+    pub usage_complete: bool,
+    #[serde(default)]
+    pub latency_ms: Option<u64>,
+    #[serde(default)]
+    pub retry_class: Option<ModelRetryClass>,
+    #[serde(default)]
+    pub cache_usage: Option<ModelCacheUsage>,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub error_code: Option<String>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub record_digest: String,
+}
+
+impl ModelAttemptRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        trace_id: TraceId,
+        span_id: SpanId,
+        run_id: RunId,
+        turn_id: Option<TurnId>,
+        model_call_id: RequestId,
+        model_request_id: RequestId,
+        attempt: u32,
+        provider_id: impl Into<String>,
+        model_id: impl Into<String>,
+        route_digest: impl Into<String>,
+        prompt_version: Option<String>,
+        purpose: ModelPurpose,
+        streaming: Option<bool>,
+        attempted: bool,
+        status: TraceStatus,
+        stop_reason: Option<ModelFinish>,
+        usage: Option<ModelUsage>,
+        usage_complete: bool,
+        latency_ms: Option<u64>,
+        retry_class: Option<ModelRetryClass>,
+        cache_usage: Option<ModelCacheUsage>,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        error_code: Option<String>,
+        attributes: BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        let mut record = Self {
+            schema: MODEL_ATTEMPT_SCHEMA.to_owned(),
+            version: MODEL_ATTEMPT_SCHEMA_VERSION,
+            trace_id,
+            span_id,
+            run_id,
+            turn_id,
+            model_call_id,
+            model_request_id,
+            attempt,
+            provider_id: provider_id.into(),
+            model_id: model_id.into(),
+            route_digest: route_digest.into(),
+            prompt_version,
+            purpose,
+            streaming,
+            attempted,
+            status,
+            stop_reason,
+            usage,
+            usage_complete,
+            latency_ms,
+            retry_class,
+            cache_usage,
+            source_cursor,
+            source_event_ids,
+            error_code,
+            attributes,
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            MODEL_ATTEMPT_SCHEMA,
+            MODEL_ATTEMPT_SCHEMA_VERSION,
+        )?;
+        TraceId::parse(self.trace_id.as_str())?;
+        SpanId::parse(self.span_id.as_str())?;
+        if self.attempt == 0 {
+            return Err("model_attempt_invalid".to_owned());
+        }
+        validate_nonempty(
+            &self.provider_id,
+            "model_provider_id",
+            MAX_MODEL_PROVIDER_BYTES,
+        )?;
+        validate_nonempty(&self.model_id, "model_id", MAX_MODEL_ID_BYTES)?;
+        validate_digest(&self.route_digest, "model_route_digest")?;
+        if let Some(prompt_version) = &self.prompt_version {
+            validate_prompt_version(prompt_version)?;
+        }
+        if self.usage_complete && self.usage.is_none() {
+            return Err("model_usage_completion_without_usage".to_owned());
+        }
+        if let Some(usage) = &self.usage {
+            if usage.input_tokens > MAX_MODEL_USAGE_TOKENS
+                || usage.output_tokens > MAX_MODEL_USAGE_TOKENS
+                || usage
+                    .input_tokens
+                    .checked_add(usage.output_tokens)
+                    .is_none()
+            {
+                return Err("model_usage_out_of_bounds".to_owned());
+            }
+        }
+        if let Some(latency_ms) = self.latency_ms {
+            if latency_ms > 86_400_000 {
+                return Err("model_latency_out_of_bounds".to_owned());
+            }
+        }
+        if let Some(error_code) = &self.error_code {
+            validate_nonempty(error_code, "model_error_code", MAX_MODEL_ERROR_CODE_BYTES)?;
+        }
+        if self.status == TraceStatus::Ok
+            && (!self.attempted
+                || !self.usage_complete
+                || self.error_code.is_some()
+                || self
+                    .retry_class
+                    .is_some_and(|class| class != ModelRetryClass::Never)
+                || !matches!(
+                    self.stop_reason,
+                    Some(ModelFinish::EndTurn | ModelFinish::ToolUse)
+                ))
+        {
+            return Err("model_attempt_ok_without_complete_evidence".to_owned());
+        }
+        if matches!(
+            self.stop_reason,
+            Some(ModelFinish::Length | ModelFinish::Incomplete)
+        ) && self.status == TraceStatus::Ok
+        {
+            return Err("model_attempt_truncated_as_ok".to_owned());
+        }
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.source_event_ids.len() != 1 {
+            return Err("model_attempt_source_event_required".to_owned());
+        }
+        validate_attributes(&self.attributes)?;
+        validate_digest(&self.record_digest, "model_attempt_record_digest")?;
+        if self.record_digest != self.digest() {
+            return Err("model_attempt_record_digest_mismatch".to_owned());
         }
         Ok(())
     }

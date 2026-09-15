@@ -946,10 +946,12 @@ impl KianaHarness {
             emitter.emit(RunnerEvent::ModelTurn {run_id,step:run.steps,metadata:json!({
                 "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"attempt":attempt+1,
                 "provider_id":route.provider_id,"model_id":result.as_ref().ok().and_then(|reply|reply.output.model_id.as_ref()).unwrap_or(&route.model_id),
-                "prepared":audit,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
+                "prepared":audit.clone(),"route_digest":audit["route_digest"],"prompt_version":audit["prompt_version"],
+                "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
                 "finish":result.as_ref().ok().map(|reply|reply.finish),
+                "retry_class":result.as_ref().err().map(|error|error.retry_class),
                 "assistant":result.as_ref().ok().map(|reply|kiana_domain::redact_value(&json!(reply.output))),
                 "error":result.as_ref().err(),
             })})?;

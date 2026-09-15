@@ -379,6 +379,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-07 projection/static-boundary review; no runtime test reviewer
 ```
 
+### OA-08 Provider/model/stream/usage instrumentation evidence (2026-09-15)
+
+```text
+source_snapshot: fa3d713; kiana-domain/src/{observability,contracts,model}.rs; kiana-core/src/{lib,model_attempt_projection}.rs; kiana-provider/src/{lib,telemetry}.rs; kiana-daemon/src/model_client.rs; kiana-runner/src/harness.rs; kiana-core/tests/oa08_model_instrumentation.rs; kiana-provider/tests/oa08_provider_telemetry.rs; .github/workflows/oa08-model-instrumentation.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-08 model-attempt contract, provider/daemon allow-list, committed-event reducer, remote-only fixtures, schema baseline overlay, roadmap/module documentation and status backfill are scoped to this step; no unrelated WIP was reverted; static verification is complete and this slice is included in the accompanying step commit
+command_argv:
+  sha256sum kiana-domain/src/observability.rs kiana-domain/src/contracts.rs kiana-core/src/model_attempt_projection.rs kiana-core/src/lib.rs kiana-provider/src/telemetry.rs kiana-daemon/src/model_client.rs kiana-runner/src/harness.rs
+  rg -n 'ModelAttemptRecord|ModelCacheUsage|project_model_attempts|safe_prepared_metadata|InstrumentedModelClient|usage_complete|retry_class|provider_stream_incomplete' kiana-domain/src kiana-core/src kiana-provider/src kiana-daemon/src kiana-runner/src kiana-core/tests kiana-provider/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa08_model_instrumentation --locked --offline
+  cargo check -p kiana-provider --test oa08_provider_telemetry --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa08_model_instrumentation.rs and kiana-provider/tests/oa08_provider_telemetry.rs; normal complete attempt, secret sentinel, malformed/truncated/timeout/retry/missing usage, low-cardinality cache/stop/retry classification, duplicate suppression and contract fail-closed cases; GitHub Actions only
+exit_code: 0 for format, core/provider/workspace test-target compilation, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-08 job is queued by the push and is not awaited
+status_change: OA-08 source slice is implemented. `kiana.model-attempt.v1` and `ModelAttemptRecord` expose bounded provider/model/route/prompt-hash, stream/latency/stop/usage/retry/cache fields with source cursor/event and stable span identity. `kiana-core::model_attempt_projection` rebuilds only from committed `run.model_turn`, deduplicates event/attempt facts, and maps malformed, truncated, timeout, retry, incomplete-usage or unattempted observations to non-Ok status. Provider and daemon share an allow-listed prepared summary; prompt text, wire body, tool arguments, endpoint, authentication header, cache key and raw response are not representable.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; model attempt projection remains a read-only source-order view without durable checkpoint, Metric/Audit/Trace sink, Receipt/cost reconciliation, provider cache instrumentation, exporter, retention or live backend; `run.model_turn` compatibility payload still carries legacy redacted fields for existing receipts, while OA-08 projection deliberately excludes them
+reviewer: Codex root implementation review plus OA-08 domain/core/provider/daemon static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

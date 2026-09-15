@@ -400,11 +400,23 @@ impl PreparedModelCall {
         Ok(())
     }
     pub fn audit(&self) -> Value {
+        // This is the only model-request summary that may enter a RuntimeEvent.  Keep the
+        // route fields bounded and add hashes for route/prompt identity; never include the
+        // compiled wire body, messages, tools, headers or provider response here.
+        let route_identity = json!({
+            "provider_id": self.route.provider_id,
+            "protocol": self.route.protocol,
+            "model_id": self.route.model_id,
+            "profile": self.route.profile,
+            "configuration_revision": self.route.configuration_revision,
+            "streaming": self.route.streaming,
+        });
         json!({"schema":self.schema,"model_call_id":self.spec.call_id,"model_request_id":self.spec.attempt_id,
             "run_id":self.spec.assignment.as_ref().map(|a|a.run_id),"step":self.spec.step,
-            "purpose":self.spec.purpose,"route":self.route,"request_hash":self.request_hash,
+            "purpose":self.spec.purpose,"route":self.route,"route_digest":crate::json_digest(&route_identity),
+            "prompt_version":self.request_hash,"request_hash":self.request_hash,
             "tool_catalog_hash":self.tool_catalog_hash,"budget":self.budget,
-            "deadline_unix_ms":self.spec.deadline_unix_ms})
+            "streaming":self.route.streaming,"deadline_unix_ms":self.spec.deadline_unix_ms})
     }
 }
 

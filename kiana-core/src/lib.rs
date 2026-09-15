@@ -22,6 +22,7 @@ mod memory_distillation;
 mod model_budget;
 pub use model_budget::JournalModelBudget;
 mod memory_proposals;
+mod model_attempt_projection;
 mod platform;
 mod projection;
 mod receipts;
@@ -34,6 +35,9 @@ mod workspace_checkpoints;
 
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use invocation_projection::{project_invocations, InvocationProjection};
+pub use model_attempt_projection::{
+    project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
+};
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
 

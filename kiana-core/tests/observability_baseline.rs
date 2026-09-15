@@ -36,7 +36,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/contracts.rs",
-        "44fca621045ff9ba3eee1c78b2193e45ee3b3046edb1cf38ddf98c689745f2e1",
+        "4c707d4703c47cb80ab0b5a664e8a5888eada17ed34dcf2250030cdbae3e9d7c",
     ),
     (
         "kiana-domain/src/lib.rs",
