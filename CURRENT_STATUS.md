@@ -512,6 +512,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-14 domain/core trace-export static-boundary review; no runtime test reviewer
 ```
 
+### OA-15 AuditProjection checkpoint/rebuild evidence (2026-09-15)
+
+```text
+source_snapshot: 02d68d3; kiana-domain/src/{contracts,observability}.rs; kiana-domain/src/audit.rs; kiana-core/src/{audit,audit_projection,lib}.rs; kiana-core/tests/oa15_audit_projection.rs; .github/workflows/oa15-audit-projection.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-15 AuditProjectionSnapshot/Checkpoint contracts, deterministic rebuild/append/restore reducer, source cursor/schema/decision/checksum guards, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-domain/src/audit.rs kiana-core/src/audit.rs kiana-core/src/audit_projection.rs kiana-core/src/lib.rs kiana-core/tests/oa15_audit_projection.rs .github/workflows/oa15-audit-projection.yml
+  rg -n 'AuditProjectionSnapshot|AuditProjectionCheckpoint|rebuild_audit_projection|apply_page|restore|source_cursor_gap|checkpoint_digest' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa15_audit_projection --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa15_audit_projection.rs; deterministic rebuild/restore, contiguous incremental page, cursor gap/regression, unknown audit schema, decision conflict, duplicate source, forged checkpoint and serde/original-fact preservation fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-15 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-15 job is queued by the push and is not awaited
+status_change: OA-15 source slice is implemented. `kiana.audit-projection.v1` and `kiana.audit-projection-checkpoint.v1` bind projection version, source cursor/event IDs, ordered AuditRecord IDs, records/checkpoint/projection digests and bounded limitations. `rebuild_audit_projection` validates explicit cursor continuity before the OA-04 reducer; `AuditProjection::apply_page` requires the next cursor, while `from_snapshot`/`restore` validate complete bindings without mutating EventLog facts. Unknown/self-submitted audit kinds, decision conflicts, duplicate source IDs and corrupted checkpoints fail closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; checkpoint storage is process-local, no automatic cross-process reload or EventLog commit observer consumer is wired, Artifact refs/query/export/correction/incident paths remain open, and source-only checkpoint proof is not durable audit retention
+reviewer: Codex root implementation review plus OA-15 domain/core audit-projection static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -15,6 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
+pub const AUDIT_PROJECTION_SCHEMA: &str = "kiana.audit-projection.v1";
+pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-checkpoint.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
@@ -23,6 +25,8 @@ pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
 pub const SPAN_LIFECYCLE_SCHEMA: &str = "kiana.span-lifecycle.v1";
 pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_PROJECTION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -44,6 +48,7 @@ pub const MAX_SOURCE_EVENT_IDS: usize = 256;
 pub const MAX_METRIC_POINTS: usize = 128;
 pub const MAX_METRIC_SERIES: usize = 1_024;
 pub const MAX_METRIC_LABEL_VALUES: usize = 64;
+pub const MAX_AUDIT_PROJECTION_RECORDS: usize = 4_096;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
@@ -980,6 +985,211 @@ impl AuditRecord {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "record_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// Checkpoint metadata for an append-only audit projection. It can be persisted by a higher
+/// layer, but the EventLog remains the source of truth and is never rewritten by this object.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditProjectionCheckpoint {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub projection_version: u64,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub record_ids: Vec<String>,
+    pub records_digest: String,
+    pub checkpoint_digest: String,
+}
+
+impl AuditProjectionCheckpoint {
+    pub fn new(
+        projection_version: u64,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        record_ids: Vec<String>,
+        records_digest: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut checkpoint = Self {
+            schema: AUDIT_PROJECTION_CHECKPOINT_SCHEMA.to_owned(),
+            version: AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION,
+            projection_version,
+            source_cursor,
+            source_event_ids,
+            record_ids,
+            records_digest: records_digest.into(),
+            checkpoint_digest: String::new(),
+        };
+        checkpoint.checkpoint_digest = checkpoint.digest();
+        checkpoint.validate()?;
+        Ok(checkpoint)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_PROJECTION_CHECKPOINT_SCHEMA,
+            AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION,
+        )?;
+        if self.projection_version == 0 {
+            return Err("audit_projection_version_required".to_owned());
+        }
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.record_ids.len() > MAX_AUDIT_PROJECTION_RECORDS {
+            return Err("audit_projection_record_limit".to_owned());
+        }
+        let mut ids = BTreeSet::new();
+        for record_id in &self.record_ids {
+            validate_nonempty(record_id, "audit_projection_record_id", 256)?;
+            if !ids.insert(record_id) {
+                return Err("audit_projection_record_duplicate".to_owned());
+            }
+        }
+        validate_digest(&self.records_digest, "audit_projection_records_digest")?;
+        validate_digest(
+            &self.checkpoint_digest,
+            "audit_projection_checkpoint_digest",
+        )?;
+        if self.checkpoint_digest != self.digest() {
+            return Err("audit_projection_checkpoint_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "checkpoint_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// Complete audit projection plus its verifiable checkpoint and bounded limitations.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditProjectionSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub projection_version: u64,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub records: Vec<AuditRecord>,
+    pub checkpoint: AuditProjectionCheckpoint,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    pub projection_digest: String,
+}
+
+impl AuditProjectionSnapshot {
+    pub fn new(
+        projection_version: u64,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        records: Vec<AuditRecord>,
+        limitations: Vec<String>,
+    ) -> Result<Self, String> {
+        let record_ids = records
+            .iter()
+            .map(|record| record.audit_id.clone())
+            .collect::<Vec<_>>();
+        let records_digest = json_digest(
+            &serde_json::to_value(&records)
+                .map_err(|_| "audit_projection_records_encode_failed".to_owned())?,
+        );
+        let checkpoint = AuditProjectionCheckpoint::new(
+            projection_version,
+            source_cursor,
+            source_event_ids.clone(),
+            record_ids,
+            records_digest,
+        )?;
+        let mut snapshot = Self {
+            schema: AUDIT_PROJECTION_SCHEMA.to_owned(),
+            version: AUDIT_PROJECTION_SCHEMA_VERSION,
+            projection_version,
+            source_cursor,
+            source_event_ids,
+            records,
+            checkpoint,
+            limitations,
+            projection_digest: String::new(),
+        };
+        snapshot.projection_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_PROJECTION_SCHEMA,
+            AUDIT_PROJECTION_SCHEMA_VERSION,
+        )?;
+        if self.projection_version == 0 {
+            return Err("audit_projection_version_required".to_owned());
+        }
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.records.len() > MAX_AUDIT_PROJECTION_RECORDS {
+            return Err("audit_projection_record_limit".to_owned());
+        }
+        let mut record_ids = BTreeSet::new();
+        let mut record_ids_in_order = Vec::with_capacity(self.records.len());
+        for record in &self.records {
+            record.validate()?;
+            if record.source_cursor > self.source_cursor {
+                return Err("audit_projection_record_cursor_ahead".to_owned());
+            }
+            if !record_ids.insert(record.audit_id.clone()) {
+                return Err("audit_projection_record_duplicate".to_owned());
+            }
+            record_ids_in_order.push(record.audit_id.clone());
+        }
+        self.checkpoint.validate()?;
+        if self.checkpoint.projection_version != self.projection_version
+            || self.checkpoint.source_cursor != self.source_cursor
+            || self.checkpoint.source_event_ids != self.source_event_ids
+            || self.checkpoint.record_ids != record_ids_in_order
+        {
+            return Err("audit_projection_checkpoint_binding_mismatch".to_owned());
+        }
+        let records_digest = json_digest(
+            &serde_json::to_value(&self.records)
+                .map_err(|_| "audit_projection_records_encode_failed".to_owned())?,
+        );
+        if self.checkpoint.records_digest != records_digest {
+            return Err("audit_projection_records_digest_mismatch".to_owned());
+        }
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("audit_projection_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(
+                limitation,
+                "audit_projection_limitation",
+                MAX_ATTRIBUTE_VALUE_BYTES,
+            )?;
+        }
+        validate_digest(&self.projection_digest, "audit_projection_digest")?;
+        if self.projection_digest != self.digest() {
+            return Err("audit_projection_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "projection_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

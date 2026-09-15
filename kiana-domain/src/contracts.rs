@@ -393,6 +393,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.audit-projection.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.audit-projection-checkpoint.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.metric-catalog.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Projection,

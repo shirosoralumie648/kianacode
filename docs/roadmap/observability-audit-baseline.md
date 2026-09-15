@@ -63,6 +63,10 @@
 | Trace export/context adapter（OA-14 overlay） | `kiana-core/src/trace_export.rs` | `6045461f648248005321426def7090388f134855d24fa0fe93b7b3bcac568191` |
 | Trace export schema registry（OA-14 overlay） | `kiana-domain/src/contracts.rs` | `77d15cfcf55353128bb8f872698cc20efa5087ea76af910f6b8c41dbcd11e628` |
 | Trace exporter exports（OA-14 overlay） | `kiana-core/src/lib.rs` | `a739e3cee27d9e004a70cc2cf9c937b5da32e6d5c25a26aeeacedf1fa4d681a3` |
+| Audit projection/checkpoint contracts（OA-15 overlay） | `kiana-domain/src/observability.rs` | `60748f9393fc8e93d70a8d9f910a38827597d11eb00e0e8216ca97e6a796f84e` |
+| Audit projection schema registry（OA-15 overlay） | `kiana-domain/src/contracts.rs` | `07217343e1c430d8393abe1ecead4ed61c426bc9441f73b5260d0abb84f81738` |
+| Audit projection reducer（OA-15 overlay） | `kiana-core/src/audit_projection.rs` | `45e6ed8775495ed0ecc4de129eb6484a8b4b82796e9f90c004054d6fe761c52f` |
+| Audit projection exports（OA-15 overlay） | `kiana-core/src/lib.rs` | `3b0366662dd10466ef00b286de5615a2901ba8195481ae4ce5834ff89af06405` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -153,6 +157,7 @@
 | OA-12 | Metric catalog/reducer/cardinality guard | `source`；typed catalog/unit、MetricQuality、catalog digest、allowlist/cardinality guard、overflow、counter reset/cursor regression 和 replay/live reducer 已实现；尚无 durable MetricSink/queue、runtime gauge feed 或 checkpoint/exporter |
 | OA-13 | asynchronous queue/backpressure/drop policy | `source`；bounded non-blocking queue、critical preservation、best-effort drop reason/counter、flush/shutdown/reopen/cancel ack 和 DaemonHost bridge 已实现；尚无 durable spool、consumer/exporter、cross-process shutdown 或 queue checkpoint |
 | OA-14 | trace exporter and W3C context adapter | `source`；TraceExportSpan contract、foreign parent link、sampling/invalid-parent/capacity guards、local JSONL/no-op exporter、flush/shutdown/reopen 已实现；尚无 OTLP/durable backend、async consumer 或 persisted sampling policy |
+| OA-15 | AuditProjection checkpoint/rebuild | `source`；AuditProjectionSnapshot/Checkpoint、rebuild/append/restore、source cursor/event/schema/decision/checksum binding 已实现；尚无 durable checkpoint store、cross-process automatic reload、Artifact ref/query/export/correction/incident wiring |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -437,3 +442,23 @@ OA-14 远端 workflow 覆盖 invalid parent/trace ID、foreign link、sampled=fa
 secret sentinel、capacity/closed、JSONL、flush/shutdown/reopen 夹具；本地只执行格式、静态源码检查和
 test-target 编译，不执行测试二进制。该 exporter 仍是 source/local projection，不等价于外部 backend、
 live sampling、跨进程 exporter recovery 或 trace 完整性证明。
+
+## 21. OA-15 叠加说明
+
+OA-15 在 `kiana-domain` 注册 `kiana.audit-projection.v1` 与
+`kiana.audit-projection-checkpoint.v1`。`AuditProjectionCheckpoint` 绑定 projection version、连续
+source cursor/event IDs、按源顺序的 AuditRecord IDs、records digest 和 checkpoint digest；
+`AuditProjectionSnapshot` 再绑定完整记录集、限制说明和 projection digest。所有字段均 bounded/closed，
+未知 major/字段、重复 ID、cursor overflow、checksum mismatch 直接拒绝。
+
+`kiana-core::rebuild_audit_projection` 先校验 EventLog 页的显式 source cursor（若存在）与连续顺序，再
+调用 OA-04 server-derived audit reducer；自报 `audit.*`、decision conflict、缺 actor/epoch/target、
+redaction/record 错误不生成行。`AuditProjection::apply_page` 只接受紧邻的下一个 cursor，事务式构造新
+snapshot；`from_snapshot`/`restore` 先验证 checkpoint 与 records 完整绑定，不修改或删除任何原始事实。
+`ControlPlane::audit_projection` 只读 EventStore 全量事实，不把 run stream 当全局审计，也不调用 Broker、
+Provider、UI 或 exporter。
+
+OA-15 远端 workflow 覆盖 deterministic rebuild、新进程等价 restore、增量连续页、cursor gap/regression、
+unknown audit schema、decision conflict、duplicate source、坏 checkpoint/serde 和原事实保留夹具；本地
+只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该投影仍是 source-level checkpoint
+contract，不等价于 durable checkpoint store、Artifact refs、query/export、correction 或 incident workflow。
