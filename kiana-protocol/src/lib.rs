@@ -11,12 +11,14 @@ pub use kiana_domain::{
     ArtifactId, AuditActionKind, AuditDecision, AuditExportFormat, AuditQueryCursor, AuditRecord,
     BudgetLease, BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy,
     CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec,
-    ClosingReceipt, DelegationId, DelegationPacket, ExecutionId, ExecutionStatus, InvocationId,
-    MergeReceipt, OrganizationId, PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel,
-    RoleSpec, RunId, SessionId, SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId,
-    Symposium, TemplateId, TurnId, WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING,
-    DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER,
-    ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER, WORK_PACKET_SCHEMA,
+    ClosingReceipt, DelegationId, DelegationPacket, EntryPointKind, EntryPointParitySnapshot,
+    ExecutionId, ExecutionStatus, InvocationId, MergeReceipt, OrganizationId, PermissionProfile,
+    ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, SessionId, SignalStatus,
+    SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId,
+    WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING,
+    ENTRYPOINT_PARITY_SCHEMA, ENTRYPOINT_PARITY_SCHEMA_VERSION, MERGE_RECEIPT_PATH,
+    REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
+    WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -355,6 +357,15 @@ impl RequestEnvelope {
             body: RequestBody::AuditExport(export),
         }
     }
+
+    /// Construct a read-only cross-entrypoint parity projection request.
+    pub fn parity(metadata: RequestMetadata, request: ParityRequest) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::Parity(request),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -381,6 +392,8 @@ pub enum RequestBody {
     AuditQuery(AuditQueryRequest),
     /// Materialize a bounded redacted audit export through ControlPlane.
     AuditExport(AuditExportRequest),
+    /// Read the same audit/health/receipt parity projection on every surface.
+    Parity(ParityRequest),
     /// 申请 spawn。
     Spawn(SpawnRequest),
     /// 召开 symposium。
@@ -586,6 +599,21 @@ pub struct AuditExportResponse {
     pub delivery: Option<kiana_domain::AuditDeliveryReceipt>,
     #[serde(default)]
     pub limitations: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ParityRequest {
+    pub entrypoint: EntryPointKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ParityResponse {
+    pub schema: String,
+    pub snapshot: EntryPointParitySnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

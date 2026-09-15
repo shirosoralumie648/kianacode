@@ -578,6 +578,16 @@ impl DaemonHost {
                 return ResponseEnvelope::rejected(request_id, "audit_export_unauthenticated");
             }
         }
+        if let RequestBody::Parity(_) = &request.body {
+            if request
+                .metadata
+                .actor_id
+                .as_deref()
+                .is_none_or(|actor| actor != self.principal.actor_id)
+            {
+                return ResponseEnvelope::rejected(request_id, "parity_unauthenticated");
+            }
+        }
         let mut metadata = request.metadata;
         let permission_profile =
             effective_permission_profile(&request.body, metadata.permission_profile);
@@ -763,6 +773,11 @@ impl DaemonHost {
                             deliver: export.deliver,
                         },
                     )
+                    .await
+            }
+            RequestBody::Parity(parity) => {
+                self.core
+                    .entrypoint_parity(&context, parity.entrypoint, parity.run_id)
                     .await
             }
             RequestBody::Spawn(spawn) => {
@@ -953,9 +968,10 @@ fn invalid_runtime_config(name: &str) -> PortError {
 
 fn request_may_execute(body: &RequestBody) -> bool {
     match body {
-        RequestBody::Receipt(_) | RequestBody::ListApprovals(_) | RequestBody::AuditQuery(_) => {
-            false
-        }
+        RequestBody::Receipt(_)
+        | RequestBody::ListApprovals(_)
+        | RequestBody::AuditQuery(_)
+        | RequestBody::Parity(_) => false,
         RequestBody::Command(command) => match command.name.as_str() {
             "company.snapshot.v1"
             | "company.next.v1"
@@ -1002,6 +1018,7 @@ fn effective_permission_profile(
         RequestBody::Cancel(_) => declared,
         RequestBody::Receipt(_) => PermissionProfile::Safe,
         RequestBody::AuditQuery(_) => PermissionProfile::Safe,
+        RequestBody::Parity(_) => PermissionProfile::Safe,
         RequestBody::AuditExport(_) => declared,
     }
 }

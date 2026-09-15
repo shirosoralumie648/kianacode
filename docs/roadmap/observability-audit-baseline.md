@@ -103,6 +103,13 @@
 | Eval schema registry/exports（OA-23 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `f8ce4fd84bca887e12e7ecd0a66b44a1e47b61c77577b1d11fa8f8c2a7b45607`, `4a5992e66ffd5c7c0bd1bba2ecd4876931c9d232b3e0541828af7bba03ee5f76` |
 | Provider-independent eval reducer（OA-23 overlay） | `kiana-core/src/eval.rs` | `dc2d6e06758e04343a9ee3a33865e0fdd988a7e86e97949ad536eaebc3d1df45` |
 | Eval core exports（OA-23 overlay） | `kiana-core/src/lib.rs` | `f46e73277fd78d82b0b8fdbf4b9c7279a07bf5c7a35b9e6a651c0c3d47a97150` |
+| Entrypoint parity contract（OA-24 overlay） | `kiana-domain/src/parity.rs` | `1e0ae3f680b88b78ffd9cae1c8c0a5dff8ff881d2a1ee1f7e44d1b868b3b4f68` |
+| Entrypoint parity schema/exports（OA-24 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `9dd25e93e5c07010094ce951f30392c66b72d38e85aa74329fe820be8a61b72d`, `44919ea7760ebd2cda9743b15187e0a746ec2e9d9f850addb5d5547c0195db2d` |
+| Entrypoint parity reducer（OA-24 overlay） | `kiana-core/src/parity.rs` | `39f699e1d7b463f796f5ba3873452478b0f129f3e39ceaaeb0e8b8d9b443a80b` |
+| Entrypoint parity core exports（OA-24 overlay） | `kiana-core/src/lib.rs` | `b3e8a0d6f43ce7b1d802e1c772638740d1d1e49071cbb55cdbb6f2b9051557fa` |
+| Entrypoint parity protocol/client（OA-24 overlay） | `kiana-protocol/src/lib.rs`, `kiana-client/src/lib.rs` | `f67fe65db42cc4eb26056a8ea4e5aac3ec6ce4badaf78dfd8c1aa88486e7f654`, `4d5d5aa16c5dc990110a3299af517873ab30de84028f75253cb10d3bb44754df` |
+| Entrypoint parity daemon/entrypoints（OA-24 overlay） | `kiana-daemon/src/lib.rs`, `kiana-entrypoints/src/cli.rs`, `kiana-entrypoints/src/harness_run.rs`, `kiana-entrypoints/src/web.rs`, `kiana-entrypoints/src/web_page.html`, `kiana-entrypoints/src/workbench_chat.rs` | `718021e2be25fd91af85fab304b7ca4fb57526c564b948ef73dc6babe4882423`, `a709fa28d4062d8b915c47b21f36b98972261a6a4eef372cfb9cd44669a1a912`, `469cc92809f38a51d0682b8ed3bc6692d1a311c5a84e988740e67e0777e3e6cc`, `6e3cab51eca20a46fd5ccad8243daa05367e9164bcf91a2fd3223f350ab70870`, `699187f46aa649cb07fe4f608e67916cfd3a4ceb78d5ee6db9b5613fc7334342`, `40e6be895cbf0c3d7e0386b4dda82c9311180c2e9e1d3699013f9272ac2c8d02` |
+| Entrypoint parity remote fixtures/workflow（OA-24 overlay） | `kiana-core/tests/oa24_entrypoint_parity.rs`, `kiana-protocol/tests/oa24_parity_wire.rs`, `.github/workflows/oa24-entrypoint-parity.yml` | `1f8db3d08575afbf2a6522c460744640025ca80c03b7255aaa8d6738cde62858`, `c26d1bc7fb727e2d6582b92b689e3855d49d15131f75cc1c2c1e701305c6038d`, `da5ff3b63d165302c41b602cba5d3e56861fcfaa95cbc31987a442417f194e00` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -202,6 +209,7 @@
 | OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Health/Span comparison、bounded divergence locator、projection digests、unknown/schema/gap/duplicate guards 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
 | OA-22 | Crash/fault injection | `source`；deterministic replay-only eight-point FaultMatrix/Case safety contract、seed/source binding、unknown/rejected fencing and duplicate/false-success invariants 已实现；尚无 real crash/process fault hooks, EventStore/Broker/Provider/projector/export/shutdown injection, durable recovery or cross-process resource proof |
 | OA-23 | Provider-independent eval suite | `source`；versioned EvalCaseSpec/Result/Suite、normalized event/Audit/Metric/Span/Run/Replay evidence、secret/forbidden-effect/missing-evidence/status/replay/cost guards、promote only all-pass 已实现；尚无 real provider eval, Promptfoo runner, durable eval artifact, external receipt or automatic promotion/rollback |
+| OA-24 | 四入口审计/健康/Receipt parity | `source`；`kiana.entrypoint-parity.v1` 与 owner-scoped ControlPlane projection 已实现，CLI/Web/Workbench/Desktop 通过 protocol/DaemonHost 复用 source cursor、status、Receipt/Audit/Health digests、retention/unknown limitations；健康 endpoint 使用 liveness projection，入口不读 EventLog、不自行判定成功或恢复；尚无 durable query index、外部认证/健康探针、跨进程 retention/reconcile 或真实业务 Outcome 证明 |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -667,3 +675,29 @@ missing evidence、normalized event/audit/metric/span/receipt digests、cost/lat
 closed serde；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该 eval 仍是 source
 quality gate，不等价于真实 provider/backend、Promptfoo 外部 runner、durable eval artifact、cost receipt 或
 自动发布/回滚。
+
+## 30. OA-24 叠加说明
+
+OA-24 注册 `kiana.entrypoint-parity.v1`，把 CLI、Web、Workbench 和 Desktop 的审计/健康/Receipt
+展示收敛为同一个 ControlPlane 只读投影。`EntryPointParitySnapshot` 绑定入口标签、source cursor、完整且
+有界的 source event IDs、projection version、运行状态、Receipt/Audit/Health digest 以及 bounded limitations；
+snapshot digest 会覆盖所有字段，Completed 必须有 Receipt digest，重复 source、cursor gap、未知字段和坏
+digest 均 fail-closed。入口标签只用于显示与对账，不能改变状态或权限。
+
+`ControlPlane::entrypoint_parity` 从 authenticated `RequestContext` 解析 session/run，按
+`run.authorized` 的 actor/session/project/role/department 绑定筛选 committed EventLog；缺 owner 证据、run
+不存在、请求 run 与 session 不一致或 read-all 不可用时返回 blocked/unavailable，不读取 RunStream，也不接受
+客户端 owner/scope。Audit 与 Health digest、Run projection status 和 retention revoke limitation 都由同一
+事件切片派生；数据撤销把 parity status 降为 `result_unknown`，保留 `data_revoked` limitation，绝不伪造健康
+或成功。协议新增只读 `RequestBody::Parity`/`KianaClient::parity`；DaemonHost 将其标为 Safe/no-execute。
+
+CLI `kiana parity --session-id <id> [--run <run_id>]`、Workbench `/parity`、Web `/api/parity`（允许受控的
+`entrypoint=desktop` 供 Electron 壳复用）都经过 `harness_run` 和同一 DaemonHost。Web `/api/health` 保留
+旧的兼容字段，但 `ok/status` 由真实 liveness projection 或 bounded unavailable limitation 派生；不再硬编码
+成功。四入口没有本地 EventLog 解析、恢复动作或自拼 Receipt/Health 判断。
+
+OA-24 远端 workflow 覆盖四入口 digest/status/limitation/source ref 一致、terminal conflict/result_unknown、
+source gap/duplicate/limit、Completed-without-receipt、unknown-field wire rejection 和 parity request round-trip；
+本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该切片仍是 source-level、进程内只读
+projection，不等价于 durable query index、跨进程 cursor/retention store、外部 authenticated principal、真实
+provider/Broker/telemetry liveness、业务 Outcome 或自动 reconcile/恢复证明。

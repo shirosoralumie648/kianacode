@@ -119,6 +119,8 @@
       <button id="resume">恢复此会话</button>
       <button id="receiptBtn">查看回执</button>
       <pre id="receiptDetail" tabindex="0" aria-label="执行回执"></pre>
+      <button id="parityBtn">查看入口一致性</button>
+      <pre id="parityDetail" tabindex="0" aria-label="入口一致性快照"></pre>
       <details><summary>编辑快照与恢复</summary>
         <label for="checkpointPaths">保存这些文件（每行一个相对路径）</label><textarea id="checkpointPaths"></textarea>
         <button id="createCheckpoint">保存编辑快照</button><button id="listCheckpoints">查看快照</button>
@@ -727,6 +729,14 @@
     document.getElementById('receiptBtn').onclick = async () => {
       try { const data = await api('/api/receipt', {session_id:sessionId}); document.getElementById('receiptDetail').textContent = JSON.stringify(data.receipt, null, 2); document.getElementById('receiptDetail').focus(); }
       catch (error) { reportError(error); }
+    };
+    document.getElementById('parityBtn').onclick = async () => {
+      try {
+        const entrypoint = window.kianaDesktop ? 'desktop' : 'web';
+        const data = await api('/api/parity?session_id=' + encodeURIComponent(sessionId) + '&entrypoint=' + entrypoint);
+        document.getElementById('parityDetail').textContent = JSON.stringify(data.response, null, 2);
+        document.getElementById('parityDetail').focus();
+      } catch (error) { reportError(error); }
     };
     document.getElementById('cancel').onclick = async () => { renderState(await api('/api/cancel', { session_id: sessionId })); };
     document.getElementById('trustBtn').onclick = async () => { renderState(await api('/api/trust', { session_id: sessionId })); };

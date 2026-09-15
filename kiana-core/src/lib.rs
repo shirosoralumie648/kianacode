@@ -31,6 +31,7 @@ mod capability_attempt_projection;
 mod memory_proposals;
 mod metrics;
 mod model_attempt_projection;
+mod parity;
 mod platform;
 mod projection;
 mod receipts;
@@ -69,6 +70,7 @@ pub use metrics::{
 pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
 };
+pub use parity::{project_entrypoint_parity, ParityProjectionError};
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};

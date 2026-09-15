@@ -6,8 +6,8 @@
 
 use async_trait::async_trait;
 use kiana_protocol::{
-    ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, RequestEnvelope,
-    RequestMetadata, ResponseEnvelope, RunId, WorkPacket,
+    ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
+    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, WorkPacket,
 };
 use serde_json::Value;
 
@@ -201,6 +201,21 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::audit_export(metadata, export))
+            .await
+    }
+
+    /// Read the server-owned parity projection shared by CLI/Web/Workbench/Desktop.
+    pub async fn parity(
+        &self,
+        metadata: RequestMetadata,
+        entrypoint: EntryPointKind,
+        run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::parity(
+                metadata,
+                ParityRequest { entrypoint, run_id },
+            ))
             .await
     }
 

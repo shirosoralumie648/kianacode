@@ -715,6 +715,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-23 domain/core eval static-boundary review; no runtime test reviewer
 ```
 
+### OA-24 four-entrypoint audit/health/Receipt parity evidence (2026-09-15)
+
+```text
+source_snapshot: 4bc24f6; kiana-domain/src/{parity,contracts,lib}.rs; kiana-core/src/{parity,lib}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{cli,harness_run,web,workbench_chat}.rs; kiana-core/tests/oa24_entrypoint_parity.rs; kiana-protocol/tests/oa24_parity_wire.rs; .github/workflows/oa24-entrypoint-parity.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-24 owner-scoped EntryPointParitySnapshot, protocol/client parity request, DaemonHost routing, CLI/Web/Workbench entrypoint adapters, Desktop Web endpoint reuse, authoritative liveness response, remote-only fixtures and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/parity.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/parity.rs kiana-core/src/lib.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-daemon/src/lib.rs kiana-entrypoints/src/cli.rs kiana-entrypoints/src/harness_run.rs kiana-entrypoints/src/web.rs kiana-entrypoints/src/workbench_chat.rs kiana-core/tests/oa24_entrypoint_parity.rs kiana-protocol/tests/oa24_parity_wire.rs .github/workflows/oa24-entrypoint-parity.yml
+  rg -n 'EntryPointParitySnapshot|entrypoint_parity|RequestBody::Parity|parity_envelope|/api/parity|SignalStatus::Ok|source_cursor_gap' kiana-domain/src kiana-core/src kiana-protocol/src kiana-client/src kiana-daemon/src kiana-entrypoints/src kiana-core/tests kiana-protocol/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa24_entrypoint_parity --locked --offline
+  cargo check -p kiana-protocol --test oa24_parity_wire --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/oa24_entrypoint_parity.rs; four entrypoint labels over identical committed run facts, digest/status/limitation/source reference equality, terminal conflict/result_unknown, explicit source gap, completed-without-receipt and unknown-field rejection; kiana-protocol/tests/oa24_parity_wire.rs request round-trip/unknown-field/missing-entrypoint guards; GitHub Actions only
+exit_code: 0 for source hashes, format, OA-24 core/protocol test-target checks, workspace test-target compilation and diff check; local tests deliberately not run per user instruction; GitHub Actions OA-24 job is queued by the push and is not awaited
+status_change: OA-24 source slice is implemented. `kiana.entrypoint-parity.v1` binds entrypoint, source cursor/event IDs, projection version, status, Receipt/Audit/Health digests, retention/unknown limitations and snapshot digest. ControlPlane resolves authenticated session/run ownership, filters committed run facts, rejects missing owner/read-all/source evidence, and projects retention revoke as result_unknown; protocol/DaemonHost/harness route all four surfaces through the same read-only path. Web health now derives ok/status from liveness or explicit unavailable limitations instead of hard-coded success.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; parity and health remain process-local EventLog projections, no durable query index/cursor or external authenticated principal/health backend exists, Desktop reuses the Web adapter rather than an independent process, Receipt still does not prove external business Outcome, and retention/reconcile remains source-level only
+reviewer: Codex root implementation review plus OA-24 domain/core/protocol/daemon/entrypoint static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

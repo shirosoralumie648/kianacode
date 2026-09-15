@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_daemon::{DaemonHost, LocalModelConfig};
 use kiana_protocol::{
-    normalize_role_path, ApprovalChallenge, ApprovalDecision, CapabilityRequest, ExecutionStatus,
-    PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RoleSpec, RunId,
-    Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+    normalize_role_path, ApprovalChallenge, ApprovalDecision, CapabilityRequest, EntryPointKind,
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
 };
 use kiana_tools::tool_execution::{
     PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
@@ -476,6 +476,40 @@ pub async fn receipt_envelope_on_host(
         .receipt(metadata, run_id)
         .await
         .map_err(anyhow::Error::msg)
+}
+
+/// Read the owner-scoped parity projection through the same protocol/daemon spine.
+pub async fn parity_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    entrypoint: EntryPointKind,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, run_id, options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    client
+        .parity(metadata, entrypoint, run_id)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+/// CLI convenience wrapper; the host is still the only execution/control-plane composition root.
+pub async fn parity_envelope(
+    session_id: impl Into<String>,
+    run_id: Option<RunId>,
+    entrypoint: EntryPointKind,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    parity_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        run_id,
+        entrypoint,
+        options,
+    )
+    .await
 }
 
 pub async fn spawn_envelope(

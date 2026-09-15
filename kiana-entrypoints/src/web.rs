@@ -22,8 +22,8 @@ use futures_util::stream;
 use futures_util::Stream;
 use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_protocol::{
-    ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent, UiAction, UiCursor,
-    ROLE_BUILDER,
+    EntryPointKind, ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent,
+    SignalStatus, UiAction, UiCursor, ROLE_BUILDER,
 };
 use kiana_types::{write_project_trust, ProjectTrust};
 use serde::{Deserialize, Serialize};
@@ -182,6 +182,16 @@ struct EventsQuery {
     token: Option<String>,
     #[serde(default)]
     last_event_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ParityQuery {
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    run_id: Option<String>,
+    #[serde(default)]
+    entrypoint: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -465,6 +475,7 @@ fn router(app: WebApp) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/api/health", get(health))
+        .route("/api/parity", get(parity))
         .route("/api/state", get(state))
         .route("/api/sessions", get(list_sessions))
         .route("/api/events", get(events))
@@ -604,6 +615,15 @@ impl WebApp {
                 .and_then(|thread| serde_json::to_value(thread).ok())
                 .unwrap_or(Value::Null)
         };
+        let parity = harness_run::parity_envelope_on_host(
+            Arc::clone(&self.host),
+            session_id.to_owned(),
+            projection.run_id,
+            EntryPointKind::Web,
+            &self.options()?,
+        )
+        .await
+        .map_err(|error| ApiError::fail(error.to_string()))?;
         Ok(json!({
             "cursor": projection.cursor,
             "projection": projection,
@@ -626,6 +646,8 @@ impl WebApp {
             "streaming": true,
             "streaming_transport": "sse",
             "shape": "codex-app",
+            "parity": parity.output,
+            "parity_response_status": parity.status,
         }))
     }
 
@@ -700,15 +722,63 @@ async fn index(
     ))
 }
 
-async fn health(State(app): State<Arc<WebApp>>) -> Json<Value> {
-    Json(json!({
-        "ok": true,
+async fn health(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    authorize_host(&app, &headers)?;
+    let mut payload = json!({
+        "schema": "kiana.health-snapshot.v1",
+        "ok": false,
         "harness": harness_run::HARNESS_ID,
         "loopback": true,
         "folder": app.workdir.display().to_string(),
         "streaming": true,
         "streaming_transport": "sse",
-    }))
+    });
+    match app.host.liveness().await {
+        Ok(snapshot) => {
+            payload["ok"] = Value::Bool(snapshot.status == SignalStatus::Ok);
+            payload["status"] = serde_json::to_value(snapshot.status).unwrap_or(Value::Null);
+            payload["snapshot"] = serde_json::to_value(snapshot).unwrap_or(Value::Null);
+        }
+        Err(error) => {
+            payload["status"] = Value::String("unavailable".to_owned());
+            payload["limitations"] = json!([format!("health_projection_unavailable:{error}")]);
+        }
+    }
+    Ok(Json(payload))
+}
+
+async fn parity(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<ParityQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
+    let run_id = query
+        .run_id
+        .as_deref()
+        .map(|raw| RunId::parse_str(raw).ok_or_else(|| ApiError::bad("parity_run_id_invalid")))
+        .transpose()?;
+    let entrypoint = match query.entrypoint.as_deref().unwrap_or("web").trim() {
+        "web" => EntryPointKind::Web,
+        "desktop" => EntryPointKind::Desktop,
+        "workbench" => EntryPointKind::Workbench,
+        "cli" => EntryPointKind::Cli,
+        _ => return Err(ApiError::bad("parity_entrypoint_invalid")),
+    };
+    let response = harness_run::parity_envelope_on_host(
+        Arc::clone(&app.host),
+        session_id,
+        run_id,
+        entrypoint,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    Ok(Json(json!({"response": response})))
 }
 
 async fn state(
@@ -2706,7 +2776,8 @@ mod tests {
             .json()
             .await
             .unwrap();
-        assert_eq!(health["ok"], true);
+        assert_eq!(health["ok"], false);
+        assert_eq!(health["status"], "unavailable");
         assert_eq!(health["harness"], "kiana-harness");
         assert_eq!(health["streaming"], true);
         assert_eq!(health["streaming_transport"], "sse");

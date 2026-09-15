@@ -38,7 +38,7 @@ use crate::harness_run;
 use crate::workbench::WORKBENCH_USAGE;
 
 const SLASH_HELP: &str =
-    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
+    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
@@ -94,6 +94,8 @@ pub enum ChatAction {
     ShowSandbox,
     /// 请求读取当前 run 的 receipt。
     Receipt,
+    /// Request the owner-scoped cross-entrypoint parity projection.
+    Parity,
     /// List pending requests and reply with the server-issued challenge.
     Approvals,
     Approval {
@@ -197,6 +199,7 @@ impl WorkbenchView {
                 "sandbox" if args.is_empty() => ChatAction::ShowSandbox,
                 "sandbox" => interpret_sandbox(args),
                 "receipt" => ChatAction::Receipt,
+                "parity" => ChatAction::Parity,
                 "approvals" => ChatAction::Approvals,
                 "inbox" => ChatAction::Command {
                     name: "human.inbox".to_owned(),
@@ -659,6 +662,18 @@ async fn handle_action(
                 Arc::clone(host),
                 session_id.to_owned(),
                 last_run_id,
+                options,
+            )
+            .await?;
+            view.push_system(serde_json::to_string_pretty(&response)?);
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::Parity => {
+            let response = harness_run::parity_envelope_on_host(
+                Arc::clone(host),
+                session_id.to_owned(),
+                last_run_id,
+                kiana_protocol::EntryPointKind::Workbench,
                 options,
             )
             .await?;

@@ -88,6 +88,10 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return architecture_main(&args).await;
     }
 
+    if args.first().map(String::as_str) == Some("parity") {
+        return parity_main(&args, &runtime_flags).await;
+    }
+
     if args.first().map(String::as_str) == Some("run") {
         return run_main(&args).await;
     }
@@ -339,6 +343,71 @@ async fn architecture_main(args: &[String]) -> Result<()> {
                 .as_str()
                 .unwrap_or("unknown")
         );
+    }
+    Ok(())
+}
+
+async fn parity_main(args: &[String], runtime_flags: &RuntimeFlags) -> Result<()> {
+    if args
+        .iter()
+        .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
+    {
+        println!("Usage: kiana parity --session-id <id> [--run <run_id>] [--json]");
+        return Ok(());
+    }
+    let mut json_output = false;
+    let mut run_id = None;
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--json" => json_output = true,
+            "--run" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| anyhow!("parity_run_id_required"))?;
+                run_id = Some(
+                    kiana_protocol::RunId::parse_str(value)
+                        .ok_or_else(|| anyhow!("parity_run_id_invalid"))?,
+                );
+                index += 1;
+            }
+            value if value.starts_with("--run=") => {
+                let value = value.trim_start_matches("--run=");
+                run_id = Some(
+                    kiana_protocol::RunId::parse_str(value)
+                        .ok_or_else(|| anyhow!("parity_run_id_invalid"))?,
+                );
+            }
+            value => return Err(anyhow!("unknown parity option: {value}")),
+        }
+        index += 1;
+    }
+    let session_id = runtime_flags
+        .session_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("parity_session_id_required; use --session-id <id>"))?;
+    let mut options = HashMap::new();
+    options.insert(
+        "cwd".to_owned(),
+        Value::String(std::env::current_dir()?.display().to_string()),
+    );
+    let response = crate::harness_run::parity_envelope(
+        session_id.to_owned(),
+        run_id,
+        kiana_protocol::EntryPointKind::Cli,
+        &options,
+    )
+    .await?;
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&response)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(&response.output)?);
+    }
+    if response.status != ControlPlaneStatus::Completed {
+        return Err(anyhow!(
+            "parity failed: {}",
+            response.error.as_deref().unwrap_or("unknown")
+        ));
     }
     Ok(())
 }
@@ -14118,6 +14187,7 @@ fn print_help() {
     println!("  kiana <command>       Run a local command when supported");
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
+    println!("  kiana parity --session-id <id> [--run <run_id>] [--json]  Read the owner-scoped four-entrypoint parity projection");
     println!("  kiana run [--json] [--stream] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] <prompt>  Execute a prompt, symposium, work packet, or review through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");

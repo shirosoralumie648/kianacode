@@ -1,0 +1,61 @@
+name: oa24-entrypoint-parity
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/parity.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-core/src/parity.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/oa24_parity_wire.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - ".github/workflows/oa24-entrypoint-parity.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/parity.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-core/src/parity.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/oa24_entrypoint_parity.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/oa24_parity_wire.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/src/harness_run.rs"
+      - "kiana-entrypoints/src/web.rs"
+      - "kiana-entrypoints/src/web_page.html"
+      - "kiana-entrypoints/src/workbench_chat.rs"
+      - ".github/workflows/oa24-entrypoint-parity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa24:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa24-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run OA-24 remote-only parity fixtures
+        run: |
+          cargo test -p kiana-core --test oa24_entrypoint_parity --locked -- --test-threads=1
+          cargo test -p kiana-protocol --test oa24_parity_wire --locked -- --test-threads=1
