@@ -914,6 +914,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus PD-00 persistence/fact-boundary reconciliation; no runtime test reviewer
 ```
 
+### INT-00 integrations/connectors baseline evidence (2026-09-16)
+
+```text
+source_snapshot: e41d69e; kiana-domain/src/connectors.rs; kiana-core/src/connectors.rs; kiana-daemon/src/connectors.rs; kiana-daemon/src/mcp_stdio.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-core/tests/integrations_baseline.rs; .github/workflows/int00-baseline.yml; docs/roadmap/integrations-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: INT-00 source-only Provider/Connector/MCP/A2A/Notification terminology and boundary inventory, local_fixture/stdio owner-scope/idempotency/receipt/reconcile guard, external/live gap list, migration rules and INT-01..33 fixture catalog are scoped to this step; no external adapter/network/credential path or second execution loop was added; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/connectors.rs kiana-core/src/connectors.rs kiana-daemon/src/connectors.rs kiana-daemon/src/mcp_stdio.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-core/tests/integrations_baseline.rs .github/workflows/int00-baseline.yml docs/roadmap/integrations-baseline.md
+  rg -n 'ConnectorDefinition|AccountBinding|ProviderReceipt|local_fixture|authorize_and_execute|binding_snapshot|external_effect_performed|connector_idempotency|stdio|A2A|not_supported|raw secret|no direct Broker|scope intersection' kiana-domain/src kiana-core/src kiana-daemon/src kiana-protocol/src kiana-core/tests/integrations_baseline.rs docs/roadmap/integrations-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test, provider, connector, MCP, webhook, A2A, network or external-account command executed locally
+fixture or cassette: kiana-core/tests/integrations_baseline.rs; Provider/Connector/MCP/A2A/Notification boundary, local_fixture binding/invoke/reconcile, server-owned scope/idempotency/receipt and absent external/live adapter assertions; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions INT-00 job is queued by the push and is not awaited
+status_change: INT-00 source baseline is implemented. Provider model endpoint/usage, Connector local_fixture definition/binding/operation/risk/receipt, MCP stdio and Notification projections remain distinct. Connector requests normalize through ControlPlane authorization and local daemon fixture output explicitly marks `external_effect_performed=false`; binding/project/scope/idempotency/payload/receipt/reconcile checks are server-owned. HTTP/remote MCP, A2A/webhook ingress, OAuth/SecretRef lease lifecycle, external accounts, delivery channels, real provider effects and physical operations remain not_supported/source; migration and fixture catalog are frozen for INT-01..33.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; only local_fixture/stdio source paths exist, no external provider/connector receipt/query/reconcile or OAuth/PKCE/account/tenant boundary is live, no webhook/A2A/HTTP MCP or physical effect is exercised, and no durable connector registry/rate ledger/retention propagation or four-entrypoint UAT exists
+reviewer: Codex root implementation review plus INT-00 connector/provider/MCP/A2A/source-boundary reconciliation; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
