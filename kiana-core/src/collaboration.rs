@@ -222,6 +222,7 @@ impl ControlPlane {
                 Vec::new(),
                 sandbox,
                 Some(run_id),
+                None,
             )
             .await;
         let mut response = match response {

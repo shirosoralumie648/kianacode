@@ -431,6 +431,19 @@ impl ControlPlane {
                 }
             }
         }
+        let resume_turn = kiana_domain::TurnIdentity::new(
+            context.session_id.as_str(),
+            run_id,
+            kiana_domain::TurnId::from_uuid(context.request_id.as_uuid()),
+            None,
+            kiana_domain::TurnSemantics::Resume,
+            events
+                .iter()
+                .filter(|event| event.kind == "run.prompt")
+                .count()
+                .saturating_add(1) as u64,
+        )
+        .map_err(|error| PortError::Failed(format!("turn_identity_invalid:{error}")))?;
         // Claim against the exact observed stream version before installing a runner.
         let claim = RuntimeEvent::new(
             context.request_id,
@@ -439,6 +452,7 @@ impl ControlPlane {
             json!({
                 "run_id":run_id,"session_id":context.session_id,"actor_id":context.actor_id,
                 "snapshot_event_id":event.event_id,
+                "turn_id":resume_turn.turn_id,"turn":resume_turn,
             }),
         )?
         .with_stream_metadata("run", run_id.to_string(), last_version + 1);

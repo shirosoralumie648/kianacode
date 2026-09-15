@@ -299,7 +299,7 @@ sequenceDiagram
 |---|---|---|---|
 | CP-00 | 当前调用路径与拒绝基线 | — | ✅ |
 | CP-01 | 主体、项目身份和不可变 assignment | 00 | ✅ |
-| CP-02 | Run/Turn/Invocation/Execution 合同 | 00 | ⏳ |
+| CP-02 | Run/Turn/Invocation/Execution 合同 | 00 | ✅ |
 | CP-03 | 动作规范化与服务端风险目录 | 01、02 | ⏳ |
 | CP-04 | 权限交集与不可绕过的拒绝 | 03 | ⏳ |
 | CP-05 | 三条能力路径共用处理器 | 04 | ⏳ |
@@ -362,6 +362,8 @@ sequenceDiagram
 
 
 #### CP-02 — 使用既有 ID，明确状态机和 Continue/Resume
+
+当前 source slice 与 CI-only 证据见 [`control-plane-execution-identity-baseline.md`](control-plane-execution-identity-baseline.md)。
 
 - **承接 / 前置**：`P0-A-01a/01b`、`P0-B-01`、`P0-G-03`、`P0-J1-01`；CP-00。
 - **位置**：domain ids/contracts/states、Runner 协议、core lifecycle/history/projection、wire DTO。

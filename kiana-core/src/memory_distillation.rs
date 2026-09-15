@@ -383,6 +383,7 @@ impl ControlPlane {
                 Vec::new(),
                 Some("read-only".to_owned()),
                 Some(internal_run_id),
+                None,
             )
             .await;
         let stream = self

@@ -957,6 +957,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-01 identity/project-scope/assignment static-boundary review; no runtime test reviewer
 ```
 
+### CP-02 Run/Turn/Invocation/Execution identity evidence (2026-09-16)
+
+```text
+source_snapshot: 388dfe1; kiana-domain/src/{execution_identity,contracts,lib}.rs; kiana-core/src/{lifecycle,capabilities,dispatch,recovery}.rs; kiana-core/src/invocation_projection.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-domain/tests/cp02_execution_identity.rs; kiana-core/tests/cp02_execution_guard.rs; .github/workflows/cp02-execution-identity.yml; docs/roadmap/control-plane-execution-identity-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: CP-02 typed TurnIdentity/InvocationIdentity, explicit run.turn.v2 new-turn boundary, legacy Continue marker, Broker execution identity binding, remote fixtures and roadmap/status overlays are scoped to this step; direct commands do not receive fabricated Harness identity; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/execution_identity.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/lifecycle.rs kiana-core/src/capabilities.rs kiana-core/src/dispatch.rs kiana-core/src/recovery.rs kiana-core/src/invocation_projection.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-domain/tests/cp02_execution_identity.rs kiana-core/tests/cp02_execution_guard.rs .github/workflows/cp02-execution-identity.yml docs/roadmap/control-plane-execution-identity-baseline.md
+  rg -n 'TurnIdentity|InvocationIdentity|TurnSemantics|run.turn.v2|run.predecessor|LegacyContinue|run_not_terminal_use_resume|run_unknown_requires_reconciliation|typed_invocation_identity|invocation_terminal_conflict|ContinueRequest|ResumeRequest' kiana-domain/src kiana-core/src kiana-protocol/src kiana-client/src kiana-domain/tests/cp02_execution_identity.rs kiana-core/tests/cp02_execution_guard.rs docs/roadmap/control-plane-execution-identity-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp02_execution_identity.rs Turn Start/NewTurn/LegacyContinue/Resume and Invocation call_id/attempt/digest fixtures; kiana-core/tests/cp02_execution_guard.rs lifecycle/dispatch/projection/protocol source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-02 job is queued by the push and is not awaited
+status_change: CP-02 source slice is implemented. `TurnIdentity` records server-derived Session/Run/Turn IDs, predecessor and explicit Start/NewTurn/LegacyContinue/Resume semantics. `run.turn.v2` refuses non-terminal or result-unknown predecessors and creates a fresh Run/Turn; v1 Continue remains a separately marked same-Run compatibility path; Resume writes an explicit `run.resume_prepared` identity claim and remains the same Run. Capability request facts carry server-derived turn/invocation/attempt references, while Broker permit/dispatch/execution/result events bind the complete typed InvocationIdentity with real ExecutionId. Reused model `call_id` is correlation only; projection terminal conflicts remain fail-closed; direct commands do not fabricate Harness identity.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy history without TurnId has no durable upcaster yet, full InvocationLedger/RunSnapshot and cross-process Resume remain future CP/ER/PD work, retry/reconciliation still requires later steps, `call_id` remains untrusted correlation metadata, and no provider/connector/live/physical effect or business Outcome is proven
+reviewer: Codex root implementation review plus CP-02 identity/state-machine/Continue-Resume/projection source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -12,14 +12,16 @@ pub use kiana_domain::{
     AuthenticatedPrincipalRef, BudgetLease, BudgetLeaseId, CapabilityErrorCode,
     CapabilityErrorPolicy, CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId,
     CellLifecycle, CellSpec, ClosingReceipt, DelegationId, DelegationPacket, EntryPointKind,
-    EntryPointParitySnapshot, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt,
-    OrganizationId, PermissionProfile, ProjectIdentity, ReceiptId, RequestId, ReviewPacket,
-    RiskLevel, RoleSpec, RunId, SessionAssignment, SessionId, SignalStatus, SpawnPlan, SpawnPlanId,
-    SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId, WorkPacket,
-    WorkPacketStatus, AUTHENTICATED_PRINCIPAL_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING,
-    ENTRYPOINT_PARITY_SCHEMA, ENTRYPOINT_PARITY_SCHEMA_VERSION, MERGE_RECEIPT_PATH,
-    PROJECT_IDENTITY_SCHEMA, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER,
-    ROLE_PM, ROLE_REVIEWER, SESSION_ASSIGNMENT_SCHEMA, WORK_PACKET_SCHEMA,
+    EntryPointParitySnapshot, ExecutionId, ExecutionStatus, InvocationId, InvocationIdentity,
+    MergeReceipt, OrganizationId, PermissionProfile, ProjectIdentity, ReceiptId, RequestId,
+    ReviewPacket, RiskLevel, RoleSpec, RunId, SessionAssignment, SessionId, SignalStatus,
+    SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId,
+    TurnIdentity, TurnSemantics, WorkPacket, WorkPacketStatus, AUTHENTICATED_PRINCIPAL_SCHEMA,
+    DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, ENTRYPOINT_PARITY_SCHEMA,
+    ENTRYPOINT_PARITY_SCHEMA_VERSION, EXECUTION_IDENTITY_SCHEMA_VERSION,
+    INVOCATION_IDENTITY_SCHEMA, MERGE_RECEIPT_PATH, PROJECT_IDENTITY_SCHEMA, REVIEW_PACKET_SCHEMA,
+    ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER, SESSION_ASSIGNMENT_SCHEMA,
+    TURN_IDENTITY_SCHEMA, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -997,6 +999,30 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
             receipt_request
+        );
+    }
+
+    #[test]
+    fn new_turn_envelope_is_explicitly_versioned_and_round_trips() {
+        let mut metadata = RequestMetadata::local("session-1", "/repo");
+        metadata.project_trusted = true;
+        let previous = RunId::new();
+        let request = RequestEnvelope::new_turn(
+            metadata,
+            "start a fresh turn",
+            Some("workspace-write".to_owned()),
+            Some(previous),
+        );
+        let encoded = serde_json::to_value(&request).unwrap();
+        assert_eq!(encoded["body"]["type"], "command");
+        assert_eq!(encoded["body"]["request"]["name"], "run.turn.v2");
+        assert_eq!(
+            encoded["body"]["request"]["arguments"]["run_id"],
+            previous.to_string()
+        );
+        assert_eq!(
+            serde_json::from_value::<RequestEnvelope>(encoded).unwrap(),
+            request
         );
     }
 

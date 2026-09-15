@@ -167,6 +167,24 @@ where
             .await
     }
 
+    /// 创建一个显式的新 Turn；终态旧 Run 不会被复活，服务端会记录 predecessor 关联。
+    pub async fn new_turn(
+        &self,
+        metadata: RequestMetadata,
+        prompt: impl Into<String> + Send,
+        sandbox: Option<String>,
+        previous_run_id: Option<RunId>,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::new_turn(
+                metadata,
+                prompt,
+                sandbox,
+                previous_run_id,
+            ))
+            .await
+    }
+
     /// 请求取消已有 run。
     ///
     /// 返回成功只表示取消请求被协议层接受，目标 worker 是否已经停止要以后续状态或

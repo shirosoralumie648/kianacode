@@ -34,6 +34,35 @@ fn now_ms() -> Result<u64, PortError> {
         .as_millis();
     u64::try_from(value).map_err(|_| dispatch_error("clock_overflow"))
 }
+
+fn typed_invocation_identity(
+    run_id: Option<RunId>,
+    turn_id: Option<TurnId>,
+    invocation_id: InvocationId,
+    execution_id: ExecutionId,
+    request: &CapabilityRequest,
+    attempt: u32,
+) -> Result<Option<Value>, PortError> {
+    let Some(run_id) = run_id else {
+        // Direct commands have an explicit Command scope and must not receive a fabricated
+        // Harness Run/Turn identity.
+        return Ok(None);
+    };
+    let turn_id = turn_id.ok_or_else(|| dispatch_error("turn_identity_required"))?;
+    let call_id = request.arguments["call_id"].as_str().map(str::to_owned);
+    let identity = kiana_domain::InvocationIdentity::new(
+        run_id,
+        turn_id,
+        invocation_id,
+        execution_id,
+        call_id,
+        attempt,
+    )
+    .map_err(|error| dispatch_error(&format!("invocation_identity_invalid:{error}")))?;
+    serde_json::to_value(identity)
+        .map(Some)
+        .map_err(|error| dispatch_error(&format!("invocation_identity_encode:{error}")))
+}
 pub(crate) async fn commit_confirmed(
     events: &dyn EventStorePort,
     mut batch: TransitionBatch,
@@ -103,6 +132,14 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
             version: 1,
         });
         let command_id = derived_request_id("permit.consume", id);
+        let invocation = typed_invocation_identity(
+            permit.run_id,
+            permit.turn_id,
+            permit.invocation_id,
+            permit.execution_id,
+            &request.request,
+            1,
+        )?;
         let event=RuntimeEvent::new(command_id,1,"invocation.dispatching",json!({
             "run_id":permit.run_id,"turn_id":permit.turn_id,"invocation_id":permit.invocation_id,
             "execution_id":permit.execution_id,"capability_request_id":permit.request_id,
@@ -110,7 +147,7 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
             "args_fingerprint":permit.action_digest,"decision_id":permit.decision_id,
             "attempt":1,"started":false,"effect_started":false,"effect_known":true,
             "zero_effect":true,"stop_state":"not_requested","fenced":true,
-            "boundary":"broker_admission",
+            "boundary":"broker_admission","invocation":invocation,
         })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",id,2);
         let batch = TransitionBatch {
             command_id,
@@ -471,9 +508,11 @@ impl ControlPlane {
             aggregate_id: execution_id.to_string(),
             version: 0,
         });
+        let invocation =
+            typed_invocation_identity(run_id, turn_id, invocation_id, execution_id, request, 1)?;
         let event=RuntimeEvent::new(dispatch_command_id,1,"execution.prepared",json!({"permit":permit,"cell_reservation":
             if let Some(id)=request.cell_id {self.cell_registry.reservation_for_cell(id).await?.map(|r|json!({"budget":r.budget,"grant":r.grant,"cell":r.cell}))}else{None}
-        })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),1);
+        ,"invocation":invocation})).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),1);
         let mut event = event;
         event.data = super::redaction::redact_event_value(&event.data);
         events.push(event);
@@ -560,6 +599,14 @@ impl ControlPlane {
             && (result.output["cancelled"] != true || result.output["stop_confirmed"] == true);
         let stop_requested = *cancellation.borrow();
         stop_tx.send_replace(Some(confirmed));
+        let invocation = typed_invocation_identity(
+            permit.run_id,
+            permit.turn_id,
+            permit.invocation_id,
+            permit.execution_id,
+            &executed_request,
+            1,
+        )?;
         let stream = self
             .events
             .read_stream("execution_permit", &execution_id.to_string())
@@ -576,6 +623,7 @@ impl ControlPlane {
             "effect_started":true,"effect_known":!unknown,"zero_effect":false,
             "stop_state":if stop_requested { if confirmed {"confirmed"} else {"unconfirmed"} } else {"not_requested"},
             "stop_requested":stop_requested,"stop_confirmed":stop_requested.then_some(confirmed),"fenced":unknown,
+            "invocation":invocation,
         })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),version+1);
         let batch = TransitionBatch {
             command_id: final_id,
@@ -617,6 +665,14 @@ impl ControlPlane {
                 "result_unknown:execution_start_already_recorded",
             ));
         }
+        let invocation = typed_invocation_identity(
+            permit.run_id,
+            permit.turn_id,
+            permit.invocation_id,
+            permit.execution_id,
+            request,
+            1,
+        )?;
         let event = RuntimeEvent::new(
             command_id,
             1,
@@ -636,6 +692,7 @@ impl ControlPlane {
                 "stop_state": "not_requested",
                 "fenced": true,
                 "boundary": "handler_execution",
+                "invocation": invocation,
             }),
         )
         .map_err(|error| dispatch_error(&error.to_string()))?

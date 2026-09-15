@@ -1,0 +1,55 @@
+name: CP-02 execution identity and turn semantics
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cp02_execution_identity.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/tests/cp02_execution_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - ".github/workflows/cp02-execution-identity.yml"
+      - "docs/roadmap/control-plane-execution-identity-baseline.md"
+  pull_request:
+    paths:
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/cp02_execution_identity.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/recovery.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/tests/cp02_execution_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-client/src/lib.rs"
+      - ".github/workflows/cp02-execution-identity.yml"
+      - "docs/roadmap/control-plane-execution-identity-baseline.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  execution-identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CP-02 execution identity fixtures
+        run: |
+          cargo test -p kiana-domain --test cp02_execution_identity --locked -- --test-threads=1
+          cargo test -p kiana-core --test cp02_execution_guard --locked -- --test-threads=1
+          cargo test -p kiana-protocol --lib new_turn_envelope_is_explicitly_versioned_and_round_trips --locked -- --test-threads=1

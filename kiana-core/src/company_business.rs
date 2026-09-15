@@ -398,6 +398,7 @@ impl ControlPlane {
                     Vec::new(),
                     Some("read-only".into()),
                     Some(task.run_id),
+                    None,
                 )
                 .await?;
             if response.status != ExecutionStatus::Completed {

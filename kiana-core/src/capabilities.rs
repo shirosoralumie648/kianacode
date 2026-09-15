@@ -618,6 +618,8 @@ impl ControlPlane {
                         "attempt":1,"effect_started":false,"effect_known":true,
                         "zero_effect":true,"stop_state":"not_requested","fenced":false,
                         "action_digest":kiana_domain::capability_action_digest(&original),
+                        "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+                        "invocation_id":kiana_domain::InvocationId::from_uuid(original.request_id.as_uuid()),
                         "arguments":redact_event_value(&original.arguments)}),
                 )
                 .await?;
@@ -641,6 +643,8 @@ impl ControlPlane {
             "run.tool_call",
             json!({"run_id":run_id,
             "capability_request_id":request.request_id,"call_id":request.arguments["call_id"],
+            "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+            "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
             "tool":request.capability,"operation":request.operation}),
         )
         .await?;
@@ -649,7 +653,10 @@ impl ControlPlane {
             "cell_id":request.cell_id,"capability_grant_id":request.capability_grant_id,"budget_lease_id":request.budget_lease_id,
             "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
             "stop_state":"not_requested","fenced":false,
-            "action_digest":kiana_domain::capability_action_digest(&request),"arguments":redact_event_value(&request.arguments)})).await?;
+            "action_digest":kiana_domain::capability_action_digest(&request),
+            "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+            "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
+            "arguments":redact_event_value(&request.arguments)})).await?;
         if *cancel_rx.borrow() {
             self.cancel_pending_tools(
                 run_id,

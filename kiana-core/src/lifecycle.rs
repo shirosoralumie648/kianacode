@@ -9,7 +9,7 @@ impl ControlPlane {
         prompt: String,
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
-        self.start_run_with_id(context, prompt, Vec::new(), sandbox, None)
+        self.start_run_with_id(context, prompt, Vec::new(), sandbox, None, None)
             .await
     }
 
@@ -20,7 +20,7 @@ impl ControlPlane {
         history: Vec<kiana_domain::ConversationMessage>,
         sandbox: Option<String>,
     ) -> Result<CoreResponse, CoreError> {
-        self.start_run_with_id(context, prompt, history, sandbox, None)
+        self.start_run_with_id(context, prompt, history, sandbox, None, None)
             .await
     }
 
@@ -31,18 +31,54 @@ impl ControlPlane {
         history: Vec<kiana_domain::ConversationMessage>,
         sandbox: Option<String>,
         requested_run_id: Option<RunId>,
+        predecessor: Option<RunId>,
     ) -> Result<CoreResponse, CoreError> {
         let request_id = context.request_id;
         let run_id = requested_run_id.unwrap_or_else(|| {
             RunId::parse_str(context.session_id.as_str()).unwrap_or_else(RunId::new)
         });
+        let turn_id = kiana_domain::TurnId::from_uuid(request_id.as_uuid());
+        let turn = kiana_domain::TurnIdentity::new(
+            context.session_id.as_str(),
+            run_id,
+            turn_id,
+            predecessor,
+            if predecessor.is_some() {
+                kiana_domain::TurnSemantics::NewTurn
+            } else {
+                kiana_domain::TurnSemantics::Start
+            },
+            1,
+        )
+        .map_err(|error| PortError::Failed(format!("turn_identity_invalid:{error}")))?;
         let mut sequence = 1u64;
+        if let Some(previous_run_id) = predecessor {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.predecessor",
+                json!({
+                    "run_id": run_id,
+                    "previous_run_id": previous_run_id,
+                    "turn_id": turn_id,
+                    "turn": turn,
+                    "session_id": context.session_id,
+                    "semantics": "new_turn_v2",
+                }),
+            )
+            .await?;
+        }
+        let command = if predecessor.is_some() {
+            "run.turn.v2"
+        } else {
+            "run.start"
+        };
         self.record_event(
             request_id,
             &mut sequence,
             "request.accepted",
             json!({
-                "command": "run.start",
+                "command": command,
                 "run_id": run_id,
                 "session_id": context.session_id,
                 "actor_id": context.actor_id,
@@ -182,6 +218,7 @@ impl ControlPlane {
                 "runtime_budget":runtime_budget,
                 "authority_revision":authority_revision,
                 "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+                "turn":turn,
                 "role_prompt_hash": role.prompt_hash,
                 "model_profile": role.model_profile,
             }),
@@ -202,6 +239,8 @@ impl ControlPlane {
             json!({
                 "run_id": run_id,
                 "session_id": context.session_id,
+                "turn_id": turn_id,
+                "turn": turn.clone(),
                 "text": &prompt,
             }),
         )
@@ -321,11 +360,15 @@ impl ControlPlane {
             .await?;
         let run_id = RunId::new();
         self.runner.bind_model_history(run_id, history)?;
-        let turn_id = kiana_domain::TurnId::from_uuid(context.request_id.as_uuid());
-        self.append_event(context.request_id,1,"run.predecessor",json!({"run_id":run_id,
-            "previous_run_id":previous,"turn_id":turn_id,"session_id":context.session_id,"semantics":"new_turn_v2"})).await?;
-        self.start_run_with_id(context, prompt, Vec::new(), sandbox, Some(run_id))
-            .await
+        self.start_run_with_id(
+            context,
+            prompt,
+            Vec::new(),
+            sandbox,
+            Some(run_id),
+            Some(previous),
+        )
+        .await
     }
 
     /// Legacy v1 continuation keeps its historical per-turn interpretation.
@@ -375,6 +418,23 @@ impl ControlPlane {
                 return Ok(CoreResponse::blocked(request_id, reason));
             }
         };
+        let legacy_turn_number = self
+            .events
+            .read_stream("run", &run_id.to_string())
+            .await?
+            .iter()
+            .filter(|event| event.kind == "run.prompt")
+            .count()
+            .saturating_add(1) as u64;
+        let legacy_turn = kiana_domain::TurnIdentity::new(
+            context.session_id.as_str(),
+            run_id,
+            kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
+            None,
+            kiana_domain::TurnSemantics::LegacyContinue,
+            legacy_turn_number,
+        )
+        .map_err(|error| PortError::Failed(format!("turn_identity_invalid:{error}")))?;
 
         let has_pending = self
             .pending_invocations
@@ -397,6 +457,8 @@ impl ControlPlane {
             json!({
                 "command": "run.continue",
                 "run_id": run_id,
+                "turn_id": legacy_turn.turn_id,
+                "turn": legacy_turn,
                 "harness": HARNESS_ID,
             }),
         )
@@ -455,6 +517,8 @@ impl ControlPlane {
             json!({
                 "run_id": run_id,
                 "session_id": context.session_id,
+                "turn_id": legacy_turn.turn_id,
+                "turn": legacy_turn.clone(),
                 "text": &prompt,
             }),
         )
