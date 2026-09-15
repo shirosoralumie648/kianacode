@@ -4,6 +4,8 @@
 > `ObservabilityPort`、Audit、Metric、Trace 或 Health 管线的交付声明。它记录事实、
 > 派生视图和尚未存在的合同，避免把显示、统计或评测快照误当成授权或业务结果。
 > 本轮不在本地运行测试；`observability_baseline` 仅由 GitHub Actions 执行。
+> OA-01 后续引入的 domain contract 模块会使导出/注册表源码发生预期漂移；本表只
+> 继续锁定 OA-00 所覆盖的旧边界文件，扩展时必须在同一提交中更新 hash 和迁移说明。
 
 ## 1. 快照、范围与证明上限
 
@@ -23,8 +25,8 @@
 |---|---|---|
 | Runtime event shape | `kiana-domain/src/states.rs` | `dca28dc71ef75e5dd92a25bed399349ca286bc7c5c0e514e11de20d6d1491ae3` |
 | Transition contract | `kiana-domain/src/journal.rs` | `4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48` |
-| Schema/ID registry | `kiana-domain/src/contracts.rs` | `c083388105be0cb32f18a8d98f66301045aca5739dd9ebb9abcff36587e9998d` |
-| Domain exports | `kiana-domain/src/lib.rs` | `b828142db42492fa913dd22b81506d2668343fe93e3e5d49ccf2b301013307e6` |
+| Schema/ID registry | `kiana-domain/src/contracts.rs` | `bdc567a972402be5ce194feff0018ad862e3bdac59e54a3f179b497ab9836e55`（OA-01 注册表扩展） |
+| Domain exports | `kiana-domain/src/lib.rs` | `5f8b839344f962e563bb0616e014384cfa54b1d3f44014f0a1dd8887efc5b5ec`（OA-01 模块导出） |
 | Event construction/redaction | `kiana-core/src/events.rs` | `7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679` |
 | Receipt projection | `kiana-core/src/receipts.rs` | `dda33c346b1ffd94389093e2856f99433ea083a3c61b35cf562484f9f4bc7e1e` |
 | Run/invocation projection | `kiana-core/src/projection.rs` | `20d84eb8fa0ac77ac85b48acb10e2fcc78214cc1c3c10be339b540230b1ff68` |
@@ -60,9 +62,9 @@
 | `PreparedModelCall::audit()` | provider/model 请求的安全摘要 | 局部诊断摘要 | 不是 `AuditRecord`，无 source event/cursor、decision taxonomy、retention/query boundary；OA-03/OA-04 |
 | `golden_trace.captured` / `trace.replay` | `kiana-core::versioning` 复制 run events/receipt，校验 owner/project/hash/revocation，replay 明确 `side_effects=false`/`provider_calls=0` | EventLog 中的评测快照与只读 replay | golden trace ≠ telemetry trace；trace 不得授权、恢复或替代 event order；完整 events/receipt shadow copy 的 retention 需迁移；OA-02/OA-14/OA-21 |
 | Operational log | 没有 `ObservabilityPort`/结构化 log sink | 未实现 | exporter、脱敏失败、队列、flush/关闭 ack 未建模；OA-03/OA-05/OA-13 |
-| Metric | 没有 `MetricPoint`/`MetricSnapshot`/catalog/reducer/sink | 未实现 | 不得把 usage counter、UI cursor 或 Company metric 当 canonical runtime metrics；OA-01/OA-10/OA-12 |
-| Trace / span | 没有 `TraceSink`/`TraceSummary`/`CorrelationContext`；现有 trace 名称属于 golden replay | 未实现 | trace 只可关联，不可作为 actor/authority/policy/approval；OA-02/OA-07/OA-14 |
-| Audit | 没有 `AuditRecord`/`AuditQueryPort`/audit projector；approval/review facts 仍由各自领域维护 | 未实现 | 模型/UI/plugin/exporter 不能伪造批准/完成/导出；OA-03/OA-04/OA-15/OA-16 |
+| Metric | OA-01 已注册 `MetricCatalog`/`MetricPoint` domain contract；仍没有 reducer/sink | schema source 已实现；runtime 未实现 | 不得把 usage counter、UI cursor 或 Company metric 当 canonical runtime metrics；OA-10/OA-12 |
+| Trace / span | OA-01 已注册 `TraceSummary` domain contract；没有 `TraceSink`/`CorrelationContext`；现有 trace 名称属于 golden replay | schema source 已实现；runtime 未实现 | trace 只可关联，不可作为 actor/authority/policy/approval；OA-02/OA-07/OA-14 |
+| Audit | OA-01 已注册 `AuditRecord` domain contract；没有 `AuditQueryPort`/audit projector；approval/review facts 仍由各自领域维护 | schema source 已实现；runtime 未实现 | 模型/UI/plugin/exporter 不能伪造批准/完成/导出；OA-03/OA-04/OA-15/OA-16 |
 | Health / Incident signal | 没有 `HealthSnapshot`/`HealthProbePort`/degraded contract | 未实现 | stale、projector gap、unknown exporter、journal corruption 不能返回 healthy；OA-10/OA-11/OA-19 |
 
 ## 3. 先拒绝：已确认的风险与证据窗口
@@ -81,7 +83,8 @@
 4. **事实先于观察仍需完整收敛。** core 的 `append_event` 在构造事件前做通用 redaction，
    但 EventStore adapter 不负责 classification/redaction，现有 redactor 是有限的 key/marker
    规则且不可失败；所有直接 append writer、future sink/export 都要在 OA-03 统一收敛。
-5. **命名和字段仍漂移。** usage 同时出现多种 event kind，时长有 `elapsed_ms` 与
+5. **命名和字段仍漂移。** OA-01 已固定 domain signal 的版本、digest、cursor、source event
+   IDs 和 attribute 上限，但 RuntimeEvent/usage 仍同时出现多种 event kind，时长有 `elapsed_ms` 与
    `duration_ms`；没有注册表、单位、低基数 label、source cursor、data class、retention
    或 proof ceiling 字段。重复或私自命名的观测字段不得继续扩散。
 6. **Unknown 必须保持 Unknown。** JSONL commit 在无法确认写入时返回 `CommitOutcome::Unknown`，
@@ -96,7 +99,7 @@
 
 | 后续 owner | 迁移结果 | 现状 proof ceiling |
 |---|---|---|
-| OA-01 | 注册 observability/audit/metric/trace/health schema、版本和 unknown-field 策略 | `source`；当前只有 RuntimeEvent/Projection schema shell |
+| OA-01 | 注册 observability/audit/metric/trace/health schema、版本和 unknown-field 策略 | `source`；四类 domain contract 已实现，HealthSnapshot/runtime adapter 仍未实现 |
 | OA-02 | 服务端构造 CorrelationContext、TraceRef/SpanRef 和 causation/parent link | `source`；现有 request/run/event IDs 不能代替 trace contract |
 | OA-03 | 统一 redaction/classification、bounded encoder 和 secret sentinel 全信号扫描 | `source`；当前 redaction 有覆盖边界且 EventStore 不分类 |
 | OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；approval/review facts 不是独立 AuditRecord |
@@ -126,5 +129,19 @@ runtime 证据。本步只在 GitHub Actions 运行 source guard；本地未执�
 
 OA-00 完成只表示：signal matrix、代码 owner、当前 proof ceiling、迁移清单和明确的拒绝
 边界已入库；`source-only` 护栏会在后续源文件漂移或缺少这些边界声明时失败。它不表示
-Audit/Metric/Trace/Health 已实现，也不改变 `P1-J8-01`、`ER-30` 或任何历史 evidence block
-的状态。下一步按 roadmap 进入 OA-01 schema 注册。
+Audit/Metric/Trace/Health runtime 已实现，也不改变 `P1-J8-01`、`ER-30` 或任何历史 evidence block
+的状态。OA-01 的 domain schema 叠加已单独记录；下一步按 roadmap 进入 OA-02 correlation/trace
+references。
+
+## 7. OA-01 叠加说明
+
+OA-01 在 `kiana-domain` 注册 `observability.v1`、`audit-record.v1`、`metric-catalog.v1` 和
+`trace-summary.v1`，并提供 `ObservabilityRecord`、`AuditRecord`、`MetricCatalog`、
+`MetricPoint`、`TraceSummary` 及封闭状态/来源枚举。每个 contract 使用 `deny_unknown_fields`、
+同 major 的 minor compatibility、非零 `source_cursor`、bounded `source_event_ids`/attributes
+和 `sha256:` digest 校验；`MetricPoint::validate_with_catalog` 对未注册名称 fail-closed。
+
+这只是 domain/schema source proof。没有新增 EventStore 写者、projector、sink、授权判断或
+外部 exporter；schema 存在不代表 audit/metric/trace/health 的 runtime、durable、live 或
+physical 证明。OA-00 的旧边界 hash 已在同一迁移序列中更新 `contracts.rs`/`lib.rs` 两项，
+新 `observability.rs` 由 OA-01 的专项编译/CI 护栏负责。

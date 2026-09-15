@@ -4,6 +4,8 @@
 //! 版本策略和 unknown field/event 处理规则。登记不改变任何现有 serde 表示；测试把
 //! 注册表与真实类型的 JSON 往返行为锁在一起。
 
+use serde::{Deserialize, Serialize};
+
 /// ID 在 JSON 线协议中的基础形态。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IdWireShape {
@@ -164,7 +166,8 @@ pub enum SchemaLayer {
 }
 
 /// Schema 版本号。
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SchemaVersion {
     pub major: u32,
     pub minor: u32,
@@ -374,6 +377,38 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: true,
     },
     SchemaContract {
+        name: "kiana.observability.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.audit-record.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.metric-catalog.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.trace-summary.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.workflow-command.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,
@@ -479,6 +514,13 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
     },
 ];
 
+/// Look up the canonical owner, layer and compatibility policy for a registered schema.
+pub fn schema_contract(schema_name: &str) -> Option<&'static SchemaContract> {
+    SCHEMA_CONTRACTS
+        .iter()
+        .find(|contract| contract.name == schema_name)
+}
+
 /// 检查给定的 schema 版本是否与当前运行时兼容。
 ///
 /// 返回 `Err` 表示 fail-closed：未知 major 版本必须拒绝。
@@ -486,10 +528,8 @@ pub fn check_schema_compatibility(
     schema_name: &str,
     incoming_version: &SchemaVersion,
 ) -> Result<(), String> {
-    let contract = SCHEMA_CONTRACTS
-        .iter()
-        .find(|c| c.name == schema_name)
-        .ok_or_else(|| format!("unknown schema: {}", schema_name))?;
+    let contract =
+        schema_contract(schema_name).ok_or_else(|| format!("unknown schema: {}", schema_name))?;
 
     if !contract.version.is_compatible_with(incoming_version) {
         return Err(format!(

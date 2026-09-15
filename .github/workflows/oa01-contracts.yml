@@ -1,0 +1,25 @@
+name: OA-01 Observability Domain Contracts
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Observability schema contract guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run OA-01 domain contract tests
+        run: cargo test -p kiana-domain --test oa01_contracts --locked -- --test-threads=1

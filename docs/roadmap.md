@@ -257,7 +257,7 @@
 | 089 | W1 | 专项 | [`SW-01`](#step-sw-01) | 稳定 ID、schema 和 lineage；domain + protocol + ports | `SW-00` | ⏳ | [专项卡](#step-sw-01) |
 | 090 | W1 | 专项 | [`SW-02`](#step-sw-02) | 显式 Partition/WorkGraph validator；复用 `packet_graph` | `SW-01` | ⏳ | [专项卡](#step-sw-02) |
 | 091 | W1 | 专项 | [`SW-03`](#step-sw-03) | Swarm/Partition/Attempt 状态 reducer 与 typed transition events；core/domain events | `SW-02` | ⏳ | [专项卡](#step-sw-03) |
-| 092 | W1 | 专项 | [`OA-01`](#step-oa-01) | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | `OA-00` | ⏳ | [专项卡](#step-oa-01) |
+| 092 | W1 | 专项 | [`OA-01`](#step-oa-01) | Domain schema 注册；新增 `observability.v1`、`audit-record.v1`、`metric-catalog.v1`、`trace-summary.v1` 合同 | `OA-00` | ✅ | [专项卡](#step-oa-01) |
 | 093 | W1 | 专项 | [`OA-02`](#step-oa-02) | `CorrelationContext`、TraceRef、SpanRef、causation/parent link；`kiana-domain`/`kiana-ports` | `OA-01` | ⏳ | [专项卡](#step-oa-02) |
 | 094 | W1 | 专项 | [`OA-03`](#step-oa-03) | 统一 `RedactionProfile`、classification、bounded value encoder；复用 `redact_event_value` 并补 span/log/metric/audit/export 边界 | `OA-01` | ⏳ | [专项卡](#step-oa-03) |
 | 095 | W1 | 专项 | [`OA-04`](#step-oa-04) | Audit taxonomy 与 `AuditRecord` reducer；`kiana-domain`/`kiana-core` | `OA-01`、`OA-03` | ⏳ | [专项卡](#step-oa-04) |
@@ -943,7 +943,8 @@
 | 当前 8 | `CI-01` 配置/凭据/身份基线 | 已加入 `config-credentials-identity-baseline.md`、五个 deterministic fixture、provider precedence/redaction 集成护栏和 GitHub Actions 专用 job；不提前实现 CI-06/07/08 | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；raw-secret sentinel、parser 差异和 local-user 迁移边界保持显式 |
 | 当前 9 | `SW-00` Swarm 现状 reconciliation | 已新增 [`swarm-baseline.md`](roadmap/swarm-baseline.md)、10 个源码 hash、已接线/仅类型/缺测试/未实现矩阵，以及 `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas` 的 GitHub Actions 专用护栏；不把 MemoryCellRegistry 或 event replay 写成 durable | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；下一步按队列进入 `OA-00` |
 | 当前 10 | `OA-00` Observability / Audit 现状 inventory | 已新增 [`observability-audit-baseline.md`](roadmap/observability-audit-baseline.md)、19 个源码 hash、signal matrix、owner/proof ceiling/迁移清单，以及 `observability_inventory_preserves_fact_projection_and_open_contracts` 的 GitHub Actions 专用护栏；明确 EventLog/Receipt/RunStream/GoldenTrace/usage/Incident 的事实与派生边界 | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；不把 golden trace、receipt、UI cursor、metric 或 health 设为事实/Outcome；下一步进入 `OA-01` |
-| 下一步 | `OA-01` Domain schema 注册 | `OA-00` 已登记 observability/audit/metric/trace/health 的缺口与迁移 owner；下一步新增 versioned schema 和 fail-closed compatibility guard | 只建立正式合同，不让 schema 存在本身升级为 runtime/durable 证明 |
+| 当前 11 | `OA-01` Domain schema 注册 | 已在 `kiana-domain` 注册四类 versioned signal contract，加入 owner/compatibility registry、`deny_unknown_fields`、minor-compatible headers、source cursor/attribute bounds、canonical digest 和未注册 metric 拒绝；新增 `oa01_contracts` GitHub Actions 专用测试 | `feature_status=implemented`（domain/schema source）、`proof_level=source`；没有新增 sink、projector、授权判断或外部 exporter；下一步进入 `OA-02` correlation/trace references |
+| 下一步 | `OA-02` CorrelationContext / TraceRef / SpanRef | `OA-01` 已固定 signal schema、digest、source cursor 和 fail-closed unknown-field/version 边界；下一步把 request/run/turn/invocation/provider/broker/eventlog 关联收敛为服务端构造的 typed links | trace 只能关联事实，不能作为 actor、authority、policy 或 approval 来源 |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1003,6 +1004,7 @@
 | 2026-09-15 | `CI-01` 配置/凭据/身份基线收口：ProviderConfig Debug 脱敏、env/profile precedence 与 unknown-field 护栏、七类输出通道 sentinel fixture、legacy parser/local-user/config migration 边界、GitHub Actions 专用测试 job；不运行本地测试，静态检查通过，CI 已触发但未等待 | `1be7326` |
 | 2026-09-15 | `SW-00` Swarm 现状 reconciliation：固定 10 个入口源码 hash；确认 protocol→ControlPlane→EventLog→Company StartRun→packet admission 已接线，同时记录 MemoryCellRegistry 进程内边界、event-before-dispatch 窗口、fresh child/queue/attempt/recovery 缺口；新增 GitHub Actions source-only guard；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-15 | `OA-00` Observability / Audit 现状 inventory：固定 19 个事实与投影入口源码 hash；登记 RuntimeEvent/EventStore/CommandReceipt/Receipt/RunStream/GoldenTrace/usage/Incident signal matrix、代码 owner、proof ceiling 与 OA-01+ 迁移清单；确认 golden trace ≠ telemetry trace、Receipt ≠ business Outcome、UI/transcript/cache/metric ≠ authority；新增 GitHub Actions source-only guard；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-15 | `OA-01` Domain schema 注册：`kiana-domain` 新增 ObservabilityRecord/AuditRecord/MetricCatalog/MetricPoint/TraceSummary 合同，注册四个 versioned schema，统一 unknown-field、minor compatibility、source cursor、bounded attributes、canonical digest 与 metric catalog membership 的 fail-closed 规则；新增远端 `oa01_contracts` 测试工作流；不运行本地测试，格式与 workspace 编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

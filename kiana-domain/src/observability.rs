@@ -1,0 +1,786 @@
+//! Versioned domain contracts for observability and audit signals.
+//!
+//! These values describe committed facts or bounded projections; they do not write to an
+//! `EventStore`, grant authority, or perform an export. The contracts deliberately keep
+//! correlation and trace identifiers as opaque references until OA-02 introduces their typed
+//! relationship.
+
+use crate::{canonical_journal_bytes, json_digest, DataClass, EventId, RequestId, SchemaVersion};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+
+pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
+pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
+pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
+pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
+pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+
+pub const MAX_SIGNAL_ATTRIBUTES: usize = 32;
+pub const MAX_ATTRIBUTE_KEY_BYTES: usize = 64;
+pub const MAX_ATTRIBUTE_VALUE_BYTES: usize = 256;
+pub const MAX_METRIC_NAME_BYTES: usize = 128;
+pub const MAX_METRIC_UNIT_BYTES: usize = 32;
+pub const MAX_METRIC_DESCRIPTION_BYTES: usize = 512;
+pub const MAX_SOURCE_EVENT_IDS: usize = 256;
+pub const MAX_TRACE_SPANS: u32 = 4_096;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignalKind {
+    Log,
+    Metric,
+    Trace,
+    Audit,
+    Health,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignalStatus {
+    Ok,
+    Error,
+    Unknown,
+    Degraded,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditActionKind {
+    Command,
+    Authorization,
+    Approval,
+    Capability,
+    Credential,
+    Recovery,
+    Query,
+    Export,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditDecision {
+    Accepted,
+    Denied,
+    Staged,
+    Approved,
+    Consumed,
+    Failed,
+    Unknown,
+    Queried,
+    Exported,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricKind {
+    Counter,
+    Gauge,
+    Histogram,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricSource {
+    EventReducer,
+    RuntimeGauge,
+    Derived,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricStability {
+    Experimental,
+    Stable,
+    Deprecated,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TraceStatus {
+    Ok,
+    Error,
+    Unknown,
+    Degraded,
+}
+
+fn validate_header(
+    schema: &str,
+    version: SchemaVersion,
+    expected_schema: &str,
+    expected_version: SchemaVersion,
+) -> Result<(), String> {
+    if schema != expected_schema {
+        return Err(format!("schema_mismatch:{schema}"));
+    }
+    if !expected_version.is_compatible_with(&version) {
+        return Err(format!(
+            "schema_version_incompatible:{schema}:expected_major={}:incoming_major={}",
+            expected_version.major, version.major
+        ));
+    }
+    Ok(())
+}
+
+fn validate_nonempty(value: &str, field: &str, max_bytes: usize) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{field}_required"));
+    }
+    if value.len() > max_bytes {
+        return Err(format!("{field}_too_long"));
+    }
+    Ok(())
+}
+
+fn validate_attributes(attributes: &BTreeMap<String, String>) -> Result<(), String> {
+    if attributes.len() > MAX_SIGNAL_ATTRIBUTES {
+        return Err("observability_attribute_limit".to_owned());
+    }
+    for (key, value) in attributes {
+        validate_nonempty(key, "attribute_key", MAX_ATTRIBUTE_KEY_BYTES)?;
+        if value.len() > MAX_ATTRIBUTE_VALUE_BYTES {
+            return Err("observability_attribute_value_too_long".to_owned());
+        }
+    }
+    Ok(())
+}
+
+fn validate_cursor(cursor: u64, source_event_ids: &[EventId]) -> Result<(), String> {
+    if cursor == 0 {
+        return Err("observability_source_cursor_required".to_owned());
+    }
+    if source_event_ids.is_empty() {
+        return Err("observability_source_event_ids_required".to_owned());
+    }
+    if source_event_ids.len() > MAX_SOURCE_EVENT_IDS {
+        return Err("observability_source_event_ids_limit".to_owned());
+    }
+    let mut unique = BTreeSet::new();
+    if source_event_ids
+        .iter()
+        .any(|id| !unique.insert(id.to_string()))
+    {
+        return Err("observability_source_event_ids_duplicate".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_digest(value: &str, field: &str) -> Result<(), String> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(format!("{field}_invalid"));
+    };
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(())
+}
+
+fn value_without_digest<T: Serialize>(value: &T, field: &str) -> Result<serde_json::Value, String> {
+    let mut value =
+        serde_json::to_value(value).map_err(|_| "observability_encode_failed".to_owned())?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| "observability_object_required".to_owned())?;
+    object.insert(field.to_owned(), serde_json::Value::String(String::new()));
+    Ok(value)
+}
+
+fn canonical_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>, String> {
+    canonical_journal_bytes(value).map_err(|error| format!("observability_canonical:{error}"))
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObservabilityRecord {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub signal_id: String,
+    pub signal: SignalKind,
+    pub status: SignalStatus,
+    pub component: String,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub payload_digest: String,
+}
+
+impl ObservabilityRecord {
+    pub fn new(
+        signal_id: impl Into<String>,
+        signal: SignalKind,
+        status: SignalStatus,
+        component: impl Into<String>,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        attributes: BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        let mut record = Self {
+            schema: OBSERVABILITY_SCHEMA.to_owned(),
+            version: OBSERVABILITY_SCHEMA_VERSION,
+            signal_id: signal_id.into(),
+            signal,
+            status,
+            component: component.into(),
+            source_cursor,
+            source_event_ids,
+            attributes,
+            payload_digest: String::new(),
+        };
+        record.payload_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            OBSERVABILITY_SCHEMA,
+            OBSERVABILITY_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.signal_id, "observability_signal_id", 128)?;
+        validate_nonempty(&self.component, "observability_component", 128)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_attributes(&self.attributes)?;
+        validate_digest(&self.payload_digest, "observability_payload_digest")?;
+        let expected = self.digest();
+        if self.payload_digest != expected {
+            return Err("observability_payload_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "payload_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MetricDefinition {
+    pub name: String,
+    pub kind: MetricKind,
+    pub unit: String,
+    pub description: String,
+    pub stability: MetricStability,
+    #[serde(default)]
+    pub allowed_labels: Vec<String>,
+    pub privacy_class: DataClass,
+    pub source: MetricSource,
+}
+
+impl MetricDefinition {
+    pub fn counter(name: impl Into<String>, unit: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            kind: MetricKind::Counter,
+            unit: unit.into(),
+            description: "registered runtime counter".to_owned(),
+            stability: MetricStability::Stable,
+            allowed_labels: Vec::new(),
+            privacy_class: DataClass::Internal,
+            source: MetricSource::EventReducer,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_nonempty(&self.name, "metric_name", MAX_METRIC_NAME_BYTES)?;
+        if !self.name.starts_with("kiana.")
+            || !self.name.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || ".-_".contains(byte as char)
+            })
+        {
+            return Err("metric_name_invalid".to_owned());
+        }
+        validate_nonempty(&self.unit, "metric_unit", MAX_METRIC_UNIT_BYTES)?;
+        validate_nonempty(
+            &self.description,
+            "metric_description",
+            MAX_METRIC_DESCRIPTION_BYTES,
+        )?;
+        if self.allowed_labels.len() > MAX_SIGNAL_ATTRIBUTES {
+            return Err("metric_allowed_label_limit".to_owned());
+        }
+        let mut labels = BTreeSet::new();
+        for label in &self.allowed_labels {
+            validate_nonempty(label, "metric_label", MAX_ATTRIBUTE_KEY_BYTES)?;
+            if !labels.insert(label) {
+                return Err("metric_allowed_label_duplicate".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MetricCatalog {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub metrics: Vec<MetricDefinition>,
+    pub catalog_digest: String,
+}
+
+impl MetricCatalog {
+    pub fn new(metrics: Vec<MetricDefinition>) -> Result<Self, String> {
+        Self::with_version(METRIC_CATALOG_SCHEMA_VERSION, metrics)
+    }
+
+    pub fn with_version(
+        version: SchemaVersion,
+        mut metrics: Vec<MetricDefinition>,
+    ) -> Result<Self, String> {
+        metrics.sort_by(|left, right| left.name.cmp(&right.name));
+        let mut catalog = Self {
+            schema: METRIC_CATALOG_SCHEMA.to_owned(),
+            version,
+            metrics,
+            catalog_digest: String::new(),
+        };
+        catalog.catalog_digest = catalog.digest();
+        catalog.validate()?;
+        Ok(catalog)
+    }
+
+    pub fn builtin() -> Self {
+        const NAMES: &[&str] = &[
+            "kiana.commands.accepted_total",
+            "kiana.commands.denied_total",
+            "kiana.runs.started_total",
+            "kiana.runs.completed_total",
+            "kiana.runs.failed_total",
+            "kiana.runs.cancelled_total",
+            "kiana.runs.result_unknown_total",
+            "kiana.invocations.attempt_total",
+            "kiana.invocations.effect_unknown_total",
+            "kiana.approvals.requested_total",
+            "kiana.approvals.decided_total",
+            "kiana.eventlog.commit_total",
+            "kiana.eventlog.commit_failure_total",
+            "kiana.eventlog.durable_cursor",
+            "kiana.projector.cursor",
+            "kiana.projector.lag_events",
+            "kiana.projector.rebuild_total",
+            "kiana.observability.queue_depth",
+            "kiana.observability.dropped_best_effort_total",
+            "kiana.observability.export_failure_total",
+            "kiana.provider.request_total",
+            "kiana.provider.retry_total",
+            "kiana.security.redaction_total",
+            "kiana.security.redaction_failure_total",
+            "kiana.audit.query_total",
+            "kiana.audit.query_denied_total",
+            "kiana.health.degraded_total",
+            "kiana.incidents.open_total",
+        ];
+        let metrics = NAMES
+            .iter()
+            .map(|name| MetricDefinition::counter(*name, "count"))
+            .collect();
+        Self::new(metrics).expect("built-in metric catalog is valid")
+    }
+
+    pub fn metric(&self, name: &str) -> Option<&MetricDefinition> {
+        self.metrics.iter().find(|metric| metric.name == name)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            METRIC_CATALOG_SCHEMA,
+            METRIC_CATALOG_SCHEMA_VERSION,
+        )?;
+        if self.metrics.is_empty() {
+            return Err("metric_catalog_empty".to_owned());
+        }
+        let mut names = BTreeSet::new();
+        for metric in &self.metrics {
+            metric.validate()?;
+            if !names.insert(&metric.name) {
+                return Err("metric_catalog_duplicate".to_owned());
+            }
+        }
+        validate_digest(&self.catalog_digest, "metric_catalog_digest")?;
+        if self.catalog_digest != self.digest() {
+            return Err("metric_catalog_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "catalog_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MetricPoint {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub name: String,
+    pub kind: MetricKind,
+    pub value: f64,
+    pub unit: String,
+    #[serde(default)]
+    pub labels: BTreeMap<String, String>,
+    pub source: MetricSource,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub point_digest: String,
+}
+
+impl MetricPoint {
+    pub fn new(
+        name: impl Into<String>,
+        kind: MetricKind,
+        value: f64,
+        unit: impl Into<String>,
+        labels: BTreeMap<String, String>,
+        source: MetricSource,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
+        Self::with_version(
+            METRIC_CATALOG_SCHEMA_VERSION,
+            name,
+            kind,
+            value,
+            unit,
+            labels,
+            source,
+            source_cursor,
+            source_event_ids,
+        )
+    }
+
+    pub fn with_version(
+        version: SchemaVersion,
+        name: impl Into<String>,
+        kind: MetricKind,
+        value: f64,
+        unit: impl Into<String>,
+        labels: BTreeMap<String, String>,
+        source: MetricSource,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
+        let mut point = Self {
+            schema: METRIC_CATALOG_SCHEMA.to_owned(),
+            version,
+            name: name.into(),
+            kind,
+            value,
+            unit: unit.into(),
+            labels,
+            source,
+            source_cursor,
+            source_event_ids,
+            point_digest: String::new(),
+        };
+        point.point_digest = point.digest();
+        point.validate()?;
+        Ok(point)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            METRIC_CATALOG_SCHEMA,
+            METRIC_CATALOG_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.name, "metric_name", MAX_METRIC_NAME_BYTES)?;
+        if !self.value.is_finite() {
+            return Err("metric_value_invalid".to_owned());
+        }
+        validate_nonempty(&self.unit, "metric_unit", MAX_METRIC_UNIT_BYTES)?;
+        validate_attributes(&self.labels)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_digest(&self.point_digest, "metric_point_digest")?;
+        if self.point_digest != self.digest() {
+            return Err("metric_point_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn validate_with_catalog(&self, catalog: &MetricCatalog) -> Result<(), String> {
+        self.validate()?;
+        catalog.validate()?;
+        let definition = catalog
+            .metric(&self.name)
+            .ok_or_else(|| "metric_unregistered".to_owned())?;
+        if definition.kind != self.kind
+            || definition.unit != self.unit
+            || definition.source != self.source
+        {
+            return Err("metric_definition_mismatch".to_owned());
+        }
+        if self.labels.keys().any(|label| {
+            !definition
+                .allowed_labels
+                .iter()
+                .any(|allowed| allowed == label)
+        }) {
+            return Err("metric_label_not_registered".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "point_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditRecord {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub audit_id: String,
+    pub action_kind: AuditActionKind,
+    pub decision: AuditDecision,
+    pub actor_ref: String,
+    pub target_kind: String,
+    pub target_ref: String,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub authority_epoch: u64,
+    pub data_epoch: u64,
+    #[serde(default)]
+    pub request_id: Option<RequestId>,
+    #[serde(default)]
+    pub command_id: Option<RequestId>,
+    #[serde(default)]
+    pub correlation_ref: Option<String>,
+    #[serde(default)]
+    pub causation_ref: Option<String>,
+    #[serde(default)]
+    pub action_digest: Option<String>,
+    #[serde(default)]
+    pub input_digest: Option<String>,
+    #[serde(default)]
+    pub reason_code: Option<String>,
+    pub data_class: DataClass,
+    pub retention_class: String,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub record_digest: String,
+}
+
+impl AuditRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        audit_id: impl Into<String>,
+        action_kind: AuditActionKind,
+        decision: AuditDecision,
+        actor_ref: impl Into<String>,
+        target_kind: impl Into<String>,
+        target_ref: impl Into<String>,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        authority_epoch: u64,
+        data_epoch: u64,
+        data_class: DataClass,
+        retention_class: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut record = Self {
+            schema: AUDIT_RECORD_SCHEMA.to_owned(),
+            version: AUDIT_RECORD_SCHEMA_VERSION,
+            audit_id: audit_id.into(),
+            action_kind,
+            decision,
+            actor_ref: actor_ref.into(),
+            target_kind: target_kind.into(),
+            target_ref: target_ref.into(),
+            source_cursor,
+            source_event_ids,
+            authority_epoch,
+            data_epoch,
+            request_id: None,
+            command_id: None,
+            correlation_ref: None,
+            causation_ref: None,
+            action_digest: None,
+            input_digest: None,
+            reason_code: None,
+            data_class,
+            retention_class: retention_class.into(),
+            attributes: BTreeMap::new(),
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_RECORD_SCHEMA,
+            AUDIT_RECORD_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.audit_id, "audit_id", 128)?;
+        validate_nonempty(&self.actor_ref, "audit_actor_ref", 256)?;
+        validate_nonempty(&self.target_kind, "audit_target_kind", 128)?;
+        validate_nonempty(&self.target_ref, "audit_target_ref", 512)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.authority_epoch == 0 || self.data_epoch == 0 {
+            return Err("audit_epoch_required".to_owned());
+        }
+        validate_nonempty(&self.retention_class, "audit_retention_class", 64)?;
+        validate_attributes(&self.attributes)?;
+        for (digest, field) in [
+            (self.action_digest.as_deref(), "audit_action_digest"),
+            (self.input_digest.as_deref(), "audit_input_digest"),
+        ] {
+            if let Some(digest) = digest {
+                validate_digest(digest, field)?;
+            }
+        }
+        if let Some(reason) = &self.reason_code {
+            validate_nonempty(reason, "audit_reason_code", 128)?;
+        }
+        if let Some(correlation) = &self.correlation_ref {
+            validate_nonempty(correlation, "audit_correlation_ref", 256)?;
+        }
+        if let Some(causation) = &self.causation_ref {
+            validate_nonempty(causation, "audit_causation_ref", 256)?;
+        }
+        validate_digest(&self.record_digest, "audit_record_digest")?;
+        if self.record_digest != self.digest() {
+            return Err("audit_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "record_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TraceSummary {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub trace_id: String,
+    #[serde(default)]
+    pub root_span_ref: Option<String>,
+    pub status: TraceStatus,
+    pub span_count: u32,
+    pub event_count: u32,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
+    #[serde(default)]
+    pub input_digest: Option<String>,
+    #[serde(default)]
+    pub output_digest: Option<String>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub summary_digest: String,
+}
+
+impl TraceSummary {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        trace_id: impl Into<String>,
+        root_span_ref: Option<String>,
+        status: TraceStatus,
+        span_count: u32,
+        event_count: u32,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
+        let mut summary = Self {
+            schema: TRACE_SUMMARY_SCHEMA.to_owned(),
+            version: TRACE_SUMMARY_SCHEMA_VERSION,
+            trace_id: trace_id.into(),
+            root_span_ref,
+            status,
+            span_count,
+            event_count,
+            source_cursor,
+            source_event_ids,
+            duration_ms: None,
+            input_digest: None,
+            output_digest: None,
+            attributes: BTreeMap::new(),
+            summary_digest: String::new(),
+        };
+        summary.summary_digest = summary.digest();
+        summary.validate()?;
+        Ok(summary)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            TRACE_SUMMARY_SCHEMA,
+            TRACE_SUMMARY_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.trace_id, "trace_id", 256)?;
+        if let Some(root) = &self.root_span_ref {
+            validate_nonempty(root, "trace_root_span_ref", 256)?;
+        }
+        if self.span_count == 0 || self.span_count > MAX_TRACE_SPANS {
+            return Err("trace_span_count_invalid".to_owned());
+        }
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_attributes(&self.attributes)?;
+        for (digest, field) in [
+            (self.input_digest.as_deref(), "trace_input_digest"),
+            (self.output_digest.as_deref(), "trace_output_digest"),
+        ] {
+            if let Some(digest) = digest {
+                validate_digest(digest, field)?;
+            }
+        }
+        validate_digest(&self.summary_digest, "trace_summary_digest")?;
+        if self.summary_digest != self.digest() {
+            return Err("trace_summary_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "summary_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}

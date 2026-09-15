@@ -226,6 +226,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus independent OA-00 mapper, security and test-boundary read-only audits; no runtime test reviewer
 ```
 
+### OA-01 observability domain contract evidence (2026-09-15)
+
+```text
+source_snapshot: 435d27a8a649d4df790c657b2a38aae8e39e2030; kiana-domain/src/contracts.rs; kiana-domain/src/lib.rs; new kiana-domain/src/observability.rs; kiana-domain/tests/oa01_contracts.rs; .github/workflows/oa01-contracts.yml
+worktree_status: OA-01 domain contracts, schema registry extension, focused remote-only test and roadmap/status backfill are scoped to this step; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/src/observability.rs
+  rg -n 'OBSERVABILITY_SCHEMA|AUDIT_RECORD_SCHEMA|METRIC_CATALOG_SCHEMA|TRACE_SUMMARY_SCHEMA|deny_unknown_fields|source_cursor|source_event_ids|validate_with_catalog' kiana-domain/src kiana-domain/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: `kiana-domain/tests/oa01_contracts.rs`; unknown major/unknown field/invalid status/empty cursor/bad digest/unregistered metric/oversized attribute rejection cases plus serde round-trip, canonical bytes, and minor additive compatibility; GitHub Actions only
+exit_code: 0 for source hash, format, workspace compile, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-01 job is queued by the push and is not awaited
+status_change: OA-01 domain/schema source slice is implemented. `kiana-domain` now owns four versioned projection contracts (`ObservabilityRecord`, `AuditRecord`, `MetricCatalog`/`MetricPoint`, `TraceSummary`) with closed serde fields, same-major compatibility, bounded source lineage/attributes, canonical SHA-256 digests, audit epochs and metric catalog membership validation. No EventStore writer, projector, sink, exporter, authorization decision or health runtime was added.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test, smoke or clippy command was run; OA-02 typed correlation links, OA-03 shared redaction/classification, HealthSnapshot, runtime sinks/projectors, and all downstream observability behavior remain open; schema registration does not prove runtime or durable telemetry
+reviewer: Codex root implementation review plus OA-01 domain-contract/static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

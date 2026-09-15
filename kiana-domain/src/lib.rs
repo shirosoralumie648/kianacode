@@ -153,6 +153,8 @@ pub use company_business::*;
 
 mod model;
 pub use model::*;
+mod observability;
+pub use observability::*;
 
 mod company_closeout;
 pub use company_closeout::*;
