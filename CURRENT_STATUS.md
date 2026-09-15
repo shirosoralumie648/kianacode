@@ -147,6 +147,25 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review; no runtime test reviewer
 ```
 
+### P0-G-04 invocation projection and restart recovery evidence (2026-09-15)
+
+```text
+source_snapshot: 38f23bc; kiana-core invocation projection, cache invalidation, receipt filtering, dispatch facts, and restart recovery
+worktree_status: source commit is on master; documentation backfill is the only follow-up change in this step; push is pending until this evidence commit is created
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: `new_process_rebuilds_invocation_state_from_events_alone`; conflicting terminal fixture; restart pending-approval fixture with gate re-check; pre-prepare rejection and MCP result-envelope cases covered by the projection/recovery paths
+exit_code: 0 for format, workspace compile, and diff checks; local tests deliberately not run per user instruction; GitHub CI is expected to execute the focused control-plane tests after push and is not awaited
+status_change: P0-G-04 invocation projection is implemented at source level. Runtime facts now carry stable request identity, strict run binding, transition validation, duplicate/conflicting terminal detection, lazy cache rebuild and invalidation, result-unknown fail-closed handling, redacted pre-prepare rejection facts, and approval recovery that requires an event-backed request/approval binding. `run_state` and resume filtering propagate malformed event conflicts instead of silently returning an empty projection.
+proof-level_change: source plus static compile evidence only; no local_behavior or durable promotion until remote CI supplies its receipt
+limitations: CI result was intentionally not awaited; no local test, smoke, or clippy command was run; the roadmap remains 🔄 because remote acceptance and any integration regressions are still pending; legacy receipt helpers outside this slice retain their compatibility fallback behavior
+reviewer: Codex root implementation review plus independent invocation/recovery audit; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

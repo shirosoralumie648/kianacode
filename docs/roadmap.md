@@ -939,8 +939,8 @@
 | 当前 5 | `ER-00` 固定事实边界 | `0a29de5` 源码快照上新增 Event/Receipt/Recovery 基线矩阵，登记 EventStore capabilities、事实所有权、ID 链、缓存边界与失败分类；已推送，CI 尚未等待 | 不提升 ER-01+ 或 durable/live 证明；运行时 fixture 由 GitHub CI 负责 |
 | 当前 6 | `CAP-00` 固定可复核基线 | 本次文档提交新增 [Capability 基线](roadmap/capability-baseline.md)，绑定 `b49cd62` 源码快照、相关 hash、registry/scope/cancel/patch/MCP/memory 六条链、五工具边界、timeout 分层和 CP/H handoff；已推送，CI 尚未等待 | 仅 baseline artifact 为 `implemented/source`；产品 capability 保持 `partial/target/deferred`，运行时 fixture 由 GitHub CI 负责 |
 | 当前 | `P4-J7-04` Provider 基线 | 已收口：`roadmap/provider-baseline.md` 固定产品路径与 legacy_fixtures 分界、调研缺口复核（10 项中 7 已修）和测试索引（kiana-provider 零测试为 RED） | 运行时回执由 GitHub CI 负责 |
-| 下一步 | `P0-G-04` 事件重建投影（恢复线重开） | 按全量队列第 020 项推进（W0 最后一张卡）；CO-01 已收口（见 `roadmap/companyos-baseline.md`），46 命令零测试已登记 | P0-G-04 是 🔄 状态：历史证据只覆盖 Run 只读投影，Invocation 折叠与恢复消费待证明 |
-| 恢复线重开 | `P0-G-04` | 历史证据只覆盖 Run 只读投影；WIP 已新增 Invocation 折叠与恢复代码，产品消费、未决集合及缓存替换尚待证明 | 保留完整退出条件；依赖此单元的条目不得因历史 Run 测试通过而视为已满足依赖 |
+| 当前 7 | `P0-G-04` 事件重建投影（恢复线重开） | `38f23bc` 已把 Invocation 折叠、惰性缓存、终态冲突拒绝和审批恢复接入 `kiana-core`；新增重启/冲突验收骨架，远程 CI 尚未回执 | P0-G-04 保持 🔄：历史 Run 证据之外，Invocation 运行时验收和集成回归由 GitHub CI 负责 |
+| 下一步 | `CI-01` 配置/凭据/身份基线 | G-04 源码切片已提交；按全量队列第 021 项建立基线文档与确定性迁移/脱敏护栏，不提前实现 CI-06/07/08 | 只提升 source 证据；raw-secret sentinel、parser 差异和 local-user 迁移边界必须保持显式 |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -996,6 +996,7 @@
 | 2026-09-14 | `EXT-00` 收口：固定 skills/plugins/hooks 基线（11 文件 hash + 研究文档 hash），三列 gap matrix 入库——`activate_conditional_skills_for_paths` 与 `register_extension_static` 均零调用者、plugins.rs 明文 manifest 与 ExtensionRegistry 签名验证两套并行、daemon/query 两侧 UpdateInput 语义分裂、domain extensions.rs 339 行零测试；三项架构阻断检查（无第二 runner loop、入口不判权、Prompt 非授权来源）全部通过；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-14 | `UI-00` 收口：四入口（CLI/Web/Workbench/Desktop）→ DaemonHost 调用图表 + 8 文件 hash 固定；7 项拒绝需求对抗复核：3 已覆盖（untrusted write、Host/Origin、unknown command），4 项 RED 全部有实现锚点但零测试（stale cursor、foreign-session cancel、响应丢失 result_unknown 呈现、旧 epoch 409）；`tui` 维持 parked；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-14 | `CO-01` 收口：CompanyOS 交接基线（13 文件 hash）——46 个 CompanyCommand 变体全部接线（事件溯源聚合 + revision CAS + 幂等重放 + spawn_from_packet）但经命令路径零测试；卡上两个验收测试均为 docs-only 目标；CO-27 等待环触发条件定位（RequestAcceptance 全完成检查 + milestone 依赖 Accepted 检查即环本身）；五部门六角色验证通过；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-15 | `P0-G-04` 事件重建投影源码收口：Invocation 请求/审批/派发/终态折叠、惰性缓存失效、冲突终态 fail-closed、预准备拒绝事实和审批恢复绑定已接入；新增重启/冲突验收测试；不运行本地测试，格式与 workspace 编译通过，CI 已触发但未等待 | `38f23bc` |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1213,12 +1214,12 @@
 
 ### P0-G-04 事件重建投影　🔄
 
-- **现状**：历史账本只证明 Run 只读投影，原 ✅ 超出完整验收范围；本次观察 WIP 已有 `kiana-core/src/invocation_projection.rs` 与 `recovery.rs`，Invocation 折叠的产品消费及缓存权威替换未获验收证据。
+- **现状**：源码提交 `38f23bc` 已把 Invocation 折叠、惰性缓存、终态冲突拒绝和审批恢复接入 `kiana-core`；历史账本只证明 Run 只读投影，远程 CI 验收仍未回执。
 - **做什么**：新增 RunProjection / InvocationProjection，用 `read_stream("run", run_id)` 与 `read_all` 折叠 `run.*`/`capability.*`/`approval.*`；首次按 run_id/session 访问时惰性重建。
 - **风险**：折叠遇矛盾终态必须保持 `run_terminal_conflict`/`result_unknown` fail-closed，不能猜。
-- **验收**：已有 `new_process_rebuilds_run_state_from_events_alone`；待补 `new_process_rebuilds_invocation_state_from_events_alone`、`projection_cache_miss_rebuilds_pending_invocations_with_authorization_recheck`。
+- **验收**：新增 `new_process_rebuilds_invocation_state_from_events_alone`、冲突终态 fixture、重启 pending approval 的 authorization re-check；远程 CI 仍待执行。
 - **依赖 / 边界**：依赖 `P0-G-01`；内存 map 降级为写穿缓存。
-- **依据**：`company-os-implementation-outline.md` §Slice G（A-2）｜`3a319be` + CI `34500579350` 是 Run 子集的历史证据；重开见账本「Roadmap source reconciliation evidence (2026-09-12)」。
+- **依据**：`company-os-implementation-outline.md` §Slice G（A-2）｜`38f23bc`；Run 子集历史证据 `3a319be` + CI `34500579350`；本次证据块「P0-G-04 invocation projection and restart recovery evidence (2026-09-15)」。
 
 
 
