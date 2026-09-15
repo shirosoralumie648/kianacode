@@ -5,7 +5,10 @@
 //! correlation and trace identifiers as opaque references until OA-02 introduces their typed
 //! relationship.
 
-use crate::{canonical_journal_bytes, json_digest, DataClass, EventId, RequestId, SchemaVersion};
+use crate::{
+    canonical_journal_bytes, json_digest, DataClass, EventId, ExecutionId, InvocationId, RequestId,
+    RunId, SchemaVersion, SpanId, TraceId, TurnId,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,11 +17,13 @@ pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
+pub const SPAN_LIFECYCLE_SCHEMA: &str = "kiana.span-lifecycle.v1";
 pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const SPAN_LIFECYCLE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 pub const MAX_SIGNAL_ATTRIBUTES: usize = 32;
 pub const MAX_ATTRIBUTE_KEY_BYTES: usize = 64;
@@ -48,6 +53,24 @@ pub enum SignalStatus {
     Error,
     Unknown,
     Degraded,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanEntityKind {
+    Run,
+    Turn,
+    Invocation,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanLifecyclePhase {
+    Started,
+    Paused,
+    Resumed,
+    Checkpointed,
+    Ended,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -808,6 +831,153 @@ pub struct HealthSnapshot {
     #[serde(default)]
     pub limitations: Vec<String>,
     pub snapshot_digest: String,
+}
+
+/// One committed lifecycle transition for a Run, Turn or Invocation span.
+///
+/// This is a projection record, not an authorization token. A terminal span record can only be
+/// derived from a terminal EventLog fact; ending a span never creates or changes that fact.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpanLifecycleRecord {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub trace_id: TraceId,
+    pub span_id: SpanId,
+    pub entity: SpanEntityKind,
+    pub run_id: RunId,
+    #[serde(default)]
+    pub turn_id: Option<TurnId>,
+    #[serde(default)]
+    pub invocation_id: Option<InvocationId>,
+    #[serde(default)]
+    pub execution_id: Option<ExecutionId>,
+    #[serde(default)]
+    pub attempt: Option<u32>,
+    pub phase: SpanLifecyclePhase,
+    pub status: TraceStatus,
+    pub event_kind: String,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub error_code: Option<String>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub record_digest: String,
+}
+
+impl SpanLifecycleRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        trace_id: TraceId,
+        span_id: SpanId,
+        entity: SpanEntityKind,
+        run_id: RunId,
+        turn_id: Option<TurnId>,
+        invocation_id: Option<InvocationId>,
+        execution_id: Option<ExecutionId>,
+        attempt: Option<u32>,
+        phase: SpanLifecyclePhase,
+        status: TraceStatus,
+        event_kind: impl Into<String>,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        error_code: Option<String>,
+    ) -> Result<Self, String> {
+        let mut record = Self {
+            schema: SPAN_LIFECYCLE_SCHEMA.to_owned(),
+            version: SPAN_LIFECYCLE_SCHEMA_VERSION,
+            trace_id,
+            span_id,
+            entity,
+            run_id,
+            turn_id,
+            invocation_id,
+            execution_id,
+            attempt,
+            phase,
+            status,
+            event_kind: event_kind.into(),
+            source_cursor,
+            source_event_ids,
+            error_code,
+            attributes: BTreeMap::new(),
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            SPAN_LIFECYCLE_SCHEMA,
+            SPAN_LIFECYCLE_SCHEMA_VERSION,
+        )?;
+        TraceId::parse(self.trace_id.as_str())?;
+        SpanId::parse(self.span_id.as_str())?;
+        match self.entity {
+            SpanEntityKind::Run => {
+                if self.turn_id.is_some()
+                    || self.invocation_id.is_some()
+                    || self.execution_id.is_some()
+                {
+                    return Err("span_run_identity_conflict".to_owned());
+                }
+            }
+            SpanEntityKind::Turn => {
+                if self.turn_id.is_none() {
+                    return Err("span_turn_required".to_owned());
+                }
+                if self.invocation_id.is_some() || self.execution_id.is_some() {
+                    return Err("span_turn_identity_conflict".to_owned());
+                }
+            }
+            SpanEntityKind::Invocation => {
+                if self.turn_id.is_none() {
+                    return Err("span_invocation_turn_required".to_owned());
+                }
+                if self.invocation_id.is_none() {
+                    return Err("span_invocation_required".to_owned());
+                }
+            }
+        }
+        if self.invocation_id.is_some() && !matches!(self.entity, SpanEntityKind::Invocation) {
+            return Err("span_invocation_entity_conflict".to_owned());
+        }
+        if self.execution_id.is_some() && self.invocation_id.is_none() {
+            return Err("span_execution_invocation_required".to_owned());
+        }
+        if self.attempt.is_some_and(|attempt| attempt == 0) {
+            return Err("span_attempt_invalid".to_owned());
+        }
+        validate_nonempty(&self.event_kind, "span_event_kind", 128)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.source_event_ids.len() != 1 {
+            return Err("span_source_event_required".to_owned());
+        }
+        if let Some(error_code) = &self.error_code {
+            validate_nonempty(error_code, "span_error_code", 256)?;
+        }
+        validate_attributes(&self.attributes)?;
+        validate_digest(&self.record_digest, "span_record_digest")?;
+        if self.record_digest != self.digest() {
+            return Err("span_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "record_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
 }
 
 impl HealthSnapshot {

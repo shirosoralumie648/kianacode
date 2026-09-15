@@ -28,12 +28,14 @@ mod receipts;
 mod recovery;
 mod redaction;
 mod sessions;
+mod span_projection;
 mod versioning;
 mod workspace_checkpoints;
 
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
+pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
 
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{

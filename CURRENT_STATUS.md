@@ -357,6 +357,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-06 eventlog/observer static-boundary review; no runtime test reviewer
 ```
 
+### OA-07 Run/Turn/Invocation span lifecycle evidence (2026-09-15)
+
+```
+source_snapshot: 7923d75; kiana-domain/src/{observability,contracts}.rs; kiana-core/src/{lib,span_projection}.rs; kiana-core/tests/oa07_span_lifecycle.rs; .github/workflows/oa07-span-lifecycle.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-07 span lifecycle contract, deterministic EventLog reducer, read-only ControlPlane bridge, remote-only fixtures, schema baseline overlay, roadmap/module documentation and status backfill are scoped to this step; no unrelated WIP was reverted; static verification is complete and this slice is included in the accompanying step commit
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-core/src/span_projection.rs kiana-core/src/lib.rs
+  rg -n 'SpanLifecycleRecord|SpanEntityKind|SpanLifecyclePhase|project_span_lifecycle|span_lifecycle|span_state' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa07_span_lifecycle --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo 1.97.1; locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa07_span_lifecycle.rs; deterministic Run/Turn/Invocation lifecycle rows, approval pause/resume, compact checkpoint, successful terminal, cancellation/unknown mapping, duplicate terminal, late delta and stale attempt; GitHub Actions only
+exit_code: 0 for format, OA-07 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-07 job is queued by the push and is not awaited
+status_change: OA-07 source slice is implemented. `kiana.span-lifecycle.v1` enforces entity ID relationships, single source event, bounded error/attributes and digest; `kiana-core::span_projection` derives stable trace/span IDs and lifecycle records solely from committed `RuntimeEvent` order, ignores duplicate/late/old-attempt facts, fails closed on conflicting terminal status, and exposes a read-only `ControlPlane::span_lifecycle`/`span_state` bridge. New attempts require a higher attempt number; span end never appends or mutates terminal EventLog facts.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; source-order cursor is a deterministic projection cursor rather than a durable checkpoint, observer delivery/exporter/backpressure/retention remain future OA-08/OA-10/OA-13/OA-14 work, and existing provider/model/broker/effect spans are not yet instrumented
+reviewer: Codex root implementation review plus OA-07 projection/static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

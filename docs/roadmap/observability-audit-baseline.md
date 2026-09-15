@@ -31,6 +31,7 @@
 | Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `b17e84def5825be9c2fbdfa704ffe12f9502821325e0c2f66e977b1d72aed1e1` |
 | Core audit facade（OA-04） | `kiana-core/src/audit.rs` | `9c444ff6a125a90ac6ba25c1756802e826c40e681ce24f21645f1f08eff9ee22` |
 | Health snapshot（OA-05） | `kiana-domain/src/observability.rs` | `03b6f822d5bac02c4717e2cf32796f6e8bfe53e853670b25ae88c0e98d5c7ea2` |
+| Span lifecycle contract（OA-07 overlay） | `kiana-domain/src/observability.rs` | `2079d5fcc4850d50e9e73a1f386144d81c03c1d4d8ccb7936062ce4e739e0d5f` |
 | Signal ports/fakes/observer contract（OA-05/OA-06） | `kiana-ports/src/lib.rs` | `36fca0363cd1aab7ca00d3a75375be99ab6aeb13de28f38e42fcf425a96b16f0` |
 | Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `6fabe5e7cb8d2c86604738108eebcea6274d36306afac197a6115d13b1bfa951` |
 | Event construction/redaction | `kiana-core/src/events.rs` | `7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679` |
@@ -42,6 +43,7 @@
 | Review/Outcome boundary | `kiana-core/src/collaboration.rs` | `49e61cf89add855ca4fc3687104d666388477848d63397b9ea50b0404021dabf` |
 | EventStore facade | `kiana-eventlog/src/lib.rs` | `7af0aba67a44e4575ffd7920ab07866a28c4dbbfcf0c7a3a96221986dfc190bb`（OA-06 observer export） |
 | Commit observer wrapper（OA-06） | `kiana-eventlog/src/stream.rs` | `bc955e9c583466a97c1fb02fda4bff8af076dd04ee8df342e21777345b9c033a` |
+| Span lifecycle projection（OA-07 overlay） | `kiana-core/src/span_projection.rs` | `e28d545faeb51c8ff1c6410aac0f8b96687a8e283641cb6ac6887db15b9fdfec` |
 | EventStore append planning | `kiana-eventlog/src/event_store_core.rs` | `506a8222a757a89e6516a12b6260daa7f35af2b3da49c17a23ca7cdbcc9d0b1e` |
 | Journal state/replay | `kiana-eventlog/src/journal_core.rs` | `84ef64bc8208b2ead45d1d05feb0265e94129b898cd67d04f5ed189d388bba56` |
 | JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `f549e5de5bc4e197f268b865327bd1d0d7a4c10208daa3e7c13ceb68188e5c5f` |
@@ -70,7 +72,7 @@
 | `golden_trace.captured` / `trace.replay` | `kiana-core::versioning` 复制 run events/receipt，校验 owner/project/hash/revocation，replay 明确 `side_effects=false`/`provider_calls=0` | EventLog 中的评测快照与只读 replay | golden trace ≠ telemetry trace；trace 不得授权、恢复或替代 event order；完整 events/receipt shadow copy 的 retention 需迁移；OA-02/OA-14/OA-21 |
 | Operational log | 没有 `ObservabilityPort`/结构化 log sink；OA-03 提供 `RedactionProfile`/bounded encoder | profile/encoder source 已实现；runtime sink 未实现 | exporter、脱敏失败、队列、flush/关闭 ack 未建模；OA-05/OA-13 |
 | Metric | OA-01 已注册 `MetricCatalog`/`MetricPoint` domain contract，OA-03 提供 Metric profile boundary；仍没有 reducer/sink | schema/encoder source 已实现；runtime 未实现 | 不得把 usage counter、UI cursor 或 Company metric 当 canonical runtime metrics；OA-10/OA-12 |
-| Trace / span | OA-01 已注册 `TraceSummary`，OA-02 已注册 `CorrelationContext`/`TraceRef`/`SpanRef` 与 link，OA-03 提供 Trace bounded encoder；没有 `TraceSink`；现有 trace 名称属于 golden replay | schema/correlation/encoder source 已实现；runtime 未实现 | trace 只可关联，不可作为 actor/authority/policy/approval；OA-07/OA-14 |
+| Trace / span | OA-01 已注册 `TraceSummary`，OA-02 已注册 `CorrelationContext`/`TraceRef`/`SpanRef` 与 link，OA-03 提供 Trace bounded encoder；OA-07 的 `kiana-core::span_projection` 从 committed `RuntimeEvent` 派生 Run/Turn/Invocation lifecycle rows；没有 exporter/`TraceSink` runtime 接线 | schema/correlation/encoder/projection source 已实现；runtime exporter 未实现 | trace 只可关联，不可作为 actor/authority/policy/approval；span end 不制造 terminal，迟到/重复/旧 attempt 不覆盖事实；OA-08/OA-14 |
 | Audit | OA-04 在 `kiana-domain/src/audit.rs` 固定 taxonomy，并由 `kiana-core/src/audit.rs` 从带 cursor/source binding 的 committed `RuntimeEvent` 派生 `AuditRecord`；OA-06 `StreamEventStore` 只在新 Committed 后通知，OA-05 `AuditQueryPort` 仅读投影 | taxonomy/reducer、observer/query port source 已实现；checkpoint projector 未实现 | 模型/UI/plugin/exporter 不能伪造批准/完成/导出；未知 `audit.*`、缺 source/epoch、矛盾 decision、重复 source 记录 fail-closed；observer 丢失须 cursor 扫描；OA-10/OA-15/OA-16 |
 | Health / Incident signal | OA-05 新增 versioned `HealthSnapshot` 与 `HealthProbePort`；Health 仍是 probe projection，不是授权或业务 Outcome | snapshot/port/fake source 已实现；runtime probe、lag/incident projector 未实现 | stale、projector gap、unknown exporter、journal corruption 不能返回 healthy；OA-10/OA-11/OA-19 |
 
@@ -112,7 +114,8 @@
 | OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；domain/core reducer 已实现，尚无 EventLog commit observer、checkpoint、query 或 durable projection |
 | OA-05 | Observability/Trace/Metric/Audit/Health ports 与 fake adapters | `source`；ports、Memory/JSONL fake、flush/cancel/capacity/query/probe contracts 已实现，尚无 EventLog observer 或 durable sink |
 | OA-06 | commit observer 只通知 Committed，重放不重复通知，建立 projection cursor | `source`；`kiana-ports` 的 `CommittedTransition`/observer contract 与 `kiana-eventlog::StreamEventStore` 已实现；通知是可丢 wake hint，尚无 durable checkpoint |
-| OA-07–09 | run/provider/broker/approval/effect/stop 的 span 与 usage 生命周期 | `source`；现有 model-turn/usage 事件未形成统一 signal |
+| OA-07 | Run/Turn/Invocation span 生命周期与 runner/event projection bridge | `source`；`SpanLifecycleRecord`、稳定 trace/span ID、只读 reducer 和 ControlPlane bridge 已实现；尚无 exporter、durable checkpoint 或 live backend |
+| OA-08–09 | provider/model/stream/usage 与 broker/approval/effect/stop 的 instrumentation | `source`；现有 model-turn/usage 事件未形成统一 signal |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -233,3 +236,23 @@ callback 丢失不等于 projection 已同步。legacy `append*` 兼容路径不
 OA-06 远端 workflow 覆盖 fresh commit、replay、CAS conflict、Unknown、observer failure 和
 receipt/cursor 伪造夹具；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制，
 不宣称 durable/live/physical。
+
+## 13. OA-07 叠加说明
+
+OA-07 在 `kiana-domain` 注册 `kiana.span-lifecycle.v1`，并以 `SpanLifecycleRecord` 固定
+Run、Turn、Invocation 三类 span 的稳定 `TraceId`/`SpanId`、实体关联、attempt、生命周期阶段、
+`TraceStatus`、来源 cursor/event、受限错误码和低基数属性。记录要求单一 source event、非零
+cursor、严格的实体 ID 关系、bounded attributes 与 digest；它是可重算 projection，不是授权
+令牌，也不创建或修改 EventLog 事实。
+
+`kiana-core::span_projection::project_span_lifecycle` 按输入事实顺序折叠 `run.authorized` /
+`run.prompt` / `run.started`、approval、invocation dispatch/result、compact、cancel 和 terminal
+事件。稳定 trace/span ID 从 run/实体键的 digest 派生，重复 event ID 和重复 terminal 幂等；
+terminal 冲突 fail-closed，迟到 delta/approval/result、旧 attempt 不覆盖已结束 span，新 attempt
+只由更高 attempt 明确重开。没有可验证 invocation/turn 关联的事件保持 opaque，不猜造 span。
+`ControlPlane::span_lifecycle`/`span_state` 只读 EventLog 重建入口，不访问 Runner、Broker 或
+Exporter，也不会把 span end 当成 run terminal。
+
+OA-07 远端 workflow 覆盖 deterministic replay、Run/Turn/Invocation start/pause/resume/checkpoint/
+end、cancel/unknown、duplicate terminal、late delta、terminal conflict 和 stale attempt 夹具；
+本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制，不宣称 durable/live/physical。
