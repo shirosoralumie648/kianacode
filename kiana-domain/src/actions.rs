@@ -298,15 +298,19 @@ pub struct PreparedAction {
     request: CapabilityRequest,
     catalog_digest: String,
     digest: String,
+    input_digest: String,
 }
 
 impl PreparedAction {
     pub fn new(mut request: CapabilityRequest) -> Result<Self, &'static str> {
         validate_action_catalog().map_err(|_| "action_catalog_invalid")?;
         normalize_capability_action(&mut request)?;
+        let input_digest =
+            canonical_action_input_digest(&request).map_err(|_| "action_input_digest_invalid")?;
         let action = Self {
             catalog_digest: capability_action_catalog_digest(),
             digest: capability_action_digest(&request),
+            input_digest,
             request,
         };
         action.validate()?;
@@ -322,6 +326,10 @@ impl PreparedAction {
         &self.catalog_digest
     }
 
+    pub fn input_digest(&self) -> &str {
+        &self.input_digest
+    }
+
     /// Verify that a prepared action still matches the current closed catalog and normalized
     /// request. This is a consistency check, not a dispatch permit or authorization decision.
     pub fn validate(&self) -> Result<(), &'static str> {
@@ -335,6 +343,9 @@ impl PreparedAction {
         }
         if self.digest != capability_action_digest(&self.request) {
             return Err("prepared_action_digest_mismatch");
+        }
+        if self.input_digest != canonical_action_input_digest(&self.request)? {
+            return Err("prepared_action_input_digest_mismatch");
         }
         Ok(())
     }
@@ -612,6 +623,20 @@ fn require_text(arguments: &serde_json::Map<String, Value>, key: &str) -> Result
 
 pub fn capability_action_digest(request: &CapabilityRequest) -> String {
     crate::json_digest(&json!({"catalog":capability_action_catalog_digest(),"request":request}))
+}
+
+/// Digest only the execution-affecting normalized input and its descriptor binding. Request and
+/// correlation IDs are deliberately excluded so equivalent calls can be compared across ingress
+/// retries while a changed command/path/server/schema still produces a new digest.
+pub fn canonical_action_input_digest(request: &CapabilityRequest) -> Result<String, &'static str> {
+    let descriptor =
+        capability_action_descriptor(&request.operation).ok_or("action_operation_unknown")?;
+    Ok(crate::json_digest(&json!({
+        "operation": descriptor.operation,
+        "binding_version": descriptor.binding_version,
+        "capability": request.capability,
+        "arguments": request.arguments,
+    })))
 }
 
 pub fn capability_action_catalog_digest() -> String {

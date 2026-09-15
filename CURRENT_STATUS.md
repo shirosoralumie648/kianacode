@@ -1209,6 +1209,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CAP-01 catalog/registry/model-surface/binding source-boundary review; no runtime test reviewer
 ```
 
+### CAP-02 capability input boundary and digest evidence (2026-09-16)
+
+```text
+source_snapshot: 7d269b7; kiana-domain/src/{tool_catalog,actions,capabilities}.rs; kiana-core/src/capabilities.rs; kiana-capability-broker/src/lib.rs; kiana-runner/src/tools.rs; kiana-daemon/src/harness_capabilities.rs; kiana-domain/tests/cap02_input.rs; kiana-core/tests/cap02_input_guard.rs; .github/workflows/cap02-input.yml; docs/roadmap/capability-input-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/capability.md; docs/roadmap.md
+worktree_status: CAP-02 bounded JSON/schema/duplicate/depth/bytes/items validation, shell/argv/patch/MCP/Memory normalization, reserved authority cleanup boundary, canonical input digest, PreparedAction input/action/catalog digest validation, remote fixtures/source guard and roadmap overlays are scoped to this step; no network schema fetch or second Broker path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/tool_catalog.rs kiana-domain/src/actions.rs kiana-domain/src/capabilities.rs kiana-core/src/capabilities.rs kiana-capability-broker/src/lib.rs kiana-runner/src/tools.rs kiana-daemon/src/harness_capabilities.rs kiana-domain/tests/cap02_input.rs kiana-core/tests/cap02_input_guard.rs .github/workflows/cap02-input.yml docs/roadmap/capability-input-baseline.md
+  rg -n 'TOOL_JSON_MAX_BYTES|TOOL_JSON_MAX_DEPTH|TOOL_JSON_MAX_ITEMS|parse_bounded_json|json_duplicate_key|validate_schema_contract|canonical_action_input_digest|PreparedAction|action_tool_alias_conflict|action_command_required|action_numeric_argument_invalid|stamp_request_identity|capability_action_not_prepared|command_argv' kiana-domain/src kiana-core/src kiana-capability-broker/src kiana-runner/src kiana-daemon/src kiana-domain/tests/cap02_input.rs kiana-core/tests/cap02_input_guard.rs docs/roadmap/capability-input-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cap02_input.rs equivalent/changed digest, duplicate key, schema reference/depth, alias conflict and reserved field fixtures; kiana-core/tests/cap02_input_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-02 job is queued by the push and is not awaited
+status_change: CAP-02 source slice is implemented. Bounded parser/schema helpers reject duplicate keys, unsupported schema references/keywords, excessive depth/bytes/items and invalid numeric values. Runner and daemon normalize shell string/argv, patch paths, MCP aliases/arguments and Memory fields; ControlPlane removes caller authority fields, stamps server context, applies defaults and hooks, then creates PreparedAction with canonical input/action/catalog digests. Equivalent normalized inputs share input digest, execution-affecting changes do not, and Broker rejects unprepared/drifted actions before handler dispatch.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; validator supports only the bounded local schema dialect, reference/outputSchema/secret/TOCTOU/egress/OS/process boundaries remain partial, compatibility fields may remain permissive until versioned migration, PreparedAction/input digest are not Grant/Approval/Permit/ExecutionScope, and handler/provider/connector/external/live/physical effects remain unproven
+reviewer: Codex root implementation review plus CAP-02 input/schema/argv/alias/digest source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

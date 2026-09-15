@@ -376,13 +376,15 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-02 — 统一参数边界与输入摘要
+#### CAP-02 — 统一参数边界与输入摘要　✅
+
+当前 source slice 与 CI-only 证据见 [`capability-input-baseline.md`](capability-input-baseline.md)。
 
 - **落点：** domain schema/canonical helpers、runner/tools、broker 输入校验；复用 `P1-H-02` 现有验证器后再补缺项。
 - **步骤：** 明确 JSON Schema dialect/支持子集，禁止网络 `$ref`；限制 JSON bytes/depth/array；将 shell string 与 argv、patch、MCP、memory 分别解码为 typed input。规定别名冲突、未知字段和 v1→v2 兼容策略；摘要覆盖规范化参数及 descriptor 版本，不包含展示脱敏占位值。
 - **先拒绝：** `reserved_authority_fields_cannot_change_execution_scope`、`schema_depth_and_reference_limits_fail_before_dispatch`、`conflicting_mcp_tool_aliases_are_rejected`；非法 argv/空 executable/NUL/错误 timeout 同样覆盖。
 - **成功/回归：** `equivalent_json_inputs_have_the_same_digest`、`execution_affecting_input_changes_change_digest`；已有 cassette 无害额外字段测试保持，受保护字段不能因兼容而生效。
-- **完成产物：** mapping 和 broker 使用同一校验契约；输入失败产生对应 call 的结构化结果，handler 调用计数为零。
+- **完成产物：** mapping 和 broker 使用同一校验契约；输入失败产生对应 call 的结构化结果，handler 调用计数为零；canonical input/action digest 绑定 descriptor version 并经远程 CI 验收。
 
 <a id="step-cap-03"></a>
 
