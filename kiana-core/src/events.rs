@@ -259,6 +259,38 @@ pub(crate) fn capability_event_payload(
     let object = payload
         .as_object_mut()
         .expect("capability event payload is normalized to an object");
+    let result_unknown = object
+        .get("error")
+        .and_then(Value::as_str)
+        .is_some_and(|error| error.contains("result_unknown"));
+    let not_executed = object.get("not_executed") == Some(&json!(true));
+    let stop_confirmed = object.get("stop_confirmed").and_then(Value::as_bool);
+    object.entry("attempt".to_owned()).or_insert(json!(1));
+    object
+        .entry("effect_started".to_owned())
+        .or_insert(json!(!not_executed));
+    object
+        .entry("effect_known".to_owned())
+        .or_insert(json!(!result_unknown));
+    object
+        .entry("zero_effect".to_owned())
+        .or_insert(json!(not_executed));
+    object
+        .entry("fenced".to_owned())
+        .or_insert(json!(result_unknown));
+    if let Some(stop_confirmed) = stop_confirmed {
+        object
+            .entry("stop_state".to_owned())
+            .or_insert(json!(if stop_confirmed {
+                "confirmed"
+            } else {
+                "unconfirmed"
+            }));
+    } else {
+        object
+            .entry("stop_state".to_owned())
+            .or_insert(json!("not_requested"));
+    }
     object.insert("run_id".to_owned(), json!(run_id));
     object.insert("session_id".to_owned(), json!(context.session_id));
     object.insert("capability".to_owned(), json!(request.capability));
@@ -287,6 +319,27 @@ pub(crate) fn direct_capability_event_payload(
     let object = payload
         .as_object_mut()
         .expect("direct capability payload is normalized to an object");
+    let result_unknown = object
+        .get("error")
+        .and_then(Value::as_str)
+        .is_some_and(|error| error.contains("result_unknown"));
+    let not_executed = object.get("not_executed") == Some(&json!(true));
+    object.entry("attempt".to_owned()).or_insert(json!(1));
+    object
+        .entry("effect_started".to_owned())
+        .or_insert(json!(!not_executed));
+    object
+        .entry("effect_known".to_owned())
+        .or_insert(json!(!result_unknown));
+    object
+        .entry("zero_effect".to_owned())
+        .or_insert(json!(not_executed));
+    object
+        .entry("fenced".to_owned())
+        .or_insert(json!(result_unknown));
+    object
+        .entry("stop_state".to_owned())
+        .or_insert(json!("not_requested"));
     object.insert("capability".to_owned(), json!(request.capability));
     object.insert("operation".to_owned(), json!(request.operation));
     object.insert("cell_id".to_owned(), json!(request.cell_id));

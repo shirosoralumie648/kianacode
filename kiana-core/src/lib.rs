@@ -21,6 +21,7 @@ mod lifecycle;
 mod memory_distillation;
 mod model_budget;
 pub use model_budget::JournalModelBudget;
+mod capability_attempt_projection;
 mod memory_proposals;
 mod model_attempt_projection;
 mod platform;
@@ -34,6 +35,9 @@ mod versioning;
 mod workspace_checkpoints;
 
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
+pub use capability_attempt_projection::{
+    project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
+};
 pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,

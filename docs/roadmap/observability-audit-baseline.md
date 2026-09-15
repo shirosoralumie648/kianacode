@@ -33,6 +33,7 @@
 | Health snapshot（OA-05） | `kiana-domain/src/observability.rs` | `03b6f822d5bac02c4717e2cf32796f6e8bfe53e853670b25ae88c0e98d5c7ea2` |
 | Span lifecycle contract（OA-07 overlay） | `kiana-domain/src/observability.rs` | `2079d5fcc4850d50e9e73a1f386144d81c03c1d4d8ccb7936062ce4e739e0d5f` |
 | Model attempt contract（OA-08 overlay） | `kiana-domain/src/observability.rs` | `5e53b7a30fc87243e4c997f2dd9a9f2fb5108e7cfe6eb67ddda0aa40d7deceeb` |
+| Capability attempt contract（OA-09 overlay） | `kiana-domain/src/observability.rs` | `80d4c60dfd20b9508b39c82c2ad39fdb9b7fbd16a45b3854ec27e5ad8903d708` |
 | Signal ports/fakes/observer contract（OA-05/OA-06） | `kiana-ports/src/lib.rs` | `36fca0363cd1aab7ca00d3a75375be99ab6aeb13de28f38e42fcf425a96b16f0` |
 | Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `6fabe5e7cb8d2c86604738108eebcea6274d36306afac197a6115d13b1bfa951` |
 | Event construction/redaction | `kiana-core/src/events.rs` | `7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679` |
@@ -46,6 +47,13 @@
 | Commit observer wrapper（OA-06） | `kiana-eventlog/src/stream.rs` | `bc955e9c583466a97c1fb02fda4bff8af076dd04ee8df342e21777345b9c033a` |
 | Span lifecycle projection（OA-07 overlay） | `kiana-core/src/span_projection.rs` | `e28d545faeb51c8ff1c6410aac0f8b96687a8e283641cb6ac6887db15b9fdfec` |
 | Model attempt projection（OA-08 overlay） | `kiana-core/src/model_attempt_projection.rs` | `ce723db86729bbce0c9391157dbf8140bb09470a8d81ba05ebf4ba613a168de0` |
+| Capability attempt projection（OA-09 overlay） | `kiana-core/src/capability_attempt_projection.rs` | `e2de85b4baaabdf0afd9b7b60713e96b950a771f6354008b9daec4791924986a` |
+| Core capability-attempt exports（OA-09 overlay） | `kiana-core/src/lib.rs` | `ab12f84c7cfa46ab7744801364608a7d8e98994d0a70d78b12544f40e67bdd87` |
+| Capability admission/effect instrumentation（OA-09 overlay） | `kiana-core/src/capabilities.rs` | `34a78eb181ef97253ab41d254ca298e621e9ea540ccec73a0bb94fde7dfbd061` |
+| Approval effect metadata（OA-09 overlay） | `kiana-core/src/approvals.rs` | `439a602ee0463d1be33ce144d787e5b7b6cbdb19db7277de2da248aa0cf28b1e` |
+| Dispatch permit/execution boundary（OA-09 overlay） | `kiana-core/src/dispatch.rs` | `75ef963c49c89cc3848a542f3dc5a63a01e55d2321b47b1f4bb918addd22f672` |
+| Capability event metadata（OA-09 overlay） | `kiana-core/src/events.rs` | `5a0348f5e1940363119d920244724428af1e1373f692f6424ccfd3b8a6dfe26e` |
+| Harness effect/stop metadata（OA-09 overlay） | `kiana-daemon/src/harness_capabilities.rs` | `342dcbca27709f41821872c60ab199595f51ebc6fa9dccabbaf0b040ae5c46ce` |
 | Provider safe telemetry（OA-08 overlay） | `kiana-provider/src/telemetry.rs` | `1a9ec235b5d0cf8c420d758bde425ff89a0ea8c7d746c38f09daf6a7dfc835d5` |
 | Daemon model boundary（OA-08 overlay） | `kiana-daemon/src/model_client.rs` | `02bf42ff2171842679421621d128be26d44298457d758850499eae1694cfa0b9` |
 | EventStore append planning | `kiana-eventlog/src/event_store_core.rs` | `506a8222a757a89e6516a12b6260daa7f35af2b3da49c17a23ca7cdbcc9d0b1e` |
@@ -120,7 +128,8 @@
 | OA-06 | commit observer 只通知 Committed，重放不重复通知，建立 projection cursor | `source`；`kiana-ports` 的 `CommittedTransition`/observer contract 与 `kiana-eventlog::StreamEventStore` 已实现；通知是可丢 wake hint，尚无 durable checkpoint |
 | OA-07 | Run/Turn/Invocation span 生命周期与 runner/event projection bridge | `source`；`SpanLifecycleRecord`、稳定 trace/span ID、只读 reducer 和 ControlPlane bridge 已实现；尚无 exporter、durable checkpoint 或 live backend |
 | OA-08 | provider/model/stream/usage instrumentation | `source`；`ModelAttemptRecord`、provider safe prepared summary、daemon model-port boundary 和 committed-event reducer 已实现；尚无 MetricSink/TraceSink exporter、durable checkpoint 或 live backend |
-| OA-08–09 | provider/model/stream/usage 与 broker/approval/effect/stop 的 instrumentation | `source`；OA-08 已形成有界 model-attempt projection，但 sink/metric/exporter 与 broker/effect instrumentation 仍未实现 |
+| OA-08 | provider/model/stream/usage instrumentation | `source`；`ModelAttemptRecord`、safe prepared summary 与 committed-event reducer 已实现；尚无 MetricSink/TraceSink exporter、durable checkpoint 或 live backend |
+| OA-09 | broker/approval/effect/stop instrumentation | `source`；`CapabilityAttemptRecord`、handler 前 execution CAS、拒绝/过期/TOCTOU/取消 stop evidence 已实现；尚无 durable attempt checkpoint、外部 effect receipt、reconcile projector 或 live exporter |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -283,3 +292,25 @@ cache/stop/retry 分类、重复 attempt 和 contract fail-closed 夹具；provi
 prepared 请求。此次本地仅执行格式、静态源码检查和 test-target 编译，不执行测试二进制；该投影
 仍是 source proof，不等价于 Receipt、账单、Metric/Audit 对账、durable/live telemetry 或外部 provider
 结果。
+
+## 15. OA-09 叠加说明
+
+OA-09 在 `kiana-domain` 注册 `kiana.capability-attempt.v1`，以
+`CapabilityAttemptRecord` 固定一次能力请求的 admission、approval、permit、dispatch、execution、
+effect、stop、fencing 和 zero-effect 证据。记录只保留稳定 ID、operation/action digest、低基数状态、
+source cursor/event 与有界错误码；原始参数、shell command、路径、header、secret 和 handler 输出不
+可表示。`status=ok` 必须同时满足 committed allowed admission、已知成功 effect、无错误，且不能是
+zero-effect；`effect=unknown` 或 stop 未确认时始终保持 `fenced=true`。
+
+`kiana-core::capability_attempt_projection` 只消费已提交 request/decision/approval/permit/
+dispatch/execution/result/cancel facts，按 `(request_id, attempt)` 稳定折叠，并通过
+`ControlPlane::capability_attempts`/`effect_attempts` 提供只读重建入口。ControlPlane 在调用 Broker
+handler 前以 execution-permit CAS 追加 `invocation.executing`，因此 execution boundary 未提交时不
+调用 handler；拒绝、hook/policy block、过期 approval、lease/authority/TOCTOU mismatch 均保留
+`zero_effect` 或 `unknown`，不会被 telemetry、cancel 请求或 UI 结果覆盖。daemon shell/patch handler
+仅补充 bounded effect/stop metadata，仍沿原有 Broker 主链执行。
+
+OA-09 远端 workflow 覆盖成功 admission→permit→dispatch→execution→result、policy/hook deny、过期
+审批、TOCTOU/lease unknown、cancel 未确认和 secret sentinel；本地仅执行格式、静态源码检查和
+test-target 编译，不执行测试二进制。该记录是 EventLog 派生 source proof，不等价于外部效果 receipt、
+durable checkpoint、reconcile 完成或 live stop/telemetry 证明。

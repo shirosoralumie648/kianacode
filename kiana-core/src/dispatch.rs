@@ -108,7 +108,9 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
             "execution_id":permit.execution_id,"capability_request_id":permit.request_id,
             "call_id":request.request.arguments["call_id"],"operation":request.request.operation,
             "args_fingerprint":permit.action_digest,"decision_id":permit.decision_id,
-            "attempt":1,"started":false,"boundary":"broker_admission",
+            "attempt":1,"started":false,"effect_started":false,"effect_known":true,
+            "zero_effect":true,"stop_state":"not_requested","fenced":true,
+            "boundary":"broker_admission",
         })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",id,2);
         let batch = TransitionBatch {
             command_id,
@@ -500,6 +502,9 @@ impl ControlPlane {
             return Err(dispatch_error("cancelled:before_broker"));
         }
         authorized.authorization_id = format!("permit:{execution_id}");
+        let executed_request = authorized.request.clone();
+        self.commit_invocation_executing(&permit, &executed_request)
+            .await?;
         let (stop_tx, _rx) = watch::channel(None);
         if let Some(id) = run_id {
             self.capability_stops
@@ -507,7 +512,6 @@ impl ControlPlane {
                 .unwrap_or_else(PoisonError::into_inner)
                 .insert(id, stop_tx.clone());
         }
-        let executed_request = authorized.request.clone();
         let result = self
             .capabilities
             .execute_cancellable(authorized, cancellation.clone())
@@ -554,6 +558,7 @@ impl ControlPlane {
             result.failure_code() == Some(kiana_domain::CapabilityErrorCode::ResultUnknown);
         let confirmed = !unknown
             && (result.output["cancelled"] != true || result.output["stop_confirmed"] == true);
+        let stop_requested = *cancellation.borrow();
         stop_tx.send_replace(Some(confirmed));
         let stream = self
             .events
@@ -567,7 +572,10 @@ impl ControlPlane {
         let final_id = derived_request_id("execution.result", &execution_id.to_string());
         let event=RuntimeEvent::new(final_id,1,"execution.result_committed",json!({
             "run_id":run_id,"turn_id":turn_id,"invocation_id":invocation_id,"execution_id":execution_id,
-            "capability_request_id":permit.request_id,"result":result,"effect_known":!unknown,"stop_confirmed":confirmed,
+            "capability_request_id":permit.request_id,"result":result,"attempt":1,
+            "effect_started":true,"effect_known":!unknown,"zero_effect":false,
+            "stop_state":if stop_requested { if confirmed {"confirmed"} else {"unconfirmed"} } else {"not_requested"},
+            "stop_requested":stop_requested,"stop_confirmed":stop_requested.then_some(confirmed),"fenced":unknown,
         })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),version+1);
         let batch = TransitionBatch {
             command_id: final_id,
@@ -586,5 +594,67 @@ impl ControlPlane {
             .await
             .map_err(|e| dispatch_error(&format!("result_unknown:result_commit_failed:{e}")))?;
         Ok(result)
+    }
+
+    /// Record the handler boundary before invoking a capability.  If this CAS cannot be
+    /// committed, the handler is never called and the prepared permit remains fenced for
+    /// reconciliation.  This keeps execution evidence causally after admission/permit facts.
+    async fn commit_invocation_executing(
+        &self,
+        permit: &DispatchPermit,
+        request: &CapabilityRequest,
+    ) -> Result<(), PortError> {
+        let id = permit.execution_id.to_string();
+        let stream = self.events.read_stream("execution_permit", &id).await?;
+        let version = stream
+            .iter()
+            .filter_map(|event| event.stream_version)
+            .max()
+            .unwrap_or(0);
+        let command_id = derived_request_id("execution.start", &id);
+        if self.events.read_command(&command_id).await?.is_some() {
+            return Err(dispatch_error(
+                "result_unknown:execution_start_already_recorded",
+            ));
+        }
+        let event = RuntimeEvent::new(
+            command_id,
+            1,
+            "invocation.executing",
+            json!({
+                "run_id": permit.run_id,
+                "turn_id": permit.turn_id,
+                "invocation_id": permit.invocation_id,
+                "execution_id": permit.execution_id,
+                "capability_request_id": permit.request_id,
+                "operation": request.operation,
+                "attempt": 1,
+                "started": true,
+                "effect_started": true,
+                "effect_known": true,
+                "zero_effect": false,
+                "stop_state": "not_requested",
+                "fenced": true,
+                "boundary": "handler_execution",
+            }),
+        )
+        .map_err(|error| dispatch_error(&error.to_string()))?
+        .with_stream_metadata("execution_permit", id.clone(), version.saturating_add(1));
+        let batch = TransitionBatch {
+            command_id,
+            command_digest: json_digest(&json!({
+                "execution_id": permit.execution_id,
+                "request_id": permit.request_id,
+                "action_digest": permit.action_digest,
+            })),
+            expected_versions: vec![AggregateVersion::new("execution_permit", id, version)],
+            events: vec![event],
+        };
+        if commit_confirmed(self.events.as_ref(), batch).await? {
+            return Err(dispatch_error(
+                "result_unknown:execution_start_already_recorded",
+            ));
+        }
+        Ok(())
     }
 }

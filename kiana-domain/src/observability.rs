@@ -27,6 +27,8 @@ pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 
 pub const SPAN_LIFECYCLE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MODEL_ATTEMPT_SCHEMA: &str = "kiana.model-attempt.v1";
 pub const MODEL_ATTEMPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const CAPABILITY_ATTEMPT_SCHEMA: &str = "kiana.capability-attempt.v1";
+pub const CAPABILITY_ATTEMPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 pub const MAX_SIGNAL_ATTRIBUTES: usize = 32;
 pub const MAX_ATTRIBUTE_KEY_BYTES: usize = 64;
@@ -996,6 +998,240 @@ pub enum ModelCacheUsage {
     Miss,
     NotRequested,
     Unknown,
+}
+
+/// Admission evidence for one capability attempt.  `Allowed` means a committed permit was
+/// issued; it does not by itself prove that a handler started or that an external effect
+/// succeeded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityAdmissionState {
+    Unknown,
+    Allowed,
+    Denied,
+}
+
+/// Approval evidence is kept separate from policy admission so an approval card cannot be
+/// mistaken for a consumed one-shot grant.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityApprovalState {
+    NotRequired,
+    Pending,
+    Approved,
+    Denied,
+    Expired,
+    Cancelled,
+    Unknown,
+}
+
+/// Effect evidence is deliberately conservative: `Unknown` keeps the request fenced until an
+/// explicit reconciliation action appends a newer fact.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityEffectState {
+    NotStarted,
+    Started,
+    Succeeded,
+    Failed,
+    Unknown,
+}
+
+/// Stop is an observation, not a cancellation command.  `Unconfirmed` must never be rendered as
+/// a successful cancellation or released reservation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityStopState {
+    NotRequested,
+    Requested,
+    Confirmed,
+    Unconfirmed,
+    Unknown,
+}
+
+/// One bounded capability admission/effect observation reconstructed from committed facts.
+///
+/// This record is intentionally a projection.  It contains action and request digests, stable
+/// IDs and low-cardinality states, but never raw tool arguments, shell commands, paths, headers,
+/// secrets or handler output.  In particular, `effect_known=false` requires `fenced=true` so an
+/// unknown result cannot be retried as if no effect had happened.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CapabilityAttemptRecord {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub trace_id: TraceId,
+    pub span_id: SpanId,
+    #[serde(default)]
+    pub run_id: Option<RunId>,
+    #[serde(default)]
+    pub turn_id: Option<TurnId>,
+    #[serde(default)]
+    pub invocation_id: Option<InvocationId>,
+    #[serde(default)]
+    pub execution_id: Option<ExecutionId>,
+    pub request_id: RequestId,
+    pub attempt: u32,
+    pub capability_id: String,
+    pub operation: String,
+    pub action_digest: String,
+    pub admission: CapabilityAdmissionState,
+    pub approval: CapabilityApprovalState,
+    pub effect: CapabilityEffectState,
+    pub stop: CapabilityStopState,
+    pub effect_known: bool,
+    pub stop_confirmed: Option<bool>,
+    pub fenced: bool,
+    pub zero_effect: bool,
+    pub status: TraceStatus,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub error_code: Option<String>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub record_digest: String,
+}
+
+impl CapabilityAttemptRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        trace_id: TraceId,
+        span_id: SpanId,
+        run_id: Option<RunId>,
+        turn_id: Option<TurnId>,
+        invocation_id: Option<InvocationId>,
+        execution_id: Option<ExecutionId>,
+        request_id: RequestId,
+        attempt: u32,
+        capability_id: impl Into<String>,
+        operation: impl Into<String>,
+        action_digest: impl Into<String>,
+        admission: CapabilityAdmissionState,
+        approval: CapabilityApprovalState,
+        effect: CapabilityEffectState,
+        stop: CapabilityStopState,
+        effect_known: bool,
+        stop_confirmed: Option<bool>,
+        fenced: bool,
+        zero_effect: bool,
+        status: TraceStatus,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        error_code: Option<String>,
+        attributes: BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        let mut record = Self {
+            schema: CAPABILITY_ATTEMPT_SCHEMA.to_owned(),
+            version: CAPABILITY_ATTEMPT_SCHEMA_VERSION,
+            trace_id,
+            span_id,
+            run_id,
+            turn_id,
+            invocation_id,
+            execution_id,
+            request_id,
+            attempt,
+            capability_id: capability_id.into(),
+            operation: operation.into(),
+            action_digest: action_digest.into(),
+            admission,
+            approval,
+            effect,
+            stop,
+            effect_known,
+            stop_confirmed,
+            fenced,
+            zero_effect,
+            status,
+            source_cursor,
+            source_event_ids,
+            error_code,
+            attributes,
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            CAPABILITY_ATTEMPT_SCHEMA,
+            CAPABILITY_ATTEMPT_SCHEMA_VERSION,
+        )?;
+        TraceId::parse(self.trace_id.as_str())?;
+        SpanId::parse(self.span_id.as_str())?;
+        if self.attempt == 0 {
+            return Err("capability_attempt_invalid".to_owned());
+        }
+        validate_nonempty(&self.capability_id, "capability_id", 128)?;
+        validate_nonempty(&self.operation, "capability_operation", 128)?;
+        validate_digest(&self.action_digest, "capability_action_digest")?;
+        if self.effect_known != !matches!(self.effect, CapabilityEffectState::Unknown) {
+            return Err("capability_effect_evidence_conflict".to_owned());
+        }
+        if matches!(self.effect, CapabilityEffectState::Unknown) && !self.fenced {
+            return Err("capability_unknown_not_fenced".to_owned());
+        }
+        if self.zero_effect
+            != (self.effect_known && matches!(self.effect, CapabilityEffectState::NotStarted))
+        {
+            return Err("capability_zero_effect_evidence_conflict".to_owned());
+        }
+        match self.stop {
+            CapabilityStopState::Confirmed if self.stop_confirmed != Some(true) => {
+                return Err("capability_stop_confirmation_conflict".to_owned())
+            }
+            CapabilityStopState::Unconfirmed if self.stop_confirmed != Some(false) => {
+                return Err("capability_stop_confirmation_conflict".to_owned())
+            }
+            CapabilityStopState::NotRequested if self.stop_confirmed.is_some() => {
+                return Err("capability_stop_confirmation_conflict".to_owned())
+            }
+            _ => {}
+        }
+        if self.status == TraceStatus::Ok
+            && (self.admission != CapabilityAdmissionState::Allowed
+                || self.effect != CapabilityEffectState::Succeeded
+                || !self.effect_known
+                || self.zero_effect
+                || matches!(
+                    self.stop,
+                    CapabilityStopState::Unconfirmed | CapabilityStopState::Unknown
+                )
+                || self.error_code.is_some())
+        {
+            return Err("capability_attempt_ok_without_complete_evidence".to_owned());
+        }
+        if self.admission == CapabilityAdmissionState::Denied
+            && (!self.zero_effect || self.effect != CapabilityEffectState::NotStarted)
+        {
+            return Err("capability_denied_with_effect_evidence".to_owned());
+        }
+        if let Some(error_code) = &self.error_code {
+            validate_nonempty(error_code, "capability_error_code", 128)?;
+        }
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_attributes(&self.attributes)?;
+        validate_digest(&self.record_digest, "capability_attempt_record_digest")?;
+        if self.record_digest != self.digest() {
+            return Err("capability_attempt_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "record_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
 }
 
 fn validate_prompt_version(value: &str) -> Result<(), String> {

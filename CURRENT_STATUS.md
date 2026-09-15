@@ -402,6 +402,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-08 domain/core/provider/daemon static-boundary review; no runtime test reviewer
 ```
 
+### OA-09 Broker/approval/effect/stop instrumentation evidence (2026-09-15)
+
+```text
+source_snapshot: 4d5ecaf; kiana-domain/src/{observability,contracts}.rs; kiana-core/src/{capability_attempt_projection,capabilities,approvals,dispatch,events,lib}.rs; kiana-daemon/src/harness_capabilities.rs; kiana-core/tests/oa09_capability_instrumentation.rs; .github/workflows/oa09-capability-instrumentation.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-09 CapabilityAttemptRecord contract, committed-event reducer, handler-boundary execution CAS, bounded broker/approval/effect/stop metadata, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/observability.rs kiana-domain/src/contracts.rs kiana-core/src/capability_attempt_projection.rs kiana-core/src/lib.rs kiana-core/src/capabilities.rs kiana-core/src/approvals.rs kiana-core/src/dispatch.rs kiana-core/src/events.rs kiana-daemon/src/harness_capabilities.rs
+  rg -n 'CapabilityAttemptRecord|project_capability_attempts|commit_invocation_executing|effect_known|zero_effect|stop_confirmed|fenced' kiana-domain/src kiana-core/src kiana-daemon/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa09_capability_instrumentation --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa09_capability_instrumentation.rs; successful admission→permit→dispatch→execution→result, policy/hook deny, expired approval, TOCTOU/lease mismatch Unknown, cancel with unconfirmed stop, secret sentinel and contract fail-closed fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-09 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-09 job is queued by the push and is not awaited
+status_change: OA-09 source slice is implemented. `kiana.capability-attempt.v1` and `CapabilityAttemptRecord` expose bounded admission, approval, permit, dispatch, execution, effect, stop, fencing and zero-effect evidence. `kiana-core::capability_attempt_projection` rebuilds attempts only from committed facts and exposes read-only `ControlPlane::capability_attempts`/`effect_attempts`; execution starts with a handler-preceding CAS `invocation.executing` fact, so a failed boundary commit does not call the handler. Deny, expired approval, lease/TOCTOU mismatch, cancellation and unknown effect preserve zero-effect/unknown/fencing semantics.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; attempt projection has no durable checkpoint/reconcile queue, external effect receipt, provider-side verification, stop/process-group confirmation, telemetry exporter or live backend; execution-start CAS and result persistence can still leave an effect unknown and require future reconciliation
+reviewer: Codex root implementation review plus OA-09 domain/core/daemon static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

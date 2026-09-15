@@ -308,7 +308,9 @@ impl ControlPlane {
         }
         let mut data = json!({"approval_id":challenge.approval_id,"request_hash":challenge.request_hash,
             "session_id":context.session_id,"actor_id":context.actor_id,"expires_at_unix_ms":challenge.expires_at_unix_ms,
-            "capability_request_id":request.request_id,"action_digest":kiana_domain::capability_action_digest(request)});
+            "capability_request_id":request.request_id,"action_digest":kiana_domain::capability_action_digest(request),
+            "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+            "stop_state":"not_requested","fenced":false});
         if let Some(run_id) = run_id {
             data["run_id"] = json!(run_id);
         }
@@ -327,7 +329,8 @@ impl ControlPlane {
                     sequence.saturating_add(1),
                     "run.awaiting_approval",
                     json!({"run_id":run_id,"approval_id":challenge.approval_id,
-                        "capability_request_id":request.request_id}),
+                        "capability_request_id":request.request_id,"attempt":1,"effect_started":false,
+                        "effect_known":true,"zero_effect":true,"stop_state":"not_requested","fenced":false}),
                 )?
                 .with_stream_metadata(aggregate_type, &aggregate_id, version + 2),
             );
@@ -390,6 +393,8 @@ impl ControlPlane {
             recording_error = self.record_event(event_request_id, sequence, "run.tool_result", json!({
                 "run_id":run_id,"capability_request_id":request.request_id,"call_id":request.arguments["call_id"],
                 "result":result.output,"cancelled":reason.starts_with("cancelled:"),"not_executed":true,
+                "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+                "stop_state":"confirmed","stop_confirmed":true,"fenced":false,
             })).await.err();
         }
         if let Ok(events) = cancelled {
@@ -407,6 +412,8 @@ impl ControlPlane {
                         if let Err(error) = self.record_event(event_request_id, sequence, "run.tool_result", json!({
                             "run_id":run_id,"capability_request_id":request_id,"call_id":call_id,
                             "result":result,"cancelled":true,"not_executed":true,
+                            "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+                            "stop_state":"confirmed","stop_confirmed":true,"fenced":false,
                         })).await { recording_error = Some(error); }
                     }
                 }
@@ -608,6 +615,8 @@ impl ControlPlane {
                         "cell_id":original.cell_id,
                         "capability_grant_id":original.capability_grant_id,
                         "budget_lease_id":original.budget_lease_id,
+                        "attempt":1,"effect_started":false,"effect_known":true,
+                        "zero_effect":true,"stop_state":"not_requested","fenced":false,
                         "action_digest":kiana_domain::capability_action_digest(&original),
                         "arguments":redact_event_value(&original.arguments)}),
                 )
@@ -616,7 +625,9 @@ impl ControlPlane {
                     request_id,
                     sequence,
                     "run.capability_blocked",
-                    json!({"run_id":run_id,"capability_request_id":original.request_id,"error":reason}),
+                    json!({"run_id":run_id,"capability_request_id":original.request_id,"error":reason,
+                        "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+                        "stop_state":"not_requested","fenced":false}),
                 )
                 .await?;
                 self.cancel_pending_tools(run_id, request_id, sequence, Some(&original), &reason)
@@ -636,6 +647,8 @@ impl ControlPlane {
         self.record_event(request_id,sequence,"run.capability_requested",json!({"run_id":run_id,
             "request_id":request.request_id,"capability":request.capability,"operation":request.operation,"risk":request.risk,
             "cell_id":request.cell_id,"capability_grant_id":request.capability_grant_id,"budget_lease_id":request.budget_lease_id,
+            "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+            "stop_state":"not_requested","fenced":false,
             "action_digest":kiana_domain::capability_action_digest(&request),"arguments":redact_event_value(&request.arguments)})).await?;
         if *cancel_rx.borrow() {
             self.cancel_pending_tools(
@@ -655,7 +668,9 @@ impl ControlPlane {
             request_id,
             sequence,
             "capability.decision",
-            json!({"run_id":run_id,"capability_request_id":request.request_id,"policy":policy,"gate":gate}),
+            json!({"run_id":run_id,"capability_request_id":request.request_id,"policy":policy,"gate":gate,
+                "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+                "stop_state":"not_requested","fenced":false}),
         )
         .await?;
         let authorization_id = match gate {
@@ -664,7 +679,9 @@ impl ControlPlane {
                     request_id,
                     sequence,
                     "run.capability_blocked",
-                    json!({"run_id":run_id,"capability_request_id":request.request_id,"reason":reason}),
+                    json!({"run_id":run_id,"capability_request_id":request.request_id,"reason":reason,
+                        "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+                        "stop_state":"not_requested","fenced":false}),
                 )
                 .await?;
                 self.cancel_pending_tools(run_id, request_id, sequence, Some(&request), &reason)

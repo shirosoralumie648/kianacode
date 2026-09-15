@@ -1,0 +1,38 @@
+name: OA-09 capability instrumentation
+
+on:
+  push:
+    paths:
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/oa09_capability_instrumentation.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/observability.rs"
+      - ".github/workflows/oa09-capability-instrumentation.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/tests/oa09_capability_instrumentation.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/observability.rs"
+      - ".github/workflows/oa09-capability-instrumentation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  capability-instrumentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fetch --locked
+      - name: Capability admission/effect/stop fixtures
+        run: cargo test -p kiana-core --test oa09_capability_instrumentation --locked -- --test-threads=1

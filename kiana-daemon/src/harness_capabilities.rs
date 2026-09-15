@@ -362,7 +362,9 @@ pub(crate) async fn run_confined_cancellable(
 ) -> Result<Value, PortError> {
     if cancellation.as_ref().is_some_and(|rx| *rx.borrow()) {
         return Ok(
-            json!({"cancelled":true,"not_executed":true,"stop_confirmed":true,"exit_code":130}),
+            json!({"cancelled":true,"not_executed":true,"effect_started":false,
+                "effect_known":true,"zero_effect":true,"stop_state":"confirmed",
+                "stop_confirmed":true,"fenced":false,"exit_code":130}),
         );
     }
     let mut command = sandboxed_command_scoped(&argv, project_root, workdir, sandbox, scope)?;
@@ -425,6 +427,10 @@ pub(crate) async fn run_confined_cancellable(
         "exit_code": exit_code,
         "timed_out": timed_out,
         "cancelled": cancelled,
+        "effect_started": true,
+        "effect_known": true,
+        "zero_effect": false,
+        "stop_state": if cancelled { if stop_confirmed { "confirmed" } else { "unconfirmed" } } else { "not_requested" },
         "stop_confirmed": stop_confirmed,
         "stdout_metadata":{"captured_bytes":stdout.bytes.len(),"observed_bytes":stdout.observed_bytes,"lines":stdout.lines,"truncated":stdout.truncated,"read_error":stdout.read_error},
         "stderr_metadata":{"captured_bytes":stderr.bytes.len(),"observed_bytes":stderr.observed_bytes,"lines":stderr.lines,"truncated":stderr.truncated,"read_error":stderr.read_error},

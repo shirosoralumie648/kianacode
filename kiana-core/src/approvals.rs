@@ -36,7 +36,9 @@ impl ControlPlane {
             2,
             "capability.decision",
             json!({"policy":policy,"gate":gate,
-            "action_digest":kiana_domain::capability_action_digest(&request)}),
+            "action_digest":kiana_domain::capability_action_digest(&request),
+            "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+            "stop_state":"not_requested","fenced":false}),
         )
         .await?;
         let authorization_id = match gate {
@@ -323,7 +325,8 @@ impl ControlPlane {
                 event_request_id,
                 event_sequence + 1,
                 "capability.blocked",
-                json!({"error":error.to_string()}),
+                json!({"error":error.to_string(),"attempt":1,"effect_started":false,
+                    "effect_known":true,"zero_effect":true,"stop_state":"not_requested","fenced":false}),
             )
             .await?;
             return Ok(CoreResponse::blocked(request_id, error.to_string()));
@@ -525,7 +528,9 @@ impl ControlPlane {
             invocation.event_request_id,
             &mut sequence,
             "capability.decision",
-            json!({"run_id":invocation.run_id,"capability_request_id":request.request_id,"policy":policy,"gate":gate}),
+            json!({"run_id":invocation.run_id,"capability_request_id":request.request_id,"policy":policy,"gate":gate,
+                "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
+                "stop_state":"not_requested","fenced":false}),
         )
         .await?;
         let authorization_id = match gate {
