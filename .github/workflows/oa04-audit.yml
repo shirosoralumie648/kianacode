@@ -1,0 +1,28 @@
+name: OA-04 Audit Taxonomy and Reducer
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Committed audit projection guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run OA-04 domain taxonomy tests
+        run: cargo test -p kiana-domain --test oa04_audit_taxonomy --locked -- --test-threads=1
+      - name: Run OA-04 core reducer tests
+        run: cargo test -p kiana-core --test oa04_audit_reducer --locked -- --test-threads=1
+

@@ -27,7 +27,9 @@
 | Runtime event shape | `kiana-domain/src/states.rs` | `dca28dc71ef75e5dd92a25bed399349ca286bc7c5c0e514e11de20d6d1491ae3` |
 | Transition contract | `kiana-domain/src/journal.rs` | `4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48` |
 | Schema/ID registry | `kiana-domain/src/contracts.rs` | `1fe78e8faecb8b3459a5f086699ce4d3a0a3f6660e780fdb485b2dac4f46b7eb`（OA-03 注册表扩展） |
-| Domain exports | `kiana-domain/src/lib.rs` | `c0002ed07ed1a084fec9ed0ac8535efe2ae84e1fc90e51ee91b71240c0c6a269`（OA-02 模块导出） |
+| Domain exports | `kiana-domain/src/lib.rs` | `ac35afaebdb152eddb0898f7e9a28a886d17abdc35643d71cdfb2267e3f731a4`（OA-04 audit reducer 导出） |
+| Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `b17e84def5825be9c2fbdfa704ffe12f9502821325e0c2f66e977b1d72aed1e1` |
+| Core audit facade（OA-04） | `kiana-core/src/audit.rs` | `9c444ff6a125a90ac6ba25c1756802e826c40e681ce24f21645f1f08eff9ee22` |
 | Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `6fabe5e7cb8d2c86604738108eebcea6274d36306afac197a6115d13b1bfa951` |
 | Event construction/redaction | `kiana-core/src/events.rs` | `7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679` |
 | Receipt projection | `kiana-core/src/receipts.rs` | `dda33c346b1ffd94389093e2856f99433ea083a3c61b35cf562484f9f4bc7e1e` |
@@ -66,7 +68,7 @@
 | Operational log | 没有 `ObservabilityPort`/结构化 log sink；OA-03 提供 `RedactionProfile`/bounded encoder | profile/encoder source 已实现；runtime sink 未实现 | exporter、脱敏失败、队列、flush/关闭 ack 未建模；OA-05/OA-13 |
 | Metric | OA-01 已注册 `MetricCatalog`/`MetricPoint` domain contract，OA-03 提供 Metric profile boundary；仍没有 reducer/sink | schema/encoder source 已实现；runtime 未实现 | 不得把 usage counter、UI cursor 或 Company metric 当 canonical runtime metrics；OA-10/OA-12 |
 | Trace / span | OA-01 已注册 `TraceSummary`，OA-02 已注册 `CorrelationContext`/`TraceRef`/`SpanRef` 与 link，OA-03 提供 Trace bounded encoder；没有 `TraceSink`；现有 trace 名称属于 golden replay | schema/correlation/encoder source 已实现；runtime 未实现 | trace 只可关联，不可作为 actor/authority/policy/approval；OA-07/OA-14 |
-| Audit | OA-01 已注册 `AuditRecord` domain contract，OA-02 提供 causation/command/attempt typed link，OA-03 提供 Audit redaction boundary；没有 `AuditQueryPort`/audit projector；approval/review facts 仍由各自领域维护 | schema/encoder source 已实现；runtime 未实现 | 模型/UI/plugin/exporter 不能伪造批准/完成/导出；OA-04/OA-15/OA-16 |
+| Audit | OA-04 在 `kiana-domain/src/audit.rs` 固定 taxonomy，并由 `kiana-core/src/audit.rs` 从带 cursor/source binding 的 committed `RuntimeEvent` 派生 `AuditRecord`；OA-02 causation/command/attempt typed link、OA-03 Audit redaction boundary 继续适用；仍没有 `AuditQueryPort`/checkpoint projector | taxonomy/reducer source 已实现；runtime observer/query 未实现 | 模型/UI/plugin/exporter 不能伪造批准/完成/导出；未知 `audit.*`、缺 source/epoch、矛盾 decision、重复 source 记录 fail-closed；OA-05/OA-06/OA-15/OA-16 |
 | Health / Incident signal | 没有 `HealthSnapshot`/`HealthProbePort`/degraded contract | 未实现 | stale、projector gap、unknown exporter、journal corruption 不能返回 healthy；OA-10/OA-11/OA-19 |
 
 ## 3. 先拒绝：已确认的风险与证据窗口
@@ -104,7 +106,7 @@
 | OA-01 | 注册 observability/audit/metric/trace/health schema、版本和 unknown-field 策略 | `source`；四类 domain contract 已实现，HealthSnapshot/runtime adapter 仍未实现 |
 | OA-02 | 服务端构造 CorrelationContext、TraceRef/SpanRef 和 causation/parent link | `source`；domain/port contracts 已实现，尚无 runtime ingress/span bridge |
 | OA-03 | 统一 redaction/classification、bounded encoder 和 secret sentinel 全信号扫描 | `source`；profile/encoder 已实现，EventStore/各 runtime sink 尚未统一接线 |
-| OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；approval/review facts 不是独立 AuditRecord |
+| OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；domain/core reducer 已实现，尚无 EventLog commit observer、checkpoint、query 或 durable projection |
 | OA-05 | Observability/Trace/Metric/Audit/Health ports 与 fake adapters | `source`；目前没有 sink 能力或 flush ack |
 | OA-06 | commit observer 只通知 Committed，重放不重复通知，建立 projection cursor | `source`；RunStream wrapper 仅是局部前身 |
 | OA-07–09 | run/provider/broker/approval/effect/stop 的 span 与 usage 生命周期 | `source`；现有 model-turn/usage 事件未形成统一 signal |
@@ -176,3 +178,21 @@ profile digest。`encode_bounded_value`/`encode_bounded_text` 复用既有 `reda
 EventStore、Receipt、Provider、Broker 或外部 exporter 的既有事实路径。它不证明所有输出
 通道已经接线，也不提升 durable/live/physical 等级；后续 OA-05/OA-06 负责 sink 与 committed
 fact observer 的实际组合。
+
+## 10. OA-04 叠加说明
+
+OA-04 在 `kiana-domain/src/audit.rs` 固定 RuntimeEvent taxonomy，覆盖 command、authorization、
+approval、capability、credential、recovery、query 和 export 的稳定 action/decision 映射。未知
+非 audit 事件保持 opaque 并跳过；所有 `audit.*` 自报事件（包括 approved/completed/exported）
+均拒绝，`audit.correction` 只允许后续以追加事实实现，不能在 reducer 中覆写原记录。
+
+`reduce_audit_records` 要求非零起始 EventCursor、非空 source binding、非零 authority/data epoch、
+唯一 source event ID，并为每个来源事件产生 checked cursor、source ID、服务端固定 actor、bounded
+Audit redaction 后的 action digest、可选 input/reason/correlation/causation refs 和 record digest。
+重复逻辑键、矛盾 decision、伪造 actor/record payload、capability gate 冲突、cursor overflow、
+无绑定目标或缺 epoch 均 fail-closed；原始 EventLog 事件不被修改。`kiana-core` 仅暴露同一纯
+reducer facade，不访问 Broker、Provider、UI 或 exporter。
+
+这是 domain/core source 与静态编译 proof；OA-04 远端 workflow 承担运行时 taxonomy/reducer 夹具，
+本地不执行测试且不声称 durable/live/physical。OA-05/OA-06 仍需建立端口、fake sink、committed
+observer 和 projection checkpoint。

@@ -289,6 +289,28 @@ limitations: CI result was intentionally not awaited; no local test, smoke or cl
 reviewer: Codex root implementation review plus OA-03 redaction/static-boundary review; no runtime test reviewer
 ```
 
+### OA-04 committed audit taxonomy and reducer evidence (2026-09-15)
+
+```text
+source_snapshot: 6bcf7b3; kiana-domain/src/{audit,observability,redaction}.rs; kiana-domain/src/lib.rs; kiana-core/src/{audit,lib}.rs; kiana-domain/tests/oa04_audit_taxonomy.rs; kiana-core/tests/oa04_audit_reducer.rs; .github/workflows/oa04-audit.yml; docs/roadmap/observability-audit-baseline.md
+worktree_status: OA-04 domain taxonomy/reducer, core facade, focused remote-only fixtures, baseline hash overlay, roadmap/module documentation and status backfill are scoped to this step; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  sha256sum kiana-domain/src/lib.rs kiana-domain/src/audit.rs kiana-core/src/audit.rs
+  rg -n 'AuditEventSpec|classify_audit_event|reduce_audit_records|SERVER_AUDIT_ACTOR|audit_event_kind_untrusted|audit_decision_conflict|audit_target_binding_required' kiana-domain/src kiana-core/src kiana-domain/tests kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-core --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo 1.97.1; locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: `kiana-domain/tests/oa04_audit_taxonomy.rs` and `kiana-core/tests/oa04_audit_reducer.rs`; command/deny/approval/capability/credential/recovery/query/export taxonomy, source cursor/ID and digest binding, redacted reason, server actor, unbound/missing epoch/forged actor/record, duplicate/contradictory decision, unknown/self-submitted audit event rejection; GitHub Actions only
+exit_code: 0 for format, domain/core test-target compilation, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-04 job is queued by the push and is not awaited
+status_change: OA-04 source slice is implemented. `kiana-domain` now classifies eight audit action families and reduces only committed RuntimeEvent facts with a nonzero EventCursor, source binding, epochs and unique source IDs. Records use a fixed server actor, bounded Audit redaction, action/input/reason/correlation/causation references and canonical record digests. Unknown non-audit events remain opaque; self-submitted `audit.*`, forged actor/record payloads, missing bindings/epochs, cursor overflow, duplicate source/logical records and decision conflicts fail closed. `kiana-core` exposes only the same pure committed-event facade; no writer, Broker, Provider, UI or exporter path was added.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; EventLog commit observer, AuditProjection checkpoint/rebuild, durable sink/query/export, append-only correction event and runtime instrumentation remain OA-05/OA-06/OA-15/OA-16 work; fixed server actor is a reducer boundary and not a replacement for the future authenticated principal/assignment contract
+reviewer: Codex root implementation review plus OA-04 domain/core static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

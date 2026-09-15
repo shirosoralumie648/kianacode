@@ -2,6 +2,7 @@
 
 mod approvals;
 mod artifacts;
+mod audit;
 mod authority;
 mod capabilities;
 mod cell_registry;
@@ -30,6 +31,7 @@ mod sessions;
 mod versioning;
 mod workspace_checkpoints;
 
+pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 
