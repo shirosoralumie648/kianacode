@@ -1104,6 +1104,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-06 transition/CAS/idempotency/Unknown source-boundary review; no runtime test reviewer
 ```
 
+### ER-01 event schema and kind registry evidence (2026-09-16)
+
+```text
+source_snapshot: b597dfe; kiana-domain/src/{event_contracts,contracts,states,journal,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; .github/workflows/er01-event-schema.yml; docs/roadmap/event-receipt-schema-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: ER-01 EventKindSpec registry, runtime-event schema contract, required/allowed payload IDs, terminal/secret/aggregate metadata, unknown opaque vs required-family fail-closed policy, schema downgrade check, deterministic migration map, legacy RuntimeEvent decode boundary, remote fixtures/source guard and roadmap overlays are scoped to this step; no second EventLog or event rewrite path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/event_contracts.rs kiana-domain/src/contracts.rs kiana-domain/src/states.rs kiana-domain/src/journal.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/er01_event_contract.rs kiana-core/tests/er01_event_contract_guard.rs .github/workflows/er01-event-schema.yml docs/roadmap/event-receipt-schema-baseline.md
+  rg -n 'EventKindSpec|EVENT_KIND_SPECS|EVENT_MIGRATIONS|unknown_required_event_kind|event_schema_version_incompatible|event_payload_unknown_field|validate_runtime_event|secret_policy|required_ids|RUNTIME_EVENT_SCHEMA' kiana-domain/src kiana-protocol/src kiana-domain/tests/er01_event_contract.rs kiana-core/tests/er01_event_contract_guard.rs docs/roadmap/event-receipt-schema-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er01_event_contract.rs registry metadata, opaque/required unknown, schema downgrade, migration, required IDs and payload unknown-field fixtures; kiana-core/tests/er01_event_contract_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-01 job is queued by the push and is not awaited
+status_change: ER-01 source slice is implemented. `EventKindSpec`/`EVENT_KIND_SPECS` now register critical request/run/capability/approval/invocation/execution/action/session kinds with schema/version, aggregate owner, required IDs, terminal and secret policy, allowed fields and migration name. `validate_runtime_event` preserves non-required opaque events without granting execution while unknown required-family kinds, major downgrades, missing IDs and payload unknown fields fail closed; old RuntimeEvent/JSONL decode remains compatibility-readable and deterministic family migration is explicit.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; registry is an additive interpretation layer and does not yet embed schema/version in every legacy event, cover all historical kind literals, or force every EventStore/projector path; migration cannot infer missing identity/owner/secret provenance, and redaction, CAS, receipt correctness, durable recovery/retention/delete, external effect/reconcile and live/physical evidence remain ER-02+ / CP/PD/SC work
+reviewer: Codex root implementation review plus ER-01 event kind/version/migration/unknown-field source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

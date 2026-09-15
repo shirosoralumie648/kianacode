@@ -1,0 +1,46 @@
+name: ER-01 event schema and kind registry
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/tests/er01_event_contract.rs"
+      - "kiana-core/tests/er01_event_contract_guard.rs"
+      - "docs/roadmap/event-receipt-schema-baseline.md"
+      - ".github/workflows/er01-event-schema.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/tests/er01_event_contract.rs"
+      - "kiana-core/tests/er01_event_contract_guard.rs"
+      - "docs/roadmap/event-receipt-schema-baseline.md"
+      - ".github/workflows/er01-event-schema.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  event-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-01 domain fixtures
+        run: cargo test -p kiana-domain --test er01_event_contract --locked -- --test-threads=1
+      - name: Run ER-01 source guard
+        run: cargo test -p kiana-core --test er01_event_contract_guard --locked -- --test-threads=1

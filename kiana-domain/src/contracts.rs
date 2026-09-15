@@ -633,6 +633,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.runtime-event.v1",
+        version: crate::RUNTIME_EVENT_SCHEMA_VERSION,
+        layer: SchemaLayer::RuntimeEvent,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.fault-matrix.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Projection,
