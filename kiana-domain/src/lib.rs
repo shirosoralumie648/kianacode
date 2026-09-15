@@ -155,6 +155,8 @@ mod model;
 pub use model::*;
 mod observability;
 pub use observability::*;
+mod correlation;
+pub use correlation::*;
 
 mod company_closeout;
 pub use company_closeout::*;

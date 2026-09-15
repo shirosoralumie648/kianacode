@@ -1,0 +1,27 @@
+name: OA-02 Correlation and Trace References
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  correlation:
+    name: Correlation context guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run OA-02 domain correlation tests
+        run: cargo test -p kiana-domain --test oa02_correlation --locked -- --test-threads=1
+      - name: Run OA-02 port boundary tests
+        run: cargo test -p kiana-ports --test oa02_correlation_port --locked -- --test-threads=1

@@ -21,8 +21,9 @@ use async_trait::async_trait;
 use kiana_domain::{
     AgentTemplate, ApprovalChallenge, ApprovalId, AuthorizedCapabilityRequest, BudgetLease,
     BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
-    CellLifecycle, CellSpec, PendingApproval, RequestContext, RequestId, RetirementRecord, RunId,
-    RuntimeEvent, SpawnPlan, SpawnPlanId, SupervisionLease, WorkFingerprint,
+    CellLifecycle, CellSpec, CorrelationContext, CorrelationScope, PendingApproval, RequestContext,
+    RequestId, RetirementRecord, RunId, RuntimeEvent, SpanLinkKind, SpawnPlan, SpawnPlanId,
+    SupervisionLease, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 
@@ -279,6 +280,64 @@ pub trait CellRegistryPort: Send + Sync {
         Err(PortError::Failed(
             "cell_registry_lookup_unsupported".to_owned(),
         ))
+    }
+}
+
+/// Service-side construction boundary for correlation contexts.
+///
+/// This port is deliberately synchronous and side-effect free: the caller must supply an
+/// already-authenticated `RequestContext`, resolved scope and current epochs. Implementations
+/// must not accept actor, project, authority or policy values from traceparent or model/UI data.
+pub trait CorrelationContextPort: Send + Sync {
+    fn root(
+        &self,
+        request: &RequestContext,
+        scope: CorrelationScope,
+        authority_epoch: u64,
+        data_epoch: u64,
+        traceparent: Option<&str>,
+    ) -> Result<CorrelationContext, PortError>;
+
+    fn child_span(&self, parent: &CorrelationContext) -> Result<CorrelationContext, PortError>;
+
+    fn linked_child(
+        &self,
+        parent: &CorrelationContext,
+        relationship: SpanLinkKind,
+    ) -> Result<CorrelationContext, PortError>;
+}
+
+/// Default in-process adapter; it only delegates to the domain invariants.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DomainCorrelationContextPort;
+
+impl CorrelationContextPort for DomainCorrelationContextPort {
+    fn root(
+        &self,
+        request: &RequestContext,
+        scope: CorrelationScope,
+        authority_epoch: u64,
+        data_epoch: u64,
+        traceparent: Option<&str>,
+    ) -> Result<CorrelationContext, PortError> {
+        CorrelationContext::from_request(request, scope, authority_epoch, data_epoch, traceparent)
+            .map_err(|error| PortError::Failed(format!("correlation_context:{error}")))
+    }
+
+    fn child_span(&self, parent: &CorrelationContext) -> Result<CorrelationContext, PortError> {
+        parent
+            .child_span()
+            .map_err(|error| PortError::Failed(format!("correlation_context:{error}")))
+    }
+
+    fn linked_child(
+        &self,
+        parent: &CorrelationContext,
+        relationship: SpanLinkKind,
+    ) -> Result<CorrelationContext, PortError> {
+        parent
+            .linked_child(relationship)
+            .map_err(|error| PortError::Failed(format!("correlation_context:{error}")))
     }
 }
 

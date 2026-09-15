@@ -36,11 +36,11 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/contracts.rs",
-        "bdc567a972402be5ce194feff0018ad862e3bdac59e54a3f179b497ab9836e55",
+        "dee652cef9bf1e4822f6bece7bef3ea9fbbd2255df9f559febb45334df1f6780",
     ),
     (
         "kiana-domain/src/lib.rs",
-        "5f8b839344f962e563bb0616e014384cfa54b1d3f44014f0a1dd8887efc5b5ec",
+        "c0002ed07ed1a084fec9ed0ac8535efe2ae84e1fc90e51ee91b71240c0c6a269",
     ),
     (
         "kiana-core/src/events.rs",
@@ -100,7 +100,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-ports/src/lib.rs",
-        "88ff290c7a848e45af34985c42b0f7c0fb5719f8ae42708076e73c3290706ab1",
+        "557332aa2115b8c98d7aa261eddb3549c07b6805dd53aa41bf1b3ccc8e0ba723",
     ),
 ];
 
@@ -195,7 +195,6 @@ fn observability_inventory_preserves_fact_projection_and_open_contracts() {
         "MetricSnapshot",
         "AuditRecord",
         "HealthSnapshot",
-        "CorrelationContext",
         "span_id",
         "source_cursor",
         "source_event_ids",

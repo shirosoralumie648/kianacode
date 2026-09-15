@@ -247,6 +247,27 @@ limitations: CI result was intentionally not awaited; no local test, smoke or cl
 reviewer: Codex root implementation review plus OA-01 domain-contract/static-boundary review; no runtime test reviewer
 ```
 
+### OA-02 correlation and trace reference evidence (2026-09-15)
+
+```text
+source_snapshot: 34e606b; kiana-domain/src/correlation.rs; kiana-domain/src/contracts.rs; kiana-domain/src/lib.rs; kiana-ports/src/lib.rs; kiana-domain/tests/oa02_correlation.rs; kiana-ports/tests/oa02_correlation_port.rs; .github/workflows/oa02-correlation.yml
+worktree_status: OA-02 domain correlation contracts, port adapter, focused remote-only tests and roadmap/status overlay are scoped to this step; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/src/correlation.rs kiana-ports/src/lib.rs
+  rg -n 'CORRELATION_CONTEXT_SCHEMA|TraceParent|TraceRef|SpanRef|SpanLink|CausationRef|AttemptRef|validate_for_request|CorrelationContextPort' kiana-domain/src kiana-ports/src kiana-domain/tests kiana-ports/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: `kiana-domain/tests/oa02_correlation.rs` and `kiana-ports/tests/oa02_correlation_port.rs`; strict W3C traceparent rejection, fresh root/foreign-parent linking, forged actor/epoch/scope rejection, run→turn→invocation→attempt command binding, child/recovery span link behavior and port fail-closed errors; GitHub Actions only
+exit_code: 0 for format and workspace compile checks; local tests deliberately not run per user instruction; GitHub Actions OA-02 job is queued by the push and is not awaited
+status_change: OA-02 correlation source slice is implemented. Server-derived `CorrelationContext` binds authenticated request identity, scope and authority/data epochs; W3C input is link-only; typed TraceRef/SpanRef, causation and attempt links preserve request/run/turn/invocation lineage; command/attempt, cross-scope, stale epoch, invalid parent and self/parent reuse paths fail closed. `kiana-ports` exposes only a side-effect-free construction boundary.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test, smoke or clippy command was run; OA-03 redaction/classification, runtime ingress/span bridge, EventStore commit observer, TraceSink/exporter and all downstream signal projections remain open; correlation metadata never authorizes, authenticates or proves an effect
+reviewer: Codex root implementation review plus OA-02 domain/port static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
