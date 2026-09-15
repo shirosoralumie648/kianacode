@@ -28,7 +28,8 @@ use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
-    CommandIntent, PermissionProfile, RequestContext, RoleSpec, RunId, RuntimeEvent,
+    CommandIntent, ComponentHealth, ComponentHealthState, HealthProbeKind, HealthSnapshot,
+    PermissionProfile, RequestContext, RoleSpec, RunId, RuntimeEvent,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -270,6 +271,54 @@ impl DaemonHost {
             .persisted_events()
             .await
             .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    /// Read-only startup/readiness/liveness projection assembled by the ControlPlane.
+    ///
+    /// The daemon component is marked healthy only because this host successfully served the
+    /// projection; readiness still follows the snapshot's stricter admission status.
+    pub async fn health_snapshot(
+        &self,
+        probe: HealthProbeKind,
+    ) -> Result<HealthSnapshot, PortError> {
+        let mut snapshot = self
+            .core
+            .health_snapshot(probe)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))?;
+        let daemon_state = if matches!(snapshot.status, kiana_domain::SignalStatus::Ok) {
+            ComponentHealthState::Healthy
+        } else {
+            ComponentHealthState::Degraded
+        };
+        let daemon_limitation = (daemon_state != ComponentHealthState::Healthy)
+            .then_some("health_status_degraded".to_owned());
+        let daemon = ComponentHealth::new(
+            "daemon",
+            "daemon.v1",
+            daemon_state,
+            Some(snapshot.source_cursor),
+            daemon_limitation,
+        )
+        .map_err(|error| PortError::Failed(error.to_owned()))?;
+        snapshot.components.insert("daemon".to_owned(), daemon);
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot
+            .validate()
+            .map_err(|error| PortError::Failed(error.to_owned()))?;
+        Ok(snapshot)
+    }
+
+    pub async fn readiness(&self) -> Result<HealthSnapshot, PortError> {
+        self.health_snapshot(HealthProbeKind::Readiness).await
+    }
+
+    pub async fn liveness(&self) -> Result<HealthSnapshot, PortError> {
+        self.health_snapshot(HealthProbeKind::Liveness).await
+    }
+
+    pub async fn startup_health(&self) -> Result<HealthSnapshot, PortError> {
+        self.health_snapshot(HealthProbeKind::Startup).await
     }
 
     pub fn local() -> Result<Self, PortError> {

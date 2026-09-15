@@ -980,6 +980,8 @@ impl TraceSummary {
 pub struct HealthSnapshot {
     pub schema: String,
     pub version: SchemaVersion,
+    #[serde(default)]
+    pub probe: HealthProbeKind,
     pub component: String,
     pub status: SignalStatus,
     pub source_cursor: u64,
@@ -987,6 +989,8 @@ pub struct HealthSnapshot {
     pub observed_at_ms: u64,
     #[serde(default)]
     pub capabilities: BTreeMap<String, bool>,
+    #[serde(default)]
+    pub components: BTreeMap<String, ComponentHealth>,
     #[serde(default)]
     pub limitations: Vec<String>,
     pub snapshot_digest: String,
@@ -1197,6 +1201,83 @@ pub enum CapabilityStopState {
     Confirmed,
     Unconfirmed,
     Unknown,
+}
+
+/// Probe modes have intentionally different meanings. Readiness is an admission gate; it does
+/// not claim that every historical run or external provider is healthy.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HealthProbeKind {
+    Startup,
+    Readiness,
+    Liveness,
+    Drain,
+    Maintenance,
+}
+
+impl Default for HealthProbeKind {
+    fn default() -> Self {
+        Self::Liveness
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComponentHealthState {
+    Healthy,
+    Degraded,
+    Unavailable,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComponentHealth {
+    pub name: String,
+    pub version: String,
+    pub state: ComponentHealthState,
+    #[serde(default)]
+    pub last_success_cursor: Option<u64>,
+    #[serde(default)]
+    pub limitation: Option<String>,
+}
+
+impl ComponentHealth {
+    pub fn new(
+        name: impl Into<String>,
+        version: impl Into<String>,
+        state: ComponentHealthState,
+        last_success_cursor: Option<u64>,
+        limitation: Option<String>,
+    ) -> Result<Self, String> {
+        let component = Self {
+            name: name.into(),
+            version: version.into(),
+            state,
+            last_success_cursor,
+            limitation,
+        };
+        component.validate()?;
+        Ok(component)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_nonempty(&self.name, "health_component_name", 128)?;
+        validate_nonempty(&self.version, "health_component_version", 64)?;
+        if let Some(cursor) = self.last_success_cursor {
+            if cursor == 0 {
+                return Err("health_component_cursor_invalid".to_owned());
+            }
+        }
+        if let Some(limitation) = &self.limitation {
+            validate_nonempty(
+                limitation,
+                "health_component_limitation",
+                MAX_ATTRIBUTE_VALUE_BYTES,
+            )?;
+        }
+        Ok(())
+    }
 }
 
 /// One bounded capability admission/effect observation reconstructed from committed facts.
@@ -1613,12 +1694,14 @@ impl HealthSnapshot {
         let mut snapshot = Self {
             schema: HEALTH_SNAPSHOT_SCHEMA.to_owned(),
             version: HEALTH_SNAPSHOT_SCHEMA_VERSION,
+            probe: HealthProbeKind::Liveness,
             component: component.into(),
             status,
             source_cursor,
             source_event_ids,
             observed_at_ms,
             capabilities: BTreeMap::new(),
+            components: BTreeMap::new(),
             limitations: Vec::new(),
             snapshot_digest: String::new(),
         };
@@ -1644,6 +1727,16 @@ impl HealthSnapshot {
         }
         for key in self.capabilities.keys() {
             validate_nonempty(key, "health_capability", MAX_ATTRIBUTE_KEY_BYTES)?;
+        }
+        if self.components.len() > MAX_HEALTH_CAPABILITIES {
+            return Err("health_component_limit".to_owned());
+        }
+        for (key, component) in &self.components {
+            validate_nonempty(key, "health_component_key", MAX_ATTRIBUTE_KEY_BYTES)?;
+            component.validate()?;
+            if key != &component.name {
+                return Err("health_component_key_mismatch".to_owned());
+            }
         }
         if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
             return Err("health_limitation_limit".to_owned());

@@ -1,0 +1,41 @@
+name: oa11-health-probes
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/observability.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/src/health.rs"
+      - "kiana-core/src/metrics.rs"
+      - "kiana-core/tests/oa11_health_probes.rs"
+      - "kiana-daemon/src/lib.rs"
+      - ".github/workflows/oa11-health-probes.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/observability.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/src/health.rs"
+      - "kiana-core/src/metrics.rs"
+      - "kiana-core/tests/oa11_health_probes.rs"
+      - "kiana-daemon/src/lib.rs"
+      - ".github/workflows/oa11-health-probes.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa11:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa11-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run OA-11 remote-only fixtures
+        run: cargo test -p kiana-core --test oa11_health_probes --locked -- --test-threads=1

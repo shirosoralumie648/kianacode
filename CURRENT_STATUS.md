@@ -446,6 +446,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-10 domain/core metric static-boundary review; no runtime test reviewer
 ```
 
+### OA-11 Health snapshot/readiness/liveness evidence (2026-09-15)
+
+```text
+source_snapshot: 9921ec3; kiana-domain/src/observability.rs; kiana-core/src/{health,metrics,lib}.rs; kiana-daemon/src/lib.rs; kiana-core/tests/oa11_health_probes.rs; .github/workflows/oa11-health-probes.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-11 probe-kind/component-health contracts, core health aggregator, DaemonHost read-only bridge, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/observability.rs kiana-domain/src/contracts.rs kiana-core/src/health.rs kiana-core/src/metrics.rs kiana-core/src/lib.rs kiana-daemon/src/lib.rs kiana-core/tests/oa11_health_probes.rs .github/workflows/oa11-health-probes.yml
+  rg -n 'HealthProbeKind|ComponentHealth|project_health_snapshot|health_snapshot|readiness|liveness|startup_health' kiana-domain/src kiana-core/src kiana-daemon/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa11_health_probes --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa11_health_probes.rs; empty source fail-closed, readiness against Unknown/lag/inferred checkpoint, liveness read-only semantics, EventStore capability degradation, component state/version/last-success/limitation and serde/digest fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-11 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-11 job is queued by the push and is not awaited
+status_change: OA-11 source slice is implemented. `HealthSnapshot` now carries explicit startup/readiness/liveness/drain/maintenance probe semantics and bounded `ComponentHealth` rows. `kiana-core::health` combines committed operational metrics with EventStore capabilities, preserving empty-source, cursor-gap, projector lag/inferred checkpoint, Unknown/orphan and unsupported-storage evidence as degraded/unavailable; provider/Broker/telemetry without an independent probe remain unknown. `ControlPlane` and `DaemonHost` expose only read-only health/readiness/liveness bridges.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; health has no durable heartbeat/checkpoint, startup coordinator, cross-process lease/fence, provider/Broker/exporter live probe or ready admission gate; liveness success only proves the source could be projected, not external service or business health
+reviewer: Codex root implementation review plus OA-11 domain/core/daemon static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

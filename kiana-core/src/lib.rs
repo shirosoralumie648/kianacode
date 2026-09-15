@@ -15,6 +15,7 @@ mod data_governance;
 mod dispatch;
 mod events;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
+mod health;
 mod history;
 mod invocation_projection;
 mod lifecycle;
@@ -39,6 +40,7 @@ pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
+pub use health::{project_health_snapshot, HealthProjectionError};
 pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use metrics::{
     project_metrics, project_operational_metrics, project_run_metrics, MetricsProjectionError,
