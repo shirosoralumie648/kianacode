@@ -6,6 +6,8 @@
 > 模块入口：[module-map.md 第 20 模块](../module-map.md)
 > 现状权威：[CURRENT_STATUS.md](../../CURRENT_STATUS.md)
 
+SC-00 的源码快照、资产/入口/控制矩阵和 CI-only 证据见 [security-compliance-baseline.md](security-compliance-baseline.md)。
+
 这份专项把 module-map.md 的“安全与合规”从横向主题拆成可落到 Rust crate、端口、测试和证据账本的工程切片。安全控制仍然嵌在唯一执行脊柱中：
 
 ~~~text

@@ -1,0 +1,40 @@
+name: SC-00 security and compliance baseline
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "CURRENT_STATUS.md"
+      - "docs/company-os-security-constitution.md"
+      - "docs/module-map.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap/security-compliance-baseline.md"
+      - "kiana-core/tests/security_baseline.rs"
+      - ".github/workflows/sc00-baseline.yml"
+  pull_request:
+    paths:
+      - "CURRENT_STATUS.md"
+      - "docs/company-os-security-constitution.md"
+      - "docs/module-map.md"
+      - "docs/roadmap.md"
+      - "docs/roadmap/security-compliance.md"
+      - "docs/roadmap/security-compliance-baseline.md"
+      - "kiana-core/tests/security_baseline.rs"
+      - ".github/workflows/sc00-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SC-00 source guard
+        run: cargo test -p kiana-core --test security_baseline --locked -- --test-threads=1

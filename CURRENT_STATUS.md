@@ -978,6 +978,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-02 identity/state-machine/Continue-Resume/projection source-boundary review; no runtime test reviewer
 ```
 
+### SC-00 security and compliance baseline evidence (2026-09-16)
+
+```text
+source_snapshot: 7a009ea; docs/company-os-security-constitution.md; docs/roadmap/security-compliance.md; docs/roadmap/security-compliance-baseline.md; docs/module-map.md; docs/roadmap.md; CURRENT_STATUS.md; kiana-domain/src/{identity,execution_identity,redaction,contracts}.rs; kiana-core/src/{lib,events,dispatch,recovery,projection,data_governance}.rs; kiana-policy/src/lib.rs; kiana-gates/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/lib.rs; kiana-runner/src/harness.rs; kiana-eventlog/src/lib.rs; kiana-core/tests/security_baseline.rs; .github/workflows/sc00-baseline.yml
+worktree_status: SC-00 security asset/entry/control/evidence inventory, SEC-01..12 status matrix, T01..T12 and SC-01..43 handoff, module-map/roadmap links, remote source guard and status evidence are scoped to this step; no new security service, auth provider, secret path, external effect or second execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum docs/company-os-security-constitution.md docs/roadmap/security-compliance.md docs/roadmap/security-compliance-baseline.md docs/module-map.md docs/roadmap.md CURRENT_STATUS.md kiana-domain/src/{identity,execution_identity,redaction,contracts}.rs kiana-core/src/{lib,events,dispatch,recovery,projection,data_governance}.rs kiana-policy/src/lib.rs kiana-gates/src/lib.rs kiana-daemon/src/lib.rs kiana-entrypoints/src/lib.rs kiana-runner/src/harness.rs kiana-eventlog/src/lib.rs kiana-core/tests/security_baseline.rs .github/workflows/sc00-baseline.yml
+  rg -n 'SEC-0[1-9]|SEC-1[0-2]|T0[1-9]|T1[0-2]|SC-00|SC-43|feature_status|proof_level|not_supported|SecretRef|EventLog|ControlPlane|Broker' docs/company-os-security-constitution.md docs/roadmap/security-compliance.md docs/roadmap/security-compliance-baseline.md docs/module-map.md CURRENT_STATUS.md kiana-core/tests/security_baseline.rs
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/security_baseline.rs constitution/threat/step/asset/spine and partial-boundary source fixtures; GitHub Actions only; no provider/connector/credential or external system contacted
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SC-00 job is queued by the push and is not awaited
+status_change: SC-00 source baseline is implemented. Security assets, trusted/untrusted boundaries, six product entry categories, EventLog/ControlPlane/Broker execution spine, SEC-01..12 feature/proof matrix and T01..T12 threat references are recorded. Existing local controls remain explicitly partial/source/local_behavior according to their own snapshots; external/physical effects remain not_supported, and authentication, SecretStore, full TOCTOU/egress, durable recovery/retention/delete, SBOM/signing and security UAT remain open SC/CP/CAP/ER/PD/DEP/INT work.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; this inventory does not enforce the normative constitution, does not rewrite historical evidence, and cannot prove production secrets, tenant identity, complete prompt-injection/red-team coverage, cross-process durability, external receipt correctness, live provider/connector safety or physical safety; next security card is SC-01 threat register
+reviewer: Codex root implementation review plus SC-00 asset/entry/control/proof-boundary reconciliation; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

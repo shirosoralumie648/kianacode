@@ -23,6 +23,6 @@
 | 评测 / 质量 | EQ-00–EQ-51（52） | [EQ-00 基线](evaluation-baseline.md) · [roadmap §34-B](../roadmap.md#quality-evaluation-design) |
 | 计费 / 配额 / 成本 | BQ-00–BQ-30（31） | [roadmap §35](../roadmap.md#billing-quota-cost-plan) |
 | 部署 / 运维 / 迁移 | DEP-00–DEP-41（42） | [roadmap §36](../roadmap.md#deployment-operations-migration-design) |
-| 安全 / 合规 | SC-00–SC-43（44） | [独立设计](security-compliance.md) · [roadmap §37](../roadmap.md#security-compliance-plan) |
+| 安全 / 合规 | SC-00–SC-43（44） | [SC-00 基线](security-compliance-baseline.md) · [独立设计](security-compliance.md) · [roadmap §37](../roadmap.md#security-compliance-plan) |
 
 返回：[路线图总入口](../roadmap.md#appendix-navigation) · [文档总入口](../README.md) · [当前状态账本](../../CURRENT_STATUS.md)
