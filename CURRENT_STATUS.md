@@ -1020,6 +1020,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P0-G-04 EventLog/projection/recovery source-boundary review; no runtime test reviewer
 ```
 
+### CP-03 action catalog and PreparedAction evidence (2026-09-16)
+
+```text
+source_snapshot: 2e3b7f6; kiana-domain/src/{actions,tool_catalog,contracts,lib}.rs; kiana-core/src/{approvals,capabilities,dispatch,events}.rs; kiana-runner/src/tools.rs; kiana-daemon/src/harness_capabilities.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp03_action_contract.rs; kiana-core/tests/cp03_action_guard.rs; .github/workflows/cp03-action-contract.yml; docs/roadmap/control-plane-action-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: CP-03 closed ACTION_OPERATIONS descriptor catalog, explicit action-catalog schema registry, bounded argument/result schema, server-owned risk/resource/effect/cancel/reconcile/idempotency metadata, PreparedAction catalog/action digest validation, remote fixtures and roadmap/status overlays are scoped to this step; no model-visible tool was added and no second execution path was introduced; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/actions.rs kiana-domain/src/tool_catalog.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/approvals.rs kiana-core/src/capabilities.rs kiana-core/src/dispatch.rs kiana-core/src/events.rs kiana-runner/src/tools.rs kiana-daemon/src/harness_capabilities.rs kiana-protocol/src/lib.rs kiana-domain/tests/cp03_action_contract.rs kiana-core/tests/cp03_action_guard.rs .github/workflows/cp03-action-contract.yml docs/roadmap/control-plane-action-baseline.md
+  rg -n 'ACTION_OPERATIONS|CapabilityActionDescriptor|validate_action_catalog|PreparedAction|capability_action_digest|action_risk_downgrade|parse_bounded_json|json_duplicate_key|stamp_request_identity|pin_action_authority|authorize_and_execute|additionalProperties' kiana-domain/src kiana-core/src kiana-runner/src kiana-daemon/src kiana-protocol/src kiana-domain/tests/cp03_action_contract.rs kiana-core/tests/cp03_action_guard.rs docs/roadmap/control-plane-action-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp03_action_contract.rs descriptor completeness, forged ReadOnly risk, PreparedAction normalization/catalog digest, duplicate JSON and numeric rejection; kiana-core/tests/cp03_action_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-03 job is queued by the push and is not awaited
+status_change: CP-03 source slice is implemented. The closed action catalog now has per-operation capability/minimum-risk/schema/resource/effect/cancellation/reconciliation/idempotency/binding metadata and validates schema boundaries before preparation. ControlPlane removes caller authority fields, stamps server context, normalizes canonical operation/path/sandbox/defaults and hooks, creates immutable PreparedAction with catalog/action digests, and pins the exact action before policy/approval/dispatch. ReadOnly risk downgrades, unknown/incomplete operations, duplicate JSON keys, invalid numeric/path/alias inputs and catalog drift fail closed; Runner, policy, approval, Broker and handler consume the same normalized action value. Direct Company/context commands retain explicit scope and do not fabricate Harness identity.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; JSON Schema support is a bounded subset, descriptor compatibility fields remain explicit but permissive for migration, PreparedAction is not a permit, full ExecutionContext/Grant intersection/authority epoch and durable ToolSnapshot remain CP-04+ and CAP/ER/PD work, all handler TOCTOU/egress and external/provider/physical effects are not proven, and no automatic retry/reconciliation is introduced
+reviewer: Codex root implementation review plus CP-03 catalog/normalization/risk/digest source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

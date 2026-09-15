@@ -300,7 +300,7 @@ sequenceDiagram
 | CP-00 | 当前调用路径与拒绝基线 | — | ✅ |
 | CP-01 | 主体、项目身份和不可变 assignment | 00 | ✅ |
 | CP-02 | Run/Turn/Invocation/Execution 合同 | 00 | ✅ |
-| CP-03 | 动作规范化与服务端风险目录 | 01、02 | ⏳ |
+| CP-03 | 动作规范化与服务端风险目录 | 01、02 | ✅ |
 | CP-04 | 权限交集与不可绕过的拒绝 | 03 | ⏳ |
 | CP-05 | 三条能力路径共用处理器 | 04 | ⏳ |
 | CP-06 | 原子状态转移与 command 幂等合同 | 02、04 | ⏳ |
@@ -378,6 +378,8 @@ sequenceDiagram
 
 
 #### CP-03 — 规范化 action，风险与执行元数据服务端所有
+
+当前 source slice 与 CI-only 证据见 [`control-plane-action-baseline.md`](control-plane-action-baseline.md)。
 
 - **承接 / 前置**：`P1-H-01/02`、`P1-J4-01`、`P0-A-02`；CP-01、02。
 - **位置**：domain tool_catalog/capabilities/errors，runner tools，policy，daemon handlers。

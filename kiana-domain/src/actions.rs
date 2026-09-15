@@ -3,9 +3,11 @@ use crate::{
     CapabilityErrorCode, CapabilityKind, CapabilityRequest, CapabilityResult, RequestId, RiskLevel,
 };
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 pub const ACTION_CATALOG_SCHEMA: &str = "kiana.action-catalog.v1";
 pub const ACTION_HANDLER_BINDING_VERSION: &str = "kiana.handler-binding.v1";
+pub const ACTION_CATALOG_SCHEMA_VERSION: crate::SchemaVersion = crate::SchemaVersion::new(1, 0);
 
 /// The admission catalog is deliberately closed. New handlers need a matching product contract.
 pub const ACTION_OPERATIONS: &[&str] = &[
@@ -59,6 +61,63 @@ pub struct CapabilityActionDescriptor {
     pub cancellation: &'static str,
     pub reconciliation: &'static str,
     pub idempotency: &'static str,
+}
+
+/// Validate the closed catalog before it is used to hash or prepare an action.
+///
+/// The catalog is a server-owned contract: a missing descriptor, duplicate operation, malformed
+/// schema, or unbounded metadata must fail closed rather than be silently treated as a generic
+/// read operation.
+pub fn validate_action_catalog() -> Result<(), String> {
+    if ACTION_OPERATIONS.is_empty() {
+        return Err("action_catalog_empty".to_owned());
+    }
+    let mut operations = HashSet::new();
+    for operation in ACTION_OPERATIONS {
+        if operation.trim().is_empty() || !operations.insert(*operation) {
+            return Err("action_catalog_operation_duplicate_or_empty".to_owned());
+        }
+        let descriptor = capability_action_descriptor(operation)
+            .ok_or_else(|| format!("action_descriptor_missing:{operation}"))?;
+        if descriptor.operation != *operation
+            || descriptor.binding_version != ACTION_HANDLER_BINDING_VERSION
+            || descriptor.effect.trim().is_empty()
+            || descriptor.cancellation.trim().is_empty()
+            || descriptor.reconciliation.trim().is_empty()
+            || descriptor.idempotency.trim().is_empty()
+            || descriptor
+                .resource_fields
+                .iter()
+                .any(|field| field.trim().is_empty())
+        {
+            return Err(format!("action_descriptor_incomplete:{operation}"));
+        }
+        if descriptor
+            .resource_fields
+            .iter()
+            .collect::<HashSet<_>>()
+            .len()
+            != descriptor.resource_fields.len()
+        {
+            return Err(format!("action_resource_duplicate:{operation}"));
+        }
+        crate::validate_schema_contract(&descriptor.argument_schema)
+            .map_err(|error| format!("action_argument_schema_invalid:{operation}:{error}"))?;
+        crate::validate_schema_contract(&descriptor.result_schema)
+            .map_err(|error| format!("action_result_schema_invalid:{operation}:{error}"))?;
+        if descriptor
+            .argument_schema
+            .get("additionalProperties")
+            .is_none()
+            || descriptor
+                .result_schema
+                .get("additionalProperties")
+                .is_none()
+        {
+            return Err(format!("action_schema_boundary_unspecified:{operation}"));
+        }
+    }
+    Ok(())
 }
 
 pub fn capability_action_descriptor(operation: &str) -> Option<CapabilityActionDescriptor> {
@@ -243,12 +302,15 @@ pub struct PreparedAction {
 
 impl PreparedAction {
     pub fn new(mut request: CapabilityRequest) -> Result<Self, &'static str> {
+        validate_action_catalog().map_err(|_| "action_catalog_invalid")?;
         normalize_capability_action(&mut request)?;
-        Ok(Self {
+        let action = Self {
             catalog_digest: capability_action_catalog_digest(),
             digest: capability_action_digest(&request),
             request,
-        })
+        };
+        action.validate()?;
+        Ok(action)
     }
     pub fn request(&self) -> &CapabilityRequest {
         &self.request
@@ -258,6 +320,23 @@ impl PreparedAction {
     }
     pub fn catalog_digest(&self) -> &str {
         &self.catalog_digest
+    }
+
+    /// Verify that a prepared action still matches the current closed catalog and normalized
+    /// request. This is a consistency check, not a dispatch permit or authorization decision.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.catalog_digest != capability_action_catalog_digest() {
+            return Err("action_catalog_changed");
+        }
+        let mut request = self.request.clone();
+        normalize_capability_action(&mut request)?;
+        if request != self.request {
+            return Err("prepared_action_not_normalized");
+        }
+        if self.digest != capability_action_digest(&self.request) {
+            return Err("prepared_action_digest_mismatch");
+        }
+        Ok(())
     }
     pub fn into_request(self) -> CapabilityRequest {
         self.request
@@ -459,6 +538,21 @@ pub fn normalize_capability_action(request: &mut CapabilityRequest) -> Result<()
         }
         require_text(arguments, "tool")?;
     }
+    let arguments = request.arguments.as_object_mut().expect("checked object");
+    for key in [
+        "timeout_ms",
+        "limit",
+        "max_tokens",
+        "max_bytes_per_file",
+        "max_snippet_lines",
+    ] {
+        if arguments
+            .get(key)
+            .is_some_and(|value| value.as_u64().is_none_or(|number| number == 0))
+        {
+            return Err("action_numeric_argument_invalid");
+        }
+    }
     let descriptor =
         capability_action_descriptor(&request.operation).ok_or("action_operation_unknown")?;
     crate::validate_schema_value(&request.arguments, &descriptor.argument_schema)
@@ -497,20 +591,6 @@ pub fn normalize_capability_action(request: &mut CapabilityRequest) -> Result<()
             return Err("action_snapshot_required")
         }
         _ => {}
-    }
-    for key in [
-        "timeout_ms",
-        "limit",
-        "max_tokens",
-        "max_bytes_per_file",
-        "max_snippet_lines",
-    ] {
-        if arguments
-            .get(key)
-            .is_some_and(|value| value.as_u64().is_none_or(|number| number == 0))
-        {
-            return Err("action_numeric_argument_invalid");
-        }
     }
     if let Some(timeout) = arguments.get("timeout_ms").and_then(Value::as_u64) {
         arguments.insert("timeout_ms".to_owned(), json!(timeout.min(60_000)));
