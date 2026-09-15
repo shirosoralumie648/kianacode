@@ -23,6 +23,7 @@ mod model_budget;
 pub use model_budget::JournalModelBudget;
 mod capability_attempt_projection;
 mod memory_proposals;
+mod metrics;
 mod model_attempt_projection;
 mod platform;
 mod projection;
@@ -39,6 +40,9 @@ pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
 pub use invocation_projection::{project_invocations, InvocationProjection};
+pub use metrics::{
+    project_metrics, project_operational_metrics, project_run_metrics, MetricsProjectionError,
+};
 pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
 };

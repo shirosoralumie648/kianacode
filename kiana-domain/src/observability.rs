@@ -17,12 +17,14 @@ pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
+pub const METRIC_SNAPSHOT_SCHEMA: &str = "kiana.metric-snapshot.v1";
 pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
 pub const SPAN_LIFECYCLE_SCHEMA: &str = "kiana.span-lifecycle.v1";
 pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const METRIC_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const SPAN_LIFECYCLE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MODEL_ATTEMPT_SCHEMA: &str = "kiana.model-attempt.v1";
@@ -37,6 +39,7 @@ pub const MAX_METRIC_NAME_BYTES: usize = 128;
 pub const MAX_METRIC_UNIT_BYTES: usize = 32;
 pub const MAX_METRIC_DESCRIPTION_BYTES: usize = 512;
 pub const MAX_SOURCE_EVENT_IDS: usize = 256;
+pub const MAX_METRIC_POINTS: usize = 128;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
@@ -316,11 +319,23 @@ pub struct MetricDefinition {
 
 impl MetricDefinition {
     pub fn counter(name: impl Into<String>, unit: impl Into<String>) -> Self {
+        Self::with_kind(name, MetricKind::Counter, unit)
+    }
+
+    pub fn gauge(name: impl Into<String>, unit: impl Into<String>) -> Self {
+        Self::with_kind(name, MetricKind::Gauge, unit)
+    }
+
+    pub fn histogram(name: impl Into<String>, unit: impl Into<String>) -> Self {
+        Self::with_kind(name, MetricKind::Histogram, unit)
+    }
+
+    fn with_kind(name: impl Into<String>, kind: MetricKind, unit: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            kind: MetricKind::Counter,
+            kind,
             unit: unit.into(),
-            description: "registered runtime counter".to_owned(),
+            description: "registered runtime metric".to_owned(),
             stability: MetricStability::Stable,
             allowed_labels: Vec::new(),
             privacy_class: DataClass::Internal,
@@ -402,10 +417,21 @@ impl MetricCatalog {
             "kiana.approvals.decided_total",
             "kiana.eventlog.commit_total",
             "kiana.eventlog.commit_failure_total",
+            "kiana.eventlog.append_latency_ms",
+            "kiana.eventlog.flush_latency_ms",
             "kiana.eventlog.durable_cursor",
             "kiana.projector.cursor",
             "kiana.projector.lag_events",
             "kiana.projector.rebuild_total",
+            "kiana.projector.rebuild_latency_ms",
+            "kiana.receipts.query_total",
+            "kiana.receipts.query_failure_total",
+            "kiana.receipts.query_latency_ms",
+            "kiana.artifacts.bytes_total",
+            "kiana.artifacts.read_failure_total",
+            "kiana.recovery.orphan_total",
+            "kiana.recovery.unknown_total",
+            "kiana.recovery.last_error_present",
             "kiana.observability.queue_depth",
             "kiana.observability.dropped_best_effort_total",
             "kiana.observability.export_failure_total",
@@ -420,7 +446,28 @@ impl MetricCatalog {
         ];
         let metrics = NAMES
             .iter()
-            .map(|name| MetricDefinition::counter(*name, "count"))
+            .map(|name| {
+                if name.ends_with("_latency_ms") {
+                    MetricDefinition::histogram(*name, "ms")
+                } else if name.ends_with("_cursor")
+                    || name.ends_with("_lag_events")
+                    || name.ends_with("_bytes_total")
+                    || name.ends_with("_last_error_present")
+                {
+                    MetricDefinition::gauge(
+                        *name,
+                        if name.ends_with("_bytes_total") {
+                            "bytes"
+                        } else if name.ends_with("_last_error_present") {
+                            "bool"
+                        } else {
+                            "events"
+                        },
+                    )
+                } else {
+                    MetricDefinition::counter(*name, "count")
+                }
+            })
             .collect();
         Self::new(metrics).expect("built-in metric catalog is valid")
     }
@@ -584,6 +631,109 @@ impl MetricPoint {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "point_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// A bounded, replayable collection of metric points at one EventLog cursor.
+///
+/// The snapshot is a projection boundary: it reports the cursor and limitations used to
+/// calculate the points, but it never upgrades a lagging projector, missing artifact or unknown
+/// effect into a healthy result. Runtime gauges may be folded into the same shape later, but they
+/// must still carry a source cursor and an explicit limitation when no durable checkpoint exists.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MetricSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub status: SignalStatus,
+    pub source_cursor: u64,
+    pub projector_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub points: Vec<MetricPoint>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    pub snapshot_digest: String,
+}
+
+impl MetricSnapshot {
+    pub fn new(
+        status: SignalStatus,
+        source_cursor: u64,
+        projector_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        points: Vec<MetricPoint>,
+        limitations: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self {
+            schema: METRIC_SNAPSHOT_SCHEMA.to_owned(),
+            version: METRIC_SNAPSHOT_SCHEMA_VERSION,
+            status,
+            source_cursor,
+            projector_cursor,
+            source_event_ids,
+            points,
+            limitations,
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            METRIC_SNAPSHOT_SCHEMA,
+            METRIC_SNAPSHOT_SCHEMA_VERSION,
+        )?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.projector_cursor > self.source_cursor {
+            return Err("metric_projector_cursor_ahead".to_owned());
+        }
+        if self.points.is_empty() {
+            return Err("metric_snapshot_points_required".to_owned());
+        }
+        if self.points.len() > MAX_METRIC_POINTS {
+            return Err("metric_snapshot_points_limit".to_owned());
+        }
+        let mut identities = BTreeSet::new();
+        for point in &self.points {
+            point.validate()?;
+            if point.source_cursor > self.source_cursor {
+                return Err("metric_point_cursor_ahead".to_owned());
+            }
+            let identity = serde_json::to_string(&(point.name.as_str(), &point.labels))
+                .map_err(|_| "metric_snapshot_identity_encode_failed".to_owned())?;
+            if !identities.insert(identity) {
+                return Err("metric_snapshot_duplicate_point".to_owned());
+            }
+        }
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("metric_snapshot_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(
+                limitation,
+                "metric_snapshot_limitation",
+                MAX_ATTRIBUTE_VALUE_BYTES,
+            )?;
+        }
+        validate_digest(&self.snapshot_digest, "metric_snapshot_digest")?;
+        if self.snapshot_digest != self.digest() {
+            return Err("metric_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "snapshot_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

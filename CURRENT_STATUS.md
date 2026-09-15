@@ -424,6 +424,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-09 domain/core/daemon static-boundary review; no runtime test reviewer
 ```
 
+### OA-10 EventLog/projector/Receipt/Artifact/Recovery metrics evidence (2026-09-15)
+
+```text
+source_snapshot: caec077; kiana-domain/src/{observability,contracts}.rs; kiana-core/src/{metrics,lib}.rs; kiana-core/tests/oa10_operational_metrics.rs; .github/workflows/oa10-operational-metrics.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-10 MetricSnapshot/metric catalog contracts, committed-event operational metrics reducer, read-all ControlPlane bridge, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/observability.rs kiana-domain/src/contracts.rs kiana-core/src/metrics.rs kiana-core/src/lib.rs kiana-core/tests/oa10_operational_metrics.rs .github/workflows/oa10-operational-metrics.yml
+  rg -n 'MetricSnapshot|project_operational_metrics|project_metrics|operational_metrics|eventlog_cursor_gap|orphan_total|unknown_total|artifact_bytes' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa10_operational_metrics --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa10_operational_metrics.rs; empty source rejection, cursor gap/projector lag, orphan dispatch, unknown effect, artifact read failure, append/flush/query latency, complete committed snapshot, digest/serde and secret sentinel fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-10 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-10 job is queued by the push and is not awaited
+status_change: OA-10 source slice is implemented. `kiana.metric-snapshot.v1` and `MetricSnapshot` bind status, source/projector cursors, bounded metric points, limitations and digest. `kiana-core::metrics` derives EventLog/projector/Receipt/Artifact/Recovery metrics from deduplicated committed facts, refuses empty sources and cursor-ahead input, preserves lag/gap/orphan/unknown/artifact-failure evidence, and exposes read-only `ControlPlane::operational_metrics`/`metrics` without using a run stream as system-wide health.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; metric snapshot has no durable projector checkpoint, runtime gauge feed, backpressure/queue integration, Receipt/Artifact writer reconciliation, external effect confirmation, or live exporter; latency is absent rather than fabricated when no committed sample exists, and inferred projector cursor is explicitly marked degraded
+reviewer: Codex root implementation review plus OA-10 domain/core metric static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

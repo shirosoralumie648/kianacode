@@ -49,6 +49,10 @@
 | Model attempt projection（OA-08 overlay） | `kiana-core/src/model_attempt_projection.rs` | `ce723db86729bbce0c9391157dbf8140bb09470a8d81ba05ebf4ba613a168de0` |
 | Capability attempt projection（OA-09 overlay） | `kiana-core/src/capability_attempt_projection.rs` | `e2de85b4baaabdf0afd9b7b60713e96b950a771f6354008b9daec4791924986a` |
 | Core capability-attempt exports（OA-09 overlay） | `kiana-core/src/lib.rs` | `ab12f84c7cfa46ab7744801364608a7d8e98994d0a70d78b12544f40e67bdd87` |
+| Operational metrics projection（OA-10 overlay） | `kiana-core/src/metrics.rs` | `cb1a53c3efd0232136d43aadf67b667e7155e4a330cc7faedf2f929d1886514b` |
+| Metric snapshot/catalog contracts（OA-10 overlay） | `kiana-domain/src/observability.rs` | `e7aa1777a5e4cb3fbea7bbbf2ca20ac86c49ff020a8f74680da99c297bfeeb41` |
+| Schema registry metric snapshot（OA-10 overlay） | `kiana-domain/src/contracts.rs` | `15f79bf7d1743a22069f88d926fc2819cdf72ee170c99a5485e1cc40e12617a8` |
+| Core metrics exports（OA-10 overlay） | `kiana-core/src/lib.rs` | `fcd574fa2e53f2c4d1b4902ab7027197cfbb1cfb4c79ad481205c8a41c2d8571` |
 | Capability admission/effect instrumentation（OA-09 overlay） | `kiana-core/src/capabilities.rs` | `34a78eb181ef97253ab41d254ca298e621e9ea540ccec73a0bb94fde7dfbd061` |
 | Approval effect metadata（OA-09 overlay） | `kiana-core/src/approvals.rs` | `439a602ee0463d1be33ce144d787e5b7b6cbdb19db7277de2da248aa0cf28b1e` |
 | Dispatch permit/execution boundary（OA-09 overlay） | `kiana-core/src/dispatch.rs` | `75ef963c49c89cc3848a542f3dc5a63a01e55d2321b47b1f4bb918addd22f672` |
@@ -130,6 +134,7 @@
 | OA-08 | provider/model/stream/usage instrumentation | `source`；`ModelAttemptRecord`、provider safe prepared summary、daemon model-port boundary 和 committed-event reducer 已实现；尚无 MetricSink/TraceSink exporter、durable checkpoint 或 live backend |
 | OA-08 | provider/model/stream/usage instrumentation | `source`；`ModelAttemptRecord`、safe prepared summary 与 committed-event reducer 已实现；尚无 MetricSink/TraceSink exporter、durable checkpoint 或 live backend |
 | OA-09 | broker/approval/effect/stop instrumentation | `source`；`CapabilityAttemptRecord`、handler 前 execution CAS、拒绝/过期/TOCTOU/取消 stop evidence 已实现；尚无 durable attempt checkpoint、外部 effect receipt、reconcile projector 或 live exporter |
+| OA-10 | EventLog/projector/Receipt/Artifact/Recovery metrics | `source`；`MetricSnapshot` 与 committed-event reducer 已实现 durable/projector cursor、lag、commit/latency/rebuild/query、orphan/unknown、artifact bytes 和 last-error presence；尚无 durable projector checkpoint、runtime gauge、receipt reconciliation 或 live exporter |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -314,3 +319,23 @@ OA-09 远端 workflow 覆盖成功 admission→permit→dispatch→execution→r
 审批、TOCTOU/lease unknown、cancel 未确认和 secret sentinel；本地仅执行格式、静态源码检查和
 test-target 编译，不执行测试二进制。该记录是 EventLog 派生 source proof，不等价于外部效果 receipt、
 durable checkpoint、reconcile 完成或 live stop/telemetry 证明。
+
+## 16. OA-10 叠加说明
+
+OA-10 在 `kiana-domain` 注册 `kiana.metric-snapshot.v1`，以 `MetricSnapshot` 绑定状态、源游标、
+projector 游标、受限 `MetricPoint` 集合、限制说明和 canonical digest。`MetricCatalog::builtin`
+补齐 EventLog append/flush latency、durable/projector cursor、lag/rebuild、Receipt query、Artifact
+bytes/read failure 与 Recovery orphan/unknown/last-error 指标；延迟使用 histogram、游标/bytes/布尔
+质量信号使用 gauge，计数使用 counter，均不带 run/session/request/path/prompt/secret 高基数标签。
+
+`kiana-core::metrics::project_operational_metrics` 只折叠去重后的 committed `RuntimeEvent`：空源直接
+返回 `metrics_source_empty`，显式 source cursor 或 stream version 缺口进入 bounded limitation，
+projector cursor 超前拒绝，未确认 dispatch 计为 orphan，`effect_known=false`/`result_unknown` 保留
+unknown，artifact 读取错误不被归零；未提供 durable projector checkpoint 时标记
+`projector_cursor_inferred`。`ControlPlane::operational_metrics`/`metrics` 只允许 EventStore 全量读取，
+不把单个 run stream 冒充系统级统计，也不调用 Broker、Provider、Receipt writer 或 Recovery action。
+
+OA-10 远端 workflow 覆盖空源拒绝、cursor gap、projector lag、orphan/unknown、artifact failure、延迟
+样本、完整 committed snapshot、digest/serde 和 secret sentinel；本地只执行格式、静态源码检查和
+test-target 编译，不执行测试二进制。该快照仍是 source projection，不等价于 durable projector
+checkpoint、runtime gauge、Receipt/Artifact 事实、外部效果确认或 live exporter。
