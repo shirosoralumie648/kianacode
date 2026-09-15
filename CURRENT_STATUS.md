@@ -872,6 +872,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus NM-00 notification/source-boundary reconciliation; no runtime test reviewer
 ```
 
+### EQ-00 evaluation/quality baseline evidence (2026-09-16)
+
+```text
+source_snapshot: 6d0b084; kiana-commands/src/eval.rs; kiana-commands/tests/eval_command.rs; kiana-entrypoints/src/{cli,command_dispatch}.rs; kiana-entrypoints/tests/cli_eval.rs; kiana-core/src/eval.rs; kiana-core/tests/eval_baseline.rs; scripts/release-smoke.sh; .github/workflows/eq00-baseline.yml; docs/roadmap/evaluation-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: EQ-00 source-only inventory of legacy EvalCommand vs OA-23 provider-independent core reducer, input/output/fact boundaries, quality-platform gaps, migration guard, fixture catalog and roadmap/status overlays are scoped to this step; no Quality DTO/EvalStore/second evaluator/model loop was added; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-commands/src/eval.rs kiana-commands/tests/eval_command.rs kiana-entrypoints/src/cli.rs kiana-entrypoints/src/command_dispatch.rs kiana-entrypoints/tests/cli_eval.rs kiana-core/src/eval.rs kiana-core/tests/eval_baseline.rs scripts/release-smoke.sh .github/workflows/eq00-baseline.yml docs/roadmap/evaluation-baseline.md
+  rg -n 'EvalCommand|kiana.eval-suite.v1|kiana.eval-report.v1|kiana.eval-baseline.v1|run_suite|evaluate_provider_independent|rebuild_audit_projection|project_operational_metrics|diagnose_replay|QualityGate|EvalStore|TraceNormalizer|eval-curated' kiana-commands kiana-entrypoints kiana-core scripts docs/roadmap/evaluation-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/eval_baseline.rs; legacy suite/report/baseline source anchors, CLI command-dispatch boundary, OA-23 committed-fact reducer source anchors, release smoke wiring and missing Quality platform/second-loop guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EQ-00 job is queued by the push and is not awaited
+status_change: EQ-00 source baseline is implemented. Legacy `kiana-commands::EvalCommand` remains a bounded read-only caller-fixture parser/report (`kiana.eval-suite.v1`/`kiana.eval-report.v1`/optional baseline) reached through historical command dispatch; it does not own identity, EventLog, Receipt, quality promotion or provider authority. OA-23 `kiana-core::evaluate_provider_independent` is a separate read-only committed-fact projection reusing Audit/Metric/Span/Run/Replay evidence and never invoking Model/Provider/Broker. The baseline freezes migration rules and fixture names for EQ-01..51 without adding QualityStore, TraceNormalizer, Judge, Promote/Rollback or a second execution loop.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; legacy eval still reads caller-selected paths, no isolated target/EvalStore/quality finding/baseline registry/feedback/drift/Promote/Rollback/real model quality or durable evidence artifact exists, and release smoke/GoldenTrace/score cannot prove business Outcome or live provider safety
+reviewer: Codex root implementation review plus EQ-00 evaluation/source-boundary reconciliation; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

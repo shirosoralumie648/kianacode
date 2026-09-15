@@ -26,7 +26,7 @@ Kiana 不应只按 Rust crate 画地图。一个产品模块可能跨多个 crat
 | 14 | **通知与消息** | 审批、任务、会议、工单变更、失败、提醒和实时协作消息；包含订阅、投递、去重和已读状态 | [运行流订阅](../kiana-daemon/src/run_stream.rs)、[Human Inbox 投影](../kiana-core/src/platform.rs)、[协议事件](../kiana-protocol/src/lib.rs)、[人类操作入口](../kiana-entrypoints/src/workbench_chat.rs)、[NM-00 基线](roadmap/notifications-baseline.md)、[通知与消息专项](roadmap.md#notification-messaging-design)；当前主要是运行流、Human Inbox 和入口展示，尚无可以替代业务事件的独立通知总线 |
 | 15 | **Skills / Plugins / Hooks：扩展** | 加载技能说明、插件、钩子和本地扩展，在受信任范围内接入运行阶段 | [Skills](../kiana-skills/src/lib.rs)、[技能注入](../kiana-daemon/src/harness_skills.rs)、[前置钩子](../kiana-daemon/src/pre_tool_hooks.rs)；项目本地资源必须先过 ProjectTrust，扩展不能新增第二条执行路径 |
 | 16 | **UI / Entrypoints：用户入口** | CLI、终端工作台、Web、Electron、状态卡、审批卡、对话、文件变化、收据和实时进度展示 | [入口注册](../kiana-entrypoints/src/lib.rs)、[CLI](../kiana-entrypoints/src/cli.rs)、[Web](../kiana-entrypoints/src/web.rs)、[Desktop](../contrib/desktop/main.js)；UI 只能投影状态和事件，不能自行创建 Agent loop 或权限边界 |
-| 17 | **评测与质量** | 评测集、回归用例、评分、实验、数据收集、黄金轨迹、smoke 和发布门 | [crate 测试](../kiana-domain/src/tests.rs)、[脚本](../scripts/)、[CI](../.github/workflows/)、[质量规范](coding-pack-matrix.md)；CI 通过不等于产品能力完成，评测结果需要绑定源码快照和证据等级 |
+| 17 | **评测与质量** | 评测集、回归用例、评分、实验、数据收集、黄金轨迹、smoke 和发布门 | [EQ-00 基线](roadmap/evaluation-baseline.md)、[core provider-independent eval](../kiana-core/src/eval.rs)、[legacy crate eval](../kiana-commands/src/eval.rs)、[crate 测试](../kiana-domain/src/tests.rs)、[脚本](../scripts/)、[CI](../.github/workflows/)、[质量规范](coding-pack-matrix.md)；当前两套 eval 均是受限/只读 source，CI 通过不等于产品能力完成，评测结果需要绑定源码快照和证据等级 |
 | 18 | **计费、配额与成本** | token 核算、模型/工具预算、限流、配额、账单维度、成本归属和超额处理 | [用量领域模型](../kiana-domain/src/usage.rs)、[模型预算](../kiana-core/src/model_budget.rs)、[Provider 用量](../kiana-provider/src/response.rs)；当前有运行预算和部分用量记录，不应推断已有账单系统、组织级计费或完整成本报表；实际代码设计、处理流程和 `BQ-*` 实施步骤见 [计费专项](roadmap.md#billing-quota-cost-plan) |
 | 19 | **部署、运维与迁移** | 升级、备份、恢复演练、多环境配置、本地/云部署、版本迁移、健康检查和运维工具 | [发布脚本](../scripts/)、[Desktop 壳](../contrib/desktop/)、[schema 版本](../kiana-domain/src/contracts.rs)、[运行配置](../kiana-daemon/src/lib.rs)；本地优先不等于已经具备云部署、多环境迁移或自动备份；实际代码设计、处理流程和 `DEP-*` 实施步骤见 [roadmap §36](roadmap.md#deployment-operations-migration-design) |
 | 20 | **安全与合规** | 加密、秘密处理、审计、隐私、数据保留、删除、最小权限、供应链和合规证明 | [安全宪法](company-os-security-constitution.md)、[Policy/Gates](../kiana-policy/src/lib.rs)、[脱敏](../kiana-domain/src/redaction.rs)、[数据治理](../kiana-core/src/data_governance.rs)；安全控制分布在执行链中，合规要求仍需独立的策略、证据和生命周期设计；完整的威胁模型、代码边界、处理流和 SC-00–SC-43 实施卡见 [roadmap §37](roadmap.md#security-compliance-plan) 与 [安全与合规专项](roadmap/security-compliance.md) |
@@ -145,6 +145,12 @@ NM-00 的通知基线见 [notifications-baseline.md](roadmap/notifications-basel
 `HumanInboxItem`、RunStream、SSE、Workbench/CLI transcript 都是从提交事实派生的展示或动作入口；没有
 durable NotificationStore、read state、outbox、DeliveryWorker 或外部消息通道。断线、ACK、toast、HTTP 2xx
 和模型文本都不能改变 Approval/Company/Recovery authority，后续 NM 步骤必须继续复用 DaemonHost/ControlPlane。
+
+EQ-00 的质量基线见 [evaluation-baseline.md](roadmap/evaluation-baseline.md)：旧
+`kiana-commands::EvalCommand` 直接读取 caller-selected fixture 并生成 `kiana.eval-report.v1`，OA-23
+core eval 则只折叠 committed facts；两者都不是 QualityGate、EvalStore 或 Promote authority。后续质量能力
+必须沿 DaemonHost/ControlPlane 与受控 Fixture/Trace/Artifact 端口接入，不能复制旧 parser 或让 report/score
+改写 policy、Grant、Receipt、Acceptance、Delivery、Outcome 或 provider route。
 
 ## ER-00 事实边界基线（2026-09-14）
 

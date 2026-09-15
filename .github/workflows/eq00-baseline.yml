@@ -1,0 +1,41 @@
+name: EQ-00 evaluation baseline
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eval_command.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/tests/cli_eval.rs"
+      - "kiana-core/src/eval.rs"
+      - "kiana-core/tests/eval_baseline.rs"
+      - "scripts/release-smoke.sh"
+      - "docs/roadmap/evaluation-baseline.md"
+      - ".github/workflows/eq00-baseline.yml"
+  pull_request:
+    paths:
+      - "kiana-commands/src/eval.rs"
+      - "kiana-commands/tests/eval_command.rs"
+      - "kiana-entrypoints/src/cli.rs"
+      - "kiana-entrypoints/tests/cli_eval.rs"
+      - "kiana-core/src/eval.rs"
+      - "kiana-core/tests/eval_baseline.rs"
+      - "scripts/release-smoke.sh"
+      - "docs/roadmap/evaluation-baseline.md"
+      - ".github/workflows/eq00-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Run EQ-00 source-only guard
+        run: cargo test -p kiana-core --test eval_baseline --locked -- --test-threads=1
