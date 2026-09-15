@@ -40,6 +40,8 @@ pub const MAX_METRIC_UNIT_BYTES: usize = 32;
 pub const MAX_METRIC_DESCRIPTION_BYTES: usize = 512;
 pub const MAX_SOURCE_EVENT_IDS: usize = 256;
 pub const MAX_METRIC_POINTS: usize = 128;
+pub const MAX_METRIC_SERIES: usize = 1_024;
+pub const MAX_METRIC_LABEL_VALUES: usize = 64;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
@@ -126,6 +128,21 @@ pub enum MetricSource {
     EventReducer,
     RuntimeGauge,
     Derived,
+}
+
+/// Measurement quality is explicit so an estimate can never be consumed as a measured value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricQuality {
+    Measured,
+    Estimated,
+    Unknown,
+}
+
+impl Default for MetricQuality {
+    fn default() -> Self {
+        Self::Measured
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -424,6 +441,7 @@ impl MetricCatalog {
             "kiana.projector.lag_events",
             "kiana.projector.rebuild_total",
             "kiana.projector.rebuild_latency_ms",
+            "kiana.metrics.cardinality_overflow_total",
             "kiana.receipts.query_total",
             "kiana.receipts.query_failure_total",
             "kiana.receipts.query_latency_ms",
@@ -521,6 +539,8 @@ pub struct MetricPoint {
     pub value: f64,
     pub unit: String,
     #[serde(default)]
+    pub quality: MetricQuality,
+    #[serde(default)]
     pub labels: BTreeMap<String, String>,
     pub source: MetricSource,
     pub source_cursor: u64,
@@ -563,6 +583,57 @@ impl MetricPoint {
         source_cursor: u64,
         source_event_ids: Vec<EventId>,
     ) -> Result<Self, String> {
+        Self::with_version_and_quality(
+            version,
+            name,
+            kind,
+            value,
+            unit,
+            MetricQuality::Measured,
+            labels,
+            source,
+            source_cursor,
+            source_event_ids,
+        )
+    }
+
+    pub fn new_with_quality(
+        name: impl Into<String>,
+        kind: MetricKind,
+        value: f64,
+        unit: impl Into<String>,
+        quality: MetricQuality,
+        labels: BTreeMap<String, String>,
+        source: MetricSource,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
+        Self::with_version_and_quality(
+            METRIC_CATALOG_SCHEMA_VERSION,
+            name,
+            kind,
+            value,
+            unit,
+            quality,
+            labels,
+            source,
+            source_cursor,
+            source_event_ids,
+        )
+    }
+
+    pub fn with_version_and_quality(
+        version: SchemaVersion,
+        name: impl Into<String>,
+        kind: MetricKind,
+        value: f64,
+        unit: impl Into<String>,
+        quality: MetricQuality,
+        labels: BTreeMap<String, String>,
+        source: MetricSource,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
         let mut point = Self {
             schema: METRIC_CATALOG_SCHEMA.to_owned(),
             version,
@@ -570,6 +641,7 @@ impl MetricPoint {
             kind,
             value,
             unit: unit.into(),
+            quality,
             labels,
             source,
             source_cursor,
@@ -594,6 +666,15 @@ impl MetricPoint {
         }
         validate_nonempty(&self.unit, "metric_unit", MAX_METRIC_UNIT_BYTES)?;
         validate_attributes(&self.labels)?;
+        if self.quality == MetricQuality::Unknown {
+            return Err("metric_quality_unknown".to_owned());
+        }
+        if self.name.ends_with("_measured_total") && self.quality != MetricQuality::Measured {
+            return Err("metric_measured_quality_conflict".to_owned());
+        }
+        if self.name.ends_with("_estimated_total") && self.quality != MetricQuality::Estimated {
+            return Err("metric_estimated_quality_required".to_owned());
+        }
         validate_cursor(self.source_cursor, &self.source_event_ids)?;
         validate_digest(&self.point_digest, "metric_point_digest")?;
         if self.point_digest != self.digest() {
@@ -622,7 +703,20 @@ impl MetricPoint {
         }) {
             return Err("metric_label_not_registered".to_owned());
         }
+        if self.quality == MetricQuality::Estimated && definition.source != MetricSource::Derived {
+            return Err("metric_estimate_source_conflict".to_owned());
+        }
+        if self.kind == MetricKind::Counter && self.value < 0.0 {
+            return Err("metric_counter_negative".to_owned());
+        }
         Ok(())
+    }
+
+    pub fn with_quality(mut self, quality: MetricQuality) -> Result<Self, String> {
+        self.quality = quality;
+        self.point_digest = self.digest();
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
@@ -651,6 +745,8 @@ pub struct MetricSnapshot {
     pub source_cursor: u64,
     pub projector_cursor: u64,
     pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub catalog_digest: Option<String>,
     pub points: Vec<MetricPoint>,
     #[serde(default)]
     pub limitations: Vec<String>,
@@ -673,6 +769,7 @@ impl MetricSnapshot {
             source_cursor,
             projector_cursor,
             source_event_ids,
+            catalog_digest: None,
             points,
             limitations,
             snapshot_digest: String::new(),
@@ -698,6 +795,9 @@ impl MetricSnapshot {
         }
         if self.points.len() > MAX_METRIC_POINTS {
             return Err("metric_snapshot_points_limit".to_owned());
+        }
+        if let Some(catalog_digest) = &self.catalog_digest {
+            validate_digest(catalog_digest, "metric_snapshot_catalog_digest")?;
         }
         let mut identities = BTreeSet::new();
         for point in &self.points {
@@ -730,6 +830,16 @@ impl MetricSnapshot {
 
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
         canonical_bytes(self)
+    }
+
+    pub fn with_catalog_digest(
+        mut self,
+        catalog_digest: impl Into<String>,
+    ) -> Result<Self, String> {
+        self.catalog_digest = Some(catalog_digest.into());
+        self.snapshot_digest = self.digest();
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn digest(&self) -> String {

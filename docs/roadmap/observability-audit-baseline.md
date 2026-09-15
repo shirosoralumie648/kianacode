@@ -52,10 +52,13 @@
 | Operational metrics projection（OA-10 overlay） | `kiana-core/src/metrics.rs` | `cb1a53c3efd0232136d43aadf67b667e7155e4a330cc7faedf2f929d1886514b` |
 | Metric snapshot/catalog contracts（OA-10 overlay） | `kiana-domain/src/observability.rs` | `e7aa1777a5e4cb3fbea7bbbf2ca20ac86c49ff020a8f74680da99c297bfeeb41` |
 | Health probe/component contracts（OA-11 overlay） | `kiana-domain/src/observability.rs` | `dff3e21fb86902a6a9575d9fd108c0b5240236e9968169431fe9bcd752066757` |
+| Metric quality/cardinality contracts（OA-12 overlay） | `kiana-domain/src/observability.rs` | `bb901d2eb92336f6848466767e518bf1a302c42ce2fa2b0d000fd9dc37a343ba` |
 | Schema registry metric snapshot（OA-10 overlay） | `kiana-domain/src/contracts.rs` | `15f79bf7d1743a22069f88d926fc2819cdf72ee170c99a5485e1cc40e12617a8` |
 | Core metrics exports（OA-10 overlay） | `kiana-core/src/lib.rs` | `fcd574fa2e53f2c4d1b4902ab7027197cfbb1cfb4c79ad481205c8a41c2d8571` |
 | Core health aggregation（OA-11 overlay） | `kiana-core/src/health.rs` | `92eac9ddc14aee095ab3fbc492b738acfe85452839b6afe28111632090743cdf` |
 | Core health exports（OA-11 overlay） | `kiana-core/src/lib.rs` | `3a2577d0c6659fcb5d1b455787a08fbba30f24f247576e5fcbf1a5cac4e40083` |
+| Metric reducer/cardinality guard（OA-12 overlay） | `kiana-core/src/metrics.rs` | `5ca67e24913dbb43f4b90e9e6c4054d42da072e767069a33fcefdb58fdb622ea` |
+| Metric reducer exports（OA-12 overlay） | `kiana-core/src/lib.rs` | `db071a3de3d0c97e97027eed5c453d7e9a1650f4fa5e10f71466035c364512b5` |
 | DaemonHost health bridge（OA-11 overlay） | `kiana-daemon/src/lib.rs` | `d673fd32687057ac9653cd92114182864a477eea2d3736389d2ffd148b127ac4` |
 | Capability admission/effect instrumentation（OA-09 overlay） | `kiana-core/src/capabilities.rs` | `34a78eb181ef97253ab41d254ca298e621e9ea540ccec73a0bb94fde7dfbd061` |
 | Approval effect metadata（OA-09 overlay） | `kiana-core/src/approvals.rs` | `439a602ee0463d1be33ce144d787e5b7b6cbdb19db7277de2da248aa0cf28b1e` |
@@ -140,6 +143,7 @@
 | OA-09 | broker/approval/effect/stop instrumentation | `source`；`CapabilityAttemptRecord`、handler 前 execution CAS、拒绝/过期/TOCTOU/取消 stop evidence 已实现；尚无 durable attempt checkpoint、外部 effect receipt、reconcile projector 或 live exporter |
 | OA-10 | EventLog/projector/Receipt/Artifact/Recovery metrics | `source`；`MetricSnapshot` 与 committed-event reducer 已实现 durable/projector cursor、lag、commit/latency/rebuild/query、orphan/unknown、artifact bytes 和 last-error presence；尚无 durable projector checkpoint、runtime gauge、receipt reconciliation 或 live exporter |
 | OA-11 | health snapshot/readiness/liveness/component capability | `source`；`HealthProbeKind`/`ComponentHealth`、core health aggregator 和 DaemonHost read-only bridge 已实现；stale/gap/unknown/unsupported capability 返回 degraded/unavailable；尚无 durable heartbeat、provider/Broker/exporter live probe 或 admission gate 接线 |
+| OA-12 | Metric catalog/reducer/cardinality guard | `source`；typed catalog/unit、MetricQuality、catalog digest、allowlist/cardinality guard、overflow、counter reset/cursor regression 和 replay/live reducer 已实现；尚无 durable MetricSink/queue、runtime gauge feed 或 checkpoint/exporter |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -365,3 +369,23 @@ OA-11 远端 workflow 覆盖空源 fail-closed、readiness 对 Unknown/lag/check
 只读语义、组件状态/version/last-success/limitation、serde/digest 和 capability boundedness；本地只执行
 格式、静态源码检查和 test-target 编译，不执行测试二进制。该快照仍是 source proof，不等价于 durable
 heartbeat、跨进程 lease、provider/Broker/exporter live probe 或 ready admission gate。
+
+## 18. OA-12 叠加说明
+
+OA-12 将指标治理分成三个不可互换的边界：`MetricCatalog` 声明 kind/unit/source/稳定性与 allowlist，
+`MetricPoint` 绑定 source cursor/event、digest 和 `MetricQuality`（measured/estimated/unknown），
+`MetricCardinalityGuard` 再限制 label key/value、series 数和单 label distinct values。注册表不允许
+通过未知名称或单位漂移；敏感/high-cardinality label（run/session/request/user/org/project ID、path、
+prompt、tool args、command、header、token、secret、cookie、email、raw response）及 Bearer/secret/
+password 等值 fail-closed；达到上限返回显式 overflow，不丢弃为“零”。
+
+`MetricReducer` 的 `apply_point/apply_points/apply_snapshot` 采用事务式候选状态，重复同一 digest 幂等，
+旧 cursor 和 counter 回退拒绝，catalog digest 不匹配拒绝；`replay` 先运行 OA-10 committed-event
+projection，再走同一 reducer/guard，保证 replay 与增量 live 的 point 集合和类型校验一致。估算 quality
+不能进入 measured 指标，counter 只能单调增长；histogram/gauge/counter 的 kind/unit 由目录固定，
+不把 MetricPoint、UI cursor、Receipt 或模型自报当事实源。
+
+OA-12 远端 workflow 覆盖目录 digest/kind/unit、未知 metric、敏感 label/value、series/value cardinality
+overflow、counter reset/cursor regression、estimated/measured quality、replay/live 一致与 serde 夹具；
+本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该治理仍是 source proof，不等价
+于 durable metric sink、队列背压、跨进程 checkpoint、runtime gauge 或 live exporter。

@@ -5,8 +5,8 @@
 //! as bounded limitations instead of manufacturing healthy zeroes.
 
 use kiana_domain::{
-    json_digest, EventCursor, EventId, MetricCatalog, MetricPoint, MetricSnapshot, RunId,
-    RuntimeEvent, SignalStatus,
+    json_digest, EventCursor, EventId, MetricCatalog, MetricKind, MetricPoint, MetricSnapshot,
+    RunId, RuntimeEvent, SignalStatus,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -15,6 +15,7 @@ use super::{ControlPlane, CoreError};
 
 const MAX_LIMITATIONS: usize = 16;
 const MAX_SAMPLE_IDS: usize = 256;
+const MAX_LABEL_VALUE_BYTES: usize = 128;
 
 pub const EVENTLOG_APPEND_LATENCY: &str = "kiana.eventlog.append_latency_ms";
 pub const EVENTLOG_FLUSH_LATENCY: &str = "kiana.eventlog.flush_latency_ms";
@@ -628,7 +629,7 @@ pub fn project_operational_metrics(
     } else {
         SignalStatus::Degraded
     };
-    MetricSnapshot::new(
+    let snapshot = MetricSnapshot::new(
         status,
         durable_cursor,
         projector_cursor,
@@ -636,7 +637,10 @@ pub fn project_operational_metrics(
         points,
         limitations,
     )
-    .map_err(MetricsProjectionError::SnapshotInvalid)
+    .map_err(MetricsProjectionError::SnapshotInvalid)?
+    .with_catalog_digest(catalog.digest())
+    .map_err(MetricsProjectionError::SnapshotInvalid)?;
+    Ok(snapshot)
 }
 
 /// Convenience projection with no claimed durable projector checkpoint.
@@ -661,6 +665,307 @@ pub fn project_run_metrics(
         .cloned()
         .collect::<Vec<_>>();
     project_operational_metrics(&filtered, None)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum MetricCardinalityError {
+    #[error("metric_cardinality_point_invalid:{0}")]
+    PointInvalid(String),
+    #[error("metric_cardinality_label_forbidden:{0}")]
+    ForbiddenLabel(String),
+    #[error("metric_cardinality_label_value_invalid:{0}")]
+    LabelValueInvalid(String),
+    #[error("metric_cardinality_series_limit")]
+    SeriesLimit,
+    #[error("metric_cardinality_label_value_limit:{0}")]
+    LabelValueLimit(String),
+}
+
+/// Enforces the catalog's label allowlist and bounded series/value cardinality.
+///
+/// This guard is intentionally independent of any exporter. A rejected point cannot be treated as
+/// a successful metric update, and the overflow count is available for a higher-level health or
+/// incident projection.
+#[derive(Clone, Debug)]
+pub struct MetricCardinalityGuard {
+    catalog: MetricCatalog,
+    series: BTreeSet<String>,
+    label_values: BTreeMap<String, BTreeSet<String>>,
+    overflow_total: u64,
+}
+
+impl MetricCardinalityGuard {
+    pub fn new(catalog: MetricCatalog) -> Result<Self, MetricCardinalityError> {
+        catalog
+            .validate()
+            .map_err(MetricCardinalityError::PointInvalid)?;
+        Ok(Self {
+            catalog,
+            series: BTreeSet::new(),
+            label_values: BTreeMap::new(),
+            overflow_total: 0,
+        })
+    }
+
+    fn forbidden_label(label: &str) -> bool {
+        let lower = label.to_ascii_lowercase();
+        matches!(
+            lower.as_str(),
+            "run_id"
+                | "session_id"
+                | "request_id"
+                | "user_id"
+                | "organization_id"
+                | "project_id"
+                | "path"
+                | "file_path"
+                | "prompt"
+                | "prompt_text"
+                | "tool_args"
+                | "arguments"
+                | "command"
+                | "authorization"
+                | "header"
+                | "token"
+                | "secret"
+                | "cookie"
+                | "email"
+                | "raw_response"
+        ) || lower.contains("prompt_text")
+            || lower.contains("secret_value")
+            || lower.contains("authorization_header")
+    }
+
+    fn sensitive_value(value: &str) -> bool {
+        let lower = value.to_ascii_lowercase();
+        lower.contains("bearer ")
+            || lower.contains("sk-")
+            || lower.contains("password")
+            || lower.contains("secret")
+            || lower.contains("authorization")
+            || value.contains('\n')
+            || value.contains('\r')
+    }
+
+    fn series_key(point: &MetricPoint) -> String {
+        json_digest(&serde_json::json!({
+            "name": point.name,
+            "labels": point.labels,
+        }))
+    }
+
+    pub fn overflow_total(&self) -> u64 {
+        self.overflow_total
+    }
+
+    pub fn series_count(&self) -> usize {
+        self.series.len()
+    }
+
+    pub fn observe(&mut self, point: &MetricPoint) -> Result<(), MetricCardinalityError> {
+        point
+            .validate_with_catalog(&self.catalog)
+            .map_err(MetricCardinalityError::PointInvalid)?;
+        for label in point.labels.keys() {
+            if Self::forbidden_label(label) {
+                self.overflow_total = self.overflow_total.saturating_add(1);
+                return Err(MetricCardinalityError::ForbiddenLabel(label.clone()));
+            }
+        }
+        for (label, value) in &point.labels {
+            if value.is_empty()
+                || value.len() > MAX_LABEL_VALUE_BYTES
+                || Self::sensitive_value(value)
+            {
+                self.overflow_total = self.overflow_total.saturating_add(1);
+                return Err(MetricCardinalityError::LabelValueInvalid(label.clone()));
+            }
+        }
+        let series_key = Self::series_key(point);
+        if !self.series.contains(&series_key)
+            && self.series.len() >= kiana_domain::MAX_METRIC_SERIES
+        {
+            self.overflow_total = self.overflow_total.saturating_add(1);
+            return Err(MetricCardinalityError::SeriesLimit);
+        }
+        for (label, value) in &point.labels {
+            let values = self.label_values.entry(label.clone()).or_default();
+            if !values.contains(value) && values.len() >= kiana_domain::MAX_METRIC_LABEL_VALUES {
+                self.overflow_total = self.overflow_total.saturating_add(1);
+                return Err(MetricCardinalityError::LabelValueLimit(label.clone()));
+            }
+        }
+        self.series.insert(series_key);
+        for (label, value) in &point.labels {
+            self.label_values
+                .entry(label.clone())
+                .or_default()
+                .insert(value.clone());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum MetricReducerError {
+    #[error(transparent)]
+    Cardinality(#[from] MetricCardinalityError),
+    #[error("metric_counter_reset:{0}")]
+    CounterReset(String),
+    #[error("metric_source_cursor_regressed:{0}")]
+    SourceCursorRegressed(String),
+    #[error("metric_reducer_no_points")]
+    NoPoints,
+    #[error("metric_reducer_snapshot_invalid:{0}")]
+    SnapshotInvalid(String),
+    #[error("metric_reducer_replay_failed:{0}")]
+    ReplayFailed(String),
+}
+
+/// Incremental metric reducer used by a live observer and by replay tests.
+///
+/// Both paths apply the same `MetricPoint` catalog/cardinality/counter checks. The reducer stores
+/// only bounded projections and point identities; it does not write an EventLog or dispatch work.
+#[derive(Clone, Debug)]
+pub struct MetricReducer {
+    catalog: MetricCatalog,
+    guard: MetricCardinalityGuard,
+    points: BTreeMap<String, MetricPoint>,
+    source_cursor: EventCursor,
+    source_event_ids: Vec<EventId>,
+    source_event_keys: HashSet<String>,
+    limitations: Vec<String>,
+}
+
+impl MetricReducer {
+    pub fn new(catalog: MetricCatalog) -> Result<Self, MetricReducerError> {
+        let guard = MetricCardinalityGuard::new(catalog.clone())?;
+        Ok(Self {
+            catalog,
+            guard,
+            points: BTreeMap::new(),
+            source_cursor: 0,
+            source_event_ids: Vec::new(),
+            source_event_keys: HashSet::new(),
+            limitations: Vec::new(),
+        })
+    }
+
+    pub fn builtin() -> Result<Self, MetricReducerError> {
+        Self::new(MetricCatalog::builtin())
+    }
+
+    fn point_key(point: &MetricPoint) -> String {
+        json_digest(&serde_json::json!({
+            "name": point.name,
+            "labels": point.labels,
+        }))
+    }
+
+    fn apply_point_inner(&mut self, point: MetricPoint) -> Result<(), MetricReducerError> {
+        self.guard.observe(&point)?;
+        let key = Self::point_key(&point);
+        if let Some(previous) = self.points.get(&key) {
+            if point.source_cursor < previous.source_cursor {
+                return Err(MetricReducerError::SourceCursorRegressed(point.name));
+            }
+            if point.kind == MetricKind::Counter && point.value < previous.value {
+                return Err(MetricReducerError::CounterReset(point.name));
+            }
+            if point.source_cursor == previous.source_cursor && point.digest() == previous.digest()
+            {
+                return Ok(());
+            }
+        }
+        self.source_cursor = self.source_cursor.max(point.source_cursor);
+        for event_id in &point.source_event_ids {
+            if self.source_event_keys.insert(event_id.to_string()) {
+                self.source_event_ids.push(*event_id);
+                if self.source_event_ids.len() >= kiana_domain::MAX_SOURCE_EVENT_IDS {
+                    break;
+                }
+            }
+        }
+        self.points.insert(key, point);
+        Ok(())
+    }
+
+    pub fn apply_point(&mut self, point: MetricPoint) -> Result<(), MetricReducerError> {
+        let mut candidate = self.clone();
+        candidate.apply_point_inner(point)?;
+        *self = candidate;
+        Ok(())
+    }
+
+    pub fn apply_points(&mut self, points: &[MetricPoint]) -> Result<(), MetricReducerError> {
+        let mut candidate = self.clone();
+        for point in points.iter().cloned() {
+            candidate.apply_point_inner(point)?;
+        }
+        *self = candidate;
+        Ok(())
+    }
+
+    pub fn apply_snapshot(&mut self, snapshot: &MetricSnapshot) -> Result<(), MetricReducerError> {
+        let expected_digest = self.catalog.digest();
+        if snapshot.catalog_digest.as_deref() != Some(expected_digest.as_str()) {
+            return Err(MetricReducerError::SnapshotInvalid(
+                "metric_catalog_digest_mismatch".to_owned(),
+            ));
+        }
+        self.apply_points(&snapshot.points)?;
+        self.source_cursor = self.source_cursor.max(snapshot.source_cursor);
+        self.limitations = snapshot.limitations.clone();
+        Ok(())
+    }
+
+    pub fn overflow_total(&self) -> u64 {
+        self.guard.overflow_total()
+    }
+
+    pub fn snapshot(
+        &self,
+        projector_cursor: EventCursor,
+    ) -> Result<MetricSnapshot, MetricReducerError> {
+        if self.points.is_empty() || self.source_cursor == 0 {
+            return Err(MetricReducerError::NoPoints);
+        }
+        if projector_cursor > self.source_cursor {
+            return Err(MetricReducerError::SnapshotInvalid(
+                "metric_projector_cursor_ahead".to_owned(),
+            ));
+        }
+        let status = if self.limitations.is_empty() {
+            SignalStatus::Ok
+        } else {
+            SignalStatus::Degraded
+        };
+        let snapshot = MetricSnapshot::new(
+            status,
+            self.source_cursor,
+            projector_cursor,
+            self.source_event_ids.clone(),
+            self.points.values().cloned().collect(),
+            self.limitations.clone(),
+        )
+        .map_err(MetricReducerError::SnapshotInvalid)?
+        .with_catalog_digest(self.catalog.digest())
+        .map_err(MetricReducerError::SnapshotInvalid)?;
+        Ok(snapshot)
+    }
+
+    pub fn replay(
+        events: &[RuntimeEvent],
+        projector_cursor: Option<EventCursor>,
+    ) -> Result<Self, MetricReducerError> {
+        let source = project_operational_metrics(events, projector_cursor)
+            .map_err(|error| MetricReducerError::ReplayFailed(error.to_string()))?;
+        let mut reducer = Self::builtin()?;
+        reducer
+            .apply_snapshot(&source)
+            .map_err(|error| MetricReducerError::ReplayFailed(error.to_string()))?;
+        Ok(reducer)
+    }
 }
 
 impl ControlPlane {

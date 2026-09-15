@@ -43,7 +43,8 @@ pub use capability_attempt_projection::{
 pub use health::{project_health_snapshot, HealthProjectionError};
 pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use metrics::{
-    project_metrics, project_operational_metrics, project_run_metrics, MetricsProjectionError,
+    project_metrics, project_operational_metrics, project_run_metrics, MetricCardinalityError,
+    MetricCardinalityGuard, MetricReducer, MetricReducerError, MetricsProjectionError,
 };
 pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
