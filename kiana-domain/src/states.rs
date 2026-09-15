@@ -467,6 +467,18 @@ pub struct RuntimeEvent {
     pub event_id: EventId,
     /// 关联请求 ID。
     pub request_id: RequestId,
+    /// Redaction profile digest used at the EventStore boundary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub redaction_profile: Option<String>,
+    /// Whether the stored payload can be losslessly restored; redacted events are false.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_recoverable: Option<bool>,
+    /// Optional data governance epoch attached by the server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_epoch: Option<u64>,
+    /// Protected artifact references; raw artifact bytes never belong in an event envelope.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifact_refs: Vec<String>,
     /// Optional command owner; absent on legacy facts that predate command correlation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command_id: Option<RequestId>,
@@ -509,6 +521,10 @@ impl RuntimeEvent {
         Ok(Self {
             event_id: EventId::new(),
             request_id,
+            redaction_profile: None,
+            payload_recoverable: None,
+            data_epoch: None,
+            artifact_refs: Vec::new(),
             command_id: None,
             correlation_id: Some(request_id),
             causation_event_id: None,
@@ -551,6 +567,21 @@ impl RuntimeEvent {
         self
     }
 
+    /// Attach redaction/data/artifact metadata without embedding raw payload bytes.
+    pub fn with_redaction_metadata(
+        mut self,
+        profile_digest: impl Into<String>,
+        payload_recoverable: bool,
+        data_epoch: Option<u64>,
+        artifact_refs: Vec<String>,
+    ) -> Self {
+        self.redaction_profile = Some(profile_digest.into());
+        self.payload_recoverable = Some(payload_recoverable);
+        self.data_epoch = data_epoch;
+        self.artifact_refs = artifact_refs;
+        self
+    }
+
     /// Validate causal/parent links without interpreting them as authority. Legacy events may
     /// omit all optional links; present links must not point to the event itself.
     pub fn validate_identity_links(&self) -> Result<(), String> {
@@ -562,6 +593,28 @@ impl RuntimeEvent {
         }
         if self.parent_event_id == Some(self.event_id) {
             return Err("event_parent_self".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn validate_redaction_metadata(&self) -> Result<(), String> {
+        if self
+            .redaction_profile
+            .as_deref()
+            .is_some_and(|profile| !profile.starts_with("sha256:") || profile.len() != 71)
+        {
+            return Err("event_redaction_profile_invalid".to_owned());
+        }
+        if self.payload_recoverable == Some(true) && self.redaction_profile.is_some() {
+            return Err("event_redacted_payload_recoverable".to_owned());
+        }
+        if self.artifact_refs.len() > 256
+            || self
+                .artifact_refs
+                .iter()
+                .any(|reference| reference.trim().is_empty() || reference.len() > 4_096)
+        {
+            return Err("event_artifact_refs_invalid".to_owned());
         }
         Ok(())
     }

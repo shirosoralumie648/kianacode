@@ -245,12 +245,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-03 — 事件边界脱敏和 Artifact 引用　⏳
+##### ER-03 — 事件边界脱敏和 Artifact 引用　✅
+
+当前 source slice 与 CI-only 证据见 [`event-receipt-redaction-baseline.md`](event-receipt-redaction-baseline.md)。
 
 - **落点：** `kiana-core/events.rs`、`redaction.rs`、`kiana-domain/redaction.rs`、Artifact ports；关联 `CP-25/26`、`CAP-13/18/19`。
 - **动作：** 在唯一 EventStore boundary 做递归脱敏、payload size/depth limit、secret scan 和 protected artifact ref；记录 redaction profile、原文是否可恢复和数据 epoch。
 - **先拒绝：** `secret_never_enters_event_or_receipt`、`redaction_changes_snapshot_marks_non_resumable`、`oversize_payload_is_rejected`。
-- **成功/回归：** 普通字符串、嵌套 JSON、无效 UTF-8、跨 chunk secret、artifact hash 和 legacy event 都有可核对投影；不把脱敏失败当空输出。
+- **成功/回归：** 普通字符串、嵌套 JSON、NUL/深度/大小、跨 chunk secret、artifact refs、data epoch 和 legacy event 边界由远程 domain/core fixtures 覆盖；脱敏失败不会回退为空输出或原文。
 
 <a id="step-er-04"></a>
 

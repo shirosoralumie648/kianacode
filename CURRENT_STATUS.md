@@ -1146,6 +1146,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus ER-02 identity/correlation/causation/order/projection source-boundary review; no runtime test reviewer
 ```
 
+### ER-03 event redaction and protected artifact reference evidence (2026-09-16)
+
+```text
+source_snapshot: 066bdfa; kiana-domain/src/{redaction,states,contracts}.rs; kiana-core/src/{events,redaction,artifacts,receipts}.rs; kiana-domain/tests/er03_redaction.rs; kiana-core/tests/er03_redaction_guard.rs; .github/workflows/er03-event-redaction.yml; docs/roadmap/event-receipt-redaction-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: ER-03 bounded recursive redaction at core append/terminal boundary, profile digest/non-resumable/data epoch/artifact refs metadata, payload depth/size/NUL/stability checks, domain redaction/streaming contracts, remote fixtures/source guard and roadmap overlays are scoped to this step; no raw secret/artifact bytes or second EventStore path was introduced; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/redaction.rs kiana-domain/src/states.rs kiana-domain/src/contracts.rs kiana-core/src/events.rs kiana-core/src/redaction.rs kiana-core/src/artifacts.rs kiana-core/src/receipts.rs kiana-domain/tests/er03_redaction.rs kiana-core/tests/er03_redaction_guard.rs .github/workflows/er03-event-redaction.yml docs/roadmap/event-receipt-redaction-baseline.md
+  rg -n 'prepare_event_payload|redact_event_value|payload_depth|event_payload_size_limit|event_redaction_not_stable|event_data_epoch_invalid|event_artifact_refs|with_redaction_metadata|validate_redaction_metadata|encode_bounded_value|StreamingRedactor' kiana-domain/src kiana-core/src kiana-domain/tests/er03_redaction.rs kiana-core/tests/er03_redaction_guard.rs docs/roadmap/event-receipt-redaction-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er03_redaction.rs secret sentinel/reference, non-resumable/data epoch/artifact metadata, oversize/deep payload; kiana-core/tests/er03_redaction_guard.rs EventStore/Receipt/Artifact source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-03 job is queued by the push and is not awaited
+status_change: ER-03 source slice is implemented. EventStore core append and terminal paths now redact recursively, enforce bounded depth/size/NUL and idempotent redaction, parse data epoch/artifact references and attach redaction profile digest plus non-resumable metadata; invalid payload metadata fails before projection and never returns raw input. Domain RedactionProfile/StreamingRedactor remain the shared redaction contract, while Receipt/Artifact consume references rather than bytes; legacy RuntimeEvent fields remain readable.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; direct transition/legacy writers still need later boundary adoption, key/marker redaction cannot detect arbitrary encoded secrets or process memory/argv/env, profile/data epoch are metadata not SecretStore/Retention/Delete authority, artifact refs do not prove content/business outcome, and durable retention/delete/cross-process recovery/external effects remain ER-04+ / PD/SC/CAP work
+reviewer: Codex root implementation review plus ER-03 redaction/size/artifact/resumability source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

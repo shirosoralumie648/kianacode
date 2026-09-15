@@ -1,0 +1,48 @@
+name: ER-03 event redaction and artifact references
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/redaction.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-domain/tests/er03_redaction.rs"
+      - "kiana-core/tests/er03_redaction_guard.rs"
+      - "docs/roadmap/event-receipt-redaction-baseline.md"
+      - ".github/workflows/er03-event-redaction.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/redaction.rs"
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/redaction.rs"
+      - "kiana-core/src/artifacts.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-domain/tests/er03_redaction.rs"
+      - "kiana-core/tests/er03_redaction_guard.rs"
+      - "docs/roadmap/event-receipt-redaction-baseline.md"
+      - ".github/workflows/er03-event-redaction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  redaction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-03 domain redaction fixtures
+        run: cargo test -p kiana-domain --test er03_redaction --locked -- --test-threads=1
+      - name: Run ER-03 source guard
+        run: cargo test -p kiana-core --test er03_redaction_guard --locked -- --test-threads=1

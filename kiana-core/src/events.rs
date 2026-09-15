@@ -27,6 +27,77 @@ fn stamp_event_links(
     ))
 }
 
+fn payload_depth(value: &Value, depth: usize) -> bool {
+    if depth > kiana_domain::MAX_REDACTION_DEPTH {
+        return false;
+    }
+    match value {
+        Value::Array(items) => items.iter().all(|item| payload_depth(item, depth + 1)),
+        Value::Object(fields) => fields
+            .iter()
+            .all(|(key, value)| !key.contains('\0') && payload_depth(value, depth + 1)),
+        Value::String(text) => !text.contains('\0'),
+        _ => true,
+    }
+}
+
+fn event_artifact_refs(data: &Value) -> Result<Vec<String>, CoreError> {
+    let mut refs = Vec::new();
+    if let Some(reference) = data.get("artifact_ref") {
+        let reference = reference
+            .as_str()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| PortError::Failed("event_artifact_ref_invalid".to_owned()))?;
+        refs.push(reference.to_owned());
+    }
+    if let Some(values) = data.get("artifact_refs") {
+        let values = values
+            .as_array()
+            .ok_or_else(|| PortError::Failed("event_artifact_refs_invalid".to_owned()))?;
+        for value in values {
+            let reference = value
+                .as_str()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| PortError::Failed("event_artifact_refs_invalid".to_owned()))?;
+            refs.push(reference.to_owned());
+        }
+    }
+    refs.sort_unstable();
+    refs.dedup();
+    if refs.len() > 256 || refs.iter().any(|reference| reference.len() > 4_096) {
+        return Err(PortError::Failed("event_artifact_refs_invalid".to_owned()).into());
+    }
+    Ok(refs)
+}
+
+fn prepare_event_payload(
+    data: &Value,
+) -> Result<(Value, String, Option<u64>, Vec<String>), CoreError> {
+    let redacted = redact_event_value(data);
+    if !payload_depth(&redacted, 0) {
+        return Err(PortError::Failed("event_payload_depth_limit".to_owned()).into());
+    }
+    let bytes = serde_json::to_vec(&redacted)
+        .map_err(|_| PortError::Failed("event_payload_encode_failed".to_owned()))?;
+    if bytes.len() > kiana_domain::MAX_JOURNAL_EVENT_BYTES {
+        return Err(PortError::Failed("event_payload_size_limit".to_owned()).into());
+    }
+    if redact_event_value(&redacted) != redacted {
+        return Err(PortError::Failed("event_redaction_not_stable".to_owned()).into());
+    }
+    let data_epoch = match redacted.get("data_epoch") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_u64()
+                .ok_or_else(|| PortError::Failed("event_data_epoch_invalid".to_owned()))?,
+        ),
+    };
+    let artifact_refs = event_artifact_refs(&redacted)?;
+    let profile = kiana_domain::RedactionProfile::for_signal(kiana_domain::RedactionSignal::Audit);
+    Ok((redacted, profile.profile_digest, data_epoch, artifact_refs))
+}
+
 impl ControlPlane {
     pub(crate) async fn record_event(
         &self,
@@ -49,7 +120,7 @@ impl ControlPlane {
     ) -> Result<(), CoreError> {
         // EventLog is the canonical boundary: generic runner output must be redacted before it
         // can become durable fact or feed a receipt projection.
-        let data = redact_event_value(&data);
+        let (data, redaction_profile, data_epoch, artifact_refs) = prepare_event_payload(&data)?;
         let (aggregate_type, aggregate_id) = aggregate_for_event(request_id, &data);
         // Invalidate before attempting the CAS append as well as after success: an adapter may
         // report an ambiguous error after durably writing the event, and a stale fold must never
@@ -88,7 +159,13 @@ impl ControlPlane {
                     .with_idempotency_key(idempotency_key.clone()),
                 request_id,
                 &data,
-            )?;
+            )?
+            .with_redaction_metadata(
+                redaction_profile.clone(),
+                false,
+                data_epoch,
+                artifact_refs.clone(),
+            );
             match self
                 .events
                 .append_idempotent_expected(event, Some(current_version))
@@ -148,14 +225,21 @@ impl ControlPlane {
                 .filter_map(|event| event.stream_version)
                 .max()
                 .unwrap_or(0);
-            let redacted_data = redact_event_value(&data);
+            let (redacted_data, redaction_profile, data_epoch, artifact_refs) =
+                prepare_event_payload(&data)?;
             let event = stamp_event_links(
                 RuntimeEvent::new(request_id, *sequence, kind, redacted_data.clone())?
                     .with_stream_metadata("run", run_id.to_string(), version + 1)
                     .with_idempotency_key(format!("run:{run_id}:turn:{turn}:terminal")),
                 request_id,
                 &redacted_data,
-            )?;
+            )?
+            .with_redaction_metadata(
+                redaction_profile,
+                false,
+                data_epoch,
+                artifact_refs,
+            );
             let mut expected_versions = vec![kiana_domain::AggregateVersion {
                 aggregate_type: "run".to_owned(),
                 aggregate_id: run_id.to_string(),
