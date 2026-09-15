@@ -258,12 +258,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-04 — CommandReceipt 与 transition read-set　⏳
+##### ER-04 — CommandReceipt 与 transition read-set　✅
+
+当前 source slice 与 CI-only 证据见 [`event-receipt-command-receipt-baseline.md`](event-receipt-command-receipt-baseline.md)。
 
 - **落点：** `kiana-domain/src/journal.rs`、`kiana-ports/src/lib.rs`、`kiana-core/dispatch.rs`；关联 `CP-06/13/14`。
 - **动作：** 固化 `TransitionBatch` 的 command digest、所有 authority/resource/aggregate read versions、contiguous stream writes、CommitOutcome 语义；把 `read_command` 作为 Unknown 的唯一确认入口。
 - **先拒绝：** `transition_missing_dependency_is_denied`、`read_set_conflict_appends_nothing`、`unknown_commit_never_dispatches`。
-- **成功/回归：** 同 command+digest 返回同 receipt；同 command+不同 digest 返回 conflict；重试不追加第二组事件。
+- **成功/回归：** 同 command+digest 返回同 receipt；同 command+不同 digest 返回 conflict；缺 read-set、stale CAS 和 Unknown 均不追加/不派发；CommandReceipt cursor/event/version 绑定由远程 eventlog fixtures 验证。
 
 <a id="step-er-05"></a>
 

@@ -1167,6 +1167,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus ER-03 redaction/size/artifact/resumability source-boundary review; no runtime test reviewer
 ```
 
+### ER-04 CommandReceipt and transition read-set evidence (2026-09-16)
+
+```text
+source_snapshot: 3942623; kiana-domain/src/{journal,contracts,states,lib}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/{event_store_core,journal_core,memory,jsonl,stream}.rs; kiana-core/src/{dispatch,events,approvals}.rs; kiana-eventlog/tests/er04_command_receipt.rs; kiana-core/tests/er04_command_receipt_guard.rs; .github/workflows/er04-command-receipt.yml; docs/roadmap/event-receipt-command-receipt-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: ER-04 CommandReceipt schema/validation, TransitionBatch read-set/CAS/digest binding, EventStore committed/replayed/conflict/unknown confirmation, no-partial-write guard, remote fixtures/source guard and roadmap overlays are scoped to this step; compatibility append remains explicit and no second authority was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/journal.rs kiana-domain/src/contracts.rs kiana-domain/src/states.rs kiana-domain/src/lib.rs kiana-ports/src/lib.rs kiana-eventlog/src/event_store_core.rs kiana-eventlog/src/journal_core.rs kiana-eventlog/src/memory.rs kiana-eventlog/src/jsonl.rs kiana-eventlog/src/stream.rs kiana-core/src/dispatch.rs kiana-core/src/events.rs kiana-core/src/approvals.rs kiana-eventlog/tests/er04_command_receipt.rs kiana-core/tests/er04_command_receipt_guard.rs .github/workflows/er04-command-receipt.yml docs/roadmap/event-receipt-command-receipt-baseline.md
+  rg -n 'COMMAND_RECEIPT_SCHEMA|CommandReceipt|validate_against|command_receipt_identity_mismatch|command_receipt_cursor_invalid|command_receipt_event_ids_mismatch|command_receipt_read_set_missing|commit_transition|read_command|CommitOutcome::Unknown|journal_write_not_in_read_set' kiana-domain/src kiana-ports/src kiana-eventlog/src kiana-core/src kiana-eventlog/tests/er04_command_receipt.rs kiana-core/tests/er04_command_receipt_guard.rs docs/roadmap/event-receipt-command-receipt-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-eventlog/tests/er04_command_receipt.rs missing dependency, stale read-set, Unknown commit and command receipt boundary fixtures; kiana-core/tests/er04_command_receipt_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-04 job is queued by the push and is not awaited
+status_change: ER-04 source slice is implemented. `CommandReceipt::validate_against` binds batch command/digest, contiguous cursor, ordered unique event IDs and every expected aggregate version. EventStore/ControlPlane use the same TransitionBatch CAS/read-set and `read_command` confirmation: missing dependencies, stale versions and same-command digest drift fail without partial writes; Committed/Replayed return authoritative receipts, Conflict reports changed versions, Unknown never grants dispatch or observer authority. The command-receipt schema is registered and legacy append remains explicit compatibility only.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; receipt validation cannot prove handler/provider/connector effect correctness, Memory is non-durable, JSONL/frame/lock behavior does not prove power-loss/cross-host consistency, compatibility append and some approval/budget/lease transitions still need ER-05+/CP-07+/PD/SC atomic migration, and external reconciliation/live/physical evidence is absent
+reviewer: Codex root implementation review plus ER-04 receipt/read-set/CAS/Unknown source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

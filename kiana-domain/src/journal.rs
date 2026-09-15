@@ -2,10 +2,11 @@
 use crate::{EventId, RequestId, RuntimeEvent};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 pub const JOURNAL_HEADER_SCHEMA: &str = "kiana.journal-header.v2";
 pub const JOURNAL_FRAME_SCHEMA: &str = "kiana.transition-frame.v1";
+pub const COMMAND_RECEIPT_SCHEMA: &str = "kiana.command-receipt.v1";
 pub const JOURNAL_WRITER_VERSION: u32 = 2;
 pub const MAX_JOURNAL_FRAME_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_JOURNAL_EVENT_BYTES: usize = 1024 * 1024;
@@ -136,6 +137,46 @@ pub struct CommandReceipt {
     /// Actual versions after this commit, including unchanged read dependencies.
     pub versions: Vec<AggregateVersion>,
 }
+
+impl CommandReceipt {
+    /// Validate that a receipt describes exactly the supplied committed batch.
+    pub fn validate_against(&self, batch: &TransitionBatch) -> Result<(), String> {
+        batch.validate().map_err(|error| error.to_owned())?;
+        if self.command_id != batch.command_id || self.command_digest != batch.command_digest {
+            return Err("command_receipt_identity_mismatch".to_owned());
+        }
+        if self.first_cursor == 0
+            || self.cursor < self.first_cursor
+            || self.cursor - self.first_cursor + 1 != batch.events.len() as u64
+        {
+            return Err("command_receipt_cursor_invalid".to_owned());
+        }
+        let expected_ids = batch
+            .events
+            .iter()
+            .map(|event| event.event_id)
+            .collect::<Vec<_>>();
+        if self.event_ids != expected_ids {
+            return Err("command_receipt_event_ids_mismatch".to_owned());
+        }
+        if self.event_ids.iter().copied().collect::<HashSet<_>>().len() != self.event_ids.len() {
+            return Err("command_receipt_event_ids_duplicate".to_owned());
+        }
+        for expected in &batch.expected_versions {
+            let Some(actual) = self.versions.iter().find(|version| {
+                version.aggregate_type == expected.aggregate_type
+                    && version.aggregate_id == expected.aggregate_id
+            }) else {
+                return Err("command_receipt_read_set_missing".to_owned());
+            };
+            if actual.version < expected.version {
+                return Err("command_receipt_version_regressed".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CommitOutcome {

@@ -1,0 +1,44 @@
+name: ER-04 command receipt and read-set
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/**"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-eventlog/tests/er04_command_receipt.rs"
+      - "kiana-core/tests/er04_command_receipt_guard.rs"
+      - "docs/roadmap/event-receipt-command-receipt-baseline.md"
+      - ".github/workflows/er04-command-receipt.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-ports/src/lib.rs"
+      - "kiana-eventlog/src/**"
+      - "kiana-core/src/dispatch.rs"
+      - "kiana-eventlog/tests/er04_command_receipt.rs"
+      - "kiana-core/tests/er04_command_receipt_guard.rs"
+      - "docs/roadmap/event-receipt-command-receipt-baseline.md"
+      - ".github/workflows/er04-command-receipt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  command-receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-04 EventStore fixtures
+        run: cargo test -p kiana-eventlog --test er04_command_receipt --locked -- --test-threads=1
+      - name: Run ER-04 source guard
+        run: cargo test -p kiana-core --test er04_command_receipt_guard --locked -- --test-threads=1
