@@ -8,14 +8,15 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, AgentTemplate, ApprovalChallenge, ApprovalDecision, ApprovalId,
-    ArtifactId, BudgetLease, BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy,
-    CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec,
-    ClosingReceipt, DelegationId, DelegationPacket, ExecutionId, ExecutionStatus, InvocationId,
-    MergeReceipt, OrganizationId, PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel,
-    RoleSpec, RunId, SessionId, SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId,
-    Symposium, TemplateId, TurnId, WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING,
-    DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER,
-    ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER, WORK_PACKET_SCHEMA,
+    ArtifactId, AuditActionKind, AuditDecision, AuditRecord, BudgetLease, BudgetLeaseId,
+    CapabilityErrorCode, CapabilityErrorPolicy, CapabilityExecutionState, CapabilityGrant,
+    CapabilityGrantId, CellId, CellLifecycle, CellSpec, ClosingReceipt, DelegationId,
+    DelegationPacket, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt, OrganizationId,
+    PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, SessionId,
+    SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId,
+    WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH,
+    REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
+    WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -28,6 +29,7 @@ pub use kiana_domain::{
 };
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
+pub const AUDIT_QUERY_SCHEMA: &str = "kiana.audit-query.v1";
 
 fn default_role_id() -> String {
     ROLE_BUILDER.to_owned()
@@ -335,6 +337,15 @@ impl RequestEnvelope {
             body: RequestBody::Receipt(ReceiptRequest { run_id }),
         }
     }
+
+    /// Construct a bounded audit query; ownership and actor filters are added by the daemon.
+    pub fn audit_query(metadata: RequestMetadata, query: AuditQueryRequest) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::AuditQuery(query),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -357,6 +368,8 @@ pub enum RequestBody {
     Cancel(CancelRequest),
     /// 读取 receipt。
     Receipt(ReceiptRequest),
+    /// Read a bounded server-authenticated audit projection.
+    AuditQuery(AuditQueryRequest),
     /// 申请 spawn。
     Spawn(SpawnRequest),
     /// 召开 symposium。
@@ -458,6 +471,56 @@ pub struct CancelRequest {
 pub struct ReceiptRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<RunId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditQueryRequest {
+    #[serde(default)]
+    pub source_cursor: Option<kiana_domain::EventCursor>,
+    #[serde(default)]
+    pub after_cursor: kiana_domain::EventCursor,
+    pub limit: usize,
+    #[serde(default)]
+    pub action_kind: Option<AuditActionKind>,
+    #[serde(default)]
+    pub decision: Option<AuditDecision>,
+    #[serde(default)]
+    pub target_kind: Option<String>,
+}
+
+impl AuditQueryRequest {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.limit == 0 || self.limit > 1_000 {
+            return Err("audit_query_limit_invalid");
+        }
+        if self.source_cursor == Some(0)
+            || self.after_cursor > self.source_cursor.unwrap_or(u64::MAX)
+        {
+            return Err("audit_query_cursor_invalid");
+        }
+        if self
+            .target_kind
+            .as_deref()
+            .is_some_and(|target| target.trim().is_empty() || target.len() > 128)
+        {
+            return Err("audit_query_filter_invalid");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditQueryResponse {
+    pub schema: String,
+    pub records: Vec<AuditRecord>,
+    #[serde(default)]
+    pub next_cursor: Option<kiana_domain::EventCursor>,
+    pub source_cursor: kiana_domain::EventCursor,
+    pub projection_version: u64,
+    #[serde(default)]
+    pub limitations: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

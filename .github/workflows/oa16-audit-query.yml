@@ -1,0 +1,43 @@
+name: oa16-audit-query
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/oa16_audit_query.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - ".github/workflows/oa16-audit-query.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/oa16_audit_query.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - ".github/workflows/oa16-audit-query.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa16:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa16-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run OA-16 remote-only wire fixtures
+        run: cargo test -p kiana-protocol --test oa16_audit_query --locked -- --test-threads=1

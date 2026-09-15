@@ -6,8 +6,8 @@
 
 use async_trait::async_trait;
 use kiana_protocol::{
-    ApprovalDecision, ApprovalId, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId,
-    WorkPacket,
+    ApprovalDecision, ApprovalId, AuditQueryRequest, RequestEnvelope, RequestMetadata,
+    ResponseEnvelope, RunId, WorkPacket,
 };
 use serde_json::Value;
 
@@ -179,6 +179,17 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::receipt(metadata, run_id))
+            .await
+    }
+
+    /// Query the server-authenticated audit projection; owner/scope are never client-selected.
+    pub async fn audit_query(
+        &self,
+        metadata: RequestMetadata,
+        query: AuditQueryRequest,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::audit_query(metadata, query))
             .await
     }
 

@@ -552,6 +552,19 @@ impl DaemonHost {
         {
             return ResponseEnvelope::rejected(request_id, "protocol_schema_unsupported");
         }
+        if let RequestBody::AuditQuery(query) = &request.body {
+            if query.validate().is_err() {
+                return ResponseEnvelope::rejected(request_id, "audit_query_invalid");
+            }
+            if request
+                .metadata
+                .actor_id
+                .as_deref()
+                .is_none_or(|actor| actor != self.principal.actor_id)
+            {
+                return ResponseEnvelope::rejected(request_id, "audit_query_unauthenticated");
+            }
+        }
         let mut metadata = request.metadata;
         let permission_profile =
             effective_permission_profile(&request.body, metadata.permission_profile);
@@ -700,6 +713,21 @@ impl DaemonHost {
             }
             RequestBody::Cancel(run) => self.core.cancel_run(context, run.run_id, run.reason).await,
             RequestBody::Receipt(receipt) => self.core.read_receipt(context, receipt.run_id).await,
+            RequestBody::AuditQuery(query) => {
+                self.core
+                    .query_audit(
+                        &context,
+                        kiana_core::AuditQueryInput {
+                            source_cursor: query.source_cursor,
+                            after_cursor: query.after_cursor,
+                            limit: query.limit,
+                            action_kind: query.action_kind,
+                            decision: query.decision,
+                            target_kind: query.target_kind,
+                        },
+                    )
+                    .await
+            }
             RequestBody::Spawn(spawn) => {
                 self.core
                     .spawn_from_packet(context, spawn.packet, spawn.sandbox)
@@ -888,7 +916,9 @@ fn invalid_runtime_config(name: &str) -> PortError {
 
 fn request_may_execute(body: &RequestBody) -> bool {
     match body {
-        RequestBody::Receipt(_) | RequestBody::ListApprovals(_) => false,
+        RequestBody::Receipt(_) | RequestBody::ListApprovals(_) | RequestBody::AuditQuery(_) => {
+            false
+        }
         RequestBody::Command(command) => match command.name.as_str() {
             "company.snapshot.v1"
             | "company.next.v1"
@@ -934,6 +964,7 @@ fn effective_permission_profile(
         RequestBody::Command(_) => declared,
         RequestBody::Cancel(_) => declared,
         RequestBody::Receipt(_) => PermissionProfile::Safe,
+        RequestBody::AuditQuery(_) => PermissionProfile::Safe,
     }
 }
 

@@ -67,6 +67,11 @@
 | Audit projection schema registry（OA-15 overlay） | `kiana-domain/src/contracts.rs` | `07217343e1c430d8393abe1ecead4ed61c426bc9441f73b5260d0abb84f81738` |
 | Audit projection reducer（OA-15 overlay） | `kiana-core/src/audit_projection.rs` | `45e6ed8775495ed0ecc4de129eb6484a8b4b82796e9f90c004054d6fe761c52f` |
 | Audit projection exports（OA-15 overlay） | `kiana-core/src/lib.rs` | `3b0366662dd10466ef00b286de5615a2901ba8195481ae4ce5834ff89af06405` |
+| Audit query/core filter（OA-16 overlay） | `kiana-core/src/audit_projection.rs` | `0bf6f397417c2d76d43ebab79e0b2b59e664901dbd8231a364cfc3539d45c5c9` |
+| Audit query schema registry（OA-16 overlay） | `kiana-domain/src/contracts.rs` | `83fb1a4a025385b1d291be4908e7f3301a9bdda8da0e110662ce49b39ae7a524` |
+| Audit query protocol DTO（OA-16 overlay） | `kiana-protocol/src/lib.rs` | `ec545dd0390d7492bf455d5824af8370afd7ca6d47969f01695856204a5fb407` |
+| Audit query client facade（OA-16 overlay） | `kiana-client/src/lib.rs` | `c9749b96fb2077ed574216390a935195d9c7a966cad7a8753abd4bc1df516136` |
+| Audit query DaemonHost route（OA-16 overlay） | `kiana-daemon/src/lib.rs` | `e7ed9167cd00c39a6c292661a7909d091d2418be3acd18494c2ef5c5458745c3` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -158,6 +163,7 @@
 | OA-13 | asynchronous queue/backpressure/drop policy | `source`；bounded non-blocking queue、critical preservation、best-effort drop reason/counter、flush/shutdown/reopen/cancel ack 和 DaemonHost bridge 已实现；尚无 durable spool、consumer/exporter、cross-process shutdown 或 queue checkpoint |
 | OA-14 | trace exporter and W3C context adapter | `source`；TraceExportSpan contract、foreign parent link、sampling/invalid-parent/capacity guards、local JSONL/no-op exporter、flush/shutdown/reopen 已实现；尚无 OTLP/durable backend、async consumer 或 persisted sampling policy |
 | OA-15 | AuditProjection checkpoint/rebuild | `source`；AuditProjectionSnapshot/Checkpoint、rebuild/append/restore、source cursor/event/schema/decision/checksum binding 已实现；尚无 durable checkpoint store、cross-process automatic reload、Artifact ref/query/export/correction/incident wiring |
+| OA-16 | Audit query command/wire DTO | `source`；server-scoped AuditQuery request/page、ControlPlane filter、DaemonHost/client route、bounded limit/cursor and raw-event rejection 已实现；尚无 durable query index/filter snapshot, cross-entry parity, export/delivery or external auth provider |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -462,3 +468,23 @@ OA-15 远端 workflow 覆盖 deterministic rebuild、新进程等价 restore、�
 unknown audit schema、decision conflict、duplicate source、坏 checkpoint/serde 和原事实保留夹具；本地
 只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该投影仍是 source-level checkpoint
 contract，不等价于 durable checkpoint store、Artifact refs、query/export、correction 或 incident workflow。
+
+## 22. OA-16 叠加说明
+
+OA-16 在 `kiana-protocol` 增加封闭的 `AuditQueryRequest`/`AuditQueryResponse` 与
+`RequestBody::AuditQuery`，请求只接受 bounded `limit`、可选当前 source cursor、after cursor、action/
+decision/target-kind filter；没有 owner、actor、scope、raw event 或 arbitrary EventLog endpoint 字段。
+`KianaClient::audit_query` 只封装 envelope，不在客户端授权或解析事件。
+
+`DaemonHost` 在覆盖 caller actor 前要求 query 请求带 server principal 的 actor，验证 limit/cursor 后把
+请求交给 `ControlPlane::query_audit`；该方法只读全量 EventLog，先 rebuild OA-15 projection，再以
+`run.authorized` 的 actor/session/canonical project 事实派生 owned run/request/approval lineage，过滤
+AuditRecord source event，最后应用 bounded page/filter。客户端提供 owner/scope 覆盖、raw events、伪造 actor、
+unlimited limit 或 stale cursor 均拒绝/返回结构化错误，不产生 capability、approval、EventLog 或 exporter 副作用。
+无匹配记录与 EventLog/query projection 不可用保持不同错误/空页语义；返回页携带 schema、source cursor、
+projection version 和 limitations。
+
+OA-16 远端 workflow 覆盖 wire round-trip、unknown owner/raw event 字段、missing/forged actor、limit/cursor
+边界、server-scoped query/filter/page DTO；本地只执行格式、静态源码检查和 test-target 编译，不执行测试
+二进制。该切片仍是 source-level query route，不等价于 durable audit index、filter-bound cursor snapshot、
+跨入口 parity、外部认证服务、导出或 delivery receipt。

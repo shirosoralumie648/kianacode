@@ -534,6 +534,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-15 domain/core audit-projection static-boundary review; no runtime test reviewer
 ```
 
+### OA-16 Audit query command/wire DTO evidence (2026-09-15)
+
+```text
+source_snapshot: da73518; kiana-domain/src/contracts.rs; kiana-core/src/{audit_projection,lib}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-protocol/tests/oa16_audit_query.rs; .github/workflows/oa16-audit-query.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-16 server-scoped AuditQuery request/response DTO, ControlPlane projection/filter route, client facade, DaemonHost authentication/permission route, remote-only wire fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-core/src/audit_projection.rs kiana-core/src/lib.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-daemon/src/lib.rs kiana-protocol/tests/oa16_audit_query.rs .github/workflows/oa16-audit-query.yml
+  rg -n 'AuditQueryRequest|AuditQueryResponse|query_audit|audit_query|audit_query_unauthenticated|audit_query_limit_invalid|raw_events' kiana-domain/src kiana-core/src kiana-protocol/src kiana-client/src kiana-daemon/src kiana-protocol/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-protocol --test oa16_audit_query --locked --offline
+  cargo check -p kiana-daemon --tests --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-protocol/tests/oa16_audit_query.rs; bounded wire round-trip, limit/cursor/filter rejection, owner/raw-event field rejection; server-scoped core/daemon route is source-wired for GitHub CI; no external cassette
+exit_code: 0 for source hashes, format, protocol/daemon OA-16 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-16 job is queued by the push and is not awaited
+status_change: OA-16 source slice is implemented. `kiana-protocol` carries closed `AuditQueryRequest`/`AuditQueryResponse` and `RequestBody::AuditQuery`; `KianaClient::audit_query` only transports it. `DaemonHost` rejects missing/forged actor and invalid bounds before calling `ControlPlane::query_audit`; core rebuilds OA-15 facts and filters records using server-derived actor/session/canonical project plus request/approval lineage, returning bounded redacted pages with source cursor/projection version/limitations and no raw EventLog endpoint.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; query index/filter snapshot and cursor epochs are not durable, cross-entry parity and external authenticated principal provider remain open, query currently requires EventStore read-all and can return unavailable, and export/delivery/reconcile actions are not wired
+reviewer: Codex root implementation review plus OA-16 core/protocol/client/daemon static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

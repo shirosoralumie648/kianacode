@@ -4,14 +4,17 @@
 //! snapshot/checkpoint and validates the source cursor before exposing it to query callers.
 
 use kiana_domain::{
-    AuditProjectionCheckpoint, AuditProjectionSnapshot, AuditRecord, EventCursor, EventId,
-    RuntimeEvent, MAX_AUDIT_PROJECTION_RECORDS, MAX_SOURCE_EVENT_IDS,
+    AuditActionKind, AuditDecision, AuditProjectionCheckpoint, AuditProjectionSnapshot,
+    AuditRecord, CoreResponse, EventCursor, EventId, RequestContext, RuntimeEvent,
+    MAX_AUDIT_PROJECTION_RECORDS, MAX_SOURCE_EVENT_IDS,
 };
+use serde_json::Value;
 use std::collections::HashSet;
 
 use super::{ControlPlane, CoreError};
 
 pub const AUDIT_PROJECTION_VERSION: u64 = 1;
+const MAX_AUDIT_QUERY_LIMIT: usize = 1_000;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum AuditProjectionError {
@@ -33,6 +36,43 @@ pub enum AuditProjectionError {
     CheckpointInvalid(String),
     #[error("audit_projection_checkpoint_mismatch")]
     CheckpointMismatch,
+    #[error("audit_query_limit_invalid")]
+    QueryLimitInvalid,
+    #[error("audit_query_cursor_invalid")]
+    QueryCursorInvalid,
+    #[error("audit_query_cursor_stale")]
+    QueryCursorStale,
+    #[error("audit_query_filter_invalid")]
+    QueryFilterInvalid,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuditQueryInput {
+    pub source_cursor: Option<EventCursor>,
+    pub after_cursor: EventCursor,
+    pub limit: usize,
+    pub action_kind: Option<AuditActionKind>,
+    pub decision: Option<AuditDecision>,
+    pub target_kind: Option<String>,
+}
+
+impl AuditQueryInput {
+    pub fn validate(&self) -> Result<(), AuditProjectionError> {
+        if self.limit == 0 || self.limit > MAX_AUDIT_QUERY_LIMIT {
+            return Err(AuditProjectionError::QueryLimitInvalid);
+        }
+        if self.source_cursor == Some(0)
+            || self.after_cursor > self.source_cursor.unwrap_or(u64::MAX)
+        {
+            return Err(AuditProjectionError::QueryCursorInvalid);
+        }
+        if let Some(target_kind) = &self.target_kind {
+            if target_kind.trim().is_empty() || target_kind.len() > 128 {
+                return Err(AuditProjectionError::QueryFilterInvalid);
+            }
+        }
+        Ok(())
+    }
 }
 
 fn event_cursor(
@@ -233,5 +273,156 @@ impl ControlPlane {
             .unwrap_or(1);
         rebuild_audit_projection(&events, first_cursor)
             .map_err(|error| kiana_ports::PortError::Failed(error.to_string()).into())
+    }
+
+    /// Query server-derived audit records inside the authenticated session/project scope.
+    ///
+    /// The filter is applied to a rebuilt projection; it never exposes raw RuntimeEvent payloads
+    /// and it never trusts caller-provided owner/scope strings. A stale source cursor is rejected
+    /// instead of returning a silently old page.
+    pub async fn query_audit(
+        &self,
+        context: &RequestContext,
+        query: AuditQueryInput,
+    ) -> Result<CoreResponse, CoreError> {
+        query
+            .validate()
+            .map_err(|error| kiana_ports::PortError::Failed(error.to_string()))?;
+        let events = self.read_all_events().await?.ok_or_else(|| {
+            kiana_ports::PortError::Unavailable("audit_query_read_all_unsupported".to_owned())
+        })?;
+        let first_cursor = events
+            .first()
+            .and_then(|event| event.data.get("source_cursor"))
+            .and_then(Value::as_u64)
+            .unwrap_or(1);
+        let projection = rebuild_audit_projection(&events, first_cursor)
+            .map_err(|error| kiana_ports::PortError::Failed(error.to_string()))?;
+        if query
+            .source_cursor
+            .is_some_and(|cursor| cursor != projection.source_cursor)
+        {
+            return Err(
+                kiana_ports::PortError::Conflict("audit_query_cursor_stale".to_owned()).into(),
+            );
+        }
+
+        let actor = context
+            .actor_id
+            .as_deref()
+            .filter(|actor| !actor.trim().is_empty())
+            .ok_or_else(|| {
+                kiana_ports::PortError::Failed("audit_query_unauthenticated".to_owned())
+            })?;
+        let owned_runs = events
+            .iter()
+            .filter(|event| event.kind == "run.authorized")
+            .filter(|event| {
+                event.data.get("actor_id").and_then(Value::as_str) == Some(actor)
+                    && event.data.get("session_id").and_then(Value::as_str)
+                        == Some(context.session_id.as_str())
+                    && event
+                        .data
+                        .get("project_root")
+                        .and_then(Value::as_str)
+                        .is_some_and(|project| {
+                            Self::canonical_project_root(project)
+                                == Self::canonical_project_root(&context.project_root)
+                        })
+            })
+            .filter_map(|event| event.data.get("run_id").and_then(Value::as_str))
+            .map(str::to_owned)
+            .collect::<std::collections::HashSet<_>>();
+        let owned_requests = events
+            .iter()
+            .filter(|event| {
+                event
+                    .data
+                    .get("run_id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|run| owned_runs.contains(run))
+            })
+            .map(|event| event.request_id.to_string())
+            .collect::<std::collections::HashSet<_>>();
+        let owned_approvals = events
+            .iter()
+            .filter(|event| {
+                event
+                    .data
+                    .get("run_id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|run| owned_runs.contains(run))
+            })
+            .filter_map(|event| event.data.get("approval_id").and_then(Value::as_str))
+            .map(str::to_owned)
+            .collect::<std::collections::HashSet<_>>();
+        let owned_event_ids = events
+            .iter()
+            .filter(|event| {
+                event
+                    .data
+                    .get("run_id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|run| owned_runs.contains(run))
+                    || owned_requests.contains(&event.request_id.to_string())
+                    || event
+                        .data
+                        .get("approval_id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|approval| owned_approvals.contains(approval))
+                    || (event.aggregate_type.as_deref() == Some("run")
+                        && event
+                            .aggregate_id
+                            .as_deref()
+                            .is_some_and(|run| owned_runs.contains(run)))
+            })
+            .map(|event| event.event_id.to_string())
+            .collect::<std::collections::HashSet<_>>();
+
+        let mut records = projection
+            .records
+            .into_iter()
+            .filter(|record| {
+                record
+                    .source_event_ids
+                    .iter()
+                    .any(|event_id| owned_event_ids.contains(&event_id.to_string()))
+            })
+            .filter(|record| record.source_cursor > query.after_cursor)
+            .filter(|record| {
+                query
+                    .action_kind
+                    .is_none_or(|kind| record.action_kind == kind)
+            })
+            .filter(|record| {
+                query
+                    .decision
+                    .is_none_or(|decision| record.decision == decision)
+            })
+            .filter(|record| {
+                query
+                    .target_kind
+                    .as_deref()
+                    .is_none_or(|target| record.target_kind == target)
+            })
+            .collect::<Vec<_>>();
+        let next_cursor = if records.len() > query.limit {
+            let cursor = records[query.limit - 1].source_cursor;
+            records.truncate(query.limit);
+            Some(cursor)
+        } else {
+            None
+        };
+        Ok(CoreResponse::completed(
+            context.request_id,
+            serde_json::json!({
+                "schema": "kiana.audit-query.v1",
+                "records": records,
+                "next_cursor": next_cursor,
+                "source_cursor": projection.source_cursor,
+                "projection_version": projection.projection_version,
+                "limitations": projection.limitations,
+            }),
+        ))
     }
 }

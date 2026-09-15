@@ -40,7 +40,8 @@ mod workspace_checkpoints;
 
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use audit_projection::{
-    rebuild_audit_projection, AuditProjection, AuditProjectionError, AUDIT_PROJECTION_VERSION,
+    rebuild_audit_projection, AuditProjection, AuditProjectionError, AuditQueryInput,
+    AUDIT_PROJECTION_VERSION,
 };
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
