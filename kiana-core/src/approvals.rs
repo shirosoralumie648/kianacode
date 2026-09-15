@@ -466,16 +466,26 @@ impl ControlPlane {
                 )
                 .await;
         }
+        let mut pending_request = invocation.request.clone();
+        if let Some(arguments) = pending_request.arguments.as_object_mut() {
+            arguments.insert("run_id".to_owned(), json!(invocation.run_id));
+            arguments.insert(
+                "turn_id".to_owned(),
+                json!(kiana_domain::TurnId::from_uuid(
+                    invocation.event_request_id.as_uuid()
+                )),
+            );
+        }
         let request = match self
             .prepare_capability_action(
                 decision_context,
-                invocation.request.clone(),
+                pending_request.clone(),
                 Some(&invocation.sandbox),
                 true,
             )
             .await
         {
-            Ok(request) if request == invocation.request => request,
+            Ok(request) if request == pending_request => request,
             Ok(_) => {
                 return self
                     .finish_rejected_approval(

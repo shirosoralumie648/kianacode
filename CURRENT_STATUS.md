@@ -1230,6 +1230,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CAP-02 input/schema/argv/alias/digest source-boundary review; no runtime test reviewer
 ```
 
+### CAP-03 immutable ExecutionScope evidence (2026-09-16)
+
+```text
+source_snapshot: 8996d12; kiana-domain/src/{execution_scope,capabilities,contracts,lib}.rs; kiana-core/src/{capabilities,invocation_projection,events}.rs; kiana-capability-broker/src/lib.rs; kiana-domain/src/scope.rs; kiana-domain/tests/cap03_execution_scope.rs; kiana-core/tests/cap03_execution_scope_guard.rs; .github/workflows/cap03-execution-scope.yml; docs/roadmap/capability-execution-scope-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/capability.md; docs/roadmap.md
+worktree_status: CAP-03 server-derived ExecutionScope typed contract, CapabilityRequest binding, ControlPlane action/context/identity/resource/epoch/digest derivation, Broker pre-handler scope verification, direct-vs-Harness Run semantics, remote fixtures/source guard and roadmap overlays are scoped to this step; caller/model scope is cleared before derivation and no second authorization path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/execution_scope.rs kiana-domain/src/capabilities.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/capabilities.rs kiana-core/src/invocation_projection.rs kiana-core/src/events.rs kiana-capability-broker/src/lib.rs kiana-domain/src/scope.rs kiana-domain/tests/cap03_execution_scope.rs kiana-core/tests/cap03_execution_scope_guard.rs .github/workflows/cap03-execution-scope.yml docs/roadmap/capability-execution-scope-baseline.md
+  rg -n 'ExecutionScope|EXECUTION_SCOPE_SCHEMA|permission_scope|authority_epoch|trust_revision|data_epoch|cancellation_epoch|deadline_unix_ms|fencing_token|build_execution_scope|execution_scope_required|validate_for_request|execution_scope_digest_mismatch' kiana-domain/src kiana-core/src kiana-capability-broker/src kiana-domain/tests/cap03_execution_scope.rs kiana-core/tests/cap03_execution_scope_guard.rs docs/roadmap/capability-execution-scope-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cap03_execution_scope.rs typed scope digest/subset/empty/caller mismatch fixtures; kiana-core/tests/cap03_execution_scope_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-03 job is queued by the push and is not awaited
+status_change: CAP-03 source slice is implemented. `ExecutionScope` now binds server principal/project/session, optional Run/Turn/Cell, Grant/Budget refs, roots/denies, Memory/server/network dimensions, environment/workspace revision, authority/trust/data/cancel epochs, deadline/fencing and catalog/action/scope digests. ControlPlane removes caller-provided scope, derives and attaches it after final action/context normalization, while direct commands keep explicit scope without fabricated Run/Turn. Broker requires and validates the scope against the normalized request before permit/handler execution; empty/cross-scope/digest/resource/epoch drift fails closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; epoch/fence/environment values are local controlled snapshots pending durable authority/Grant/Approval/lease ledgers, ScopeSet does not prove OS path/egress/TOCTOU or SecretStore, ExecutionScope is not a permit, legacy requests without scope remain query-compatible, and external/provider/connector/live/physical effects or cross-process recovery are not proven
+reviewer: Codex root implementation review plus CAP-03 ExecutionScope derivation/resource/epoch/Broker-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

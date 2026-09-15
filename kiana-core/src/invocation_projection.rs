@@ -311,6 +311,10 @@ fn request_from_event(event: &RuntimeEvent) -> Option<CapabilityRequest> {
         operation: event.data.get("operation")?.as_str()?.to_owned(),
         arguments: event.data.get("arguments")?.clone(),
         risk: serde_json::from_value::<RiskLevel>(event.data.get("risk")?.clone()).ok()?,
+        execution_scope: event
+            .data
+            .get("execution_scope")
+            .and_then(|value| serde_json::from_value(value.clone()).ok()),
         cell_id: event
             .data
             .get("cell_id")

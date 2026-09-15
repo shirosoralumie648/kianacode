@@ -65,6 +65,7 @@ const RUN_FIELDS: &[&str] = &[
     "cell_id",
     "capability_grant_id",
     "budget_lease_id",
+    "execution_scope",
 ];
 const REQUEST_FIELDS: &[&str] = &[
     "command",

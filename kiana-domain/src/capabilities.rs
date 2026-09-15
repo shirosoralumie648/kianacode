@@ -1,7 +1,7 @@
 use crate::{
     allow_list_covers, normalize_role_path, ApprovalId, BudgetLeaseId, CapabilityGrantId, CellId,
-    DomainError, RequestContext, RequestId, RunId, SupervisionLeaseId, CAPABILITY_GRANT_SCHEMA,
-    SUPERVISION_LEASE_SCHEMA,
+    DomainError, ExecutionScope, RequestContext, RequestId, RunId, SupervisionLeaseId,
+    CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -176,6 +176,10 @@ pub struct CapabilityRequest {
     pub arguments: Value,
     /// 请求声明的风险级别，不能由模型单方面提升为授权。
     pub risk: RiskLevel,
+    /// Server-derived execution scope; callers may omit it before ControlPlane preparation but
+    /// cannot use a supplied value as authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_scope: Option<ExecutionScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// 所属 cell ID。
     pub cell_id: Option<CellId>,
@@ -201,6 +205,7 @@ impl CapabilityRequest {
             operation: operation.into(),
             arguments,
             risk: RiskLevel::ReadOnly,
+            execution_scope: None,
             cell_id: None,
             capability_grant_id: None,
             budget_lease_id: None,

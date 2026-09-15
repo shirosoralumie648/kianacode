@@ -390,13 +390,15 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-03 — 从 authority chain 派生不可变 ExecutionScope
+#### CAP-03 — 从 authority chain 派生不可变 ExecutionScope　✅
+
+当前 source slice 与 CI-only 证据见 [`capability-execution-scope-baseline.md`](capability-execution-scope-baseline.md)。
 
 - **落点：** core/events、capabilities、cell_registry、policy；daemon 的项目/存储路径服务；domain scope 值对象。
 - **步骤：** 把当前 JSON stamp 拆为模型输入与服务端 context；计算父级/角色/部门/项目/packet/grant/approval 的交集，补 resource/server/memory/network 维度及 policy/trust/data/cancel epochs。路径列表区分继承与空集；所有 deadline 取最严格上限。
 - **先拒绝：** `empty_effective_scope_never_becomes_workspace_write`、`forged_root_role_or_server_scope_is_rejected`、`scope_intersection_never_grows_under_delegation`；跨 project/session/Cell 及恢复后的旧 scope 都不能复用。
 - **成功/回归：** `same_scope_reaches_shell_patch_mcp_and_memory` 比较实际 adapter 收到的摘要；直接 run 与 packet run 均覆盖，既有角色限制不被遗漏。
-- **完成产物：** 完整 scope 可审计；缺 mandatory scope 的调用在执行前拒绝，不保留缺 `path_allow` 默认全项目的兼容捷径。
+- **完成产物：** 完整 scope 可审计；缺 mandatory scope 的调用在执行前拒绝，不保留缺 `path_allow` 默认全项目的兼容捷径；ExecutionScope digest/resource/run/turn 校验由 Broker gate 接线。
 
 <a id="step-cap-04"></a>
 

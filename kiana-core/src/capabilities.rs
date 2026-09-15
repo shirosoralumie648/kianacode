@@ -71,6 +71,102 @@ fn effective_action_scope(
         .map_err(|error| action_error(&format!("scope_intersection_invalid:{error}")))
 }
 
+fn build_execution_scope(
+    context: &RequestContext,
+    request: &CapabilityRequest,
+    permission_scope: &kiana_domain::ScopeSet,
+) -> Result<kiana_domain::ExecutionScope, CoreError> {
+    let mut principal = kiana_domain::AuthenticatedPrincipalRef::local();
+    principal.principal_id = context.actor_id.clone().unwrap_or_default();
+    principal.principal_digest = principal.digest();
+    principal
+        .validate()
+        .map_err(|error| action_error(&format!("execution_scope_principal_invalid:{error}")))?;
+    let canonical_root = ControlPlane::canonical_project_root(&context.project_root);
+    let project = kiana_domain::ProjectIdentity::new(
+        context.project_root.clone(),
+        canonical_root.to_string_lossy().into_owned(),
+        None,
+        None,
+        kiana_domain::json_digest(&json!({"trusted":context.project_trusted})),
+    )
+    .map_err(|error| action_error(&format!("execution_scope_project_invalid:{error}")))?;
+    let mut grant_refs = request.capability_grant_id.into_iter().collect::<Vec<_>>();
+    grant_refs.sort_by_key(|grant| grant.to_string());
+    let action_digest = {
+        let mut without_scope = request.clone();
+        without_scope.execution_scope = None;
+        kiana_domain::capability_action_digest(&without_scope)
+    };
+    let path_values = match &permission_scope.paths {
+        kiana_domain::ScopeDimension::Restricted(values) => values.clone(),
+        kiana_domain::ScopeDimension::NotApplicable => Vec::new(),
+    };
+    let collection = request
+        .arguments
+        .get("collection")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_owned);
+    let server = request
+        .arguments
+        .get("server")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_owned);
+    let mut scope = kiana_domain::ExecutionScope {
+        schema: kiana_domain::EXECUTION_SCOPE_SCHEMA.to_owned(),
+        version: kiana_domain::EXECUTION_SCOPE_SCHEMA_VERSION,
+        principal,
+        project,
+        session_id: context.session_id.clone(),
+        run_id: request
+            .arguments
+            .get("run_id")
+            .and_then(Value::as_str)
+            .and_then(RunId::parse_str),
+        turn_id: request
+            .arguments
+            .get("turn_id")
+            .and_then(|value| serde_json::from_value::<kiana_domain::TurnId>(value.clone()).ok()),
+        cell_id: context.cell_id,
+        grant_refs,
+        budget_lease_id: request.budget_lease_id,
+        work_packet_id: context.work_packet_id.clone(),
+        environment_id: "kiana-local".to_owned(),
+        workspace_revision: None,
+        permission_scope: permission_scope.clone(),
+        read_roots: vec![canonical_root.to_string_lossy().into_owned()],
+        write_roots: if request.risk == RiskLevel::ReadOnly {
+            Vec::new()
+        } else if path_values.is_empty() {
+            vec![".".to_owned()]
+        } else {
+            path_values.clone()
+        },
+        read_denies: Vec::new(),
+        write_denies: Vec::new(),
+        memory_scopes: collection.into_iter().collect(),
+        server_scopes: server.into_iter().collect(),
+        network_policy: Vec::new(),
+        authority_epoch: 1,
+        trust_revision: kiana_domain::json_digest(&json!({"trusted":context.project_trusted})),
+        data_epoch: 1,
+        cancellation_epoch: 1,
+        deadline_unix_ms: u64::MAX,
+        fencing_token: 1,
+        catalog_digest: kiana_domain::capability_action_catalog_digest(),
+        action_digest,
+        permission_scope_digest: permission_scope.digest(),
+        scope_digest: String::new(),
+    };
+    scope.scope_digest = scope.digest();
+    scope
+        .validate()
+        .map_err(|error| action_error(&format!("execution_scope_invalid:{error}")))?;
+    Ok(scope)
+}
+
 impl ControlPlane {
     pub(crate) async fn bind_cell_scope(
         &self,
@@ -190,6 +286,14 @@ impl ControlPlane {
         if from_runner || context.cell_id.is_some() {
             arguments.remove("operator_authorized");
         }
+        if !from_runner {
+            // Direct/operator calls cannot select a Harness Run or Turn through compatibility
+            // arguments; only the lifecycle/runner path may carry these server references.
+            arguments.remove("run_id");
+            arguments.remove("turn_id");
+        }
+        // Execution scope is always server-derived after the action and context are normalized.
+        request.execution_scope = None;
         if kiana_domain::model_tool_name(operation).is_some() {
             let selected = sandbox
                 .or_else(|| arguments.get("sandbox").and_then(Value::as_str))
@@ -214,8 +318,9 @@ impl ControlPlane {
             .await
             .map_err(CoreError::from)?;
         kiana_domain::normalize_capability_action(&mut request).map_err(action_error)?;
-        let _effective_scope = effective_action_scope(context, &request)?;
+        let effective_scope = effective_action_scope(context, &request)?;
         self.bind_cell_scope(context, &mut request).await?;
+        request.execution_scope = Some(build_execution_scope(context, &request, &effective_scope)?);
         let action = kiana_domain::PreparedAction::new(request).map_err(action_error)?;
         self.pin_action_authority(context, action.request()).await?;
         Ok(action.into_request())
@@ -656,6 +761,14 @@ impl ControlPlane {
         request: CapabilityRequest,
         cancel_rx: &watch::Receiver<bool>,
     ) -> Result<Result<Option<Vec<RunnerEvent>>, String>, CoreError> {
+        let mut request = request;
+        if let Some(arguments) = request.arguments.as_object_mut() {
+            arguments.insert("run_id".to_owned(), json!(run_id));
+            arguments.insert(
+                "turn_id".to_owned(),
+                json!(kiana_domain::TurnId::from_uuid(request_id.as_uuid())),
+            );
+        }
         let original = request.clone();
         let request = match self
             .prepare_capability_action_cancellable(
@@ -715,6 +828,7 @@ impl ControlPlane {
             "capability_request_id":request.request_id,"call_id":request.arguments["call_id"],
             "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
             "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
+            "execution_scope":request.execution_scope,
             "tool":request.capability,"operation":request.operation}),
         )
         .await?;
@@ -726,6 +840,7 @@ impl ControlPlane {
             "action_digest":kiana_domain::capability_action_digest(&request),
             "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
             "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
+            "execution_scope":request.execution_scope,
             "arguments":redact_event_value(&request.arguments)})).await?;
         if *cancel_rx.borrow() {
             self.cancel_pending_tools(

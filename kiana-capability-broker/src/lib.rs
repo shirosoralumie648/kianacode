@@ -180,6 +180,14 @@ impl CapabilityBroker {
                 "capability_action_not_prepared".to_owned(),
             ));
         }
+        let scope = request
+            .request
+            .execution_scope
+            .as_ref()
+            .ok_or_else(|| PortError::Failed("execution_scope_required".to_owned()))?;
+        scope
+            .validate_for_request(&request.request)
+            .map_err(PortError::Failed)?;
         Ok(())
     }
     async fn admit_extensions(

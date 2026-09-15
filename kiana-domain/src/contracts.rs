@@ -649,6 +649,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.execution-scope.v1",
+        version: crate::EXECUTION_SCOPE_SCHEMA_VERSION,
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.fault-matrix.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Projection,
