@@ -58,7 +58,8 @@ impl ControlPlane {
             .rposition(|event| event.kind == "run.prompt")
             .unwrap_or(0);
         let turn_events = &events[turn_start..];
-        if let Err(reason) = crate::project_invocations(run_id, &events) {
+        if let Err(reason) = self.cache_invocation_projection(run_id, &events) {
+            let reason = reason.to_string();
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::ResultUnknown,
@@ -140,8 +141,7 @@ impl ControlPlane {
         output: Value,
     ) -> Result<Value, CoreError> {
         let events = self.events_for_current_run(context, run_id).await?;
-        crate::project_invocations(run_id, &events)
-            .map_err(|reason| PortError::Conflict(reason))?;
+        self.cache_invocation_projection(run_id, &events)?;
         Ok(receipt_from_events(
             context, run_id, sandbox, output, &events,
         ))
@@ -151,10 +151,12 @@ impl ControlPlane {
         run_id: RunId,
     ) -> Result<Vec<RuntimeEvent>, CoreError> {
         match self.read_all_events().await? {
-            Some(all) => Ok(filter_run_events(&all, run_id)),
+            Some(all) => try_filter_run_events(&all, run_id)
+                .map_err(|reason| CoreError::Port(PortError::Failed(reason))),
             None => {
                 let events = self.events.read_stream("run", &run_id.to_string()).await?;
-                Ok(filter_run_events(&events, run_id))
+                try_filter_run_events(&events, run_id)
+                    .map_err(|reason| CoreError::Port(PortError::Failed(reason)))
             }
         }
     }
@@ -334,27 +336,51 @@ pub(crate) fn receipt_owner_mismatch(events: &[RuntimeEvent], context: &RequestC
 }
 
 pub(crate) fn filter_run_events(events: &[RuntimeEvent], run_id: RunId) -> Vec<RuntimeEvent> {
+    try_filter_run_events(events, run_id).unwrap_or_default()
+}
+
+pub(crate) fn try_filter_run_events(
+    events: &[RuntimeEvent],
+    run_id: RunId,
+) -> Result<Vec<RuntimeEvent>, String> {
     let run_id_str = run_id.to_string();
-    events
-        .iter()
-        .filter(|event| {
-            let stream = (
-                event.aggregate_type.as_deref(),
-                event.aggregate_id.as_deref(),
-            );
-            let exact_run_stream = stream == (Some("run"), Some(run_id_str.as_str()));
-            let conflicting_run_stream =
-                matches!(stream, (Some("run"), Some(_))) && !exact_run_stream;
-            match event.data.get("run_id") {
-                Some(Value::String(value)) => value == &run_id_str && !conflicting_run_stream,
-                Some(_) => false,
-                // Legacy events without a payload run ID are only usable when their
-                // durable aggregate metadata identifies this exact run.
-                None => exact_run_stream,
+    let mut filtered = Vec::new();
+    for event in events {
+        let stream = (
+            event.aggregate_type.as_deref(),
+            event.aggregate_id.as_deref(),
+        );
+        let exact_run_stream = stream == (Some("run"), Some(run_id_str.as_str()));
+        let conflicting_run_stream = matches!(stream, (Some("run"), Some(_))) && !exact_run_stream;
+        let belongs = match event.data.get("run_id") {
+            Some(Value::String(value)) => {
+                if (conflicting_run_stream || exact_run_stream) && value != &run_id_str {
+                    return Err("invocation_event_run_id_conflict".to_owned());
+                }
+                value == &run_id_str && !conflicting_run_stream
             }
-        })
-        .cloned()
-        .collect()
+            Some(Value::Null) => {
+                if exact_run_stream {
+                    true
+                } else {
+                    false
+                }
+            }
+            Some(_) => {
+                if exact_run_stream {
+                    return Err("invocation_event_run_id_invalid".to_owned());
+                }
+                false
+            }
+            // Legacy events without a payload run ID are only usable when their
+            // durable aggregate metadata identifies this exact run.
+            None => exact_run_stream,
+        };
+        if belongs {
+            filtered.push(event.clone());
+        }
+    }
+    Ok(filtered)
 }
 
 pub(crate) fn unique_authorized_run_id(

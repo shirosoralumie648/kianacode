@@ -326,7 +326,8 @@ impl ControlPlane {
                     event_request_id,
                     sequence.saturating_add(1),
                     "run.awaiting_approval",
-                    json!({"run_id":run_id,"approval_id":challenge.approval_id}),
+                    json!({"run_id":run_id,"approval_id":challenge.approval_id,
+                        "capability_request_id":request.request_id}),
                 )?
                 .with_stream_metadata(aggregate_type, &aggregate_id, version + 2),
             );
@@ -358,6 +359,9 @@ impl ControlPlane {
                     ));
                 }
             }
+        }
+        if let Some(run_id) = run_id {
+            self.invalidate_invocation_projection(run_id);
         }
         *sequence = sequence.saturating_add(event_count);
         Ok(challenge)
@@ -589,11 +593,30 @@ impl ControlPlane {
             Ok(request) => request,
             Err(error) => {
                 let reason = redact_event_text(&error.to_string());
+                // Preparation may reject malformed, untrusted, or out-of-sandbox input before
+                // the normal request fact is written. Persist only the redacted request facts
+                // so restart projection can account for the denied invocation without guessing.
+                self.record_event(
+                    request_id,
+                    sequence,
+                    "run.capability_requested",
+                    json!({"run_id":run_id,
+                        "request_id":original.request_id,
+                        "capability":original.capability,
+                        "operation":original.operation,
+                        "risk":original.risk,
+                        "cell_id":original.cell_id,
+                        "capability_grant_id":original.capability_grant_id,
+                        "budget_lease_id":original.budget_lease_id,
+                        "action_digest":kiana_domain::capability_action_digest(&original),
+                        "arguments":redact_event_value(&original.arguments)}),
+                )
+                .await?;
                 self.record_event(
                     request_id,
                     sequence,
                     "run.capability_blocked",
-                    json!({"run_id":run_id,"error":reason}),
+                    json!({"run_id":run_id,"capability_request_id":original.request_id,"error":reason}),
                 )
                 .await?;
                 self.cancel_pending_tools(run_id, request_id, sequence, Some(&original), &reason)
@@ -601,8 +624,15 @@ impl ControlPlane {
                 return Ok(Err(reason));
             }
         };
-        self.record_event(request_id,sequence,"run.tool_call",json!({"run_id":run_id,
-            "call_id":request.arguments["call_id"],"tool":request.capability,"operation":request.operation})).await?;
+        self.record_event(
+            request_id,
+            sequence,
+            "run.tool_call",
+            json!({"run_id":run_id,
+            "capability_request_id":request.request_id,"call_id":request.arguments["call_id"],
+            "tool":request.capability,"operation":request.operation}),
+        )
+        .await?;
         self.record_event(request_id,sequence,"run.capability_requested",json!({"run_id":run_id,
             "request_id":request.request_id,"capability":request.capability,"operation":request.operation,"risk":request.risk,
             "cell_id":request.cell_id,"capability_grant_id":request.capability_grant_id,"budget_lease_id":request.budget_lease_id,
@@ -625,7 +655,7 @@ impl ControlPlane {
             request_id,
             sequence,
             "capability.decision",
-            json!({"run_id":run_id,"policy":policy,"gate":gate}),
+            json!({"run_id":run_id,"capability_request_id":request.request_id,"policy":policy,"gate":gate}),
         )
         .await?;
         let authorization_id = match gate {
@@ -634,7 +664,7 @@ impl ControlPlane {
                     request_id,
                     sequence,
                     "run.capability_blocked",
-                    json!({"run_id":run_id,"reason":reason}),
+                    json!({"run_id":run_id,"capability_request_id":request.request_id,"reason":reason}),
                 )
                 .await?;
                 self.cancel_pending_tools(run_id, request_id, sequence, Some(&request), &reason)

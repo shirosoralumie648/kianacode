@@ -116,7 +116,8 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
             expected_versions: expected,
             events: vec![event],
         };
-        if commit_confirmed(self.events.as_ref(), batch).await? {
+        let committed = commit_confirmed(self.events.as_ref(), batch).await;
+        if committed? {
             return Err(dispatch_error("execution_permit_already_consumed"));
         }
         Ok(())
@@ -482,7 +483,11 @@ impl ControlPlane {
             expected_versions: authority_versions,
             events,
         };
-        if commit_confirmed(self.events.as_ref(), batch).await? {
+        let committed = commit_confirmed(self.events.as_ref(), batch).await;
+        if let Some(run_id) = run_id {
+            self.invalidate_invocation_projection(run_id);
+        }
+        if committed? {
             return Err(dispatch_error("result_unknown:invocation_already_prepared"));
         }
         self.prepare_data_revocation(&authorized.request)
@@ -574,6 +579,9 @@ impl ControlPlane {
             }],
             events: vec![event],
         };
+        if let Some(run_id) = run_id {
+            self.invalidate_invocation_projection(run_id);
+        }
         commit_confirmed(self.events.as_ref(), batch)
             .await
             .map_err(|e| dispatch_error(&format!("result_unknown:result_commit_failed:{e}")))?;

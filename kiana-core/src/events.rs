@@ -25,6 +25,21 @@ impl ControlPlane {
         // can become durable fact or feed a receipt projection.
         let data = redact_event_value(&data);
         let (aggregate_type, aggregate_id) = aggregate_for_event(request_id, &data);
+        // Invalidate before attempting the CAS append as well as after success: an adapter may
+        // report an ambiguous error after durably writing the event, and a stale fold must never
+        // survive that uncertainty.
+        let affected_run = data
+            .get("run_id")
+            .and_then(Value::as_str)
+            .and_then(RunId::parse_str)
+            .or_else(|| {
+                (aggregate_type == "run")
+                    .then(|| RunId::parse_str(&aggregate_id))
+                    .flatten()
+            });
+        if let Some(run_id) = affected_run {
+            self.invalidate_invocation_projection(run_id);
+        }
         let base_idempotency_key =
             format!("{request_id}:{aggregate_type}:{aggregate_id}:{sequence}:{kind}");
         let idempotency_key = base_idempotency_key;
@@ -49,7 +64,12 @@ impl ControlPlane {
                 .append_idempotent_expected(event, Some(current_version))
                 .await
             {
-                Ok(_) => return Ok(()),
+                Ok(_) => {
+                    if let Some(run_id) = affected_run {
+                        self.invalidate_invocation_projection(run_id);
+                    }
+                    return Ok(());
+                }
                 Err(PortError::Conflict(reason))
                     if reason == "event_stream_version_mismatch"
                         || reason == "event_sequence_not_monotonic" => {}
@@ -142,6 +162,7 @@ impl ControlPlane {
             match super::dispatch::commit_confirmed(self.events.as_ref(), batch).await {
                 Ok(_) => {
                     *sequence += 1;
+                    self.invalidate_invocation_projection(run_id);
                     self.queue_terminal_distillation(run_id, kind).await;
                     return Ok(true);
                 }

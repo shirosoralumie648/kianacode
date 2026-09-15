@@ -99,6 +99,8 @@ impl ControlPlane {
             pre_tool_hooks,
             cell_registry,
             sessions: Mutex::new(HashMap::new()),
+            invocation_projections: Mutex::new(HashMap::new()),
+            invocation_projection_event_ids: Mutex::new(HashMap::new()),
             pending_invocations: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
             capability_stops: Mutex::new(HashMap::new()),

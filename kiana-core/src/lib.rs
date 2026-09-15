@@ -172,6 +172,12 @@ pub struct ControlPlane {
     pre_tool_hooks: Arc<dyn PreToolHookPort>,
     cell_registry: Arc<dyn kiana_ports::CellRegistryPort>,
     sessions: Mutex<HashMap<String, SessionBinding>>,
+    /// Event-derived invocation projections. The ledger remains authoritative; this map is
+    /// only a write-through cache for repeated reads within one host process.
+    invocation_projections: Mutex<HashMap<RunId, Vec<InvocationProjection>>>,
+    /// Event IDs included in each cached fold. This lets a cache miss detector notice facts
+    /// appended by the broker's permit verifier, which cannot call back into ControlPlane.
+    invocation_projection_event_ids: Mutex<HashMap<RunId, HashSet<String>>>,
     pending_invocations: Mutex<HashMap<ApprovalId, PendingInvocation>>,
     cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
     capability_stops: Mutex<HashMap<RunId, watch::Sender<Option<bool>>>>,

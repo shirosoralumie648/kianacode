@@ -149,12 +149,121 @@ pub fn project_run_state(
 }
 
 impl ControlPlane {
-    /// 只读地从事件账本重建 run 状态；不读取或改变 ControlPlane 的内存缓存。
+    fn event_belongs_to_run(event: &RuntimeEvent, run_id: RunId) -> bool {
+        let run_id = run_id.to_string();
+        let exact_run_stream = event.aggregate_type.as_deref() == Some("run")
+            && event.aggregate_id.as_deref() == Some(run_id.as_str());
+        let conflicting_run_stream = event.aggregate_type.as_deref() == Some("run")
+            && event
+                .aggregate_id
+                .as_deref()
+                .is_some_and(|value| value != run_id);
+        match event.data.get("run_id") {
+            Some(Value::String(value)) => value == &run_id && !conflicting_run_stream,
+            Some(_) => false,
+            None => exact_run_stream,
+        }
+    }
+
+    pub(crate) fn cache_invocation_projection(
+        &self,
+        run_id: RunId,
+        events: &[RuntimeEvent],
+    ) -> Result<Vec<InvocationProjection>, CoreError> {
+        let projections = crate::project_invocations(run_id, events)
+            .map_err(|reason| CoreError::Port(PortError::Failed(reason)))?;
+        let event_ids = events
+            .iter()
+            .filter(|event| Self::event_belongs_to_run(event, run_id))
+            .map(|event| event.event_id.to_string())
+            .collect::<HashSet<_>>();
+        self.invocation_projections
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(run_id, projections.clone());
+        self.invocation_projection_event_ids
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(run_id, event_ids);
+        Ok(projections)
+    }
+
+    pub(crate) fn invalidate_invocation_projection(&self, run_id: RunId) {
+        self.invocation_projections
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&run_id);
+        self.invocation_projection_event_ids
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&run_id);
+    }
+
+    /// Rebuild an invocation projection on the first access of a run. The event journal is the
+    /// authority; the in-process map only stores the exact folded result for subsequent reads.
+    pub async fn invocation_state(
+        &self,
+        run_id: RunId,
+    ) -> Result<Vec<InvocationProjection>, CoreError> {
+        let cached = self
+            .invocation_projections
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&run_id)
+            .cloned();
+        if let Some(cached) = cached {
+            // The broker's JournalPermitVerifier appends invocation.dispatching directly to the
+            // EventStore. Compare run-scoped event IDs before trusting a cached fold so a process
+            // restart or a broker crash cannot expose the pre-dispatch state indefinitely.
+            if let Some(all) = self.read_all_events().await? {
+                let known = self
+                    .invocation_projection_event_ids
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .get(&run_id)
+                    .cloned()
+                    .unwrap_or_default();
+                let has_new_event = all
+                    .iter()
+                    .filter(|event| Self::event_belongs_to_run(event, run_id))
+                    .any(|event| !known.contains(&event.event_id.to_string()));
+                if !has_new_event {
+                    return Ok(cached);
+                }
+                self.invalidate_invocation_projection(run_id);
+            } else {
+                return Ok(cached);
+            }
+        }
+        let run_stream = self.events.read_stream("run", &run_id.to_string()).await?;
+        let mut events = match self.read_all_events().await? {
+            Some(all) => all,
+            None => run_stream.clone(),
+        };
+        let mut seen = events
+            .iter()
+            .map(|event| event.event_id.to_string())
+            .collect::<HashSet<_>>();
+        for event in run_stream {
+            if seen.insert(event.event_id.to_string()) {
+                events.push(event);
+            }
+        }
+        if events.is_empty() {
+            return Err(CoreError::Port(PortError::Failed(
+                "run_not_found".to_owned(),
+            )));
+        }
+        self.cache_invocation_projection(run_id, &events)
+    }
+
+    /// 从事件账本重建 run 状态，并让 invocation 投影走同一套惰性缓存入口。
     pub async fn run_state(&self, run_id: RunId) -> Result<RunState, CoreError> {
         let unsupported =
             || CoreError::Port(PortError::Failed("run_projection_unsupported".to_owned()));
         let events = self.read_all_events().await?.ok_or_else(unsupported)?;
-        let run_events = crate::receipts::filter_run_events(&events, run_id);
+        let run_events = crate::receipts::try_filter_run_events(&events, run_id)
+            .map_err(|reason| CoreError::Port(PortError::Failed(reason)))?;
         if run_events.is_empty() {
             return Err(CoreError::Port(PortError::Failed(
                 "run_not_found".to_owned(),

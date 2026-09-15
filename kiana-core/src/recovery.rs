@@ -3,6 +3,165 @@ use super::*;
 use kiana_domain::{json_digest, ApprovalView, RunSnapshot};
 
 impl ControlPlane {
+    async fn rebuild_pending_invocation(
+        &self,
+        context: &RequestContext,
+        run_id: RunId,
+        sandbox: &str,
+        events: &[RuntimeEvent],
+        projections: &[InvocationProjection],
+        snapshot_pending: Option<PendingInvocation>,
+    ) -> Result<Option<PendingInvocation>, CoreError> {
+        let mut pending = match snapshot_pending {
+            Some(pending) => pending,
+            None => {
+                let pending_projections = projections
+                    .iter()
+                    .filter(|projection| {
+                        projection.state == kiana_domain::CapabilityExecutionState::AwaitingApproval
+                            && projection.approval_id.is_some()
+                            && projection.request.is_some()
+                    })
+                    .collect::<Vec<_>>();
+                let projection = match pending_projections.as_slice() {
+                    [] => return Ok(None),
+                    [projection] => *projection,
+                    _ => {
+                        return Err(
+                            PortError::Failed("approval_continuation_ambiguous".to_owned()).into(),
+                        )
+                    }
+                };
+                let approval_id = projection.approval_id.expect("checked above");
+                let listed = self.approvals.list_pending(context).await?;
+                let Some(preview) = listed
+                    .into_iter()
+                    .find(|pending| pending.challenge.approval_id == approval_id)
+                else {
+                    return Err(
+                        PortError::Failed("approval_continuation_unavailable".to_owned()).into(),
+                    );
+                };
+                let approval_context = RequestContext {
+                    request_id: projection.request_id,
+                    ..context.clone()
+                };
+                let material = self
+                    .approvals
+                    .pending_with_proof(
+                        &approval_context,
+                        approval_id,
+                        Some(&preview.challenge.request_hash),
+                        Some(&preview.challenge.nonce),
+                    )
+                    .await?;
+                let approval_event = events.iter().rev().find(|event| {
+                    event.kind == "approval.requested"
+                        && event.data.get("approval_id") == Some(&json!(approval_id))
+                        && event.data.get("capability_request_id")
+                            == Some(&json!(material.request.request_id))
+                });
+                let approval_event = approval_event.ok_or_else(|| {
+                    CoreError::Port(PortError::Failed(
+                        "approval_continuation_unavailable".to_owned(),
+                    ))
+                })?;
+                PendingInvocation {
+                    approval_id,
+                    challenge: material.challenge,
+                    request_id: material.request.request_id,
+                    event_request_id: approval_event.request_id,
+                    event_sequence: events
+                        .iter()
+                        .filter(|candidate| candidate.request_id == approval_event.request_id)
+                        .map(|candidate| candidate.sequence)
+                        .max()
+                        .unwrap_or(approval_event.sequence),
+                    run_id,
+                    request: material.request,
+                    context: context.clone(),
+                    sandbox: sandbox.to_owned(),
+                }
+            }
+        };
+        let Some(projection) = projections
+            .iter()
+            .find(|projection| projection.request_id == pending.request.request_id)
+        else {
+            return Err(
+                PortError::Failed("run_snapshot_pending_invocation_missing".to_owned()).into(),
+            );
+        };
+        if pending.run_id != run_id {
+            return Err(PortError::Failed(
+                "run_snapshot_pending_invocation_run_mismatch".to_owned(),
+            )
+            .into());
+        }
+        if pending.approval_id != pending.challenge.approval_id {
+            return Err(PortError::Failed(
+                "run_snapshot_pending_invocation_approval_mismatch".to_owned(),
+            )
+            .into());
+        }
+        if pending.challenge.request_id != pending.request.request_id {
+            return Err(PortError::Failed(
+                "run_snapshot_pending_invocation_request_mismatch".to_owned(),
+            )
+            .into());
+        }
+        if projection.state != kiana_domain::CapabilityExecutionState::AwaitingApproval {
+            return Err(PortError::Failed(
+                "run_snapshot_pending_invocation_state_mismatch".to_owned(),
+            )
+            .into());
+        }
+        if projection.approval_id != Some(pending.approval_id) {
+            return Err(PortError::Failed(
+                "run_snapshot_pending_invocation_approval_mismatch".to_owned(),
+            )
+            .into());
+        }
+        let approval_context = RequestContext {
+            request_id: pending.request.request_id,
+            ..context.clone()
+        };
+        let material = self
+            .approvals
+            .pending_with_proof(
+                &approval_context,
+                pending.approval_id,
+                Some(&pending.challenge.request_hash),
+                Some(&pending.challenge.nonce),
+            )
+            .await?;
+        if material.request.request_id != pending.request.request_id
+            || material.challenge.approval_id != pending.approval_id
+            || material.challenge.request_id != material.request.request_id
+        {
+            return Err(PortError::Failed("approval_binding_changed".to_owned()).into());
+        }
+        let material_digest = kiana_domain::capability_action_digest(&material.request);
+        if projection.request.as_ref() != Some(&material.request)
+            || projection.args_fingerprint.as_deref() != Some(material_digest.as_str())
+        {
+            return Err(PortError::Failed("approval_action_changed".to_owned()).into());
+        }
+        pending.challenge = material.challenge;
+        pending.request = material.request;
+        pending.context = context.clone();
+        // The cursor is local to the continuation request stream. A global event sequence can
+        // belong to an unrelated aggregate and would allow a stale approval to overwrite facts.
+        let latest_sequence = events
+            .iter()
+            .filter(|event| event.request_id == pending.event_request_id)
+            .map(|event| event.sequence)
+            .max()
+            .unwrap_or(pending.event_sequence);
+        pending.event_sequence = latest_sequence;
+        Ok(Some(pending))
+    }
+
     pub async fn list_pending_approvals(
         &self,
         context: &RequestContext,
@@ -130,7 +289,9 @@ impl ControlPlane {
             .read_all_events()
             .await?
             .ok_or_else(|| PortError::Unavailable("run_resume_unsupported".to_owned()))?;
-        let events = crate::receipts::filter_run_events(&events, run_id);
+        let events = crate::receipts::try_filter_run_events(&events, run_id)
+            .map_err(|reason| CoreError::Port(PortError::Failed(reason)))?;
+        let projections = self.cache_invocation_projection(run_id, &events)?;
         let Some((index, event)) = events
             .iter()
             .enumerate()
@@ -212,22 +373,62 @@ impl ControlPlane {
                 "run_snapshot_stale",
             ));
         }
-        if let Some(pending) = &snapshot.pending_invocation {
-            let mut approval_context = context.clone();
-            approval_context.request_id = pending.request.request_id;
-            self.approvals
-                .validate_with_proof(
-                    &approval_context,
-                    pending.approval_id,
-                    Some(&pending.challenge.request_hash),
-                    Some(&pending.challenge.nonce),
+        let mut pending_invocation = match self
+            .rebuild_pending_invocation(
+                &context,
+                run_id,
+                &snapshot.sandbox,
+                &events,
+                &projections,
+                snapshot.pending_invocation.clone(),
+            )
+            .await
+        {
+            Ok(pending) => pending,
+            Err(error) => return Ok(CoreResponse::blocked(context.request_id, error.to_string())),
+        };
+        if let Some(pending) = &pending_invocation {
+            let prepared = match self
+                .prepare_capability_action(
+                    &context,
+                    pending.request.clone(),
+                    Some(&snapshot.sandbox),
+                    true,
+                )
+                .await
+            {
+                Ok(prepared) if prepared == pending.request => prepared,
+                Ok(_) => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "approval_action_changed",
+                    ))
+                }
+                Err(error) => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        redact_event_text(&error.to_string()),
+                    ))
+                }
+            };
+            let (_, gate) = self
+                .authorize_capability_action(
+                    &context,
+                    &prepared,
+                    Some((pending.approval_id, &pending.challenge.reason)),
                 )
                 .await?;
-            if let GateDecision::Denied { reason } = self.evaluate_gate(
-                &pending.request,
-                &self.evaluate_policy(&context, &pending.request),
-            ) {
-                return Ok(CoreResponse::blocked(context.request_id, reason));
+            match gate {
+                GateDecision::Allowed { .. } => {}
+                GateDecision::Denied { reason } => {
+                    return Ok(CoreResponse::blocked(context.request_id, reason))
+                }
+                GateDecision::AwaitingApproval { .. } => {
+                    return Ok(CoreResponse::blocked(
+                        context.request_id,
+                        "approval_requirements_changed",
+                    ))
+                }
             }
         }
         // Claim against the exact observed stream version before installing a runner.
@@ -265,10 +466,12 @@ impl ControlPlane {
         }
         self.runner.restore(run_id, snapshot.runner_state).await?;
         self.remember_session(&context, run_id);
-        if let Some(mut pending) = snapshot.pending_invocation.take() {
+        if let Some(mut pending) = pending_invocation.take() {
             // Keep original capability IDs, while placing subsequent facts in this explicit resume request.
             pending.context.request_id = context.request_id;
             pending.event_request_id = context.request_id;
+            // `run.resume_prepared` is sequence 1 in the fresh request-local continuation;
+            // pending approval facts appended by this resume therefore start at sequence 2.
             pending.event_sequence = 2;
             let challenge = pending.challenge.clone();
             self.pending_invocations

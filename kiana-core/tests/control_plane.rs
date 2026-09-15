@@ -4,13 +4,14 @@ use kiana_core::{
     project_run_state, ControlPlane, CoreError, RunOutcome, RunPhase, RunProjectionError, RunState,
 };
 use kiana_domain::{
-    ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, CapabilityKind,
-    CapabilityRequest, CapabilityResult, CommandIntent, ConversationMessage, ConversationRole,
-    ExecutionStatus, PendingApproval, PermissionProfile, RequestContext, RequestId, RoleSpec,
-    RunId, RuntimeEvent, WorkPacket, APPROVAL_CHALLENGE_SCHEMA,
+    ApprovalChallenge, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest,
+    CapabilityExecutionState, CapabilityKind, CapabilityRequest, CapabilityResult, CommandIntent,
+    ConversationMessage, ConversationRole, ExecutionStatus, GateDecision, PendingApproval,
+    PermissionProfile, PolicyDecision, RequestContext, RequestId, RoleSpec, RunId, RuntimeEvent,
+    WorkPacket, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
-use kiana_gates::DefaultGateEngine;
+use kiana_gates::{DefaultGateEngine, GateEngine};
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
 use kiana_runner::{KianaHarness, ScriptedModel};
@@ -321,6 +322,18 @@ fn scripted_runner(outputs: Value) -> Arc<KianaHarness> {
 
 struct SuccessfulBroker;
 
+/// `P0-G-04` 夹具：重启后使用的 gate——无论策略结论如何一律拒绝，
+/// 用于证明 resume 路径对未决 Invocation 重新执行了授权检查。
+struct DenyingGateEngine;
+
+impl GateEngine for DenyingGateEngine {
+    fn evaluate(&self, _policy: &PolicyDecision) -> GateDecision {
+        GateDecision::Denied {
+            reason: "gate_denied_after_restart".to_owned(),
+        }
+    }
+}
+
 #[async_trait]
 impl CapabilityBrokerPort for SuccessfulBroker {
     async fn execute(
@@ -472,6 +485,23 @@ impl ApprovalStorePort for TestApprovalStore {
             }
         }
         Ok(())
+    }
+
+    async fn pending_with_proof(
+        &self,
+        _context: &RequestContext,
+        approval_id: ApprovalId,
+        request_hash: Option<&str>,
+        nonce: Option<&str>,
+    ) -> Result<PendingApproval, PortError> {
+        self.validate_with_proof(_context, approval_id, request_hash, nonce)
+            .await?;
+        self.pending
+            .lock()
+            .await
+            .as_ref()
+            .map(|(pending, _, _)| pending.clone())
+            .ok_or_else(|| PortError::Failed("approval_not_found".to_owned()))
     }
 
     async fn invalidate(
@@ -5367,6 +5397,191 @@ async fn new_process_rebuilds_run_state_from_events_alone() {
             error: None,
         }
     );
+}
+
+/// `P0-G-04`：一个全新进程（全新 `ControlPlane`，runner 不可用）必须能仅凭事件账本
+/// 重建该 run 的 Invocation 投影——能力请求经 capability.completed 终结、状态为
+/// Succeeded，不依赖任何内存 map。
+#[tokio::test]
+async fn new_process_rebuilds_invocation_state_from_events_alone() {
+    let events = Arc::new(MemoryEventLog::new());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(TwoTurnDeltaRunner),
+    );
+    let context = trusted_context();
+    let response = core
+        .start_run(context, "rebuild invocations from events".to_owned(), None)
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::Completed);
+    let run_id = RunId::parse_str(response.output["run_id"].as_str().unwrap()).unwrap();
+
+    // 新进程：只保留共享事件日志，runner 换成不可用实例，证明投影不靠 runner 内存。
+    let restarted = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(CapabilityBroker::new()),
+        Arc::new(TestApprovalStore::default()),
+        Arc::new(UnavailableRunner),
+    );
+    let invocations = restarted.invocation_state(run_id).await.unwrap();
+    assert_eq!(invocations.len(), 1, "{invocations:?}");
+    let invocation = &invocations[0];
+    assert_eq!(invocation.state, CapabilityExecutionState::Succeeded);
+    assert_eq!(invocation.operation.as_deref(), Some("search"));
+    assert!(
+        invocation.result.is_some(),
+        "a terminal capability outcome must carry its result payload"
+    );
+    assert!(
+        !invocation.event_ids.is_empty(),
+        "the projection must cite the events it folded"
+    );
+    // run.tool_call 与 run.capability_requested 必须都被折叠进同一条投影。
+    assert!(
+        invocation.event_ids.len() >= 2,
+        "the stable capability request ID must fold the tool call and request facts together"
+    );
+}
+
+/// `P0-G-04`：投影在折叠到矛盾终态时必须 fail-closed（`invocation_terminal_conflict`），
+/// 不能任选一个终态继续。
+#[tokio::test]
+async fn invocation_projection_conflicting_terminals_fail_closed() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let capability_request_id = RequestId::new();
+    let events = vec![
+        run_event(
+            request_id,
+            run_id,
+            1,
+            "run.capability_requested",
+            json!({
+                "run_id": run_id,
+                "request_id": capability_request_id,
+                "capability": "query",
+                "operation": "search",
+                "call_id": "call-conflict",
+                "risk": "read_only",
+                "arguments": {"query": "conflict"},
+            }),
+        ),
+        run_event(
+            request_id,
+            run_id,
+            2,
+            "capability.decision",
+            json!({
+                "run_id": run_id,
+                "capability_request_id": capability_request_id,
+                "gate": {"decision": "allowed", "authorization_id": "auth-conflict"},
+            }),
+        ),
+        run_event(
+            request_id,
+            run_id,
+            3,
+            "invocation.dispatching",
+            json!({
+                "run_id": run_id,
+                "capability_request_id": capability_request_id,
+                "operation": "search",
+            }),
+        ),
+        run_event(
+            request_id,
+            run_id,
+            4,
+            "capability.completed",
+            json!({
+                "run_id": run_id,
+                "capability_request_id": capability_request_id,
+                "result": {"success": true},
+            }),
+        ),
+        run_event(
+            request_id,
+            run_id,
+            5,
+            "capability.failed",
+            json!({
+                "run_id": run_id,
+                "capability_request_id": capability_request_id,
+                "result": {"success": false, "error": "contradiction"},
+            }),
+        ),
+    ];
+    let error = kiana_core::project_invocations(run_id, &events).unwrap_err();
+    assert_eq!(error, "invocation_terminal_conflict");
+}
+
+/// `P0-G-04`：重启后（缓存必然 miss），待审批 Invocation 必须从账本重建，并且 resume
+/// 会对未决能力请求重新执行授权检查——用已改动的 gate（不再放行）证明重检真实发生。
+#[tokio::test]
+async fn projection_cache_miss_rebuilds_pending_invocations_with_authorization_recheck() {
+    let events = Arc::new(MemoryEventLog::new());
+    let approvals = Arc::new(TestApprovalStore::default());
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DefaultGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        approvals.clone(),
+        scripted_runner(json!([
+            {
+                "text": "writing",
+                "tool_calls": [{
+                    "id": "g04-approval",
+                    "name": "apply_patch",
+                    "arguments": {
+                        "patch": "*** Begin Patch\n*** Add File: G04.txt\n+pending\n*** End Patch\n"
+                    }
+                }]
+            },
+            {"text": "done"}
+        ])),
+    );
+    let root = temp_project();
+    let context = trusted_write_role(&root, &RoleSpec::builder());
+    let response = core
+        .start_run(
+            context,
+            "write G04 then finish".to_owned(),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::AwaitingApproval);
+    let run_id = RunId::parse_str(response.output["run_id"].as_str().unwrap()).unwrap();
+
+    // 新进程：内存 pending_invocations map 为空（缓存 miss），只能靠事件折叠。
+    let restarted = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(DenyingGateEngine),
+        events,
+        Arc::new(SuccessfulBroker),
+        approvals,
+        Arc::new(UnavailableRunner),
+    );
+    let resumed = restarted
+        .resume_run(
+            trusted_write_role(&root, &RoleSpec::builder()),
+            Some(run_id),
+        )
+        .await
+        .unwrap();
+    // 缓存 miss 后投影重建了 pending invocation，且重新授权检查因 gate 拒绝而失败：
+    // 这正是「重建 + 重检」的证明；若任一环节缺失，结果会是 approval_continuation_unavailable
+    // 或盲目放行。
+    assert_eq!(resumed.status, ExecutionStatus::Blocked);
+    assert_eq!(resumed.error.as_deref(), Some("gate_denied_after_restart"));
 }
 
 #[tokio::test]

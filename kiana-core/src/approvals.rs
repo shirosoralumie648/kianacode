@@ -525,7 +525,7 @@ impl ControlPlane {
             invocation.event_request_id,
             &mut sequence,
             "capability.decision",
-            json!({"run_id":invocation.run_id,"policy":policy,"gate":gate}),
+            json!({"run_id":invocation.run_id,"capability_request_id":request.request_id,"policy":policy,"gate":gate}),
         )
         .await?;
         let authorization_id = match gate {
