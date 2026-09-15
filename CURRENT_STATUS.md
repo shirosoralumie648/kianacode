@@ -893,6 +893,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EQ-00 evaluation/source-boundary reconciliation; no runtime test reviewer
 ```
 
+### PD-00 persistence/data-layer baseline evidence (2026-09-16)
+
+```text
+source_snapshot: 5226b97; kiana-domain/src/{journal,governance}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/{lib,jsonl,memory}.rs; kiana-daemon/src/{approval_store,harness_memory}.rs; kiana-query/src/{index,repo_map}.rs; kiana-core/src/{artifacts,receipts,recovery,projection}.rs; kiana-core/tests/persistence_baseline.rs; .github/workflows/pd00-baseline.yml; docs/roadmap/persistence-data-layer-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: PD-00 source-only persistence/data-layer inventory, fact/projection/cache owner matrix, JSONL/Memory/Approval/Artifact/Index capability and failure boundary, logical StorageRoot target, migration/backup/retention guard and PD-01..35 fixture catalog are scoped to this step; no StorageCoordinator/second EventLog/second execution loop was added; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/journal.rs kiana-domain/src/governance.rs kiana-ports/src/lib.rs kiana-eventlog/src/lib.rs kiana-eventlog/src/jsonl.rs kiana-eventlog/src/memory.rs kiana-daemon/src/approval_store.rs kiana-daemon/src/harness_memory.rs kiana-query/src/index.rs kiana-query/src/repo_map.rs kiana-core/src/artifacts.rs kiana-core/src/receipts.rs kiana-core/src/recovery.rs kiana-core/src/projection.rs kiana-core/tests/persistence_baseline.rs .github/workflows/pd00-baseline.yml docs/roadmap/persistence-data-layer-baseline.md
+  rg -n 'EventStorePort|commit_transition|read_from|JsonlEventLog|MemoryEventLog|JOURNAL_HEADER_SCHEMA|MAX_JOURNAL_LOG_BYTES|sync_all|durable_commits: false|StorageRoot|ProjectionStore|ArtifactStore|backup|migration|retention|不能把 Memory 标成 durable' kiana-domain/src kiana-ports/src kiana-eventlog/src kiana-daemon/src kiana-query/src kiana-core/src kiana-core/tests/persistence_baseline.rs docs/roadmap/persistence-data-layer-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/persistence_baseline.rs; EventStore/Transition/CAS/cursor, JSONL v2/fsync/torn-tail/capacity, Memory non-durable, Approval proof/TTL, Artifact identity/hash, Memory scope, Query generation/cache and absent StorageRoot/Projection/Backup/Migration/Retention service assertions; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions PD-00 job is queued by the push and is not awaited
+status_change: PD-00 source baseline is implemented. EventStore/RuntimeEvent and atomic Transition/CommandReceipt remain the sole fact write authority; JSONL v2 exposes lock/fsync/checksum/CAS/dedup/cursor/limit boundaries while Memory explicitly reports non-durable. ApprovalStore, Artifact bytes, Memory records, Query/index/cache, Receipt and projections are separate scoped/derived layers with visible read/identity/hash failures. Logical StorageRoot/StoreIdentity, Projection/Artifact/Backup/Migration/Retention ports and cross-process recovery are recorded as targets only; no second store or service was introduced.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; unified StorageRoot/owner namespace, projector checkpoint/generation, Artifact/Backup/Migration/Retention stores, Approval/Cell/PendingInvocation durable convergence, cross-process/power-loss/SQLite conformance, and data-layer UAT remain PD-01..PD-35; Memory/index/cache/CI/file existence cannot prove durable or business outcome
+reviewer: Codex root implementation review plus PD-00 persistence/fact-boundary reconciliation; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
