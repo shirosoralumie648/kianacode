@@ -34,7 +34,10 @@ use kiana_domain::{
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
-use kiana_ports::{PortError, RunnerPort};
+use kiana_ports::{
+    ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats,
+    PortError, QueuedObservabilityItem, RunnerPort,
+};
 use kiana_protocol::{
     RequestBody, RequestEnvelope, ResponseEnvelope, UiAction, UiCursor, UiSnapshot, PROTOCOL_SCHEMA,
 };
@@ -47,12 +50,14 @@ use std::time::Duration;
 
 const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
 const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
+const OBSERVABILITY_QUEUE_CAPACITY: usize = 1_024;
 
 pub struct DaemonHost {
     core: Arc<ControlPlane>,
     principal: AuthenticatedPrincipal,
     project_authority: Arc<dyn ProjectTrustAuthority>,
     run_stream: Arc<RunStreamBus>,
+    observability_queue: Arc<ObservabilityQueue>,
 }
 
 pub trait ProjectTrustAuthority: Send + Sync {
@@ -119,6 +124,10 @@ impl DaemonHost {
             principal: AuthenticatedPrincipal::local(),
             project_authority,
             run_stream,
+            observability_queue: Arc::new(
+                ObservabilityQueue::new(OBSERVABILITY_QUEUE_CAPACITY)
+                    .expect("static observability queue capacity is non-zero"),
+            ),
         }
     }
 
@@ -273,6 +282,40 @@ impl DaemonHost {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
+    /// Enqueue a redacted observation without blocking the ControlPlane or EventStore commit.
+    pub fn try_enqueue_observability(
+        &self,
+        item: QueuedObservabilityItem,
+    ) -> Result<(), ObservabilityQueueError> {
+        self.observability_queue.try_enqueue(item)
+    }
+
+    pub fn observability_queue(&self) -> Arc<ObservabilityQueue> {
+        self.observability_queue.clone()
+    }
+
+    pub async fn flush_observability(&self) -> u64 {
+        self.observability_queue.flush().await
+    }
+
+    pub fn shutdown_observability(&self) -> ObservabilityQueueStats {
+        self.observability_queue.shutdown()
+    }
+
+    pub fn reopen_observability(&self) -> ObservabilityQueueStats {
+        self.observability_queue.reopen()
+    }
+
+    pub fn enqueue_terminal_observation(
+        &self,
+        source_cursor: u64,
+    ) -> Result<(), ObservabilityQueueError> {
+        self.try_enqueue_observability(QueuedObservabilityItem::critical(
+            ObservabilityQueueClass::Terminal,
+            source_cursor,
+        ))
+    }
+
     /// Read-only startup/readiness/liveness projection assembled by the ControlPlane.
     ///
     /// The daemon component is marked healthy only because this host successfully served the
@@ -302,6 +345,26 @@ impl DaemonHost {
         )
         .map_err(|error| PortError::Failed(error.to_owned()))?;
         snapshot.components.insert("daemon".to_owned(), daemon);
+        let queue_stats = self.observability_queue.stats();
+        if queue_stats.dropped_best_effort_total > 0 || queue_stats.critical_rejected_total > 0 {
+            snapshot.status = kiana_domain::SignalStatus::Degraded;
+            if snapshot.limitations.len() < kiana_domain::MAX_HEALTH_LIMITATIONS {
+                snapshot
+                    .limitations
+                    .push("observability_queue_drop_or_reject".to_owned());
+            }
+            let telemetry = ComponentHealth::new(
+                "telemetry",
+                "telemetry.v1",
+                ComponentHealthState::Degraded,
+                Some(snapshot.source_cursor),
+                Some("observability_queue_drop_or_reject".to_owned()),
+            )
+            .map_err(|error| PortError::Failed(error.to_owned()))?;
+            snapshot
+                .components
+                .insert("telemetry".to_owned(), telemetry);
+        }
         snapshot.snapshot_digest = snapshot.digest();
         snapshot
             .validate()

@@ -468,6 +468,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-11 domain/core/daemon static-boundary review; no runtime test reviewer
 ```
 
+### OA-12 metric catalog/reducer/cardinality evidence (2026-09-15)
+
+```text
+source_snapshot: 5db96f2; kiana-domain/src/observability.rs; kiana-core/src/{metrics,lib}.rs; kiana-core/tests/oa12_metric_governance.rs; .github/workflows/oa12-metric-governance.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-12 typed metric catalog/quality, cardinality guard, overflow/counter/cursor reducer, replay/live parity fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/observability.rs kiana-core/src/metrics.rs kiana-core/src/lib.rs kiana-core/tests/oa12_metric_governance.rs .github/workflows/oa12-metric-governance.yml
+  rg -n 'MetricQuality|MetricCardinalityGuard|MetricReducer|metric_counter_reset|metric_cardinality|catalog_digest' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa12_metric_governance --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa12_metric_governance.rs; catalog kind/unit/digest, sensitive label/value, distinct-value overflow, counter reset/cursor regression, measured/estimated quality and replay/live parity fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-12 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-12 job is queued by the push and is not awaited
+status_change: OA-12 source slice is implemented. MetricCatalog/MetricPoint now carry typed kind/unit, explicit measured/estimated quality and catalog digest binding; MetricCardinalityGuard rejects unregistered/sensitive/high-cardinality labels and bounded overflow; MetricReducer applies transactional catalog/cardinality/counter monotonicity/cursor checks to both incremental and replay snapshots, with duplicate digest idempotence and no EventLog/Broker side effects.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; metric reducer remains process-local with no durable sink/queue/checkpoint or runtime gauge feed, overflow reporting is not persisted, and estimated metrics never prove measured cost or external effect
+reviewer: Codex root implementation review plus OA-12 domain/core metric-governance static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

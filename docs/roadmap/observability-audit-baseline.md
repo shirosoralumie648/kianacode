@@ -59,6 +59,9 @@
 | Core health exports（OA-11 overlay） | `kiana-core/src/lib.rs` | `3a2577d0c6659fcb5d1b455787a08fbba30f24f247576e5fcbf1a5cac4e40083` |
 | Metric reducer/cardinality guard（OA-12 overlay） | `kiana-core/src/metrics.rs` | `5ca67e24913dbb43f4b90e9e6c4054d42da072e767069a33fcefdb58fdb622ea` |
 | Metric reducer exports（OA-12 overlay） | `kiana-core/src/lib.rs` | `db071a3de3d0c97e97027eed5c453d7e9a1650f4fa5e10f71466035c364512b5` |
+| Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
+| Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
+| Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
 | DaemonHost health bridge（OA-11 overlay） | `kiana-daemon/src/lib.rs` | `d673fd32687057ac9653cd92114182864a477eea2d3736389d2ffd148b127ac4` |
 | Capability admission/effect instrumentation（OA-09 overlay） | `kiana-core/src/capabilities.rs` | `34a78eb181ef97253ab41d254ca298e621e9ea540ccec73a0bb94fde7dfbd061` |
 | Approval effect metadata（OA-09 overlay） | `kiana-core/src/approvals.rs` | `439a602ee0463d1be33ce144d787e5b7b6cbdb19db7277de2da248aa0cf28b1e` |
@@ -144,6 +147,7 @@
 | OA-10 | EventLog/projector/Receipt/Artifact/Recovery metrics | `source`；`MetricSnapshot` 与 committed-event reducer 已实现 durable/projector cursor、lag、commit/latency/rebuild/query、orphan/unknown、artifact bytes 和 last-error presence；尚无 durable projector checkpoint、runtime gauge、receipt reconciliation 或 live exporter |
 | OA-11 | health snapshot/readiness/liveness/component capability | `source`；`HealthProbeKind`/`ComponentHealth`、core health aggregator 和 DaemonHost read-only bridge 已实现；stale/gap/unknown/unsupported capability 返回 degraded/unavailable；尚无 durable heartbeat、provider/Broker/exporter live probe 或 admission gate 接线 |
 | OA-12 | Metric catalog/reducer/cardinality guard | `source`；typed catalog/unit、MetricQuality、catalog digest、allowlist/cardinality guard、overflow、counter reset/cursor regression 和 replay/live reducer 已实现；尚无 durable MetricSink/queue、runtime gauge feed 或 checkpoint/exporter |
+| OA-13 | asynchronous queue/backpressure/drop policy | `source`；bounded non-blocking queue、critical preservation、best-effort drop reason/counter、flush/shutdown/reopen/cancel ack 和 DaemonHost bridge 已实现；尚无 durable spool、consumer/exporter、cross-process shutdown 或 queue checkpoint |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -389,3 +393,22 @@ OA-12 远端 workflow 覆盖目录 digest/kind/unit、未知 metric、敏感 lab
 overflow、counter reset/cursor regression、estimated/measured quality、replay/live 一致与 serde 夹具；
 本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该治理仍是 source proof，不等价
 于 durable metric sink、队列背压、跨进程 checkpoint、runtime gauge 或 live exporter。
+
+## 19. OA-13 叠加说明
+
+OA-13 在 `kiana-ports::ObservabilityQueue` 固定 bounded、non-blocking admission：
+`Event|Audit|Approval|Recovery|Terminal` 是 critical，`Log|Trace|Metric` 是 best-effort。队列满载时
+critical 只可淘汰一个 best-effort 项；若全是 critical，立即返回 `critical_queue_full` 并记录 reject
+计数/原因，不等待慢消费者、不丢事实。best-effort 满载返回 `best_effort_queue_full`，记录 drop 计数和
+有界 `last_drop_reason`；这些结果是诊断，不能改写已提交 EventLog/Receipt/Approval/Recovery 状态。
+
+队列提供 `try_enqueue`、`try_dequeue`/`dequeue`、`flush`/`flush_cancellable`、`shutdown` 与 `reopen`，
+并返回 capacity/depth/enqueued/dequeued/drop/reject/flush/reopen/closed 统计。flush 只证明项目被消费，
+不伪称 exporter/durable sink ack；shutdown 保留尚未消费的 critical 项，reopen 不声称跨进程 spool 恢复。
+`DaemonHost` 仅持有并暴露该队列，队列 drop/reject 会让 telemetry component/HealthSnapshot 降级，不创建
+第二模型循环、Broker 路径或 EventLog 写路径。
+
+OA-13 远端 workflow 覆盖 critical 保留/驱逐 best-effort、critical 满载立即拒绝、drop/reject reason/counter、
+flush/shutdown/reopen/cancellable ack 和 bounded stats；本地只执行格式、静态源码检查和 test-target 编译，
+不执行测试二进制。该队列仍是 source-level delivery primitive，不等价于 durable spool、异步 exporter、
+跨进程 shutdown/reopen、backpressure persistence 或 live telemetry。

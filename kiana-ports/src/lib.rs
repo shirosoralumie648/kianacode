@@ -30,6 +30,12 @@ use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
 
+mod observability_queue;
+pub use observability_queue::{
+    ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats,
+    QueuedObservabilityItem,
+};
+
 /// Read-only edit checkpoint adapter. Restoring files is deliberately absent: it is brokered.
 #[async_trait]
 pub trait WorkspaceCheckpointPort: Send + Sync {
