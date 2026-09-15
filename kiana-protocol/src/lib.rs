@@ -8,15 +8,15 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, AgentTemplate, ApprovalChallenge, ApprovalDecision, ApprovalId,
-    ArtifactId, AuditActionKind, AuditDecision, AuditRecord, BudgetLease, BudgetLeaseId,
-    CapabilityErrorCode, CapabilityErrorPolicy, CapabilityExecutionState, CapabilityGrant,
-    CapabilityGrantId, CellId, CellLifecycle, CellSpec, ClosingReceipt, DelegationId,
-    DelegationPacket, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt, OrganizationId,
-    PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, SessionId,
-    SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId,
-    WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH,
-    REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
-    WORK_PACKET_SCHEMA,
+    ArtifactId, AuditActionKind, AuditDecision, AuditQueryCursor, AuditRecord, BudgetLease,
+    BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy, CapabilityExecutionState,
+    CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec, ClosingReceipt,
+    DelegationId, DelegationPacket, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt,
+    OrganizationId, PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec,
+    RunId, SessionId, SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium,
+    TemplateId, TurnId, WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING,
+    MERGE_RECEIPT_PATH, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM,
+    ROLE_REVIEWER, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -487,6 +487,8 @@ pub struct AuditQueryRequest {
     pub decision: Option<AuditDecision>,
     #[serde(default)]
     pub target_kind: Option<String>,
+    #[serde(default)]
+    pub cursor: Option<AuditQueryCursor>,
 }
 
 impl AuditQueryRequest {
@@ -506,6 +508,18 @@ impl AuditQueryRequest {
         {
             return Err("audit_query_filter_invalid");
         }
+        if let Some(cursor) = &self.cursor {
+            cursor
+                .validate()
+                .map_err(|_| "audit_query_cursor_invalid")?;
+            if self
+                .source_cursor
+                .is_some_and(|value| value != cursor.source_cursor)
+                || (self.after_cursor != 0 && self.after_cursor != cursor.after_cursor)
+            {
+                return Err("audit_query_cursor_invalid");
+            }
+        }
         Ok(())
     }
 }
@@ -516,7 +530,7 @@ pub struct AuditQueryResponse {
     pub schema: String,
     pub records: Vec<AuditRecord>,
     #[serde(default)]
-    pub next_cursor: Option<kiana_domain::EventCursor>,
+    pub next_cursor: Option<AuditQueryCursor>,
     pub source_cursor: kiana_domain::EventCursor,
     pub projection_version: u64,
     #[serde(default)]

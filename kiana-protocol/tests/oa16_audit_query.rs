@@ -13,6 +13,7 @@ fn audit_query_wire_is_versioned_bounded_and_round_trips() {
         action_kind: Some(AuditActionKind::Capability),
         decision: Some(AuditDecision::Denied),
         target_kind: Some("capability".to_owned()),
+        cursor: None,
     };
     query.validate().unwrap();
     let request = RequestEnvelope::audit_query(metadata, query.clone());
@@ -36,6 +37,7 @@ fn audit_query_rejects_unbounded_or_stale_client_filters() {
         action_kind: None,
         decision: None,
         target_kind: None,
+        cursor: None,
     };
     let mut unlimited = base.clone();
     unlimited.limit = 1_001;
@@ -56,6 +58,7 @@ fn audit_query_rejects_unbounded_or_stale_client_filters() {
         action_kind: None,
         decision: None,
         target_kind: Some(" ".to_owned()),
+        cursor: None,
     };
     assert_eq!(target.validate().unwrap_err(), "audit_query_filter_invalid");
     target.target_kind = Some("run".to_owned());
@@ -74,6 +77,7 @@ fn audit_query_wire_rejects_owner_scope_and_raw_event_fields() {
             action_kind: None,
             decision: None,
             target_kind: None,
+            cursor: None,
         },
     );
     let mut encoded = serde_json::to_value(&request).unwrap();

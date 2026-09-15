@@ -557,6 +557,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-16 core/protocol/client/daemon static-boundary review; no runtime test reviewer
 ```
 
+### OA-17 query cursor/snapshot/paging evidence (2026-09-15)
+
+```text
+source_snapshot: a8a9f32; kiana-domain/src/{contracts,observability}.rs; kiana-core/src/{audit_projection,lib}.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-protocol/tests/oa16_audit_query.rs; kiana-core/tests/oa17_query_cursor.rs; .github/workflows/oa17-query-cursor.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-17 AuditQueryCursor contract, protocol cursor field/next-cursor shape, core epoch/filter/source binding and stale/ahead guards, remote-only cursor fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-core/src/audit_projection.rs kiana-core/src/lib.rs kiana-protocol/src/lib.rs kiana-daemon/src/lib.rs kiana-core/tests/oa17_query_cursor.rs .github/workflows/oa17-query-cursor.yml
+  rg -n 'AuditQueryCursor|audit_query_cursor_stale|query_filter_digest|next_cursor|projection_version|filter_digest' kiana-domain/src kiana-core/src kiana-protocol/src kiana-daemon/src kiana-core/tests kiana-protocol/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa17_query_cursor --locked --offline
+  cargo check -p kiana-protocol --test oa16_audit_query --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa17_query_cursor.rs and protocol OA-16 cursor round-trip; cursor digest/epoch/version/filter binding, after/source bounds, stale version and bounded paging contracts; GitHub Actions only
+exit_code: 0 for source hashes, format, core/protocol OA-17 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-17 job is queued by the push and is not awaited
+status_change: OA-17 source slice is implemented. `kiana.audit-query-cursor.v1` and `AuditQueryCursor` bind epoch, projection version, source/after cursor, filter digest and cursor digest. `AuditQueryRequest` validates cursor compatibility; `ControlPlane::query_audit` rejects stale/ahead/source/filter mismatches and emits a bound next cursor, preserving empty-vs-unavailable semantics without raw EventLog or authorization side effects.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cursor epoch/filter snapshot is derived in process from the current projection and is not durable, retention revoke/reconnect/multi-tab parity and slow-query instrumentation remain open, query still requires read-all and export/delivery are not wired
+reviewer: Codex root implementation review plus OA-17 domain/core/protocol cursor static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

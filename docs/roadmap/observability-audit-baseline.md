@@ -72,6 +72,11 @@
 | Audit query protocol DTO（OA-16 overlay） | `kiana-protocol/src/lib.rs` | `ec545dd0390d7492bf455d5824af8370afd7ca6d47969f01695856204a5fb407` |
 | Audit query client facade（OA-16 overlay） | `kiana-client/src/lib.rs` | `c9749b96fb2077ed574216390a935195d9c7a966cad7a8753abd4bc1df516136` |
 | Audit query DaemonHost route（OA-16 overlay） | `kiana-daemon/src/lib.rs` | `e7ed9167cd00c39a6c292661a7909d091d2418be3acd18494c2ef5c5458745c3` |
+| Audit query cursor contract（OA-17 overlay） | `kiana-domain/src/observability.rs` | `9e2f417c4cc88636c5049a74cb87d863678c6bf9d8f7309a28eb25331a106537` |
+| Audit query cursor schema registry（OA-17 overlay） | `kiana-domain/src/contracts.rs` | `8739613390c463a5d1d45eb066c6f26a52cdbf9a205ae12ea7f7d9ff794f0a49` |
+| Audit query cursor reducer（OA-17 overlay） | `kiana-core/src/audit_projection.rs` | `5ddf6d04d6ce42d9f657a65d00f40a391af69f80a4f76aa785d57e4268fcd5fd` |
+| Audit query cursor protocol（OA-17 overlay） | `kiana-protocol/src/lib.rs` | `2c5506dd9bdb9e998898fe8cb367442b7d3b71298bf6569a48ee321bf1cdaf1e` |
+| Audit query cursor DaemonHost route（OA-17 overlay） | `kiana-daemon/src/lib.rs` | `5bdb0e6a02eef8b52d636237f1c148b44a35d2772c78aed9c03a51eb802ce7e4` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -164,6 +169,7 @@
 | OA-14 | trace exporter and W3C context adapter | `source`；TraceExportSpan contract、foreign parent link、sampling/invalid-parent/capacity guards、local JSONL/no-op exporter、flush/shutdown/reopen 已实现；尚无 OTLP/durable backend、async consumer 或 persisted sampling policy |
 | OA-15 | AuditProjection checkpoint/rebuild | `source`；AuditProjectionSnapshot/Checkpoint、rebuild/append/restore、source cursor/event/schema/decision/checksum binding 已实现；尚无 durable checkpoint store、cross-process automatic reload、Artifact ref/query/export/correction/incident wiring |
 | OA-16 | Audit query command/wire DTO | `source`；server-scoped AuditQuery request/page、ControlPlane filter、DaemonHost/client route、bounded limit/cursor and raw-event rejection 已实现；尚无 durable query index/filter snapshot, cross-entry parity, export/delivery or external auth provider |
+| OA-17 | Query cursor/snapshot/paging and slow-query boundary | `source`；AuditQueryCursor epoch/projection/source/after/filter digest binding、stale/ahead rejection and bounded next cursor 已实现；尚无 durable query index/retention snapshot, slow-query instrumentation, reconnect parity or multi-entry cursor store |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -488,3 +494,21 @@ OA-16 远端 workflow 覆盖 wire round-trip、unknown owner/raw event 字段、
 边界、server-scoped query/filter/page DTO；本地只执行格式、静态源码检查和 test-target 编译，不执行测试
 二进制。该切片仍是 source-level query route，不等价于 durable audit index、filter-bound cursor snapshot、
 跨入口 parity、外部认证服务、导出或 delivery receipt。
+
+## 23. OA-17 叠加说明
+
+OA-17 注册 `kiana.audit-query-cursor.v1`，`AuditQueryCursor` 固定 epoch、projection version、当前
+source cursor、after cursor、filter digest 和 cursor digest；cursor 不携带 owner、scope、raw event 或
+权限字段。`AuditQueryRequest` 保留兼容的 source/after 字段但若携带 cursor 必须逐字段一致；未知字段、
+空/越界 cursor、坏 digest 和 filter mismatch fail-closed。
+
+`ControlPlane::query_audit` 在重建 OA-15 projection 后以 checkpoint digest 作为当前 epoch，以 canonical
+action/decision/target filter digest 绑定查询；cursor 的 source/projection/epoch/filter 任一变化返回
+`audit_query_cursor_stale`，after 超过当前 source 返回 `audit_query_cursor_invalid`。分页只在有下一页时
+生成新的 `AuditQueryCursor`，返回页携带 source cursor、projection version、epoch、filter digest 和
+limitations；空页仍表示匹配为空，EventLog read-all/投影不可用仍返回 unavailable，不混为零工作。
+
+OA-17 远端 workflow 覆盖 cursor serde/digest、字段绑定、stale/ahead/filter mismatch、bounded page 与
+next cursor；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该 cursor 仍是 source
+projection token，不等价于 durable query index、retention/epoch store、慢查询 telemetry 或跨入口 reconnect
+一致性。

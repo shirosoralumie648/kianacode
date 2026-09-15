@@ -5,8 +5,8 @@
 
 use kiana_domain::{
     AuditActionKind, AuditDecision, AuditProjectionCheckpoint, AuditProjectionSnapshot,
-    AuditRecord, CoreResponse, EventCursor, EventId, RequestContext, RuntimeEvent,
-    MAX_AUDIT_PROJECTION_RECORDS, MAX_SOURCE_EVENT_IDS,
+    AuditQueryCursor, AuditRecord, CoreResponse, EventCursor, EventId, RequestContext,
+    RuntimeEvent, MAX_AUDIT_PROJECTION_RECORDS, MAX_SOURCE_EVENT_IDS,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -54,6 +54,7 @@ pub struct AuditQueryInput {
     pub action_kind: Option<AuditActionKind>,
     pub decision: Option<AuditDecision>,
     pub target_kind: Option<String>,
+    pub cursor: Option<AuditQueryCursor>,
 }
 
 impl AuditQueryInput {
@@ -71,8 +72,28 @@ impl AuditQueryInput {
                 return Err(AuditProjectionError::QueryFilterInvalid);
             }
         }
+        if let Some(cursor) = &self.cursor {
+            cursor
+                .validate()
+                .map_err(|_| AuditProjectionError::QueryCursorInvalid)?;
+            if self
+                .source_cursor
+                .is_some_and(|value| value != cursor.source_cursor)
+                || (self.after_cursor != 0 && self.after_cursor != cursor.after_cursor)
+            {
+                return Err(AuditProjectionError::QueryCursorInvalid);
+            }
+        }
         Ok(())
     }
+}
+
+fn query_filter_digest(query: &AuditQueryInput) -> String {
+    kiana_domain::json_digest(&serde_json::json!({
+        "action_kind": query.action_kind,
+        "decision": query.decision,
+        "target_kind": query.target_kind,
+    }))
 }
 
 fn event_cursor(
@@ -306,6 +327,30 @@ impl ControlPlane {
                 kiana_ports::PortError::Conflict("audit_query_cursor_stale".to_owned()).into(),
             );
         }
+        if query.after_cursor > projection.source_cursor {
+            return Err(
+                kiana_ports::PortError::Conflict("audit_query_cursor_invalid".to_owned()).into(),
+            );
+        }
+        let filter_digest = query_filter_digest(&query);
+        let epoch = projection.checkpoint.checkpoint_digest.clone();
+        if let Some(cursor) = &query.cursor {
+            if cursor.source_cursor != projection.source_cursor
+                || cursor.projection_version != projection.projection_version
+                || cursor.epoch != epoch
+                || cursor.filter_digest != filter_digest
+            {
+                return Err(kiana_ports::PortError::Conflict(
+                    "audit_query_cursor_stale".to_owned(),
+                )
+                .into());
+            }
+        }
+        let after_cursor = query
+            .cursor
+            .as_ref()
+            .map(|cursor| cursor.after_cursor)
+            .unwrap_or(query.after_cursor);
 
         let actor = context
             .actor_id
@@ -388,7 +433,7 @@ impl ControlPlane {
                     .iter()
                     .any(|event_id| owned_event_ids.contains(&event_id.to_string()))
             })
-            .filter(|record| record.source_cursor > query.after_cursor)
+            .filter(|record| record.source_cursor > after_cursor)
             .filter(|record| {
                 query
                     .action_kind
@@ -409,7 +454,16 @@ impl ControlPlane {
         let next_cursor = if records.len() > query.limit {
             let cursor = records[query.limit - 1].source_cursor;
             records.truncate(query.limit);
-            Some(cursor)
+            Some(
+                AuditQueryCursor::new(
+                    epoch.clone(),
+                    projection.projection_version,
+                    projection.source_cursor,
+                    cursor,
+                    filter_digest.clone(),
+                )
+                .map_err(|error| kiana_ports::PortError::Failed(error.to_owned()))?,
+            )
         } else {
             None
         };
@@ -421,6 +475,8 @@ impl ControlPlane {
                 "next_cursor": next_cursor,
                 "source_cursor": projection.source_cursor,
                 "projection_version": projection.projection_version,
+                "epoch": epoch,
+                "filter_digest": filter_digest,
                 "limitations": projection.limitations,
             }),
         ))

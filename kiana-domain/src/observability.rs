@@ -17,6 +17,7 @@ pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const AUDIT_PROJECTION_SCHEMA: &str = "kiana.audit-projection.v1";
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-checkpoint.v1";
+pub const AUDIT_QUERY_CURSOR_SCHEMA: &str = "kiana.audit-query-cursor.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
@@ -27,6 +28,7 @@ pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0)
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_QUERY_CURSOR_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -1190,6 +1192,76 @@ impl AuditProjectionSnapshot {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "projection_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// A page cursor bound to one immutable audit projection snapshot and filter digest.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditQueryCursor {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub epoch: String,
+    pub projection_version: u64,
+    pub source_cursor: u64,
+    pub after_cursor: u64,
+    pub filter_digest: String,
+    pub cursor_digest: String,
+}
+
+impl AuditQueryCursor {
+    pub fn new(
+        epoch: impl Into<String>,
+        projection_version: u64,
+        source_cursor: u64,
+        after_cursor: u64,
+        filter_digest: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut cursor = Self {
+            schema: AUDIT_QUERY_CURSOR_SCHEMA.to_owned(),
+            version: AUDIT_QUERY_CURSOR_SCHEMA_VERSION,
+            epoch: epoch.into(),
+            projection_version,
+            source_cursor,
+            after_cursor,
+            filter_digest: filter_digest.into(),
+            cursor_digest: String::new(),
+        };
+        cursor.cursor_digest = cursor.digest();
+        cursor.validate()?;
+        Ok(cursor)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_QUERY_CURSOR_SCHEMA,
+            AUDIT_QUERY_CURSOR_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.epoch, "audit_query_epoch", 128)?;
+        if self.projection_version == 0 || self.source_cursor == 0 {
+            return Err("audit_query_cursor_metadata_required".to_owned());
+        }
+        if self.after_cursor > self.source_cursor {
+            return Err("audit_query_cursor_out_of_range".to_owned());
+        }
+        validate_digest(&self.filter_digest, "audit_query_filter_digest")?;
+        validate_digest(&self.cursor_digest, "audit_query_cursor_digest")?;
+        if self.cursor_digest != self.digest() {
+            return Err("audit_query_cursor_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "cursor_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

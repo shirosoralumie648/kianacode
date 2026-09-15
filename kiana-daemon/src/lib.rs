@@ -724,6 +724,7 @@ impl DaemonHost {
                             action_kind: query.action_kind,
                             decision: query.decision,
                             target_kind: query.target_kind,
+                            cursor: query.cursor,
                         },
                     )
                     .await
