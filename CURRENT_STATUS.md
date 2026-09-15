@@ -649,6 +649,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-20 domain/core/daemon governance static-boundary review; no runtime test reviewer
 ```
 
+### OA-21 replay/reconciliation diagnostics evidence (2026-09-15)
+
+```text
+source_snapshot: ef3bf0d; kiana-domain/src/{contracts,observability}.rs; kiana-core/src/{replay_diagnostics,audit_projection,health,metrics,invocation_projection,span_projection,lib}.rs; kiana-core/tests/oa21_replay_diagnostics.rs; .github/workflows/oa21-replay-diagnostics.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-21 replay diagnostic/snapshot contracts, deterministic projection comparison, bounded divergence locator, expectation/status/input checks, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-core/src/replay_diagnostics.rs kiana-core/src/lib.rs kiana-core/tests/oa21_replay_diagnostics.rs .github/workflows/oa21-replay-diagnostics.yml
+  rg -n 'ReplayDiagnostic|ReplayDiagnosticSnapshot|diagnose_replay|ReplayExpectation|UnknownEffect|StatusMismatch|replay_source_gap' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa21_replay_diagnostics --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa21_replay_diagnostics.rs; deterministic replay, source duplicate, unknown effect, forged audit schema, expectation status/input divergence, safe error code/secret absence and bounded expectation fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-21 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-21 job is queued by the push and is not awaited
+status_change: OA-21 source slice is implemented. `kiana.replay-diagnostic.v1`/snapshot bind source cursor/events, projection digests, invocation/attempt/input digest, expected/observed status, safe error code and divergence kind. `diagnose_replay` reuses committed Invocation/Run/Metric/Audit/Health/Span projections, reports unknown/schema/gap/duplicate/terminal/status divergence without invoking Model/Provider/Broker or Recovery actions, and leaves unknown effects unresolved/fenced.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; diagnostics and projection comparison are process-local, no provider-side receipt/reconcile/compensation or durable checkpoint exists, and replay does not prove crash/fault/capacity behavior or external health/incident consistency
+reviewer: Codex root implementation review plus OA-21 domain/core replay static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

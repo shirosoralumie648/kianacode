@@ -23,6 +23,8 @@ pub const AUDIT_DELIVERY_RECEIPT_SCHEMA: &str = "kiana.audit-delivery-receipt.v1
 pub const OBSERVABILITY_ALERT_SCHEMA: &str = "kiana.observability-alert.v1";
 pub const OBSERVABILITY_INCIDENT_SCHEMA: &str = "kiana.observability-incident.v1";
 pub const OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA: &str = "kiana.observability-incident-snapshot.v1";
+pub const REPLAY_DIAGNOSTIC_SCHEMA: &str = "kiana.replay-diagnostic.v1";
+pub const REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA: &str = "kiana.replay-diagnostic-snapshot.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
@@ -39,6 +41,8 @@ pub const AUDIT_DELIVERY_RECEIPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::
 pub const OBSERVABILITY_ALERT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const OBSERVABILITY_INCIDENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const REPLAY_DIAGNOSTIC_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -64,6 +68,7 @@ pub const MAX_AUDIT_PROJECTION_RECORDS: usize = 4_096;
 pub const MAX_AUDIT_EXPORT_RECORDS: usize = 4_096;
 pub const MAX_OBSERVABILITY_ALERTS: usize = 128;
 pub const MAX_OBSERVABILITY_INCIDENTS: usize = 128;
+pub const MAX_REPLAY_DIAGNOSTICS: usize = 256;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
@@ -1791,6 +1796,192 @@ impl ObservabilityIncidentSnapshot {
         validate_digest(&self.snapshot_digest, "observability_snapshot_digest")?;
         if self.snapshot_digest != self.digest() {
             return Err("observability_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "snapshot_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayDivergenceKind {
+    SourceGap,
+    SchemaConflict,
+    TerminalConflict,
+    ProjectionError,
+    StatusMismatch,
+    UnknownEffect,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayDiagnostic {
+    pub schema: String,
+    pub version: SchemaVersion,
+    #[serde(default)]
+    pub invocation_id: Option<InvocationId>,
+    #[serde(default)]
+    pub attempt: Option<u32>,
+    #[serde(default)]
+    pub input_digest: Option<String>,
+    #[serde(default)]
+    pub expected_status: Option<TraceStatus>,
+    #[serde(default)]
+    pub observed_status: Option<TraceStatus>,
+    pub divergence: ReplayDivergenceKind,
+    pub error_code: String,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub diagnostic_digest: String,
+}
+
+impl ReplayDiagnostic {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        invocation_id: Option<InvocationId>,
+        attempt: Option<u32>,
+        input_digest: Option<String>,
+        expected_status: Option<TraceStatus>,
+        observed_status: Option<TraceStatus>,
+        divergence: ReplayDivergenceKind,
+        error_code: impl Into<String>,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
+        let mut diagnostic = Self {
+            schema: REPLAY_DIAGNOSTIC_SCHEMA.to_owned(),
+            version: REPLAY_DIAGNOSTIC_SCHEMA_VERSION,
+            invocation_id,
+            attempt,
+            input_digest,
+            expected_status,
+            observed_status,
+            divergence,
+            error_code: error_code.into(),
+            source_cursor,
+            source_event_ids,
+            diagnostic_digest: String::new(),
+        };
+        diagnostic.diagnostic_digest = diagnostic.digest();
+        diagnostic.validate()?;
+        Ok(diagnostic)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            REPLAY_DIAGNOSTIC_SCHEMA,
+            REPLAY_DIAGNOSTIC_SCHEMA_VERSION,
+        )?;
+        if self.attempt.is_some_and(|attempt| attempt == 0) {
+            return Err("replay_attempt_invalid".to_owned());
+        }
+        if let Some(input_digest) = &self.input_digest {
+            validate_digest(input_digest, "replay_input_digest")?;
+        }
+        validate_nonempty(&self.error_code, "replay_error_code", 128)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_digest(&self.diagnostic_digest, "replay_diagnostic_digest")?;
+        if self.diagnostic_digest != self.digest() {
+            return Err("replay_diagnostic_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "diagnostic_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayDiagnosticSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub status: TraceStatus,
+    pub projection_digests: BTreeMap<String, String>,
+    pub diagnostics: Vec<ReplayDiagnostic>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    pub snapshot_digest: String,
+}
+
+impl ReplayDiagnosticSnapshot {
+    pub fn new(
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        status: TraceStatus,
+        projection_digests: BTreeMap<String, String>,
+        diagnostics: Vec<ReplayDiagnostic>,
+        limitations: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self {
+            schema: REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA.to_owned(),
+            version: REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA_VERSION,
+            source_cursor,
+            source_event_ids,
+            status,
+            projection_digests,
+            diagnostics,
+            limitations,
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA,
+            REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA_VERSION,
+        )?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.diagnostics.len() > MAX_REPLAY_DIAGNOSTICS {
+            return Err("replay_diagnostic_limit".to_owned());
+        }
+        for diagnostic in &self.diagnostics {
+            diagnostic.validate()?;
+            if diagnostic.source_cursor > self.source_cursor {
+                return Err("replay_diagnostic_cursor_ahead".to_owned());
+            }
+        }
+        if self.projection_digests.len() > MAX_SIGNAL_ATTRIBUTES {
+            return Err("replay_projection_digest_limit".to_owned());
+        }
+        for (name, digest) in &self.projection_digests {
+            validate_nonempty(name, "replay_projection_name", 128)?;
+            validate_digest(digest, "replay_projection_digest")?;
+        }
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("replay_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(limitation, "replay_limitation", MAX_ATTRIBUTE_VALUE_BYTES)?;
+        }
+        validate_digest(&self.snapshot_digest, "replay_snapshot_digest")?;
+        if self.snapshot_digest != self.digest() {
+            return Err("replay_snapshot_digest_mismatch".to_owned());
         }
         Ok(())
     }

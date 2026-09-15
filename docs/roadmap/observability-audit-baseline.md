@@ -91,6 +91,9 @@
 | Data governance projection/invalidation（OA-20 overlay） | `kiana-core/src/data_governance.rs` | `8ec01f91afc04392dde99cb205d09b68f1d8b035e4d8e06fa4d8c8516bca715f` |
 | Data governance core exports（OA-20 overlay） | `kiana-core/src/lib.rs` | `9a4fd415a1daa78733d94ddc6055bc3eb4daeed975b9211152d97bf8f1044e6e` |
 | Daemon policy propagation/integrity（OA-20 overlay） | `kiana-daemon/src/data_governance.rs` | `1baaaa459fa88c6bb197c8c0ef809278c9e262c398681ccc5dc0b063148d9bce` |
+| Replay diagnostic contracts（OA-21 overlay） | `kiana-domain/src/observability.rs` | `db8856e67efa6f69cdf6a329cc170b9c34e3727a57081f38315f4da2a030fefc` |
+| Replay diagnostic reducer（OA-21 overlay） | `kiana-core/src/replay_diagnostics.rs` | `a368cc524fdb38828184f60a415463250eaf20c33ed301cc9de51a137991bc2c` |
+| Replay diagnostic exports（OA-21 overlay） | `kiana-core/src/lib.rs` | `cb3c14fc103a0d18085c975707c96394780478b1aada9661c91078784784cfd5` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -187,6 +190,7 @@
 | OA-18 | Audit export/manifest/delivery evidence | `source`；server-scoped redacted JSONL/JSON/CSV materializer、query/source/projection/artifact manifest hashes、purpose/recipient/retention guards 和 Unknown delivery receipt 已实现；尚无 durable ArtifactStore/export file、external delivery connector/confirmation 或 export audit fact |
 | OA-19 | Alert/Incident rules, dedupe and Recovery association | `source`；committed metrics/facts 规则 fingerprint 去重、bounded Alert/Incident snapshot、source cursor/event refs、固定 reconciliation-safe recovery plan 已实现；尚无 durable incident checkpoint/event, operator workflow, queue/exporter live state or automatic reconciliation |
 | OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map 和 daemon policy integrity/readout 已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
+| OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Health/Span comparison、bounded divergence locator、projection digests、unknown/schema/gap/duplicate guards 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -592,3 +596,23 @@ retained audit metadata、pending/committed revocation propagation、cursor gap/
 和 raw payload absence；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该切片仍是
 source governance projection，不等价于 durable policy/snapshot store、跨进程 deletion scheduler、legal hold、
 Artifact/Memory/Index/Telemetry 实际 purge、external retention 或 live deletion proof。
+
+## 27. OA-21 叠加说明
+
+OA-21 注册 `kiana.replay-diagnostic.v1` 与 `kiana.replay-diagnostic-snapshot.v1`。每条
+`ReplayDiagnostic` 绑定可选 invocation/attempt、input digest、expected/observed TraceStatus、受限
+divergence kind/error code、source cursor/event IDs 和 digest；snapshot 绑定 source、每个 deterministic
+projection digest、diagnostic 列表、status 和 limitations。原始 prompt/tool output/stack/secret 不进入
+diagnostic。
+
+`kiana-core::diagnose_replay` 仅重放已有 Invocation、Run、Metric、Audit、Health、Span projection；duplicate
+source、cursor gap、unknown audit/schema、terminal/projection error、effect unknown 或 expectation status/input
+digest mismatch 产生首个可定位 divergence 并令 snapshot `unknown`，不会调用 Model/Provider/Broker、执行
+Recovery action、重试或回写 metric/trace/receipt facts。`ControlPlane::replay_diagnostics` 只读 EventLog 全量
+事实；projection digest 只用于一致性诊断，不替代 EventLog/Receipt/Audit authority。
+
+OA-21 远端 workflow 覆盖 deterministic replay、source duplicate/gap、unknown schema/terminal/projection
+errors、unknown effect locator、expectation status/input mismatch、safe error code/secret absence、snapshot
+serde 和 bounded expectations；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该
+诊断仍是 source projection，不等价于 provider-side reconciliation/receipt、automatic compensate/retry、
+durable diagnostic checkpoint、fault injection 或 live health/incident consistency。

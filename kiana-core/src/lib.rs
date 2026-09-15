@@ -34,6 +34,7 @@ mod projection;
 mod receipts;
 mod recovery;
 mod redaction;
+mod replay_diagnostics;
 mod sessions;
 mod span_projection;
 mod trace_export;
@@ -63,6 +64,7 @@ pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
+pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
 pub use trace_export::{
     exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
