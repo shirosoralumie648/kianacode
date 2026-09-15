@@ -671,6 +671,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-21 domain/core replay static-boundary review; no runtime test reviewer
 ```
 
+### OA-22 crash/fault injection matrix evidence (2026-09-15)
+
+```text
+source_snapshot: 95fa693; kiana-domain/src/{fault,contracts,lib}.rs; kiana-core/src/{fault_injection,lib}.rs; kiana-core/tests/oa22_fault_injection.rs; .github/workflows/oa22-fault-injection.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-22 replay-only FaultCase/FaultMatrix contracts, eight-point deterministic simulator, seed/source binding and safety invariants, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/fault.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/fault_injection.rs kiana-core/src/lib.rs kiana-core/tests/oa22_fault_injection.rs .github/workflows/oa22-fault-injection.yml
+  rg -n 'FaultInjectionPoint|FaultCase|FaultMatrix|fault_matrix|fault_matrix_from_events|unknown_not_fenced|false_success|duplicate_effect' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa22_fault_injection --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa22_fault_injection.rs; eight prepare/commit/dispatch/result/flush/projector/export/shutdown cases, seed replay, source duplicate/limit, rejected/unknown/observed safety, tampered false-success/duplicate/unfenced-unknown and serde fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-22 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-22 job is queued by the push and is not awaited
+status_change: OA-22 source slice is implemented. `kiana.fault-case.v1`/`kiana.fault-matrix.v1` bind injection point, seed, status, effect started/known, resource fencing, source cursor/events and digests. The replay-only simulator covers eight fault boundaries with rejected/unknown/observed classifications; rejected cases prove no started effect, unknown cases require fencing, duplicate-effect/false-success and mixed source/seed tampering fail closed. `ControlPlane::fault_matrix` is read-only and performs no crash, handler, provider, exporter, shutdown or EventLog action.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; matrix cases are safety models rather than real fault hooks, process kills or crash recovery, no durable fault/incident/receipt checkpoint exists, and cross-process resource/lease/provider/export/shutdown evidence remains open
+reviewer: Codex root implementation review plus OA-22 domain/core fault-matrix static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

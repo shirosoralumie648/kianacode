@@ -94,6 +94,10 @@
 | Replay diagnostic contracts（OA-21 overlay） | `kiana-domain/src/observability.rs` | `db8856e67efa6f69cdf6a329cc170b9c34e3727a57081f38315f4da2a030fefc` |
 | Replay diagnostic reducer（OA-21 overlay） | `kiana-core/src/replay_diagnostics.rs` | `a368cc524fdb38828184f60a415463250eaf20c33ed301cc9de51a137991bc2c` |
 | Replay diagnostic exports（OA-21 overlay） | `kiana-core/src/lib.rs` | `cb3c14fc103a0d18085c975707c96394780478b1aada9661c91078784784cfd5` |
+| Fault injection contracts（OA-22 overlay） | `kiana-domain/src/fault.rs` | `0a4a1514099e5877bdc2d71d5be39a47d1022dcf6b8030fdb730c4c4ed0fb89b` |
+| Fault injection schema/exports（OA-22 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `e898cd7b6f88a1adeec188658af4fcc7334af137458c4cb189f941146f01e1f1`, `5d44ac73e6e10f978d45471792d539848b202dae5927a07b24da5dfe5e834373` |
+| Fault injection simulator（OA-22 overlay） | `kiana-core/src/fault_injection.rs` | `44f6915a880c0fe8991819291b606435c80fd6926721d8bb6484ddd90251d23a` |
+| Fault injection core exports（OA-22 overlay） | `kiana-core/src/lib.rs` | `74de04f3cf1c2e53c82bf8184cb35d3f818aacfc7bad5d7b3bd9e2aa0bc219d8` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -191,6 +195,7 @@
 | OA-19 | Alert/Incident rules, dedupe and Recovery association | `source`；committed metrics/facts 规则 fingerprint 去重、bounded Alert/Incident snapshot、source cursor/event refs、固定 reconciliation-safe recovery plan 已实现；尚无 durable incident checkpoint/event, operator workflow, queue/exporter live state or automatic reconciliation |
 | OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map 和 daemon policy integrity/readout 已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
 | OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Health/Span comparison、bounded divergence locator、projection digests、unknown/schema/gap/duplicate guards 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
+| OA-22 | Crash/fault injection | `source`；deterministic replay-only eight-point FaultMatrix/Case safety contract、seed/source binding、unknown/rejected fencing and duplicate/false-success invariants 已实现；尚无 real crash/process fault hooks, EventStore/Broker/Provider/projector/export/shutdown injection, durable recovery or cross-process resource proof |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -616,3 +621,23 @@ errors、unknown effect locator、expectation status/input mismatch、safe error
 serde 和 bounded expectations；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该
 诊断仍是 source projection，不等价于 provider-side reconciliation/receipt、automatic compensate/retry、
 durable diagnostic checkpoint、fault injection 或 live health/incident consistency。
+
+## 28. OA-22 叠加说明
+
+OA-22 注册 `kiana.fault-case.v1` 与 `kiana.fault-matrix.v1`。`FaultCase` 固定 injection point
+（prepare/commit/dispatch/result/flush/projector/export/shutdown）、seed、`rejected|unknown|observed`、
+effect started/known、resource fenced、source cursor/event、safe error code 和 duplicate/false-success flags；
+`FaultMatrix` 绑定同一 seed/source/case set 和 matrix digest，拒绝重复点、混合 seed/source、未知 schema 或
+不安全状态。Rejected 必须 zero-effect/known，Unknown 必须 fenced，任何 duplicate effect/false success 直接
+fail-closed。
+
+`kiana-core::fault_matrix`/`fault_matrix_from_events` 是 replay-only deterministic simulator，固定八个故障
+边界的保守分类：prepare reject，commit/dispatch/result/flush/projector/export/shutdown unknown/fenced；seed
+只用于重放定位，不调度真实 crash、kill process、EventStore、Broker、Provider、projector、exporter 或 shutdown
+副作用。`ControlPlane::fault_matrix` 只接收调用方已提供的 source event IDs，输出测试/诊断 artifact，不写事实、
+不释放资源、不自动 retry/compensate/reconcile。
+
+OA-22 远端 workflow 覆盖八点矩阵、seed 重放、source duplicate/limit、unknown/rejected/observed invariants、
+false-success/duplicate-effect/unfenced-unknown tamper 和 closed serde；本地只执行格式、静态源码检查和
+test-target 编译，不执行测试二进制。该 matrix 仍是 source safety model，不等价于真实 fault hooks、crash
+recovery、durable receipt/incident、process/resource fencing 或 live provider/export behavior。
