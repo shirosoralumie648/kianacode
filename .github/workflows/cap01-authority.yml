@@ -1,0 +1,58 @@
+name: CAP-01 capability authority and handler binding
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-domain/tests/cap01_registry.rs"
+      - "kiana-capability-broker/tests/cap01_registry.rs"
+      - "kiana-core/tests/cap01_authority_guard.rs"
+      - "docs/roadmap/capability-authority-baseline.md"
+      - ".github/workflows/cap01-authority.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/actions.rs"
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-capability-broker/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-runner/src/tools.rs"
+      - "kiana-domain/tests/cap01_registry.rs"
+      - "kiana-capability-broker/tests/cap01_registry.rs"
+      - "kiana-core/tests/cap01_authority_guard.rs"
+      - "docs/roadmap/capability-authority-baseline.md"
+      - ".github/workflows/cap01-authority.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CAP-01 domain registry fixtures
+        run: cargo test -p kiana-domain --test cap01_registry --locked -- --test-threads=1
+      - name: Run CAP-01 Broker fixtures
+        run: cargo test -p kiana-capability-broker --test cap01_registry --locked -- --test-threads=1
+      - name: Run CAP-01 source guard
+        run: cargo test -p kiana-core --test cap01_authority_guard --locked -- --test-threads=1

@@ -1188,6 +1188,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus ER-04 receipt/read-set/CAS/Unknown source-boundary review; no runtime test reviewer
 ```
 
+### CAP-01 capability authority and handler binding evidence (2026-09-16)
+
+```text
+source_snapshot: f41c636; kiana-domain/src/{actions,tool_catalog,capabilities,contracts,lib}.rs; kiana-capability-broker/src/lib.rs; kiana-daemon/src/{lib,harness_capabilities,harness_memory,harness_mcp}.rs; kiana-runner/src/tools.rs; kiana-domain/tests/cap01_registry.rs; kiana-capability-broker/tests/cap01_registry.rs; kiana-core/tests/cap01_authority_guard.rs; .github/workflows/cap01-authority.yml; docs/roadmap/capability-authority-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/capability.md; docs/roadmap.md
+worktree_status: CAP-01 domain action catalog/descriptor/schema/risk metadata, Broker exact handler registration/version checks, DaemonHost catalog seal, Runner five-tool/operator-only boundary, unknown/duplicate/fallback rejection fixtures/source guard and roadmap overlays are scoped to this step; no model-visible tool or raw Broker path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/actions.rs kiana-domain/src/tool_catalog.rs kiana-domain/src/capabilities.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-capability-broker/src/lib.rs kiana-daemon/src/lib.rs kiana-daemon/src/harness_capabilities.rs kiana-daemon/src/harness_memory.rs kiana-daemon/src/harness_mcp.rs kiana-runner/src/tools.rs kiana-domain/tests/cap01_registry.rs kiana-capability-broker/tests/cap01_registry.rs kiana-core/tests/cap01_authority_guard.rs .github/workflows/cap01-authority.yml docs/roadmap/capability-authority-baseline.md
+  rg -n 'ACTION_OPERATIONS|CapabilityActionDescriptor|PreparedAction|validate_action_catalog|validate_catalog_bindings|capability_handler_already_registered|capability_binding_version_mismatch|capability_catalog_sealed|tool_schemas|operator_only_action|tool_unsupported|execution_permit_verifier_required' kiana-domain/src kiana-capability-broker/src kiana-daemon/src kiana-runner/src kiana-domain/tests kiana-capability-broker/tests kiana-core/tests/cap01_authority_guard.rs docs/roadmap/capability-authority-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cap01_registry.rs model-visible five-tool and operator-only separation; kiana-capability-broker/tests/cap01_registry.rs duplicate/alias/version/unregistered fallback guards; kiana-core/tests/cap01_authority_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-01 job is queued by the push and is not awaited
+status_change: CAP-01 source slice is implemented. Domain action catalog is closed and validated; each registered operation has canonical capability, minimum risk, argument/result schema, resource/effect/cancellation/reconciliation/idempotency and binding version metadata. DaemonHost registers handlers through the existing Broker and seals the catalog before requests; Broker revalidates catalog, normalized action and permit before dispatch, rejects duplicate/unknown/kind/version drift and never falls back to shell. Runner exposes only the five model tools; operator-only/direct Company/context operations remain explicit server commands.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; catalog/binding is process-local static source without durable ToolSnapshot/signature/provenance or dynamic revoke, PreparedAction is not Grant/Approval/Permit/ExecutionScope, bounded schema and compatibility fields remain partial, handler TOCTOU/egress/stop/reconcile and provider/connector/external/live/physical effects remain later CAP/CP/ER/PD/SC work
+reviewer: Codex root implementation review plus CAP-01 catalog/registry/model-surface/binding source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

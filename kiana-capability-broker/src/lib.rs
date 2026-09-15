@@ -136,6 +136,7 @@ pub struct CapabilityBroker {
 impl CapabilityBroker {
     /// Called once by DaemonHost after all static registrations and before any model request.
     pub fn validate_catalog_bindings(&mut self) -> Result<(), PortError> {
+        kiana_domain::validate_action_catalog().map_err(PortError::Failed)?;
         let handlers = self.handlers.get_mut();
         for operation in kiana_domain::ACTION_OPERATIONS {
             let descriptor = kiana_domain::capability_action_descriptor(operation)
@@ -170,6 +171,7 @@ impl CapabilityBroker {
                 "capability_catalog_unvalidated".to_owned(),
             ));
         }
+        kiana_domain::validate_action_catalog().map_err(PortError::Failed)?;
         let mut normalized = request.request.clone();
         kiana_domain::normalize_capability_action(&mut normalized)
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;

@@ -362,12 +362,14 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-01 — descriptor、schema、policy metadata 与 handler binding 单一来源
+#### CAP-01 — descriptor、schema、policy metadata 与 handler binding 单一来源　✅
+
+当前 source slice 与 CI-only 证据见 [`capability-authority-baseline.md`](capability-authority-baseline.md)。
 
 - **落点：** `kiana-domain/src/tool_catalog.rs`、runner/tools、policy、broker registry、daemon register。
 - **步骤：** 扩展已有 catalog 为版本化 `ToolSpec`；由 catalog 生成模型 schema、规范别名、risk/effects 元数据和 expected bindings；handler 实现只在组合根绑定一次。将内置 `memory.review`/治理等非模型能力与模型可见集合明确区分。
 - **先拒绝：** `duplicate_alias_or_operation_is_rejected`、`descriptor_binding_version_mismatch_never_dispatches`；同名不同 kind、未绑定 operation、伪造 readonly metadata 都不得回退到 shell。
-- **成功/回归：** `tool_authority_covers_every_model_visible_tool` 覆盖 schema→mapping→policy→broker；旧五工具和合法别名仍跑通，非模型 operator 能力不会自动出现在模型 schema。
+- **成功/回归：** `tool_authority_covers_every_model_visible_tool` 覆盖 schema→mapping→policy→broker；旧五工具和合法别名仍跑通，非模型 operator 能力不会自动出现在模型 schema；远程 registry fixtures 验证 binding/version/unknown fallback。
 - **完成产物：** registry/binding 一致性检查在 DaemonHost 装配时执行，错误在调用模型前可见；不是再新增一份无人消费的表。
 
 <a id="step-cap-02"></a>
