@@ -738,6 +738,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-24 domain/core/protocol/daemon/entrypoint static-boundary review; no runtime test reviewer
 ```
 
+### OA-25 capacity/performance/migration rehearsal evidence (2026-09-15)
+
+```text
+source_snapshot: 49c9e8e; kiana-domain/src/{performance,contracts,lib,journal}.rs; kiana-core/src/{performance,lib}.rs; kiana-eventlog/src/{jsonl,journal_core}.rs; kiana-ports/src/observability_queue.rs; kiana-core/src/{audit_projection,audit_export}.rs; kiana-core/tests/oa25_capacity_migration.rs; .github/workflows/oa25-capacity-migration.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-25 bounded PerformanceBaseline/BenchmarkSummary/CapacityEnvelope/MigrationObservation contracts, checked percentile reducer, hard-limit/migration fixture and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/performance.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/performance.rs kiana-core/src/lib.rs kiana-core/tests/oa25_capacity_migration.rs kiana-eventlog/src/jsonl.rs kiana-eventlog/src/journal_core.rs kiana-ports/src/observability_queue.rs kiana-core/src/audit_projection.rs kiana-core/src/audit_export.rs .github/workflows/oa25-capacity-migration.yml
+  rg -n 'PerformanceBaseline|BenchmarkSummary|CapacityEnvelope|MigrationObservation|percentile_micros|MAX_JOURNAL|writer_version|high_cardinality|oversize|backpressure' kiana-domain/src kiana-core/src kiana-eventlog/src kiana-ports/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa25_capacity_migration --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/oa25_capacity_migration.rs; six operation percentile summaries, source-bound baseline/capacity envelope, rotation/archive/upgrade/downgrade observations, unknown writer-version frame, safety guard and unknown-field rejection; GitHub Actions only
+exit_code: 0 for source hashes, format, OA-25 test-target/workspace compilation and diff check; local tests deliberately not run per user instruction; GitHub Actions OA-25 job is queued by the push and is not awaited
+status_change: OA-25 source slice is implemented. `PerformanceBaseline` binds bounded p50/p95/p99 summaries for append/flush/project/rebuild/query/export to a source cursor/digest, hard journal/page/export/queue/artifact limits and explicit high-cardinality/oversize/backpressure guards. `MigrationObservation` records read-only rotation/archive/upgrade/downgrade outcomes with bounded reasons; unknown writer versions and unsafe direction/guard claims fail closed. Existing JSONL writer marker, frame/event/log limits and upgrade-after-legacy checks are covered by the new source evidence contract; no production benchmark or migration write path is introduced.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; percentile samples are remote fixtures rather than production SLOs, no durable benchmark artifact or real large-artifact/slow-exporter load run exists, cross-platform rotation/archive and live capacity telemetry remain open, and migration observations do not perform writes or prove cross-process upgrade/downgrade recovery
+reviewer: Codex root implementation review plus OA-25 domain/core/journal/capacity static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

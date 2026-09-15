@@ -110,6 +110,11 @@
 | Entrypoint parity protocol/client（OA-24 overlay） | `kiana-protocol/src/lib.rs`, `kiana-client/src/lib.rs` | `f67fe65db42cc4eb26056a8ea4e5aac3ec6ce4badaf78dfd8c1aa88486e7f654`, `4d5d5aa16c5dc990110a3299af517873ab30de84028f75253cb10d3bb44754df` |
 | Entrypoint parity daemon/entrypoints（OA-24 overlay） | `kiana-daemon/src/lib.rs`, `kiana-entrypoints/src/cli.rs`, `kiana-entrypoints/src/harness_run.rs`, `kiana-entrypoints/src/web.rs`, `kiana-entrypoints/src/web_page.html`, `kiana-entrypoints/src/workbench_chat.rs` | `718021e2be25fd91af85fab304b7ca4fb57526c564b948ef73dc6babe4882423`, `a709fa28d4062d8b915c47b21f36b98972261a6a4eef372cfb9cd44669a1a912`, `469cc92809f38a51d0682b8ed3bc6692d1a311c5a84e988740e67e0777e3e6cc`, `6e3cab51eca20a46fd5ccad8243daa05367e9164bcf91a2fd3223f350ab70870`, `699187f46aa649cb07fe4f608e67916cfd3a4ceb78d5ee6db9b5613fc7334342`, `40e6be895cbf0c3d7e0386b4dda82c9311180c2e9e1d3699013f9272ac2c8d02` |
 | Entrypoint parity remote fixtures/workflow（OA-24 overlay） | `kiana-core/tests/oa24_entrypoint_parity.rs`, `kiana-protocol/tests/oa24_parity_wire.rs`, `.github/workflows/oa24-entrypoint-parity.yml` | `1f8db3d08575afbf2a6522c460744640025ca80c03b7255aaa8d6738cde62858`, `c26d1bc7fb727e2d6582b92b689e3855d49d15131f75cc1c2c1e701305c6038d`, `da5ff3b63d165302c41b602cba5d3e56861fcfaa95cbc31987a442417f194e00` |
+| Performance/capacity/migration contracts（OA-25 overlay） | `kiana-domain/src/performance.rs` | `b5b2af5f6925ebba116fd74fdc1e8d92a3786da618e7505361671294c7e92f8a` |
+| Performance schema/exports（OA-25 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `d5100c08d42fd8317fdae45b5d883bd77ab7202509f8e41fc87b1431f2292a90`, `36b56279ab10ac279dec4b7ee4f152f4726f550a66ba5241c7bf357f625868d6` |
+| Performance reducer（OA-25 overlay） | `kiana-core/src/performance.rs` | `f2934fb029defb7bf05faa3beb27ca1e440b63b36dccf121524b0e124b383eb2` |
+| Performance core exports（OA-25 overlay） | `kiana-core/src/lib.rs` | `09ca496beeb30bc2560e7acd8dcd480e0de77e8e9c262ec1d06939e1566bf82d` |
+| Capacity/migration remote fixtures/workflow（OA-25 overlay） | `kiana-core/tests/oa25_capacity_migration.rs`, `.github/workflows/oa25-capacity-migration.yml` | `75749d080759d91834479453f289316f0109e5688af116028af61f1bdb13eb32`, `0bad08f493df1a608196e1ef678bc935268fe21c69fc0ad5ccb090da5c9bbb51` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -210,6 +215,7 @@
 | OA-22 | Crash/fault injection | `source`；deterministic replay-only eight-point FaultMatrix/Case safety contract、seed/source binding、unknown/rejected fencing and duplicate/false-success invariants 已实现；尚无 real crash/process fault hooks, EventStore/Broker/Provider/projector/export/shutdown injection, durable recovery or cross-process resource proof |
 | OA-23 | Provider-independent eval suite | `source`；versioned EvalCaseSpec/Result/Suite、normalized event/Audit/Metric/Span/Run/Replay evidence、secret/forbidden-effect/missing-evidence/status/replay/cost guards、promote only all-pass 已实现；尚无 real provider eval, Promptfoo runner, durable eval artifact, external receipt or automatic promotion/rollback |
 | OA-24 | 四入口审计/健康/Receipt parity | `source`；`kiana.entrypoint-parity.v1` 与 owner-scoped ControlPlane projection 已实现，CLI/Web/Workbench/Desktop 通过 protocol/DaemonHost 复用 source cursor、status、Receipt/Audit/Health digests、retention/unknown limitations；健康 endpoint 使用 liveness projection，入口不读 EventLog、不自行判定成功或恢复；尚无 durable query index、外部认证/健康探针、跨进程 retention/reconcile 或真实业务 Outcome 证明 |
+| OA-25 | 容量、性能和迁移演练 | `source`；`PerformanceBaseline`/`BenchmarkSummary`/`CapacityEnvelope`/`MigrationObservation` 与 checked p50/p95/p99 reducer 已实现，固定 journal/page/export/queue/artifact 上限，high-cardinality/oversize/backpressure fail-closed，rotation/archive/upgrade/downgrade/unknown writer version 只读观察受约束；尚无生产 benchmark artifact、真实大 artifact/慢 exporter、跨平台 rotation/archive、durable capacity telemetry 或 live SLO 证明 |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -701,3 +707,27 @@ source gap/duplicate/limit、Completed-without-receipt、unknown-field wire reje
 本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该切片仍是 source-level、进程内只读
 projection，不等价于 durable query index、跨进程 cursor/retention store、外部 authenticated principal、真实
 provider/Broker/telemetry liveness、业务 Outcome 或自动 reconcile/恢复证明。
+
+## 31. OA-25 叠加说明
+
+OA-25 注册 `kiana.performance-baseline.v1` 与 `kiana.migration-observation.v1`。`BenchmarkSummary` 只接收
+bounded sample count，并要求 p50 ≤ p95 ≤ p99、非零 item 上限和自校验 digest；`CapacityEnvelope` 固定
+journal frame/event/batch/page/log/event、export、queue、artifact 上限，且必须显式证明 high-cardinality、
+oversize 和 backpressure 安全护栏。`PerformanceBaseline` 将六类操作（append/flush/project/rebuild/query/export）
+与同一 source cursor/digest、容量 envelope、rotation/archive/upgrade/downgrade 观察绑定，重复操作、未绑定
+source、无界限制或坏 digest 均拒绝。
+
+`kiana-core::percentile_micros` 使用 nearest-rank 对远端样本排序后计算 p50/p95/p99，拒绝空样本、非法
+percentile 和超过 4096 的输入；`summarize_benchmark`/`build_performance_baseline` 只构造可验证的 source
+artifact，不改变 EventLog、Receipt、授权、health 或执行路径。`MigrationObservation` 将 rotation/archive
+作为只读观察，upgrade 只允许前进版本，downgrade 的 accepted read-only 方向不被伪造；Rejected/Unknown 必须
+带 bounded limitation。JSONL 已有 `kiana.journal-header.v2` writer marker 和硬容量检查，未知 writer version、
+frame/event 超限以及 upgrade 后 legacy record 会 fail-closed；OA-25 夹具把这些现有边界与新 evidence contract
+绑定，而不是自动宣称迁移完成。
+
+OA-25 远端 workflow 覆盖六类 benchmark summary 的 percentile 顺序与重复检测、journal/page/export/queue/
+artifact limits、high-cardinality/oversize/backpressure guards、rotation/archive/upgrade/downgrade records、
+unknown writer version 和 unknown-field/digest rejection；本地只执行格式、静态源码检查和 test-target 编译，
+不执行测试二进制。远端样本是隔离 fixture 的 source evidence，不等价于生产 p50/p95/p99 SLO、真实大 artifact
+或慢 exporter 压测、durable benchmark artifact、跨平台 rotation/archive、容量 telemetry、upgrade/downgrade
+写入或 live migration proof。

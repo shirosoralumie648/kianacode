@@ -1,0 +1,53 @@
+name: oa25-capacity-migration
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/performance.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/journal.rs"
+      - "kiana-core/src/performance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/oa25_capacity_migration.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-ports/src/observability_queue.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/audit_export.rs"
+      - ".github/workflows/oa25-capacity-migration.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/performance.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/journal.rs"
+      - "kiana-core/src/performance.rs"
+      - "kiana-core/src/lib.rs"
+      - "kiana-core/tests/oa25_capacity_migration.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-ports/src/observability_queue.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/audit_export.rs"
+      - ".github/workflows/oa25-capacity-migration.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa25:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa25-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run OA-25 remote-only capacity and migration fixtures
+        run: cargo test -p kiana-core --test oa25_capacity_migration --locked -- --test-threads=1
