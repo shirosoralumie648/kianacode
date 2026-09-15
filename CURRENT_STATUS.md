@@ -783,6 +783,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-26 journal/receipt/queue/evidence static-boundary review; no runtime test reviewer
 ```
 
+### OA-27 cross-entry/company governance gate evidence (2026-09-15)
+
+```text
+source_snapshot: fe81e6a; kiana-domain/src/{company,governance_gate,contracts,lib}.rs; kiana-core/src/{company,company_governance,commands,lib}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-entrypoints/src/{cli,harness_run,web,workbench_chat}.rs; kiana-core/tests/oa27_company_governance.rs; kiana-protocol/tests/oa27_company_governance_wire.rs; .github/workflows/oa27-company-governance.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-27 CompanyGovernanceSnapshot, read-only company.governance command, ControlPlane source projection, protocol/client/DaemonHost route, CLI/Workbench/Web adapters (Desktop Web reuse), remote-only governance fixtures and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/governance_gate.rs kiana-domain/src/company.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/company_governance.rs kiana-core/src/company.rs kiana-core/src/commands.rs kiana-core/src/lib.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-daemon/src/lib.rs kiana-entrypoints/src/cli.rs kiana-entrypoints/src/harness_run.rs kiana-entrypoints/src/web.rs kiana-entrypoints/src/workbench_chat.rs kiana-core/tests/oa27_company_governance.rs kiana-protocol/tests/oa27_company_governance_wire.rs .github/workflows/oa27-company-governance.yml
+  rg -n 'CompanyGovernanceSnapshot|project_company_governance|company.governance.v1|runtime_completed_not_business_outcome|closing_chain_incomplete|review_author_session_overlap|company-governance|/governance|company-governance' kiana-domain/src kiana-core/src kiana-protocol/src kiana-client/src kiana-daemon/src kiana-entrypoints/src kiana-core/tests kiana-protocol/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa27_company_governance --locked --offline
+  cargo check -p kiana-protocol --test oa27_company_governance_wire --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/oa27_company_governance.rs; runtime Completed without Acceptance remains InProgress/not Outcome, complete independent Review→Acceptance→Confirmed Delivery→Closer→ClosingReceipt chain projects Closed, forged closed chain becomes Unknown, unknown wire/owner override guards; kiana-protocol/tests/oa27_company_governance_wire.rs command round-trip and raw owner/scope rejection; GitHub Actions only
+exit_code: 0 for source hashes, format, OA-27 core/protocol test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-27 job is queued by the push and is not awaited
+status_change: OA-27 source slice is implemented. `CompanyGovernanceSnapshot` binds CompanyState project/runtime statuses, Acceptance/Review/Delivery/ClosingReceipt/Outcome references, source IDs, bounded limitations and digest. The reducer refuses to call runtime Completed a business Outcome; Closed requires independent reviewer/closer, accepted/waived acceptance, confirmed delivery, all runtime Completed, project Closed and a closing receipt, otherwise Unknown/InProgress with explicit limitation. ControlPlane exposes an authenticated read-only command; protocol/client/daemon and CLI/Workbench/Web/Desktop adapters reuse the same path without Broker/Provider/Recovery side effects.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; CompanyState projection is process-local over EventLog, no durable business query index or cross-organization authenticated principal exists, external delivery confirmation and Outcome measurement remain unimplemented, Desktop is Web-shell reuse, and no live/physical governance or reconcile proof exists
+reviewer: Codex root implementation review plus OA-27 CompanyOS chain/ownership/source-boundary static review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

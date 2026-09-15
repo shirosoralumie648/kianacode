@@ -11,6 +11,7 @@ mod cell_registry;
 mod collaboration;
 mod commands;
 mod company;
+mod company_governance;
 mod connectors;
 mod context_query;
 mod data_governance;
@@ -54,6 +55,7 @@ pub use audit_projection::{
 pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
+pub use company_governance::{project_company_governance, CompanyGovernanceProjectionError};
 pub use data_governance::{project_data_governance, project_data_governance_snapshot};
 pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
 pub use fault_injection::{

@@ -194,6 +194,13 @@ struct ParityQuery {
     entrypoint: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct CompanyGovernanceQuery {
+    project_id: String,
+    #[serde(default)]
+    session_id: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct SandboxBody {
     sandbox: String,
@@ -476,6 +483,7 @@ fn router(app: WebApp) -> Router {
         .route("/", get(index))
         .route("/api/health", get(health))
         .route("/api/parity", get(parity))
+        .route("/api/company-governance", get(company_governance))
         .route("/api/state", get(state))
         .route("/api/sessions", get(list_sessions))
         .route("/api/events", get(events))
@@ -774,6 +782,27 @@ async fn parity(
         session_id,
         run_id,
         entrypoint,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    Ok(Json(json!({"response": response})))
+}
+
+async fn company_governance(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Query(query): Query<CompanyGovernanceQuery>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    if query.project_id.trim().is_empty() || query.project_id.len() > 256 {
+        return Err(ApiError::bad("company_governance_project_invalid"));
+    }
+    let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
+    let response = harness_run::company_governance_envelope_on_host(
+        Arc::clone(&app.host),
+        session_id,
+        query.project_id,
         &app.options()?,
     )
     .await

@@ -117,6 +117,11 @@
 | Capacity/migration remote fixtures/workflow（OA-25 overlay） | `kiana-core/tests/oa25_capacity_migration.rs`, `.github/workflows/oa25-capacity-migration.yml` | `75749d080759d91834479453f289316f0109e5688af116028af61f1bdb13eb32`, `0bad08f493df1a608196e1ef678bc935268fe21c69fc0ad5ccb090da5c9bbb51` |
 | Durable gate remote fixture（OA-26 overlay） | `kiana-core/tests/oa26_durable_gate.rs` | `5596a7cec38c6dd08efe7dbc8a0ba78b4c5f63453cf07314ae4209d788c573c2` |
 | Durable gate script/workflow（OA-26 overlay） | `scripts/oa26-durable-observability-gate.sh`, `.github/workflows/oa26-durable-observability.yml` | `4c137be04b0f25b8050a6bb5b95c7af0b567959e5ed94da701dffb4020960d28`, `20fa8bc64d38e2728ea99a95814490946b2bcf220b4f80dac9f3c4b73bb37a8d` |
+| Company governance contract（OA-27 overlay） | `kiana-domain/src/governance_gate.rs`, `kiana-domain/src/company.rs` | `3d8b48143cd9c57449d82545913d47dd7ddc20581f69498fd3e6aafe70c1c334`, `d1b6f17644a04428ee20ea7059281ad6642b3b0344cd57425417bb911b779288` |
+| Company governance schema/exports（OA-27 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `daf35d3bef27e757b2713b4cb0042b83b9af3a1fef33e10f00547f9462f59c8a`, `f78d620f7f3c82fbcd127351054af6c05185f3eb690d2e12610e55662d1b0ec7` |
+| Company governance reducer/command（OA-27 overlay） | `kiana-core/src/company_governance.rs`, `kiana-core/src/company.rs`, `kiana-core/src/commands.rs`, `kiana-core/src/lib.rs` | `6fd11ae8f1ff661db2171ec5a1839f0fedf186acd0dd31302ebb5d0aa2895ae9`, `da3047183e0127cb61e5a2981023776a311b068bb8e259440e058c7ddb968c83`, `7986c7f5ea67a9e612fdc0e36bdd75f7476c6287995551acc0faac503844047c`, `ebdc8f38a9f85d9e579834627a89982b361ea0b2e70c1f281c7805065f94915e` |
+| Company governance wire/client/entrypoints（OA-27 overlay） | `kiana-protocol/src/lib.rs`, `kiana-client/src/lib.rs`, `kiana-daemon/src/lib.rs`, `kiana-entrypoints/src/{cli,harness_run,web,workbench_chat}.rs` | `ab36f25cce3e6e52c617b6d845d6aa80a3e769900ee5997a1e98bd1c7aa16c2a`, `e1e9c48be7e99e686eeabca54b987ae7576eb9eb4f298b5b34b4cfaaeea40ff2`, `bb458a97ab2c21645b295beb997cf0c3dfb5a42f4d64c4202040cc4f93bee9b2`, `6baaebf2ba9b9ca9aadebf6fe5fdd7923c6779ac8434ce4deacdc0d2663671d9`, `580ff44de27e0d471e3a3668c3cd32dc37fc8aee910a624b91bb0a7f15a0be31`, `9c6b356111a93d87e595cbc4a234f5b9352591d7efc2bbe00948b786e62c09ad`, `dc137747186af0bf02d8b0ec221d265c03047f669079d2f25b4fdaf55aeea957` |
+| Company governance remote fixtures/workflow（OA-27 overlay） | `kiana-core/tests/oa27_company_governance.rs`, `kiana-protocol/tests/oa27_company_governance_wire.rs`, `.github/workflows/oa27-company-governance.yml` | `6548a510458f07bc64e44fef7e9f7770a12e168d99e756ddeb6e08d36d46abc3`, `265707606a2e12ec7b2d3c01fb8157b7b1e5d91999eb7e1b3cb8bde00607e600`, `250b913d389f339d735f0646bf61c6e85524c60eab51ba8a46a8d5dc38bb99cd` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -219,6 +224,7 @@
 | OA-24 | 四入口审计/健康/Receipt parity | `source`；`kiana.entrypoint-parity.v1` 与 owner-scoped ControlPlane projection 已实现，CLI/Web/Workbench/Desktop 通过 protocol/DaemonHost 复用 source cursor、status、Receipt/Audit/Health digests、retention/unknown limitations；健康 endpoint 使用 liveness projection，入口不读 EventLog、不自行判定成功或恢复；尚无 durable query index、外部认证/健康探针、跨进程 retention/reconcile 或真实业务 Outcome 证明 |
 | OA-25 | 容量、性能和迁移演练 | `source`；`PerformanceBaseline`/`BenchmarkSummary`/`CapacityEnvelope`/`MigrationObservation` 与 checked p50/p95/p99 reducer 已实现，固定 journal/page/export/queue/artifact 上限，high-cardinality/oversize/backpressure fail-closed，rotation/archive/upgrade/downgrade/unknown writer version 只读观察受约束；尚无生产 benchmark artifact、真实大 artifact/慢 exporter、跨平台 rotation/archive、durable capacity telemetry 或 live SLO 证明 |
 | OA-26 | Local durable observability gate | `local_behavior`（仅远端 CI）；CI-only gate 在真实 JSONL 文件上验证 append→reopen→projection、Unknown/fencing、queue critical rejection、source/binary/artifact SHA-256 与 secret scan，未把内存 sink、历史 CI 或 mock 视为 durable；尚无 physical power-loss、外部 provider/Broker/telemetry backend、跨进程 retention/reconcile 或 live durable SLO 证明 |
+| OA-27 | Cross-entry/company governance gate | `source`；`CompanyGovernanceSnapshot` 与只读 `company.governance.v1` route 已将 Runtime/Review/Acceptance/Delivery/ClosingReceipt 链绑定到同一 CompanyState/source refs，runtime completed 不自动 Outcome，closed 链强制独立 reviewer/closer、accepted/waived acceptance、confirmed delivery 与全部 runtime evidence；CLI/Web/Workbench/Desktop 复用 protocol/DaemonHost；尚无 durable business index、跨组织 authenticated principal、外部 delivery confirmation、Outcome measurement 或 live/physical 证明 |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -754,3 +760,29 @@ preservation、OA-24 parity regression、release binary/artifact hash、secret s
 格式、shell syntax、静态源码检查和 test-target 编译，不执行测试二进制。限制仍包括物理断电/kill-9、跨进程
 并发和网络文件系统、真实 provider/Broker/telemetry backend、durable benchmark artifact、retention/reconcile
 store、live/physical durability 与业务 Outcome。
+
+## 33. OA-27 叠加说明
+
+OA-27 注册 `kiana.company-governance.v1`，把 CompanyOS 的 Runtime → Review → Acceptance → Delivery →
+ClosingReceipt 关系投影成可比较的 `CompanyGovernanceSnapshot`。snapshot 同时保留 project status、每个
+packet 的 runtime status、acceptance/review/delivery/closing/outcome refs、bounded source event IDs 和
+limitations；digest 覆盖全部字段，source duplicate、unknown field、坏 digest、超限引用均 fail-closed。
+
+`project_company_governance` 明确禁止把 `ExecutionStatus::Completed` 自动升级成业务 Outcome：没有
+Acceptance 时保留 `runtime_completed_not_business_outcome`，Acceptance 通过后仍只返回 `accepted`，只有
+独立 Reviewer、Accepted/Waived Acceptance、Confirmed Delivery、独立 Closer、全部 project runtime
+Completed、Project Closed 和 ClosingReceipt 同时成立才返回 `closed`。缺少任一链路、runtime
+`result_unknown`、reviewer/author 或 closer 身份重叠会返回 `unknown` 与 bounded limitation；Outcome 仅列出
+已提交 CompanyState refs，不由运行状态推断或写入。
+
+`ControlPlane::company_governance` 从 authenticated Company context 装载同一 EventLog-backed CompanyState，
+按 server-owned actor/project source refs 绑定后只读返回；协议使用 `company.governance.v1` command，daemon
+将其标为 no-execute，CLI `company-governance`、Workbench `/governance`、Web `/api/company-governance` 与
+Desktop Web 壳都经 `harness_run`/DaemonHost，不接受客户端 actor/project_root scope 覆盖，不调用 Broker/Provider、
+不发起 Review/Delivery/Close/Recovery 副作用。
+
+OA-27 远端 workflow 覆盖 runtime completed≠Outcome、closed chain success、缺链路/身份重叠 unknown、跨
+project/source owner rejection、Company governance wire round-trip 与 raw owner/scope override rejection；
+本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该切片仍是 source-level CompanyState
+projection，不等价于 durable business index、外部 delivery confirmation、真实 Outcome measurement、跨组织
+authenticated principal、live/physical delivery 或自动 reconcile 证明。

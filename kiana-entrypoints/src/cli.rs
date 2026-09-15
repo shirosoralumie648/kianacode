@@ -92,6 +92,13 @@ async fn main_with_args(raw_args: Vec<String>) -> Result<()> {
         return parity_main(&args, &runtime_flags).await;
     }
 
+    if matches!(
+        args.first().map(String::as_str),
+        Some("company-governance" | "governance")
+    ) {
+        return company_governance_main(&args, &runtime_flags).await;
+    }
+
     if args.first().map(String::as_str) == Some("run") {
         return run_main(&args).await;
     }
@@ -406,6 +413,69 @@ async fn parity_main(args: &[String], runtime_flags: &RuntimeFlags) -> Result<()
     if response.status != ControlPlaneStatus::Completed {
         return Err(anyhow!(
             "parity failed: {}",
+            response.error.as_deref().unwrap_or("unknown")
+        ));
+    }
+    Ok(())
+}
+
+async fn company_governance_main(args: &[String], runtime_flags: &RuntimeFlags) -> Result<()> {
+    if args
+        .iter()
+        .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
+    {
+        println!(
+            "Usage: kiana company-governance --session-id <id> --project <project_id> [--json]"
+        );
+        return Ok(());
+    }
+    let mut json_output = false;
+    let mut project_id = None;
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--json" => json_output = true,
+            "--project" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| anyhow!("company_governance_project_required"))?;
+                project_id = Some(value.clone());
+                index += 1;
+            }
+            value if value.starts_with("--project=") => {
+                project_id = Some(value.trim_start_matches("--project=").to_owned());
+            }
+            value => return Err(anyhow!("unknown company-governance option: {value}")),
+        }
+        index += 1;
+    }
+    let session_id = runtime_flags
+        .session_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("company_governance_session_required; use --session-id <id>"))?;
+    let project_id = project_id
+        .filter(|id| !id.trim().is_empty())
+        .ok_or_else(|| anyhow!("company_governance_project_required"))?;
+    let mut options = HashMap::new();
+    options.insert(
+        "cwd".to_owned(),
+        Value::String(std::env::current_dir()?.display().to_string()),
+    );
+    let response = crate::harness_run::company_governance_envelope_on_host(
+        crate::harness_run::new_local_host_with_options(&options)?,
+        session_id.to_owned(),
+        project_id,
+        &options,
+    )
+    .await?;
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&response)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(&response.output)?);
+    }
+    if response.status != ControlPlaneStatus::Completed {
+        return Err(anyhow!(
+            "company governance failed: {}",
             response.error.as_deref().unwrap_or("unknown")
         ));
     }
@@ -14188,6 +14258,7 @@ fn print_help() {
     println!("  kiana auth status     Inspect configured authentication state");
     println!("  kiana architecture status  Inspect control-plane migration status");
     println!("  kiana parity --session-id <id> [--run <run_id>] [--json]  Read the owner-scoped four-entrypoint parity projection");
+    println!("  kiana company-governance --session-id <id> --project <project_id> [--json]  Read the CompanyOS governance chain");
     println!("  kiana run [--json] [--stream] [--role builder|pm|architect|reviewer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] <prompt>  Execute a prompt, symposium, work packet, or review through the Kiana harness");
     println!("  kiana license status  Inspect enterprise license readiness");
     println!("  kiana agents          List configured agents");

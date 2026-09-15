@@ -512,6 +512,22 @@ pub async fn parity_envelope(
     .await
 }
 
+/// Read the CompanyOS governance chain through the same daemon/control-plane path.
+pub async fn company_governance_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    project_id: impl Into<String> + Send,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, None, options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    client
+        .company_governance(metadata, project_id)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
 pub async fn spawn_envelope(
     session_id: impl Into<String>,
     packet_path: impl AsRef<str>,

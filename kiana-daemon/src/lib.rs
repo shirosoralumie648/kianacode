@@ -975,6 +975,7 @@ fn request_may_execute(body: &RequestBody) -> bool {
         RequestBody::Command(command) => match command.name.as_str() {
             "company.snapshot.v1"
             | "company.next.v1"
+            | "company.governance.v1"
             | "workflow.snapshot.v1"
             | "swarm.snapshot.v1"
             | "human.inbox"

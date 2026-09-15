@@ -27,7 +27,7 @@ pub use kiana_domain::{CapabilityRequest, ConversationMessage, ConversationRole}
 
 pub use kiana_domain::{
     CompanyClosingReceipt, CompanyCommand, CompanyCommandRequest, CompanyState, COMPANY_COMMAND,
-    COMPANY_COMMAND_SCHEMA, COMPANY_SNAPSHOT, COMPANY_STATE_SCHEMA,
+    COMPANY_COMMAND_SCHEMA, COMPANY_GOVERNANCE, COMPANY_SNAPSHOT, COMPANY_STATE_SCHEMA,
 };
 
 pub const PROTOCOL_SCHEMA: &str = "kiana.protocol.v1";
@@ -118,6 +118,15 @@ impl RequestEnvelope {
     /// Read the event-derived Company state for this principal and workspace.
     pub fn company_snapshot(metadata: RequestMetadata) -> Self {
         Self::command(metadata, COMPANY_SNAPSHOT, serde_json::json!({}))
+    }
+
+    /// Read a server-owned CompanyOS runtime→review→acceptance→delivery→close chain.
+    pub fn company_governance(metadata: RequestMetadata, project_id: impl Into<String>) -> Self {
+        Self::command(
+            metadata,
+            COMPANY_GOVERNANCE,
+            serde_json::json!({"project_id": project_id.into()}),
+        )
     }
 
     pub fn workflow_command(

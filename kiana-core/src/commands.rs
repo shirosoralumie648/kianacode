@@ -244,6 +244,21 @@ impl ControlPlane {
         if intent.name == kiana_domain::COMPANY_SNAPSHOT || intent.name == "company.next.v1" {
             return self.company_snapshot(context).await;
         }
+        if intent.name == kiana_domain::COMPANY_GOVERNANCE {
+            let Some(project_id) = intent.arguments["project_id"].as_str() else {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "company_governance_project_required",
+                ));
+            };
+            if project_id.trim().is_empty() || project_id.len() > 256 {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "company_governance_project_invalid",
+                ));
+            }
+            return self.company_governance(&context, project_id).await;
+        }
         if intent.name == kiana_domain::MEMORY_DISTILL_COMMAND {
             return self
                 .handle_memory_distillation(context, intent.arguments)

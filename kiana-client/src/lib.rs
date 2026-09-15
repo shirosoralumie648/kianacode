@@ -70,6 +70,17 @@ where
             .await
     }
 
+    /// Read the authenticated CompanyOS governance-chain projection.
+    pub async fn company_governance(
+        &self,
+        metadata: RequestMetadata,
+        project_id: impl Into<String> + Send,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::company_governance(metadata, project_id))
+            .await
+    }
+
     /// 提交不带证明材料的审批决定。
     ///
     /// 旧调用者可以使用该方法，但服务端可能要求 request hash/nonce；方法返回响应不代表

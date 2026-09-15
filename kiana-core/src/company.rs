@@ -999,6 +999,10 @@ fn company_context(context: &RequestContext, write: bool) -> Result<(), &'static
     }
     Ok(())
 }
+
+pub(crate) fn company_context_for_read(context: &RequestContext) -> Result<(), &'static str> {
+    company_context(context, false)
+}
 fn company_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

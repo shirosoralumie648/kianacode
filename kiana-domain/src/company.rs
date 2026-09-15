@@ -9,6 +9,7 @@ pub const COMPANY_EVENT_SCHEMA: &str = "kiana.company-event.v1";
 pub const COMPANY_STATE_SCHEMA: &str = "kiana.company-state.v1";
 pub const COMPANY_COMMAND: &str = "company.command.v1";
 pub const COMPANY_SNAPSHOT: &str = "company.snapshot.v1";
+pub const COMPANY_GOVERNANCE: &str = "company.governance.v1";
 
 pub type CompanyResult<T> = Result<T, &'static str>;
 fn one() -> u64 {

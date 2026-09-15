@@ -38,7 +38,7 @@ use crate::harness_run;
 use crate::workbench::WORKBENCH_USAGE;
 
 const SLASH_HELP: &str =
-    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
+    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
@@ -96,6 +96,8 @@ pub enum ChatAction {
     Receipt,
     /// Request the owner-scoped cross-entrypoint parity projection.
     Parity,
+    /// Read a CompanyOS runtime-to-close governance projection.
+    Governance(String),
     /// List pending requests and reply with the server-issued challenge.
     Approvals,
     Approval {
@@ -200,6 +202,9 @@ impl WorkbenchView {
                 "sandbox" => interpret_sandbox(args),
                 "receipt" => ChatAction::Receipt,
                 "parity" => ChatAction::Parity,
+                "governance" if !args.trim().is_empty() => {
+                    ChatAction::Governance(args.trim().to_owned())
+                }
                 "approvals" => ChatAction::Approvals,
                 "inbox" => ChatAction::Command {
                     name: "human.inbox".to_owned(),
@@ -674,6 +679,17 @@ async fn handle_action(
                 session_id.to_owned(),
                 last_run_id,
                 kiana_protocol::EntryPointKind::Workbench,
+                options,
+            )
+            .await?;
+            view.push_system(serde_json::to_string_pretty(&response)?);
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::Governance(project_id) => {
+            let response = harness_run::company_governance_envelope_on_host(
+                Arc::clone(host),
+                session_id.to_owned(),
+                project_id,
                 options,
             )
             .await?;
