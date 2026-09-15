@@ -760,6 +760,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-25 domain/core/journal/capacity static-boundary review; no runtime test reviewer
 ```
 
+### OA-26 local durable observability gate evidence (2026-09-15)
+
+```text
+source_snapshot: 959c598; kiana-domain/src/{journal,performance,parity}.rs; kiana-core/src/{receipts,audit_projection,audit_export,parity,performance,lib}.rs; kiana-eventlog/src/{jsonl,journal_core}.rs; kiana-ports/src/observability_queue.rs; kiana-core/tests/{oa24_entrypoint_parity,oa26_durable_gate}.rs; scripts/oa26-durable-observability-gate.sh; .github/workflows/oa26-durable-observability.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-26 CI-only durable JSONL reopen/parity/Unknown/queue gate, source/release/artifact hash manifest, secret scan and roadmap/status overlays are scoped to this step; local invocation guard is intentional; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/journal.rs kiana-domain/src/performance.rs kiana-domain/src/parity.rs kiana-core/src/receipts.rs kiana-core/src/audit_projection.rs kiana-core/src/audit_export.rs kiana-core/src/parity.rs kiana-eventlog/src/jsonl.rs kiana-eventlog/src/journal_core.rs kiana-core/tests/oa26_durable_gate.rs kiana-ports/src/observability_queue.rs scripts/oa26-durable-observability-gate.sh
+  rg -n 'JsonlEventLog|read_all|result_unknown|ObservabilityQueue|critical_rejected|remote_ci_required|release-binary-sha256|secret_sentinel' kiana-core/tests scripts .github/workflows
+  bash -n scripts/oa26-durable-observability-gate.sh
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa26_durable_gate --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; CI-only test commands are recorded for GitHub Actions; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/oa26_durable_gate.rs; JsonlEventLog append/close/reopen with committed run.authorized/invocation.executing/run.result_unknown facts, OA-24 CLI/Desktop parity projection equality, JSONL digest and queue critical preservation; GitHub Actions only; CI script emits dist/oa26-durable/{source-sha256,release-binary-sha256,manifest}.*
+exit_code: 0 for source hashes, shell syntax, format, OA-26 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; script would exit 2 outside CI; GitHub Actions OA-26 job is queued by the push and is not awaited
+status_change: OA-26 source slice is implemented. The CI-only gate refuses local execution, verifies the durable JSONL adapter's fsync-backed close/reopen fact reconstruction, reprojects result_unknown and cross-entrypoint digests, checks critical queue rejection, writes bounded source/release/artifact hashes and scans evidence for secret sentinels. Existing journal frame/event/log limits and unknown writer checks remain fail-closed; no telemetry or release smoke result is promoted to authority.
+proof-level_change: source plus remote-test design/static evidence only; no local_behavior, durable, live or physical promotion until GitHub CI returns; even after CI, scope is local machine reopen rather than physical power-loss or live backend proof
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; no physical power-loss/kill-9/network-filesystem/concurrent cross-process proof, external provider/Broker/telemetry backend, durable benchmark artifact, retention/reconcile store or business Outcome confirmation exists; release binary hash is an artifact identity, not a release signature
+reviewer: Codex root implementation review plus OA-26 journal/receipt/queue/evidence static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

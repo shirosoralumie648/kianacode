@@ -115,6 +115,8 @@
 | Performance reducer（OA-25 overlay） | `kiana-core/src/performance.rs` | `f2934fb029defb7bf05faa3beb27ca1e440b63b36dccf121524b0e124b383eb2` |
 | Performance core exports（OA-25 overlay） | `kiana-core/src/lib.rs` | `09ca496beeb30bc2560e7acd8dcd480e0de77e8e9c262ec1d06939e1566bf82d` |
 | Capacity/migration remote fixtures/workflow（OA-25 overlay） | `kiana-core/tests/oa25_capacity_migration.rs`, `.github/workflows/oa25-capacity-migration.yml` | `75749d080759d91834479453f289316f0109e5688af116028af61f1bdb13eb32`, `0bad08f493df1a608196e1ef678bc935268fe21c69fc0ad5ccb090da5c9bbb51` |
+| Durable gate remote fixture（OA-26 overlay） | `kiana-core/tests/oa26_durable_gate.rs` | `5596a7cec38c6dd08efe7dbc8a0ba78b4c5f63453cf07314ae4209d788c573c2` |
+| Durable gate script/workflow（OA-26 overlay） | `scripts/oa26-durable-observability-gate.sh`, `.github/workflows/oa26-durable-observability.yml` | `4c137be04b0f25b8050a6bb5b95c7af0b567959e5ed94da701dffb4020960d28`, `20fa8bc64d38e2728ea99a95814490946b2bcf220b4f80dac9f3c4b73bb37a8d` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -216,6 +218,7 @@
 | OA-23 | Provider-independent eval suite | `source`；versioned EvalCaseSpec/Result/Suite、normalized event/Audit/Metric/Span/Run/Replay evidence、secret/forbidden-effect/missing-evidence/status/replay/cost guards、promote only all-pass 已实现；尚无 real provider eval, Promptfoo runner, durable eval artifact, external receipt or automatic promotion/rollback |
 | OA-24 | 四入口审计/健康/Receipt parity | `source`；`kiana.entrypoint-parity.v1` 与 owner-scoped ControlPlane projection 已实现，CLI/Web/Workbench/Desktop 通过 protocol/DaemonHost 复用 source cursor、status、Receipt/Audit/Health digests、retention/unknown limitations；健康 endpoint 使用 liveness projection，入口不读 EventLog、不自行判定成功或恢复；尚无 durable query index、外部认证/健康探针、跨进程 retention/reconcile 或真实业务 Outcome 证明 |
 | OA-25 | 容量、性能和迁移演练 | `source`；`PerformanceBaseline`/`BenchmarkSummary`/`CapacityEnvelope`/`MigrationObservation` 与 checked p50/p95/p99 reducer 已实现，固定 journal/page/export/queue/artifact 上限，high-cardinality/oversize/backpressure fail-closed，rotation/archive/upgrade/downgrade/unknown writer version 只读观察受约束；尚无生产 benchmark artifact、真实大 artifact/慢 exporter、跨平台 rotation/archive、durable capacity telemetry 或 live SLO 证明 |
+| OA-26 | Local durable observability gate | `local_behavior`（仅远端 CI）；CI-only gate 在真实 JSONL 文件上验证 append→reopen→projection、Unknown/fencing、queue critical rejection、source/binary/artifact SHA-256 与 secret scan，未把内存 sink、历史 CI 或 mock 视为 durable；尚无 physical power-loss、外部 provider/Broker/telemetry backend、跨进程 retention/reconcile 或 live durable SLO 证明 |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -731,3 +734,23 @@ unknown writer version 和 unknown-field/digest rejection；本地只执行格�
 不执行测试二进制。远端样本是隔离 fixture 的 source evidence，不等价于生产 p50/p95/p99 SLO、真实大 artifact
 或慢 exporter 压测、durable benchmark artifact、跨平台 rotation/archive、容量 telemetry、upgrade/downgrade
 写入或 live migration proof。
+
+## 32. OA-26 叠加说明
+
+OA-26 新增 CI-only `oa26-durable-observability-gate.sh` 与远端 workflow。脚本在非 CI 环境主动返回
+`remote_ci_required`，避免把开发机上的单次执行误报为发布证据；GitHub runner 上先执行格式、workspace
+test-target 编译，再串行运行真实 `JsonlEventLog` append→close→reopen→read_all 夹具和 OA-24 parity
+projection，确认 committed source IDs、`result_unknown`、Receipt/Audit/Health digest 与队列 critical rejection
+可重建。脚本同时写出 source-sha256、release binary SHA-256 和 bounded JSON manifest，并扫描 evidence
+目录中的 bearer/sk/raw-secret sentinel。
+
+该 gate 的 durable 边界是“本机 JSONL 的写入同步、关闭重开和事实重建”`local_behavior` 证据：它不把
+`MemoryEventLog`、fake sink、历史 CI 结果、单测 mock 或没有 artifact hash 的文字报告当成 durable，不改写
+EventLog，也不通过 telemetry/health 反向授予权限。Unknown 仍要求后续对账，queue 满载只返回结构化拒绝，
+Receipt/Audit/Health 只从事实投影重建；没有真实 effect/provider 调用或恢复副作用。
+
+OA-26 远端 workflow 覆盖 durable JSONL reopen、source cursor/event hash、Unknown/fencing、queue critical
+preservation、OA-24 parity regression、release binary/artifact hash、secret scan 和 CI-only guard；本地只执行
+格式、shell syntax、静态源码检查和 test-target 编译，不执行测试二进制。限制仍包括物理断电/kill-9、跨进程
+并发和网络文件系统、真实 provider/Broker/telemetry backend、durable benchmark artifact、retention/reconcile
+store、live/physical durability 与业务 Outcome。

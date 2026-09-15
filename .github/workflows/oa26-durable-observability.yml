@@ -1,0 +1,60 @@
+name: oa26-durable-observability
+
+on:
+  push:
+    paths:
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/performance.rs"
+      - "kiana-domain/src/parity.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/audit_export.rs"
+      - "kiana-core/src/parity.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-core/tests/oa26_durable_gate.rs"
+      - "kiana-ports/src/observability_queue.rs"
+      - "scripts/oa26-durable-observability-gate.sh"
+      - ".github/workflows/oa26-durable-observability.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/journal.rs"
+      - "kiana-domain/src/performance.rs"
+      - "kiana-domain/src/parity.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/audit_projection.rs"
+      - "kiana-core/src/audit_export.rs"
+      - "kiana-core/src/parity.rs"
+      - "kiana-eventlog/src/jsonl.rs"
+      - "kiana-eventlog/src/journal_core.rs"
+      - "kiana-core/tests/oa26_durable_gate.rs"
+      - "kiana-ports/src/observability_queue.rs"
+      - "scripts/oa26-durable-observability-gate.sh"
+      - ".github/workflows/oa26-durable-observability.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  oa26:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-oa26-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fetch --locked
+      - name: Run CI-only durable observability gate
+        run: bash scripts/oa26-durable-observability-gate.sh
+      - name: Upload OA-26 evidence manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: oa26-durable-evidence
+          path: dist/oa26-durable
