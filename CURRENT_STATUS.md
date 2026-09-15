@@ -580,6 +580,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-17 domain/core/protocol cursor static-boundary review; no runtime test reviewer
 ```
 
+### OA-18 audit export/manifest/delivery evidence (2026-09-15)
+
+```text
+source_snapshot: ea635e6; kiana-domain/src/{contracts,observability}.rs; kiana-core/src/{audit_export,audit_projection,lib}.rs; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/lib.rs; kiana-core/tests/oa18_audit_export.rs; kiana-protocol/tests/oa18_audit_export.rs; .github/workflows/oa18-audit-export.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-18 export/manifest/delivery contracts, server-scoped redacted materializer, protocol/client/DaemonHost route, remote-only domain/wire fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-core/src/audit_export.rs kiana-core/src/audit_projection.rs kiana-core/src/lib.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-daemon/src/lib.rs kiana-core/tests/oa18_audit_export.rs kiana-protocol/tests/oa18_audit_export.rs .github/workflows/oa18-audit-export.yml
+  rg -n 'AuditExportManifest|AuditDeliveryReceipt|AuditExportRequest|export_audit|delivery_not_confirmed|audit_export_requires_explicit_permission' kiana-domain/src kiana-core/src kiana-protocol/src kiana-client/src kiana-daemon/src kiana-core/tests kiana-protocol/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa18_audit_export --locked --offline
+  cargo check -p kiana-protocol --test oa18_audit_export --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa18_audit_export.rs and kiana-protocol/tests/oa18_audit_export.rs; manifest/artifact/query hash, missing purpose/recipient/retention, safe/unauthenticated deny, redacted JSONL/JSON/CSV contract, oversized/secret, Unknown-vs-Delivered confirmation and closed wire fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core/protocol OA-18 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-18 job is queued by the push and is not awaited
+status_change: OA-18 source slice is implemented. `kiana.audit-export.v1` and `kiana.audit-delivery-receipt.v1` bind export/query/source/projection/artifact hashes, format, purpose, recipient, retention and confirmation state. `ControlPlane::export_audit` reuses server-scoped query, emits bounded redacted JSONL/JSON/CSV content and manifest, denies Safe/unauthenticated/invalid/oversized/secret material, and emits delivery `Unknown` without an independent confirmation; protocol/client/DaemonHost route no raw EventLog or direct delivery side effect.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; export content/manifest is process-local and not written to durable ArtifactStore, no external delivery connector or server confirmation exists, export audit event/retention/query index/cross-entry parity remain open, and `deliver=true` intentionally cannot claim delivered
+reviewer: Codex root implementation review plus OA-18 domain/core/protocol/client/daemon export static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

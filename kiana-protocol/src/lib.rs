@@ -8,15 +8,15 @@
 use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, AgentTemplate, ApprovalChallenge, ApprovalDecision, ApprovalId,
-    ArtifactId, AuditActionKind, AuditDecision, AuditQueryCursor, AuditRecord, BudgetLease,
-    BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy, CapabilityExecutionState,
-    CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec, ClosingReceipt,
-    DelegationId, DelegationPacket, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt,
-    OrganizationId, PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec,
-    RunId, SessionId, SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium,
-    TemplateId, TurnId, WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING,
-    MERGE_RECEIPT_PATH, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM,
-    ROLE_REVIEWER, WORK_PACKET_SCHEMA,
+    ArtifactId, AuditActionKind, AuditDecision, AuditExportFormat, AuditQueryCursor, AuditRecord,
+    BudgetLease, BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy,
+    CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec,
+    ClosingReceipt, DelegationId, DelegationPacket, ExecutionId, ExecutionStatus, InvocationId,
+    MergeReceipt, OrganizationId, PermissionProfile, ReceiptId, RequestId, ReviewPacket, RiskLevel,
+    RoleSpec, RunId, SessionId, SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId,
+    Symposium, TemplateId, TurnId, WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING,
+    DEPARTMENT_MONITORING, MERGE_RECEIPT_PATH, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER,
+    ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -346,6 +346,15 @@ impl RequestEnvelope {
             body: RequestBody::AuditQuery(query),
         }
     }
+
+    /// Construct a controlled audit export request; the daemon supplies ownership and evidence.
+    pub fn audit_export(metadata: RequestMetadata, export: AuditExportRequest) -> Self {
+        Self {
+            schema: PROTOCOL_SCHEMA.to_owned(),
+            metadata,
+            body: RequestBody::AuditExport(export),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -370,6 +379,8 @@ pub enum RequestBody {
     Receipt(ReceiptRequest),
     /// Read a bounded server-authenticated audit projection.
     AuditQuery(AuditQueryRequest),
+    /// Materialize a bounded redacted audit export through ControlPlane.
+    AuditExport(AuditExportRequest),
     /// 申请 spawn。
     Spawn(SpawnRequest),
     /// 召开 symposium。
@@ -533,6 +544,46 @@ pub struct AuditQueryResponse {
     pub next_cursor: Option<AuditQueryCursor>,
     pub source_cursor: kiana_domain::EventCursor,
     pub projection_version: u64,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditExportRequest {
+    pub query: AuditQueryRequest,
+    pub format: AuditExportFormat,
+    pub purpose: String,
+    pub recipient: String,
+    pub retention_class: String,
+    #[serde(default)]
+    pub deliver: bool,
+}
+
+impl AuditExportRequest {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        self.query.validate()?;
+        for (value, field, max) in [
+            (&self.purpose, "audit_export_purpose", 256),
+            (&self.recipient, "audit_export_recipient", 256),
+            (&self.retention_class, "audit_export_retention_class", 64),
+        ] {
+            if value.trim().is_empty() || value.len() > max {
+                return Err(field);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditExportResponse {
+    pub schema: String,
+    pub manifest: kiana_domain::AuditExportManifest,
+    pub content: String,
+    #[serde(default)]
+    pub delivery: Option<kiana_domain::AuditDeliveryReceipt>,
     #[serde(default)]
     pub limitations: Vec<String>,
 }

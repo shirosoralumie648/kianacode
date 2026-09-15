@@ -565,6 +565,19 @@ impl DaemonHost {
                 return ResponseEnvelope::rejected(request_id, "audit_query_unauthenticated");
             }
         }
+        if let RequestBody::AuditExport(export) = &request.body {
+            if export.validate().is_err() {
+                return ResponseEnvelope::rejected(request_id, "audit_export_invalid");
+            }
+            if request
+                .metadata
+                .actor_id
+                .as_deref()
+                .is_none_or(|actor| actor != self.principal.actor_id)
+            {
+                return ResponseEnvelope::rejected(request_id, "audit_export_unauthenticated");
+            }
+        }
         let mut metadata = request.metadata;
         let permission_profile =
             effective_permission_profile(&request.body, metadata.permission_profile);
@@ -725,6 +738,29 @@ impl DaemonHost {
                             decision: query.decision,
                             target_kind: query.target_kind,
                             cursor: query.cursor,
+                        },
+                    )
+                    .await
+            }
+            RequestBody::AuditExport(export) => {
+                self.core
+                    .export_audit(
+                        &context,
+                        kiana_core::AuditExportInput {
+                            query: kiana_core::AuditQueryInput {
+                                source_cursor: export.query.source_cursor,
+                                after_cursor: export.query.after_cursor,
+                                limit: export.query.limit,
+                                action_kind: export.query.action_kind,
+                                decision: export.query.decision,
+                                target_kind: export.query.target_kind,
+                                cursor: export.query.cursor,
+                            },
+                            format: export.format,
+                            purpose: export.purpose,
+                            recipient: export.recipient,
+                            retention_class: export.retention_class,
+                            deliver: export.deliver,
                         },
                     )
                     .await
@@ -966,6 +1002,7 @@ fn effective_permission_profile(
         RequestBody::Cancel(_) => declared,
         RequestBody::Receipt(_) => PermissionProfile::Safe,
         RequestBody::AuditQuery(_) => PermissionProfile::Safe,
+        RequestBody::AuditExport(_) => declared,
     }
 }
 

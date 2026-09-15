@@ -77,6 +77,11 @@
 | Audit query cursor reducer（OA-17 overlay） | `kiana-core/src/audit_projection.rs` | `5ddf6d04d6ce42d9f657a65d00f40a391af69f80a4f76aa785d57e4268fcd5fd` |
 | Audit query cursor protocol（OA-17 overlay） | `kiana-protocol/src/lib.rs` | `2c5506dd9bdb9e998898fe8cb367442b7d3b71298bf6569a48ee321bf1cdaf1e` |
 | Audit query cursor DaemonHost route（OA-17 overlay） | `kiana-daemon/src/lib.rs` | `5bdb0e6a02eef8b52d636237f1c148b44a35d2772c78aed9c03a51eb802ce7e4` |
+| Audit export/delivery contracts（OA-18 overlay） | `kiana-domain/src/observability.rs` | `305164150f974706c6398f7aa7c73897850e4540c6a7893d3a524fac9b236d3e` |
+| Audit export schema registry（OA-18 overlay） | `kiana-domain/src/contracts.rs` | `479cb9668acb51b29a9629ae60c9bd47b47cf8115020ffe9a5754a6dadd08cf5` |
+| Audit export materializer（OA-18 overlay） | `kiana-core/src/audit_export.rs` | `7294a6434b5bbf3b8f679db10b6d7e896a041a2d09693b209d4d4e07bfc6b563` |
+| Audit export core exports（OA-18 overlay） | `kiana-core/src/lib.rs` | `76edce8eff56cbd019b0925993c3620fc0001f81f9fda8f29ebebeab767540f5` |
+| Audit export protocol/client/daemon（OA-18 overlay） | `kiana-protocol/src/lib.rs`, `kiana-client/src/lib.rs`, `kiana-daemon/src/lib.rs` | `76efc57ef967fd81a2e7ad4e98acfd273cb904fcfc8012e05ed8a34105ac9b56`, `314f28d69494f53c8ece0d552a2d086ffbdf96ef332fafeb69c985882b069e78`, `2353b3f4fa00b795f03ec848081d40e265690b0cc7174c6e3f01ebc092aeece4` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -170,6 +175,7 @@
 | OA-15 | AuditProjection checkpoint/rebuild | `source`；AuditProjectionSnapshot/Checkpoint、rebuild/append/restore、source cursor/event/schema/decision/checksum binding 已实现；尚无 durable checkpoint store、cross-process automatic reload、Artifact ref/query/export/correction/incident wiring |
 | OA-16 | Audit query command/wire DTO | `source`；server-scoped AuditQuery request/page、ControlPlane filter、DaemonHost/client route、bounded limit/cursor and raw-event rejection 已实现；尚无 durable query index/filter snapshot, cross-entry parity, export/delivery or external auth provider |
 | OA-17 | Query cursor/snapshot/paging and slow-query boundary | `source`；AuditQueryCursor epoch/projection/source/after/filter digest binding、stale/ahead rejection and bounded next cursor 已实现；尚无 durable query index/retention snapshot, slow-query instrumentation, reconnect parity or multi-entry cursor store |
+| OA-18 | Audit export/manifest/delivery evidence | `source`；server-scoped redacted JSONL/JSON/CSV materializer、query/source/projection/artifact manifest hashes、purpose/recipient/retention guards 和 Unknown delivery receipt 已实现；尚无 durable ArtifactStore/export file、external delivery connector/confirmation 或 export audit fact |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -512,3 +518,24 @@ OA-17 远端 workflow 覆盖 cursor serde/digest、字段绑定、stale/ahead/fi
 next cursor；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该 cursor 仍是 source
 projection token，不等价于 durable query index、retention/epoch store、慢查询 telemetry 或跨入口 reconnect
 一致性。
+
+## 24. OA-18 叠加说明
+
+OA-18 注册 `kiana.audit-export.v1` 与 `kiana.audit-delivery-receipt.v1`，由
+`AuditExportManifest`/`AuditDeliveryReceipt` 绑定 export/query/source/projection/artifact digest、格式、
+record count、purpose、recipient、retention 和 source events。`Delivered` 必须有 server-owned
+confirmation digest；`Unknown`/`Failed` 不能带 confirmation，也不能被 content/HTTP ack 猜成 delivered。
+
+`AuditExportRequest` 嵌套 OA-16/OA-17 query，额外要求非空 bounded purpose/recipient/retention；DaemonHost
+要求 authenticated local principal，ControlPlane 要求显式非 Safe permission，复用 server-scoped query 后
+仅序列化已验证 AuditRecord 的 JSONL/JSON/CSV 安全字段。content 有硬字节上限并再次扫描 Bearer/secret/
+password/authorization sentinel；manifest artifact hash、query digest、source cursor、projection version
+和 redacted source IDs 必须验证。`deliver=true` 在没有独立 delivery adapter/confirmation 时返回
+`AuditDeliveryReceipt{state=unknown}` 与 limitation，不写成功事实；任何参数不生成 raw EventLog endpoint、
+capability/Broker/Provider 副作用。
+
+OA-18 远端 workflow 覆盖 manifest/delivery round-trip、missing purpose/recipient/retention、Safe/未认证
+deny、scope/query reuse、JSONL/JSON/CSV bounded redaction、hash mismatch、oversize/secret sentinel 和
+unknown-vs-delivered receipt；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该
+export 仍是 source-local materialization，不等价于 durable ArtifactStore、外部 delivery、operator approval、
+export audit event 或 live delivery proof。

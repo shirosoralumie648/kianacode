@@ -3,6 +3,7 @@
 mod approvals;
 mod artifacts;
 mod audit;
+mod audit_export;
 mod audit_projection;
 mod authority;
 mod capabilities;
@@ -39,6 +40,7 @@ mod versioning;
 mod workspace_checkpoints;
 
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
+pub use audit_export::{AuditExportError, AuditExportInput};
 pub use audit_projection::{
     rebuild_audit_projection, AuditProjection, AuditProjectionError, AuditQueryInput,
     AUDIT_PROJECTION_VERSION,

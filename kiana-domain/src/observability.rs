@@ -18,6 +18,8 @@ pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const AUDIT_PROJECTION_SCHEMA: &str = "kiana.audit-projection.v1";
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-checkpoint.v1";
 pub const AUDIT_QUERY_CURSOR_SCHEMA: &str = "kiana.audit-query-cursor.v1";
+pub const AUDIT_EXPORT_SCHEMA: &str = "kiana.audit-export.v1";
+pub const AUDIT_DELIVERY_RECEIPT_SCHEMA: &str = "kiana.audit-delivery-receipt.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
@@ -29,6 +31,8 @@ pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_QUERY_CURSOR_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_EXPORT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_DELIVERY_RECEIPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -51,6 +55,7 @@ pub const MAX_METRIC_POINTS: usize = 128;
 pub const MAX_METRIC_SERIES: usize = 1_024;
 pub const MAX_METRIC_LABEL_VALUES: usize = 64;
 pub const MAX_AUDIT_PROJECTION_RECORDS: usize = 4_096;
+pub const MAX_AUDIT_EXPORT_RECORDS: usize = 4_096;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
 pub const MAX_HEALTH_LIMITATIONS: usize = 16;
 pub const MAX_HEALTH_CAPABILITIES: usize = 32;
@@ -1262,6 +1267,203 @@ impl AuditQueryCursor {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "cursor_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditExportFormat {
+    Jsonl,
+    Json,
+    Csv,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditExportManifest {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub export_id: String,
+    pub query_digest: String,
+    pub source_cursor: u64,
+    pub projection_version: u64,
+    pub record_count: u32,
+    pub format: AuditExportFormat,
+    pub purpose: String,
+    pub recipient: String,
+    pub retention_class: String,
+    pub artifact_digest: String,
+    pub source_event_ids: Vec<EventId>,
+    pub manifest_digest: String,
+}
+
+impl AuditExportManifest {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        export_id: impl Into<String>,
+        query_digest: impl Into<String>,
+        source_cursor: u64,
+        projection_version: u64,
+        record_count: u32,
+        format: AuditExportFormat,
+        purpose: impl Into<String>,
+        recipient: impl Into<String>,
+        retention_class: impl Into<String>,
+        artifact_digest: impl Into<String>,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
+        let mut manifest = Self {
+            schema: AUDIT_EXPORT_SCHEMA.to_owned(),
+            version: AUDIT_EXPORT_SCHEMA_VERSION,
+            export_id: export_id.into(),
+            query_digest: query_digest.into(),
+            source_cursor,
+            projection_version,
+            record_count,
+            format,
+            purpose: purpose.into(),
+            recipient: recipient.into(),
+            retention_class: retention_class.into(),
+            artifact_digest: artifact_digest.into(),
+            source_event_ids,
+            manifest_digest: String::new(),
+        };
+        manifest.manifest_digest = manifest.digest();
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_EXPORT_SCHEMA,
+            AUDIT_EXPORT_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.export_id, "audit_export_id", 128)?;
+        validate_digest(&self.query_digest, "audit_export_query_digest")?;
+        if self.source_cursor == 0 || self.projection_version == 0 {
+            return Err("audit_export_cursor_required".to_owned());
+        }
+        if usize::try_from(self.record_count).unwrap_or(usize::MAX) > MAX_AUDIT_EXPORT_RECORDS {
+            return Err("audit_export_record_limit".to_owned());
+        }
+        validate_nonempty(&self.purpose, "audit_export_purpose", 256)?;
+        validate_nonempty(&self.recipient, "audit_export_recipient", 256)?;
+        validate_nonempty(&self.retention_class, "audit_export_retention_class", 64)?;
+        validate_digest(&self.artifact_digest, "audit_export_artifact_digest")?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_digest(&self.manifest_digest, "audit_export_manifest_digest")?;
+        if self.manifest_digest != self.digest() {
+            return Err("audit_export_manifest_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "manifest_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditDeliveryState {
+    Delivered,
+    Failed,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditDeliveryReceipt {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub delivery_id: String,
+    pub export_id: String,
+    pub manifest_digest: String,
+    pub artifact_digest: String,
+    pub recipient: String,
+    pub state: AuditDeliveryState,
+    #[serde(default)]
+    pub confirmation_digest: Option<String>,
+    pub source_cursor: u64,
+    pub delivery_digest: String,
+}
+
+impl AuditDeliveryReceipt {
+    pub fn new(
+        delivery_id: impl Into<String>,
+        export_id: impl Into<String>,
+        manifest_digest: impl Into<String>,
+        artifact_digest: impl Into<String>,
+        recipient: impl Into<String>,
+        state: AuditDeliveryState,
+        confirmation_digest: Option<String>,
+        source_cursor: u64,
+    ) -> Result<Self, String> {
+        let mut receipt = Self {
+            schema: AUDIT_DELIVERY_RECEIPT_SCHEMA.to_owned(),
+            version: AUDIT_DELIVERY_RECEIPT_SCHEMA_VERSION,
+            delivery_id: delivery_id.into(),
+            export_id: export_id.into(),
+            manifest_digest: manifest_digest.into(),
+            artifact_digest: artifact_digest.into(),
+            recipient: recipient.into(),
+            state,
+            confirmation_digest,
+            source_cursor,
+            delivery_digest: String::new(),
+        };
+        receipt.delivery_digest = receipt.digest();
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_DELIVERY_RECEIPT_SCHEMA,
+            AUDIT_DELIVERY_RECEIPT_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.delivery_id, "audit_delivery_id", 128)?;
+        validate_nonempty(&self.export_id, "audit_delivery_export_id", 128)?;
+        validate_digest(&self.manifest_digest, "audit_delivery_manifest_digest")?;
+        validate_digest(&self.artifact_digest, "audit_delivery_artifact_digest")?;
+        validate_nonempty(&self.recipient, "audit_delivery_recipient", 256)?;
+        if self.source_cursor == 0 {
+            return Err("audit_delivery_cursor_required".to_owned());
+        }
+        if let Some(confirmation) = &self.confirmation_digest {
+            validate_digest(confirmation, "audit_delivery_confirmation_digest")?;
+        }
+        if self.state == AuditDeliveryState::Delivered && self.confirmation_digest.is_none() {
+            return Err("audit_delivery_confirmation_required".to_owned());
+        }
+        if self.state != AuditDeliveryState::Delivered && self.confirmation_digest.is_some() {
+            return Err("audit_delivery_confirmation_state_conflict".to_owned());
+        }
+        validate_digest(&self.delivery_digest, "audit_delivery_digest")?;
+        if self.delivery_digest != self.digest() {
+            return Err("audit_delivery_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "delivery_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

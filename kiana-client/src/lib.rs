@@ -6,8 +6,8 @@
 
 use async_trait::async_trait;
 use kiana_protocol::{
-    ApprovalDecision, ApprovalId, AuditQueryRequest, RequestEnvelope, RequestMetadata,
-    ResponseEnvelope, RunId, WorkPacket,
+    ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, RequestEnvelope,
+    RequestMetadata, ResponseEnvelope, RunId, WorkPacket,
 };
 use serde_json::Value;
 
@@ -190,6 +190,17 @@ where
     ) -> Result<ResponseEnvelope, ClientError> {
         self.transport
             .send(RequestEnvelope::audit_query(metadata, query))
+            .await
+    }
+
+    /// Materialize a server-authorized, redacted audit export.
+    pub async fn audit_export(
+        &self,
+        metadata: RequestMetadata,
+        export: AuditExportRequest,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        self.transport
+            .send(RequestEnvelope::audit_export(metadata, export))
             .await
     }
 
