@@ -1,0 +1,39 @@
+name: AUT-01 automation baseline
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/automation_baseline.rs"
+      - "kiana-workflow/src/**"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/sdk.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/automation-baseline.md"
+      - ".github/workflows/aut01-baseline.yml"
+  pull_request:
+    paths:
+      - "kiana-core/src/automation.rs"
+      - "kiana-core/tests/automation_baseline.rs"
+      - "kiana-workflow/src/**"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-entrypoints/src/sdk.rs"
+      - "docs/roadmap.md"
+      - "docs/roadmap/automation-baseline.md"
+      - ".github/workflows/aut01-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - name: Run AUT-01 source-only guard
+        run: cargo test -p kiana-core --test automation_baseline --locked -- --test-threads=1

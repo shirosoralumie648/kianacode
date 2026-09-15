@@ -829,6 +829,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-28 live-handoff/credential/receipt/opt-in static-boundary review; no runtime test reviewer
 ```
 
+### AUT-01 automation baseline and migration guard evidence (2026-09-16)
+
+```text
+source_snapshot: 2d31b8d; kiana-domain/src/automation.rs; kiana-workflow/src/{lib,durable}.rs; kiana-core/src/automation.rs; kiana-daemon/src/lib.rs; kiana-protocol/src/lib.rs; kiana-entrypoints/src/sdk.rs; kiana-workflow/tests/state_matrix.rs; kiana-core/tests/automation_baseline.rs; .github/workflows/aut01-baseline.yml; docs/roadmap/automation-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: AUT-01 source-only workflow/trigger inventory, single-spine guard, legacy watch_scheduled_tasks compatibility boundary, fixture catalog and roadmap/status overlays are scoped to this step; no product scheduler or second execution loop was added; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/automation.rs kiana-workflow/src/durable.rs kiana-core/src/automation.rs kiana-daemon/src/lib.rs kiana-protocol/src/lib.rs kiana-entrypoints/src/sdk.rs kiana-workflow/tests/state_matrix.rs kiana-core/tests/automation_baseline.rs .github/workflows/aut01-baseline.yml docs/roadmap/automation-baseline.md
+  rg -n 'watch_scheduled_tasks|WorkflowDefinition|TriggerDefinition|plan_command|commit_workflow|authorize_and_execute|tokio::spawn|CapabilityBroker|EventStore' kiana-domain/src kiana-workflow/src kiana-core/src kiana-daemon/src kiana-entrypoints/src/sdk.rs kiana-core/tests/automation_baseline.rs
+  cargo fmt --all
+  cargo fmt --all --check
+  bash -n scripts/oa28-live-handoff-preflight.sh
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/automation_baseline.rs; pure planner/ControlPlane/DaemonHost single-spine source assertions, legacy watcher presence/count, no direct planner Broker/EventStore, fixture names for AUT-02..24; GitHub Actions only
+exit_code: 0 for source hashes, format, shell syntax, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions AUT-01 job is queued by the push and is not awaited
+status_change: AUT-01 source baseline is implemented. `kiana-workflow::plan_command` remains pure and side-effect free; `kiana-core::automation` commits workflow facts before routing AgentTask/Capability through existing Company/ControlPlane paths; DaemonHost routes workflow commands through the same spine. `kiana-entrypoints::sdk::watch_scheduled_tasks` is explicitly compatibility-only (directory creation plus legacy DTO/notification), not a scheduler, EventLog occurrence source, claim queue or authority. The source guard records the gap and blocks a second scheduler/direct capability path without claiming the target scheduler exists.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ClockPort, durable trigger/queue/claim/lease/fence, scheduler worker, event/webhook ingress, restart recovery, retry/cancel/compensation and four-entrypoint automation UAT remain AUT-02..AUT-24; old watcher remains a compatibility API and no migration/upcaster or runtime timer is provided
+reviewer: Codex root implementation review plus AUT-01 automation/source-boundary reconciliation; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
