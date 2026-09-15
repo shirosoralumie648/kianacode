@@ -935,6 +935,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus INT-00 connector/provider/MCP/A2A/source-boundary reconciliation; no runtime test reviewer
 ```
 
+### CP-01 server principal and project identity evidence (2026-09-16)
+
+```text
+source_snapshot: b923553; kiana-domain/src/{identity,contracts,lib,roles}.rs; kiana-core/src/sessions.rs; kiana-daemon/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cp01_identity.rs; kiana-core/tests/cp01_identity_guard.rs; .github/workflows/cp01-identity.yml; docs/roadmap/control-plane-identity-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: CP-01 server-owned AuthenticatedPrincipalRef, deterministic ProjectIdentity (canonical root/device/inode/trust digest), typed SessionAssignment CAS/rebuild validation, daemon effectful project identity resolution, remote identity fixtures and roadmap/status overlays are scoped to this step; no external auth provider or second execution loop was added; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/identity.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/sessions.rs kiana-daemon/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/cp01_identity.rs kiana-core/tests/cp01_identity_guard.rs .github/workflows/cp01-identity.yml docs/roadmap/control-plane-identity-baseline.md
+  rg -n 'AuthenticatedPrincipalRef|ProjectIdentity|SessionAssignment|principal_role_not_authorized|project_identity|project_authority|append_expected|session_assignment_mismatch|RequestMetadata' kiana-domain/src kiana-core/src kiana-daemon/src kiana-protocol/src kiana-domain/tests kiana-core/tests docs/roadmap/control-plane-identity-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --test cp01_identity --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; identity/source guard test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cp01_identity.rs deterministic canonical project IDs and assignment digest/unknown-field/tamper checks; kiana-core/tests/cp01_identity_guard.rs daemon server-principal/project/assignment/CAS source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, CP-01 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-01 job is queued by the push and is not awaited
+status_change: CP-01 source slice is implemented. DaemonHost now owns an immutable local `AuthenticatedPrincipalRef`, overwrites wire actor with the server principal, enforces a server-side role allowlist and reads ProjectTrust through its injected authority. Effectful requests derive a deterministic `ProjectIdentity` from canonical root/device/inode and trust revision before authority synchronization. `SessionAssignment` is appended with CAS, typed principal/project/role/department/epoch and digest, and persisted rebuild validates the typed assignment when present. Continue/cancel/approval/receipt remain bound by existing session/run owner checks; no enterprise/OAuth principal or cross-tenant auth is claimed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; principal is still fixed local-user with env/catalog role allowlist, OS credential/OAuth/tenant provider and durable identity/assignment revocation epochs are absent, non-effectful queries do not mint assignments, and device/inode identity is platform-limited; no cross-process auth, external account or business outcome proof exists
+reviewer: Codex root implementation review plus CP-01 identity/project-scope/assignment static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

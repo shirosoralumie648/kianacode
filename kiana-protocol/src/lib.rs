@@ -9,16 +9,17 @@ use kiana_domain::CoreResponse;
 pub use kiana_domain::{
     normalize_role_path, AgentTemplate, ApprovalChallenge, ApprovalDecision, ApprovalId,
     ArtifactId, AuditActionKind, AuditDecision, AuditExportFormat, AuditQueryCursor, AuditRecord,
-    BudgetLease, BudgetLeaseId, CapabilityErrorCode, CapabilityErrorPolicy,
-    CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId, CellLifecycle, CellSpec,
-    ClosingReceipt, DelegationId, DelegationPacket, EntryPointKind, EntryPointParitySnapshot,
-    ExecutionId, ExecutionStatus, InvocationId, MergeReceipt, OrganizationId, PermissionProfile,
-    ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId, SessionId, SignalStatus,
-    SpawnPlan, SpawnPlanId, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId,
-    WorkPacket, WorkPacketStatus, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING,
+    AuthenticatedPrincipalRef, BudgetLease, BudgetLeaseId, CapabilityErrorCode,
+    CapabilityErrorPolicy, CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CellId,
+    CellLifecycle, CellSpec, ClosingReceipt, DelegationId, DelegationPacket, EntryPointKind,
+    EntryPointParitySnapshot, ExecutionId, ExecutionStatus, InvocationId, MergeReceipt,
+    OrganizationId, PermissionProfile, ProjectIdentity, ReceiptId, RequestId, ReviewPacket,
+    RiskLevel, RoleSpec, RunId, SessionAssignment, SessionId, SignalStatus, SpawnPlan, SpawnPlanId,
+    SupervisionLease, SupervisionLeaseId, Symposium, TemplateId, TurnId, WorkPacket,
+    WorkPacketStatus, AUTHENTICATED_PRINCIPAL_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_MONITORING,
     ENTRYPOINT_PARITY_SCHEMA, ENTRYPOINT_PARITY_SCHEMA_VERSION, MERGE_RECEIPT_PATH,
-    REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
-    WORK_PACKET_SCHEMA,
+    PROJECT_IDENTITY_SCHEMA, REVIEW_PACKET_SCHEMA, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER,
+    ROLE_PM, ROLE_REVIEWER, SESSION_ASSIGNMENT_SCHEMA, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

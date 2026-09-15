@@ -28,8 +28,9 @@ use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
-    CommandIntent, ComponentHealth, ComponentHealthState, HealthProbeKind, HealthSnapshot,
-    PermissionProfile, RequestContext, RoleSpec, RunId, RuntimeEvent,
+    AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
+    HealthProbeKind, HealthSnapshot, PermissionProfile, ProjectIdentity, RequestContext, RoleSpec,
+    RunId, RuntimeEvent,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -76,14 +77,17 @@ impl ProjectTrustAuthority for StoredProjectTrustAuthority {
 
 #[derive(Clone, Debug)]
 struct AuthenticatedPrincipal {
+    identity: AuthenticatedPrincipalRef,
     actor_id: String,
     allowed_roles: Vec<String>,
 }
 
 impl AuthenticatedPrincipal {
     fn local() -> Self {
+        let identity = AuthenticatedPrincipalRef::local();
         Self {
-            actor_id: "local-user".to_owned(),
+            actor_id: identity.principal_id.clone(),
+            identity,
             allowed_roles: std::env::var("KIANA_LOCAL_ALLOWED_ROLES")
                 .map(|value| {
                     value
@@ -139,6 +143,50 @@ impl DaemonHost {
         role: Option<RoleSpec>,
     ) -> Result<RuntimeConfig, PortError> {
         harness_runtime_config_from_env().map(|config| config.into_runtime_config(role))
+    }
+
+    /// Return the daemon-resolved principal without exposing a credential value.
+    pub fn authenticated_principal(&self) -> AuthenticatedPrincipalRef {
+        self.principal.identity.clone()
+    }
+
+    /// Resolve a stable project identity from the daemon's filesystem authority.
+    ///
+    /// This is a scope snapshot only. It does not trust a wire `project_trusted` bit and does not
+    /// grant a role or capability; the request still goes through ControlPlane admission.
+    pub fn project_identity(&self, project_root: &str) -> Result<ProjectIdentity, PortError> {
+        let canonical = std::fs::canonicalize(project_root)
+            .map_err(|_| PortError::Failed("project_identity_unavailable".to_owned()))?;
+        let metadata = std::fs::metadata(&canonical)
+            .map_err(|_| PortError::Failed("project_identity_unavailable".to_owned()))?;
+        if !metadata.is_dir() {
+            return Err(PortError::Failed(
+                "project_identity_not_directory".to_owned(),
+            ));
+        }
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+        #[cfg(unix)]
+        let device = Some(metadata.dev());
+        #[cfg(not(unix))]
+        let device = None;
+        #[cfg(unix)]
+        let inode = Some(metadata.ino());
+        #[cfg(not(unix))]
+        let inode = None;
+        let trusted = self
+            .project_authority
+            .project_trusted(Path::new(project_root))
+            .map_err(|_| PortError::Failed("project_trust_unavailable".to_owned()))?;
+        let trust_revision = kiana_domain::json_digest(&serde_json::json!({"trusted":trusted}));
+        ProjectIdentity::new(
+            project_root.to_owned(),
+            canonical.to_string_lossy().into_owned(),
+            device,
+            inode,
+            trust_revision,
+        )
+        .map_err(PortError::Failed)
     }
 
     /// Subscribe to additive run-stream events for one run.
@@ -661,7 +709,7 @@ impl DaemonHost {
             path_allow: Vec::new(),
         };
         if request_may_execute(&request.body) {
-            let project_identity = match kiana_core::project_root_identity(&context.project_root) {
+            let project_identity = match self.project_identity(&context.project_root) {
                 Ok(identity) => identity,
                 Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
             };

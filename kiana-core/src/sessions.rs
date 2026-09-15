@@ -7,10 +7,35 @@ impl ControlPlane {
     pub async fn bind_session_assignment(&self, context: &RequestContext) -> Result<(), CoreError> {
         let role = RoleSpec::lookup(&context.role_id)
             .ok_or_else(|| PortError::Failed("role_unknown".to_owned()))?;
+        let mut principal = kiana_domain::AuthenticatedPrincipalRef::local();
+        principal.principal_id = context.actor_id.clone().unwrap_or_default();
+        principal.principal_digest = principal.digest();
+        principal.validate().map_err(PortError::Failed)?;
+        let project = kiana_domain::ProjectIdentity::new(
+            context.project_root.clone(),
+            Self::canonical_project_root(&context.project_root)
+                .to_string_lossy()
+                .into_owned(),
+            None,
+            None,
+            kiana_domain::json_digest(&json!({"trusted":context.project_trusted})),
+        )
+        .map_err(PortError::Failed)?;
+        let typed = kiana_domain::SessionAssignment::new(
+            principal.clone(),
+            project.clone(),
+            context.session_id.as_str(),
+            role.role_id.clone(),
+            role.department_id.clone(),
+            1,
+            1,
+        )
+        .map_err(PortError::Failed)?;
         let assignment = json!({"schema":"kiana.session-assignment.v1","session_id":context.session_id,
             "actor_id":context.actor_id,"project_root":Self::canonical_project_root(&context.project_root),
             "role_id":role.role_id,"department_id":role.department_id,"prompt_hash":role.prompt_hash,
-            "model_profile":role.model_profile});
+            "model_profile":role.model_profile,"principal":principal,"project_identity":project,
+            "assignment":typed});
         let key = kiana_domain::json_digest(
             &json!({"session_id":context.session_id,"project_root":Self::canonical_project_root(&context.project_root)}),
         );
@@ -105,6 +130,30 @@ impl ControlPlane {
         }) else {
             return Ok(None);
         };
+        if let Some(assignment) = data.get("assignment") {
+            let typed: kiana_domain::SessionAssignment = serde_json::from_value(assignment.clone())
+                .map_err(|_| PortError::Failed("session_assignment_invalid".to_owned()))?;
+            typed.validate().map_err(PortError::Failed)?;
+            if typed.session_id.as_str() != session_id
+                || typed.principal.principal_id
+                    != data
+                        .get("actor_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                || typed.role_id
+                    != data
+                        .get("role_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                || typed.department_id
+                    != data
+                        .get("department_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+            {
+                return Ok(None);
+            }
+        }
         let Some(run_id) = data
             .get("run_id")
             .and_then(Value::as_str)
