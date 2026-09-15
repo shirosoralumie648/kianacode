@@ -26,10 +26,12 @@
 |---|---|---|
 | Runtime event shape | `kiana-domain/src/states.rs` | `dca28dc71ef75e5dd92a25bed399349ca286bc7c5c0e514e11de20d6d1491ae3` |
 | Transition contract | `kiana-domain/src/journal.rs` | `4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48` |
-| Schema/ID registry | `kiana-domain/src/contracts.rs` | `1fe78e8faecb8b3459a5f086699ce4d3a0a3f6660e780fdb485b2dac4f46b7eb`（OA-03 注册表扩展） |
+| Schema/ID registry | `kiana-domain/src/contracts.rs` | `0b6c395976b521cf189af498fcda6a7baf7ce9fcd6a3cd649ae72c1143299a40`（OA-05 health schema 扩展） |
 | Domain exports | `kiana-domain/src/lib.rs` | `ac35afaebdb152eddb0898f7e9a28a886d17abdc35643d71cdfb2267e3f731a4`（OA-04 audit reducer 导出） |
 | Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `b17e84def5825be9c2fbdfa704ffe12f9502821325e0c2f66e977b1d72aed1e1` |
 | Core audit facade（OA-04） | `kiana-core/src/audit.rs` | `9c444ff6a125a90ac6ba25c1756802e826c40e681ce24f21645f1f08eff9ee22` |
+| Health snapshot（OA-05） | `kiana-domain/src/observability.rs` | `03b6f822d5bac02c4717e2cf32796f6e8bfe53e853670b25ae88c0e98d5c7ea2` |
+| Signal ports/fakes（OA-05） | `kiana-ports/src/lib.rs` | `cbc4c8a182df7f8a9bb972ca70f94dbe5a78e7b27c29cd209f48a84c9c58b5c3` |
 | Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `6fabe5e7cb8d2c86604738108eebcea6274d36306afac197a6115d13b1bfa951` |
 | Event construction/redaction | `kiana-core/src/events.rs` | `7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679` |
 | Receipt projection | `kiana-core/src/receipts.rs` | `dda33c346b1ffd94389093e2856f99433ea083a3c61b35cf562484f9f4bc7e1e` |
@@ -69,7 +71,7 @@
 | Metric | OA-01 已注册 `MetricCatalog`/`MetricPoint` domain contract，OA-03 提供 Metric profile boundary；仍没有 reducer/sink | schema/encoder source 已实现；runtime 未实现 | 不得把 usage counter、UI cursor 或 Company metric 当 canonical runtime metrics；OA-10/OA-12 |
 | Trace / span | OA-01 已注册 `TraceSummary`，OA-02 已注册 `CorrelationContext`/`TraceRef`/`SpanRef` 与 link，OA-03 提供 Trace bounded encoder；没有 `TraceSink`；现有 trace 名称属于 golden replay | schema/correlation/encoder source 已实现；runtime 未实现 | trace 只可关联，不可作为 actor/authority/policy/approval；OA-07/OA-14 |
 | Audit | OA-04 在 `kiana-domain/src/audit.rs` 固定 taxonomy，并由 `kiana-core/src/audit.rs` 从带 cursor/source binding 的 committed `RuntimeEvent` 派生 `AuditRecord`；OA-02 causation/command/attempt typed link、OA-03 Audit redaction boundary 继续适用；仍没有 `AuditQueryPort`/checkpoint projector | taxonomy/reducer source 已实现；runtime observer/query 未实现 | 模型/UI/plugin/exporter 不能伪造批准/完成/导出；未知 `audit.*`、缺 source/epoch、矛盾 decision、重复 source 记录 fail-closed；OA-05/OA-06/OA-15/OA-16 |
-| Health / Incident signal | 没有 `HealthSnapshot`/`HealthProbePort`/degraded contract | 未实现 | stale、projector gap、unknown exporter、journal corruption 不能返回 healthy；OA-10/OA-11/OA-19 |
+| Health / Incident signal | OA-05 新增 versioned `HealthSnapshot` 与 `HealthProbePort`；Health 仍是 probe projection，不是授权或业务 Outcome | snapshot/port/fake source 已实现；runtime probe、lag/incident projector 未实现 | stale、projector gap、unknown exporter、journal corruption 不能返回 healthy；OA-10/OA-11/OA-19 |
 
 ## 3. 先拒绝：已确认的风险与证据窗口
 
@@ -107,7 +109,7 @@
 | OA-02 | 服务端构造 CorrelationContext、TraceRef/SpanRef 和 causation/parent link | `source`；domain/port contracts 已实现，尚无 runtime ingress/span bridge |
 | OA-03 | 统一 redaction/classification、bounded encoder 和 secret sentinel 全信号扫描 | `source`；profile/encoder 已实现，EventStore/各 runtime sink 尚未统一接线 |
 | OA-04 | Audit taxonomy/Record reducer，从 committed security facts 派生 | `source`；domain/core reducer 已实现，尚无 EventLog commit observer、checkpoint、query 或 durable projection |
-| OA-05 | Observability/Trace/Metric/Audit/Health ports 与 fake adapters | `source`；目前没有 sink 能力或 flush ack |
+| OA-05 | Observability/Trace/Metric/Audit/Health ports 与 fake adapters | `source`；ports、Memory/JSONL fake、flush/cancel/capacity/query/probe contracts 已实现，尚无 EventLog observer 或 durable sink |
 | OA-06 | commit observer 只通知 Committed，重放不重复通知，建立 projection cursor | `source`；RunStream wrapper 仅是局部前身 |
 | OA-07–09 | run/provider/broker/approval/effect/stop 的 span 与 usage 生命周期 | `source`；现有 model-turn/usage 事件未形成统一 signal |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
@@ -196,3 +198,19 @@ reducer facade，不访问 Broker、Provider、UI 或 exporter。
 这是 domain/core source 与静态编译 proof；OA-04 远端 workflow 承担运行时 taxonomy/reducer 夹具，
 本地不执行测试且不声称 durable/live/physical。OA-05/OA-06 仍需建立端口、fake sink、committed
 observer 和 projection checkpoint。
+
+## 11. OA-05 叠加说明
+
+OA-05 在 `kiana-ports` 增加 `ObservabilityPort`、`TraceSink`、`MetricSink`、`AuditQueryPort` 和
+`HealthProbePort`，以 `ObservabilitySignalRecord` 封闭 signal union，统一返回 append/flush ack，
+并提供 durable/flush/cancellation/capacity capability negotiation。`AuditQueryRequest`/`Page`
+固定 source cursor、bounded page/filter、projection version 和空页/不可用错误边界；query 不暴露
+raw RuntimeEvent。`HealthSnapshot` 在 domain 注册 `kiana.health-snapshot.v1`，绑定 cursor/source
+IDs、status、observed time、bounded capabilities/limitations 与 digest。
+
+`MemoryObservabilitySink` 与 `JsonlObservabilitySink` 是显式 non-durable fake：可记录 log/metric/
+trace/audit/health、注入一次性失败、容量拒绝、取消和 flush ack，且仅返回已验证 projection；
+不依赖或调用 Broker，不把 exporter/sink ack 变成授权或效果事实。缺 durable/flush/cancel 或容量
+能力的 adapter 由 `require_observability_capabilities` fail-closed。OA-05 远端 workflow 承担运行时
+fake/query/probe 夹具，本地不执行测试；EventLog commit observer、真实 durable sink、backpressure
+和入口接线留给 OA-06/OA-13/OA-24。

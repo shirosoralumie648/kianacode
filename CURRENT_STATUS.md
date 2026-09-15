@@ -311,6 +311,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-04 domain/core static-boundary review; no runtime test reviewer
 ```
 
+### OA-05 observability ports and fake adapters evidence (2026-09-15)
+
+```text
+source_snapshot: bea86dc; kiana-domain/src/{observability,contracts}.rs; kiana-ports/src/lib.rs; kiana-ports/tests/oa05_observability_ports.rs; .github/workflows/oa05-ports.yml; docs/roadmap/observability-audit-baseline.md
+worktree_status: OA-05 HealthSnapshot contract, signal union, sink/query/health ports, Memory/JSONL fakes, remote-only fixtures, baseline hash overlay, roadmap/module documentation and status backfill are scoped to this step; no unrelated WIP was reverted; static verification is complete and this slice is ready to commit/push
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-ports/src/lib.rs
+  rg -n 'ObservabilityPort|TraceSink|MetricSink|AuditQueryPort|HealthProbePort|ObservabilityCapabilities|require_observability_capabilities|MemoryObservabilitySink|JsonlObservabilitySink' kiana-domain/src kiana-ports/src kiana-ports/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --tests --locked --offline
+  cargo check -p kiana-ports --tests --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; rustc/cargo 1.97.1; locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: `kiana-ports/tests/oa05_observability_ports.rs`; sink signal recording, trace/metric delegation, capacity/failure/cancellation, capability negotiation, flush ack, bounded audit query page and explicit health probe; GitHub Actions only
+exit_code: 0 for format, domain/ports/workspace test-target compilation, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-05 job is queued by the push and is not awaited
+status_change: OA-05 source slice is implemented. `kiana-ports` now owns a closed `ObservabilitySignalRecord` union plus `ObservabilityPort`, `TraceSink`, `MetricSink`, `AuditQueryPort` and `HealthProbePort`; wrapper variants reject mismatched inner signal kinds, capability negotiation rejects missing durable/flush/cancellation/capacity guarantees, query is bounded to redacted AuditRecord projections, and flush/cancel/append acknowledgements remain non-authorizing. `kiana-domain` adds versioned/digest-bound `HealthSnapshot`. Memory and JSONL fakes support validation, injected failure, bounded capacity, cancellation, flush ack, query and explicit health state without Broker or EventLog writes.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; fake adapters are deliberately non-durable, no EventLog commit observer/backpressure/retention/export integration exists, query authentication and DataBoundary remain future OA-16/OA-17 work, and a health snapshot does not prove provider or business health
+reviewer: Codex root implementation review plus OA-05 ports/fake static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

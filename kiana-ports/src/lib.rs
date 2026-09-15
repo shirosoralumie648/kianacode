@@ -19,13 +19,15 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AgentTemplate, ApprovalChallenge, ApprovalId, AuthorizedCapabilityRequest, BudgetLease,
-    BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
-    CellLifecycle, CellSpec, CorrelationContext, CorrelationScope, PendingApproval, RequestContext,
-    RequestId, RetirementRecord, RunId, RuntimeEvent, SpanLinkKind, SpawnPlan, SpawnPlanId,
-    SupervisionLease, WorkFingerprint,
+    AgentTemplate, ApprovalChallenge, ApprovalId, AuditActionKind, AuditDecision, AuditRecord,
+    AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId, CapabilityGrant, CapabilityGrantId,
+    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, CorrelationContext,
+    CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, PendingApproval,
+    RequestContext, RequestId, RetirementRecord, RunId, RuntimeEvent, SignalKind, SpanLinkKind,
+    SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// Read-only edit checkpoint adapter. Restoring files is deliberately absent: it is brokered.
 #[async_trait]
@@ -936,3 +938,815 @@ pub trait ModelBudgetPort: Send + Sync {
 
 mod model;
 pub use model::*;
+
+/// One validated signal accepted by an observability adapter.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "signal", content = "record", rename_all = "snake_case")]
+pub enum ObservabilitySignalRecord {
+    Log(ObservabilityRecord),
+    Metric(MetricPoint),
+    Trace(TraceSummary),
+    Audit(AuditRecord),
+    Health(HealthSnapshot),
+}
+
+impl ObservabilitySignalRecord {
+    pub fn signal_kind(&self) -> SignalKind {
+        match self {
+            Self::Log(_) => SignalKind::Log,
+            Self::Metric(_) => SignalKind::Metric,
+            Self::Trace(_) => SignalKind::Trace,
+            Self::Audit(_) => SignalKind::Audit,
+            Self::Health(_) => SignalKind::Health,
+        }
+    }
+
+    pub fn source_cursor(&self) -> u64 {
+        match self {
+            Self::Log(record) => record.source_cursor,
+            Self::Metric(record) => record.source_cursor,
+            Self::Trace(record) => record.source_cursor,
+            Self::Audit(record) => record.source_cursor,
+            Self::Health(record) => record.source_cursor,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::Log(record) => {
+                if record.signal != SignalKind::Log {
+                    return Err("observability_signal_mismatch".to_owned());
+                }
+                record.validate()
+            }
+            Self::Metric(record) => record.validate(),
+            Self::Trace(record) => record.validate(),
+            Self::Audit(record) => record.validate(),
+            Self::Health(record) => record.validate(),
+        }
+    }
+}
+
+/// Capabilities an adapter must advertise before core can depend on it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ObservabilityCapabilities {
+    pub durable: bool,
+    pub flush: bool,
+    pub cancellation: bool,
+    pub max_records: usize,
+}
+
+impl Default for ObservabilityCapabilities {
+    fn default() -> Self {
+        Self {
+            durable: false,
+            flush: false,
+            cancellation: false,
+            max_records: 0,
+        }
+    }
+}
+
+/// Requirements for a caller that needs a particular observability guarantee.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ObservabilityRequirements {
+    pub durable: bool,
+    pub flush: bool,
+    pub cancellation: bool,
+    pub min_records: usize,
+}
+
+impl ObservabilityRequirements {
+    pub const fn none() -> Self {
+        Self {
+            durable: false,
+            flush: false,
+            cancellation: false,
+            min_records: 0,
+        }
+    }
+}
+
+/// Validate capability negotiation without silently degrading to an in-memory or best-effort
+/// adapter.
+pub fn require_observability_capabilities(
+    actual: ObservabilityCapabilities,
+    required: ObservabilityRequirements,
+) -> Result<(), PortError> {
+    if required.durable && !actual.durable {
+        return Err(PortError::Unavailable(
+            "observability_durable_unsupported".to_owned(),
+        ));
+    }
+    if required.flush && !actual.flush {
+        return Err(PortError::Unavailable(
+            "observability_flush_unsupported".to_owned(),
+        ));
+    }
+    if required.cancellation && !actual.cancellation {
+        return Err(PortError::Unavailable(
+            "observability_cancellation_unsupported".to_owned(),
+        ));
+    }
+    if actual.max_records < required.min_records {
+        return Err(PortError::Unavailable(
+            "observability_capacity_unsupported".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Acknowledge a signal append/flush boundary. Acknowledgement is not an authority decision.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ObservabilityReceipt {
+    pub signal: SignalKind,
+    pub sequence: u64,
+    pub source_cursor: u64,
+}
+
+/// A flush acknowledgement with no implication that an external backend accepted the data.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ObservabilityFlushAck {
+    pub flushed_records: usize,
+    pub flush_sequence: u64,
+}
+
+pub type FlushAck = ObservabilityFlushAck;
+
+/// Aggregate signal port. It only stores/forwards already validated projections; it cannot grant
+/// capability authority or invoke a Broker.
+#[async_trait]
+pub trait ObservabilityPort: Send + Sync {
+    fn capabilities(&self) -> ObservabilityCapabilities;
+
+    async fn append(
+        &self,
+        signal: ObservabilitySignalRecord,
+    ) -> Result<ObservabilityReceipt, PortError>;
+
+    async fn flush(&self) -> Result<ObservabilityFlushAck, PortError> {
+        Err(PortError::Unavailable(
+            "observability_flush_unsupported".to_owned(),
+        ))
+    }
+
+    /// Cancel future writes. Existing committed facts remain untouched.
+    async fn cancel(&self) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "observability_cancellation_unsupported".to_owned(),
+        ))
+    }
+
+    async fn append_cancellable(
+        &self,
+        signal: ObservabilitySignalRecord,
+        cancellation: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<ObservabilityReceipt, PortError> {
+        if *cancellation.borrow() {
+            return Err(PortError::Failed("observability_cancelled".to_owned()));
+        }
+        self.append(signal).await
+    }
+}
+
+/// Dedicated trace boundary. Trace writes are projections and cannot change authorization.
+#[async_trait]
+pub trait TraceSink: Send + Sync {
+    fn capabilities(&self) -> ObservabilityCapabilities;
+    async fn record_trace(&self, trace: TraceSummary) -> Result<ObservabilityReceipt, PortError>;
+    async fn flush_trace(&self) -> Result<ObservabilityFlushAck, PortError> {
+        Err(PortError::Unavailable("trace_flush_unsupported".to_owned()))
+    }
+}
+
+/// Dedicated metric boundary. Metric labels and catalog membership are validated before append.
+#[async_trait]
+pub trait MetricSink: Send + Sync {
+    fn capabilities(&self) -> ObservabilityCapabilities;
+    async fn record_metric(&self, metric: MetricPoint) -> Result<ObservabilityReceipt, PortError>;
+    async fn flush_metric(&self) -> Result<ObservabilityFlushAck, PortError> {
+        Err(PortError::Unavailable(
+            "metric_flush_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Bounded, server-authenticated filters for a read-only audit projection.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditQueryRequest {
+    pub source_cursor: kiana_domain::EventCursor,
+    #[serde(default)]
+    pub after_cursor: kiana_domain::EventCursor,
+    pub limit: usize,
+    #[serde(default)]
+    pub action_kind: Option<AuditActionKind>,
+    #[serde(default)]
+    pub decision: Option<AuditDecision>,
+    #[serde(default)]
+    pub actor_ref: Option<String>,
+    #[serde(default)]
+    pub target_kind: Option<String>,
+}
+
+impl AuditQueryRequest {
+    pub fn validate(&self) -> Result<(), PortError> {
+        if self.source_cursor == 0 {
+            return Err(PortError::Failed(
+                "audit_query_source_cursor_required".to_owned(),
+            ));
+        }
+        if self.limit == 0 || self.limit > 1_000 {
+            return Err(PortError::Failed("audit_query_limit_invalid".to_owned()));
+        }
+        if self.after_cursor > self.source_cursor {
+            return Err(PortError::Conflict(
+                "audit_query_cursor_out_of_range".to_owned(),
+            ));
+        }
+        for (value, field, max) in [
+            (self.actor_ref.as_deref(), "audit_query_actor", 256),
+            (self.target_kind.as_deref(), "audit_query_target_kind", 128),
+        ] {
+            if let Some(value) = value {
+                if value.trim().is_empty() || value.len() > max {
+                    return Err(PortError::Failed(format!("{field}_invalid")));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+pub type AuditQuery = AuditQueryRequest;
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditQueryPage {
+    pub records: Vec<AuditRecord>,
+    #[serde(default)]
+    pub next_cursor: Option<kiana_domain::EventCursor>,
+    pub source_cursor: kiana_domain::EventCursor,
+    pub projection_version: u64,
+}
+
+impl AuditQueryPage {
+    pub fn validate(&self) -> Result<(), PortError> {
+        if self.source_cursor == 0 || self.projection_version == 0 {
+            return Err(PortError::Failed(
+                "audit_query_page_metadata_required".to_owned(),
+            ));
+        }
+        if self.records.len() > 1_000 {
+            return Err(PortError::Failed("audit_query_page_limit".to_owned()));
+        }
+        for record in &self.records {
+            record
+                .validate()
+                .map_err(|error| PortError::Failed(format!("audit_query_record:{error}")))?;
+        }
+        if self
+            .next_cursor
+            .is_some_and(|cursor| cursor > self.source_cursor)
+        {
+            return Err(PortError::Conflict(
+                "audit_query_next_cursor_out_of_range".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Read-only audit query port. It does not expose raw RuntimeEvent data.
+#[async_trait]
+pub trait AuditQueryPort: Send + Sync {
+    async fn query(&self, request: AuditQueryRequest) -> Result<AuditQueryPage, PortError>;
+}
+
+/// Health/readiness probe port. Probe output is a bounded projection, never an authority grant.
+#[async_trait]
+pub trait HealthProbePort: Send + Sync {
+    async fn probe(&self) -> Result<HealthSnapshot, PortError>;
+}
+
+#[derive(Default)]
+struct MemoryObservabilityState {
+    records: Vec<ObservabilitySignalRecord>,
+    capacity: usize,
+    failure: Option<String>,
+    cancelled: bool,
+    flush_sequence: u64,
+    health: Option<HealthSnapshot>,
+}
+
+/// In-memory fake used by remote CI fixtures. It is explicitly non-durable.
+#[derive(Clone)]
+pub struct MemoryObservabilitySink {
+    state: Arc<Mutex<MemoryObservabilityState>>,
+    capabilities: ObservabilityCapabilities,
+}
+
+impl std::fmt::Debug for MemoryObservabilitySink {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("MemoryObservabilitySink")
+            .field("capabilities", &self.capabilities)
+            .finish_non_exhaustive()
+    }
+}
+
+impl MemoryObservabilitySink {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(MemoryObservabilityState {
+                capacity,
+                ..MemoryObservabilityState::default()
+            })),
+            capabilities: ObservabilityCapabilities {
+                durable: false,
+                flush: true,
+                cancellation: true,
+                max_records: capacity,
+            },
+        }
+    }
+
+    pub fn with_capabilities(capacity: usize, capabilities: ObservabilityCapabilities) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(MemoryObservabilityState {
+                capacity,
+                ..MemoryObservabilityState::default()
+            })),
+            capabilities,
+        }
+    }
+
+    pub fn inject_failure(&self, reason: impl Into<String>) {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .failure = Some(reason.into());
+    }
+
+    pub fn fail_next(&self, reason: impl Into<String>) {
+        self.inject_failure(reason);
+    }
+
+    pub fn records(&self) -> Vec<ObservabilitySignalRecord> {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .records
+            .clone()
+    }
+
+    pub fn set_health(&self, snapshot: HealthSnapshot) -> Result<(), PortError> {
+        snapshot
+            .validate()
+            .map_err(|error| PortError::Failed(format!("health_snapshot:{error}")))?;
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .health = Some(snapshot);
+        Ok(())
+    }
+
+    fn append_record(
+        &self,
+        signal: ObservabilitySignalRecord,
+    ) -> Result<ObservabilityReceipt, PortError> {
+        signal
+            .validate()
+            .map_err(|error| PortError::Failed(format!("observability_record:{error}")))?;
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(reason) = state.failure.take() {
+            return Err(PortError::Failed(reason));
+        }
+        if state.cancelled {
+            return Err(PortError::Failed("observability_cancelled".to_owned()));
+        }
+        if state.records.len() >= state.capacity {
+            return Err(PortError::Conflict(
+                "observability_capacity_exceeded".to_owned(),
+            ));
+        }
+        state.records.push(signal.clone());
+        Ok(ObservabilityReceipt {
+            signal: signal.signal_kind(),
+            sequence: state.records.len() as u64,
+            source_cursor: signal.source_cursor(),
+        })
+    }
+
+    fn flush_records(&self) -> Result<ObservabilityFlushAck, PortError> {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if !self.capabilities.flush {
+            return Err(PortError::Unavailable(
+                "observability_flush_unsupported".to_owned(),
+            ));
+        }
+        if let Some(reason) = state.failure.take() {
+            return Err(PortError::Failed(reason));
+        }
+        state.flush_sequence = state.flush_sequence.saturating_add(1);
+        Ok(ObservabilityFlushAck {
+            flushed_records: state.records.len(),
+            flush_sequence: state.flush_sequence,
+        })
+    }
+
+    fn query_records(&self, request: &AuditQueryRequest) -> Result<AuditQueryPage, PortError> {
+        request.validate()?;
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut records = state
+            .records
+            .iter()
+            .filter_map(|signal| match signal {
+                ObservabilitySignalRecord::Audit(record) => Some(record),
+                _ => None,
+            })
+            .filter(|record| {
+                record.source_cursor > request.after_cursor
+                    && record.source_cursor <= request.source_cursor
+                    && request
+                        .action_kind
+                        .is_none_or(|kind| record.action_kind == kind)
+                    && request
+                        .decision
+                        .is_none_or(|decision| record.decision == decision)
+                    && request
+                        .actor_ref
+                        .as_deref()
+                        .is_none_or(|actor| record.actor_ref == actor)
+                    && request
+                        .target_kind
+                        .as_deref()
+                        .is_none_or(|target| record.target_kind == target)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let next_cursor = if records.len() > request.limit {
+            records.truncate(request.limit);
+            records.last().map(|record| record.source_cursor)
+        } else {
+            None
+        };
+        let page = AuditQueryPage {
+            records,
+            next_cursor,
+            source_cursor: request.source_cursor,
+            projection_version: state.records.len() as u64,
+        };
+        page.validate()?;
+        Ok(page)
+    }
+}
+
+#[async_trait]
+impl ObservabilityPort for MemoryObservabilitySink {
+    fn capabilities(&self) -> ObservabilityCapabilities {
+        self.capabilities
+    }
+
+    async fn append(
+        &self,
+        signal: ObservabilitySignalRecord,
+    ) -> Result<ObservabilityReceipt, PortError> {
+        self.append_record(signal)
+    }
+
+    async fn flush(&self) -> Result<ObservabilityFlushAck, PortError> {
+        self.flush_records()
+    }
+
+    async fn cancel(&self) -> Result<(), PortError> {
+        if !self.capabilities.cancellation {
+            return Err(PortError::Unavailable(
+                "observability_cancellation_unsupported".to_owned(),
+            ));
+        }
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .cancelled = true;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TraceSink for MemoryObservabilitySink {
+    fn capabilities(&self) -> ObservabilityCapabilities {
+        self.capabilities
+    }
+
+    async fn record_trace(&self, trace: TraceSummary) -> Result<ObservabilityReceipt, PortError> {
+        self.append_record(ObservabilitySignalRecord::Trace(trace))
+    }
+
+    async fn flush_trace(&self) -> Result<ObservabilityFlushAck, PortError> {
+        self.flush_records()
+    }
+}
+
+#[async_trait]
+impl MetricSink for MemoryObservabilitySink {
+    fn capabilities(&self) -> ObservabilityCapabilities {
+        self.capabilities
+    }
+
+    async fn record_metric(&self, metric: MetricPoint) -> Result<ObservabilityReceipt, PortError> {
+        self.append_record(ObservabilitySignalRecord::Metric(metric))
+    }
+
+    async fn flush_metric(&self) -> Result<ObservabilityFlushAck, PortError> {
+        self.flush_records()
+    }
+}
+
+#[async_trait]
+impl AuditQueryPort for MemoryObservabilitySink {
+    async fn query(&self, request: AuditQueryRequest) -> Result<AuditQueryPage, PortError> {
+        self.query_records(&request)
+    }
+}
+
+#[async_trait]
+impl HealthProbePort for MemoryObservabilitySink {
+    async fn probe(&self) -> Result<HealthSnapshot, PortError> {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state
+            .health
+            .clone()
+            .ok_or_else(|| PortError::Unavailable("health_snapshot_unavailable".to_owned()))
+    }
+}
+
+#[derive(Default)]
+struct JsonlObservabilityState {
+    lines: Vec<String>,
+    records: Vec<ObservabilitySignalRecord>,
+    capacity: usize,
+    failure: Option<String>,
+    cancelled: bool,
+    flush_sequence: u64,
+    health: Option<HealthSnapshot>,
+}
+
+/// JSONL fake that serializes every signal as one bounded line. It is non-durable until an
+/// adapter explicitly proves its fsync/rotation contract; this fake never makes that claim.
+#[derive(Clone)]
+pub struct JsonlObservabilitySink {
+    state: Arc<Mutex<JsonlObservabilityState>>,
+    capabilities: ObservabilityCapabilities,
+}
+
+impl std::fmt::Debug for JsonlObservabilitySink {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("JsonlObservabilitySink")
+            .field("capabilities", &self.capabilities)
+            .finish_non_exhaustive()
+    }
+}
+
+impl JsonlObservabilitySink {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(JsonlObservabilityState {
+                capacity,
+                ..JsonlObservabilityState::default()
+            })),
+            capabilities: ObservabilityCapabilities {
+                durable: false,
+                flush: true,
+                cancellation: true,
+                max_records: capacity,
+            },
+        }
+    }
+
+    pub fn with_capabilities(capacity: usize, capabilities: ObservabilityCapabilities) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(JsonlObservabilityState {
+                capacity,
+                ..JsonlObservabilityState::default()
+            })),
+            capabilities,
+        }
+    }
+
+    pub fn inject_failure(&self, reason: impl Into<String>) {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .failure = Some(reason.into());
+    }
+
+    pub fn fail_next(&self, reason: impl Into<String>) {
+        self.inject_failure(reason);
+    }
+
+    pub fn lines(&self) -> Vec<String> {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .lines
+            .clone()
+    }
+
+    pub fn records(&self) -> Vec<ObservabilitySignalRecord> {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .records
+            .clone()
+    }
+
+    pub fn set_health(&self, snapshot: HealthSnapshot) -> Result<(), PortError> {
+        snapshot
+            .validate()
+            .map_err(|error| PortError::Failed(format!("health_snapshot:{error}")))?;
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .health = Some(snapshot);
+        Ok(())
+    }
+
+    fn append_record(
+        &self,
+        signal: ObservabilitySignalRecord,
+    ) -> Result<ObservabilityReceipt, PortError> {
+        signal
+            .validate()
+            .map_err(|error| PortError::Failed(format!("observability_record:{error}")))?;
+        let encoded = serde_json::to_string(&signal)
+            .map_err(|_| PortError::Failed("observability_json_encode_failed".to_owned()))?;
+        if encoded.len() > 256 * 1024 {
+            return Err(PortError::Failed(
+                "observability_json_line_too_large".to_owned(),
+            ));
+        }
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(reason) = state.failure.take() {
+            return Err(PortError::Failed(reason));
+        }
+        if state.cancelled {
+            return Err(PortError::Failed("observability_cancelled".to_owned()));
+        }
+        if state.records.len() >= state.capacity {
+            return Err(PortError::Conflict(
+                "observability_capacity_exceeded".to_owned(),
+            ));
+        }
+        state.lines.push(encoded);
+        state.records.push(signal.clone());
+        Ok(ObservabilityReceipt {
+            signal: signal.signal_kind(),
+            sequence: state.records.len() as u64,
+            source_cursor: signal.source_cursor(),
+        })
+    }
+
+    fn flush_records(&self) -> Result<ObservabilityFlushAck, PortError> {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if !self.capabilities.flush {
+            return Err(PortError::Unavailable(
+                "observability_flush_unsupported".to_owned(),
+            ));
+        }
+        if let Some(reason) = state.failure.take() {
+            return Err(PortError::Failed(reason));
+        }
+        state.flush_sequence = state.flush_sequence.saturating_add(1);
+        Ok(ObservabilityFlushAck {
+            flushed_records: state.records.len(),
+            flush_sequence: state.flush_sequence,
+        })
+    }
+
+    fn query_records(&self, request: &AuditQueryRequest) -> Result<AuditQueryPage, PortError> {
+        request.validate()?;
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut records = state
+            .records
+            .iter()
+            .filter_map(|signal| match signal {
+                ObservabilitySignalRecord::Audit(record) => Some(record),
+                _ => None,
+            })
+            .filter(|record| {
+                record.source_cursor > request.after_cursor
+                    && record.source_cursor <= request.source_cursor
+                    && request
+                        .action_kind
+                        .is_none_or(|kind| record.action_kind == kind)
+                    && request
+                        .decision
+                        .is_none_or(|decision| record.decision == decision)
+                    && request
+                        .actor_ref
+                        .as_deref()
+                        .is_none_or(|actor| record.actor_ref == actor)
+                    && request
+                        .target_kind
+                        .as_deref()
+                        .is_none_or(|target| record.target_kind == target)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let next_cursor = if records.len() > request.limit {
+            records.truncate(request.limit);
+            records.last().map(|record| record.source_cursor)
+        } else {
+            None
+        };
+        let page = AuditQueryPage {
+            records,
+            next_cursor,
+            source_cursor: request.source_cursor,
+            projection_version: state.records.len() as u64,
+        };
+        page.validate()?;
+        Ok(page)
+    }
+}
+
+#[async_trait]
+impl ObservabilityPort for JsonlObservabilitySink {
+    fn capabilities(&self) -> ObservabilityCapabilities {
+        self.capabilities
+    }
+
+    async fn append(
+        &self,
+        signal: ObservabilitySignalRecord,
+    ) -> Result<ObservabilityReceipt, PortError> {
+        self.append_record(signal)
+    }
+
+    async fn flush(&self) -> Result<ObservabilityFlushAck, PortError> {
+        self.flush_records()
+    }
+
+    async fn cancel(&self) -> Result<(), PortError> {
+        if !self.capabilities.cancellation {
+            return Err(PortError::Unavailable(
+                "observability_cancellation_unsupported".to_owned(),
+            ));
+        }
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .cancelled = true;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TraceSink for JsonlObservabilitySink {
+    fn capabilities(&self) -> ObservabilityCapabilities {
+        self.capabilities
+    }
+
+    async fn record_trace(&self, trace: TraceSummary) -> Result<ObservabilityReceipt, PortError> {
+        self.append_record(ObservabilitySignalRecord::Trace(trace))
+    }
+
+    async fn flush_trace(&self) -> Result<ObservabilityFlushAck, PortError> {
+        self.flush_records()
+    }
+}
+
+#[async_trait]
+impl MetricSink for JsonlObservabilitySink {
+    fn capabilities(&self) -> ObservabilityCapabilities {
+        self.capabilities
+    }
+
+    async fn record_metric(&self, metric: MetricPoint) -> Result<ObservabilityReceipt, PortError> {
+        self.append_record(ObservabilitySignalRecord::Metric(metric))
+    }
+
+    async fn flush_metric(&self) -> Result<ObservabilityFlushAck, PortError> {
+        self.flush_records()
+    }
+}
+
+#[async_trait]
+impl AuditQueryPort for JsonlObservabilitySink {
+    async fn query(&self, request: AuditQueryRequest) -> Result<AuditQueryPage, PortError> {
+        self.query_records(&request)
+    }
+}
+
+#[async_trait]
+impl HealthProbePort for JsonlObservabilitySink {
+    async fn probe(&self) -> Result<HealthSnapshot, PortError> {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state
+            .health
+            .clone()
+            .ok_or_else(|| PortError::Unavailable("health_snapshot_unavailable".to_owned()))
+    }
+}

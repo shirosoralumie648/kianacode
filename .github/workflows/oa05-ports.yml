@@ -1,0 +1,26 @@
+name: OA-05 Observability Ports and Fake Adapters
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ports:
+    name: Sink/query/health port guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Run OA-05 observability port tests
+        run: cargo test -p kiana-ports --test oa05_observability_ports --locked -- --test-threads=1
+

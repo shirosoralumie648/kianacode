@@ -13,10 +13,12 @@ pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
+pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
 pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 pub const MAX_SIGNAL_ATTRIBUTES: usize = 32;
 pub const MAX_ATTRIBUTE_KEY_BYTES: usize = 64;
@@ -26,6 +28,8 @@ pub const MAX_METRIC_UNIT_BYTES: usize = 32;
 pub const MAX_METRIC_DESCRIPTION_BYTES: usize = 512;
 pub const MAX_SOURCE_EVENT_IDS: usize = 256;
 pub const MAX_TRACE_SPANS: u32 = 4_096;
+pub const MAX_HEALTH_LIMITATIONS: usize = 16;
+pub const MAX_HEALTH_CAPABILITIES: usize = 32;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -780,6 +784,94 @@ impl TraceSummary {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "summary_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// Bounded health/readiness observation returned by a server-side probe.
+///
+/// A health snapshot is a projection at a committed EventLog cursor. It never grants authority,
+/// claims that an external provider is healthy, or substitutes for an execution receipt.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HealthSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub component: String,
+    pub status: SignalStatus,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    pub observed_at_ms: u64,
+    #[serde(default)]
+    pub capabilities: BTreeMap<String, bool>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    pub snapshot_digest: String,
+}
+
+impl HealthSnapshot {
+    pub fn new(
+        component: impl Into<String>,
+        status: SignalStatus,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        observed_at_ms: u64,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self {
+            schema: HEALTH_SNAPSHOT_SCHEMA.to_owned(),
+            version: HEALTH_SNAPSHOT_SCHEMA_VERSION,
+            component: component.into(),
+            status,
+            source_cursor,
+            source_event_ids,
+            observed_at_ms,
+            capabilities: BTreeMap::new(),
+            limitations: Vec::new(),
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            HEALTH_SNAPSHOT_SCHEMA,
+            HEALTH_SNAPSHOT_SCHEMA_VERSION,
+        )?;
+        validate_nonempty(&self.component, "health_component", 128)?;
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        if self.observed_at_ms == 0 {
+            return Err("health_observed_at_required".to_owned());
+        }
+        if self.capabilities.len() > MAX_HEALTH_CAPABILITIES {
+            return Err("health_capability_limit".to_owned());
+        }
+        for key in self.capabilities.keys() {
+            validate_nonempty(key, "health_capability", MAX_ATTRIBUTE_KEY_BYTES)?;
+        }
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("health_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(limitation, "health_limitation", MAX_ATTRIBUTE_VALUE_BYTES)?;
+        }
+        validate_digest(&self.snapshot_digest, "health_snapshot_digest")?;
+        if self.snapshot_digest != self.digest() {
+            return Err("health_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "snapshot_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }

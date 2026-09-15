@@ -36,7 +36,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/contracts.rs",
-        "1fe78e8faecb8b3459a5f086699ce4d3a0a3f6660e780fdb485b2dac4f46b7eb",
+        "0b6c395976b521cf189af498fcda6a7baf7ce9fcd6a3cd649ae72c1143299a40",
     ),
     (
         "kiana-domain/src/lib.rs",
@@ -100,7 +100,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-ports/src/lib.rs",
-        "557332aa2115b8c98d7aa261eddb3549c07b6805dd53aa41bf1b3ccc8e0ba723",
+        "cbc4c8a182df7f8a9bb972ca70f94dbe5a78e7b27c29cd209f48a84c9c58b5c3",
     ),
 ];
 
@@ -177,28 +177,15 @@ fn observability_inventory_preserves_fact_projection_and_open_contracts() {
         );
     }
 
-    // OA-01+ introduces these names deliberately. Keeping the absence check scoped to the
-    // current product sources makes the migration point explicit without blocking on docs.
+    // OA-01+ introduces these names deliberately. Keep the absence check scoped to contracts
+    // that are still intentionally open; implemented signal/reducer/port names are removed from
+    // this historical guard as each roadmap step records its own source hash and CI fixture.
     let scoped_sources = BASELINE
         .iter()
         .map(|(relative, _)| read_source(&root, relative))
         .collect::<Vec<_>>()
         .join("\n");
-    for future_contract in [
-        "ObservabilityPort",
-        "TraceSink",
-        "MetricSink",
-        "AuditQueryPort",
-        "HealthProbePort",
-        "OperationalLog",
-        "MetricPoint",
-        "MetricSnapshot",
-        "AuditRecord",
-        "HealthSnapshot",
-        "span_id",
-        "source_cursor",
-        "source_event_ids",
-    ] {
+    for future_contract in ["OperationalLog", "MetricSnapshot", "span_id"] {
         assert!(
             !scoped_sources.contains(future_contract),
             "OA-00 source guard unexpectedly found future contract {future_contract:?}; update the step and inventory together"
