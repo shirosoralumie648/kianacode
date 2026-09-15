@@ -185,6 +185,26 @@ limitations: bootstrap Config, daemon LocalModelConfig, and legacy services ApiK
 reviewer: Codex root implementation review plus CI-01 mapper/reviewer read-only audits; no runtime test reviewer
 ```
 
+### SW-00 bounded swarm reconciliation evidence (2026-09-15)
+
+```text
+source_snapshot: 1be732612bf727d21a4d7dea54ad4aff5454f15b; docs/roadmap/swarm-baseline.md; kiana-core/tests/swarm_baseline.rs; .github/workflows/sw00-baseline.yml; 10 hashed product-path files listed in the baseline
+worktree_status: SW-00 source baseline, CI guard, roadmap and status entries are scoped to this step; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  sha256sum <10 Swarm source files listed in docs/roadmap/swarm-baseline.md §1>
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: source-only `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas`; MemoryCellRegistry/process-local port qualifiers; event-before-Company-StartRun ordering; no runtime fixture executed locally
+exit_code: 0 for source hash, format, workspace compile, and diff checks; local tests deliberately not run per user instruction; GitHub Actions SW-00 job is queued by the push and is not awaited
+status_change: SW-00 reconciliation completed at source level. Product ingress, bounded domain transitions, event-backed swarm replay, Company StartRun route, and packet child admission are marked source-wired; MemoryCellRegistry durable recovery, atomic dispatch queue/attempt/fence, fresh child session, independent integrator receipt, and Swarm-specific runtime tests remain explicitly partial/target/missing.
+proof-level_change: source plus static compile evidence only; no local_behavior or durable promotion until remote CI supplies its test receipt
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; the event-before-dispatch window, process-local Cell registry, copied child session, and all SW-01..SW-18 runtime acceptance gaps remain; legacy kiana-commands Swarm tests are not product-path evidence
+reviewer: Codex root implementation review plus independent SW-00 mapper, security, and test-boundary read-only audits; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

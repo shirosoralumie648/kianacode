@@ -941,7 +941,8 @@
 | 当前 | `P4-J7-04` Provider 基线 | 已收口：`roadmap/provider-baseline.md` 固定产品路径与 legacy_fixtures 分界、调研缺口复核（10 项中 7 已修）和测试索引（kiana-provider 零测试为 RED） | 运行时回执由 GitHub CI 负责 |
 | 当前 7 | `P0-G-04` 事件重建投影（恢复线重开） | `38f23bc` 已把 Invocation 折叠、惰性缓存、终态冲突拒绝和审批恢复接入 `kiana-core`；新增重启/冲突验收骨架，远程 CI 尚未回执 | P0-G-04 保持 🔄：历史 Run 证据之外，Invocation 运行时验收和集成回归由 GitHub CI 负责 |
 | 当前 8 | `CI-01` 配置/凭据/身份基线 | 已加入 `config-credentials-identity-baseline.md`、五个 deterministic fixture、provider precedence/redaction 集成护栏和 GitHub Actions 专用 job；不提前实现 CI-06/07/08 | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；raw-secret sentinel、parser 差异和 local-user 迁移边界保持显式 |
-| 下一步 | `SW-00` Swarm 现状 reconciliation | CI-01 基线已登记；按全量队列第 022 项盘点 swarm/packet graph/cell registry 的当前实现与缺口 | 只建立 source baseline 和迁移护栏，不实现第二执行循环或自由消息总线 |
+| 当前 9 | `SW-00` Swarm 现状 reconciliation | 已新增 [`swarm-baseline.md`](roadmap/swarm-baseline.md)、10 个源码 hash、已接线/仅类型/缺测试/未实现矩阵，以及 `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas` 的 GitHub Actions 专用护栏；不把 MemoryCellRegistry 或 event replay 写成 durable | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；下一步按队列进入 `OA-00` |
+| 下一步 | `OA-00` Observability / Audit 现状 inventory | `SW-00` source baseline 已登记；按全量队列第 023 项盘点 EventLog、RuntimeEvent、Receipt、现有 ER-30/P1-J8-01 接线与缺口 | 只建立 observability source baseline 和迁移护栏，不旁路 ControlPlane 或制造第二事实源 |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -998,7 +999,8 @@
 | 2026-09-14 | `UI-00` 收口：四入口（CLI/Web/Workbench/Desktop）→ DaemonHost 调用图表 + 8 文件 hash 固定；7 项拒绝需求对抗复核：3 已覆盖（untrusted write、Host/Origin、unknown command），4 项 RED 全部有实现锚点但零测试（stale cursor、foreign-session cancel、响应丢失 result_unknown 呈现、旧 epoch 409）；`tui` 维持 parked；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-14 | `CO-01` 收口：CompanyOS 交接基线（13 文件 hash）——46 个 CompanyCommand 变体全部接线（事件溯源聚合 + revision CAS + 幂等重放 + spawn_from_packet）但经命令路径零测试；卡上两个验收测试均为 docs-only 目标；CO-27 等待环触发条件定位（RequestAcceptance 全完成检查 + milestone 依赖 Accepted 检查即环本身）；五部门六角色验证通过；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-15 | `P0-G-04` 事件重建投影源码收口：Invocation 请求/审批/派发/终态折叠、惰性缓存失效、冲突终态 fail-closed、预准备拒绝事实和审批恢复绑定已接入；新增重启/冲突验收测试；不运行本地测试，格式与 workspace 编译通过，CI 已触发但未等待 | `38f23bc` |
-| 2026-09-15 | `CI-01` 配置/凭据/身份基线收口：ProviderConfig Debug 脱敏、env/profile precedence 与 unknown-field 护栏、七类输出通道 sentinel fixture、legacy parser/local-user/config migration 边界、GitHub Actions 专用测试 job；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-15 | `CI-01` 配置/凭据/身份基线收口：ProviderConfig Debug 脱敏、env/profile precedence 与 unknown-field 护栏、七类输出通道 sentinel fixture、legacy parser/local-user/config migration 边界、GitHub Actions 专用测试 job；不运行本地测试，静态检查通过，CI 已触发但未等待 | `1be7326` |
+| 2026-09-15 | `SW-00` Swarm 现状 reconciliation：固定 10 个入口源码 hash；确认 protocol→ControlPlane→EventLog→Company StartRun→packet admission 已接线，同时记录 MemoryCellRegistry 进程内边界、event-before-dispatch 窗口、fresh child/queue/attempt/recovery 缺口；新增 GitHub Actions source-only guard；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |

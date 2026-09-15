@@ -31,3 +31,4 @@ kiana-eventlog.workspace = true
 kiana-runner.workspace = true
 async-trait.workspace = true
 tokio.workspace = true
+sha2 = "0.10"
