@@ -232,12 +232,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-02 — 统一身份、关联和顺序语义　⏳
+##### ER-02 — 统一身份、关联和顺序语义　✅
+
+当前 source slice 与 CI-only 证据见 [`event-receipt-identity-baseline.md`](event-receipt-identity-baseline.md)。
 
 - **落点：** `kiana-domain` ID contracts、`kiana-core/events.rs`；关联 `P0-G-02a/02b`、`H02/H10/H13`。
 - **动作：** 明确 `command_id`、`request_id`、`session_id`、`run_id`、`turn_id`、`invocation_id`、`execution_id`、`attempt`、`event_id` 的 owner 和生命周期；补 correlation/causation/parent 关系，禁止以 request-local sequence 代替 aggregate version。
 - **先拒绝：** `event_id_reuse_is_denied`、`same_request_different_command_digest_conflicts`、`cross_run_result_cannot_pair_by_sequence`。
-- **成功/回归：** direct、Harness、approval-resume 三入口产生同形 identity chain；legacy 无 stream metadata 仅走明确兼容路径。
+- **成功/回归：** direct、Harness、approval-resume 三入口复用同一 identity chain 和 projection ID 关联；新 RuntimeEvent 带可选 correlation/causation/parent links，legacy 无 stream metadata/links 仅走明确兼容路径，跨 run sequence 错配和 event_id 重用由远程 CI 拒绝。
 
 <a id="step-er-03"></a>
 

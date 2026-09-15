@@ -9,7 +9,7 @@
 | Provider | P4-J7-04–P4-J7-31（28） | [Provider 协议与 streaming 设计](provider.md) |
 | CompanyOS | CO-01–CO-48（48） | [组织、业务流程与交付闭环](companyos.md) |
 | Capability | CAP-00–CAP-34（35） | [能力目录、Broker 与执行边界](capability.md) |
-| Event / Receipt / Recovery | ER-00–ER-36（37） | [ER-01 schema/kind 基线](event-receipt-schema-baseline.md) · [事实账本、收据与恢复](event-receipt-recovery.md) |
+| Event / Receipt / Recovery | ER-00–ER-36（37） | [ER-01 schema/kind 基线](event-receipt-schema-baseline.md) · [ER-02 关联/顺序基线](event-receipt-identity-baseline.md) · [事实账本、收据与恢复](event-receipt-recovery.md) |
 | Context / Memory | CM-00–CM-39（40） | [上下文、检索、记忆与治理](context-memory.md) |
 | Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [扩展来源、信任与生命周期](skills-plugins-hooks.md) |
 | UI / Entrypoints | UI-00–UI-41（42） | [CLI、Workbench、Web、Desktop 与入口一致性](ui-entrypoints.md) |

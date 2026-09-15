@@ -1,5 +1,31 @@
 use super::redaction::*;
 use super::*;
+use serde::de::DeserializeOwned;
+
+fn optional_event_link<T: DeserializeOwned>(
+    data: &Value,
+    field: &str,
+) -> Result<Option<T>, CoreError> {
+    match data.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => serde_json::from_value(value.clone())
+            .map(Some)
+            .map_err(|_| PortError::Failed(format!("event_{field}_invalid")).into()),
+    }
+}
+
+fn stamp_event_links(
+    event: RuntimeEvent,
+    request_id: RequestId,
+    data: &Value,
+) -> Result<RuntimeEvent, CoreError> {
+    Ok(event.with_identity_links(
+        optional_event_link(data, "command_id")?,
+        optional_event_link(data, "correlation_id")?.or(Some(request_id)),
+        optional_event_link(data, "causation_event_id")?,
+        optional_event_link(data, "parent_event_id")?,
+    ))
+}
 
 impl ControlPlane {
     pub(crate) async fn record_event(
@@ -52,13 +78,17 @@ impl ControlPlane {
                 .map(|event| event.stream_version.unwrap_or(event.sequence))
                 .max()
                 .unwrap_or(0);
-            let event = RuntimeEvent::new(request_id, sequence, kind, data.clone())?
-                .with_stream_metadata(
-                    aggregate_type.clone(),
-                    aggregate_id.clone(),
-                    current_version.saturating_add(1),
-                )
-                .with_idempotency_key(idempotency_key.clone());
+            let event = stamp_event_links(
+                RuntimeEvent::new(request_id, sequence, kind, data.clone())?
+                    .with_stream_metadata(
+                        aggregate_type.clone(),
+                        aggregate_id.clone(),
+                        current_version.saturating_add(1),
+                    )
+                    .with_idempotency_key(idempotency_key.clone()),
+                request_id,
+                &data,
+            )?;
             match self
                 .events
                 .append_idempotent_expected(event, Some(current_version))
@@ -118,9 +148,14 @@ impl ControlPlane {
                 .filter_map(|event| event.stream_version)
                 .max()
                 .unwrap_or(0);
-            let event = RuntimeEvent::new(request_id, *sequence, kind, redact_event_value(&data))?
-                .with_stream_metadata("run", run_id.to_string(), version + 1)
-                .with_idempotency_key(format!("run:{run_id}:turn:{turn}:terminal"));
+            let redacted_data = redact_event_value(&data);
+            let event = stamp_event_links(
+                RuntimeEvent::new(request_id, *sequence, kind, redacted_data.clone())?
+                    .with_stream_metadata("run", run_id.to_string(), version + 1)
+                    .with_idempotency_key(format!("run:{run_id}:turn:{turn}:terminal")),
+                request_id,
+                &redacted_data,
+            )?;
             let mut expected_versions = vec![kiana_domain::AggregateVersion {
                 aggregate_type: "run".to_owned(),
                 aggregate_id: run_id.to_string(),

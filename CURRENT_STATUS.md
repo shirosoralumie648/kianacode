@@ -1125,6 +1125,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus ER-01 event kind/version/migration/unknown-field source-boundary review; no runtime test reviewer
 ```
 
+### ER-02 identity, correlation and ordering evidence (2026-09-16)
+
+```text
+source_snapshot: 863b30f; kiana-domain/src/{states,correlation,contracts,journal,lib}.rs; kiana-core/src/{events,invocation_projection,span_projection}.rs; kiana-eventlog/src/{event_store_core,memory,journal_core}.rs; kiana-domain/tests/er02_identity.rs; kiana-eventlog/tests/er02_identity.rs; kiana-core/tests/{er02_identity,er02_identity_guard}.rs; .github/workflows/er02-identity.yml; docs/roadmap/event-receipt-identity-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/event-receipt-recovery.md; docs/roadmap.md
+worktree_status: ER-02 RuntimeEvent optional command/correlation/causation/parent links, default request correlation, self-link validation, existing CorrelationContext/AttemptRef/CausationRef scope checks, EventStore event_id/command digest guards, run-aware invocation/span projection and legacy query-only boundary are scoped to this step; no sequence-based cross-run pairing or second fact source was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/states.rs kiana-domain/src/correlation.rs kiana-domain/src/contracts.rs kiana-domain/src/journal.rs kiana-domain/src/lib.rs kiana-core/src/events.rs kiana-core/src/invocation_projection.rs kiana-core/src/span_projection.rs kiana-eventlog/src/event_store_core.rs kiana-eventlog/src/memory.rs kiana-eventlog/src/journal_core.rs kiana-domain/tests/er02_identity.rs kiana-eventlog/tests/er02_identity.rs kiana-core/tests/er02_identity.rs kiana-core/tests/er02_identity_guard.rs .github/workflows/er02-identity.yml docs/roadmap/event-receipt-identity-baseline.md
+  rg -n 'command_id|correlation_id|causation_event_id|parent_event_id|validate_identity_links|with_identity_links|stamp_event_links|CausationRef|AttemptRef|event_id_duplicate|event_store_command_digest_mismatch|event_matches_run|turn_id|invocation_id' kiana-domain/src kiana-core/src kiana-eventlog/src kiana-domain/tests kiana-core/tests docs/roadmap/event-receipt-identity-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/er02_identity.rs new/legacy RuntimeEvent links; kiana-eventlog/tests/er02_identity.rs event_id/command digest conflicts; kiana-core/tests/er02_identity.rs cross-run sequence pairing; kiana-core/tests/er02_identity_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions ER-02 job is queued by the push and is not awaited
+status_change: ER-02 source slice is implemented. New RuntimeEvent facts carry a request-root correlation and can record explicit command, causation-event and parent-event links; legacy events without links remain readable. Links validate self-reference and correlation/command requirements. Existing CorrelationContext/AttemptRef/CausationRef enforce run/turn/invocation/execution/attempt scope, EventStore rejects event_id reuse and same-command digest drift, and Run/Invocation/Span projectors filter by stable run/aggregate IDs rather than request-local sequence. Direct/Harness/approval paths retain the same ID chain while legacy metadata remains query-only.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; links remain additive and not enforced on every legacy writer, event kind registry/upcast/redaction/receipt binding remains partial, in-memory/JSONL duplicate/CAS guards do not prove power-loss/cross-host durability, and complete InvocationLedger/attempt retry/reconcile, external effect receipt, retention/delete and live/physical evidence remain future ER/CP/PD/SC work
+reviewer: Codex root implementation review plus ER-02 identity/correlation/causation/order/projection source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

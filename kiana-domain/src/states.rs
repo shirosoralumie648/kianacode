@@ -467,6 +467,18 @@ pub struct RuntimeEvent {
     pub event_id: EventId,
     /// 关联请求 ID。
     pub request_id: RequestId,
+    /// Optional command owner; absent on legacy facts that predate command correlation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command_id: Option<RequestId>,
+    /// Correlation root for this event. New events default to their request ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<RequestId>,
+    /// Optional causal predecessor event; never used as an authority grant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub causation_event_id: Option<EventId>,
+    /// Optional parent event for asynchronous/fan-out relationships.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_event_id: Option<EventId>,
     /// 请求内递增序号，从 1 开始。
     pub sequence: u64,
     /// 稳定事件种类。
@@ -497,6 +509,10 @@ impl RuntimeEvent {
         Ok(Self {
             event_id: EventId::new(),
             request_id,
+            command_id: None,
+            correlation_id: Some(request_id),
+            causation_event_id: None,
+            parent_event_id: None,
             sequence,
             kind: kind.into(),
             data,
@@ -518,6 +534,36 @@ impl RuntimeEvent {
         self.aggregate_id = Some(aggregate_id.into());
         self.stream_version = Some(stream_version);
         self
+    }
+
+    /// Attach explicit command/causation/parent links without changing the event owner.
+    pub fn with_identity_links(
+        mut self,
+        command_id: Option<RequestId>,
+        correlation_id: Option<RequestId>,
+        causation_event_id: Option<EventId>,
+        parent_event_id: Option<EventId>,
+    ) -> Self {
+        self.command_id = command_id;
+        self.correlation_id = correlation_id.or(Some(self.request_id));
+        self.causation_event_id = causation_event_id;
+        self.parent_event_id = parent_event_id;
+        self
+    }
+
+    /// Validate causal/parent links without interpreting them as authority. Legacy events may
+    /// omit all optional links; present links must not point to the event itself.
+    pub fn validate_identity_links(&self) -> Result<(), String> {
+        if self.correlation_id.is_none() && self.command_id.is_some() {
+            return Err("event_command_requires_correlation".to_owned());
+        }
+        if self.causation_event_id == Some(self.event_id) {
+            return Err("event_causation_self".to_owned());
+        }
+        if self.parent_event_id == Some(self.event_id) {
+            return Err("event_parent_self".to_owned());
+        }
+        Ok(())
     }
 
     /// 附加幂等键；合法性和载荷一致性由 EventStore 验证。

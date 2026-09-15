@@ -1,0 +1,58 @@
+name: ER-02 identity correlation and ordering
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/correlation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/span_projection.rs"
+      - "kiana-eventlog/src/**"
+      - "kiana-domain/tests/er02_identity.rs"
+      - "kiana-eventlog/tests/er02_identity.rs"
+      - "kiana-core/tests/er02_identity.rs"
+      - "kiana-core/tests/er02_identity_guard.rs"
+      - "docs/roadmap/event-receipt-identity-baseline.md"
+      - ".github/workflows/er02-identity.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/correlation.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/span_projection.rs"
+      - "kiana-eventlog/src/**"
+      - "kiana-domain/tests/er02_identity.rs"
+      - "kiana-eventlog/tests/er02_identity.rs"
+      - "kiana-core/tests/er02_identity.rs"
+      - "kiana-core/tests/er02_identity_guard.rs"
+      - "docs/roadmap/event-receipt-identity-baseline.md"
+      - ".github/workflows/er02-identity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run ER-02 domain identity fixtures
+        run: cargo test -p kiana-domain --test er02_identity --locked -- --test-threads=1
+      - name: Run ER-02 EventStore identity fixtures
+        run: cargo test -p kiana-eventlog --test er02_identity --locked -- --test-threads=1
+      - name: Run ER-02 projection identity fixtures
+        run: cargo test -p kiana-core --test er02_identity --locked -- --test-threads=1
+      - name: Run ER-02 source guard
+        run: cargo test -p kiana-core --test er02_identity_guard --locked -- --test-threads=1
