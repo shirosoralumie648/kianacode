@@ -1,0 +1,10 @@
+{
+  "fixture": "ci-01-config-migration-v0",
+  "input_schema": "kiana.app-server.config-resolved.v0",
+  "status": "deferred_to_ci_06",
+  "implicit_migration": false,
+  "unknown_major": "reject_until_versioned_migration_exists",
+  "unknown_field": "reject_until_single_config_resolver_exists",
+  "invalid_endpoint": "reject_at_provider_boundary",
+  "duplicate_profile": "reject_or_require_explicit_versioned_policy"
+}

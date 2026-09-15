@@ -1,0 +1,24 @@
+{
+  "fixture": "ci-01-env-precedence",
+  "provider_precedence": ["explicit", "environment", "builtin"],
+  "model_base_url_api_key_precedence": ["explicit", "provider_environment", "builtin"],
+  "provider_specific_env": {
+    "anthropic": {
+      "api_key": "ANTHROPIC_API_KEY",
+      "model": "ANTHROPIC_MODEL",
+      "base_url": "ANTHROPIC_BASE_URL"
+    },
+    "openai": {
+      "api_key": "OPENAI_API_KEY",
+      "model": "OPENAI_MODEL",
+      "base_url": "OPENAI_BASE_URL"
+    },
+    "ollama": {
+      "api_key": null,
+      "model": "KIANA_OLLAMA_MODEL",
+      "base_url": "KIANA_OLLAMA_BASE_URL"
+    }
+  },
+  "legacy_aliases": ["KIANA_OPENAI_API_KEY", "KIANA_OPENAI_MODEL", "KIANA_OPENAI_BASE_URL"],
+  "legacy_alias_status": "compatibility_only_not_product_parser"
+}

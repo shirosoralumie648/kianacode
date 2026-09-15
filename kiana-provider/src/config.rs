@@ -1,7 +1,7 @@
 use kiana_domain::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, fmt, time::Duration};
 
 #[derive(Clone, Default)]
 pub struct ProviderConfig {
@@ -9,6 +9,18 @@ pub struct ProviderConfig {
     pub model: Option<String>,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+}
+
+impl fmt::Debug for ProviderConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ProviderConfig")
+            .field("provider", &self.provider)
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .finish()
+    }
 }
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -166,6 +166,25 @@ limitations: CI result was intentionally not awaited; no local test, smoke, or c
 reviewer: Codex root implementation review plus independent invocation/recovery audit; no runtime test reviewer
 ```
 
+### CI-01 configuration, credentials, and identity baseline evidence (2026-09-15)
+
+```text
+source_snapshot: 310bcec + CI-01 working-tree slice (provider redaction, fixtures, baseline document, and GitHub Actions job)
+worktree_status: source changes are scoped to the CI-01 baseline; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: scripts/fixtures/config-credentials-identity/{env-precedence,profile-precedence,legacy-local-user-event,config-migration-v0,secret-channel-sentinel}.json; kiana-provider/tests/ci01_baseline.rs; scripts/ci-01-baseline.py
+exit_code: 0 for format, workspace compile, and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-01 job is queued by the push and is not awaited
+status_change: CI-01 source baseline is complete: production ProviderGateway precedence and test-only legacy parser boundary are recorded; ProviderConfig Debug no longer exposes raw api_key; profile unknown fields and all seven sentinel channels have deterministic CI guards; local-user migration and config migration remain explicitly deferred to CI-04/CI-06
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, or live promotion until remote CI supplies its receipt
+limitations: bootstrap Config, daemon LocalModelConfig, and legacy services ApiKey/client still retain raw-secret compatibility gaps; Connection still stores raw credential; no ConfigResolver, SecretStore, CredentialLease, authenticated ingress, or identity migration event was implemented; remote CI result is intentionally not awaited
+reviewer: Codex root implementation review plus CI-01 mapper/reviewer read-only audits; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

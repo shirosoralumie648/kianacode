@@ -1,0 +1,9 @@
+{
+  "fixture": "ci-01-profile-precedence",
+  "profile_precedence": ["profile", "explicit_default", "provider_env", "builtin"],
+  "profile_features": ["inherit_default", "capabilities", "api_key_env"],
+  "unknown_field": "model_profile_config_invalid",
+  "duplicate_profile": "last_json_key_is_not_a_migration_contract",
+  "parser_product_path": "kiana-provider/src/config.rs",
+  "parser_legacy_path": "kiana-daemon/src/model_client.rs::legacy_fixtures"
+}

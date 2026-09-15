@@ -1,0 +1,9 @@
+{
+  "fixture": "ci-01-legacy-local-user",
+  "actor_id": "local-user",
+  "compatibility_only": true,
+  "migration_event_required": true,
+  "event_kind": null,
+  "status": "deferred_to_ci_04",
+  "implicit_actor_upgrade": false
+}
