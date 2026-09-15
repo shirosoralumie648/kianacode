@@ -15,6 +15,7 @@ mod connectors;
 mod context_query;
 mod data_governance;
 mod dispatch;
+mod eval;
 mod events;
 mod fault_injection;
 pub use dispatch::{project_root_identity, JournalPermitVerifier};
@@ -52,6 +53,7 @@ pub use capability_attempt_projection::{
     project_capability_attempts, project_effect_attempts, CapabilityAttemptProjectionError,
 };
 pub use data_governance::{project_data_governance, project_data_governance_snapshot};
+pub use eval::{evaluate_provider_independent, evaluate_suite, EvalError};
 pub use fault_injection::{
     fault_matrix, fault_matrix_from_events, replay_fault_matrix, FaultInjectionError,
 };

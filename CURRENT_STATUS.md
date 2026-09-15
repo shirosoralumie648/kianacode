@@ -693,6 +693,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-22 domain/core fault-matrix static-boundary review; no runtime test reviewer
 ```
 
+### OA-23 provider-independent eval evidence (2026-09-15)
+
+```text
+source_snapshot: 22a7cd4; kiana-domain/src/{eval,contracts,lib}.rs; kiana-core/src/{eval,replay_diagnostics,metrics,audit_projection,health,span_projection,lib}.rs; kiana-core/tests/oa23_provider_independent_eval.rs; .github/workflows/oa23-provider-independent-eval.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-23 EvalCaseSpec/Result/Suite contracts, provider-independent committed-fact evaluator, normalized event/Audit/Metric/Span/Run/Replay evidence checks, secret/forbidden-effect/cost/latency gates, remote-only fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/eval.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/eval.rs kiana-core/src/lib.rs kiana-core/tests/oa23_provider_independent_eval.rs .github/workflows/oa23-provider-independent-eval.yml
+  rg -n 'EvalCaseSpec|EvalCaseResult|EvalSuiteReport|evaluate_provider_independent|forbidden_effect|secret_detected|replay_diverged|promote' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa23_provider_independent_eval --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa23_provider_independent_eval.rs; committed success evidence, secret/forbidden effect Blocked, replay/terminal divergence Fail, normalized event/audit/metric/span/receipt digests and promote gate; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-23 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-23 job is queued by the push and is not awaited
+status_change: OA-23 source slice is implemented. `kiana.eval-case.v1`/`eval-result.v1`/`eval-suite.v1` bind explicit evidence requirements, normalized event/projection digests, status, effect/secret/replay flags, bounded failures and cost/latency classification. `evaluate_provider_independent` reuses committed Audit/Metric/Span/Run/Replay projections; missing evidence, secret, forbidden effect, status/replay divergence or measured usage mismatch yields Fail/Blocked, and suite `promote` is recomputed true only when every case passes. No Model/Provider/Broker or promotion side effect is invoked.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; evaluator/specs/results are process-local, no real provider/model/broker or Promptfoo runner, durable eval artifact, provider receipt/cost reconciliation, automatic promotion/rollback or cross-process eval state exists
+reviewer: Codex root implementation review plus OA-23 domain/core eval static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

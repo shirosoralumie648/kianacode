@@ -98,6 +98,11 @@
 | Fault injection schema/exports（OA-22 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `e898cd7b6f88a1adeec188658af4fcc7334af137458c4cb189f941146f01e1f1`, `5d44ac73e6e10f978d45471792d539848b202dae5927a07b24da5dfe5e834373` |
 | Fault injection simulator（OA-22 overlay） | `kiana-core/src/fault_injection.rs` | `44f6915a880c0fe8991819291b606435c80fd6926721d8bb6484ddd90251d23a` |
 | Fault injection core exports（OA-22 overlay） | `kiana-core/src/lib.rs` | `74de04f3cf1c2e53c82bf8184cb35d3f818aacfc7bad5d7b3bd9e2aa0bc219d8` |
+| Replay/fault contract exports（OA-22 overlay） | `kiana-domain/src/lib.rs`, `kiana-domain/src/contracts.rs` | `5d44ac73e6e10f978d45471792d539848b202dae5927a07b24da5dfe5e834373`, `e898cd7b6f88a1adeec188658af4fcc7334af137458c4cb189f941146f01e1f1` |
+| Provider-independent eval contracts（OA-23 overlay） | `kiana-domain/src/eval.rs` | `abde909e15ff96b8cf4d4020d85da233d667bce1dede12d2c2c58053b803e5f4` |
+| Eval schema registry/exports（OA-23 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `f8ce4fd84bca887e12e7ecd0a66b44a1e47b61c77577b1d11fa8f8c2a7b45607`, `4a5992e66ffd5c7c0bd1bba2ecd4876931c9d232b3e0541828af7bba03ee5f76` |
+| Provider-independent eval reducer（OA-23 overlay） | `kiana-core/src/eval.rs` | `dc2d6e06758e04343a9ee3a33865e0fdd988a7e86e97949ad536eaebc3d1df45` |
+| Eval core exports（OA-23 overlay） | `kiana-core/src/lib.rs` | `f46e73277fd78d82b0b8fdbf4b9c7279a07bf5c7a35b9e6a651c0c3d47a97150` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -196,6 +201,7 @@
 | OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map 和 daemon policy integrity/readout 已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
 | OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Health/Span comparison、bounded divergence locator、projection digests、unknown/schema/gap/duplicate guards 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
 | OA-22 | Crash/fault injection | `source`；deterministic replay-only eight-point FaultMatrix/Case safety contract、seed/source binding、unknown/rejected fencing and duplicate/false-success invariants 已实现；尚无 real crash/process fault hooks, EventStore/Broker/Provider/projector/export/shutdown injection, durable recovery or cross-process resource proof |
+| OA-23 | Provider-independent eval suite | `source`；versioned EvalCaseSpec/Result/Suite、normalized event/Audit/Metric/Span/Run/Replay evidence、secret/forbidden-effect/missing-evidence/status/replay/cost guards、promote only all-pass 已实现；尚无 real provider eval, Promptfoo runner, durable eval artifact, external receipt or automatic promotion/rollback |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -641,3 +647,23 @@ OA-22 远端 workflow 覆盖八点矩阵、seed 重放、source duplicate/limit�
 false-success/duplicate-effect/unfenced-unknown tamper 和 closed serde；本地只执行格式、静态源码检查和
 test-target 编译，不执行测试二进制。该 matrix 仍是 source safety model，不等价于真实 fault hooks、crash
 recovery、durable receipt/incident、process/resource fencing 或 live provider/export behavior。
+
+## 29. OA-23 叠加说明
+
+OA-23 注册 `kiana.eval-case.v1`、`kiana.eval-result.v1` 与 `kiana.eval-suite.v1`。`EvalCaseSpec` 固定
+case/input digest、expected normalized event kinds/status、是否要求 Audit/Metric/Span/Receipt、是否禁止
+effect/secret、cost quality 和 latency bucket；`EvalCaseResult` 只保存 projection digests、effect/secret/
+replay flags、source cursor/event、bounded failures、cost kind/latency bucket；`EvalSuiteReport.promote` 必须
+由所有 case 的 Pass 重新计算，未知或失败绝不会被“文本解释”抵消。
+
+`kiana-core::evaluate_provider_independent` 只折叠 committed facts：OA-15 Audit、OA-10 Metric、OA-07 Span、
+Run/Receipt 和 OA-21 replay diagnostics。缺任何声明的证据、normalized event、measured usage、expected
+status/input、latency bucket 或发现 secret/forbidden effect/replay divergence 都生成 Fail/Blocked；禁止 effect
+的 case 只允许 zero-effect，measured cost 需要完整 usage，estimated 与 measured quality 不混用。函数和
+`ControlPlane` bridge 不调用 Model/Provider/Broker，不写 EventLog、不自动 Promote/Retry/Rollback。
+
+OA-23 远端 workflow 覆盖 provider-independent success、secret/forbidden effect blocking、replay divergence、
+missing evidence、normalized event/audit/metric/span/receipt digests、cost/latency bucket、suite promote 和
+closed serde；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该 eval 仍是 source
+quality gate，不等价于真实 provider/backend、Promptfoo 外部 runner、durable eval artifact、cost receipt 或
+自动发布/回滚。
