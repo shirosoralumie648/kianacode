@@ -59,6 +59,10 @@
 | Core health exports（OA-11 overlay） | `kiana-core/src/lib.rs` | `3a2577d0c6659fcb5d1b455787a08fbba30f24f247576e5fcbf1a5cac4e40083` |
 | Metric reducer/cardinality guard（OA-12 overlay） | `kiana-core/src/metrics.rs` | `5ca67e24913dbb43f4b90e9e6c4054d42da072e767069a33fcefdb58fdb622ea` |
 | Metric reducer exports（OA-12 overlay） | `kiana-core/src/lib.rs` | `db071a3de3d0c97e97027eed5c453d7e9a1650f4fa5e10f71466035c364512b5` |
+| Trace export/context contract（OA-14 overlay） | `kiana-domain/src/observability.rs` | `101acc38e9429242da3ae52f23beb1d466f09ee583def9e4b7b17e862e274b81` |
+| Trace export/context adapter（OA-14 overlay） | `kiana-core/src/trace_export.rs` | `6045461f648248005321426def7090388f134855d24fa0fe93b7b3bcac568191` |
+| Trace export schema registry（OA-14 overlay） | `kiana-domain/src/contracts.rs` | `77d15cfcf55353128bb8f872698cc20efa5087ea76af910f6b8c41dbcd11e628` |
+| Trace exporter exports（OA-14 overlay） | `kiana-core/src/lib.rs` | `a739e3cee27d9e004a70cc2cf9c937b5da32e6d5c25a26aeeacedf1fa4d681a3` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -148,6 +152,7 @@
 | OA-11 | health snapshot/readiness/liveness/component capability | `source`；`HealthProbeKind`/`ComponentHealth`、core health aggregator 和 DaemonHost read-only bridge 已实现；stale/gap/unknown/unsupported capability 返回 degraded/unavailable；尚无 durable heartbeat、provider/Broker/exporter live probe 或 admission gate 接线 |
 | OA-12 | Metric catalog/reducer/cardinality guard | `source`；typed catalog/unit、MetricQuality、catalog digest、allowlist/cardinality guard、overflow、counter reset/cursor regression 和 replay/live reducer 已实现；尚无 durable MetricSink/queue、runtime gauge feed 或 checkpoint/exporter |
 | OA-13 | asynchronous queue/backpressure/drop policy | `source`；bounded non-blocking queue、critical preservation、best-effort drop reason/counter、flush/shutdown/reopen/cancel ack 和 DaemonHost bridge 已实现；尚无 durable spool、consumer/exporter、cross-process shutdown 或 queue checkpoint |
+| OA-14 | trace exporter and W3C context adapter | `source`；TraceExportSpan contract、foreign parent link、sampling/invalid-parent/capacity guards、local JSONL/no-op exporter、flush/shutdown/reopen 已实现；尚无 OTLP/durable backend、async consumer 或 persisted sampling policy |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -412,3 +417,23 @@ OA-13 远端 workflow 覆盖 critical 保留/驱逐 best-effort、critical 满�
 flush/shutdown/reopen/cancellable ack 和 bounded stats；本地只执行格式、静态源码检查和 test-target 编译，
 不执行测试二进制。该队列仍是 source-level delivery primitive，不等价于 durable spool、异步 exporter、
 跨进程 shutdown/reopen、backpressure persistence 或 live telemetry。
+
+## 20. OA-14 叠加说明
+
+OA-14 在 `kiana-domain` 注册 `kiana.trace-export-span.v1`，以 `TraceExportSpan` 固定 W3C-compatible
+32-hex trace ID、16-hex span ID、可选 parent、`kiana.*` span name、TraceStatus、sampled、source
+cursor/event、duration、低基数属性和 digest。属性只允许 provider/model/capability/operation/
+sandbox/component/outcome/reason/retry/approval/effect/stop 等白名单；原始 parent baggage、prompt、
+response、tool args、path、header、token 和 actor/scope 不可表示。
+
+`TraceParent::parse`/`foreign_parent_link` 只验证并建立 `ForeignParent` link，永远不覆盖服务端 trace ID、
+span ID、actor、project/session、authority 或 approval。`LocalTraceExporter` 在 `enabled && sampled` 且
+摘要/parent/source 合法时写入 bounded validated records；关闭或 sampled=false 返回 `SampledOut`，
+无效 parent/summary、capacity、closed 返回结构化错误，不触碰 EventLog/Receipt/ControlPlane。`jsonl()`
+只序列化已验证 projection；flush/shutdown/reopen 是本地 exporter 生命周期 ack，不等价于 OTLP/durable
+delivery。
+
+OA-14 远端 workflow 覆盖 invalid parent/trace ID、foreign link、sampled=false/no-op、低基数属性与
+secret sentinel、capacity/closed、JSONL、flush/shutdown/reopen 夹具；本地只执行格式、静态源码检查和
+test-target 编译，不执行测试二进制。该 exporter 仍是 source/local projection，不等价于外部 backend、
+live sampling、跨进程 exporter recovery 或 trace 完整性证明。

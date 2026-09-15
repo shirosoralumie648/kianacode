@@ -490,6 +490,28 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-12 domain/core metric-governance static-boundary review; no runtime test reviewer
 ```
 
+### OA-14 trace exporter/W3C context evidence (2026-09-15)
+
+```text
+source_snapshot: fd264bb; kiana-domain/src/{contracts,observability}.rs; kiana-core/src/{trace_export,lib}.rs; kiana-core/tests/oa14_trace_export.rs; .github/workflows/oa14-trace-export.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-14 TraceExportSpan contract, foreign-parent parser/link adapter, bounded local/no-op exporter, sampling/capacity/closed guards, JSONL/flush/shutdown/reopen fixtures, workflow and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/contracts.rs kiana-domain/src/observability.rs kiana-core/src/lib.rs kiana-core/src/trace_export.rs kiana-core/tests/oa14_trace_export.rs .github/workflows/oa14-trace-export.yml
+  rg -n 'TraceExportSpan|TraceParent|foreign_parent_link|LocalTraceExporter|SampledOut|trace_export_capacity|jsonl' kiana-domain/src kiana-core/src kiana-core/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-core --test oa14_trace_export --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain (rustc/cargo 1.97.1); locked offline dependency cache; static compilation/source inspection only; no test binaries executed
+fixture or cassette: kiana-core/tests/oa14_trace_export.rs; invalid W3C parent/trace ID, foreign link, sampled-out/no-op, low-cardinality secret redaction, capacity/closed, JSONL, flush/shutdown/reopen fixtures; GitHub Actions only
+exit_code: 0 for source hashes, format, core OA-14 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-14 job is queued by the push and is not awaited
+status_change: OA-14 source slice is implemented. `kiana.trace-export-span.v1` and `TraceExportSpan` constrain exported trace/span IDs, parent, names, status, sampling, source evidence, duration, low-cardinality attributes and digest. `foreign_parent_link` treats W3C input as a ForeignParent link only; `LocalTraceExporter`/`NoopTraceExporter` honor enabled/sampled/capacity/closed boundaries and serialize only validated local JSONL records, with no EventLog/Receipt/authority mutation.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; exporter is process-local with no OTLP/external backend, durable queue/spool, persisted sampling policy, cross-process recovery or live trace completeness, and flush only acknowledges local record handling
+reviewer: Codex root implementation review plus OA-14 domain/core trace-export static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

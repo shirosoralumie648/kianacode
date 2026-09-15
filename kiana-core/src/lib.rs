@@ -33,6 +33,7 @@ mod recovery;
 mod redaction;
 mod sessions;
 mod span_projection;
+mod trace_export;
 mod versioning;
 mod workspace_checkpoints;
 
@@ -51,6 +52,10 @@ pub use model_attempt_projection::{
 };
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use span_projection::{project_span_lifecycle, project_spans, SpanProjectionError};
+pub use trace_export::{
+    exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
+    TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
+};
 
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{

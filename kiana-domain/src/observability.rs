@@ -17,6 +17,7 @@ pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
+pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
 pub const METRIC_SNAPSHOT_SCHEMA: &str = "kiana.metric-snapshot.v1";
 pub const HEALTH_SNAPSHOT_SCHEMA: &str = "kiana.health-snapshot.v1";
 pub const SPAN_LIFECYCLE_SCHEMA: &str = "kiana.span-lifecycle.v1";
@@ -24,6 +25,7 @@ pub const OBSERVABILITY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0)
 pub const AUDIT_RECORD_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const HEALTH_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const SPAN_LIFECYCLE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -1076,6 +1078,127 @@ impl TraceSummary {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "summary_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// Bounded local/export representation of one span. Foreign W3C context is retained only as an
+/// optional parent ID; it never carries actor, scope or authority information.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TraceExportSpan {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub trace_id: TraceId,
+    pub span_id: SpanId,
+    #[serde(default)]
+    pub parent_span_id: Option<SpanId>,
+    pub name: String,
+    pub status: TraceStatus,
+    pub sampled: bool,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<EventId>,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    pub export_digest: String,
+}
+
+impl TraceExportSpan {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        trace_id: TraceId,
+        span_id: SpanId,
+        parent_span_id: Option<SpanId>,
+        name: impl Into<String>,
+        status: TraceStatus,
+        sampled: bool,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+        duration_ms: Option<u64>,
+        attributes: BTreeMap<String, String>,
+    ) -> Result<Self, String> {
+        let mut span = Self {
+            schema: TRACE_EXPORT_SPAN_SCHEMA.to_owned(),
+            version: TRACE_EXPORT_SPAN_SCHEMA_VERSION,
+            trace_id,
+            span_id,
+            parent_span_id,
+            name: name.into(),
+            status,
+            sampled,
+            source_cursor,
+            source_event_ids,
+            duration_ms,
+            attributes,
+            export_digest: String::new(),
+        };
+        span.export_digest = span.digest();
+        span.validate()?;
+        Ok(span)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            TRACE_EXPORT_SPAN_SCHEMA,
+            TRACE_EXPORT_SPAN_SCHEMA_VERSION,
+        )?;
+        TraceId::parse(self.trace_id.as_str())?;
+        SpanId::parse(self.span_id.as_str())?;
+        if self.parent_span_id.as_ref() == Some(&self.span_id) {
+            return Err("trace_export_parent_self".to_owned());
+        }
+        if self.name.trim().is_empty()
+            || self.name.len() > 128
+            || !self.name.starts_with("kiana.")
+            || !self.name.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || ".-_".contains(byte as char)
+            })
+        {
+            return Err("trace_export_name_invalid".to_owned());
+        }
+        validate_cursor(self.source_cursor, &self.source_event_ids)?;
+        validate_attributes(&self.attributes)?;
+        const ALLOWED: &[&str] = &[
+            "provider_id",
+            "model_id",
+            "capability_id",
+            "operation",
+            "sandbox_profile",
+            "environment",
+            "component",
+            "schema_version",
+            "outcome",
+            "reason_class",
+            "retryable",
+            "approval_required",
+            "effect_known",
+            "stop_confirmed",
+        ];
+        if self
+            .attributes
+            .keys()
+            .any(|key| !ALLOWED.iter().any(|allowed| allowed == key))
+        {
+            return Err("trace_export_attribute_not_allowed".to_owned());
+        }
+        validate_digest(&self.export_digest, "trace_export_digest")?;
+        if self.export_digest != self.digest() {
+            return Err("trace_export_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "export_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }
