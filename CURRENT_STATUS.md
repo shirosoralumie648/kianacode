@@ -268,6 +268,27 @@ limitations: CI result was intentionally not awaited; no local test, smoke or cl
 reviewer: Codex root implementation review plus OA-02 domain/port static-boundary review; no runtime test reviewer
 ```
 
+### OA-03 redaction profile and bounded encoder evidence (2026-09-15)
+
+```text
+source_snapshot: 231a77d; kiana-domain/src/redaction.rs; kiana-domain/src/contracts.rs; kiana-core/tests/observability_baseline.rs; kiana-domain/tests/oa03_redaction.rs; .github/workflows/oa03-redaction.yml
+worktree_status: OA-03 profile/encoder source, schema registration, focused remote-only tests and observability inventory overlay are scoped to this step; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  sha256sum kiana-domain/src/redaction.rs kiana-domain/src/contracts.rs
+  rg -n 'RedactionProfile|RedactionSignal|encode_bounded_value|encode_bounded_text|redaction_secret_sentinel_detected|redaction_.*too_large' kiana-domain/src kiana-domain/tests
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: `kiana-domain/tests/oa03_redaction.rs`; profile digest/unknown-field rejection, nested token/password/api-key/header sentinel masking across log/metric/trace/audit/export profiles, secret_ref preservation, oversized/deep/NUL failure and no-original-fallback assertions; GitHub Actions only
+exit_code: 0 for format, workspace compile, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-03 job is queued by the push and is not awaited
+status_change: OA-03 source slice is implemented. Versioned `RedactionProfile` carries signal/data classification, bounded bytes/depth and a profile digest; bounded value/text encoders reuse existing recursive redaction then fail closed on residual secret markers, NUL, depth, encoding or size violations. Errors never return the unredacted input. Runtime sinks and all producer wiring remain separate steps.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test, smoke or clippy command was run; EventStore/Receipt/Provider/Broker/TraceSink/export runtime paths still use their existing compatibility wrappers until OA-05/OA-06; arbitrary unknown secret formats outside the marker/key policy remain a later hardening concern
+reviewer: Codex root implementation review plus OA-03 redaction/static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -1,11 +1,266 @@
+use crate::{check_schema_compatibility, json_digest, DataClass, SchemaVersion};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 const REDACTED: &str = "[REDACTED]";
+
+pub const REDACTION_PROFILE_SCHEMA: &str = "kiana.redaction-profile.v1";
+pub const REDACTION_PROFILE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const MAX_REDACTION_DEPTH: usize = 32;
+pub const MAX_REDACTION_VALUE_BYTES: usize = 64 * 1024;
+pub const MAX_REDACTION_PROFILE_BYTES: usize = 256 * 1024;
 
 /// Streaming redaction retains at most this many bytes of already-emitted text as overlap so a
 /// sensitive marker split across chunks can still be recognized. The value is deliberately larger
 /// than the longest marker below.
 pub const STREAM_REDACTION_BUFFER_LIMIT: usize = 64;
+
+/// Signal boundary whose payload is allowed to pass through the bounded encoder.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RedactionSignal {
+    Log,
+    Metric,
+    Trace,
+    Audit,
+    Export,
+}
+
+impl RedactionSignal {
+    fn default_limit(self) -> usize {
+        match self {
+            Self::Log => 16 * 1024,
+            Self::Metric => 2 * 1024,
+            Self::Trace => 8 * 1024,
+            Self::Audit => 16 * 1024,
+            Self::Export => 64 * 1024,
+        }
+    }
+}
+
+/// Versioned, digest-bound policy for one redaction boundary.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedactionProfile {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub signal: RedactionSignal,
+    pub data_class: DataClass,
+    pub max_bytes: usize,
+    pub max_depth: usize,
+    pub profile_digest: String,
+}
+
+impl RedactionProfile {
+    pub fn for_signal(signal: RedactionSignal) -> Self {
+        Self::new(
+            signal,
+            DataClass::Internal,
+            signal.default_limit(),
+            MAX_REDACTION_DEPTH,
+        )
+        .expect("built-in redaction profile is valid")
+    }
+
+    pub fn new(
+        signal: RedactionSignal,
+        data_class: DataClass,
+        max_bytes: usize,
+        max_depth: usize,
+    ) -> Result<Self, String> {
+        if max_bytes == 0 || max_bytes > MAX_REDACTION_VALUE_BYTES {
+            return Err("redaction_profile_bytes_invalid".to_owned());
+        }
+        if max_depth == 0 || max_depth > MAX_REDACTION_DEPTH {
+            return Err("redaction_profile_depth_invalid".to_owned());
+        }
+        let mut profile = Self {
+            schema: REDACTION_PROFILE_SCHEMA.to_owned(),
+            version: REDACTION_PROFILE_SCHEMA_VERSION,
+            signal,
+            data_class,
+            max_bytes,
+            max_depth,
+            profile_digest: String::new(),
+        };
+        profile.profile_digest = profile.digest();
+        profile.validate()?;
+        Ok(profile)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        check_schema_compatibility(&self.schema, &self.version)
+            .map_err(|_| "redaction_profile_schema_incompatible".to_owned())?;
+        if self.schema != REDACTION_PROFILE_SCHEMA {
+            return Err("redaction_profile_schema_mismatch".to_owned());
+        }
+        if self.max_bytes == 0 || self.max_bytes > MAX_REDACTION_VALUE_BYTES {
+            return Err("redaction_profile_bytes_invalid".to_owned());
+        }
+        if self.max_depth == 0 || self.max_depth > MAX_REDACTION_DEPTH {
+            return Err("redaction_profile_depth_invalid".to_owned());
+        }
+        let Some(hex) = self.profile_digest.strip_prefix("sha256:") else {
+            return Err("redaction_profile_digest_invalid".to_owned());
+        };
+        if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err("redaction_profile_digest_invalid".to_owned());
+        }
+        if self.profile_digest != self.digest() {
+            return Err("redaction_profile_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        let mut value = serde_json::to_value(self).unwrap_or(Value::Null);
+        if let Some(object) = value.as_object_mut() {
+            object.insert("profile_digest".to_owned(), Value::String(String::new()));
+        }
+        json_digest(&value)
+    }
+}
+
+impl Default for RedactionProfile {
+    fn default() -> Self {
+        Self::for_signal(RedactionSignal::Log)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoundedRedactedValue {
+    pub value: Value,
+    pub encoded_bytes: usize,
+    pub profile_digest: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BoundedRedactedText {
+    pub text: String,
+    pub encoded_bytes: usize,
+    pub profile_digest: String,
+}
+
+/// Apply a profile to a structured signal. Errors are terminal and never return the input value.
+pub fn encode_bounded_value(
+    profile: &RedactionProfile,
+    value: &Value,
+) -> Result<BoundedRedactedValue, String> {
+    profile.validate()?;
+    validate_value_shape(value, 0, profile.max_depth)?;
+    let redacted = redact_value(value);
+    validate_value_shape(&redacted, 0, profile.max_depth)?;
+    if contains_unredacted_secret(&redacted) {
+        return Err("redaction_secret_sentinel_detected".to_owned());
+    }
+    let encoded =
+        serde_json::to_vec(&redacted).map_err(|_| "redaction_encode_failed".to_owned())?;
+    if encoded.len() > profile.max_bytes || encoded.len() > MAX_REDACTION_PROFILE_BYTES {
+        return Err("redaction_value_too_large".to_owned());
+    }
+    Ok(BoundedRedactedValue {
+        value: redacted,
+        encoded_bytes: encoded.len(),
+        profile_digest: profile.profile_digest.clone(),
+    })
+}
+
+/// Text counterpart for logs, trace attributes and export rows.
+pub fn encode_bounded_text(
+    profile: &RedactionProfile,
+    text: &str,
+) -> Result<BoundedRedactedText, String> {
+    profile.validate()?;
+    if text.as_bytes().contains(&0) {
+        return Err("redaction_nul_forbidden".to_owned());
+    }
+    let redacted = redact_text(text);
+    if redact_text(&redacted) != redacted || contains_text_secret_marker(&redacted) {
+        return Err("redaction_secret_sentinel_detected".to_owned());
+    }
+    let encoded_bytes = redacted.len();
+    if encoded_bytes > profile.max_bytes || encoded_bytes > MAX_REDACTION_PROFILE_BYTES {
+        return Err("redaction_text_too_large".to_owned());
+    }
+    Ok(BoundedRedactedText {
+        text: redacted,
+        encoded_bytes,
+        profile_digest: profile.profile_digest.clone(),
+    })
+}
+
+/// Short aliases used by signal producers so they cannot accidentally bypass the profile.
+pub fn redact_with_profile(profile: &RedactionProfile, value: &Value) -> Result<Value, String> {
+    encode_bounded_value(profile, value).map(|encoded| encoded.value)
+}
+
+pub fn redact_text_with_profile(profile: &RedactionProfile, text: &str) -> Result<String, String> {
+    encode_bounded_text(profile, text).map(|encoded| encoded.text)
+}
+
+fn validate_value_shape(value: &Value, depth: usize, max_depth: usize) -> Result<(), String> {
+    if depth > max_depth {
+        return Err("redaction_value_depth_exceeded".to_owned());
+    }
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                validate_value_shape(item, depth + 1, max_depth)?;
+            }
+        }
+        Value::Object(object) => {
+            for (key, item) in object {
+                if key.as_bytes().contains(&0) {
+                    return Err("redaction_key_nul_forbidden".to_owned());
+                }
+                validate_value_shape(item, depth + 1, max_depth)?;
+            }
+        }
+        Value::String(text) if text.as_bytes().contains(&0) => {
+            return Err("redaction_nul_forbidden".to_owned());
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn contains_unredacted_secret(value: &Value) -> bool {
+    match value {
+        Value::Array(items) => items.iter().any(contains_unredacted_secret),
+        Value::Object(object) => object.iter().any(|(key, value)| {
+            let normalized = key.to_ascii_lowercase();
+            let sensitive = normalized != "secret_ref"
+                && (normalized.contains("token")
+                    || normalized.contains("password")
+                    || normalized.contains("api_key")
+                    || normalized.contains("access_key")
+                    || normalized.contains("private_key")
+                    || normalized.contains("secret"));
+            (sensitive && !matches!(value, Value::String(text) if text == REDACTED))
+                || contains_unredacted_secret(value)
+        }),
+        Value::String(text) => contains_text_secret_marker(text),
+        _ => false,
+    }
+}
+
+fn contains_text_secret_marker(text: &str) -> bool {
+    let lowered = text.to_ascii_lowercase();
+    [
+        "token=",
+        "password=",
+        "api_key=",
+        "access_key=",
+        "private_key=",
+        "secret=",
+        "bearer ",
+        "authorization: bearer ",
+        "authorization: basic ",
+        "x-api-key:",
+    ]
+    .iter()
+    .any(|marker| lowered.contains(marker) && !lowered.contains("[redacted]"))
+}
 
 #[derive(Clone, Copy, Debug)]
 struct SensitiveMarker {
