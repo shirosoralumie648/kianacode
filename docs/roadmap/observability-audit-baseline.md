@@ -122,6 +122,10 @@
 | Company governance reducer/command（OA-27 overlay） | `kiana-core/src/company_governance.rs`, `kiana-core/src/company.rs`, `kiana-core/src/commands.rs`, `kiana-core/src/lib.rs` | `6fd11ae8f1ff661db2171ec5a1839f0fedf186acd0dd31302ebb5d0aa2895ae9`, `da3047183e0127cb61e5a2981023776a311b068bb8e259440e058c7ddb968c83`, `7986c7f5ea67a9e612fdc0e36bdd75f7476c6287995551acc0faac503844047c`, `ebdc8f38a9f85d9e579834627a89982b361ea0b2e70c1f281c7805065f94915e` |
 | Company governance wire/client/entrypoints（OA-27 overlay） | `kiana-protocol/src/lib.rs`, `kiana-client/src/lib.rs`, `kiana-daemon/src/lib.rs`, `kiana-entrypoints/src/{cli,harness_run,web,workbench_chat}.rs` | `ab36f25cce3e6e52c617b6d845d6aa80a3e769900ee5997a1e98bd1c7aa16c2a`, `e1e9c48be7e99e686eeabca54b987ae7576eb9eb4f298b5b34b4cfaaeea40ff2`, `bb458a97ab2c21645b295beb997cf0c3dfb5a42f4d64c4202040cc4f93bee9b2`, `6baaebf2ba9b9ca9aadebf6fe5fdd7923c6779ac8434ce4deacdc0d2663671d9`, `580ff44de27e0d471e3a3668c3cd32dc37fc8aee910a624b91bb0a7f15a0be31`, `9c6b356111a93d87e595cbc4a234f5b9352591d7efc2bbe00948b786e62c09ad`, `dc137747186af0bf02d8b0ec221d265c03047f669079d2f25b4fdaf55aeea957` |
 | Company governance remote fixtures/workflow（OA-27 overlay） | `kiana-core/tests/oa27_company_governance.rs`, `kiana-protocol/tests/oa27_company_governance_wire.rs`, `.github/workflows/oa27-company-governance.yml` | `6548a510458f07bc64e44fef7e9f7770a12e168d99e756ddeb6e08d36d46abc3`, `265707606a2e12ec7b2d3c01fb8157b7b1e5d91999eb7e1b3cb8bde00607e600`, `250b913d389f339d735f0646bf61c6e85524c60eab51ba8a46a8d5dc38bb99cd` |
+| Live handoff contract（OA-28 overlay） | `kiana-domain/src/live_handoff.rs` | `c3ec85617bc551b5531cf49732b9b2a126517944a623d26167dcabea4446675f` |
+| Live handoff schema/exports（OA-28 overlay） | `kiana-domain/src/contracts.rs`, `kiana-domain/src/lib.rs` | `4da391d943eadba41b1886bbc55a1379362d2991b5e3a15cca242ac432ab478c`, `3cf7014624b6c0e9c400cb732a40be8965ce49672ba4dd60e38296db405445c3` |
+| Live handoff preflight/runbook/workflow（OA-28 overlay） | `scripts/oa28-live-handoff-preflight.sh`, `docs/roadmap/oa28-live-handoff.md`, `.github/workflows/oa28-live-handoff.yml` | `56c73ed3a8214ea585925afc91873af0c85b3b3394094a68b80d1ede1f3b0ff4`, `3965d48c40b0ffaa64999625402a55c1ff7c33bd3c59e4e531af68332896d628`, `5af08db2a2cde13881294edbf687c2111e0f3ca42865e4cfde36611e2b673928` |
+| Live handoff remote fixture（OA-28 overlay） | `kiana-domain/tests/oa28_live_handoff.rs` | `bfa94f6fbd059498910dea8d9a96cce6ddbedf0e72b8da3d8e0ec969b4f1d8d8` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
 | Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
@@ -225,6 +229,7 @@
 | OA-25 | 容量、性能和迁移演练 | `source`；`PerformanceBaseline`/`BenchmarkSummary`/`CapacityEnvelope`/`MigrationObservation` 与 checked p50/p95/p99 reducer 已实现，固定 journal/page/export/queue/artifact 上限，high-cardinality/oversize/backpressure fail-closed，rotation/archive/upgrade/downgrade/unknown writer version 只读观察受约束；尚无生产 benchmark artifact、真实大 artifact/慢 exporter、跨平台 rotation/archive、durable capacity telemetry 或 live SLO 证明 |
 | OA-26 | Local durable observability gate | `local_behavior`（仅远端 CI）；CI-only gate 在真实 JSONL 文件上验证 append→reopen→projection、Unknown/fencing、queue critical rejection、source/binary/artifact SHA-256 与 secret scan，未把内存 sink、历史 CI 或 mock 视为 durable；尚无 physical power-loss、外部 provider/Broker/telemetry backend、跨进程 retention/reconcile 或 live durable SLO 证明 |
 | OA-27 | Cross-entry/company governance gate | `source`；`CompanyGovernanceSnapshot` 与只读 `company.governance.v1` route 已将 Runtime/Review/Acceptance/Delivery/ClosingReceipt 链绑定到同一 CompanyState/source refs，runtime completed 不自动 Outcome，closed 链强制独立 reviewer/closer、accepted/waived acceptance、confirmed delivery 与全部 runtime evidence；CLI/Web/Workbench/Desktop 复用 protocol/DaemonHost；尚无 durable business index、跨组织 authenticated principal、外部 delivery confirmation、Outcome measurement 或 live/physical 证明 |
+| OA-28 | Physical/live handoff | `source`；`LiveHandoffManifest`/target matrix 和 CI-only opt-in preflight 已实现，provider/connector/OTLP/OS 每个目标都要求隔离环境、非秘密 credential ref、config/source digest、operator approval、独立 receipt/reconcile、retention/cleanup/incident；默认 `not_supported`，未触发外部网络或物理副作用；尚无任何目标的 live/physical 证明 |
 | OA-10–13 | Receipt/Health/Metric reducer、lag、队列背压与丢弃分类 | `source`；没有 runtime gauges 或 telemetry queue |
 | OA-14–18 | trace exporter、Audit checkpoint/query/cursor/export | `source`；golden replay 不是 exporter，不能声称 durable/live |
 | OA-19–21 | Incident/Recovery、retention/deletion 和 replay diagnostics | `source`；FailureIncident/Company Incident 不能代替 OA Incident |
@@ -786,3 +791,25 @@ project/source owner rejection、Company governance wire round-trip 与 raw owne
 本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该切片仍是 source-level CompanyState
 projection，不等价于 durable business index、外部 delivery confirmation、真实 Outcome measurement、跨组织
 authenticated principal、live/physical delivery 或自动 reconcile 证明。
+
+## 34. OA-28 叠加说明
+
+OA-28 注册 `kiana.live-handoff.v1` 与 `LiveHandoffManifest`，把 provider、connector、OTLP backend 和
+operating system 四类目标的 live/physical 前置条件固定为可审计字段：target/account、isolated environment、
+非秘密 `secret-ref`、configuration/source digest、operator approval、provider receipt、retention class、
+incident 和 cleanup plan。Manifest 不能包含 key、bearer、cookie、原始 payload 或 wildcard scope；digest、
+status 和所有限制均严格校验，`verified` 缺 receipt/approval/cleanup 时 fail-closed，`unknown`/`not_supported`
+必须有 bounded limitation。
+
+`scripts/oa28-live-handoff-preflight.sh` 只验证 operator intent 和非秘密引用；未设置
+`KIANA_LIVE_HANDOFF_OPT_IN=1` 主动返回 `live_opt_in_required`，设置后仍要求目标、环境、credential ref、
+approval、provider receipt 和 cleanup plan，绝不调用网络、Provider、Connector、OTLP 或 OS effect。真正
+执行仍必须通过 `DaemonHost → ControlPlane → Policy/Gate/Approval → Broker`，并为每个 target/account/operation
+单独记录 receipt、attempt/source cursor、redacted artifact、stop/timeout、retention、incident、reconcile 和
+cleanup。Network 2xx、exporter ACK、mock receipt 或 CI green 都不能直接成为业务 Outcome/live/physical 证明。
+
+`docs/roadmap/oa28-live-handoff.md` 提供 target matrix、opt-in sequence、Unknown/fence/reconcile、credential
+rotation/cleanup 和证据块模板。远端 workflow 只运行 domain manifest/secret/unknown fixtures、shell syntax 和
+format checks，不连接外部服务；本地只执行静态检查和 test-target 编译，不执行测试二进制。当前四类目标仍
+分别保持 `not_supported` 或 `source`，直到真实环境、独立账户、人工批准、provider/connector/OTLP/physical
+receipt、回滚/补偿、保留/清理和事故证据逐目标提交；本切片不提升 live 或 physical proof。

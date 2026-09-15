@@ -806,6 +806,29 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-27 CompanyOS chain/ownership/source-boundary static review; no runtime test reviewer
 ```
 
+### OA-28 live/physical handoff boundary evidence (2026-09-16)
+
+```text
+source_snapshot: e4a72a4; kiana-domain/src/{live_handoff,contracts,lib}.rs; kiana-domain/tests/oa28_live_handoff.rs; scripts/oa28-live-handoff-preflight.sh; docs/roadmap/oa28-live-handoff.md; .github/workflows/oa28-live-handoff.yml; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; docs/roadmap.md
+worktree_status: OA-28 explicit LiveHandoffManifest target/status contract, provider/connector/OTLP/OS target matrix, non-secret credential/approval/receipt/retention/cleanup validation, CI-only opt-in preflight, remote manifest fixtures and roadmap/status overlays are scoped to this step; no unrelated WIP was reverted; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/live_handoff.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-domain/tests/oa28_live_handoff.rs scripts/oa28-live-handoff-preflight.sh docs/roadmap/oa28-live-handoff.md .github/workflows/oa28-live-handoff.yml
+  rg -n 'LiveHandoffManifest|live-handoff.v1|live_opt_in_required|secret-ref:|provider_receipt|operator_approval|cleanup_plan|NotSupported|Unknown' kiana-domain/src kiana-domain/tests scripts docs/roadmap/oa28-live-handoff.md .github/workflows/oa28-live-handoff.yml
+  bash -n scripts/oa28-live-handoff-preflight.sh
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check -p kiana-domain --test oa28_live_handoff --locked --offline
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; test target compiled only; no test, provider, connector, OTLP, network or physical command executed locally
+fixture or cassette: kiana-domain/tests/oa28_live_handoff.rs; explicit not_supported, verified evidence requirements, raw-secret rejection, unknown limitation, unknown-field and digest tamper fixtures; scripts/oa28-live-handoff-preflight.sh default-deny contract; GitHub Actions only
+exit_code: 0 for source hashes, shell syntax, format, OA-28 test-target/workspace compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-28 job is queued by the push and is not awaited
+status_change: OA-28 source slice is implemented. `kiana.live-handoff.v1`/`LiveHandoffManifest` binds one provider/connector/OTLP/OS target to an isolated environment, non-secret SecretRef, config/source digests, operator approval, independent provider receipt, retention, incident, cleanup and bounded limitations. `verified` requires approval+receipt+cleanup, `unknown`/`not_supported` require reasons, and raw credentials/secret sentinels/unknown fields/digest tampering fail closed. The opt-in preflight refuses non-CI/default/no-receipt execution and never contacts external systems; runbook defines fence/reconcile/rotation/cleanup evidence through the existing DaemonHost→ControlPlane→Broker path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; no real provider/connector/OTLP backend, isolated account, external receipt, network/OS effect, rollback/compensation, retention deletion, incident or physical safety controller was exercised; all live/physical targets remain not_supported/source until separate approved evidence blocks exist
+reviewer: Codex root implementation review plus OA-28 live-handoff/credential/receipt/opt-in static-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
