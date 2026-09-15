@@ -205,6 +205,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus independent SW-00 mapper, security, and test-boundary read-only audits; no runtime test reviewer
 ```
 
+### OA-00 observability and audit inventory evidence (2026-09-15)
+
+```text
+source_snapshot: 0fb757588a232333ecb0e8304215e8c247ad0d; docs/roadmap/observability-audit-baseline.md; docs/module-map.md; kiana-core/tests/observability_baseline.rs; .github/workflows/oa00-baseline.yml; 19 hashed product-path files listed in the baseline
+worktree_status: OA-00 signal matrix, owner/proof ceiling/迁移清单、module-map link and CI guard are scoped to this step; no unrelated WIP was reverted; commit and push are pending until static verification completes
+command_argv:
+  sha256sum <19 observability/EventLog source files listed in docs/roadmap/observability-audit-baseline.md §1>
+  rg -n 'ObservabilityPort|TraceSink|MetricSink|AuditQueryPort|HealthProbePort|OperationalLog|MetricPoint|MetricSnapshot|AuditRecord|HealthSnapshot|CorrelationContext|span_id|source_cursor|source_event_ids' kiana-domain/src kiana-ports/src kiana-core/src kiana-eventlog/src kiana-daemon/src kiana-protocol/src
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux; stable Rust toolchain; locked offline dependency cache; no test binaries executed
+fixture or cassette: source-only `observability_inventory_preserves_fact_projection_and_open_contracts`; RuntimeEvent/EventStore/Receipt/RunStream/GoldenTrace/usage/Incident signal matrix; no runtime fixture executed locally
+exit_code: 0 for source hash, format, workspace compile, and diff checks; local tests deliberately not run per user instruction; GitHub Actions OA-00 job is queued by the push and is not awaited
+status_change: OA-00 inventory completed at source level. EventLog/Transition/CommandReceipt remains the fact boundary; Receipt/Run projection and RunStream are marked derived; golden trace, UI/transcript/cache, usage naming, receipt-as-Outcome, open event kind/payload, absent formal Audit/Metric/Trace/Health contracts and migration owners are recorded explicitly.
+proof-level_change: source plus static compile evidence only; no local_behavior or durable promotion; no trace, metric, audit or health runtime claim
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; EventStore adapter redaction/classification, receipt source cursor/projection version, telemetry queue/backpressure, audit query/export, health projector and OA-01+ schema/ports remain open; historical ER-30/P1-J8-01 evidence is not rewritten
+reviewer: Codex root implementation review plus independent OA-00 mapper, security and test-boundary read-only audits; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

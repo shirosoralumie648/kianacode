@@ -186,8 +186,8 @@
 | 019 | W0 | 专项 | [`CO-01`](roadmap/companyos.md#step-co-01) | CompanyOS · 锁定当前实现与计划的交接基线 | — | ✅ | [专项卡](roadmap/companyos.md#step-co-01) |
 | 020 | W0 | 基础 | [`P0-G-04`](#step-p0-g-04) | P0 基础 · 事件重建投影 | `P0-G-01` | 🔄 | [基础卡](#step-p0-g-04) |
 | 021 | W0 | 专项 | [`CI-01`](#step-ci-01) | 基线盘点与迁移护栏；`docs/schemas`、`kiana-daemon/model_client.rs`、`kiana-provider/config.rs` | — | ✅ | [专项卡](#step-ci-01) |
-| 022 | W0 | 专项 | [`SW-00`](#step-sw-00) | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | ⏳ | [专项卡](#step-sw-00) |
-| 023 | W0 | 专项 | [`OA-00`](#step-oa-00) | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | ⏳ | [专项卡](#step-oa-00) |
+| 022 | W0 | 专项 | [`SW-00`](#step-sw-00) | 现状 reconciliation；`CURRENT_STATUS.md`、`kiana-domain/{swarm,packet_graph,work_packets}.rs`、`kiana-core/{swarm,cell_registry,collaboration}.rs`、`kiana-ports`、daemon tests | — | ✅ | [专项卡](#step-sw-00) |
+| 023 | W0 | 专项 | [`OA-00`](#step-oa-00) | 基线与信号 inventory；`module-map.md`、`CURRENT_STATUS.md`、`kiana-core/events.rs`、`kiana-eventlog/*`、现有 `ER-30`/`P1-J8-01` | — | ✅ | [专项卡](#step-oa-00) |
 | 024 | W0 | 专项 | [`AUT-01`](#step-aut-01) | 基线与迁移护栏；盘点 `module-map`、现有 automation tests、`CURRENT_STATUS`，记录旧 `watch_scheduled_tasks` 兼容边界 | — | ⏳ | [专项卡](#step-aut-01) |
 | 025 | W0 | 专项 | [`NM-00`](#step-nm-00) | 现状/事件种类/入口 inventory；`run_stream.rs`、`platform.rs`、`web.rs`、`workbench_chat.rs`、`CURRENT_STATUS.md` | — | ⏳ | [专项卡](#step-nm-00) |
 | 026 | W0 | 专项 | [`EQ-00`](#step-eq-00) | 固定当前源码快照、工作树状态和现有 `eval` 行为；在 `docs/roadmap.md`/`CURRENT_STATUS.md` 建立本专项证据模板 | — | ⏳ | [专项卡](#step-eq-00) |
@@ -942,7 +942,8 @@
 | 当前 7 | `P0-G-04` 事件重建投影（恢复线重开） | `38f23bc` 已把 Invocation 折叠、惰性缓存、终态冲突拒绝和审批恢复接入 `kiana-core`；新增重启/冲突验收骨架，远程 CI 尚未回执 | P0-G-04 保持 🔄：历史 Run 证据之外，Invocation 运行时验收和集成回归由 GitHub CI 负责 |
 | 当前 8 | `CI-01` 配置/凭据/身份基线 | 已加入 `config-credentials-identity-baseline.md`、五个 deterministic fixture、provider precedence/redaction 集成护栏和 GitHub Actions 专用 job；不提前实现 CI-06/07/08 | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；raw-secret sentinel、parser 差异和 local-user 迁移边界保持显式 |
 | 当前 9 | `SW-00` Swarm 现状 reconciliation | 已新增 [`swarm-baseline.md`](roadmap/swarm-baseline.md)、10 个源码 hash、已接线/仅类型/缺测试/未实现矩阵，以及 `swarm_reconciliation_does_not_claim_durable_from_in_memory_cas` 的 GitHub Actions 专用护栏；不把 MemoryCellRegistry 或 event replay 写成 durable | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；下一步按队列进入 `OA-00` |
-| 下一步 | `OA-00` Observability / Audit 现状 inventory | `SW-00` source baseline 已登记；按全量队列第 023 项盘点 EventLog、RuntimeEvent、Receipt、现有 ER-30/P1-J8-01 接线与缺口 | 只建立 observability source baseline 和迁移护栏，不旁路 ControlPlane 或制造第二事实源 |
+| 当前 10 | `OA-00` Observability / Audit 现状 inventory | 已新增 [`observability-audit-baseline.md`](roadmap/observability-audit-baseline.md)、19 个源码 hash、signal matrix、owner/proof ceiling/迁移清单，以及 `observability_inventory_preserves_fact_projection_and_open_contracts` 的 GitHub Actions 专用护栏；明确 EventLog/Receipt/RunStream/GoldenTrace/usage/Incident 的事实与派生边界 | `feature_status=partial`、`proof_level=source`；本地不运行测试，远端 CI 已触发且不等待；不把 golden trace、receipt、UI cursor、metric 或 health 设为事实/Outcome；下一步进入 `OA-01` |
+| 下一步 | `OA-01` Domain schema 注册 | `OA-00` 已登记 observability/audit/metric/trace/health 的缺口与迁移 owner；下一步新增 versioned schema 和 fail-closed compatibility guard | 只建立正式合同，不让 schema 存在本身升级为 runtime/durable 证明 |
 
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
@@ -1001,6 +1002,7 @@
 | 2026-09-15 | `P0-G-04` 事件重建投影源码收口：Invocation 请求/审批/派发/终态折叠、惰性缓存失效、冲突终态 fail-closed、预准备拒绝事实和审批恢复绑定已接入；新增重启/冲突验收测试；不运行本地测试，格式与 workspace 编译通过，CI 已触发但未等待 | `38f23bc` |
 | 2026-09-15 | `CI-01` 配置/凭据/身份基线收口：ProviderConfig Debug 脱敏、env/profile precedence 与 unknown-field 护栏、七类输出通道 sentinel fixture、legacy parser/local-user/config migration 边界、GitHub Actions 专用测试 job；不运行本地测试，静态检查通过，CI 已触发但未等待 | `1be7326` |
 | 2026-09-15 | `SW-00` Swarm 现状 reconciliation：固定 10 个入口源码 hash；确认 protocol→ControlPlane→EventLog→Company StartRun→packet admission 已接线，同时记录 MemoryCellRegistry 进程内边界、event-before-dispatch 窗口、fresh child/queue/attempt/recovery 缺口；新增 GitHub Actions source-only guard；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-15 | `OA-00` Observability / Audit 现状 inventory：固定 19 个事实与投影入口源码 hash；登记 RuntimeEvent/EventStore/CommandReceipt/Receipt/RunStream/GoldenTrace/usage/Incident signal matrix、代码 owner、proof ceiling 与 OA-01+ 迁移清单；确认 golden trace ≠ telemetry trace、Receipt ≠ business Outcome、UI/transcript/cache/metric ≠ authority；新增 GitHub Actions source-only guard；不运行本地测试，静态检查通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
