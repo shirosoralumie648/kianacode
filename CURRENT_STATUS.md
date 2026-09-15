@@ -1083,6 +1083,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CP-05 direct/Harness/approval pipeline parity source-boundary review; no runtime test reviewer
 ```
 
+### CP-06 atomic transition and command idempotency evidence (2026-09-16)
+
+```text
+source_snapshot: b744469; kiana-domain/src/{journal,contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/{event_store_core,journal_core,memory,jsonl,stream}.rs; kiana-core/src/{dispatch,events,approvals}.rs; kiana-eventlog/tests/cp06_atomic_transitions.rs; kiana-core/tests/cp06_transition_guard.rs; .github/workflows/cp06-atomic-transitions.yml; docs/roadmap/control-plane-transition-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/control-plane.md; docs/roadmap.md
+worktree_status: CP-06 TransitionBatch/read-set/CommandReceipt/CommitOutcome contracts, Memory/JSONL shared transition planner, EventStore capability negotiation, all-or-none CAS/idempotency and focused remote fixtures/source guard/roadmap overlays are scoped to this step; no second EventLog or append-based authorization bypass was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/journal.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-ports/src/lib.rs kiana-eventlog/src/event_store_core.rs kiana-eventlog/src/journal_core.rs kiana-eventlog/src/memory.rs kiana-eventlog/src/jsonl.rs kiana-eventlog/src/stream.rs kiana-core/src/dispatch.rs kiana-core/src/events.rs kiana-core/src/approvals.rs kiana-eventlog/tests/cp06_atomic_transitions.rs kiana-core/tests/cp06_transition_guard.rs .github/workflows/cp06-atomic-transitions.yml docs/roadmap/control-plane-transition-baseline.md
+  rg -n 'TransitionBatch|CommandReceipt|CommitOutcome|expected_versions|commit_transition|event_store_command_digest_mismatch|TransitionPlan::Conflict|CommitOutcome::Unknown|commit_confirmed|journal_write_not_in_read_set|journal_frame_size_limit' kiana-domain/src kiana-ports/src kiana-eventlog/src kiana-core/src kiana-eventlog/tests/cp06_atomic_transitions.rs kiana-core/tests/cp06_transition_guard.rs docs/roadmap/control-plane-transition-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-eventlog/tests/cp06_atomic_transitions.rs stale aggregate CAS, same command/different payload, stale allow recomputation; existing oa06 commit-observer fixtures; kiana-core/tests/cp06_transition_guard.rs source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CP-06 job is queued by the push and is not awaited
+status_change: CP-06 source slice is implemented. TransitionBatch validates command digest, bounded events/read-set, aggregate membership, contiguous stream versions and frame limits. EventStorePort advertises atomic transition/receipt/cursor capabilities and explicitly rejects unsupported downgrade; MemoryEventLog, JsonlEventLog and StreamEventStore share CAS/idempotency planning. Same command with the same digest replays the original receipt; a different digest conflicts; stale expected versions return changed versions without partial aggregate writes; Unknown never publishes observer authority and requires command confirmation before dispatch.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; Memory is non-durable, JSONL locking/frame checks do not prove power-loss/cross-host durability, compatibility append remains available, external/provider/connector effects need separate receipts/reconcile, and approval/budget/lease all-in-one transitions plus disk recovery remain CP-07+ and ER/PD/SC work
+reviewer: Codex root implementation review plus CP-06 transition/CAS/idempotency/Unknown source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
