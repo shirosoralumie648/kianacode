@@ -21,6 +21,13 @@ impl ControlPlane {
             kiana_domain::json_digest(&json!({"trusted":context.project_trusted})),
         )
         .map_err(PortError::Failed)?;
+        // The authority stream is committed by the daemon before this method is called.  Use its
+        // stream version as the session fence instead of a process-local constant; direct core
+        // fixtures without an authority stream retain the legacy epoch-one compatibility value.
+        let authority_epoch = self
+            .authority_epoch(&context.project_root)
+            .await?
+            .unwrap_or(1);
         let typed = kiana_domain::SessionAssignment::new(
             principal.clone(),
             project.clone(),
@@ -28,7 +35,7 @@ impl ControlPlane {
             role.role_id.clone(),
             role.department_id.clone(),
             1,
-            1,
+            authority_epoch,
         )
         .map_err(PortError::Failed)?;
         let assignment = json!({"schema":"kiana.session-assignment.v1","session_id":context.session_id,
@@ -37,7 +44,7 @@ impl ControlPlane {
             "model_profile":role.model_profile,"role_spec_schema":role.schema,"role_version":role.version,
             "role_catalog_schema":kiana_domain::ROLE_CATALOG_SCHEMA,"role_catalog_version":kiana_domain::SchemaVersion::new(1, 0),
             "role_input_schema":role.input_schema,"role_output_schema":role.output_schema,
-            "principal":principal,"project_identity":project,
+            "authority_epoch":authority_epoch,"principal":principal,"project_identity":project,
             "assignment":typed});
         let key = kiana_domain::json_digest(
             &json!({"session_id":context.session_id,"project_root":Self::canonical_project_root(&context.project_root)}),

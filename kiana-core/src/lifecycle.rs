@@ -205,6 +205,10 @@ impl ControlPlane {
             .runtime_budget_for_run(&context, max_steps_per_turn)
             .await?;
         let authority_revision = self.authority_revision(&context.project_root).await?;
+        let authority_epoch = self
+            .authority_epoch(&context.project_root)
+            .await?
+            .unwrap_or(1);
         self.record_event(
             request_id,
             &mut sequence,
@@ -222,6 +226,7 @@ impl ControlPlane {
                 "max_steps_per_turn": max_steps_per_turn,
                 "runtime_budget":runtime_budget,
                 "authority_revision":authority_revision,
+                "authority_epoch":authority_epoch,
                 "turn_id":kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
                 "turn":turn,
                 "role_prompt_hash": role.prompt_hash,

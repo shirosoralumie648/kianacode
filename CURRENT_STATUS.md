@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P0-K1-01 server identity and authority epoch evidence (2026-09-16)
+
+```text
+source_snapshot: 4f324f3 + P0-K1-01 working-tree slice; kiana-core/src/{authority,sessions,lifecycle}.rs; kiana-daemon/src/lib.rs; kiana-domain/src/{identity,assignment}.rs; kiana-protocol/src/lib.rs; kiana-daemon/tests/p0_k1_identity.rs; kiana-core/tests/p0_k1_identity_guard.rs; .github/workflows/p0-k1-identity.yml; docs/roadmap/identity-authority-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: P0-K1-01 server-owned ingress identity, canonical ProjectIdentity, CAS SessionAssignment and authority stream epoch wiring are scoped to this step; wire actor/role/department cannot rewrite an existing assignment; no external auth provider or second execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-core/src/authority.rs kiana-core/src/sessions.rs kiana-core/src/lifecycle.rs kiana-daemon/src/lib.rs kiana-domain/src/identity.rs kiana-domain/src/assignment.rs kiana-protocol/src/lib.rs kiana-daemon/tests/p0_k1_identity.rs kiana-core/tests/p0_k1_identity_guard.rs .github/workflows/p0-k1-identity.yml docs/roadmap/identity-authority-baseline.md
+  rg -n 'AuthenticatedPrincipal::local|project_authority|principal_role_not_authorized|synchronize_authority|bind_session_assignment|authority_epoch|SessionAssignment|append_expected|session_assignment_mismatch' kiana-domain/src kiana-core/src kiana-daemon/src kiana-protocol/src kiana-daemon/tests/p0_k1_identity.rs kiana-core/tests/p0_k1_identity_guard.rs docs/roadmap/identity-authority-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; identity ingress test/source guard compiled only; no test or smoke binary executed locally
+fixture or cassette: p0_k1_identity::wire_actor_cannot_grant_role_or_department establishes a server assignment then submits forged actor/role/department; cp01_identity typed principal/project fixture remains the compatibility contract; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P0-K1-01 job is queued by the push and is not awaited
+status_change: P0-K1-01 source slice is implemented. DaemonHost overwrites wire actor with its authenticated local principal, rechecks ProjectTrust and canonical project identity, and refuses role/department drift against the CAS-bound SessionAssignment before ControlPlane/Broker. The authority stream's monotonic version is now recorded as numeric authority_epoch in SessionAssignment and run.authorized, while authority revision digest remains separate.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; principal is still fixed local-user/local_os, OS/OAuth/tenant auth and durable Membership/Assignment/Grant ledgers are absent, authority epoch persistence is limited to the current EventStore adapter, non-effectful queries do not mint assignments, and complete cross-process/effect-time revocation proof remains in CI/CP/SC/PD follow-up steps
+reviewer: Codex root implementation review plus P0-K1-01 identity/assignment/epoch source-boundary review; no runtime test reviewer
+```
+
 ### P0-B-01 state transition matrix evidence (2026-09-16)
 
 ```text

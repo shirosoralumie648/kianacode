@@ -1,0 +1,54 @@
+name: P0-K1-01 server identity and authority epoch
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/identity.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/p0_k1_identity_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/p0_k1_identity.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/identity-authority-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-k1-identity.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/identity.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/tests/p0_k1_identity_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/p0_k1_identity.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/identity-authority-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p0-k1-identity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P0-K1-01 ingress fixture
+        run: cargo test -p kiana-daemon --test p0_k1_identity --locked -- --test-threads=1
+      - name: Run P0-K1-01 source guard
+        run: cargo test -p kiana-core --test p0_k1_identity_guard --locked -- --test-threads=1
+      - name: Compile identity path
+        run: cargo check -p kiana-daemon -p kiana-core --tests --locked

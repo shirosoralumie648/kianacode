@@ -18,6 +18,22 @@ impl ControlPlane {
             }))
     }
 
+    /// Return the monotonic authority stream version used as the fencing epoch.
+    ///
+    /// The revision digest describes the contents of the snapshot; the stream version is the
+    /// revocation/configuration epoch.  Keeping the two values separate prevents a digest-only
+    /// assignment from being reused after a newer authority fact has been committed.
+    pub(crate) async fn authority_epoch(&self, root: &str) -> Result<Option<u64>, CoreError> {
+        let key = json_digest(&json!({"project_root":Self::canonical_project_root(root)}));
+        Ok(self
+            .events
+            .read_stream("authority", &key)
+            .await?
+            .last()
+            .and_then(|event| event.stream_version)
+            .filter(|version| *version > 0))
+    }
+
     pub(crate) async fn commit_protected_event(
         &self,
         context: &RequestContext,
