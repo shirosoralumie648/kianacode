@@ -1,0 +1,56 @@
+name: CI-05 durable authority ledger
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/authority.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-domain/src/identity_contracts.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ci05_authority_ledger.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/tests/ci05_authority_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/authority-ledger-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci05-authority-ledger.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/authority.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-domain/src/identity_contracts.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ci05_authority_ledger.rs"
+      - "kiana-core/src/authority.rs"
+      - "kiana-core/tests/ci05_authority_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/authority-ledger-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci05-authority-ledger.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority-ledger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CI-05 authority fixtures
+        run: cargo test -p kiana-domain --test ci05_authority_ledger --locked -- --test-threads=1
+      - name: Run CI-05 source guard
+        run: cargo test -p kiana-core --test ci05_authority_guard --locked -- --test-threads=1
+      - name: Compile authority ledger path
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-protocol --tests --locked

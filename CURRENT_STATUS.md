@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### CI-05 durable authority ledger evidence (2026-09-16)
+
+```text
+source_snapshot: 5ed3f40 + CI-05 working-tree slice; kiana-domain/src/{authority,assignment,identity_contracts,ids,contracts,lib}.rs; kiana-core/src/authority.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/ci05_authority_ledger.rs; kiana-core/tests/ci05_authority_guard.rs; .github/workflows/ci05-authority-ledger.yml; docs/roadmap/authority-ledger-baseline.md; docs/roadmap.md
+worktree_status: CI-05 PolicyProfile/DataBoundary/SharingGrant contracts, AuthorityLedger event reducer and core epoch integration are scoped to this step; no execution grant or second authority path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/authority.rs kiana-domain/src/assignment.rs kiana-domain/src/identity_contracts.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/authority.rs kiana-protocol/src/lib.rs kiana-domain/tests/ci05_authority_ledger.rs kiana-core/tests/ci05_authority_guard.rs .github/workflows/ci05-authority-ledger.yml docs/roadmap/authority-ledger-baseline.md
+  rg -n 'PolicyProfile|DataBoundary|SharingGrant|AuthorityLedger|authority_event_version_gap_or_regression|authority_event_kind_unknown|authority_epoch_rollback|sharing_operations|AuthorityLedger::rebuild|authority_ledger_invalid' kiana-domain/src kiana-core/src kiana-protocol/src kiana-domain/tests/ci05_authority_ledger.rs kiana-core/tests/ci05_authority_guard.rs docs/roadmap/authority-ledger-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; authority fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: ci05_authority_ledger rebuilds membership/role/project/policy/boundary/share events, checks cross-project operation intersection, revoke, unknown kind and version gap; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-05 job is queued by the push and is not awaited
+status_change: CI-05 source slice is implemented. AuthorityLedger now deterministically rebuilds committed authority facts and exposes epoch-fenced sharing scope; core authority epoch reads use the reducer, while RoleAssignment/ProjectAssignment and new PolicyProfile/DataBoundary/SharingGrant contracts reject stale, malformed or cross-boundary metadata.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; production authority stream does not yet persist every identity/policy/share fact, Membership/Grant/Approval/Cell full intersection, durable projector, cross-process revoke and external tenant/RBAC proof remain CI-06+ and CP/SC/PD work
+reviewer: Codex root implementation review plus CI-05 authority ledger/epoch/scope source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

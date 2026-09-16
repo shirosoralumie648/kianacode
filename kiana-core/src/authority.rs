@@ -1,5 +1,5 @@
 use super::*;
-use kiana_domain::{json_digest, AggregateVersion, TransitionBatch};
+use kiana_domain::{json_digest, AggregateVersion, AuthorityLedger, TransitionBatch};
 
 impl ControlPlane {
     pub(crate) async fn authority_revision(&self, root: &str) -> Result<Option<String>, CoreError> {
@@ -24,14 +24,17 @@ impl ControlPlane {
     /// revocation/configuration epoch.  Keeping the two values separate prevents a digest-only
     /// assignment from being reused after a newer authority fact has been committed.
     pub(crate) async fn authority_epoch(&self, root: &str) -> Result<Option<u64>, CoreError> {
+        let ledger = self.authority_ledger(root).await?;
+        Ok((ledger.authority_epoch > 0).then_some(ledger.authority_epoch))
+    }
+
+    /// Rebuild the server-owned authority facts for one canonical project scope.
+    pub(crate) async fn authority_ledger(&self, root: &str) -> Result<AuthorityLedger, CoreError> {
         let key = json_digest(&json!({"project_root":Self::canonical_project_root(root)}));
-        Ok(self
-            .events
-            .read_stream("authority", &key)
-            .await?
-            .last()
-            .and_then(|event| event.stream_version)
-            .filter(|version| *version > 0))
+        let records = self.events.read_stream("authority", &key).await?;
+        AuthorityLedger::rebuild(&records)
+            .map_err(|error| PortError::Failed(format!("authority_ledger_invalid:{error}")))
+            .map_err(Into::into)
     }
 
     pub(crate) async fn commit_protected_event(
