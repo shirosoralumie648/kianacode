@@ -113,7 +113,7 @@
 | `P2-M5-01` | P2 | M5 Web sync | `P2-M2-01` | snapshot hydration + 事件订阅 + 重连不重放 delta | ⏳ |
 | `P2-M5-02` | P2 | M5 Web sync | `P0-G-01` | 只读列出持久会话 | ✅ |
 | `P2-M7-01` | P2 | M7 accessible fallback | `P2-M2-01` | 键盘、窄屏、文本状态、aria/高对比 | ⏳ |
-| `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01a` | 十类业务对象定义与不变量 | ⏳ |
+| `P3-I-01` | P3 | I Company 生命周期 | `P0-A-01a` | 十类业务对象定义与不变量 | ✅ |
 | `P3-I-02` | P3 | I Company 生命周期 | `P3-I-01` | 九个命令/事件冻结 | ⏳ |
 | `P3-I-03` | P3 | I Company 生命周期 | `P3-I-02`、`P0-G-04` | 新进程可从事件与 Artifact 引用重建全链 | ⏳ |
 | `P3-I-04` | P3 | I Company 生命周期 | `P3-I-02` | criteria snapshot 冻结；Reviewer 不改写 Builder 原始事实 | ⏳ |
@@ -249,7 +249,7 @@
 | 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ✅ | [基础卡](#step-p1-e-01) |
 | 082 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ✅ | [基础卡](#step-p1-h-01) |
 | 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ✅ | [基础卡](#step-p1-h-03) |
-| 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p3-i-01) |
+| 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ✅ | [基础卡](#step-p3-i-01) |
 | 085 | W1 | 专项 | [`CI-02`](#step-ci-02) | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | `CI-01` | ⏳ | [专项卡](#step-ci-02) |
 | 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | ⏳ | [专项卡](#step-ci-03) |
 | 087 | W1 | 专项 | [`CI-04`](#step-ci-04) | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | `CI-02`、`CI-03` | ⏳ | [专项卡](#step-ci-04) |
@@ -1049,6 +1049,8 @@
 
 | 当前 100 | `P1-H-03` 路径 containment 共享实现 | domain 新增 `enforce_path_containment`/`enforce_root_containment`，统一 normalize/allow-list/root lexical checks；apply_patch、shell workdir/patch、package、checkpoint、execution workspace、Cell grant snapshot 与 event scope 均消费 helper，MCP/Memory 保留 project-root/scope guard；新增 domain/core negative fixture/source guard、CI workflow 与 path-containment baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；helper 不等价于 fd-relative/no-follow、symlink/hardlink/rename/effect-time TOCTOU，完整 filesystem/secret/network containment 留待 CAP/SC/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 101 | `P3-I-01` Company 业务对象契约 | domain 固定 Objective、Initiative、Project、Milestone、Acceptance、Delivery、Outcome、ChangeRequest、Risk、Incident 十类对象及状态宏；补 Acceptance/CriteriaSnapshot/CompanyReview/MetricObservation 的 deny-unknown-field 与 identity/version/criteria/measurement/evidence validate，CompanyState transition 仍是唯一状态入口；新增 domain object fixture、core source guard、CI workflow 与 company-object baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；command/event freeze、durable replay/projector、完整业务闭环和现实 outcome 仍留待 P3-I-02+、CO/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1197,6 +1199,7 @@
 | 2026-09-16 | `P1-E-01` Communication/accountability：新增七类 typed CommunicationMessage、Chat 无 authority/action/ACK、Handoff 定向 ACK、CommunicationPort 与 ControlPlane formal event 命令；新增 domain/core fixtures、CI workflow 与 communication baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-H-01` Tool authority：新增 domain `ToolSpec`/`TOOL_SPECS` 五工具单一 registry，`model_tool_name`/Runner canonical mapping 和 DaemonHost composition validation 统一消费，注册 schema/alias drift guard；新增 domain/core fixtures、CI workflow 与 tool-authority baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-H-03` Shared path containment：新增 domain lexical path/root containment helper，迁移 patch/shell/package/checkpoint/Cell/event scope 边界，保留 filesystem no-follow/TOCTOU 二次校验；新增 domain/core fixtures、CI workflow 与 path-containment baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P3-I-01` Company object contracts：冻结十类 Company domain 对象/状态与 validate 不变量，补 Acceptance/CriteriaSnapshot/CompanyReview/MetricObservation strict fields/criteria/measurement checks；新增 domain/core fixtures、CI workflow 与 company-object baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -2206,14 +2209,14 @@
 
 <a id="step-p3-i-01"></a>
 
-### P3-I-01 Company 业务对象契约　⏳
+### P3-I-01 Company 业务对象契约　✅
 
-- **现状**：Company 业务域对象基本为 `target`，现有 WorkPacket/Review 不能替代完整聚合。
-- **做什么**：定义 `Objective`、`Initiative`、`Project`、`Milestone`、`Acceptance`、`Delivery`、`Outcome`、`ChangeRequest`、`Risk`、`Incident` 及不变量。
+- **现状**：Company domain 已提供十类对象、显式状态宏和 CompanyState transition；本步补齐 Acceptance/Review/MetricObservation 严格字段与 criteria/measurement invariants。
+- **做什么**：冻结十类业务对象的 domain DTO/validate 边界，保持 core 只能通过 CompanyState/ControlPlane 推进状态。
 - **风险**：把业务对象实现成 prompt 里的名词，而不是 domain 类型。
 - **验收**：`company_objects_expose_invariants`
-- **依赖 / 边界**：依赖 `P0-A-01a`；字段与状态机以 `company-os-domain-contracts.md` 为准。
-- **依据**：`company-os-implementation-outline.md` §Slice I
+- **依赖 / 边界**：依赖 `P0-A-01a`；字段与状态机以 `company-os-domain-contracts.md` 为准。命令/event wire freeze、durable replay 和业务闭环留在 P3-I-02+、CO/ER/PD。
+- **依据**：`company-os-implementation-outline.md` §Slice I；证据见 [`company-object-baseline.md`](roadmap/company-object-baseline.md)
 
 
 

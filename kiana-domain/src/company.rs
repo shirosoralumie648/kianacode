@@ -268,6 +268,7 @@ impl Milestone {
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CriteriaSnapshot {
     pub project_version: u64,
     pub milestone_version: u64,
@@ -282,6 +283,22 @@ pub struct CriteriaSnapshot {
     pub criterion_refs: Vec<crate::Criterion>,
 }
 impl CriteriaSnapshot {
+    pub fn validate(&self) -> CompanyResult<()> {
+        ensure(
+            self.project_version > 0 && self.milestone_version > 0 && self.packet_version > 0,
+            "criteria_snapshot_version_required",
+        )?;
+        list(&self.project_criteria)?;
+        list(&self.milestone_criteria)?;
+        list(&self.packet_criteria)?;
+        for criterion in &self.criterion_refs {
+            criterion
+                .validate()
+                .map_err(|_| "criteria_snapshot_criterion_invalid")?;
+        }
+        Ok(())
+    }
+
     pub fn criteria(&self) -> Vec<String> {
         let mut all = self
             .project_criteria
@@ -300,6 +317,7 @@ impl CriteriaSnapshot {
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Acceptance {
     pub acceptance_id: String,
     pub project_id: String,
@@ -325,6 +343,7 @@ pub enum AcceptanceDecision {
     Waive,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CompanyReview {
     pub review_id: String,
     pub acceptance_id: String,
@@ -363,6 +382,7 @@ impl Delivery {
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MetricObservation {
     pub value: f64,
     pub observed_at: u64,
@@ -2577,12 +2597,51 @@ impl Acceptance {
         ] {
             required(value)?;
         }
+        self.criteria_snapshot.validate()?;
         list(&self.criteria_snapshot.criteria())?;
         list(&self.evidence_refs)?;
         ensure(
-            !self.author_session_id.is_empty() && self.version > 0,
+            !self.author_session_id.is_empty()
+                && self.version > 0
+                && !self.author_run_id.as_uuid().is_nil()
+                && ((self.decision.is_none()
+                    && self.decided_at.is_none()
+                    && self.decision_maker_id.is_none())
+                    || (self.decision.is_some()
+                        && self.decided_at.is_some_and(|value| value > 0)
+                        && self
+                            .decision_maker_id
+                            .as_deref()
+                            .is_some_and(|value| !value.trim().is_empty()))),
             "acceptance_identity_required",
         )
+    }
+}
+impl CompanyReview {
+    pub fn validate(&self) -> CompanyResult<()> {
+        for value in [&self.review_id, &self.acceptance_id, &self.reviewer_id] {
+            required(value)?;
+        }
+        ensure(
+            !self.reviewer_session_id.is_empty() && self.recorded_at > 0,
+            "review_identity_required",
+        )?;
+        self.criteria_snapshot.validate()?;
+        ensure(
+            self.criterion_results.keys().cloned().collect::<Vec<_>>()
+                == self.criteria_snapshot.criteria(),
+            "review_criteria_snapshot_mismatch",
+        )?;
+        list(&self.evidence_refs)
+    }
+}
+impl MetricObservation {
+    pub fn validate(&self) -> CompanyResult<()> {
+        ensure(
+            self.value.is_finite() && self.observed_at > 0,
+            "metric_observation_invalid",
+        )?;
+        list(&self.evidence_refs)
     }
 }
 impl Outcome {

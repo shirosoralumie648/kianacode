@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P3-I-01 Company object contract evidence (2026-09-16)
+
+```text
+source_snapshot: 8b91c3c + P3-I-01 working-tree slice; kiana-domain/src/company.rs; kiana-core/src/company.rs; kiana-domain/tests/p3_i01_company_objects.rs; kiana-core/tests/p3_i01_company_objects_guard.rs; .github/workflows/p3-i01-company-objects.yml; docs/roadmap/company-object-baseline.md; docs/roadmap.md
+worktree_status: P3-I-01 ten Company object contracts, explicit state transitions, strict Acceptance/Review/MetricObservation criteria/measurement validation and core boundary guard are scoped to this step; no command/event freeze or second state authority was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/company.rs kiana-core/src/company.rs kiana-domain/tests/p3_i01_company_objects.rs kiana-core/tests/p3_i01_company_objects_guard.rs .github/workflows/p3-i01-company-objects.yml docs/roadmap/company-object-baseline.md
+  rg -n 'pub struct (Objective|Initiative|Project|Milestone|Acceptance|Delivery|Outcome|ChangeRequest|Risk|Incident)|states!\(|impl Acceptance|impl CompanyReview|impl MetricObservation|criteria_snapshot_version_required|review_criteria_snapshot_mismatch|metric_observation_invalid|CompanyState|handle_company_command' kiana-domain/src/company.rs kiana-core/src/company.rs kiana-domain/tests/p3_i01_company_objects.rs kiana-core/tests/p3_i01_company_objects_guard.rs docs/roadmap/company-object-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain object fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: p3_i01_company_objects::company_objects_expose_invariants covers ten object validators, state/version/evidence/measurement rules and Acceptance unknown fields; core source guard checks CompanyState/ControlPlane boundary; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P3-I-01 job is queued by the push and is not awaited
+status_change: P3-I-01 source slice is implemented. Ten Company domain objects and their state graphs are explicit; Acceptance/CriteriaSnapshot/CompanyReview/MetricObservation now reject unknown fields and validate identity, versions, criteria keys, finite measurements and evidence. CompanyState remains the only state transition authority consumed by core.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; object facts still use existing CompanyState/EventStore adapters, command/event version freeze, durable projector/upcast/recovery and real business outcomes remain P3-I-02+ and CO/ER/PD work
+reviewer: Codex root implementation review plus P3-I-01 Company object/state source-boundary review; no runtime test reviewer
+```
+
 ### P1-H-03 shared path containment evidence (2026-09-16)
 
 ```text
