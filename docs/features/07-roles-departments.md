@@ -5,7 +5,7 @@
 
 ## 这个功能是干什么的
 
-前面几篇讲的是"一个 AI 会话怎么干活"：怎么选模型、怎么申请工具、怎么留痕。这一篇讲的是"公司怎么组织这批员工"：Kiana 在领域层定义了五个部门（Department）和六个角色（Role），一次完整的工作要沿着"立项 Sponsor → 规划 PM/Architect → 施工 Builder → 验收 Reviewer → 结案 Closer"这条流水线走，每个角色能碰什么工具、能写哪些路径、能读哪些记忆，都是写死在代码目录（catalog）里的，不是模型自己说了算。
+前面几篇讲的是"一个 AI 会话怎么干活"：怎么选模型、怎么申请工具、怎么留痕。这一篇讲的是"公司怎么组织这批员工"：Kiana 在领域层定义了五个部门（Department）和九个角色（Role），一次完整的工作要沿着"立项 Sponsor/Analyst → 规划 PM/Architect → 施工 Builder → 验收 Reviewer/QA → 结案 Closer/Librarian"这条流水线走，每个角色能碰什么工具、能写哪些路径、能读哪些记忆，都是写死在代码目录（catalog）里的，不是模型自己说了算。
 
 核心动作有四个，每个对应一条 CLI 命令：
 
@@ -20,7 +20,7 @@
 
 **能**（每条有代码或 CURRENT_STATUS 出处）：
 
-- 六个角色（Sponsor / PM / Architect / Builder / Reviewer / Closer）和五个部门（initiating / planning / executing / monitoring / closing）的定义、白名单全部写死在领域目录里：`kiana-domain/src/lib.rs` 的 `RoleSpec::catalog`（六个 `RoleSpec` 构造函数）和 `DepartmentSpec::catalog`。
+- 九个角色（Sponsor / Analyst / PM / Architect / Builder / Reviewer / QA / Closer / Librarian）和五个部门（initiating / planning / executing / monitoring / closing）的定义、白名单全部写死在领域目录里：`kiana-domain/src/roles.rs` 的 `RoleSpec::catalog`（九个 `RoleSpec` 构造函数）和 `DepartmentSpec::catalog`；目录带 schema/version、prompt hash、input/output schema 与 model profile。
 - 每个角色三重白名单真正生效：工具白名单（`kiana-policy/src/lib.rs` 的 `role_decision`，Builder 之外的工具名直接报 `role_tool_denied`）、路径白名单（`RoleSpec::allows_path`，PM 只能写 charter/plan/packet，Closer 只能写 lessons）、记忆集合白名单（`RoleSpec::allows_knowledge` / `allows_memory_write`，比如 Builder 只能写 instance-scratch 这一层）。
 - 规划会真的会把 Builder 挡在门外：参会名单与部门不符或出现 Builder，`Symposium::validate` 报 `symposium_builder_not_attendee` / `joint_symposium_frozen`；控制面在 `kiana-core/src/lib.rs` 的 `convene_symposium` 里同样再查一遍。
 - 规划会产出落盘：`kiana-core/src/lib.rs` 的 `write_symposium_artifacts` 写 `plan/DECISION.json`（决策）和 `packet/TASK.json`（工单），并且这套写文件的方式经过过 symlink/hardlink 攻击的回归测试（CURRENT_STATUS §4 的 S3 governance-artifact boundary 条目）。
@@ -81,7 +81,7 @@ Builder 干活时每次工具申请都过 `role_decision`：工具不在 Builder
 
 | 概念 | 一句话解释 | 代码在哪 |
 |---|---|---|
-| RoleSpec | 一个角色的权限快照：提示词、工具白名单、沙箱档位、路径白名单、记忆授权、能否主持/投票、步数上限 | `kiana-domain/src/lib.rs` 的 `RoleSpec` 及六个构造函数 |
+| RoleSpec | 一个角色的权限快照：提示词、工具白名单、沙箱档位、路径白名单、记忆授权、能否主持/投票、步数上限及版本化 I/O/model provenance | `kiana-domain/src/roles.rs` 的 `RoleSpec` 及九个构造函数 |
 | DepartmentSpec | 一个部门的职责、角色清单、可触达产物路径、声明的 gate | `kiana-domain/src/lib.rs` 的 `DepartmentSpec::catalog` |
 | Symposium | 有边界的多角色讨论：固定议程、限轮数（默认 4，上限 8）、名单锁死在部门内 | `kiana-domain/src/lib.rs` 的 `Symposium`、`kiana-core/src/lib.rs` 的 `convene_symposium` |
 | Blackboard | 会议发言的公共面板：每人的主张（claim）贴上去，后续发言人可见 | `kiana-domain/src/lib.rs` 的 `Blackboard` / `SymposiumClaim` |

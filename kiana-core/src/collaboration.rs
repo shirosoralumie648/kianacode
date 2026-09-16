@@ -1171,7 +1171,16 @@ impl ControlPlane {
             let attendees = meeting.attendees.clone();
             for round in 0..max_rounds {
                 for role_id in &attendees {
-                    let role = RoleSpec::lookup(role_id).unwrap_or_else(RoleSpec::pm);
+                    let Some(role) = RoleSpec::lookup(role_id) else {
+                        self.record_event(
+                            request_id,
+                            &mut sequence,
+                            "run.rejected",
+                            json!({ "reason": "role_unknown" }),
+                        )
+                        .await?;
+                        return Ok(CoreResponse::blocked(request_id, "role_unknown"));
+                    };
                     let session_id = meeting.speaker_session_id(role_id);
                     let mut speaker = context.clone();
                     speaker.request_id = RequestId::new();

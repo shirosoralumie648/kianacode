@@ -1,5 +1,5 @@
 //! Product-owned prompt sections. Context text never grants authority.
-use crate::{prompt_hash, RoleSpec};
+use crate::{prompt_hash, RoleSpec, SchemaVersion, ROLE_CATALOG_SCHEMA};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -38,9 +38,16 @@ pub fn render_prompt(sections: &[PromptSection]) -> String {
         .join("\n\n")
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PromptBundle {
     pub schema: String,
+    pub catalog_schema: String,
+    pub catalog_version: SchemaVersion,
     pub role_id: String,
+    pub role_version: SchemaVersion,
+    pub role_prompt_hash: String,
+    pub input_schema: String,
+    pub output_schema: String,
     pub model_profile: String,
     pub sections: Vec<PromptSection>,
     #[serde(default)]
@@ -50,7 +57,13 @@ impl PromptBundle {
     pub fn for_role(role: &RoleSpec) -> Self {
         Self {
             schema: PROMPT_BUNDLE_SCHEMA.to_owned(),
+            catalog_schema: ROLE_CATALOG_SCHEMA.to_owned(),
+            catalog_version: SchemaVersion::new(1, 0),
             role_id: role.role_id.clone(),
+            role_version: role.version,
+            role_prompt_hash: role.prompt_hash.clone(),
+            input_schema: role.input_schema.clone(),
+            output_schema: role.output_schema.clone(),
             model_profile: role.model_profile.clone(),
             extensions: Vec::new(),
             sections: vec![
@@ -74,10 +87,34 @@ impl PromptBundle {
     pub fn decode(encoded: &str) -> Result<Self, String> {
         let bundle: Self =
             serde_json::from_str(encoded).map_err(|_| "prompt_bundle_invalid".to_owned())?;
-        if bundle.schema != PROMPT_BUNDLE_SCHEMA || RoleSpec::lookup(&bundle.role_id).is_none() {
+        bundle.validate()?;
+        Ok(bundle)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROMPT_BUNDLE_SCHEMA
+            || self.catalog_schema != ROLE_CATALOG_SCHEMA
+            || self.catalog_version != SchemaVersion::new(1, 0)
+        {
             return Err("prompt_bundle_invalid".to_owned());
         }
-        Ok(bundle)
+        let role =
+            RoleSpec::lookup(&self.role_id).ok_or_else(|| "prompt_bundle_invalid".to_owned())?;
+        if self.role_version != role.version
+            || self.role_prompt_hash != role.prompt_hash
+            || self.input_schema != role.input_schema
+            || self.output_schema != role.output_schema
+            || self.model_profile != role.model_profile
+            || self.sections.len() > 64
+            || !self.sections.iter().any(|section| {
+                section.authority == PromptAuthority::Product
+                    && section.name == "role"
+                    && section.text == role.prompt
+            })
+        {
+            return Err("prompt_bundle_role_metadata_mismatch".to_owned());
+        }
+        Ok(())
     }
     pub fn encode(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)

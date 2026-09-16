@@ -1671,6 +1671,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-03 identity/expiry/revocation/impersonation source-boundary review; no runtime test reviewer
 ```
 
+### CO-04 versioned role catalog evidence (2026-09-16)
+
+```text
+source_snapshot: a182830 (CO-03 parent; CO-04 source files listed below); kiana-domain/src/{roles,prompts,model,lib,contracts}.rs; kiana-domain/role-packs/{analyst,qa,librarian}.md; kiana-provider/src/config.rs; kiana-provider/tests/co04_role_model_routes.rs; kiana-core/src/{lifecycle,events,sessions,receipts}.rs; kiana-core/tests/co04_role_catalog_guard.rs; kiana-daemon/src/{lib,harness_skills}.rs; kiana-protocol/src/lib.rs; kiana-domain/src/tests.rs; kiana-domain/tests/co04_role_catalog.rs; .github/workflows/co04-role-catalog.yml; docs/roadmap/role-catalog-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-04 versioned RoleSpec/DepartmentSpec and deterministic catalogs, Analyst/QA/Librarian role packs, PromptBundle/ModelAssignment/run/session/receipt provenance, and existing Harness/ProviderGateway path guards are scoped to this step; role packs do not grant capabilities and no second model loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/roles.rs kiana-domain/src/prompts.rs kiana-domain/src/model.rs kiana-domain/src/lib.rs kiana-domain/src/contracts.rs kiana-domain/role-packs/analyst.md kiana-domain/role-packs/qa.md kiana-domain/role-packs/librarian.md kiana-provider/src/config.rs kiana-provider/tests/co04_role_model_routes.rs kiana-core/src/lifecycle.rs kiana-core/src/events.rs kiana-core/src/sessions.rs kiana-core/src/receipts.rs kiana-core/tests/co04_role_catalog_guard.rs kiana-daemon/src/lib.rs kiana-daemon/src/harness_skills.rs kiana-protocol/src/lib.rs kiana-domain/src/tests.rs kiana-domain/tests/co04_role_catalog.rs .github/workflows/co04-role-catalog.yml docs/roadmap/role-catalog-baseline.md
+  rg -n 'RoleCatalog|DepartmentCatalog|ROLE_ANALYST|ROLE_QA|ROLE_LIBRARIAN|input_schema|output_schema|role_prompt_hash|role_catalog_version|PromptBundle|ModelAssignment|model_profile_unknown|if project_trusted|role_model_profile_mismatch' kiana-domain/src kiana-provider/src kiana-core/src kiana-daemon/src kiana-protocol/src kiana-domain/tests kiana-core/tests docs/roadmap/role-catalog-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/provider/core/daemon/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co04_role_catalog.rs catalog/prompt/role-pack fixtures, kiana-provider/tests/co04_role_model_routes.rs configured profile routing, and kiana-core/tests/co04_role_catalog_guard.rs existing Harness/Provider/ProjectTrust/provenance source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-04 job is queued by the next push and is not awaited
+status_change: CO-04 source slice is implemented. Five departments now expose a versioned catalog with nine built-in roles, including Analyst, QA and Librarian. RoleSpec validation pins department, prompt hash, tool set, input/output schema and model profile; PromptBundle/ModelAssignment and run/session/receipt evidence carry catalog/role metadata; role lookup and explicit profile configuration fail closed without a PM/Builder fallback. Existing Harness and ProviderGateway remain the only model path.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; built-in catalogs are not durable/signed/hot-updatable, explicit multi-model request differences are not live-proven, and assignment/Company command permission revalidation remains a later CO-05+ integration concern
+reviewer: Codex root implementation review plus CO-04 role/catalog/prompt/model provenance source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -1,16 +1,20 @@
 use crate::ids::fnv1a64;
 use crate::{
-    normalize_role_path, CellId, RequestId, SessionId, CLOSING_DECISION_PATH, CLOSING_PATH_LESSONS,
-    DECISION_RECORD_PATH, DEPARTMENT_CLOSING, DEPARTMENT_EXECUTING, DEPARTMENT_INITIATING,
-    DEPARTMENT_MONITORING, DEPARTMENT_PLANNING, EXECUTING_DECISION_PATH, EXECUTING_PATH_RECEIPT,
+    json_digest, normalize_role_path, CellId, RequestId, SchemaVersion, SessionId,
+    CLOSING_DECISION_PATH, CLOSING_PATH_LESSONS, DECISION_RECORD_PATH, DEPARTMENT_CATALOG_SCHEMA,
+    DEPARTMENT_CLOSING, DEPARTMENT_EXECUTING, DEPARTMENT_INITIATING, DEPARTMENT_MONITORING,
+    DEPARTMENT_PLANNING, DEPARTMENT_SPEC_SCHEMA, EXECUTING_DECISION_PATH, EXECUTING_PATH_RECEIPT,
     INITIATING_DECISION_PATH, MEMORY_COLLECTION_PLANNING_UNRELEASED, MEMORY_COLLECTION_USER_PREFS,
     MEMORY_COLLECTION_USER_PRIVATE, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
     MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
     MONITORING_DECISION_PATH, MONITORING_PATH_GATE, PLANNING_PATH_CHARTER, PLANNING_PATH_PACKET,
-    PLANNING_PATH_PLAN, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CLOSER, ROLE_PM, ROLE_REVIEWER,
-    ROLE_SANDBOX_READ_ONLY, ROLE_SANDBOX_WORKSPACE_WRITE, ROLE_SPONSOR,
+    PLANNING_PATH_PLAN, ROLE_ANALYST, ROLE_ARCHITECT, ROLE_BUILDER, ROLE_CATALOG_SCHEMA,
+    ROLE_CLOSER, ROLE_INPUT_SCHEMA_PREFIX, ROLE_LIBRARIAN, ROLE_OUTPUT_SCHEMA_PREFIX, ROLE_PM,
+    ROLE_QA, ROLE_REVIEWER, ROLE_SANDBOX_READ_ONLY, ROLE_SANDBOX_WORKSPACE_WRITE, ROLE_SPEC_SCHEMA,
+    ROLE_SPONSOR,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -113,7 +117,13 @@ impl RequestContext {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RoleSpec {
+    /// 角色规范的稳定 schema。
+    pub schema: String,
+    /// 角色规范版本；同一 major 内的增量必须保持语义兼容。
+    pub version: SchemaVersion,
     /// 稳定角色标识，如 `builder` 或 `reviewer`。
     pub role_id: String,
     /// 所属部门标识。
@@ -122,6 +132,10 @@ pub struct RoleSpec {
     pub prompt: String,
     /// 角色指令的内容指纹，用于检测指令漂移。
     pub prompt_hash: String,
+    /// 角色任务输入契约版本。
+    pub input_schema: String,
+    /// 角色任务输出契约版本。
+    pub output_schema: String,
     /// 模型可见工具名称白名单。
     pub tools: Vec<String>,
     /// 角色默认沙箱档位。
@@ -166,6 +180,27 @@ impl RoleSpec {
             false,
             "executing",
             32,
+        )
+    }
+
+    /// 返回 initiating Analyst 的固定角色快照。
+    pub fn analyst() -> Self {
+        Self::new(
+            ROLE_ANALYST,
+            DEPARTMENT_INITIATING,
+            include_str!("../role-packs/analyst.md"),
+            vec!["memory.search".to_owned()],
+            ROLE_SANDBOX_READ_ONLY,
+            vec![PLANNING_PATH_CHARTER.to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:initiating".to_owned(),
+                MEMORY_LAYER_PROJECT.to_owned(),
+            ],
+            true,
+            true,
+            "analysis",
+            8,
         )
     }
 
@@ -241,6 +276,27 @@ impl RoleSpec {
         )
     }
 
+    /// 返回 monitoring QA 的固定角色快照。
+    pub fn qa() -> Self {
+        Self::new(
+            ROLE_QA,
+            DEPARTMENT_MONITORING,
+            include_str!("../role-packs/qa.md"),
+            vec!["shell".to_owned(), "memory.search".to_owned()],
+            ROLE_SANDBOX_READ_ONLY,
+            vec![".".to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:monitoring".to_owned(),
+                MEMORY_LAYER_PROJECT.to_owned(),
+            ],
+            false,
+            false,
+            "quality",
+            16,
+        )
+    }
+
     /// 返回 initiating Sponsor 的固定角色快照。
     pub fn sponsor() -> Self {
         Self::new(
@@ -291,15 +347,39 @@ impl RoleSpec {
         )
     }
 
-    /// 返回全部内置角色，顺序固定用于目录和审计展示。
-    pub fn catalog() -> [RoleSpec; 6] {
+    /// 返回 closing Librarian 的固定角色快照。
+    pub fn librarian() -> Self {
+        Self::new(
+            ROLE_LIBRARIAN,
+            DEPARTMENT_CLOSING,
+            include_str!("../role-packs/librarian.md"),
+            vec!["memory.search".to_owned(), "memory.write".to_owned()],
+            ROLE_SANDBOX_READ_ONLY,
+            vec![CLOSING_PATH_LESSONS.to_owned()],
+            vec![
+                MEMORY_LAYER_COMPANY.to_owned(),
+                "department:closing".to_owned(),
+                MEMORY_LAYER_PROJECT.to_owned(),
+            ],
+            false,
+            false,
+            "knowledge",
+            8,
+        )
+    }
+
+    /// 返回全部九个内置角色，顺序固定用于目录和审计展示。
+    pub fn catalog() -> [RoleSpec; 9] {
         [
             Self::sponsor(),
+            Self::analyst(),
             Self::pm(),
             Self::architect(),
             Self::builder(),
             Self::reviewer(),
+            Self::qa(),
             Self::closer(),
+            Self::librarian(),
         ]
     }
 
@@ -376,8 +456,82 @@ impl RoleSpec {
                     || parsed.collection == MEMORY_COLLECTION_PLANNING_UNRELEASED
             }
             ROLE_SPONSOR => parsed.collection == "department:initiating",
-            ROLE_CLOSER => parsed.collection == "department:closing",
+            ROLE_CLOSER | ROLE_LIBRARIAN => parsed.collection == "department:closing",
             _ => false,
+        }
+    }
+
+    /// Validate the immutable role snapshot without granting any capability.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ROLE_SPEC_SCHEMA
+            || self.version != SchemaVersion::new(1, 0)
+            || self.role_id.trim().is_empty()
+            || self.department_id.trim().is_empty()
+            || self.prompt.trim().is_empty()
+            || self.model_profile.trim().is_empty()
+            || self.max_steps == 0
+            || self.prompt_hash != prompt_hash(&self.prompt)
+        {
+            return Err("role_spec_invalid".to_owned());
+        }
+        let (expected_department, expected_model_profile) = match self.role_id.as_str() {
+            ROLE_SPONSOR => (DEPARTMENT_INITIATING, "initiating"),
+            ROLE_ANALYST => (DEPARTMENT_INITIATING, "analysis"),
+            ROLE_PM => (DEPARTMENT_PLANNING, "planning"),
+            ROLE_ARCHITECT => (DEPARTMENT_PLANNING, "planning"),
+            ROLE_BUILDER => (DEPARTMENT_EXECUTING, "executing"),
+            ROLE_REVIEWER => (DEPARTMENT_MONITORING, "monitoring"),
+            ROLE_QA => (DEPARTMENT_MONITORING, "quality"),
+            ROLE_CLOSER => (DEPARTMENT_CLOSING, "closing"),
+            ROLE_LIBRARIAN => (DEPARTMENT_CLOSING, "knowledge"),
+            _ => return Err("role_unknown".to_owned()),
+        };
+        if self.department_id != expected_department {
+            return Err("role_department_mismatch".to_owned());
+        }
+        if self.model_profile != expected_model_profile {
+            return Err("role_model_profile_mismatch".to_owned());
+        }
+        if self.input_schema != role_input_schema(&self.role_id)
+            || self.output_schema != role_output_schema(&self.role_id)
+        {
+            return Err("role_spec_io_schema_invalid".to_owned());
+        }
+        const MODEL_TOOLS: [&str; 5] = [
+            "shell",
+            "apply_patch",
+            "mcp",
+            "memory.search",
+            "memory.write",
+        ];
+        if self
+            .tools
+            .iter()
+            .any(|tool| !MODEL_TOOLS.contains(&tool.as_str()))
+        {
+            return Err("role_spec_tool_unknown".to_owned());
+        }
+        Ok(())
+    }
+
+    /// Return a redacted, deterministic descriptor suitable for a catalog or Run evidence.
+    pub fn descriptor(&self) -> RoleDescriptor {
+        RoleDescriptor {
+            schema: self.schema.clone(),
+            version: self.version,
+            role_id: self.role_id.clone(),
+            department_id: self.department_id.clone(),
+            prompt_hash: self.prompt_hash.clone(),
+            input_schema: self.input_schema.clone(),
+            output_schema: self.output_schema.clone(),
+            model_profile: self.model_profile.clone(),
+            tools: self.tools.clone(),
+            sandbox: self.sandbox.clone(),
+            path_allow: self.path_allow.clone(),
+            knowledge_grants: self.knowledge_grants.clone(),
+            can_convene: self.can_convene,
+            can_vote: self.can_vote,
+            max_steps: self.max_steps,
         }
     }
 
@@ -395,10 +549,14 @@ impl RoleSpec {
         max_steps: u32,
     ) -> Self {
         Self {
+            schema: ROLE_SPEC_SCHEMA.to_owned(),
+            version: SchemaVersion::new(1, 0),
             role_id: role_id.to_owned(),
             department_id: department_id.to_owned(),
             prompt_hash: prompt_hash(prompt),
             prompt: prompt.to_owned(),
+            input_schema: role_input_schema(role_id),
+            output_schema: role_output_schema(role_id),
             tools,
             sandbox: sandbox.to_owned(),
             path_allow,
@@ -408,6 +566,106 @@ impl RoleSpec {
             model_profile: model_profile.to_owned(),
             max_steps,
         }
+    }
+}
+
+fn role_input_schema(role_id: &str) -> String {
+    format!("{ROLE_INPUT_SCHEMA_PREFIX}.{role_id}.v1")
+}
+
+fn role_output_schema(role_id: &str) -> String {
+    format!("{ROLE_OUTPUT_SCHEMA_PREFIX}.{role_id}.v1")
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoleDescriptor {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub role_id: String,
+    pub department_id: String,
+    pub prompt_hash: String,
+    pub input_schema: String,
+    pub output_schema: String,
+    pub model_profile: String,
+    pub tools: Vec<String>,
+    pub sandbox: String,
+    pub path_allow: Vec<String>,
+    pub knowledge_grants: Vec<String>,
+    pub can_convene: bool,
+    pub can_vote: bool,
+    pub max_steps: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoleCatalog {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub roles: Vec<RoleDescriptor>,
+    pub catalog_digest: String,
+}
+
+impl RoleCatalog {
+    pub fn builtin() -> Self {
+        let roles = RoleSpec::catalog()
+            .into_iter()
+            .map(|role| role.descriptor())
+            .collect::<Vec<_>>();
+        let mut catalog = Self {
+            schema: ROLE_CATALOG_SCHEMA.to_owned(),
+            version: SchemaVersion::new(1, 0),
+            roles,
+            catalog_digest: String::new(),
+        };
+        catalog.catalog_digest = catalog.digest();
+        catalog
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ROLE_CATALOG_SCHEMA
+            || self.version != SchemaVersion::new(1, 0)
+            || self.roles.is_empty()
+            || self.roles.len() > 64
+            || self.catalog_digest != self.digest()
+        {
+            return Err("role_catalog_invalid".to_owned());
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for role in &self.roles {
+            if !ids.insert(role.role_id.clone()) {
+                return Err("role_catalog_duplicate_role".to_owned());
+            }
+            role.validate()?;
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "roles": self.roles,
+        }))
+    }
+
+    pub fn lookup(&self, role_id: &str) -> Option<RoleDescriptor> {
+        self.roles
+            .iter()
+            .find(|role| role.role_id == role_id)
+            .cloned()
+    }
+}
+
+impl RoleDescriptor {
+    pub fn validate(&self) -> Result<(), String> {
+        let expected = RoleSpec::lookup(&self.role_id)
+            .ok_or_else(|| "role_catalog_role_unknown".to_owned())?
+            .descriptor();
+        if self != &expected {
+            return Err("role_catalog_role_drift".to_owned());
+        }
+        Ok(())
     }
 }
 
@@ -490,6 +748,10 @@ impl MemoryCollection {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// 部门的职责、角色、产物和 gate 配置快照。
 pub struct DepartmentSpec {
+    /// 部门目录的稳定 schema。
+    pub schema: String,
+    /// 部门配置版本。
+    pub version: SchemaVersion,
     /// 部门稳定 ID。
     pub department_id: String,
     /// PMP 分组标识。
@@ -518,6 +780,8 @@ impl DepartmentSpec {
         gates: Vec<String>,
     ) -> Self {
         Self {
+            schema: DEPARTMENT_SPEC_SCHEMA.to_owned(),
+            version: SchemaVersion::new(1, 0),
             department_id: department_id.to_owned(),
             pmp_group: department_id.to_owned(),
             mission: mission.to_owned(),
@@ -562,7 +826,7 @@ impl DepartmentSpec {
         Self::new(
             DEPARTMENT_MONITORING,
             "Review author receipts against acceptance. The reviewer is never the author.",
-            vec![ROLE_REVIEWER.to_owned()],
+            vec![ROLE_REVIEWER.to_owned(), ROLE_QA.to_owned()],
             vec![MONITORING_PATH_GATE.to_owned()],
             true,
             vec!["review_packet".to_owned()],
@@ -574,7 +838,7 @@ impl DepartmentSpec {
         Self::new(
             DEPARTMENT_INITIATING,
             "Decide whether the work should exist and what success looks like. Do not write source.",
-            vec![ROLE_SPONSOR.to_owned()],
+            vec![ROLE_ANALYST.to_owned(), ROLE_SPONSOR.to_owned()],
             vec![PLANNING_PATH_CHARTER.to_owned()],
             true,
             vec!["charter_has_success_criteria".to_owned()],
@@ -586,7 +850,7 @@ impl DepartmentSpec {
         Self::new(
             DEPARTMENT_CLOSING,
             "Record lessons and close the receipt. Do not write source.",
-            vec![ROLE_CLOSER.to_owned()],
+            vec![ROLE_CLOSER.to_owned(), ROLE_LIBRARIAN.to_owned()],
             vec![CLOSING_PATH_LESSONS.to_owned()],
             true,
             vec!["lessons_logged".to_owned()],
@@ -615,6 +879,36 @@ impl DepartmentSpec {
             .find(|department| department.department_id == department_id)
     }
 
+    /// Validate the immutable department descriptor and role membership list.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != DEPARTMENT_SPEC_SCHEMA
+            || self.version != SchemaVersion::new(1, 0)
+            || self.department_id.trim().is_empty()
+            || self.mission.trim().is_empty()
+            || self.roles.is_empty()
+            || self.artifacts.is_empty()
+            || self.gates.is_empty()
+        {
+            return Err("department_spec_invalid".to_owned());
+        }
+        if !matches!(
+            self.department_id.as_str(),
+            DEPARTMENT_INITIATING
+                | DEPARTMENT_PLANNING
+                | DEPARTMENT_EXECUTING
+                | DEPARTMENT_MONITORING
+                | DEPARTMENT_CLOSING
+        ) {
+            return Err("department_unknown".to_owned());
+        }
+        if self.roles.iter().any(|role_id| {
+            RoleSpec::lookup(role_id).is_none_or(|role| role.department_id != self.department_id)
+        }) {
+            return Err("department_spec_role_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     /// 返回该部门中第一个可主持 symposium 的角色。
     pub fn convene_chair_id(&self) -> Option<String> {
         self.roles.iter().find_map(|role_id| {
@@ -636,6 +930,56 @@ impl DepartmentSpec {
         }
     }
 }
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepartmentCatalog {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub departments: Vec<DepartmentSpec>,
+    pub catalog_digest: String,
+}
+
+impl DepartmentCatalog {
+    pub fn builtin() -> Self {
+        let departments = DepartmentSpec::catalog().to_vec();
+        let mut catalog = Self {
+            schema: DEPARTMENT_CATALOG_SCHEMA.to_owned(),
+            version: SchemaVersion::new(1, 0),
+            departments,
+            catalog_digest: String::new(),
+        };
+        catalog.catalog_digest = catalog.digest();
+        catalog
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != DEPARTMENT_CATALOG_SCHEMA
+            || self.version != SchemaVersion::new(1, 0)
+            || self.departments.len() != 5
+            || self.catalog_digest != self.digest()
+        {
+            return Err("department_catalog_invalid".to_owned());
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for department in &self.departments {
+            if !ids.insert(department.department_id.clone()) {
+                return Err("department_catalog_duplicate_department".to_owned());
+            }
+            department.validate()?;
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "departments": self.departments,
+        }))
+    }
+}
+
 pub fn prompt_hash(prompt: &str) -> String {
     format!("fnv1a64:{:016x}", fnv1a64(prompt.as_bytes()))
 }

@@ -1,0 +1,82 @@
+name: CO-04 versioned role catalog
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/roles.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/role-packs/**"
+      - "kiana-domain/src/tests.rs"
+      - "kiana-domain/tests/co04_role_catalog.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/tests/co04_role_catalog_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/tests/co04_role_model_routes.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/role-catalog-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/module-map.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co04-role-catalog.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/roles.rs"
+      - "kiana-domain/src/prompts.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/role-packs/**"
+      - "kiana-domain/src/tests.rs"
+      - "kiana-domain/tests/co04_role_catalog.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/receipts.rs"
+      - "kiana-core/src/sessions.rs"
+      - "kiana-core/tests/co04_role_catalog_guard.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/src/harness_skills.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/tests/co04_role_model_routes.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/role-catalog-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - "docs/module-map.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/co04-role-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  role-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-04 role catalog fixtures
+        run: cargo test -p kiana-domain --test co04_role_catalog --locked -- --test-threads=1
+      - name: Run existing role invariants
+        run: cargo test -p kiana-domain --lib --locked -- --test-threads=1
+      - name: Run CO-04 source guard
+        run: cargo test -p kiana-core --test co04_role_catalog_guard --locked -- --test-threads=1
+      - name: Run CO-04 provider role routes
+        run: cargo test -p kiana-provider --test co04_role_model_routes --locked -- --test-threads=1
+      - name: Compile role/model provenance path
+        run: cargo check -p kiana-provider -p kiana-core -p kiana-daemon --tests --locked

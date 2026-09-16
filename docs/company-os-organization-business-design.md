@@ -26,7 +26,7 @@ CompanyOS 要把一个需求变成可追踪的交付：能回答为什么做、�
 
 | 源码落点 | 当前观察 | 本次补齐目标 |
 |---|---|---|
-| [roles.rs](../kiana-domain/src/roles.rs) | 五部门、六个角色目录已存在 | 稳定角色版本、实例身份、任命与撤销；补专业岗位，按任务启用 |
+| [roles.rs](../kiana-domain/src/roles.rs) | 五部门、九个内置角色目录已存在 | 稳定角色版本、实例身份、任命与撤销；其余专业岗位按任务启用 |
 | [company.rs（domain）](../kiana-domain/src/company.rs) | 初读为 40 个命令，追加前复核已为 46 个；十类业务对象与 transition 已存在于 WIP | 引用完整性、可达状态、逐层验收、基线变更应用与历史兼容 |
 | [work_packets.rs](../kiana-domain/src/work_packets.rs) | WorkPacket 有责任/范围字段，但 `validate()` 限定 Builder；另有 Cell/Grant/Lease 契约 | 版本化通用部门工单；交接 ACK、claim 与 attempt 分离 |
 | [symposiums.rs](../kiana-domain/src/symposiums.rs)、[collaboration.rs](../kiana-core/src/collaboration.rs) | 有会议、发言者 session、Review/Closing 工件和 Builder 执行路径 | 会议产物转业务 Proposal；多角色结果合同；固定工件路径的多项目隔离 |
@@ -72,7 +72,7 @@ Organization ── Membership / RoleAssignment / PolicyProfile
 | Monitoring | Reviewer、QA、Change Controller、Auditor | ReviewResult、VerificationEvidence、ChangeImpact、Incident | 可复核事实；QA 执行测试使用隔离验证环境；不改作者原始证据 |
 | Closing | Closer、Librarian、Retro Facilitator | DeliveryManifest、ClosingReceipt、LessonCandidate、OutcomePlan | 交付与收尾按批准范围；知识晋升走 Memory 治理 |
 
-岗位编制先从现有六角色扩展到首个流程真正需要的岗位，其余使用同一注册机制按需加入。岗位存在不立即占用一个模型进程。RoleSpec 固定 prompt/model/context/output contract 版本，并记录工件、工具与知识范围；角色专业知识来自受信角色包。
+岗位编制先从现有九个内置角色覆盖首个流程真正需要的岗位，其余使用同一注册机制按需加入。岗位存在不立即占用一个模型进程。RoleSpec 固定 prompt/model/context/output contract 版本，并记录工件、工具与知识范围；角色专业知识来自受信角色包。
 
 ### 3.3 责任与权限不能混在一起
 

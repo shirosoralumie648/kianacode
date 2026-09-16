@@ -12,7 +12,7 @@
 | 04 | [信任、沙箱与路径安全](04-trust-sandbox-path.md) | trust 决定能不能进门，sandbox 决定能碰哪里，path lock 防两个任务撞车 | 想知道为什么没 trust 连只读都被拒、写盘要同时满足哪些条件 |
 | 05 | [审批与人工确认](05-approvals.md) | 有风险的动作按暂停、开审批单，等你本人点头才继续；单子带指纹、nonce 和 5 分钟有效期 | 想知道什么时候会被打断、批准为什么只能用一次 |
 | 06 | [事件账本与回执](06-eventlog-receipts.md) | 每件事记进只能追加的 JSONL 账本；回执是从账里算出来的，不是新记的 | 想知道"AI 到底干了什么"去哪查、能不能信 |
-| 07 | [角色、部门与任务流程](07-roles-departments.md) | 五部门六角色：规划会出工单、Builder 开全新会话施工、Reviewer 验收、Closer 结案，隔离规则全是硬拒 | 想理解多角色流水线和"Builder 不能列席规划会"这类边界 |
+| 07 | [角色、部门与任务流程](07-roles-departments.md) | 五部门九角色：Analyst/PM/Architect 规划，Builder 执行，Reviewer/QA 监控，Closer/Librarian 收尾，Sponsor 负责治理；隔离规则全是硬拒 | 想理解多角色流水线和"Builder 不能列席规划会"这类边界 |
 | 08 | [三个界面](08-surfaces.md) | `kiana run` / `kiana` / `kiana web` 三个入口共用同一个 DaemonHost，规则只有一套 | 想知道三个入口有什么区别（答案：几乎没有） |
 | 09 | [一次任务的完整一生](09-session-lifecycle.md) | run 从 Accepted 到 Completed/Failed/Cancelled 的状态流转、continue/cancel 的语义和停不干净的角落、compaction 和 inbox | 想知道任务卡住、取消、压缩历史时到底发生了什么 |
 | 10 | [上下文与搜索](10-context-search.md) | repo map、关键词/向量搜索、context pack 全在本地、全只读；模型搜代码靠 shell 跑 rg | 想给 AI 喂背景资料，或自己先摸一遍项目 |

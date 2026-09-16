@@ -796,7 +796,7 @@ impl DaemonHost {
                 Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
             };
             let configuration_revision = kiana_domain::json_digest(&serde_json::json!({
-                "project_identity":project_identity,"role_catalog":RoleSpec::catalog().iter().map(|role|serde_json::json!({"role_id":role.role_id,"department_id":role.department_id,"prompt_hash":role.prompt_hash,"model_profile":role.model_profile,"max_steps":role.max_steps,"paths":role.path_allow,"tools":role.tools,"knowledge_grants":role.knowledge_grants,"can_convene":role.can_convene,"can_vote":role.can_vote})).collect::<Vec<_>>(),"local_roles":self.principal.allowed_roles,
+                "project_identity":project_identity,"role_catalog":kiana_domain::RoleCatalog::builtin(),"department_catalog":kiana_domain::DepartmentCatalog::builtin(),"local_roles":self.principal.allowed_roles,
                 "model_profiles":std::env::var("KIANA_MODEL_PROFILES_JSON").unwrap_or_default(),
                 "policy":"kiana.default-policy.content.v2","tool_catalog":kiana_domain::tool_schemas(),
                 "action_catalog":kiana_domain::capability_action_catalog_digest(),

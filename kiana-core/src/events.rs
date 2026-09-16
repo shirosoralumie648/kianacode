@@ -357,7 +357,15 @@ pub(crate) fn aggregate_for_event(
     ("request".to_owned(), request_id.to_string())
 }
 pub(crate) fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &str) -> Value {
-    let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
+    let worker = RoleSpec::lookup(&context.role_id);
+    let role_id = worker
+        .as_ref()
+        .map(|role| role.role_id.clone())
+        .unwrap_or_else(|| context.role_id.clone());
+    let department_id = worker
+        .as_ref()
+        .map(|role| role.department_id.clone())
+        .unwrap_or_else(|| context.department_id.clone());
     with_work_packet(
         json!({
             "schema": RUN_RESULT_SCHEMA,
@@ -366,9 +374,17 @@ pub(crate) fn run_identity(context: &RequestContext, run_id: RunId, sandbox: &st
             "harness": HARNESS_ID,
             "sandbox": sandbox,
             "actor_id": context.actor_id,
-            "role_id": worker.role_id,
-            "department_id": worker.department_id,
-            "prompt_hash": worker.prompt_hash,
+            "role_id": role_id,
+            "department_id": department_id,
+            "prompt_hash": worker.as_ref().map(|role| role.prompt_hash.clone()),
+            "role_spec_schema": worker.as_ref().map(|role| role.schema.clone()),
+            "role_version": worker.as_ref().map(|role| role.version),
+            "role_catalog_schema": kiana_domain::ROLE_CATALOG_SCHEMA,
+            "role_catalog_version": kiana_domain::SchemaVersion::new(1, 0),
+            "input_schema": worker.as_ref().map(|role| role.input_schema.clone()),
+            "output_schema": worker.as_ref().map(|role| role.output_schema.clone()),
+            "model_profile": worker.as_ref().map(|role| role.model_profile.clone()),
+            "role_resolution": worker.is_some(),
         }),
         context,
     )

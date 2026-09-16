@@ -112,11 +112,11 @@
 
 
 
-#### CO-04 · 五部门与专业岗位成为版本化目录　⏳
+#### CO-04 · 五部门与专业岗位成为版本化目录　✅
 
 - **归属**：`P1-C-03`、`P1-J2-03`、`P1-J2-04`。
 - **依赖**：CO-03；复用现有角色包与 prompt provenance 工作。
-- **代码与产物**：`kiana-domain/src/roles.rs`、`role-packs/`、daemon 模型/提示词注入。
+- **代码与产物**：`kiana-domain/src/roles.rs`、`role-packs/`、daemon 模型/提示词注入；当前 source slice 与 CI-only 证据见 [`role-catalog-baseline.md`](role-catalog-baseline.md)。
 - **实现顺序**：①登记五部门的 mission、角色、工件和 gate；②补首个流程需要的 Analyst/QA/Librarian 等岗位，其他岗位可按需启用；③固定 RoleSpec、prompt、model profile、输入输出 schema 版本并写进 Run 证据。
 - **先拒绝**：`role_pack_cannot_grant_capabilities_or_load_before_project_trust`；未知岗位/模型配置不静默回退为 PM、Builder 或权限更大的角色。
 - **再成功 / 退出**：`planning_and_execution_role_profiles_reach_distinct_model_requests` 由同一 host 的真实 fake-provider 请求观察角色差异；同一版本可复现，创建目录不自动启动所有角色。

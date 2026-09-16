@@ -1,5 +1,5 @@
 //! Shared model values. Provider wire content is compiled before admission.
-use crate::{ModelAttemptId, RequestId, RunId, StepId, TokenBudget, TurnId};
+use crate::{ModelAttemptId, RequestId, RunId, SchemaVersion, StepId, TokenBudget, TurnId};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -526,6 +526,16 @@ pub struct ModelAssignment {
     pub run_id: RunId,
     pub turn_id: TurnId,
     pub role_id: String,
+    #[serde(default)]
+    pub role_version: Option<SchemaVersion>,
+    #[serde(default)]
+    pub catalog_version: Option<SchemaVersion>,
+    #[serde(default)]
+    pub prompt_hash: Option<String>,
+    #[serde(default)]
+    pub input_schema: Option<String>,
+    #[serde(default)]
+    pub output_schema: Option<String>,
     pub profile: String,
     pub project_root: String,
     pub project_trusted: bool,
@@ -538,6 +548,11 @@ impl ModelAssignment {
             .ok_or_else(|| ModelError::invalid("model_role_unknown"))?;
         if self.schema != "kiana.model-assignment.v1"
             || self.profile != role.model_profile
+            || self.role_version != Some(role.version)
+            || self.catalog_version != Some(crate::SchemaVersion::new(1, 0))
+            || self.prompt_hash.as_deref() != Some(role.prompt_hash.as_str())
+            || self.input_schema.as_deref() != Some(role.input_schema.as_str())
+            || self.output_schema.as_deref() != Some(role.output_schema.as_str())
             || !self.project_trusted
             || self.project_root.trim().is_empty()
             || self.max_wall_time_ms == 0

@@ -226,6 +226,12 @@ impl ControlPlane {
                 "turn":turn,
                 "role_prompt_hash": role.prompt_hash,
                 "model_profile": role.model_profile,
+                "role_spec_schema": role.schema,
+                "role_version": role.version,
+                "role_catalog_schema": kiana_domain::ROLE_CATALOG_SCHEMA,
+                "role_catalog_version": kiana_domain::SchemaVersion::new(1, 0),
+                "role_input_schema": role.input_schema,
+                "role_output_schema": role.output_schema,
             }),
         )
         .await?;
@@ -275,6 +281,11 @@ impl ControlPlane {
                 run_id,
                 turn_id: kiana_domain::TurnId::from_uuid(request_id.as_uuid()),
                 role_id: role.role_id.clone(),
+                role_version: Some(role.version),
+                catalog_version: Some(kiana_domain::SchemaVersion::new(1, 0)),
+                prompt_hash: Some(role.prompt_hash.clone()),
+                input_schema: Some(role.input_schema.clone()),
+                output_schema: Some(role.output_schema.clone()),
                 profile: role.model_profile.clone(),
                 project_root: context.project_root.clone(),
                 project_trusted: context.project_trusted,
@@ -1179,7 +1190,7 @@ pub(crate) fn authorized_harness_sandbox(
             if context.project_trusted
                 && !matches!(context.permission_profile, PermissionProfile::Safe)
             {
-                let role = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
+                let role = RoleSpec::lookup(&context.role_id).ok_or("role_unknown")?;
                 if role.workspace_write_allowed() {
                     Ok("workspace-write")
                 } else {

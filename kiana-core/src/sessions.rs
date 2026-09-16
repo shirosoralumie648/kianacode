@@ -34,7 +34,10 @@ impl ControlPlane {
         let assignment = json!({"schema":"kiana.session-assignment.v1","session_id":context.session_id,
             "actor_id":context.actor_id,"project_root":Self::canonical_project_root(&context.project_root),
             "role_id":role.role_id,"department_id":role.department_id,"prompt_hash":role.prompt_hash,
-            "model_profile":role.model_profile,"principal":principal,"project_identity":project,
+            "model_profile":role.model_profile,"role_spec_schema":role.schema,"role_version":role.version,
+            "role_catalog_schema":kiana_domain::ROLE_CATALOG_SCHEMA,"role_catalog_version":kiana_domain::SchemaVersion::new(1, 0),
+            "role_input_schema":role.input_schema,"role_output_schema":role.output_schema,
+            "principal":principal,"project_identity":project,
             "assignment":typed});
         let key = kiana_domain::json_digest(
             &json!({"session_id":context.session_id,"project_root":Self::canonical_project_root(&context.project_root)}),

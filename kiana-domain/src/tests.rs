@@ -241,7 +241,7 @@ fn v0_3_catalog_has_planning_and_executing_roles() {
 
     let monitoring = DepartmentSpec::monitoring();
     assert_eq!(monitoring.department_id, DEPARTMENT_MONITORING);
-    assert_eq!(monitoring.roles, [ROLE_REVIEWER]);
+    assert_eq!(monitoring.roles, [ROLE_REVIEWER, ROLE_QA]);
     assert!(monitoring.can_convene);
     let reviewer = RoleSpec::reviewer();
     assert!(reviewer.can_convene);
@@ -276,7 +276,7 @@ fn v0_5_catalog_has_five_departments_without_changing_default_worker() {
 
     let initiating = DepartmentSpec::initiating();
     assert_eq!(initiating.pmp_group, DEPARTMENT_INITIATING);
-    assert_eq!(initiating.roles, [ROLE_SPONSOR]);
+    assert_eq!(initiating.roles, [ROLE_ANALYST, ROLE_SPONSOR]);
     assert_eq!(initiating.artifacts, [PLANNING_PATH_CHARTER]);
     assert_eq!(initiating.rag_collection, "department:initiating");
     assert!(initiating.can_convene);
@@ -292,7 +292,7 @@ fn v0_5_catalog_has_five_departments_without_changing_default_worker() {
     assert_eq!(RoleSpec::lookup("sponsor").unwrap().role_id, ROLE_SPONSOR);
 
     let closing = DepartmentSpec::closing();
-    assert_eq!(closing.roles, [ROLE_CLOSER]);
+    assert_eq!(closing.roles, [ROLE_CLOSER, ROLE_LIBRARIAN]);
     assert_eq!(closing.artifacts, [CLOSING_PATH_LESSONS]);
     assert!(closing.can_convene);
 

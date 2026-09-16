@@ -262,7 +262,23 @@ pub(crate) fn receipt_from_events(
     output: Value,
     events: &[RuntimeEvent],
 ) -> Value {
-    let worker = RoleSpec::lookup(&context.role_id).unwrap_or_else(RoleSpec::builder);
+    let worker = RoleSpec::lookup(&context.role_id);
+    let role_id = worker
+        .as_ref()
+        .map(|role| role.role_id.clone())
+        .unwrap_or_else(|| context.role_id.clone());
+    let department_id = worker
+        .as_ref()
+        .map(|role| role.department_id.clone())
+        .unwrap_or_else(|| context.department_id.clone());
+    let default_max_steps = worker
+        .as_ref()
+        .map(|role| json!(role.max_steps))
+        .unwrap_or(Value::Null);
+    let default_prompt_hash = worker
+        .as_ref()
+        .map(|role| json!(role.prompt_hash))
+        .unwrap_or(Value::Null);
     let invocation_projection = crate::project_invocations(run_id, events);
     let invocation_error = invocation_projection.as_ref().err().cloned();
     let invocations = invocation_projection.ok();
@@ -274,13 +290,21 @@ pub(crate) fn receipt_from_events(
             "harness": HARNESS_ID,
             "sandbox": sandbox,
             "actor_id": context.actor_id,
-            "role_id": worker.role_id,
-            "department_id": worker.department_id,
+            "role_id": role_id,
+            "department_id": department_id,
+            "role_resolution": worker.is_some(),
+            "role_spec_schema": worker.as_ref().map(|role| role.schema.clone()),
+            "role_version": worker.as_ref().map(|role| role.version),
+            "role_catalog_schema": kiana_domain::ROLE_CATALOG_SCHEMA,
+            "role_catalog_version": kiana_domain::SchemaVersion::new(1, 0),
+            "input_schema": worker.as_ref().map(|role| role.input_schema.clone()),
+            "output_schema": worker.as_ref().map(|role| role.output_schema.clone()),
+            "model_profile": worker.as_ref().map(|role| role.model_profile.clone()),
             "max_steps_per_turn": events.iter().find(|event| event.kind == "run.authorized")
                 .and_then(|event| event.data.get("max_steps_per_turn"))
-                .cloned().unwrap_or_else(|| json!(worker.max_steps)),
+                .cloned().unwrap_or(default_max_steps),
             "prompt_hash": events.iter().rev().find(|event| event.kind == "run.model_turn")
-                .and_then(|event| event.data.get("prompt_hash")).cloned().unwrap_or_else(|| json!(worker.prompt_hash)),
+                .and_then(|event| event.data.get("prompt_hash")).cloned().unwrap_or(default_prompt_hash),
             "model_turns": model_turns_from_events(events),
             "cost_ledger": cost_ledger_from_events(events, run_id),
             "files_changed": files_changed_from_events(events),
