@@ -55,7 +55,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 |---|---|---|---|---|
 | `P4-J7-04` | Provider 基线与兼容性清单 | `P0-J7-01` | 调用链、已有测试、WIP 归属、负向缺口逐项绑定快照 | ✅ |
 | `P4-J7-05` | 非流式工具解析拒绝路径 | `P4-J7-04` | malformed/缺身份/重复 ID 不被默认值修成合法调用；零 dispatch | ✅ |
-| `P4-J7-06` | 中立合同与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | 有序内容/错误/usage/attempt 合同唯一；旧 cassette 可读，矛盾版本拒绝 | ⏳ |
+| `P4-J7-06` | 中立合同与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | 有序内容/错误/usage/attempt 合同唯一；旧 cassette 可读，矛盾版本拒绝 | ✅ |
 | `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ⏳ |
 | `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ⏳ |
 | `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ⏳ |
@@ -116,11 +116,11 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-06 中立内容、调用身份、错误与模型端口　⏳
+#### P4-J7-06 中立内容、调用身份、错误与模型端口　✅
 
 - **依赖**：`P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02`。
 - **改动位置**：拟新增 domain/model、domain/model_route、ports/model；现有 runner/model、runner-protocol、schema 注册和消费者。
-- **步骤**：① 登记 ModelCall/Attempt 与既有 ExecutionId 的关联、有序 ContentBlock、PreparedModelCall、ModelFinish、ModelError、Usage；② 将当前名为 ModelProfile 的能力元数据迁为 ModelCapabilities，角色用的 ModelProfile/RouteDecision 引用既有规范；③ 下沉 ModelClient 并在旧 runner 路径 re-export；④ 提供旧 cassette/upcaster 和兼容 helper，拒绝新旧内容字段矛盾；⑤ 增补原有 Text 回调的兼容桥，只有一个终态聚合来源。
+- **步骤**：① 登记 ModelCall/Attempt 与既有 ExecutionId 的关联、有序 ContentBlock、PreparedModelCall、ModelFinish、ModelError、Usage；② 将当前名为 ModelProfile 的能力元数据迁为 ModelCapabilities，角色用的 ModelProfile/RouteDecision 引用既有规范；③ 下沉 ModelClient 并在旧 runner 路径 re-export；④ 提供旧 cassette/upcaster 和兼容 helper，拒绝新旧内容字段矛盾；⑤ 增补原有 Text 回调的兼容桥，只有一个终态聚合来源。当前 source slice 与 CI-only 证据见 [`provider-model-contract-baseline.md`](provider-model-contract-baseline.md)。
 - **先拒绝**：`unknown_model_contract_major_fails_closed`、`conflicting_legacy_and_block_content_is_rejected`、`provider_errors_preserve_structured_classification`。
 - **再成功**：`legacy_cassettes_round_trip_through_model_contract`、`ordered_text_tool_and_result_blocks_round_trip`。
 - **退出 / 证据**：domain/ports 不依赖 provider/runner 实现；序列化升级有测试，错误码只加不改旧语义；本卡不把所有 DTO 直接暴露到公网 wire。

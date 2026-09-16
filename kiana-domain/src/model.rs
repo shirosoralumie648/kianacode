@@ -217,6 +217,13 @@ impl ModelMessage {
         if let Some(continuation) = &self.continuation {
             continuation.validate()?;
         }
+        if !self.content.is_empty()
+            && (!self.text.is_empty()
+                || !self.tool_calls.is_empty()
+                || (self.role != ModelRole::Tool && self.tool_call_id.is_some()))
+        {
+            return Err(ModelError::invalid("model_content_legacy_conflict"));
+        }
         let blocks = if self.content.is_empty() {
             return Ok(());
         } else {
@@ -843,6 +850,20 @@ pub struct ModelOutcome {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
     pub safe_message: String,
+}
+
+impl ModelOutcome {
+    pub fn validate(&self) -> Result<(), ModelError> {
+        if self.schema != MODEL_OUTCOME_SCHEMA
+            || self.phase.trim().is_empty()
+            || self.phase.len() > 128
+            || self.safe_message.len() > 4_096
+            || (self.side_effect_state == ModelSideEffectState::Unknown && !self.request_sent)
+        {
+            return Err(ModelError::invalid("model_outcome_invalid"));
+        }
+        Ok(())
+    }
 }
 
 impl ModelError {

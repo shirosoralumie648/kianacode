@@ -1818,6 +1818,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P0-A-02 error-code/policy cross-surface source review; no runtime test reviewer
 ```
 
+### P4-J7-06 provider-neutral model contract evidence (2026-09-16)
+
+```text
+source_snapshot: b58dee2 (P0-A-02 parent; P4-J7-06 source files listed below); kiana-domain/src/{model,contracts}.rs; kiana-ports/src/model.rs; kiana-runner/src/model.rs; kiana-provider/src/{lib,request,response}.rs; kiana-domain/tests/p4_j7_06_model_contract.rs; kiana-core/tests/p4_j7_06_model_contract_guard.rs; .github/workflows/p4-j7-06-model-contract.yml; docs/roadmap/provider-model-contract-baseline.md; docs/roadmap/provider.md; docs/roadmap.md
+worktree_status: P4-J7-06 verifies the provider-neutral ModelContent/ModelCall/Attempt/Finish/Error/Usage and single ModelClient port already used by the existing Runner/ProviderGateway path; legacy-vs-typed content conflict now fails closed, and no second model loop/provider execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/model.rs kiana-domain/src/contracts.rs kiana-ports/src/model.rs kiana-runner/src/model.rs kiana-provider/src/lib.rs kiana-provider/src/request.rs kiana-provider/src/response.rs kiana-domain/tests/p4_j7_06_model_contract.rs kiana-core/tests/p4_j7_06_model_contract_guard.rs .github/workflows/p4-j7-06-model-contract.yml docs/roadmap/provider-model-contract-baseline.md
+  rg -n 'ModelContent|ProviderContinuation|PreparedModelCall|ModelFinish|ModelError|ModelOutcome|model_content_legacy_conflict|trait ModelClient|complete_admitted|provider_requires_model_admission|opaque_item_cannot_cross_provider' kiana-domain/src kiana-ports/src kiana-runner/src kiana-provider/src kiana-domain/tests kiana-core/tests docs/roadmap/provider-model-contract-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/ports/runner/provider/core fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/p4_j7_06_model_contract.rs ordered block/legacy conflict/major/error fixtures and kiana-core/tests/p4_j7_06_model_contract_guard.rs provider-neutral source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-06 job is queued by the next push and is not awaited
+status_change: P4-J7-06 source slice is implemented. Typed provider-neutral model content and request/response contracts remain in domain, ModelClient is defined in ports and only re-exported by Runner, while ProviderGateway/codec consumes frozen PreparedModelCall and admitted budget permits. Legacy text/tool_calls plus typed content conflict is rejected; unknown major and unsupported/cross-provider content remain fail-closed; structured model error/outcome retains retry and side-effect classification.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; provider facade migration, full protocol request compilation, unique streaming accumulator, provider receipts and cross-provider live evidence remain P4-J7-07/12/14+
+reviewer: Codex root implementation review plus P4-J7-06 model contract/port/provider boundary source review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
