@@ -1566,6 +1566,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EXT-05 cache-key/generation/invalidation source-boundary review; no runtime test reviewer
 ```
 
+### UI-01 versioned protocol DTO evidence (2026-09-16)
+
+```text
+source_snapshot: ef10992 (EXT-05 snapshot cache); kiana-protocol/src/{ui_contracts,lib}.rs; kiana-domain/src/contracts.rs; kiana-protocol/tests/ui01_dto.rs; .github/workflows/ui01-protocol.yml; docs/roadmap/ui-protocol-baseline.md; docs/roadmap/ui-entrypoints.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: UI-01 versioned UiSnapshotV1/feed/action/result/capability/error/session/run/action-card/receipt/artifact/notice/limitation DTOs, cursor/retry/disposition validation, legacy wire compatibility, remote fixtures and roadmap/status overlays are scoped to this step; DTOs are projections/intents only and do not execute or authorize; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-protocol/src/ui_contracts.rs kiana-protocol/src/lib.rs kiana-domain/src/contracts.rs kiana-protocol/tests/ui01_dto.rs .github/workflows/ui01-protocol.yml docs/roadmap/ui-protocol-baseline.md
+  rg -n 'UiSnapshotV1|UiFeedEnvelope|UiActionV1|UiActionResult|UiCapability|UiError|HumanActionCard|ReceiptRef|ArtifactSummary|UiNotice|EvidenceLimitation|ui_snapshot_feed_and_action_round_trip_with_unknown_field_guard|ui_action_result_keeps_unknown_and_rejected_distinct' kiana-protocol/src kiana-protocol/tests docs/roadmap/ui-protocol-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-protocol/tests/ui01_dto.rs snapshot/feed/action round-trip, unknown field, digest mismatch, rejected/unknown disposition fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-01 job is queued by the next push and is not awaited
+status_change: UI-01 source slice is implemented. Protocol now exposes versioned UiSnapshotV1, UiFeedEnvelope, UiActionV1/UiActionResult, UiCapability, UiError, Session/Run summaries, HumanActionCard, Receipt/Artifact refs, notices and evidence limitations. New DTOs fail closed on schema/instance/epoch/cursor/sequence/revision/size/digest/duplicate violations; Applied/Rejected/Unknown remain distinct with safe retry dispositions. Existing UiSnapshot/UiAction/RunStream envelopes remain compatible.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; no DaemonHost snapshot projector/feed hydration/gap recovery/instance transport/action journal or cross-surface capability handshake is implemented yet (UI-02+), payload validation does not authorize commands, and no business/external outcome is claimed
+reviewer: Codex root implementation review plus UI-01 DTO/compatibility/digest source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

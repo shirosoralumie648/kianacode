@@ -21,7 +21,7 @@ pub use kiana_domain::{
     HookDecisionKind, HookDescriptor, HookOrderCandidate, HookPhase, HookRunId, InvocationId,
     InvocationIdentity, MemoryScope, MergeReceipt, ModelAttemptId, ModelAttemptIdentity,
     ModelContent, ModelOutcome, ModelSideEffectState, ModelStopReason, OrganizationId,
-    PermissionProfile, PluginLifecycle, PluginLifecycleState, ProjectIdentity,
+    PermissionProfile, PluginLifecycle, PluginLifecycleState, ProjectId, ProjectIdentity,
     ProviderContinuation, Purpose, ReceiptId, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
     RuntimeEvent, SessionAssignment, SessionId, SignalStatus, SkillDescriptor, SkillLifecycle,
     SnapshotId, SourceKind, SourceRef, SourceSnapshot, SpawnPlan, SpawnPlanId, StepId,
@@ -44,6 +44,9 @@ pub use kiana_domain::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod ui_contracts;
+pub use ui_contracts::*;
 
 pub use kiana_domain::{CapabilityRequest, ConversationMessage, ConversationRole};
 

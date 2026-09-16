@@ -1,0 +1,40 @@
+name: UI-01 versioned protocol DTO
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ui01_dto.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "docs/roadmap/ui-protocol-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - ".github/workflows/ui01-protocol.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-protocol/tests/ui01_dto.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "docs/roadmap/ui-protocol-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - ".github/workflows/ui01-protocol.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-01 protocol fixtures
+        run: cargo test -p kiana-protocol --test ui01_dto --locked -- --test-threads=1
+      - name: Compile UI-01 protocol target
+        run: cargo check -p kiana-protocol --tests --locked

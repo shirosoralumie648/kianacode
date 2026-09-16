@@ -171,9 +171,9 @@ UiActionResult {
 
 
 
-#### UI-01 · 定义 versioned UI protocol DTO　⏳
+#### UI-01 · 定义 versioned UI protocol DTO　✅
 
-- 依赖：UI-00。代码：`kiana-protocol` 新增 snapshot/feed/action/capability/error/artifact DTO，保留旧 wire envelope 的兼容解码。
+- 依赖：UI-00。当前 source slice 与 CI-only 证据见 [`ui-protocol-baseline.md`](ui-protocol-baseline.md)。代码：`kiana-protocol` 新增 snapshot/feed/action/capability/error/artifact DTO，保留旧 wire envelope 的兼容解码。
 - 步骤：定义 schema/version、instance/epoch/cursor/revision、Session/Run/Turn/Item、HumanActionCard、ReceiptRef、UiNotice 和 limitations；未知字段可保留或安全丢弃并报告版本。
 - 先拒绝：缺字段、重复 ID、非法 sequence、跨 instance、过大 payload、无 digest 的文件审批和伪造 actor/scope 必须结构化拒绝。
 - 成功/回归：对 JSON/MessagePack（若使用）做 round-trip、旧 envelope 兼容、schema mismatch 和大小边界测试；生成 protocol fixture。
