@@ -197,6 +197,8 @@ mod tests {
             }),
             stop_reason: Some("end_turn".to_owned()),
             model_id: Some("test-model".to_owned()),
+            content: Vec::new(),
+            continuation: None,
         };
 
         let encoded = serde_json::to_value(&output).unwrap();

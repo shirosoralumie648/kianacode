@@ -721,6 +721,8 @@ mod legacy_fixtures {
             }),
             stop_reason,
             model_id,
+            content: Vec::new(),
+            continuation: None,
         })
     }
 
@@ -953,6 +955,8 @@ mod legacy_fixtures {
             }),
             stop_reason: response.stop_reason.clone(),
             model_id: Some(response.model.clone()),
+            content: Vec::new(),
+            continuation: None,
         }
     }
 

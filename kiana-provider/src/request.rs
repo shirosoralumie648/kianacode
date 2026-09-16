@@ -53,12 +53,13 @@ pub(crate) fn compile(
             "model_replay_requires_protected_material",
         ));
     }
-    let context = ModelRequestContext::for_request(&request);
-    let tools = tool_map(&request.tools)?;
     let mut route = connection.route.clone();
     if let Some(assignment) = &spec.assignment {
         route.profile = assignment.profile.clone();
     }
+    let request = normalize_structured_request(request, &route, connection)?;
+    let context = ModelRequestContext::for_request(&request);
+    let tools = tool_map(&request.tools)?;
     let mut body = match route.protocol {
         ModelProtocol::AnthropicMessages => {
             anthropic_body(&request, &context.system_prompt, &tools)
@@ -151,6 +152,81 @@ pub(crate) fn compile(
     prepared.seal();
     prepared.validate()?;
     Ok(prepared)
+}
+
+fn normalize_structured_request(
+    mut request: ModelRequest,
+    route: &ModelRoute,
+    connection: &Connection,
+) -> Result<ModelRequest, ModelError> {
+    for message in &mut request.messages {
+        if message.content.is_empty() && message.continuation.is_none() {
+            continue;
+        }
+        let blocks = message.content_blocks()?;
+        let mut text = String::new();
+        let mut tool_calls = Vec::new();
+        let mut tool_call_id = None;
+        for block in blocks {
+            match block {
+                ModelContent::Text { text: value } => text.push_str(&value),
+                ModelContent::ToolCall { call } => tool_calls.push(call),
+                ModelContent::ToolResult {
+                    call_id, content, ..
+                } => {
+                    tool_call_id = Some(call_id);
+                    text = content;
+                }
+                ModelContent::AttachmentRef { .. } => {
+                    if connection.capabilities.images != CapabilitySupport::Supported {
+                        return Err(ModelError::invalid(
+                            "unsupported_content_block_fails_before_request",
+                        ));
+                    }
+                    return Err(ModelError::invalid(
+                        "model_attachment_wire_mapping_unsupported",
+                    ));
+                }
+                ModelContent::ProviderOpaque {
+                    provider_id,
+                    protocol,
+                    route_digest,
+                    ..
+                } => {
+                    let expected_route = json_digest(&json!({
+                        "provider_id": route.provider_id,
+                        "protocol": route.protocol,
+                        "model_id": route.model_id,
+                        "profile": route.profile,
+                        "configuration_revision": route.configuration_revision,
+                        "streaming": route.streaming,
+                    }));
+                    if provider_id != route.provider_id
+                        || protocol != route.protocol
+                        || route_digest != expected_route
+                    {
+                        return Err(ModelError::invalid("opaque_item_cannot_cross_provider"));
+                    }
+                    return Err(ModelError::invalid("provider_opaque_item_unsupported"));
+                }
+            }
+        }
+        if let Some(continuation) = &message.continuation {
+            continuation.validate()?;
+            if continuation.provider_id != route.provider_id
+                || continuation.protocol != route.protocol
+            {
+                return Err(ModelError::invalid("opaque_item_cannot_cross_provider"));
+            }
+            return Err(ModelError::invalid("provider_continuation_unsupported"));
+        }
+        message.text = text;
+        message.tool_calls = tool_calls;
+        message.tool_call_id = tool_call_id;
+        message.content.clear();
+        message.continuation = None;
+    }
+    Ok(request)
 }
 fn anthropic_body(
     request: &ModelRequest,

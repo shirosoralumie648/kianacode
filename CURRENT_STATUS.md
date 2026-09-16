@@ -1314,6 +1314,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus H03 pure-state/reducer/ownership/mailbox source-boundary review; no runtime test reviewer
 ```
 
+### H04 structured model content and provider conversion evidence (2026-09-16)
+
+```text
+source_snapshot: 6d493c4; kiana-domain/src/{model,contracts}.rs; kiana-provider/src/{request,response}.rs; kiana-provider/tests/h04_model_content_guard.rs; kiana-runner/src/model.rs; kiana-daemon/src/model_client.rs; kiana-domain/tests/h04_model_content.rs; .github/workflows/h04-model-content.yml; docs/roadmap/harness-model-content-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/harness.md; docs/roadmap.md
+worktree_status: H04 typed ModelContent/ProviderContinuation, legacy text/tool_calls compatibility, structured history/orphan validation, provider route/opaque/unsupported pre-wire guard, model output compatibility updates, remote fixtures/source guard and roadmap/status overlays are scoped to this step; no second model loop, provider transport or authorization path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/model.rs kiana-domain/src/contracts.rs kiana-provider/src/request.rs kiana-provider/src/response.rs kiana-provider/tests/h04_model_content_guard.rs kiana-runner/src/model.rs kiana-daemon/src/model_client.rs kiana-domain/tests/h04_model_content.rs .github/workflows/h04-model-content.yml docs/roadmap/harness-model-content-baseline.md
+  rg -n 'ModelContent|ProviderContinuation|content_blocks|normalize_structured_request|opaque_item_cannot_cross_provider|unsupported_content_block_fails_before_request|orphan_tool_result_is_rejected|legacy_cassette_and_typed_items_roundtrip' kiana-domain/src kiana-provider/src kiana-runner/src kiana-daemon/src kiana-domain/tests/h04_model_content.rs kiana-provider/tests/h04_model_content_guard.rs docs/roadmap/harness-model-content-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h04_model_content.rs legacy/typed/opaque/attachment/orphan fixtures; kiana-provider/tests/h04_model_content_guard.rs route/unsupported/raw-response source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H04 job is queued by the push and is not awaited
+status_change: H04 source slice is implemented. ModelMessage/ModelOutput retain legacy text/tool_calls fields while supporting versioned Text/ToolCall/ToolResult/AttachmentRef/ProviderOpaque content and reference-only ProviderContinuation. Structured history validation rejects orphan or cross-role tool results. Provider request compilation normalizes only safe text/tool/result blocks and rejects unsupported attachment wire mappings or provider/protocol/route-digest mismatches before any network request; raw response, headers and opaque bytes remain outside ordinary messages and telemetry.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; attachments/opaque/continuation are reference-only or reject-first without live multimodal/provider adapters, provider receipt, cross-connection migration, UI content rendering or external/live/physical effect evidence; legacy cassette compatibility is serde/source-checked only
+reviewer: Codex root implementation review plus H04 structured-content/provider-route/redaction source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

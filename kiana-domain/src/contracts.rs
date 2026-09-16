@@ -629,6 +629,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.model-content.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.provider-continuation.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.action-catalog.v1",
         version: crate::ACTION_CATALOG_SCHEMA_VERSION,
         layer: SchemaLayer::Domain,

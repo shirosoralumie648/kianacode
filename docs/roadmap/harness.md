@@ -222,7 +222,9 @@ sequenceDiagram
 
 <a id="step-h04"></a>
 
-#### H04 — 结构化模型消息与无损 Provider 转换　⏳
+#### H04 — 结构化模型消息与无损 Provider 转换　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-model-content-baseline.md`](harness-model-content-baseline.md)。
 
 **关联原单元**：`P0-A-01b`、`P0-J7-01`、`P1-J2-01`。**依赖**：H03。
 

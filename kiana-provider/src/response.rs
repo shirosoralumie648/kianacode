@@ -289,6 +289,8 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
                     .unwrap_or(&prepared.route.model_id)
                     .to_owned(),
             ),
+            content: Vec::new(),
+            continuation: None,
         },
         finish,
         structured,
@@ -948,6 +950,8 @@ impl Accumulator {
                 }),
             stop_reason: Some(reason),
             model_id: self.model.or_else(|| Some(prepared.route.model_id.clone())),
+            content: Vec::new(),
+            continuation: None,
         };
         let mut result = ModelReply {
             output,

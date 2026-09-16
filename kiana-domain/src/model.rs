@@ -17,6 +17,66 @@ pub enum ModelRole {
     Tool,
 }
 
+pub const MODEL_CONTENT_SCHEMA: &str = "kiana.model-content.v1";
+pub const PROVIDER_CONTINUATION_SCHEMA: &str = "kiana.provider-continuation.v1";
+
+/// Structured message content. Legacy `ModelMessage.text/tool_calls` remains the wire-compatible
+/// fallback; new callers can use these blocks without flattening provider items into text.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ModelContent {
+    Text {
+        text: String,
+    },
+    ToolCall {
+        call: ModelToolCall,
+    },
+    ToolResult {
+        call_id: String,
+        content: String,
+        #[serde(default)]
+        is_error: bool,
+    },
+    AttachmentRef {
+        artifact_ref: String,
+        media_type: String,
+        digest: String,
+    },
+    ProviderOpaque {
+        provider_id: String,
+        protocol: ModelProtocol,
+        route_digest: String,
+        item_ref: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderContinuation {
+    pub schema: String,
+    pub provider_id: String,
+    pub protocol: ModelProtocol,
+    pub route_digest: String,
+    pub item_ref: String,
+}
+
+impl ProviderContinuation {
+    pub fn validate(&self) -> Result<(), ModelError> {
+        if self.schema != PROVIDER_CONTINUATION_SCHEMA
+            || self.provider_id.trim().is_empty()
+            || self.item_ref.trim().is_empty()
+            || self.route_digest.len() != 71
+            || !self.route_digest.starts_with("sha256:")
+            || !self.route_digest[7..]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(ModelError::invalid("provider_continuation_invalid"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// 发给模型的单条消息。
 pub struct ModelMessage {
@@ -30,6 +90,12 @@ pub struct ModelMessage {
     /// 当角色为 Assistant 时声明的工具调用列表。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ModelToolCall>,
+    /// Structured content; empty means use the legacy text/tool_calls representation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub content: Vec<ModelContent>,
+    /// Provider-specific continuation metadata, always reference-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuation: Option<ProviderContinuation>,
 }
 
 impl ModelMessage {
@@ -40,6 +106,8 @@ impl ModelMessage {
             text: text.into(),
             tool_call_id: None,
             tool_calls: Vec::new(),
+            content: Vec::new(),
+            continuation: None,
         }
     }
 
@@ -50,6 +118,8 @@ impl ModelMessage {
             text: text.into(),
             tool_call_id: None,
             tool_calls: Vec::new(),
+            content: Vec::new(),
+            continuation: None,
         }
     }
 
@@ -60,6 +130,8 @@ impl ModelMessage {
             text: text.into(),
             tool_call_id: None,
             tool_calls: Vec::new(),
+            content: Vec::new(),
+            continuation: None,
         }
     }
 
@@ -70,6 +142,8 @@ impl ModelMessage {
             text: text.into(),
             tool_call_id: None,
             tool_calls,
+            content: Vec::new(),
+            continuation: None,
         }
     }
 
@@ -80,7 +154,148 @@ impl ModelMessage {
             text: text.into(),
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: Vec::new(),
+            content: Vec::new(),
+            continuation: None,
         }
+    }
+
+    pub fn with_content(role: ModelRole, content: Vec<ModelContent>) -> Result<Self, ModelError> {
+        let tool_call_id = content.iter().find_map(|block| match block {
+            ModelContent::ToolResult { call_id, .. } => Some(call_id.clone()),
+            _ => None,
+        });
+        let message = Self {
+            role,
+            text: String::new(),
+            tool_call_id,
+            tool_calls: Vec::new(),
+            content,
+            continuation: None,
+        };
+        message.validate_content()?;
+        Ok(message)
+    }
+
+    pub fn content_blocks(&self) -> Result<Vec<ModelContent>, ModelError> {
+        if self.content.is_empty() {
+            let mut blocks = Vec::new();
+            if !self.text.is_empty() {
+                blocks.push(ModelContent::Text {
+                    text: self.text.clone(),
+                });
+            }
+            blocks.extend(
+                self.tool_calls
+                    .iter()
+                    .cloned()
+                    .map(|call| ModelContent::ToolCall { call }),
+            );
+            if self.role == ModelRole::Tool {
+                let call_id = self
+                    .tool_call_id
+                    .clone()
+                    .ok_or_else(|| ModelError::invalid("model_history_orphan_tool_result"))?;
+                blocks.push(ModelContent::ToolResult {
+                    call_id,
+                    content: self.text.clone(),
+                    is_error: false,
+                });
+            }
+            if blocks.is_empty() && self.role == ModelRole::Assistant {
+                blocks.push(ModelContent::Text {
+                    text: String::new(),
+                });
+            }
+            return Ok(blocks);
+        }
+        self.validate_content()?;
+        Ok(self.content.clone())
+    }
+
+    pub fn validate_content(&self) -> Result<(), ModelError> {
+        if let Some(continuation) = &self.continuation {
+            continuation.validate()?;
+        }
+        let blocks = if self.content.is_empty() {
+            return Ok(());
+        } else {
+            &self.content
+        };
+        let mut tool_calls = 0usize;
+        let mut tool_results = 0usize;
+        let mut tool_result_id = None;
+        for block in blocks {
+            match block {
+                ModelContent::Text { text } => {
+                    if text.len() > 1024 * 1024 || text.contains('\0') {
+                        return Err(ModelError::invalid("model_content_text_invalid"));
+                    }
+                }
+                ModelContent::ToolCall { call } => {
+                    tool_calls += 1;
+                    validate_model_calls(std::slice::from_ref(call))?
+                }
+                ModelContent::ToolResult {
+                    call_id, content, ..
+                } => {
+                    tool_results += 1;
+                    tool_result_id = Some(call_id.as_str());
+                    if call_id.trim().is_empty() || call_id.len() > 256 || content.contains('\0') {
+                        return Err(ModelError::invalid("model_content_tool_result_invalid"));
+                    }
+                }
+                ModelContent::AttachmentRef {
+                    artifact_ref,
+                    media_type,
+                    digest,
+                } => {
+                    if !artifact_ref.starts_with("artifact:")
+                        || artifact_ref.len() > 512
+                        || media_type.trim().is_empty()
+                        || media_type.len() > 128
+                        || !digest.starts_with("sha256:")
+                        || digest.len() != 71
+                        || !digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+                    {
+                        return Err(ModelError::invalid("model_content_attachment_invalid"));
+                    }
+                }
+                ModelContent::ProviderOpaque {
+                    provider_id,
+                    route_digest,
+                    item_ref,
+                    ..
+                } => {
+                    if provider_id.trim().is_empty()
+                        || route_digest.len() != 71
+                        || !route_digest.starts_with("sha256:")
+                        || !route_digest[7..]
+                            .bytes()
+                            .all(|byte| byte.is_ascii_hexdigit())
+                        || !item_ref.starts_with("artifact:")
+                    {
+                        return Err(ModelError::invalid("model_content_opaque_invalid"));
+                    }
+                }
+            }
+        }
+        match self.role {
+            ModelRole::Tool
+                if tool_results != 1
+                    || tool_calls != 0
+                    || self.tool_call_id.as_deref() != tool_result_id =>
+            {
+                return Err(ModelError::invalid("model_content_tool_role_invalid"));
+            }
+            ModelRole::Tool => {}
+            _ if tool_results > 0 => {
+                return Err(ModelError::invalid(
+                    "model_content_tool_result_role_invalid",
+                ));
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -180,6 +395,11 @@ pub struct ModelOutput {
     /// provider 实际使用的模型 ID。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
+    /// Structured response blocks; empty means use legacy text/tool_calls fields.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub content: Vec<ModelContent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuation: Option<ProviderContinuation>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -204,6 +424,8 @@ impl ModelOutput {
             usage: None,
             stop_reason: None,
             model_id: None,
+            content: Vec::new(),
+            continuation: None,
         }
     }
 
@@ -219,7 +441,45 @@ impl ModelOutput {
             usage: None,
             stop_reason: None,
             model_id: None,
+            content: Vec::new(),
+            continuation: None,
         }
+    }
+
+    pub fn content_blocks(&self) -> Result<Vec<ModelContent>, ModelError> {
+        if !self.content.is_empty() {
+            let message = ModelMessage {
+                role: ModelRole::Assistant,
+                text: String::new(),
+                tool_call_id: None,
+                tool_calls: Vec::new(),
+                content: self.content.clone(),
+                continuation: self.continuation.clone(),
+            };
+            message.validate_content()?;
+            for block in &self.content {
+                match block {
+                    ModelContent::ToolResult { .. } => {
+                        return Err(ModelError::invalid("model_output_tool_result_invalid"))
+                    }
+                    _ => {}
+                }
+            }
+            return Ok(self.content.clone());
+        }
+        let mut blocks = Vec::new();
+        if !self.text.is_empty() {
+            blocks.push(ModelContent::Text {
+                text: self.text.clone(),
+            });
+        }
+        blocks.extend(
+            self.tool_calls
+                .iter()
+                .cloned()
+                .map(|call| ModelContent::ToolCall { call }),
+        );
+        Ok(blocks)
     }
 }
 
@@ -586,31 +846,40 @@ pub fn validate_model_calls(calls: &[ModelToolCall]) -> Result<(), ModelError> {
 pub fn validate_model_history(messages: &[ModelMessage]) -> Result<(), ModelError> {
     let mut pending = std::collections::HashSet::new();
     for message in messages {
+        let blocks = message.content_blocks()?;
+        let calls = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ModelContent::ToolCall { call } => Some(call.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let tool_result = blocks.iter().find_map(|block| match block {
+            ModelContent::ToolResult { call_id, .. } => Some(call_id.as_str()),
+            _ => None,
+        });
         match message.role {
             ModelRole::System => {
-                if !pending.is_empty() {
+                if !pending.is_empty() || !calls.is_empty() || tool_result.is_some() {
                     return Err(ModelError::invalid("model_history_incomplete_batch"));
                 }
             }
             ModelRole::Assistant => {
-                if !pending.is_empty() {
+                if !pending.is_empty() || tool_result.is_some() {
                     return Err(ModelError::invalid("model_history_incomplete_batch"));
                 }
-                validate_model_calls(&message.tool_calls)?;
-                pending.extend(message.tool_calls.iter().map(|call| call.id.clone()));
+                validate_model_calls(&calls)?;
+                pending.extend(calls.into_iter().map(|call| call.id));
             }
             ModelRole::Tool => {
                 if !message.tool_calls.is_empty()
-                    || !message
-                        .tool_call_id
-                        .as_ref()
-                        .is_some_and(|id| pending.remove(id))
+                    || !tool_result.is_some_and(|id| pending.remove(id))
                 {
                     return Err(ModelError::invalid("model_history_orphan_tool_result"));
                 }
             }
             ModelRole::User => {
-                if !pending.is_empty() {
+                if !pending.is_empty() || !calls.is_empty() || tool_result.is_some() {
                     return Err(ModelError::invalid("model_history_incomplete_batch"));
                 }
             }
