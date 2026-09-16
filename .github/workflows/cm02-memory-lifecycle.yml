@@ -1,0 +1,38 @@
+name: CM-02 memory lifecycle and legacy import
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory.rs"
+      - "kiana-domain/src/governance.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/tests/cm02_memory.rs"
+      - "docs/roadmap/memory-lifecycle-baseline.md"
+      - ".github/workflows/cm02-memory-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory.rs"
+      - "kiana-domain/src/governance.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/tests/cm02_memory.rs"
+      - "docs/roadmap/memory-lifecycle-baseline.md"
+      - ".github/workflows/cm02-memory-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-02 domain lifecycle fixtures
+        run: cargo test -p kiana-domain --test cm02_memory --locked -- --test-threads=1
+      - name: Run CM-02 daemon legacy import fixture
+        run: cargo test -p kiana-daemon --lib legacy_memory_is_unverifiable_until_reviewed --locked -- --test-threads=1

@@ -7,10 +7,10 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     memory_query_terms, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
     MemoryAdmission, MemoryClassification, MemoryCollection, MemoryOrigin, MemoryRecord,
-    MemoryState, RoleSpec, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
-    MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
-    MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA,
-    MEMORY_WRITE_SCHEMA,
+    MemorySensitivity, MemoryState, Purpose, RoleSpec, MEMORY_LAYER_COMPANY,
+    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
+    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2,
+    MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::PortError;
 use serde_json::{json, Value};
@@ -251,6 +251,19 @@ fn write_record_scoped(
             MemoryState::Draft
         },
         classification: MemoryClassification::for_collection(&collection),
+        purpose: Some(Purpose {
+            id: if scratch {
+                "memory.scratch".to_owned()
+            } else {
+                "memory.candidate".to_owned()
+            },
+            description: "server-derived memory write purpose".to_owned(),
+        }),
+        sensitivity: MemorySensitivity::Internal,
+        validity: Default::default(),
+        retention: None,
+        dependencies: Vec::new(),
+        import_mode: kiana_domain::MemoryImportMode::Native,
         revision: 1,
         reviewed_by: None,
         review_reason: None,
@@ -512,6 +525,15 @@ fn accept_proposal(
                 admission_state: MemoryAdmission::Qualified,
                 state: MemoryState::Active,
                 classification: MemoryClassification::for_collection(collection),
+                purpose: Some(Purpose {
+                    id: "memory.review".to_owned(),
+                    description: "reviewed memory fact".to_owned(),
+                }),
+                sensitivity: MemorySensitivity::Internal,
+                validity: Default::default(),
+                retention: None,
+                dependencies: Vec::new(),
+                import_mode: kiana_domain::MemoryImportMode::Native,
                 revision: 1,
                 reviewed_by: Some(actor.to_owned()),
                 review_reason: Some(reason.clone()),
@@ -777,21 +799,12 @@ fn read_records_file(file: &File) -> Result<Vec<MemoryRecord>, PortError> {
         if record.schema != MEMORY_RECORD_SCHEMA && record.schema != MEMORY_RECORD_SCHEMA_V2 {
             return Err(failed("memory_record_schema_unsupported"));
         }
-        // v1 predates admission/state/classification fields. Keep existing records visible
-        // while leaving origin Unknown, so legacy source strings cannot become provenance.
+        // v1 predates the lifecycle/provenance contract. Import it explicitly as an
+        // unverifiable draft; a legacy row can never become searchable without a new review.
         if record.schema == MEMORY_RECORD_SCHEMA {
-            if raw.get("admission_state").is_none() {
-                record.admission_state = MemoryAdmission::Qualified;
-            }
-            if raw.get("state").is_none() {
-                record.state = MemoryState::Active;
-            }
-            if raw.get("classification").is_none() {
-                if let Some(collection) = MemoryCollection::parse(&record.collection) {
-                    record.classification = MemoryClassification::for_collection(&collection);
-                }
-            }
+            record = MemoryRecord::legacy_import(raw.clone()).map_err(failed)?;
         }
+        record.validate_lifecycle().map_err(failed)?;
         if let Some(previous) = records.get(&record.id) {
             if record.revision != previous.revision.saturating_add(1)
                 || record.text != previous.text
@@ -893,6 +906,34 @@ mod tests {
         assert!(project_path.starts_with(project.join(".kiana").join("memory")));
         assert_ne!(user_path, project_path);
         std::env::remove_var(KIANA_HOME_ENV);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn legacy_memory_is_unverifiable_until_reviewed() {
+        let root = temp_memory_path("legacy-import");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("memory.jsonl");
+        let row = json!({
+            "schema": MEMORY_RECORD_SCHEMA,
+            "id": "legacy-daemon",
+            "layer": MEMORY_LAYER_PROJECT,
+            "collection": MEMORY_LAYER_PROJECT,
+            "text": "legacy row",
+            "source": "legacy-string",
+            "role_id": "builder",
+            "department_id": "executing",
+            "session_id": "session-legacy",
+            "created_at_ms": 1
+        });
+        fs::write(&path, format!("{}\n", row)).unwrap();
+        let records = read_records(&path).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].origin, MemoryOrigin::Unknown);
+        assert_eq!(records[0].admission_state, MemoryAdmission::Candidate);
+        assert_eq!(records[0].state, MemoryState::Draft);
+        assert!(!records[0].searchable());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]

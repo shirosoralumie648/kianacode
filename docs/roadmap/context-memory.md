@@ -284,7 +284,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-02 · 统一 MemoryRecord 生命周期与兼容导入　⏳
+##### CM-02 · 统一 MemoryRecord 生命周期与兼容导入　✅
+
+当前 source slice 与 CI-only 证据见 [`memory-lifecycle-baseline.md`](memory-lifecycle-baseline.md)。
 
 补 `kind/purpose/sensitivity/validity/retention/evidence/dependencies` 合同；把旧 v1 行走显式 `legacy_import`，origin Unknown、provenance unverifiable，不能默认 approved/verified。区分 admission、review、state、provenance。验收：`legacy_memory_is_unverifiable_until_reviewed`、`invalid_admission_state_combination_is_denied`。
 

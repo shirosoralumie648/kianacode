@@ -1398,6 +1398,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CM-01 source provenance/scope/principal-boundary review; no runtime test reviewer
 ```
 
+### CM-02 MemoryRecord lifecycle and legacy import evidence (2026-09-16)
+
+```text
+source_snapshot: 817277a; kiana-domain/src/memory.rs; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/cm02_memory.rs; .github/workflows/cm02-memory-lifecycle.yml; docs/roadmap/memory-lifecycle-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: CM-02 MemoryRecord kind/purpose/sensitivity/validity/retention/dependencies/import_mode contract, admission/review/state/provenance validation, explicit legacy v1 import and daemon JSONL reader/writer/review wiring, remote fixtures and roadmap/status overlays are scoped to this step; no memory mutation transaction, second store or EventLog bypass was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/memory.rs kiana-daemon/src/harness_memory.rs kiana-domain/tests/cm02_memory.rs .github/workflows/cm02-memory-lifecycle.yml docs/roadmap/memory-lifecycle-baseline.md
+  rg -n 'MemorySensitivity|MemoryValidity|MemoryImportMode|validate_lifecycle|legacy_import|legacy_memory_is_unverifiable_until_reviewed|invalid_admission_state_combination_is_denied|memory_admission_state_invalid|memory_active_qualification_incomplete' kiana-domain/src/memory.rs kiana-daemon/src/harness_memory.rs kiana-domain/tests/cm02_memory.rs docs/roadmap/memory-lifecycle-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source fixture/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cm02_memory.rs lifecycle/qualification/validity fixtures; kiana-daemon harness_memory unit fixture reads a v1 JSONL row through explicit legacy import; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-02 job is queued by the push and is not awaited
+status_change: CM-02 source slice is implemented. MemoryRecord now separates kind, purpose, sensitivity, validity, retention, dependencies and import mode from origin/admission/state; invalid Candidate/Active, Qualified without review/evidence/purpose, rejected-state and validity/dependency combinations fail closed. The daemon reader explicitly transforms v1 rows into v2-compatible LegacyImport records with Unknown origin, Candidate/Draft admission, unverifiable provenance and no search visibility; native candidate/scratch/review writers carry the new metadata.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; lifecycle validation is not an atomic Memory mutation/CAS/index projection, processing grants/purpose/retention/revocation and cross-project user-private isolation remain CM-03+, legacy import does not rewrite source files or provide review evidence, and no semantic recall/business/external outcome is claimed
+reviewer: Codex root implementation review plus CM-02 MemoryRecord lifecycle/provenance/legacy-reader source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
