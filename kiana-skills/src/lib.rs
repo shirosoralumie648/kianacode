@@ -5,6 +5,7 @@ pub mod loader;
 pub mod manifest;
 pub mod mcp;
 pub mod plugins;
+pub mod snapshot;
 pub mod source_resolver;
 pub mod types;
 
@@ -27,6 +28,11 @@ pub use mcp::fetch_mcp_skills_for_client;
 pub use plugins::{
     get_plugin_skill_dirs, get_plugin_skill_dirs_for_cwd, load_plugin_skills,
     load_plugin_skills_for_cwd, plugin_skill_load_audit, plugin_skill_load_audit_for_cwd,
+};
+pub use snapshot::{
+    invalidate_extension_snapshots, snapshot_generation, ExtensionSnapshotCache,
+    SnapshotCacheEntry, SnapshotCacheKey, SnapshotCacheState, SNAPSHOT_CACHE_ENTRY_SCHEMA,
+    SNAPSHOT_CACHE_KEY_SCHEMA, SNAPSHOT_SCHEMA_VERSION,
 };
 pub use source_resolver::{
     validate_root, ResolvedSourceRoot, SourceResolution, SourceResolutionSummary,
@@ -73,11 +79,38 @@ pub async fn load_all_skills_with_trust(
     project_trust: kiana_types::ProjectTrust,
 ) -> Vec<Command> {
     let cwd = cwd.as_ref();
-    let cache_key = format!(
-        "{}::{project_trust:?}::plugins={}",
-        cwd_cache_key(cwd),
-        plugins::plugin_skill_cache_key_for_cwd(cwd, project_trust)
-    );
+    let source_roots_digest = SourceResolver::new(cwd, project_trust)
+        .resolve()
+        .map(|resolution| resolution.summary.root_set_digest)
+        .unwrap_or_else(|_| {
+            kiana_domain::json_digest(&serde_json::json!({"source_roots": "unavailable"}))
+        });
+    let package_registry_generation = kiana_domain::json_digest(&serde_json::json!({
+        "plugins": plugins::plugin_skill_cache_key_for_cwd(cwd, project_trust),
+    }));
+    let config_digest = kiana_domain::json_digest(&serde_json::json!({
+        "system": std::env::var("KIANA_SYSTEM_PROMPT").ok(),
+        "append": std::env::var("KIANA_APPEND_SYSTEM_PROMPT").ok(),
+    }));
+    let cache_key = SnapshotCacheKey::new(
+        &cwd_cache_key(cwd),
+        match project_trust {
+            kiana_types::ProjectTrust::Trusted => "trusted",
+            kiana_types::ProjectTrust::Untrusted => "untrusted",
+            kiana_types::ProjectTrust::Unknown => "unknown",
+        },
+        &source_roots_digest,
+        &package_registry_generation,
+        &config_digest,
+    )
+    .map(|key| format!("{}:generation={}", key.key_digest, snapshot_generation()))
+    .unwrap_or_else(|_| {
+        format!(
+            "{}:generation={}",
+            cwd_cache_key(cwd),
+            snapshot_generation()
+        )
+    });
     let mut registry = skill_registry().lock().await;
 
     if let Some(skills) = registry.skills_by_cwd.get(&cache_key) {
@@ -153,6 +186,7 @@ pub fn clear_caches() {
             reg.skills_by_cwd.clear();
         }
     }
+    invalidate_extension_snapshots("explicit_clear");
 }
 
 #[cfg(test)]

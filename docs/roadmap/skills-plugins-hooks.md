@@ -148,7 +148,9 @@ flowchart TD
 
 
 
-#### EXT-05 · 快照与失效　⏳
+#### EXT-05 · 快照与失效　✅
+
+当前 source slice 与 CI-only 证据见 [`snapshot-invalidation-baseline.md`](snapshot-invalidation-baseline.md)。
 
 缓存键包含 cwd canonical identity、trust decision、source roots digest、package registry generation、配置 digest 和 schema version；缓存值不可变，动态激活创建新 generation。目录/信任变更、install/upgrade/revoke、配置或 secret binding 变化、上下文重建都显式 invalidation。旧 snapshot 只完成当前只读操作；新 capability 发现过期时暂停并重建，不能静默混用。
 

@@ -11,6 +11,7 @@ use kiana_types::{project_trust_root, ProjectTrust};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeSet;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 
@@ -271,9 +272,11 @@ impl SourceResolver {
                 return Err(SourceResolveError::DuplicateRoot);
             }
             let trust = SourceTrust::for_kind(kind, self.project_trust);
+            let content_digest = root_content_digest(&canonical)?;
             let root_digest = json_digest(&json!({
                 "kind": kind,
                 "canonical_root": canonical.to_string_lossy(),
+                "content": content_digest,
             }));
             // The public summary uses a digest-derived identity; the absolute root only stays in
             // the private resolver/source reference used by the loader.
@@ -416,4 +419,58 @@ fn home_dir() -> Option<PathBuf> {
     {
         std::env::var_os("HOME").map(PathBuf::from)
     }
+}
+
+fn root_content_digest(root: &Path) -> Result<String, SourceResolveError> {
+    let mut files = Vec::new();
+    collect_root_files(root, root, 0, &mut files)?;
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(json_digest(&json!(files)))
+}
+
+fn collect_root_files(
+    root: &Path,
+    current: &Path,
+    depth: usize,
+    files: &mut Vec<(String, String)>,
+) -> Result<(), SourceResolveError> {
+    if depth > 3 || files.len() > 2_048 {
+        return Err(SourceResolveError::RootInvalid(root.display().to_string()));
+    }
+    let mut entries = std::fs::read_dir(current)
+        .map_err(|_| SourceResolveError::RootInvalid(current.display().to_string()))?
+        .flatten()
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let path = entry.path();
+        let metadata = std::fs::symlink_metadata(&path)
+            .map_err(|_| SourceResolveError::RootInvalid(path.display().to_string()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(SourceResolveError::RootSymlink(path.display().to_string()));
+        }
+        if metadata.is_dir() {
+            collect_root_files(root, &path, depth + 1, files)?;
+            continue;
+        }
+        if !metadata.is_file() {
+            continue;
+        }
+        let relative = path
+            .strip_prefix(root)
+            .map_err(|_| SourceResolveError::RootInvalid(path.display().to_string()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let digest = if metadata.len() <= 256 * 1024 {
+            let mut bytes = Vec::new();
+            std::fs::File::open(&path)
+                .and_then(|mut file| file.read_to_end(&mut bytes))
+                .map_err(|_| SourceResolveError::RootInvalid(path.display().to_string()))?;
+            json_digest(&json!({"bytes": bytes}))
+        } else {
+            json_digest(&json!({"len": metadata.len()}))
+        };
+        files.push((relative, digest));
+    }
+    Ok(())
 }

@@ -17,6 +17,7 @@ static ACTIVATED_SKILL_NAMES: Lazy<RwLock<HashSet<String>>> =
 pub fn add_dynamic_skill(skill: Command) {
     let name = skill.name.clone();
     DYNAMIC_SKILLS.write().unwrap().insert(name, skill);
+    crate::invalidate_extension_snapshots("dynamic_skill_added");
 }
 
 pub fn get_dynamic_skills() -> Vec<Command> {
@@ -26,6 +27,7 @@ pub fn get_dynamic_skills() -> Vec<Command> {
 pub fn store_conditional_skill(skill: Command) {
     let name = skill.name.clone();
     CONDITIONAL_SKILLS.write().unwrap().insert(name, skill);
+    crate::invalidate_extension_snapshots("conditional_skill_stored");
 }
 
 pub fn activate_conditional_skills_for_paths(
@@ -71,6 +73,7 @@ pub fn activate_conditional_skills_for_paths(
                     dynamic.insert(name.clone(), skill);
                     activated_names.insert(name.clone());
                     activated.push(name.clone());
+                    crate::invalidate_extension_snapshots("conditional_skill_activated");
                 }
                 break;
             }
@@ -84,4 +87,5 @@ pub fn clear_dynamic_skills() {
     DYNAMIC_SKILLS.write().unwrap().clear();
     CONDITIONAL_SKILLS.write().unwrap().clear();
     ACTIVATED_SKILL_NAMES.write().unwrap().clear();
+    crate::invalidate_extension_snapshots("dynamic_skill_cleared");
 }

@@ -1545,6 +1545,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EXT-04 ordering/duplicate/shadow diagnostics source-boundary review; no runtime test reviewer
 ```
 
+### EXT-05 extension snapshot cache and invalidation evidence (2026-09-16)
+
+```text
+source_snapshot: ef10992 (EXT-04 deterministic catalog); kiana-skills/src/{snapshot,source_resolver,lib,dynamic}.rs; kiana-domain/src/{extension_contracts,contracts}.rs; kiana-skills/tests/ext05_snapshot.rs; .github/workflows/ext05-snapshot.yml; docs/roadmap/snapshot-invalidation-baseline.md; docs/roadmap/skills-plugins-hooks.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: EXT-05 SnapshotCacheKey/ExtensionSnapshotCache, resolver content fingerprint, dynamic/clear invalidation and skill registry key integration are scoped to this step; stale entries remain diagnostic-only and cache never grants capability; remote fixtures and roadmap/status overlays are included; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-skills/src/snapshot.rs kiana-skills/src/source_resolver.rs kiana-skills/src/lib.rs kiana-skills/src/dynamic.rs kiana-domain/src/extension_contracts.rs kiana-domain/src/contracts.rs kiana-skills/tests/ext05_snapshot.rs .github/workflows/ext05-snapshot.yml docs/roadmap/snapshot-invalidation-baseline.md
+  rg -n 'SnapshotCacheKey|ExtensionSnapshotCache|invalidate_key|invalidate_all|snapshot_generation|invalidate_extension_snapshots|root_content_digest|source_root_fingerprint_changes_when_resource_content_changes|snapshot_cache_reuses_only_current_entries_and_invalidates_monotonically' kiana-skills/src kiana-skills/tests docs/roadmap/snapshot-invalidation-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-skills/tests/ext05_snapshot.rs cache-key binding, monotonic invalidation, source-content fingerprint and global generation fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EXT-05 job is queued by the next push and is not awaited
+status_change: EXT-05 source slice is implemented. SnapshotCacheKey includes cwd/trust/source roots/package registry/config/schema inputs; ExtensionSnapshotCache does not overwrite a current key, retains invalidated entries for diagnostics, and advances generation on invalidation/new snapshot. SourceResolver fingerprints bounded root contents so same-path content changes alter the root-set digest. Dynamic/conditional skill registration and clear_caches advance global generation, and legacy skill loading keys its projection by the resolver/config/plugin snapshot inputs.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; cache is process-local and has no durable manifest/CAS/restart recovery, package registry lifecycle is represented by digest compatibility, ProjectTrust/signature/parser/Hook activation and final capability re-authorization remain later EXT steps, invalidation cannot retract provider exposure or committed EventLog facts, and no business/external outcome is claimed
+reviewer: Codex root implementation review plus EXT-05 cache-key/generation/invalidation source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
