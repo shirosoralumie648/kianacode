@@ -758,30 +758,17 @@ impl ControlPlane {
             .read_stream(COMPANY_AGGREGATE, &company_aggregate_id(context))
             .await?;
         events.sort_by_key(|event| event.stream_version.unwrap_or(0));
-        let mut state = CompanyState::default();
-        let mut history = Vec::new();
-        let mut keys = HashSet::new();
-        for event in events {
-            let record: CompanyEvent = serde_json::from_value(event.data)
-                .map_err(|_| company_error("company_event_invalid"))?;
-            if record.schema != COMPANY_EVENT_SCHEMA
-                || record.request.schema != COMPANY_COMMAND_SCHEMA
-                || record.project_root != company_root(context)
-                || Some(record.owner_id.as_str()) != context.actor_id.as_deref()
-                || record.authority.actor_id != record.owner_id
-                || record.request.expected_revision != state.revision
-                || event.stream_version != Some(state.revision + 1)
-                || !keys.insert(record.request.idempotency_key.clone())
-                || event.kind != format!("company.{}", record.request.command.event_name())
-            {
-                return Err(company_error("company_event_replay_conflict"));
-            }
-            state = state
-                .transition(&record.request.command, &record.authority, &record.proof)
-                .map_err(company_error)?;
-            history.push(record);
+        let mut reducer = kiana_domain::CompanyReplayReducer::new(
+            company_aggregate_id(context),
+            company_root(context),
+            context.actor_id.clone().unwrap_or_default(),
+        );
+        for event in &events {
+            reducer
+                .apply(event)
+                .map_err(|error| company_error(&error))?;
         }
-        Ok((state, history))
+        Ok(reducer.into_parts())
     }
 
     async fn commit_company(

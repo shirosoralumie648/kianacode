@@ -172,11 +172,11 @@
 
 
 
-#### CO-08 · 业务状态机、历史重放与兼容迁移　⏳
+#### CO-08 · 业务状态机、历史重放与兼容迁移　✅
 
 - **归属**：`P0-B-01`、`P0-A-01b`、`P3-I-03`。
 - **依赖**：CO-07。
-- **代码与产物**：domain `company.rs`/`states.rs`、拟新增 Company event reducer、旧 v1 replay adapter、协议兼容 fixture。
+- **代码与产物**：domain `company.rs`/`states.rs`、Company event reducer、旧 v0→v1 replay adapter、协议兼容 fixture；当前 source slice 与 CI-only 证据见 [`company-replay-baseline.md`](company-replay-baseline.md)。
 - **实现顺序**：①为每类业务对象登记允许边、决定者、所需证据和失败出口；②分离状态 revision 与 scope/criteria baseline version；③新事实用 apply(event) 重建，旧命令事件固定原 reducer 语义，未知 major 拒绝执行但可保留原始数据。
 - **先拒绝**：`company_replay_rejects_gaps_conflicting_terminals_and_unknown_execution_schema`；过往事实不能因今天角色 policy 改了而被重写。
 - **再成功 / 退出**：`company_v1_history_rebuilds_identically_after_policy_and_schema_upgrade`；每个可执行状态都有明确暂停/取消/失败去向，旧 v1 wire 测试保留，迁移本身幂等。
