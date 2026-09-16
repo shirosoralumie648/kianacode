@@ -56,7 +56,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-04` | Provider 基线与兼容性清单 | `P0-J7-01` | 调用链、已有测试、WIP 归属、负向缺口逐项绑定快照 | ✅ |
 | `P4-J7-05` | 非流式工具解析拒绝路径 | `P4-J7-04` | malformed/缺身份/重复 ID 不被默认值修成合法调用；零 dispatch | ✅ |
 | `P4-J7-06` | 中立合同与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | 有序内容/错误/usage/attempt 合同唯一；旧 cassette 可读，矛盾版本拒绝 | ✅ |
-| `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ⏳ |
+| `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ✅ |
 | `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ⏳ |
 | `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ⏳ |
 | `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ⏳ |
@@ -129,11 +129,11 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-07 提取 kiana-provider 并迁移装配　⏳
+#### P4-J7-07 提取 kiana-provider 并迁移装配　✅
 
 - **依赖**：`P4-J7-06`。
 - **改动位置**：拟新增 `kiana-provider/`；daemon/model_client；services/api 兼容 facade；workspace manifests/lock 由集成写者统一修改。
-- **步骤**：① 建最小 crate 与 adapter/gateway 边界，迁现有编解码和 Fake；② daemon 注入新 ModelClient，Runner 不引用新实现；③ services 原公开路径委托新实现或做显式 legacy DTO 转换；④ 用同一离线 fixture 对照新旧结果，逐协议移除旧生产实现，记录迁移差异。
+- **步骤**：① 建最小 crate 与 adapter/gateway 边界，迁现有编解码和 Fake；② daemon 注入新 ModelClient，Runner 不引用新实现；③ services 原公开路径委托新实现或做显式 legacy DTO 转换；④ 用同一离线 fixture 对照新旧结果，逐协议移除旧生产实现，记录迁移差异。当前 source slice 与 CI-only 证据见 [`provider-extraction-baseline.md`](provider-extraction-baseline.md)。
 - **先拒绝**：`provider_dependency_boundary_rejects_legacy_runtime_edges`、`missing_model_still_fails_closed_after_extraction`。
 - **再成功**：`daemon_uses_one_provider_gateway_after_migration`、`legacy_provider_facade_matches_recorded_contract`。
 - **退出 / 证据**：不出现 provider→services/core/entrypoints 依赖或另一套 Agent loop；不双发真实请求；保留现有 CLI 参数和 cassette 行为的迁移说明。

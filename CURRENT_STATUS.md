@@ -1839,6 +1839,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-06 model contract/port/provider boundary source review; no runtime test reviewer
 ```
 
+### P4-J7-07 provider extraction evidence (2026-09-16)
+
+```text
+source_snapshot: 7753930 (P4-J7-06 parent; P4-J7-07 source files listed below); kiana-provider/Cargo.toml; kiana-provider/src/lib.rs; kiana-daemon/src/model_client.rs; kiana-runner/Cargo.toml; kiana-core/Cargo.toml; kiana-core/tests/p4_j7_07_extraction_guard.rs; .github/workflows/p4-j7-07-provider-extraction.yml; docs/roadmap/provider-extraction-baseline.md; docs/roadmap/provider.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: P4-J7-07 confirms independent kiana-provider Gateway/codec/transport and daemon production injection; kiana-services provider references remain inside cfg(test) legacy fixtures, Runner/core do not depend on provider implementation, and no second model loop was introduced; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-provider/Cargo.toml kiana-provider/src/lib.rs kiana-daemon/src/model_client.rs kiana-runner/Cargo.toml kiana-core/Cargo.toml kiana-core/tests/p4_j7_07_extraction_guard.rs .github/workflows/p4-j7-07-provider-extraction.yml docs/roadmap/provider-extraction-baseline.md
+  rg -n 'ProviderGateway|impl ModelClient for ProviderGateway|kiana_provider::ProviderGateway|cfg\(test\)|legacy_fixtures|kiana_services|kiana-provider' kiana-provider kiana-daemon/src/model_client.rs kiana-runner/Cargo.toml kiana-core/Cargo.toml kiana-core/tests/p4_j7_07_extraction_guard.rs docs/roadmap/provider-extraction-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; provider/daemon/core extraction guard targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-core/tests/p4_j7_07_extraction_guard.rs dependency/source boundary checks; existing provider CI fixtures cover missing route/credential fail-closed; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-07 job is queued by the next push and is not awaited
+status_change: P4-J7-07 source slice is implemented. kiana-provider is an independent workspace crate with the only production ProviderGateway/ModelClient implementation; daemon production config uses it, Runner and core remain below the implementation boundary, and kiana-services provider code is confined to cfg(test) legacy fixtures. Extraction does not delete compatibility APIs or claim live model behavior.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; kiana-services public provider facade remains a compatibility surface pending per-protocol migration, and profile/credential/full codec/streaming/provider receipt/live work remains P4-J7-08/12/14+
+reviewer: Codex root implementation review plus P4-J7-07 dependency/assembly source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

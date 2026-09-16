@@ -1,0 +1,48 @@
+name: P4-J7-07 provider extraction
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-provider/**"
+      - "kiana-daemon/src/model_client.rs"
+      - "kiana-runner/Cargo.toml"
+      - "kiana-core/Cargo.toml"
+      - "kiana-core/tests/p4_j7_07_extraction_guard.rs"
+      - "docs/roadmap/provider-extraction-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-07-provider-extraction.yml"
+  pull_request:
+    paths:
+      - "kiana-provider/**"
+      - "kiana-daemon/src/model_client.rs"
+      - "kiana-runner/Cargo.toml"
+      - "kiana-core/Cargo.toml"
+      - "kiana-core/tests/p4_j7_07_extraction_guard.rs"
+      - "docs/roadmap/provider-extraction-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-07-provider-extraction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-extraction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P4-J7-07 extraction source guard
+        run: cargo test -p kiana-core --test p4_j7_07_extraction_guard --locked -- --test-threads=1
+      - name: Compile extracted provider and daemon adapter
+        run: cargo check -p kiana-provider -p kiana-daemon --tests --locked
