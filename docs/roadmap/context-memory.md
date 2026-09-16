@@ -294,7 +294,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-03 · 服务端派生 read/write scope 与 purpose　⏳
+##### CM-03 · 服务端派生 read/write scope 与 purpose　✅
+
+当前 source slice 与 CI-only 证据见 [`memory-scope-baseline.md`](memory-scope-baseline.md)。
 
 由 core 的 authenticated context、project trust、role/department、packet/session、processing grant 派生逻辑读集和写集；调用方只提供意图和范围请求。未知 scope、跨项目 user-private、过期授权 fail-closed。验收：`read_scope_is_intersection_of_all_grants`、`write_scope_cannot_be_widened_by_context_text`。
 

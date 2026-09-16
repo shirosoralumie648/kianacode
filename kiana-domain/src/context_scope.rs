@@ -293,6 +293,73 @@ impl MemoryScope {
         self.collections.iter().any(|grant| grant.covers(requested))
     }
 
+    /// Derive a memory scope from the already server-owned ExecutionScope. Caller/model
+    /// arguments are not consulted for principal, project or session identity.
+    pub fn from_execution_scope(
+        execution: &crate::ExecutionScope,
+        purpose: Purpose,
+        allow_write: bool,
+    ) -> Result<Self, String> {
+        let collections = execution
+            .memory_scopes
+            .iter()
+            .filter_map(|value| MemoryCollection::parse(value))
+            .collect::<Vec<_>>();
+        if collections.is_empty() {
+            return Err("memory_scope_unavailable".to_owned());
+        }
+        Self::new(
+            execution.principal.clone(),
+            execution.project.clone(),
+            execution.session_id.as_str().to_owned(),
+            collections,
+            purpose,
+            allow_write,
+        )
+    }
+
+    /// Intersect two independently derived scopes. Identity and purpose must match; collection
+    /// visibility can only narrow and write permission is the logical conjunction.
+    pub fn intersect(&self, other: &Self) -> Result<Self, String> {
+        self.validate()?;
+        other.validate()?;
+        if self.principal != other.principal
+            || self.project != other.project
+            || self.session_id != other.session_id
+            || self.purpose != other.purpose
+        {
+            return Err("memory_scope_identity_mismatch".to_owned());
+        }
+        let mut collections = Vec::new();
+        for left in &self.collections {
+            for right in &other.collections {
+                let narrower = if left.covers(right) {
+                    Some(right)
+                } else if right.covers(left) {
+                    Some(left)
+                } else {
+                    None
+                };
+                if let Some(collection) = narrower {
+                    if !collections.contains(collection) {
+                        collections.push(collection.clone());
+                    }
+                }
+            }
+        }
+        if collections.is_empty() {
+            return Err("memory_scope_intersection_empty".to_owned());
+        }
+        Self::new(
+            self.principal.clone(),
+            self.project.clone(),
+            self.session_id.as_str().to_owned(),
+            collections,
+            self.purpose.clone(),
+            self.allow_write && other.allow_write,
+        )
+    }
+
     pub fn digest(&self) -> String {
         let mut value = serde_json::to_value(self).unwrap_or(serde_json::Value::Null);
         if let Some(object) = value.as_object_mut() {

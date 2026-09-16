@@ -102,12 +102,41 @@ fn build_execution_scope(
         kiana_domain::ScopeDimension::Restricted(values) => values.clone(),
         kiana_domain::ScopeDimension::NotApplicable => Vec::new(),
     };
-    let collection = request
+    let requested_collection = request
         .arguments
         .get("collection")
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
         .map(str::to_owned);
+    let memory_scopes = if matches!(request.operation.as_str(), "memory.search" | "memory.write") {
+        let role = RoleSpec::lookup(&context.role_id)
+            .ok_or_else(|| action_error("memory_scope_role_unknown"))?;
+        let collections = if let Some(collection) = requested_collection.as_deref() {
+            let parsed = kiana_domain::MemoryCollection::parse(collection)
+                .ok_or_else(|| action_error("memory_scope_collection_unknown"))?;
+            if request.operation == "memory.write" {
+                if !role.allows_memory_write(&parsed.collection) {
+                    return Err(action_error("memory_scope_write_denied"));
+                }
+            } else if !role.allows_knowledge(&parsed.collection) {
+                return Err(action_error("memory_scope_read_denied"));
+            }
+            vec![parsed.collection]
+        } else if request.operation == "memory.write" {
+            return Err(action_error("memory_scope_collection_required"));
+        } else {
+            role.granted_collections()
+                .into_iter()
+                .map(|collection| collection.collection)
+                .collect::<Vec<_>>()
+        };
+        if collections.is_empty() {
+            return Err(action_error("memory_scope_empty"));
+        }
+        collections
+    } else {
+        requested_collection.into_iter().collect()
+    };
     let server = request
         .arguments
         .get("server")
@@ -146,7 +175,7 @@ fn build_execution_scope(
         },
         read_denies: Vec::new(),
         write_denies: Vec::new(),
-        memory_scopes: collection.into_iter().collect(),
+        memory_scopes,
         server_scopes: server.into_iter().collect(),
         network_policy: Vec::new(),
         authority_epoch: 1,

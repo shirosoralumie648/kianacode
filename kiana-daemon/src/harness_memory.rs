@@ -7,10 +7,10 @@ use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
     memory_query_terms, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
     MemoryAdmission, MemoryClassification, MemoryCollection, MemoryOrigin, MemoryRecord,
-    MemorySensitivity, MemoryState, Purpose, RoleSpec, MEMORY_LAYER_COMPANY,
-    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
-    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2,
-    MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
+    MemoryScope as DomainMemoryScope, MemorySensitivity, MemoryState, Purpose, RoleSpec,
+    MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH,
+    MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA,
+    MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::PortError;
 use serde_json::{json, Value};
@@ -51,6 +51,38 @@ impl MemoryScope {
         Ok(())
     }
 }
+
+fn server_memory_scope(
+    request: &AuthorizedCapabilityRequest,
+    arguments: &Value,
+    allow_write: bool,
+) -> Result<DomainMemoryScope, PortError> {
+    let execution = request
+        .request
+        .execution_scope
+        .as_ref()
+        .ok_or_else(|| failed("memory_scope_required"))?;
+    let purpose = Purpose {
+        id: if allow_write {
+            "memory.write".to_owned()
+        } else {
+            "memory.search".to_owned()
+        },
+        description: "server-derived memory operation purpose".to_owned(),
+    };
+    let scope =
+        DomainMemoryScope::from_execution_scope(execution, purpose, allow_write).map_err(failed)?;
+    if let Some(raw) = optional_string(arguments, "collection") {
+        let requested = MemoryCollection::parse(&raw)
+            .ok_or_else(|| failed("memory_scope_collection_unknown"))?;
+        if !scope.allows_collection(&requested) {
+            return Err(failed("memory_scope_collection_denied"));
+        }
+    } else if allow_write {
+        return Err(failed("memory_scope_collection_required"));
+    }
+    Ok(scope)
+}
 pub(crate) fn register(broker: &mut CapabilityBroker) -> Result<(), PortError> {
     let scope = MemoryScope::capture();
     broker.register_static(
@@ -84,6 +116,7 @@ impl CapabilityHandler for MemorySearchHandler {
         let request_id = request.request.request_id;
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
+        server_memory_scope(&request, &arguments, false)?;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || search_records_scoped(&arguments, &scope))
             .await
@@ -106,6 +139,7 @@ impl CapabilityHandler for MemoryWriteHandler {
         let request_id = request.request.request_id;
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
+        server_memory_scope(&request, &arguments, true)?;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || {
             write_record_scoped(&arguments, &scope, Some(request_id))
@@ -127,8 +161,9 @@ impl CapabilityHandler for MemoryReviewHandler {
             return Err(failed("memory_review_operator_required"));
         }
         let request_id = request.request.request_id;
-        let arguments = request.request.arguments;
+        let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
+        server_memory_scope(&request, &arguments, true)?;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || review_records_scoped(&arguments, &scope))
             .await

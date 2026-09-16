@@ -1,0 +1,40 @@
+name: CM-03 server-derived memory scope
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/tests/cm03_memory_scope.rs"
+      - "kiana-core/tests/cm03_scope_guard.rs"
+      - "docs/roadmap/memory-scope-baseline.md"
+      - ".github/workflows/cm03-memory-scope.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/context_scope.rs"
+      - "kiana-core/src/capabilities.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-domain/tests/cm03_memory_scope.rs"
+      - "kiana-core/tests/cm03_scope_guard.rs"
+      - "docs/roadmap/memory-scope-baseline.md"
+      - ".github/workflows/cm03-memory-scope.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-03 domain scope fixtures
+        run: cargo test -p kiana-domain --test cm03_memory_scope --locked -- --test-threads=1
+      - name: Run CM-03 core scope guard
+        run: cargo test -p kiana-core --test cm03_scope_guard --locked -- --test-threads=1

@@ -1419,6 +1419,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CM-02 MemoryRecord lifecycle/provenance/legacy-reader source-boundary review; no runtime test reviewer
 ```
 
+### CM-03 server-derived Memory scope evidence (2026-09-16)
+
+```text
+source_snapshot: 961965d; kiana-domain/src/context_scope.rs; kiana-core/src/capabilities.rs; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/cm03_memory_scope.rs; kiana-core/tests/cm03_scope_guard.rs; .github/workflows/cm03-memory-scope.yml; docs/roadmap/memory-scope-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: CM-03 MemoryScope intersection and server-derived read/write enforcement are scoped to this step; Core derives role-granted collections into ExecutionScope, daemon handlers reconstruct DomainMemoryScope from request scope, explicit collection/write checks fail closed, remote fixtures and roadmap/status overlays are included; no processing-grant store, second authorization path or direct storage bypass was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/context_scope.rs kiana-core/src/capabilities.rs kiana-daemon/src/harness_memory.rs kiana-domain/tests/cm03_memory_scope.rs kiana-core/tests/cm03_scope_guard.rs .github/workflows/cm03-memory-scope.yml docs/roadmap/memory-scope-baseline.md
+  rg -n 'MemoryScope::intersect|from_execution_scope|memory_scope_collection_required|memory_scope_read_denied|memory_scope_write_denied|server_memory_scope|read_scope_is_intersection_of_all_grants|write_scope_cannot_be_widened_by_context_text' kiana-domain/src kiana-core/src kiana-daemon/src kiana-domain/tests/cm03_memory_scope.rs kiana-core/tests/cm03_scope_guard.rs docs/roadmap/memory-scope-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source fixture/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cm03_memory_scope.rs parent/child collection intersection, allow_write monotonicity and cross-session rejection; kiana-core/tests/cm03_scope_guard.rs server derivation/handler-boundary source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-03 job is queued by the push and is not awaited
+status_change: CM-03 source slice is implemented. MemoryScope now intersects only scopes with identical server principal/project/session/purpose, chooses narrower covered collections, and ANDs write permission. ControlPlane rejects unknown/unauthorized memory collections, requires explicit write collections, and places role-granted read collections in ExecutionScope; daemon memory handlers require that scope and reject collection escapes before storage access. Model/context text cannot mint or widen principal, project, collection or write authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ProcessingGrant/retention/revocation/epoch derivation and durable Memory scope/CAS/index generation remain CM-04/05/PD/SC, storage HOME/path is not an authorization source, collection-level intersection does not prove file handles/semantic recall, and no business/external outcome is claimed
+reviewer: Codex root implementation review plus CM-03 MemoryScope intersection/Core derivation/daemon enforcement source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
