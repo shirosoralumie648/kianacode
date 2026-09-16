@@ -33,7 +33,7 @@ pub use kiana_domain::{
     RoleDescriptor, RoleSpec, RunId, RuntimeEvent, SessionAssignment, SessionId, SignalStatus,
     SkillDescriptor, SkillLifecycle, SnapshotId, SourceKind, SourceRef, SourceSnapshot, SpawnPlan,
     SpawnPlanId, StepId, StepIdentity, SupervisionLease, SupervisionLeaseId, Symposium, TemplateId,
-    TurnId, TurnIdentity, TurnSemantics, WorkPacket, WorkPacketStatus, WorkspaceBinding,
+    ToolSpec, TurnId, TurnIdentity, TurnSemantics, WorkPacket, WorkPacketStatus, WorkspaceBinding,
     WorkspaceId, ARTIFACT_REF_SCHEMA, ARTIFACT_VERSION_SCHEMA, AUTHENTICATED_PRINCIPAL_SCHEMA,
     CAPABILITY_OUTCOME_SCHEMA, CAPABILITY_RESULT_DIMENSIONS_SCHEMA, COMMUNICATION_MESSAGE_SCHEMA,
     COMPANY_COMMAND_POLICY_SCHEMA, COMPANY_COMMAND_RECEIPT_SCHEMA, COMPANY_DISPATCH_INTENT_SCHEMA,
@@ -54,8 +54,8 @@ pub use kiana_domain::{
     ROLE_CLOSER, ROLE_INPUT_SCHEMA_PREFIX, ROLE_LIBRARIAN, ROLE_OUTPUT_SCHEMA_PREFIX, ROLE_PM,
     ROLE_QA, ROLE_REVIEWER, ROLE_SPEC_SCHEMA, RUNTIME_EVENT_SCHEMA, SCOPE_SET_SCHEMA,
     SCOPE_SET_SCHEMA_VERSION, SESSION_ASSIGNMENT_SCHEMA, SKILL_DESCRIPTOR_SCHEMA,
-    SOURCE_REF_SCHEMA, SOURCE_SNAPSHOT_SCHEMA, STEP_IDENTITY_SCHEMA, TURN_IDENTITY_SCHEMA,
-    WORK_PACKET_SCHEMA,
+    SOURCE_REF_SCHEMA, SOURCE_SNAPSHOT_SCHEMA, STEP_IDENTITY_SCHEMA, TOOL_AUTHORITY_SCHEMA,
+    TOOL_SPECS, TURN_IDENTITY_SCHEMA, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

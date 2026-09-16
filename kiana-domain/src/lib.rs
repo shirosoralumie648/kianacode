@@ -180,7 +180,9 @@ pub const MEMORY_LAYERS: [&str; 6] = [
     MEMORY_LAYER_INSTANCE_SCRATCH,
 ];
 
+mod tool_authority;
 mod tool_catalog;
+pub use tool_authority::*;
 pub use tool_catalog::*;
 mod governance;
 pub use governance::*;

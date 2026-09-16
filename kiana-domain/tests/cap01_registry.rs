@@ -1,10 +1,11 @@
 use kiana_domain::{
-    capability_action_descriptor, model_tool_name, operator_only_action, tool_schemas,
-    ACTION_HANDLER_BINDING_VERSION, ACTION_OPERATIONS,
+    capability_action_descriptor, model_tool_name, operator_only_action, tool_schemas, tool_spec,
+    validate_tool_authority, ACTION_HANDLER_BINDING_VERSION, ACTION_OPERATIONS, TOOL_SPECS,
 };
 
 #[test]
 fn tool_authority_covers_every_model_visible_tool() {
+    validate_tool_authority().unwrap();
     let visible = [
         "shell",
         "apply_patch",
@@ -16,10 +17,12 @@ fn tool_authority_covers_every_model_visible_tool() {
     assert_eq!(schemas.len(), visible.len());
     for name in visible {
         let canonical = model_tool_name(name).expect("model tool mapping");
+        assert_eq!(tool_spec(name).unwrap().name, name);
         assert!(schemas.iter().any(|schema| schema["name"] == name));
         let descriptor = capability_action_descriptor(canonical).expect("action descriptor");
         assert_eq!(descriptor.binding_version, ACTION_HANDLER_BINDING_VERSION);
     }
+    assert_eq!(TOOL_SPECS.len(), visible.len());
 }
 
 #[test]

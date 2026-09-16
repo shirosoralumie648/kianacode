@@ -29,12 +29,12 @@ pub fn capability_for_tool(
     sandbox: &str,
     project_root: &str,
 ) -> Result<CapabilityRequest, String> {
-    if model_tool_name(&call.name).is_some() {
-        validate_tool_arguments(&call.name, &call.arguments)?;
-    }
+    let canonical =
+        model_tool_name(&call.name).ok_or_else(|| format!("tool_unsupported:{}", call.name))?;
+    validate_tool_arguments(&call.name, &call.arguments)?;
 
-    match call.name.as_str() {
-        TOOL_SHELL | "bash" | "exec" | "command_execution" => Ok(CapabilityRequest::new(
+    match canonical {
+        TOOL_SHELL => Ok(CapabilityRequest::new(
             RequestId::new(),
             CapabilityKind::Process,
             "shell.exec",
@@ -48,7 +48,7 @@ pub fn capability_for_tool(
             }),
         )
         .with_risk(shell_risk(sandbox))),
-        TOOL_APPLY_PATCH | "file_change" => Ok(CapabilityRequest::new(
+        TOOL_APPLY_PATCH => Ok(CapabilityRequest::new(
             RequestId::new(),
             CapabilityKind::Filesystem,
             "apply_patch",
@@ -61,7 +61,7 @@ pub fn capability_for_tool(
             }),
         )
         .with_risk(RiskLevel::LocalWrite)),
-        TOOL_MCP | "mcp.call" => Ok(CapabilityRequest::new(
+        TOOL_MCP => Ok(CapabilityRequest::new(
             RequestId::new(),
             CapabilityKind::Network,
             "mcp.call",
@@ -107,7 +107,7 @@ pub fn capability_for_tool(
         )
         .with_risk(RiskLevel::LocalWrite)),
         // 未知工具不做模糊匹配或通用回退，保持固定工具面和 fail-closed 行为。
-        other => Err(format!("tool_unsupported:{other}")),
+        _ => Err(format!("tool_unsupported:{}", call.name)),
     }
 }
 

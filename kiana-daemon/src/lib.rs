@@ -613,6 +613,7 @@ impl DaemonHost {
         events: Arc<dyn kiana_ports::EventStorePort>,
         project_authority: Arc<dyn ProjectTrustAuthority>,
     ) -> Result<Self, PortError> {
+        kiana_domain::validate_tool_authority().map_err(PortError::Failed)?;
         let run_stream = Arc::new(RunStreamBus::default());
         let events = run_stream::StreamEventStore::wrap(events, run_stream.clone());
         let approvals = Arc::new(JournalApprovalStore::new(events.clone())?);

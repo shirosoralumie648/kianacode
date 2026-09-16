@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-H-01 single tool authority registry evidence (2026-09-16)
+
+```text
+source_snapshot: eb35690 + P1-H-01 working-tree slice; kiana-domain/src/{tool_authority,tool_catalog,contracts,lib}.rs; kiana-runner/src/tools.rs; kiana-daemon/src/lib.rs; kiana-domain/tests/cap01_registry.rs; kiana-core/tests/p1_h01_tool_authority_guard.rs; .github/workflows/p1-h01-tool-authority.yml; docs/roadmap/tool-authority-baseline.md; docs/roadmap.md
+worktree_status: P1-H-01 typed five-tool ToolSpec registry, Runner canonical mapping and DaemonHost composition validation are scoped to this step; no sixth model-visible tool or second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/tool_authority.rs kiana-domain/src/tool_catalog.rs kiana-domain/src/contracts.rs kiana-runner/src/tools.rs kiana-daemon/src/lib.rs kiana-domain/tests/cap01_registry.rs kiana-core/tests/p1_h01_tool_authority_guard.rs .github/workflows/p1-h01-tool-authority.yml docs/roadmap/tool-authority-baseline.md
+  rg -n 'ToolSpec|TOOL_SPECS|tool_spec|validate_tool_authority|model_tool_name|let canonical = model_tool_name|match canonical|TOOL_SHELL =>|TOOL_APPLY_PATCH =>|TOOL_MCP =>|tool-authority.v1' kiana-domain/src kiana-runner/src kiana-daemon/src kiana-domain/tests/cap01_registry.rs kiana-core/tests/p1_h01_tool_authority_guard.rs docs/roadmap/tool-authority-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain registry fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: cap01_registry::tool_authority_covers_every_model_visible_tool checks all five canonical tools/aliases/action descriptors; core source guard checks Runner/daemon use the same registry; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-H-01 job is queued by the push and is not awaited
+status_change: P1-H-01 source slice is implemented. `TOOL_SPECS` is the domain authority for the five model-visible tools; aliases normalize through `tool_spec`, Runner maps only canonical names, DaemonHost validates the registry before composing capabilities, and schema/alias drift fails closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; ToolSpec metadata does not grant capabilities or approvals, provider wire aliases remain an adapter concern, and full path containment/handler/entrypoint parity remains P1-H-02/03 and CAP/CP work
+reviewer: Codex root implementation review plus P1-H-01 tool authority/source-boundary review; no runtime test reviewer
+```
+
 ### P1-E-01 typed communication and accountability evidence (2026-09-16)
 
 ```text

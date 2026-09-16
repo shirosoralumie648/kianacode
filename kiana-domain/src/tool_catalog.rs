@@ -113,14 +113,7 @@ pub fn validate_tool_arguments(name: &str, arguments: &Value) -> Result<(), Stri
 }
 
 pub fn model_tool_name(name: &str) -> Option<&'static str> {
-    match name {
-        TOOL_SHELL | "shell.exec" | "bash" | "exec" | "command_execution" => Some(TOOL_SHELL),
-        TOOL_APPLY_PATCH | "file_change" => Some(TOOL_APPLY_PATCH),
-        TOOL_MCP | "mcp.call" => Some(TOOL_MCP),
-        TOOL_MEMORY_SEARCH => Some(TOOL_MEMORY_SEARCH),
-        TOOL_MEMORY_WRITE => Some(TOOL_MEMORY_WRITE),
-        _ => None,
-    }
+    crate::tool_authority::tool_spec(name).map(|spec| spec.name)
 }
 
 pub const TOOL_JSON_MAX_BYTES: usize = 512 * 1024;
