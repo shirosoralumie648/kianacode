@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### CI-02 identity and authority contract evidence (2026-09-16)
+
+```text
+source_snapshot: 85b8375 + CI-02 working-tree slice; kiana-domain/src/{identity_contracts,identity,assignment,ids,contracts,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/ci02_identity_contracts.rs; kiana-core/tests/ci02_identity_contract_guard.rs; .github/workflows/ci02-identity-contracts.yml; docs/roadmap/identity-contracts-baseline.md; docs/roadmap.md
+worktree_status: CI-02 typed Principal/Membership/SecretRef/ProviderAccount/ServiceIdentity/ConfigSnapshot/AuthoritySnapshot contracts and stable IDs are scoped to this step; raw secret values remain absent and no SecretStore or second authority was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/identity_contracts.rs kiana-domain/src/identity.rs kiana-domain/src/assignment.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/ci02_identity_contracts.rs kiana-core/tests/ci02_identity_contract_guard.rs .github/workflows/ci02-identity-contracts.yml docs/roadmap/identity-contracts-baseline.md
+  rg -n 'Principal|Membership|SecretRef|ProviderAccount|ServiceIdentity|ConfigSnapshot|AuthoritySnapshot|PrincipalId|ProviderAccountId|ServiceIdentityId|contains_raw_secret|validate_current_epoch|deny_unknown_fields' kiana-domain/src kiana-protocol/src kiana-domain/tests/ci02_identity_contracts.rs kiana-core/tests/ci02_identity_contract_guard.rs docs/roadmap/identity-contracts-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; identity contract fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: ci02_identity_contracts covers typed ID/schema/digest round trips, SecretRef redaction shape, ConfigSnapshot raw-secret rejection and AuthoritySnapshot epoch rollback/stale rejection; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-02 job is queued by the push and is not awaited
+status_change: CI-02 source slice is implemented. Domain now exposes stable identity IDs and strict Principal/Membership/SecretRef/ProviderAccount/ServiceIdentity/ConfigSnapshot/AuthoritySnapshot contracts; snapshots bind digest/revision/expiry/authority epoch, and raw secret values are rejected before they can enter configuration metadata.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; contracts are value objects without durable identity store, SecretStore/CredentialLease, OAuth/PKCE, assignment revoke projection, cross-process recovery or provider effect evidence; CI-03+ and CP/SC/PD still own those boundaries
+reviewer: Codex root implementation review plus CI-02 identity/secret/config/authority contract source-boundary review; no runtime test reviewer
+```
+
 ### P3-I-01 Company object contract evidence (2026-09-16)
 
 ```text

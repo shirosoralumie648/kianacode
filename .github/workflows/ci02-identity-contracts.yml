@@ -1,0 +1,54 @@
+name: CI-02 identity and authority contracts
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/identity_contracts.rs"
+      - "kiana-domain/src/identity.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ci02_identity_contracts.rs"
+      - "kiana-core/tests/ci02_identity_contract_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/identity-contracts-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci02-identity-contracts.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/identity_contracts.rs"
+      - "kiana-domain/src/identity.rs"
+      - "kiana-domain/src/assignment.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ci02_identity_contracts.rs"
+      - "kiana-core/tests/ci02_identity_contract_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/identity-contracts-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci02-identity-contracts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CI-02 domain fixtures
+        run: cargo test -p kiana-domain --test ci02_identity_contracts --locked -- --test-threads=1
+      - name: Run CI-02 source guard
+        run: cargo test -p kiana-core --test ci02_identity_contract_guard --locked -- --test-threads=1
+      - name: Compile identity contract path
+        run: cargo check -p kiana-domain -p kiana-core -p kiana-protocol --tests --locked

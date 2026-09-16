@@ -13,7 +13,7 @@
 | Context / Memory | CM-00–CM-39（40） | [CM-01 来源/scope 基线](context-scope-baseline.md) · [CM-02 Memory 生命周期](memory-lifecycle-baseline.md) · [CM-03 Memory scope](memory-scope-baseline.md) · [CM-04 Memory mutation](memory-mutation-baseline.md) · [上下文、检索、记忆与治理](context-memory.md) |
 | Skills / Plugins / Hooks | EXT-00–EXT-31（32） | [EXT-01 扩展合同](extension-contracts-baseline.md) · [EXT-02 SourceResolver](source-resolver-baseline.md) · [EXT-03 严格解析器](strict-extension-parsers-baseline.md) · [EXT-04 Catalog](catalog-baseline.md) · [EXT-05 Snapshot](snapshot-invalidation-baseline.md) · [扩展来源、信任与生命周期](skills-plugins-hooks.md) |
 | UI / Entrypoints | UI-00–UI-41（42） | [UI-01 protocol DTO](ui-protocol-baseline.md) · [UI-02 handshake](ui-handshake-baseline.md) · [UI-03 instance](ui-instance-baseline.md) · [CLI、Workbench、Web、Desktop 与入口一致性](ui-entrypoints.md) |
-| 配置 / 凭据 / 身份 | CI-01–CI-12（12） | [roadmap §29](../roadmap.md#config-credentials-identity-plan) |
+| 配置 / 凭据 / 身份 | CI-01–CI-12（12） | [CI-02 identity contracts](identity-contracts-baseline.md) · [roadmap §29](../roadmap.md#config-credentials-identity-plan) |
 | Swarm | SW-00–SW-18（19） | [roadmap §30](../roadmap.md#swarm-coordination-design) |
 | 可观测性 / 审计 | OA-00–OA-28（29） | [roadmap §31](../roadmap.md#observability-audit-plan) |
 | 调度 / Workflow / Trigger | AUT-01–AUT-24（24） | [roadmap §32](../roadmap.md#scheduling-workflow-trigger-plan) |
