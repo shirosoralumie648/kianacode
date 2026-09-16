@@ -23,8 +23,8 @@ pub use kiana_domain::{
     ExtensionId, ExtensionManifest, ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires,
     ExtensionSignature, ExtensionSnapshot, ExtensionSnapshotState, ExtensionType, Freshness,
     HookDecision, HookDecisionKind, HookDescriptor, HookOrderCandidate, HookPhase, HookRunId,
-    HumanDecision, HumanTask, HumanTaskStatus, InvocationId, InvocationIdentity, Membership,
-    MembershipId, MembershipStatus, MemoryScope, MergeReceipt, ModelAttemptId,
+    HumanDecision, HumanTask, HumanTaskStatus, IdentityMigration, InvocationId, InvocationIdentity,
+    Membership, MembershipId, MembershipStatus, MemoryScope, MergeReceipt, ModelAttemptId,
     ModelAttemptIdentity, ModelContent, ModelOutcome, ModelSideEffectState, ModelStopReason,
     OrganizationBinding, OrganizationId, PermissionProfile, PluginLifecycle, PluginLifecycleState,
     Principal, PrincipalId, PrincipalKind, PrincipalStatus, ProjectAssignment, ProjectAssignmentId,
@@ -48,19 +48,19 @@ pub use kiana_domain::{
     EXTENSION_MANIFEST_SCHEMA, EXTENSION_PACKAGE_SCHEMA, EXTENSION_SNAPSHOT_CACHE_ENTRY_SCHEMA,
     EXTENSION_SNAPSHOT_CACHE_KEY_SCHEMA, EXTENSION_SNAPSHOT_SCHEMA,
     EXTENSION_SOURCE_RESOLUTION_SCHEMA, HOOK_DECISION_SCHEMA, HOOK_DESCRIPTOR_SCHEMA,
-    HOOK_MANIFEST_SCHEMA, HUMAN_DECISION_SCHEMA, HUMAN_TASK_SCHEMA, INVOCATION_IDENTITY_SCHEMA,
-    MEMBERSHIP_SCHEMA, MEMORY_SCOPE_SCHEMA, MERGE_RECEIPT_PATH, MODEL_ATTEMPT_IDENTITY_SCHEMA,
-    MODEL_CONTENT_SCHEMA, MODEL_OUTCOME_SCHEMA, PLUGIN_LIFECYCLE_SCHEMA, PLUGIN_MANIFEST_SCHEMA,
-    PRINCIPAL_SCHEMA, PROJECT_ASSIGNMENT_SCHEMA, PROJECT_IDENTITY_SCHEMA, PROVIDER_ACCOUNT_SCHEMA,
-    PROVIDER_CONFIG_SNAPSHOT_SCHEMA, PROVIDER_CONTINUATION_SCHEMA,
-    PROVIDER_PROFILE_SNAPSHOT_SCHEMA, RESOLVED_ASSIGNMENT_SCHEMA, REVIEW_PACKET_SCHEMA,
-    ROLE_ANALYST, ROLE_ARCHITECT, ROLE_ASSIGNMENT_SCHEMA, ROLE_BUILDER, ROLE_CATALOG_SCHEMA,
-    ROLE_CLOSER, ROLE_INPUT_SCHEMA_PREFIX, ROLE_LIBRARIAN, ROLE_OUTPUT_SCHEMA_PREFIX, ROLE_PM,
-    ROLE_QA, ROLE_REVIEWER, ROLE_SPEC_SCHEMA, RUNTIME_EVENT_SCHEMA, SCOPE_SET_SCHEMA,
-    SCOPE_SET_SCHEMA_VERSION, SECRET_REF_SCHEMA, SERVICE_IDENTITY_SCHEMA,
-    SESSION_ASSIGNMENT_SCHEMA, SKILL_DESCRIPTOR_SCHEMA, SOURCE_REF_SCHEMA, SOURCE_SNAPSHOT_SCHEMA,
-    STEP_IDENTITY_SCHEMA, TOOL_AUTHORITY_SCHEMA, TOOL_SPECS, TURN_IDENTITY_SCHEMA,
-    WORK_PACKET_SCHEMA,
+    HOOK_MANIFEST_SCHEMA, HUMAN_DECISION_SCHEMA, HUMAN_TASK_SCHEMA, IDENTITY_MIGRATION_SCHEMA,
+    INVOCATION_IDENTITY_SCHEMA, MEMBERSHIP_SCHEMA, MEMORY_SCOPE_SCHEMA, MERGE_RECEIPT_PATH,
+    MODEL_ATTEMPT_IDENTITY_SCHEMA, MODEL_CONTENT_SCHEMA, MODEL_OUTCOME_SCHEMA,
+    PLUGIN_LIFECYCLE_SCHEMA, PLUGIN_MANIFEST_SCHEMA, PRINCIPAL_SCHEMA, PROJECT_ASSIGNMENT_SCHEMA,
+    PROJECT_IDENTITY_SCHEMA, PROVIDER_ACCOUNT_SCHEMA, PROVIDER_CONFIG_SNAPSHOT_SCHEMA,
+    PROVIDER_CONTINUATION_SCHEMA, PROVIDER_PROFILE_SNAPSHOT_SCHEMA, RESOLVED_ASSIGNMENT_SCHEMA,
+    REVIEW_PACKET_SCHEMA, ROLE_ANALYST, ROLE_ARCHITECT, ROLE_ASSIGNMENT_SCHEMA, ROLE_BUILDER,
+    ROLE_CATALOG_SCHEMA, ROLE_CLOSER, ROLE_INPUT_SCHEMA_PREFIX, ROLE_LIBRARIAN,
+    ROLE_OUTPUT_SCHEMA_PREFIX, ROLE_PM, ROLE_QA, ROLE_REVIEWER, ROLE_SPEC_SCHEMA,
+    RUNTIME_EVENT_SCHEMA, SCOPE_SET_SCHEMA, SCOPE_SET_SCHEMA_VERSION, SECRET_REF_SCHEMA,
+    SERVICE_IDENTITY_SCHEMA, SESSION_ASSIGNMENT_SCHEMA, SKILL_DESCRIPTOR_SCHEMA, SOURCE_REF_SCHEMA,
+    SOURCE_SNAPSHOT_SCHEMA, STEP_IDENTITY_SCHEMA, TOOL_AUTHORITY_SCHEMA, TOOL_SPECS,
+    TURN_IDENTITY_SCHEMA, WORK_PACKET_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -109,6 +109,21 @@ pub struct RequestMetadata {
     pub work_packet_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path_allow: Vec<String>,
+    /// Optional protected-ingress instance identity; absent means legacy local compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
+    /// Optional Origin header projection checked by the daemon for loopback-only transports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    /// Optional Host header projection checked by the daemon for loopback-only transports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// Opaque credential reference; raw bearer/API values are never accepted on the wire.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_ref: Option<kiana_domain::SecretRef>,
+    /// Explicit compatibility marker for the historical local-user migration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity_mode: Option<String>,
 }
 
 impl RequestMetadata {
@@ -125,6 +140,11 @@ impl RequestMetadata {
             department_id: default_department_id(),
             work_packet_id: None,
             path_allow: Vec::new(),
+            instance_id: None,
+            origin: None,
+            host: None,
+            credential_ref: None,
+            identity_mode: None,
         }
     }
 

@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### CI-04 protected daemon ingress evidence (2026-09-16)
+
+```text
+source_snapshot: d1c8241 + CI-04 working-tree slice; kiana-domain/src/{identity_contracts,contracts,lib}.rs; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-domain/tests/ci04_ingress.rs; kiana-daemon/tests/ci04_ingress.rs; kiana-core/tests/ci04_ingress_guard.rs; .github/workflows/ci04-ingress.yml; docs/roadmap/daemon-ingress-baseline.md; docs/roadmap.md
+worktree_status: CI-04 protected ingress metadata validation and explicit local-user migration fact are scoped to this step; legacy fields remain readable, no external auth provider or second execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/identity_contracts.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-daemon/src/lib.rs kiana-domain/tests/ci04_ingress.rs kiana-daemon/tests/ci04_ingress.rs kiana-core/tests/ci04_ingress_guard.rs .github/workflows/ci04-ingress.yml docs/roadmap/daemon-ingress-baseline.md
+  rg -n 'validate_protected_ingress|loopback_authority|ingress_origin_not_loopback|ingress_host_not_loopback|ingress_protected_credentials_required|identity_mode|credential_ref|IdentityMigration|legacy_local_user_migration' kiana-domain/src kiana-protocol/src kiana-daemon/src kiana-domain/tests/ci04_ingress.rs kiana-daemon/tests/ci04_ingress.rs kiana-core/tests/ci04_ingress_guard.rs docs/roadmap/daemon-ingress-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain/protocol/daemon ingress fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: ci04_ingress domain migration fixture, daemon bad Origin/Host/protected-credential negative fixture and opaque loopback acceptance fixture; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-04 job is queued by the push and is not awaited
+status_change: CI-04 source slice is implemented. DaemonHost validates optional protected loopback metadata before ControlPlane, rejects malformed/non-loopback origin/host and missing protected credentials, while keeping legacy local-user compatibility explicit through IdentityMigration.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; optional metadata is not a cryptographic bearer/Unix peer verifier, no OS/keyring/OAuth/tenant identity or durable migration/session store exists, and cross-process owner/recovery proof remains CI-05+ and CP/SC/PD work
+reviewer: Codex root implementation review plus CI-04 ingress/migration source-boundary review; no runtime test reviewer
+```
+
 ### CI-03 identity/config/credential ports evidence (2026-09-16)
 
 ```text

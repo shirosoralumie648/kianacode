@@ -1,0 +1,54 @@
+name: CI-04 protected daemon ingress
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/identity_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ci04_ingress.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/ci04_ingress.rs"
+      - "kiana-core/tests/ci04_ingress_guard.rs"
+      - "docs/roadmap/daemon-ingress-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci04-ingress.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/identity_contracts.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/ci04_ingress.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/ci04_ingress.rs"
+      - "kiana-core/tests/ci04_ingress_guard.rs"
+      - "docs/roadmap/daemon-ingress-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci04-ingress.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CI-04 domain migration fixtures
+        run: cargo test -p kiana-domain --test ci04_ingress --locked -- --test-threads=1
+      - name: Run CI-04 daemon ingress fixtures
+        run: cargo test -p kiana-daemon --test ci04_ingress --locked -- --test-threads=1
+      - name: Run CI-04 source guard
+        run: cargo test -p kiana-core --test ci04_ingress_guard --locked -- --test-threads=1
+      - name: Compile ingress path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-daemon -p kiana-core --tests --locked

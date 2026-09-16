@@ -18,6 +18,7 @@ pub const PROVIDER_ACCOUNT_SCHEMA: &str = "kiana.provider-account.v1";
 pub const SERVICE_IDENTITY_SCHEMA: &str = "kiana.service-identity.v1";
 pub const CONFIG_SNAPSHOT_SCHEMA: &str = "kiana.config-snapshot.v1";
 pub const AUTHORITY_SNAPSHOT_SCHEMA: &str = "kiana.authority-snapshot.v1";
+pub const IDENTITY_MIGRATION_SCHEMA: &str = "kiana.identity-migration.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -520,6 +521,76 @@ pub struct AuthoritySnapshot {
     pub assignment_ids: Vec<AssignmentId>,
     pub trust_revision: String,
     pub snapshot_digest: String,
+}
+
+/// Explicit compatibility fact for migrating the historical fixed `local-user` identity.
+///
+/// This record documents a migration; it is not an authentication assertion and cannot grant a
+/// role, project or capability. A future protected ingress may replace `principal_id` with a
+/// durable authenticated identity without rewriting the historical fact.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IdentityMigration {
+    pub schema: String,
+    pub migration_id: String,
+    pub legacy_principal_id: String,
+    pub principal_id: String,
+    pub reason: String,
+    pub migrated_at_unix_ms: u64,
+    pub migration_digest: String,
+}
+
+impl IdentityMigration {
+    pub fn new(
+        migration_id: impl Into<String>,
+        legacy_principal_id: impl Into<String>,
+        principal_id: impl Into<String>,
+        reason: impl Into<String>,
+        migrated_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let mut migration = Self {
+            schema: IDENTITY_MIGRATION_SCHEMA.to_owned(),
+            migration_id: migration_id.into(),
+            legacy_principal_id: legacy_principal_id.into(),
+            principal_id: principal_id.into(),
+            reason: reason.into(),
+            migrated_at_unix_ms,
+            migration_digest: String::new(),
+        };
+        migration.migration_digest = migration.digest();
+        migration.validate()?;
+        Ok(migration)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != IDENTITY_MIGRATION_SCHEMA || self.migrated_at_unix_ms == 0 {
+            return Err("identity_migration_header_invalid".to_owned());
+        }
+        for (value, field, max) in [
+            (&self.migration_id, "identity_migration_id", 256),
+            (&self.legacy_principal_id, "identity_migration_legacy", 256),
+            (&self.principal_id, "identity_migration_principal", 256),
+            (&self.reason, "identity_migration_reason", 1_024),
+        ] {
+            required(value, field, max)?;
+        }
+        if self.legacy_principal_id == self.principal_id {
+            return Err("identity_migration_identity_unchanged".to_owned());
+        }
+        digest(&self.migration_digest, "identity_migration_digest")?;
+        if self.migration_digest != self.digest() {
+            return Err("identity_migration_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        let mut value = serde_json::to_value(self).unwrap_or_default();
+        if let Some(object) = value.as_object_mut() {
+            object.insert("migration_digest".to_owned(), Value::String(String::new()));
+        }
+        json_digest(&value)
+    }
 }
 
 impl AuthoritySnapshot {

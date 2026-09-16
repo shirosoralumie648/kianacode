@@ -33,8 +33,8 @@ use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
-    HealthProbeKind, HealthSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
-    RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
+    HealthProbeKind, HealthSnapshot, IdentityMigration, OrganizationId, PermissionProfile,
+    ProjectIdentity, RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -45,7 +45,8 @@ use kiana_ports::{
     QueuedObservabilityItem, RunnerPort,
 };
 use kiana_protocol::{
-    RequestBody, RequestEnvelope, ResponseEnvelope, UiAction, UiCursor, UiSnapshot, PROTOCOL_SCHEMA,
+    RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
+    UiSnapshot, PROTOCOL_SCHEMA,
 };
 use kiana_runner::{KianaHarness, RuntimeConfig};
 use run_stream::RunStreamBus;
@@ -57,6 +58,73 @@ use std::time::Duration;
 const ENV_HARNESS_MAX_STEPS: &str = "KIANA_HARNESS_MAX_STEPS";
 const ENV_HARNESS_WALL_TIME_MS: &str = "KIANA_HARNESS_WALL_TIME_MS";
 const OBSERVABILITY_QUEUE_CAPACITY: usize = 1_024;
+
+/// Validate optional protected-transport metadata before any request reaches the ControlPlane.
+///
+/// Legacy clients may omit these fields. When present, instance/origin/host/credential metadata
+/// is only a narrow ingress assertion: it never creates a Principal or grants a role.
+pub fn validate_protected_ingress(metadata: &RequestMetadata) -> Result<(), PortError> {
+    if metadata
+        .instance_id
+        .as_deref()
+        .is_some_and(|id| id.trim().is_empty() || id.len() > 256 || id.contains('\0'))
+    {
+        return Err(PortError::Failed("ingress_instance_invalid".to_owned()));
+    }
+    for (value, field) in [(&metadata.origin, "origin"), (&metadata.host, "host")] {
+        if let Some(value) = value.as_deref() {
+            if value.trim().is_empty() || !loopback_authority(value) {
+                return Err(PortError::Failed(format!("ingress_{field}_not_loopback")));
+            }
+        }
+    }
+    if let Some(reference) = &metadata.credential_ref {
+        reference.validate().map_err(|error| {
+            PortError::Failed(format!("ingress_credential_ref_invalid:{error}"))
+        })?;
+    }
+    if let Some(mode) = metadata.identity_mode.as_deref() {
+        match mode {
+            "legacy_local_user" => {}
+            "protected_local" => {
+                if metadata.instance_id.is_none() || metadata.credential_ref.is_none() {
+                    return Err(PortError::Failed(
+                        "ingress_protected_credentials_required".to_owned(),
+                    ));
+                }
+            }
+            _ => {
+                return Err(PortError::Failed(
+                    "ingress_identity_mode_invalid".to_owned(),
+                ))
+            }
+        }
+    }
+    Ok(())
+}
+
+fn loopback_authority(value: &str) -> bool {
+    let trimmed = value.trim();
+    let authority = trimmed
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(trimmed)
+        .split('/')
+        .next()
+        .unwrap_or_default();
+    if authority.is_empty() || authority.contains('@') {
+        return false;
+    }
+    let host = if let Some(rest) = authority.strip_prefix('[') {
+        rest.split(']').next().unwrap_or_default()
+    } else {
+        authority.split(':').next().unwrap_or_default()
+    };
+    matches!(
+        host.to_ascii_lowercase().as_str(),
+        "localhost" | "127.0.0.1" | "::1"
+    )
+}
 
 pub struct DaemonHost {
     core: Arc<ControlPlane>,
@@ -155,6 +223,26 @@ impl DaemonHost {
     /// Return the daemon-resolved principal without exposing a credential value.
     pub fn authenticated_principal(&self) -> AuthenticatedPrincipalRef {
         self.principal.identity.clone()
+    }
+
+    /// Build the explicit compatibility fact used when migrating the historical local-user
+    /// principal. The migration object is metadata only; callers still need a protected identity
+    /// resolver before it can be used for authorization.
+    pub fn legacy_local_user_migration(
+        &self,
+        migration_id: impl Into<String>,
+        principal_id: impl Into<String>,
+        reason: impl Into<String>,
+        migrated_at_unix_ms: u64,
+    ) -> Result<IdentityMigration, PortError> {
+        IdentityMigration::new(
+            migration_id,
+            self.principal.identity.principal_id.clone(),
+            principal_id,
+            reason,
+            migrated_at_unix_ms,
+        )
+        .map_err(PortError::Failed)
     }
 
     /// Return the server-owned assignment port. The returned adapter is a shared snapshot handle;
@@ -667,6 +755,9 @@ impl DaemonHost {
 
     pub async fn handle(&self, request: RequestEnvelope) -> ResponseEnvelope {
         let request_id = request.metadata.request_id;
+        if let Err(error) = validate_protected_ingress(&request.metadata) {
+            return ResponseEnvelope::rejected(request_id, error.to_string());
+        }
         let publish_run_response = matches!(
             &request.body,
             RequestBody::Run(_)
