@@ -1692,6 +1692,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-04 role/catalog/prompt/model provenance source-boundary review; no runtime test reviewer
 ```
 
+### CO-05 Company command policy and human decision evidence (2026-09-16)
+
+```text
+source_snapshot: a7f4bbb (CO-04 parent; CO-05 source files listed below); kiana-domain/src/{company,company_policy,company_business,lib,contracts}.rs; kiana-core/src/{company,company_business}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/co05_policy.rs; kiana-core/tests/co05_policy_guard.rs; .github/workflows/co05-company-policy.yml; docs/roadmap/company-policy-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-05 CompanyCommandPolicy, DecisionPurpose/ActorKind, HumanTask/HumanDecision and core admission/proof integration are scoped to this step; existing CompanyEvent/EventStore/Harness spine remains canonical, historical replay tolerates missing optional decision fields, and no second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/company.rs kiana-domain/src/company_policy.rs kiana-domain/src/company_business.rs kiana-domain/src/lib.rs kiana-domain/src/contracts.rs kiana-core/src/company.rs kiana-core/src/company_business.rs kiana-protocol/src/lib.rs kiana-domain/tests/co05_policy.rs kiana-core/tests/co05_policy_guard.rs .github/workflows/co05-company-policy.yml docs/roadmap/company-policy-baseline.md
+  rg -n 'CompanyCommandPolicy|DecisionPurpose|DecisionActorKind|HumanTask|HumanDecision|command_policy|authorize_context|human_decision|actor_is_human|company_human_decision_required' kiana-domain/src kiana-core/src kiana-protocol/src kiana-domain/tests kiana-core/tests docs/roadmap/company-policy-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/core/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co05_policy.rs human/agent decision-purpose, option/target/scope/expiry and unknown-field fixtures; kiana-core/tests/co05_policy_guard.rs single ControlPlane policy/proof source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-05 job is queued by the next push and is not awaited
+status_change: CO-05 source slice is implemented. Every current CompanyCommand now has an explicit policy view with allowed roles, actor kinds, assignment/evidence flags and DecisionPurpose; a future unlisted variant resolves to an empty deny matrix. Core checks that policy before loading CompanyState, rejects agent/SponsorProxy/Builder self-approval for human purposes, and records server-generated HumanDecision target revision/digest, scope, option, expiry and authority epoch inside CompanyProof. Existing ApprovalStore handles tool approvals separately and no tool approval is treated as a Charter/Acceptance/Delivery decision.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; HumanTask/inbox and decision facts are not independently durable, actor kind is derived from RequestContext cell/service markers, and full object-state/assignment/artifact/evidence/receipt policy remains CO-06+
+reviewer: Codex root implementation review plus CO-05 command-policy/human-decision source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

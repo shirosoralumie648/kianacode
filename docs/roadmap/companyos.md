@@ -127,11 +127,11 @@
 
 
 
-#### CO-05 · 业务命令权限、责任和人工决定合同　⏳
+#### CO-05 · 业务命令权限、责任和人工决定合同　✅
 
 - **归属**：`P3-I-02`、`P2-K3-01`、`P0-F-01`。
 - **依赖**：CO-03、CO-04。
-- **代码与产物**：CompanyCommand policy、domain HumanTask/DecisionPurpose、`kiana-protocol` 请求/响应；复用审批权威。
+- **代码与产物**：CompanyCommand policy、domain HumanTask/DecisionPurpose、`kiana-protocol` 请求/响应；复用审批权威；当前 source slice 与 CI-only 证据见 [`company-policy-baseline.md`](company-policy-baseline.md)。
 - **实现顺序**：①逐命令列出 actor kind、assignment、目标状态、批准目的与证据；②区分 Sponsor 与模型 SponsorProxy，负责人/执行者/评审/接收者分别绑定；③人工决定固定目标版本、digest、允许选项、有效期和待恢复动作。
 - **先拒绝**：`sponsor_proxy_and_builder_cannot_approve_their_own_business_request`；审批过期、scope 不同、目标版本不同均被拒；工具批准不代替 Charter/Acceptance/Delivery 决定。
 - **再成功 / 退出**：`business_decision_records_the_authorized_decider_and_purpose`；所有可写命令有明确矩阵条目，新增 variant 默认拒绝，后台服务身份不能伪造人类决定。

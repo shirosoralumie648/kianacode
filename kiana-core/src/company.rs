@@ -3,8 +3,8 @@
 use super::*;
 use kiana_domain::{
     CompanyAuthority, CompanyBusinessAction, CompanyCommand, CompanyCommandRequest, CompanyEvent,
-    CompanyProof, CompanyRun, CompanyState, COMPANY_COMMAND_SCHEMA, COMPANY_EVENT_SCHEMA,
-    COMPANY_STATE_SCHEMA,
+    CompanyProof, CompanyRun, CompanyState, DecisionActorKind, COMPANY_COMMAND_SCHEMA,
+    COMPANY_EVENT_SCHEMA, COMPANY_STATE_SCHEMA,
 };
 
 const COMPANY_AGGREGATE: &str = "company";
@@ -255,6 +255,10 @@ impl ControlPlane {
             return self
                 .reject_company(&context, "company_command_schema_or_idempotency_invalid")
                 .await;
+        }
+        let command_policy = request.command.policy();
+        if let Err(reason) = command_policy.authorize_context(&context) {
+            return self.reject_company(&context, reason).await;
         }
         let (state, history) = self.load_company(&context).await?;
         if let Some(previous) = history
@@ -829,6 +833,12 @@ impl ControlPlane {
         proof.business = self
             .company_business_proof(context, state, command, &all)
             .await?;
+        proof.business.actor_is_human =
+            DecisionActorKind::from_context(context) == DecisionActorKind::Human;
+        let policy = command.policy();
+        proof.human_decision = policy
+            .decision(context, command, state.revision, company_now())
+            .map_err(PortError::Failed)?;
         if let CompanyCommand::Business { action, .. } = command {
             if let CompanyBusinessAction::Closeout {
                 action: closeout, ..

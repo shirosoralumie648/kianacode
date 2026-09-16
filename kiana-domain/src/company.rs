@@ -863,6 +863,9 @@ pub struct CompanyProof {
     pub project_runs_stopped: bool,
     #[serde(default)]
     pub closeout: crate::CompanyCloseoutProof,
+    /// Server-generated business decision record; never accepted from a model/UI payload.
+    #[serde(default)]
+    pub human_decision: Option<crate::HumanDecision>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct CompanyState {
