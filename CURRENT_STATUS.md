@@ -1503,6 +1503,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus EXT-02 trust/root/containment source-boundary review; no runtime test reviewer
 ```
 
+### EXT-03 strict Skill/Plugin/Hook parser evidence (2026-09-16)
+
+```text
+source_snapshot: 6298111 (EXT-02 SourceResolver); kiana-skills/src/{types,loader,manifest,lib}.rs; kiana-domain/src/{tool_catalog,extension_contracts}.rs; kiana-skills/tests/ext03_manifest.rs; .github/workflows/ext03-strict-parsers.yml; docs/roadmap/strict-extension-parsers-baseline.md; docs/roadmap/skills-plugins-hooks.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: EXT-03 strict Skill frontmatter and Plugin/Hook manifest parser, duplicate-key detection, explicit legacy adapters, remote fixtures and roadmap/status overlays are scoped to this step; parsing remains inert metadata and does not execute entries or grant capabilities; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-skills/src/types.rs kiana-skills/src/loader.rs kiana-skills/src/manifest.rs kiana-skills/src/lib.rs kiana-domain/src/tool_catalog.rs kiana-domain/src/extension_contracts.rs kiana-skills/tests/ext03_manifest.rs .github/workflows/ext03-strict-parsers.yml docs/roadmap/strict-extension-parsers-baseline.md
+  rg -n 'normalize_skill_name|deny_unknown_fields|deserialize_allowed_tools|parse_plugin_manifest|parse_hook_manifest|legacy_adapter|json_duplicate_key|skill_frontmatter_is_strict_and_names_are_normalized|strict_plugin_manifest_rejects_unknown_and_duplicate_components|legacy_plugin_and_hook_manifests_require_explicit_adapter_and_entry' kiana-skills/src kiana-domain/src kiana-skills/tests docs/roadmap/strict-extension-parsers-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-skills/tests/ext03_manifest.rs Skill frontmatter normalization/unknown/type limits, strict Plugin component duplicate/unknown, legacy adapter and Hook entry fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EXT-03 job is queued by the next push and is not awaited
+status_change: EXT-03 source slice is implemented. Skill frontmatter now rejects unknown fields and malformed/oversized metadata, validates context/path/tools and normalizes directory slugs while retaining display labels. Plugin/Hook JSON uses bounded duplicate-key parsing, strict versioned fields, unique IDs, package-relative entries and guard/observer phase checks; legacy formats enter only through an explicit `legacy_adapter` branch. Parser output remains inert and cannot mint capability authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; parser does not verify filesystem entry existence, package signatures/content, ProjectTrust/snapshot generation, catalog precedence/invalidation, Hook process timeout/cancellation, dynamic activation or final ControlPlane/Broker re-authorization; legacy Command remains a compatibility DTO and no external/business outcome is claimed
+reviewer: Codex root implementation review plus EXT-03 parser/compatibility/unknown-field source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

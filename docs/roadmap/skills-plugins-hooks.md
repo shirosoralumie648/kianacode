@@ -128,7 +128,9 @@ flowchart TD
 
 
 
-#### EXT-03 · 严格解析器与兼容层　⏳
+#### EXT-03 · 严格解析器与兼容层　✅
+
+当前 source slice 与 CI-only 证据见 [`strict-extension-parsers-baseline.md`](strict-extension-parsers-baseline.md)。
 
 实现 Agent Skills `SKILL.md` 解析：目录名与 frontmatter `name` 分开，name 规范化为小写 hyphen、长度上限 64；description、body、license、compatibility、metadata、allowed-tools 和 `version` 做长度/类型校验。Hook 与 Plugin manifest 使用 versioned schema，旧格式只能通过显式 adapter 进入 normalized DTO；坏 YAML/JSON、重复 component id、缺少入口和超限资源给出结构化诊断。兼容层不得绕过 trust 或签名。
 

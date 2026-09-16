@@ -15,6 +15,8 @@ pub const PLUGIN_LIFECYCLE_SCHEMA: &str = "kiana.plugin-lifecycle.v1";
 pub const EXTENSION_SNAPSHOT_SCHEMA: &str = "kiana.extension-snapshot.v1";
 pub const EXTENSION_ERROR_SCHEMA: &str = "kiana.extension-error.v1";
 pub const EXTENSION_SOURCE_RESOLUTION_SCHEMA: &str = "kiana.extension-source-resolution.v1";
+pub const PLUGIN_MANIFEST_SCHEMA: &str = "kiana.plugin-manifest.v1";
+pub const HOOK_MANIFEST_SCHEMA: &str = "kiana.hook-manifest.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {

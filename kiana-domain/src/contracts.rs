@@ -469,6 +469,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.plugin-manifest.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-skills",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.hook-manifest.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-skills",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.data-policy.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,

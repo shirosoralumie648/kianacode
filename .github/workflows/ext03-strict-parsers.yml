@@ -1,0 +1,44 @@
+name: EXT-03 strict extension parsers
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-skills/src/types.rs"
+      - "kiana-skills/src/loader.rs"
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext03_manifest.rs"
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "docs/roadmap/strict-extension-parsers-baseline.md"
+      - ".github/workflows/ext03-strict-parsers.yml"
+  pull_request:
+    paths:
+      - "kiana-skills/src/types.rs"
+      - "kiana-skills/src/loader.rs"
+      - "kiana-skills/src/manifest.rs"
+      - "kiana-skills/src/lib.rs"
+      - "kiana-skills/tests/ext03_manifest.rs"
+      - "kiana-domain/src/tool_catalog.rs"
+      - "kiana-domain/src/extension_contracts.rs"
+      - "docs/roadmap/strict-extension-parsers-baseline.md"
+      - ".github/workflows/ext03-strict-parsers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  strict-parsers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run EXT-03 parser fixtures
+        run: cargo test -p kiana-skills --test ext03_manifest --locked -- --test-threads=1
+      - name: Compile EXT-03 parser target
+        run: cargo check -p kiana-skills --tests --locked

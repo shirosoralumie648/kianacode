@@ -1,6 +1,7 @@
 pub mod bundled;
 pub mod dynamic;
 pub mod loader;
+pub mod manifest;
 pub mod mcp;
 pub mod plugins;
 pub mod source_resolver;
@@ -11,7 +12,15 @@ pub use dynamic::{
     activate_conditional_skills_for_paths, add_dynamic_skill, get_dynamic_skills,
     store_conditional_skill,
 };
-pub use loader::{get_skill_dirs, get_skill_dirs_with_trust, load_skills_from_dir, SkillLoadError};
+pub use loader::{
+    get_skill_dirs, get_skill_dirs_with_trust, load_skills_from_dir, normalize_skill_name,
+    parse_skill_document, SkillLoadError,
+};
+pub use manifest::{
+    component_index, parse_hook_manifest, parse_plugin_manifest, HookEntry, NormalizedHookManifest,
+    NormalizedPluginManifest, PluginComponent, PluginComponentKind, MAX_MANIFEST_BYTES,
+    NORMALIZED_HOOK_MANIFEST_SCHEMA, NORMALIZED_PLUGIN_MANIFEST_SCHEMA,
+};
 pub use mcp::fetch_mcp_skills_for_client;
 pub use plugins::{
     get_plugin_skill_dirs, get_plugin_skill_dirs_for_cwd, load_plugin_skills,

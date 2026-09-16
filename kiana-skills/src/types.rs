@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use serde_yaml::Value as YamlValue;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,13 +53,18 @@ pub struct Command {
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Frontmatter {
     pub name: Option<String>,
     pub description: Option<String>,
     pub when_to_use: Option<String>,
     #[serde(rename = "argument-hint")]
     pub argument_hint: Option<String>,
-    #[serde(rename = "allowed-tools")]
+    #[serde(
+        default,
+        rename = "allowed-tools",
+        deserialize_with = "deserialize_allowed_tools"
+    )]
     pub allowed_tools: Option<Vec<String>>,
     pub model: Option<String>,
     #[serde(rename = "disable-model-invocation")]
@@ -67,6 +74,43 @@ pub struct Frontmatter {
     pub context: Option<String>,
     pub paths: Option<String>,
     pub version: Option<String>,
+    pub license: Option<String>,
+    pub compatibility: Option<String>,
+    pub metadata: Option<BTreeMap<String, YamlValue>>,
+    /// Legacy Claude-compatible aliases accepted by the explicit adapter path.
+    #[serde(default)]
+    pub triggers: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "deserialize_allowed_tools")]
+    pub tools: Option<Vec<String>>,
+}
+
+fn deserialize_allowed_tools<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<YamlValue>::deserialize(deserializer)?;
+    match value {
+        None => Ok(None),
+        Some(YamlValue::String(value)) => Ok(Some(
+            value
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect::<Vec<_>>(),
+        )),
+        Some(YamlValue::Sequence(values)) => values
+            .into_iter()
+            .map(|value| match value {
+                YamlValue::String(value) => Ok(value),
+                _ => Err(serde::de::Error::custom(
+                    "allowed-tools must contain strings",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Some),
+        Some(_) => Err(serde::de::Error::custom(
+            "allowed-tools must be a string or sequence",
+        )),
+    }
 }
 
 impl Frontmatter {

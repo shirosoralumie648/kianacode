@@ -104,6 +104,15 @@ pub(crate) fn parse_skill(
     skill_dir: &Path,
     source: SettingSource,
 ) -> Result<Command, SkillLoadError> {
+    if content.len() > 64 * 1024 {
+        return Err(SkillLoadError::InvalidFormat);
+    }
+    let trimmed = content.trim_start();
+    if trimmed.starts_with("---") && !trimmed[3..].contains("\n---") {
+        return Err(SkillLoadError::Frontmatter(
+            "frontmatter_terminator_missing".to_owned(),
+        ));
+    }
     let matter = Matter::<YAML>::new();
     let parsed = matter.parse(content);
 
@@ -115,7 +124,9 @@ pub(crate) fn parse_skill(
                 serde_yaml::from_str(yaml_content)
                     .map_err(|e| SkillLoadError::Frontmatter(e.to_string()))?
             } else {
-                Frontmatter::default()
+                return Err(SkillLoadError::Frontmatter(
+                    "frontmatter_terminator_missing".to_owned(),
+                ));
             }
         } else {
             Frontmatter::default()
@@ -129,6 +140,8 @@ pub(crate) fn parse_skill(
         .and_then(|n| n.to_str())
         .ok_or(SkillLoadError::InvalidFormat)?
         .to_string();
+    let skill_name = normalize_skill_name(&skill_name)?;
+    validate_frontmatter(&frontmatter, parsed.content.as_bytes().len())?;
 
     let description = frontmatter
         .description
@@ -153,6 +166,166 @@ pub(crate) fn parse_skill(
         paths: frontmatter.parse_paths(),
         content: parsed.content,
     })
+}
+
+/// Public, side-effect-free parser entry used by protocol/CI fixtures. File discovery remains
+/// behind the resolver; callers provide an already validated directory for provenance only.
+pub fn parse_skill_document(
+    content: &str,
+    skill_dir: impl AsRef<Path>,
+    source: SettingSource,
+) -> Result<Command, SkillLoadError> {
+    parse_skill(content, skill_dir.as_ref(), source)
+}
+
+/// Normalize both directory and frontmatter names into the stable Agent Skills identifier form.
+/// Display labels remain untouched in `Command::display_name`.
+pub fn normalize_skill_name(raw: &str) -> Result<String, SkillLoadError> {
+    let mut normalized = String::new();
+    let mut separator = false;
+    for character in raw.trim().chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            if separator && !normalized.is_empty() {
+                normalized.push('-');
+            }
+            normalized.push(character);
+            separator = false;
+        } else if matches!(character, '-' | '_' | ' ' | '.') || !character.is_ascii() {
+            separator = true;
+        } else {
+            separator = true;
+        }
+    }
+    if normalized.is_empty() || normalized.len() > 64 {
+        return Err(SkillLoadError::Frontmatter("skill_name_invalid".to_owned()));
+    }
+    Ok(normalized)
+}
+
+fn validate_frontmatter(
+    frontmatter: &Frontmatter,
+    body_bytes: usize,
+) -> Result<(), SkillLoadError> {
+    if body_bytes > 64 * 1024 {
+        return Err(SkillLoadError::InvalidFormat);
+    }
+    if let Some(name) = frontmatter.name.as_deref() {
+        // Directory identity and the human-facing frontmatter label are separate. Validate both
+        // forms, but do not require a display label to equal the directory slug.
+        let _normalized = normalize_skill_name(name)?;
+    }
+    for (value, field, limit) in [
+        (frontmatter.description.as_deref(), "description", 4_096),
+        (frontmatter.when_to_use.as_deref(), "when_to_use", 2_048),
+        (frontmatter.argument_hint.as_deref(), "argument_hint", 1_024),
+        (frontmatter.model.as_deref(), "model", 128),
+        (frontmatter.license.as_deref(), "license", 256),
+        (frontmatter.compatibility.as_deref(), "compatibility", 512),
+    ] {
+        if value.is_some_and(|value| value.len() > limit || value.contains('\0')) {
+            return Err(SkillLoadError::Frontmatter(format!(
+                "skill_{field}_invalid"
+            )));
+        }
+    }
+    if frontmatter
+        .context
+        .as_deref()
+        .is_some_and(|context| !matches!(context, "inline" | "fork"))
+    {
+        return Err(SkillLoadError::Frontmatter(
+            "skill_context_invalid".to_owned(),
+        ));
+    }
+    if frontmatter.allowed_tools.as_ref().is_some_and(|tools| {
+        tools.len() > 32
+            || tools
+                .iter()
+                .any(|tool| tool.trim().is_empty() || tool.len() > 128 || tool.contains('\0'))
+    }) {
+        return Err(SkillLoadError::Frontmatter(
+            "skill_allowed_tools_invalid".to_owned(),
+        ));
+    }
+    for values in [frontmatter.triggers.as_ref(), frontmatter.tools.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        if values.len() > 32
+            || values
+                .iter()
+                .any(|value| value.trim().is_empty() || value.len() > 128 || value.contains('\0'))
+        {
+            return Err(SkillLoadError::Frontmatter(
+                "skill_legacy_metadata_invalid".to_owned(),
+            ));
+        }
+    }
+    if let Some(paths) = frontmatter.paths.as_deref() {
+        if paths.len() > 4_096
+            || paths.lines().any(|path| {
+                let path = path.trim();
+                path.is_empty()
+                    || path.starts_with('/')
+                    || path.contains('\\')
+                    || path.contains('\0')
+                    || path.split('/').any(|part| part == "..")
+            })
+        {
+            return Err(SkillLoadError::Frontmatter(
+                "skill_paths_invalid".to_owned(),
+            ));
+        }
+    }
+    if let Some(metadata) = &frontmatter.metadata {
+        if metadata.len() > 32
+            || metadata
+                .keys()
+                .any(|key| key.trim().is_empty() || key.len() > 128 || key.contains('\0'))
+        {
+            return Err(SkillLoadError::Frontmatter(
+                "skill_metadata_invalid".to_owned(),
+            ));
+        }
+        for value in metadata.values() {
+            validate_yaml_value(value, 0)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_yaml_value(value: &serde_yaml::Value, depth: usize) -> Result<(), SkillLoadError> {
+    if depth > 8 {
+        return Err(SkillLoadError::Frontmatter(
+            "skill_metadata_depth_invalid".to_owned(),
+        ));
+    }
+    match value {
+        serde_yaml::Value::String(value) if value.len() > 1_024 || value.contains('\0') => Err(
+            SkillLoadError::Frontmatter("skill_metadata_value_invalid".to_owned()),
+        ),
+        serde_yaml::Value::Sequence(values) => {
+            if values.len() > 32 {
+                return Err(SkillLoadError::Frontmatter(
+                    "skill_metadata_value_invalid".to_owned(),
+                ));
+            }
+            values
+                .iter()
+                .try_for_each(|value| validate_yaml_value(value, depth + 1))
+        }
+        serde_yaml::Value::Mapping(values) => {
+            if values.len() > 32 {
+                return Err(SkillLoadError::Frontmatter(
+                    "skill_metadata_value_invalid".to_owned(),
+                ));
+            }
+            values
+                .values()
+                .try_for_each(|value| validate_yaml_value(value, depth + 1))
+        }
+        _ => Ok(()),
+    }
 }
 
 fn extract_description_from_markdown(content: &str) -> Option<String> {
