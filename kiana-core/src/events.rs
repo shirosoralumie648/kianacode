@@ -1,5 +1,6 @@
 use super::redaction::*;
 use super::*;
+use kiana_domain::CapabilityErrorCode;
 use serde::de::DeserializeOwned;
 
 fn optional_event_link<T: DeserializeOwned>(
@@ -12,6 +13,25 @@ fn optional_event_link<T: DeserializeOwned>(
             .map(Some)
             .map_err(|_| PortError::Failed(format!("event_{field}_invalid")).into()),
     }
+}
+
+fn result_unknown_value(value: &Value) -> bool {
+    value
+        .get("error_code")
+        .and_then(Value::as_str)
+        .map(CapabilityErrorCode::from_reason)
+        .or_else(|| {
+            value
+                .get("error")
+                .and_then(Value::as_str)
+                .map(CapabilityErrorCode::from_reason)
+        })
+        .is_some_and(|code| {
+            matches!(
+                code,
+                CapabilityErrorCode::ResultUnknown | CapabilityErrorCode::CompensationRequired
+            )
+        })
 }
 
 fn stamp_event_links(
@@ -375,13 +395,10 @@ pub(crate) fn capability_event_payload(
     if !payload.is_object() {
         payload = json!({ "output": payload });
     }
+    let result_unknown = result_unknown_value(&payload);
     let object = payload
         .as_object_mut()
         .expect("capability event payload is normalized to an object");
-    let result_unknown = object
-        .get("error")
-        .and_then(Value::as_str)
-        .is_some_and(|error| error.contains("result_unknown"));
     let not_executed = object.get("not_executed") == Some(&json!(true));
     let stop_confirmed = object.get("stop_confirmed").and_then(Value::as_bool);
     object.entry("attempt".to_owned()).or_insert(json!(1));
@@ -435,13 +452,10 @@ pub(crate) fn direct_capability_event_payload(
     if !payload.is_object() {
         payload = json!({ "output": payload });
     }
+    let result_unknown = result_unknown_value(&payload);
     let object = payload
         .as_object_mut()
         .expect("direct capability payload is normalized to an object");
-    let result_unknown = object
-        .get("error")
-        .and_then(Value::as_str)
-        .is_some_and(|error| error.contains("result_unknown"));
     let not_executed = object.get("not_executed") == Some(&json!(true));
     object.entry("attempt".to_owned()).or_insert(json!(1));
     object

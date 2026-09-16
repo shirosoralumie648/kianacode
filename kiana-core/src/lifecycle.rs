@@ -1,6 +1,11 @@
 use super::events::*;
 use super::redaction::*;
 use super::*;
+use kiana_domain::CapabilityErrorCode;
+
+fn lifecycle_error_code(error: &str) -> CapabilityErrorCode {
+    CapabilityErrorCode::from_reason(error)
+}
 
 impl ControlPlane {
     pub async fn start_run(
@@ -753,7 +758,7 @@ impl ControlPlane {
         let matching_non_cancel_error = matching_failure_errors
             .iter()
             .copied()
-            .find(|error| !error.starts_with("cancelled:"));
+            .find(|error| lifecycle_error_code(error) != CapabilityErrorCode::Cancelled);
         let has_matching_completion = events.iter().any(|event| {
             matches!(
                 event,
@@ -766,14 +771,14 @@ impl ControlPlane {
         let cancelled = response_run_ids_match
             && matching_failure_errors
                 .iter()
-                .any(|error| error.starts_with("cancelled:"))
+                .any(|error| lifecycle_error_code(error) == CapabilityErrorCode::Cancelled)
             && matching_non_cancel_error.is_none()
             && !has_matching_completion;
         if cancelled {
             let cancelled = matching_failure_errors
                 .iter()
                 .copied()
-                .find(|error| error.starts_with("cancelled:"))
+                .find(|error| lifecycle_error_code(error) == CapabilityErrorCode::Cancelled)
                 .map(redact_event_text)
                 .expect("cancelled response was checked above");
             self.forget_session(context.session_id.as_str(), run_id);
@@ -1027,12 +1032,11 @@ impl ControlPlane {
                 RunnerEvent::Failed { run_id, error } => {
                     let error = redact_event_text(&error);
                     failed = Some(error.clone());
-                    let terminal_kind = if error.starts_with("cancelled:") {
-                        "run.cancelled"
-                    } else if error.contains("result_unknown:") {
-                        "run.result_unknown"
-                    } else {
-                        "run.failed"
+                    let terminal_kind = match lifecycle_error_code(&error) {
+                        CapabilityErrorCode::Cancelled => "run.cancelled",
+                        CapabilityErrorCode::ResultUnknown
+                        | CapabilityErrorCode::CompensationRequired => "run.result_unknown",
+                        _ => "run.failed",
                     };
                     self.record_terminal_event(
                         request_id,
@@ -1085,14 +1089,18 @@ impl ControlPlane {
             if error == "run_not_found" {
                 self.forget_session(context.session_id.as_str(), run_id);
             }
-            let result_unknown = error.contains("result_unknown:");
+            let error_code = lifecycle_error_code(&error);
+            let result_unknown = matches!(
+                error_code,
+                CapabilityErrorCode::ResultUnknown | CapabilityErrorCode::CompensationRequired
+            );
             self.record_terminal_event(
                 request_id,
                 sequence,
                 run_id,
                 if result_unknown {
                     "run.result_unknown"
-                } else if error.starts_with("cancelled:") {
+                } else if error_code == CapabilityErrorCode::Cancelled {
                     "run.cancelled"
                 } else {
                     "run.failed"
@@ -1117,7 +1125,7 @@ impl ControlPlane {
                     ExecutionStatus::Blocked
                 } else if result_unknown {
                     ExecutionStatus::ResultUnknown
-                } else if error.starts_with("cancelled:") {
+                } else if error_code == CapabilityErrorCode::Cancelled {
                     ExecutionStatus::Cancelled
                 } else {
                     ExecutionStatus::Failed

@@ -1,10 +1,78 @@
 use crate::{
-    allow_list_covers, normalize_role_path, ApprovalId, BudgetLeaseId, CapabilityGrantId, CellId,
+    allow_list_covers, normalize_role_path, ApprovalId, BudgetLeaseId, CapabilityEffectState,
+    CapabilityErrorCode, CapabilityExecutionState, CapabilityGrantId, CapabilityStopState, CellId,
     DomainError, ExecutionScope, RequestContext, RequestId, RunId, SupervisionLeaseId,
     CAPABILITY_GRANT_SCHEMA, SUPERVISION_LEASE_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+pub const CAPABILITY_RESULT_DIMENSIONS_SCHEMA: &str = "kiana.capability-result-dimensions.v1";
+pub const CAPABILITY_OUTCOME_SCHEMA: &str = "kiana.capability-outcome.v1";
+
+/// Process evidence is intentionally separate from the capability effect.  A process can exit
+/// cleanly while an external effect remains unknown, and an unconfirmed stop is not a successful
+/// cancellation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityProcessState {
+    NotStarted,
+    Running,
+    Exited,
+    Unknown,
+}
+
+/// Stable, low-cardinality result dimensions shared by the broker, projections and wire
+/// adapters.  The original diagnostic error remains in `CapabilityResult.output`; this value is
+/// the machine-readable decision surface and must not be reconstructed with substring matching.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CapabilityResultDimensions {
+    pub schema: String,
+    pub process: CapabilityProcessState,
+    pub stop: CapabilityStopState,
+    pub effect: CapabilityEffectState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_code: Option<CapabilityErrorCode>,
+}
+
+impl CapabilityResultDimensions {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema != CAPABILITY_RESULT_DIMENSIONS_SCHEMA {
+            return Err("capability_result_dimensions_schema_invalid");
+        }
+        if matches!(self.process, CapabilityProcessState::NotStarted) && self.exit_code.is_some() {
+            return Err("capability_result_dimensions_process_conflict");
+        }
+        if matches!(self.effect, CapabilityEffectState::Unknown)
+            && !matches!(self.process, CapabilityProcessState::Unknown)
+            && self.failure_code != Some(CapabilityErrorCode::ResultUnknown)
+        {
+            return Err("capability_result_dimensions_unknown_conflict");
+        }
+        Ok(())
+    }
+
+    pub fn execution_state(&self) -> CapabilityExecutionState {
+        match self.effect {
+            CapabilityEffectState::Succeeded => CapabilityExecutionState::Succeeded,
+            CapabilityEffectState::Failed => CapabilityExecutionState::Failed,
+            CapabilityEffectState::Unknown => CapabilityExecutionState::Unknown,
+            CapabilityEffectState::NotStarted => {
+                if self.stop == CapabilityStopState::Confirmed
+                    || self.failure_code == Some(CapabilityErrorCode::Cancelled)
+                {
+                    CapabilityExecutionState::Cancelled
+                } else {
+                    CapabilityExecutionState::Failed
+                }
+            }
+            CapabilityEffectState::Started => CapabilityExecutionState::Executing,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CapabilityGrant {
@@ -390,6 +458,7 @@ pub struct CapabilityResult {
     /// handler 输出或结构化错误。
     pub output: Value,
     /// 可供回执追踪的证据引用。
+    #[serde(default)]
     pub evidence_refs: Vec<String>,
 }
 
@@ -398,6 +467,9 @@ impl CapabilityResult {
     pub fn failure_code(&self) -> Option<crate::CapabilityErrorCode> {
         if self.success {
             return None;
+        }
+        if let Some(code) = self.output.get("error_code").and_then(Value::as_str) {
+            return Some(crate::CapabilityErrorCode::from_reason(code));
         }
         Some(crate::CapabilityErrorCode::from_reason(
             self.output
@@ -415,6 +487,69 @@ impl CapabilityResult {
             output,
             evidence_refs: Vec::new(),
         }
+    }
+
+    /// Derive the machine-readable process/stop/effect dimensions from a normalized result.
+    /// Error details remain diagnostic text and cannot change lifecycle classification.
+    pub fn dimensions(&self) -> CapabilityResultDimensions {
+        let failure_code = self.failure_code();
+        let not_executed = self.output.get("not_executed") == Some(&Value::Bool(true));
+        let cancelled = self.output.get("cancelled") == Some(&Value::Bool(true))
+            || failure_code == Some(CapabilityErrorCode::Cancelled);
+        let stop = match self.output.get("stop_confirmed").and_then(Value::as_bool) {
+            Some(true) => CapabilityStopState::Confirmed,
+            Some(false) => CapabilityStopState::Unconfirmed,
+            None if cancelled => CapabilityStopState::Unknown,
+            None => CapabilityStopState::NotRequested,
+        };
+        let exit_code = self
+            .output
+            .get("exit_code")
+            .and_then(Value::as_i64)
+            .and_then(|code| i32::try_from(code).ok());
+        let process = if not_executed {
+            CapabilityProcessState::NotStarted
+        } else if failure_code == Some(CapabilityErrorCode::ResultUnknown)
+            || self.output.get("effect_known") == Some(&Value::Bool(false))
+        {
+            CapabilityProcessState::Unknown
+        } else if exit_code.is_some() || self.success || !cancelled {
+            CapabilityProcessState::Exited
+        } else {
+            CapabilityProcessState::Unknown
+        };
+        let effect = if failure_code == Some(CapabilityErrorCode::ResultUnknown)
+            || self.output.get("effect_known") == Some(&Value::Bool(false))
+        {
+            CapabilityEffectState::Unknown
+        } else if not_executed {
+            CapabilityEffectState::NotStarted
+        } else if cancelled {
+            if stop == CapabilityStopState::Confirmed
+                && self.output.get("effect_started") == Some(&Value::Bool(false))
+            {
+                CapabilityEffectState::NotStarted
+            } else {
+                CapabilityEffectState::Unknown
+            }
+        } else if self.success {
+            CapabilityEffectState::Succeeded
+        } else {
+            CapabilityEffectState::Failed
+        };
+        CapabilityResultDimensions {
+            schema: CAPABILITY_RESULT_DIMENSIONS_SCHEMA.to_owned(),
+            process,
+            stop,
+            effect,
+            exit_code,
+            failure_code,
+        }
+    }
+
+    /// Map a normalized capability result to the lifecycle state used by all projections.
+    pub fn execution_state(&self) -> CapabilityExecutionState {
+        self.dimensions().execution_state()
     }
 
     /// 创建失败结果；错误文字被放入结构化 `output.error`。

@@ -5,8 +5,8 @@
 //! as bounded limitations instead of manufacturing healthy zeroes.
 
 use kiana_domain::{
-    json_digest, EventCursor, EventId, MetricCatalog, MetricKind, MetricPoint, MetricSnapshot,
-    RunId, RuntimeEvent, SignalStatus,
+    json_digest, CapabilityErrorCode, EventCursor, EventId, MetricCatalog, MetricKind, MetricPoint,
+    MetricSnapshot, RunId, RuntimeEvent, SignalStatus,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -113,17 +113,25 @@ fn has_error(event: &RuntimeEvent) -> bool {
 }
 
 fn unknown_effect(event: &RuntimeEvent) -> bool {
-    event.kind.contains("result_unknown")
-        || event
-            .data
-            .get("effect_known")
-            .and_then(Value::as_bool)
-            .is_some_and(|known| !known)
+    matches!(
+        event.kind.as_str(),
+        "run.result_unknown" | "capability.result_unknown" | "execution.result_unknown"
+    ) || event
+        .data
+        .get("effect_known")
+        .and_then(Value::as_bool)
+        .is_some_and(|known| !known)
         || event
             .data
             .get("error")
             .and_then(Value::as_str)
-            .is_some_and(|error| error.contains("result_unknown"))
+            .map(CapabilityErrorCode::from_reason)
+            .is_some_and(|code| {
+                matches!(
+                    code,
+                    CapabilityErrorCode::ResultUnknown | CapabilityErrorCode::CompensationRequired
+                )
+            })
 }
 
 fn operation_key(event: &RuntimeEvent) -> Option<String> {

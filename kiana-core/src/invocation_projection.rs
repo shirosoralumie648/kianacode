@@ -1,6 +1,6 @@
 use kiana_domain::{
-    ApprovalId, CapabilityExecutionState, CapabilityKind, CapabilityRequest, RequestId, RiskLevel,
-    RunId, RuntimeEvent,
+    ApprovalId, CapabilityErrorCode, CapabilityExecutionState, CapabilityKind, CapabilityRequest,
+    CapabilityResult, RequestId, RiskLevel, RunId, RuntimeEvent,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -67,6 +67,12 @@ fn request_id_for(event: &RuntimeEvent) -> Option<RequestId> {
                 .then(|| event.data.get("subject_request_id"))
                 .flatten()
         })
+        .or_else(|| {
+            event
+                .data
+                .get("permit")
+                .and_then(|permit| permit.get("request_id"))
+        })
         .and_then(|value| serde_json::from_value::<RequestId>(value.clone()).ok())
 }
 
@@ -90,23 +96,16 @@ fn terminal_state(event: &RuntimeEvent) -> Result<Option<CapabilityExecutionStat
                 .data
                 .get("result")
                 .ok_or_else(|| "invocation_result_malformed".to_owned())?;
-            if !result.is_object() {
+            if !result.is_object() || result.get("success").and_then(Value::as_bool).is_none() {
                 return Err("invocation_result_malformed".to_owned());
             }
+            let request_id =
+                request_id_for(event).ok_or_else(|| "invocation_request_id_missing".to_owned())?;
+            let result = result_from_value(request_id, result)?;
             if !effect_known {
                 CapabilityExecutionState::Unknown
-            } else if result["output"]["cancelled"] == true {
-                CapabilityExecutionState::Cancelled
-            } else if result
-                .get("success")
-                .and_then(Value::as_bool)
-                .is_some_and(|success| success)
-            {
-                CapabilityExecutionState::Succeeded
-            } else if result.get("success").and_then(Value::as_bool).is_some() {
-                CapabilityExecutionState::Failed
             } else {
-                return Err("invocation_result_malformed".to_owned());
+                result.execution_state()
             }
         }
         "capability.completed" => CapabilityExecutionState::Succeeded,
@@ -118,16 +117,22 @@ fn terminal_state(event: &RuntimeEvent) -> Result<Option<CapabilityExecutionStat
         // not-executed result, but their authoritative terminal facts are approval.denied or
         // run.capability_blocked. Treating every not-executed result as cancellation creates a
         // false Denied -> Cancelled conflict during recovery.
-        "run.tool_result"
-            if event.data["cancelled"] == true
-                || event
-                    .data
-                    .get("result")
-                    .and_then(|result| result.get("error"))
-                    .and_then(Value::as_str)
-                    .is_some_and(|error| error.starts_with("cancelled:")) =>
-        {
-            CapabilityExecutionState::Cancelled
+        "run.tool_result" => {
+            let request_id =
+                request_id_for(event).ok_or_else(|| "invocation_request_id_missing".to_owned())?;
+            let result =
+                result_from_value(request_id, event.data.get("result").unwrap_or(&Value::Null))?;
+            if event.data.get("effect_known") == Some(&Value::Bool(false))
+                || result.failure_code() == Some(CapabilityErrorCode::ResultUnknown)
+            {
+                CapabilityExecutionState::Unknown
+            } else if event.data.get("cancelled") == Some(&Value::Bool(true))
+                || result.failure_code() == Some(CapabilityErrorCode::Cancelled)
+            {
+                CapabilityExecutionState::Cancelled
+            } else {
+                return Ok(None);
+            }
         }
         "approval.denied" | "run.capability_blocked" => CapabilityExecutionState::Denied,
         _ => return Ok(None),
@@ -138,6 +143,7 @@ fn terminal_state(event: &RuntimeEvent) -> Result<Option<CapabilityExecutionStat
 fn intermediate_state(event: &RuntimeEvent) -> Option<CapabilityExecutionState> {
     match event.kind.as_str() {
         "run.capability_requested" => Some(CapabilityExecutionState::Requested),
+        "run.queued" => Some(CapabilityExecutionState::Queued),
         "capability.decision" => match event.data["gate"]["decision"].as_str() {
             Some("awaiting_approval") => Some(CapabilityExecutionState::AwaitingApproval),
             Some("allowed") => Some(CapabilityExecutionState::Authorized),
@@ -148,7 +154,9 @@ fn intermediate_state(event: &RuntimeEvent) -> Option<CapabilityExecutionState> 
             Some(CapabilityExecutionState::AwaitingApproval)
         }
         "approval.approved" => Some(CapabilityExecutionState::Authorized),
-        "invocation.dispatching" => Some(CapabilityExecutionState::Dispatching),
+        "execution.prepared" | "invocation.dispatching" => {
+            Some(CapabilityExecutionState::Dispatching)
+        }
         "invocation.executing" => Some(CapabilityExecutionState::Executing),
         _ => None,
     }
@@ -205,6 +213,7 @@ fn is_invocation_event(kind: &str) -> bool {
             | "approval.approved"
             | "approval.denied"
             | "run.capability_blocked"
+            | "execution.prepared"
             | "invocation.dispatching"
             | "invocation.executing"
             | "execution.result_committed"
@@ -214,6 +223,32 @@ fn is_invocation_event(kind: &str) -> bool {
             | "capability.result_unknown"
             | "run.tool_result"
     )
+}
+
+fn result_from_value(request_id: RequestId, value: &Value) -> Result<CapabilityResult, String> {
+    if !value.is_object() {
+        return Err("invocation_result_malformed".to_owned());
+    }
+    if let Ok(result) = serde_json::from_value::<CapabilityResult>(value.clone()) {
+        if result.request_id != request_id {
+            return Err("invocation_result_request_id_conflict".to_owned());
+        }
+        return Ok(result);
+    }
+    let success = value
+        .get("success")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let output = value
+        .get("output")
+        .cloned()
+        .unwrap_or_else(|| value.clone());
+    Ok(CapabilityResult {
+        request_id,
+        success,
+        output,
+        evidence_refs: Vec::new(),
+    })
 }
 
 fn merge_optional_field(
@@ -239,65 +274,7 @@ fn transition_allowed(
     next: CapabilityExecutionState,
     event: &RuntimeEvent,
 ) -> bool {
-    if previous == next || previous.can_transition_to(next) {
-        return true;
-    }
-    match (previous, next) {
-        // A capability.decision records policy and gate evaluation together. It is therefore a
-        // valid compressed Requested -> Authorized/AwaitingApproval/Denied transition.
-        (CapabilityExecutionState::Requested, CapabilityExecutionState::Authorized)
-        | (CapabilityExecutionState::Requested, CapabilityExecutionState::AwaitingApproval)
-        | (CapabilityExecutionState::Requested, CapabilityExecutionState::Denied)
-            if event.kind == "capability.decision" =>
-        {
-            true
-        }
-        // A preparation failure is durably recorded as a blocked fact after the redacted
-        // request snapshot, so it is terminal without a policy decision or broker grant.
-        (CapabilityExecutionState::Requested, CapabilityExecutionState::Denied)
-            if event.kind == "run.capability_blocked" =>
-        {
-            true
-        }
-        // The broker records dispatch admission and execution result in separate aggregates;
-        // the result may be the first fact after dispatching when no executing heartbeat exists.
-        (
-            CapabilityExecutionState::Dispatching,
-            CapabilityExecutionState::Succeeded
-            | CapabilityExecutionState::Failed
-            | CapabilityExecutionState::Cancelled
-            | CapabilityExecutionState::Unknown,
-        ) if matches!(
-            event.kind.as_str(),
-            "execution.result_committed"
-                | "capability.completed"
-                | "capability.failed"
-                | "capability.cancelled"
-                | "capability.result_unknown"
-        ) =>
-        {
-            true
-        }
-        // Direct (non-run) capability execution can emit a capability terminal fact without a
-        // broker dispatching heartbeat, but only after the authorization fact is durable.
-        (
-            CapabilityExecutionState::Authorized,
-            CapabilityExecutionState::Succeeded
-            | CapabilityExecutionState::Failed
-            | CapabilityExecutionState::Cancelled
-            | CapabilityExecutionState::Unknown,
-        ) if matches!(
-            event.kind.as_str(),
-            "capability.completed"
-                | "capability.failed"
-                | "capability.cancelled"
-                | "capability.result_unknown"
-        ) =>
-        {
-            true
-        }
-        _ => false,
-    }
+    previous.can_transition_via(next, event.kind.as_str())
 }
 
 fn request_from_event(event: &RuntimeEvent) -> Option<CapabilityRequest> {

@@ -1,0 +1,60 @@
+name: CAP-04 typed capability state and outcome
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/tests/cap04_state.rs"
+      - "kiana-core/tests/cap04_state.rs"
+      - "kiana-core/tests/cap04_state_guard.rs"
+      - "kiana-protocol/tests/cap04_mapping.rs"
+      - "docs/roadmap/capability-state-baseline.md"
+      - ".github/workflows/cap04-state.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/states.rs"
+      - "kiana-domain/src/capabilities.rs"
+      - "kiana-domain/src/actions.rs"
+      - "kiana-core/src/invocation_projection.rs"
+      - "kiana-core/src/capability_attempt_projection.rs"
+      - "kiana-core/src/events.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-daemon/src/harness_capabilities.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-domain/tests/cap04_state.rs"
+      - "kiana-core/tests/cap04_state.rs"
+      - "kiana-core/tests/cap04_state_guard.rs"
+      - "kiana-protocol/tests/cap04_mapping.rs"
+      - "docs/roadmap/capability-state-baseline.md"
+      - ".github/workflows/cap04-state.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typed-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CAP-04 domain fixtures
+        run: cargo test -p kiana-domain --test cap04_state --locked -- --test-threads=1
+      - name: Run CAP-04 core fixtures
+        run: cargo test -p kiana-core --test cap04_state --locked -- --test-threads=1
+      - name: Run CAP-04 protocol mapping fixture
+        run: cargo test -p kiana-protocol --test cap04_mapping --locked -- --test-threads=1
+      - name: Run CAP-04 source guard
+        run: cargo test -p kiana-core --test cap04_state_guard --locked -- --test-threads=1

@@ -102,7 +102,10 @@ async fn execute_shell(
         {
             Ok(output) => output,
             Err(error) => {
-                if error.to_string().contains("result_unknown") {
+                if kiana_domain::CapabilityErrorCode::from_reason(&error.to_string())
+                    .policy()
+                    .requires_reconciliation
+                {
                     workspace.retain_unknown();
                 }
                 return Err(error);

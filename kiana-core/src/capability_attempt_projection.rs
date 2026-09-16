@@ -7,9 +7,9 @@
 
 use kiana_domain::{
     json_digest, redact_text, CapabilityAdmissionState, CapabilityApprovalState,
-    CapabilityAttemptRecord, CapabilityEffectState, CapabilityKind, CapabilityStopState, EventId,
-    ExecutionId, InvocationId, RequestId, RunId, RuntimeEvent, SpanId, TraceId, TraceStatus,
-    TurnId,
+    CapabilityAttemptRecord, CapabilityEffectState, CapabilityErrorCode, CapabilityKind,
+    CapabilityStopState, EventId, ExecutionId, InvocationId, RequestId, RunId, RuntimeEvent,
+    SpanId, TraceId, TraceStatus, TurnId,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -31,6 +31,8 @@ pub enum CapabilityAttemptProjectionError {
     CursorOverflow,
     #[error("capability_attempt_request_id_missing")]
     RequestIdMissing,
+    #[error("capability_attempt_foreign_result:{0}")]
+    ForeignAttemptResult(String),
     #[error("capability_attempt_terminal_conflict:{0}")]
     TerminalConflict(String),
     #[error("capability_attempt_record_invalid:{0}")]
@@ -65,6 +67,18 @@ fn recognized(kind: &str) -> bool {
             | "run.cancelling"
             | "run.cancelled"
             | "run.result_unknown"
+    )
+}
+
+fn is_terminal_result_event(kind: &str) -> bool {
+    matches!(
+        kind,
+        "execution.result_committed"
+            | "capability.completed"
+            | "capability.failed"
+            | "capability.cancelled"
+            | "capability.result_unknown"
+            | "run.tool_result"
     )
 }
 
@@ -137,12 +151,51 @@ fn invocation_id_for(event: &RuntimeEvent) -> Option<InvocationId> {
         .or_else(|| request_id_for(event).map(|id| InvocationId::from_uuid(id.as_uuid())))
 }
 
+fn explicit_invocation_id_for(event: &RuntimeEvent) -> Option<InvocationId> {
+    id_from_event(event, &["invocation_id"]).or_else(|| permit_field(event, "invocation_id"))
+}
+
 fn execution_id_for(event: &RuntimeEvent) -> Option<ExecutionId> {
     id_from_event(event, &["execution_id"]).or_else(|| permit_field(event, "execution_id"))
 }
 
+fn explicit_execution_id_for(event: &RuntimeEvent) -> Option<ExecutionId> {
+    execution_id_for(event)
+}
+
 fn turn_id_for(event: &RuntimeEvent) -> Option<TurnId> {
     id_from_event(event, &["turn_id"]).or_else(|| permit_field(event, "turn_id"))
+}
+
+fn result_error_code(event: &RuntimeEvent) -> Option<CapabilityErrorCode> {
+    let values = [
+        event.data.get("error"),
+        event.data.get("reason"),
+        event
+            .data
+            .get("result")
+            .and_then(|result| result.get("error")),
+        event
+            .data
+            .get("result")
+            .and_then(|result| result.get("output"))
+            .and_then(|output| output.get("error")),
+    ];
+    let codes = values
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(CapabilityErrorCode::from_reason))
+        .collect::<Vec<_>>();
+    codes
+        .iter()
+        .copied()
+        .find(|code| {
+            matches!(
+                code,
+                CapabilityErrorCode::ResultUnknown | CapabilityErrorCode::CompensationRequired
+            )
+        })
+        .or_else(|| codes.into_iter().next())
 }
 
 fn approval_id_for(event: &RuntimeEvent) -> Option<String> {
@@ -262,22 +315,27 @@ fn bool_field(event: &RuntimeEvent, names: &[&str]) -> Option<bool> {
 }
 
 fn safe_error_code(event: &RuntimeEvent) -> Option<String> {
-    let raw = event
-        .data
-        .get("error")
-        .and_then(|value| {
-            value
-                .as_str()
-                .map(str::to_owned)
-                .or_else(|| value.get("code").and_then(Value::as_str).map(str::to_owned))
-        })
-        .or_else(|| {
-            event
-                .data
-                .get("reason")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        })?;
+    let raw = [
+        event.data.get("error"),
+        event.data.get("reason"),
+        event
+            .data
+            .get("result")
+            .and_then(|result| result.get("error")),
+        event
+            .data
+            .get("result")
+            .and_then(|result| result.get("output"))
+            .and_then(|output| output.get("error")),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|value| {
+        value
+            .as_str()
+            .map(str::to_owned)
+            .or_else(|| value.get("code").and_then(Value::as_str).map(str::to_owned))
+    })?;
     let raw = raw.trim();
     let raw = raw.strip_prefix("result_unknown:").unwrap_or(raw);
     let raw = raw.strip_prefix("cancelled:").unwrap_or(raw);
@@ -308,22 +366,52 @@ fn result_success(event: &RuntimeEvent) -> Option<bool> {
         .data
         .get("result")
         .or_else(|| (event.kind.starts_with("capability.")).then_some(&event.data))?;
-    result.get("success").and_then(Value::as_bool)
+    result.get("success").and_then(Value::as_bool).or_else(|| {
+        (event.kind == "run.tool_result")
+            .then_some(())
+            .and_then(|_| {
+                if result.get("error").is_some() {
+                    Some(false)
+                } else {
+                    result
+                        .get("exit_code")
+                        .and_then(Value::as_i64)
+                        .map(|code| code == 0)
+                }
+            })
+    })
 }
 
 fn result_unknown(event: &RuntimeEvent) -> bool {
-    let error_text = event
-        .data
-        .get("error")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
     event.kind == "capability.result_unknown"
         || event
             .data
             .get("effect_known")
             .and_then(Value::as_bool)
             .is_some_and(|known| !known)
-        || error_text.contains("result_unknown")
+        || result_error_code(event).is_some_and(|code| {
+            matches!(
+                code,
+                CapabilityErrorCode::ResultUnknown | CapabilityErrorCode::CompensationRequired
+            )
+        })
+}
+
+fn terminal_effect(event: &RuntimeEvent) -> CapabilityEffectState {
+    if result_unknown(event) {
+        CapabilityEffectState::Unknown
+    } else if result_success(event) == Some(true) {
+        CapabilityEffectState::Succeeded
+    } else if result_success(event) == Some(false)
+        || matches!(
+            event.kind.as_str(),
+            "capability.failed" | "capability.cancelled"
+        )
+    {
+        CapabilityEffectState::Failed
+    } else {
+        CapabilityEffectState::Unknown
+    }
 }
 
 fn stable_trace_id(run_id: RunId) -> Result<TraceId, CapabilityAttemptProjectionError> {
@@ -389,7 +477,9 @@ impl AttemptState {
         Self {
             run_id,
             turn_id: None,
-            invocation_id: Some(InvocationId::from_uuid(request_id.as_uuid())),
+            // A request-id fallback is useful for legacy records, but it is not an identity
+            // claim. Keep the slot empty until a committed invocation fact can bind it.
+            invocation_id: None,
             execution_id: None,
             request_id,
             attempt,
@@ -417,13 +507,26 @@ impl AttemptState {
         event: &RuntimeEvent,
         cursor: u64,
     ) -> Result<(), CapabilityAttemptProjectionError> {
+        let incoming_turn = turn_id_for(event);
+        let incoming_invocation = explicit_invocation_id_for(event);
+        let incoming_execution = explicit_execution_id_for(event);
+        if incoming_turn.is_some_and(|value| self.turn_id.is_some_and(|previous| previous != value))
+            || incoming_invocation
+                .is_some_and(|value| self.invocation_id.is_some_and(|previous| previous != value))
+            || incoming_execution
+                .is_some_and(|value| self.execution_id.is_some_and(|previous| previous != value))
+        {
+            return Err(CapabilityAttemptProjectionError::ForeignAttemptResult(
+                self.request_id.to_string(),
+            ));
+        }
         self.source_cursor = self.source_cursor.max(cursor);
         if !self.source_event_ids.contains(&event.event_id) {
             self.source_event_ids.push(event.event_id);
         }
-        self.turn_id = self.turn_id.or_else(|| turn_id_for(event));
-        self.invocation_id = invocation_id_for(event).or(self.invocation_id);
-        self.execution_id = execution_id_for(event).or(self.execution_id);
+        self.turn_id = self.turn_id.or(incoming_turn);
+        self.invocation_id = self.invocation_id.or(incoming_invocation);
+        self.execution_id = self.execution_id.or(incoming_execution);
         let (attempt, attempt_malformed) = parse_attempt(event);
         if attempt != self.attempt {
             if attempt > self.attempt {
@@ -438,6 +541,20 @@ impl AttemptState {
             }
         }
         self.malformed |= attempt_malformed;
+        if is_terminal_result_event(&event.kind)
+            && matches!(
+                self.effect,
+                CapabilityEffectState::Succeeded
+                    | CapabilityEffectState::Failed
+                    | CapabilityEffectState::Unknown
+            )
+            && self.effect != terminal_effect(event)
+        {
+            return Err(CapabilityAttemptProjectionError::TerminalConflict(format!(
+                "effect_transition:{}",
+                self.request_id
+            )));
+        }
         if let Some(operation) = operation_for(event) {
             let (operation, malformed) = safe_label(
                 Some(&Value::String(operation.to_owned())),
@@ -749,7 +866,8 @@ impl AttemptState {
             span_id,
             Some(self.run_id),
             self.turn_id,
-            self.invocation_id,
+            self.invocation_id
+                .or_else(|| Some(InvocationId::from_uuid(self.request_id.as_uuid()))),
             self.execution_id,
             self.request_id,
             self.attempt,
@@ -860,6 +978,11 @@ pub fn project_capability_attempts(
         );
         let (action_digest, digest_malformed) =
             digest_for(event, &capability_id, &operation, request_id);
+        if is_terminal_result_event(&event.kind) && !states.contains_key(&(request_id, attempt)) {
+            return Err(CapabilityAttemptProjectionError::ForeignAttemptResult(
+                format!("{}:{attempt}", request_id),
+            ));
+        }
         let state = states.entry((request_id, attempt)).or_insert_with(|| {
             AttemptState::new(
                 run_id,

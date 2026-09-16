@@ -1251,6 +1251,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CAP-03 ExecutionScope derivation/resource/epoch/Broker-boundary review; no runtime test reviewer
 ```
 
+### CAP-04 typed capability state and outcome evidence (2026-09-16)
+
+```text
+source_snapshot: 53d357a; kiana-domain/src/{states,capabilities,actions,contracts}.rs; kiana-core/src/{invocation_projection,capability_attempt_projection,events,lifecycle,metrics,platform,span_projection,company_business,data_governance}.rs; kiana-daemon/src/harness_capabilities.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/cap04_state.rs; kiana-core/tests/cap04_state.rs; kiana-core/tests/cap04_state_guard.rs; kiana-protocol/tests/cap04_mapping.rs; .github/workflows/cap04-state.yml; docs/roadmap/capability-state-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/capability.md; docs/roadmap.md
+worktree_status: CAP-04 typed CapabilityExecutionState transitions, CapabilityResultDimensions process/stop/effect evidence, stable error-code classification, non-zero shell exit normalization, terminal/Unknown/foreign-attempt projection guards, remote fixtures/source guard and roadmap/status overlays are scoped to this step; no second execution loop or EventLog was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/states.rs kiana-domain/src/capabilities.rs kiana-domain/src/actions.rs kiana-domain/src/contracts.rs kiana-core/src/invocation_projection.rs kiana-core/src/capability_attempt_projection.rs kiana-core/src/events.rs kiana-core/src/lifecycle.rs kiana-core/src/metrics.rs kiana-core/src/platform.rs kiana-core/src/span_projection.rs kiana-core/src/company_business.rs kiana-core/src/data_governance.rs kiana-daemon/src/harness_capabilities.rs kiana-protocol/src/lib.rs kiana-domain/tests/cap04_state.rs kiana-core/tests/cap04_state.rs kiana-core/tests/cap04_state_guard.rs kiana-protocol/tests/cap04_mapping.rs .github/workflows/cap04-state.yml docs/roadmap/capability-state-baseline.md
+  rg -n 'CapabilityExecutionState|can_transition_via|CapabilityResultDimensions|CapabilityProcessState|ForeignAttemptResult|terminal_execution_cannot_transition_to_success_again|unknown_effect_cannot_be_projected_as_cancelled|foreign_attempt_result_is_rejected|nonzero_shell_exit_remains_a_structured_tool_result' kiana-domain/src kiana-core/src kiana-daemon/src kiana-domain/tests/cap04_state.rs kiana-core/tests/cap04_state.rs kiana-core/tests/cap04_state_guard.rs docs/roadmap/capability-state-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cap04_state.rs typed state/non-zero-exit fixtures; kiana-core/tests/cap04_state.rs terminal/Unknown/foreign-attempt/recovery projection fixtures; kiana-core/tests/cap04_state_guard.rs source boundary guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CAP-04 job is queued by the push and is not awaited
+status_change: CAP-04 source slice is implemented. CapabilityExecutionState now has an explicit queued state and legal queued/authorized/dispatching cancellation, startup-failure and recovery-Unknown edges, with compressed event transitions centralized in the domain. CapabilityResultDimensions separates process/stop/effect/exit/failure code; normalization turns success=true plus non-zero exit or unknown effect into a structured failure. Invocation projection rejects terminal resurrection and Unknown→Cancelled, while capability attempt projection requires an existing request/attempt and rejects foreign turn/invocation/execution identities. Event/lifecycle classification uses CapabilityErrorCode rather than result_unknown substring matching.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; typed dimensions are bounded handler/event evidence, not a permit or external receipt; permit single-consumption, durable cross-process attempt ledger, OS/TOCTOU/egress, provider/connector/network/physical effects, reconciliation and business Outcome remain CAP-05+ and ER/PD/SC/INT work; legacy result payloads without typed fields remain conservative compatibility reads
+reviewer: Codex root implementation review plus CAP-04 state-transition/outcome/error/projection source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

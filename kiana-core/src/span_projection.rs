@@ -6,8 +6,9 @@
 //! after a restart from the EventLog alone.
 
 use kiana_domain::{
-    json_digest, redact_text, EventId, ExecutionId, InvocationId, RequestId, RunId, RuntimeEvent,
-    SpanEntityKind, SpanId, SpanLifecyclePhase, SpanLifecycleRecord, TraceId, TraceStatus, TurnId,
+    json_digest, redact_text, CapabilityErrorCode, EventId, ExecutionId, InvocationId, RequestId,
+    RunId, RuntimeEvent, SpanEntityKind, SpanId, SpanLifecyclePhase, SpanLifecycleRecord, TraceId,
+    TraceStatus, TurnId,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -596,10 +597,28 @@ fn invocation_transition(
             Some("result_unknown"),
         )),
         "run.tool_result" => {
-            if event.data["cancelled"] == true
-                || event.data["result"]["error"]
-                    .as_str()
-                    .is_some_and(|error| error.starts_with("cancelled:"))
+            let result_error_code = event
+                .data
+                .get("result")
+                .and_then(|result| result.get("error"))
+                .and_then(Value::as_str)
+                .map(CapabilityErrorCode::from_reason);
+            let unknown = event.data.get("effect_known") == Some(&Value::Bool(false))
+                || result_error_code.is_some_and(|code| {
+                    matches!(
+                        code,
+                        CapabilityErrorCode::ResultUnknown
+                            | CapabilityErrorCode::CompensationRequired
+                    )
+                });
+            if unknown {
+                Some((
+                    SpanLifecyclePhase::Ended,
+                    TraceStatus::Unknown,
+                    Some("result_unknown"),
+                ))
+            } else if event.data["cancelled"] == true
+                || result_error_code == Some(CapabilityErrorCode::Cancelled)
             {
                 Some((
                     SpanLifecyclePhase::Ended,

@@ -296,8 +296,8 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 | `CAP-00` | 快照、冲突口径、WIP 接线清单 | `P0-A-02`、`P0-B-01`、`P1-H-01` | — | ✅ |
 | `CAP-01` | 统一 descriptor / binding / catalog | `P1-H-01` | `CAP-00` | ⏳ |
 | `CAP-02` | 类型化输入、schema、canonical digest | `P1-H-02`、`P0-A-01b` | `CAP-01` | ⏳ |
-| `CAP-03` | 完整 ExecutionScope 与资源解析 | `P1-H-03`、`P0-K1-01` | `CAP-02` | ⏳ |
-| `CAP-04` | 状态、outcome 与稳定错误映射 | `P0-A-02`、`P0-B-01` | `CAP-02` | ⏳ |
+| `CAP-03` | 完整 ExecutionScope 与资源解析 | `P1-H-03`、`P0-K1-01` | `CAP-02` | ✅ |
+| `CAP-04` | 状态、outcome 与稳定错误映射 | `P0-A-02`、`P0-B-01` | `CAP-02` | ✅ |
 | `CAP-05` | 可核验许可与单次 dispatch | `P0-G-04`、`P1-H-01` | `CAP-03`、`CAP-04` | ⏳ |
 | `CAP-06` | 审批绑定最终计划与重校验 | `P0-F-01`、`P0-F-02` | `CAP-05` | ⏳ |
 | `CAP-07` | EnvironmentPort 与 backend probe | `P1-H-03` | `CAP-03`、`CAP-04` | ⏳ |
@@ -404,7 +404,9 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-04 — 状态与 outcome 不再依赖字符串猜测
+#### CAP-04 — 状态与 outcome 不再依赖字符串猜测　✅
+
+当前 source slice 与 CI-only 证据见 [`capability-state-baseline.md`](capability-state-baseline.md)。
 
 - **落点：** domain/states、capabilities、errors，core 状态转换与 protocol/error mapping。
 - **步骤：** 复用 `CapabilityExecutionState`，补全 queued/authorized/dispatching 阶段取消、启动失败、恢复未知的合法转移；引入 process/stop/effect 结果维度和稳定 failure code。保留 v1 wire 映射，明确 `CapabilityResult.success` 与子进程 exit 的含义。

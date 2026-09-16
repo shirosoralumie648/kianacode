@@ -1,6 +1,7 @@
 use super::*;
 use kiana_domain::{
-    DataGovernanceSnapshot, DataPayloadState, DataPolicy, RuntimeEvent, MAX_SOURCE_EVENT_IDS,
+    CapabilityErrorCode, DataGovernanceSnapshot, DataPayloadState, DataPolicy, RuntimeEvent,
+    MAX_SOURCE_EVENT_IDS,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -311,9 +312,14 @@ impl ControlPlane {
                     reason: reason.to_owned(),
                 })
                 .await;
-            let runner_confirmed=cancelled.as_ref().is_ok_and(|events|events.iter().all(|event|
-                event.run_id()==binding.run_id && !matches!(event,RunnerEvent::Failed {error,..}
-                    if !error.starts_with("cancelled:") && !(error=="run_not_found"&&terminal.is_some()))));
+            let runner_confirmed = cancelled.as_ref().is_ok_and(|events| {
+                events.iter().all(|event| {
+                    event.run_id() == binding.run_id
+                        && !matches!(event,RunnerEvent::Failed {error,..}
+                    if CapabilityErrorCode::from_reason(error) != CapabilityErrorCode::Cancelled
+                        && !(error=="run_not_found"&&terminal.is_some()))
+                })
+            });
             let confirmed = self.await_capability_stop(binding.run_id).await && runner_confirmed;
             if let Ok(events) = cancelled {
                 for event in events {

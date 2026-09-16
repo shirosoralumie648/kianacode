@@ -109,6 +109,7 @@ pub enum CapabilityExecutionState {
     PolicyChecked,
     AwaitingApproval,
     Authorized,
+    Queued,
     Denied,
     Dispatching,
     Executing,
@@ -123,15 +124,30 @@ impl CapabilityExecutionState {
         matches!(
             (self, next),
             (Self::Requested, Self::PolicyChecked)
+                | (Self::Requested, Self::Queued)
+                | (Self::Requested, Self::Cancelled)
                 | (Self::PolicyChecked, Self::AwaitingApproval)
                 | (Self::PolicyChecked, Self::Authorized)
                 | (Self::PolicyChecked, Self::Denied)
+                | (Self::PolicyChecked, Self::Queued)
+                | (Self::PolicyChecked, Self::Cancelled)
                 | (Self::Authorized, Self::Dispatching)
+                | (Self::Authorized, Self::Cancelled)
+                | (Self::Authorized, Self::Failed)
+                | (Self::Authorized, Self::Unknown)
                 | (Self::Dispatching, Self::Executing)
+                | (Self::Dispatching, Self::Failed)
+                | (Self::Dispatching, Self::Cancelled)
+                | (Self::Dispatching, Self::Unknown)
                 | (Self::Executing, Self::Succeeded)
                 | (Self::Executing, Self::Failed)
                 | (Self::Executing, Self::Cancelled)
                 | (Self::Executing, Self::Unknown)
+                | (Self::Queued, Self::PolicyChecked)
+                | (Self::Queued, Self::AwaitingApproval)
+                | (Self::Queued, Self::Authorized)
+                | (Self::Queued, Self::Denied)
+                | (Self::Queued, Self::Cancelled)
                 | (Self::AwaitingApproval, Self::Authorized)
                 | (Self::AwaitingApproval, Self::Denied)
                 | (Self::AwaitingApproval, Self::Cancelled)
@@ -157,6 +173,7 @@ impl CapabilityExecutionState {
             Self::PolicyChecked => "policy_checked",
             Self::AwaitingApproval => "awaiting_approval",
             Self::Authorized => "authorized",
+            Self::Queued => "queued",
             Self::Denied => "denied",
             Self::Dispatching => "dispatching",
             Self::Executing => "executing",
@@ -172,6 +189,68 @@ impl CapabilityExecutionState {
             self,
             Self::Denied | Self::Succeeded | Self::Failed | Self::Cancelled | Self::Unknown
         )
+    }
+
+    /// Validate an event-backed transition using the product's compressed event boundaries.
+    ///
+    /// `can_transition_to` is the pure state graph.  A few durable facts intentionally compress
+    /// more than one edge (for example a policy decision can take Requested directly to
+    /// Authorized), so projections must call this helper instead of recreating an ad-hoc string
+    /// state machine in each adapter.
+    pub fn can_transition_via(self, next: Self, event_kind: &str) -> bool {
+        if self == next || self.can_transition_to(next) {
+            return true;
+        }
+        match (self, next) {
+            (Self::Requested, Self::Authorized | Self::AwaitingApproval | Self::Denied)
+                if event_kind == "capability.decision" =>
+            {
+                true
+            }
+            (Self::Requested, Self::Denied) if event_kind == "run.capability_blocked" => true,
+            (
+                Self::Dispatching,
+                Self::Succeeded | Self::Failed | Self::Cancelled | Self::Unknown,
+            ) if matches!(
+                event_kind,
+                "execution.result_committed"
+                    | "capability.completed"
+                    | "capability.failed"
+                    | "capability.cancelled"
+                    | "capability.result_unknown"
+                    | "run.tool_result"
+            ) =>
+            {
+                true
+            }
+            (
+                Self::Authorized,
+                Self::Succeeded | Self::Failed | Self::Cancelled | Self::Unknown,
+            ) if matches!(
+                event_kind,
+                "capability.completed"
+                    | "capability.failed"
+                    | "capability.cancelled"
+                    | "capability.result_unknown"
+            ) =>
+            {
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Apply a validated transition and retain a structured domain error for callers.
+    pub fn transition_via(self, next: Self, event_kind: &str) -> Result<Self, DomainError> {
+        if self.can_transition_via(next, event_kind) {
+            Ok(next)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                aggregate: "capability_execution",
+                from: self.as_str(),
+                to: next.as_str(),
+            })
+        }
     }
 }
 

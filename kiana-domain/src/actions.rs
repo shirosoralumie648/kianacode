@@ -1,6 +1,7 @@
 //! Server-owned contracts for the operations admitted by the product composition root.
 use crate::{
-    CapabilityErrorCode, CapabilityKind, CapabilityRequest, CapabilityResult, RequestId, RiskLevel,
+    CapabilityErrorCode, CapabilityExecutionState, CapabilityKind, CapabilityRequest,
+    CapabilityResult, RequestId, RiskLevel,
 };
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -674,6 +675,43 @@ pub fn normalize_capability_result(
             Some("capability_output_limit"),
         );
     }
+    // A handler cannot claim success while reporting a non-zero subprocess exit or an
+    // unconfirmed effect. Preserve the process evidence, but force the stable failure code
+    // before any adapter sees the result.
+    let nonzero_exit = result
+        .output
+        .get("exit_code")
+        .and_then(Value::as_i64)
+        .is_some_and(|code| code != 0);
+    if result.success && nonzero_exit && result.output.get("cancelled") != Some(&Value::Bool(true))
+    {
+        result.success = false;
+        if !result.output.is_object() {
+            result.output = json!({"detail": result.output});
+        }
+        result.output["error"] = json!("execution_failed:shell_exit");
+    }
+    if result.success && result.output.get("effect_known") == Some(&Value::Bool(false)) {
+        result.success = false;
+        if !result.output.is_object() {
+            result.output = json!({"detail": result.output});
+        }
+        result.output["error"] = json!("result_unknown:effect_unconfirmed");
+    }
+    if result.success {
+        if let Some(code) = result
+            .output
+            .get("error_code")
+            .and_then(Value::as_str)
+            .map(CapabilityErrorCode::from_reason)
+        {
+            result.success = false;
+            if !result.output.is_object() {
+                result.output = json!({"detail": result.output});
+            }
+            result.output["error"] = json!(code.as_str());
+        }
+    }
     let reason = result
         .output
         .get("error")
@@ -713,12 +751,22 @@ pub fn normalize_capability_result(
         result.output["retryable"] = json!(code.policy().retryable);
     }
     if result.output.is_object() {
+        let dimensions = result.dimensions();
         result.output["outcome"] = json!({
-            "schema":"kiana.capability-outcome.v1",
+            "schema":crate::CAPABILITY_OUTCOME_SCHEMA,
             "capability_succeeded":result.success,
-            "process_exit_code":result.output.get("exit_code"),
+            "process_state":dimensions.process,
+            "process_exit_code":dimensions.exit_code,
+            "stop_state":dimensions.stop,
+            "effect_state":dimensions.effect,
+            "failure_code":dimensions.failure_code,
             "effect_committed":result.output.get("effect_committed"),
-            "execution_status":if result.success {"succeeded"} else if result.failure_code().is_some_and(|code|code.policy().requires_reconciliation) {"result_unknown"} else if cancelled {"cancelled"} else {"failed"},
+            "execution_status":match dimensions.execution_state() {
+                CapabilityExecutionState::Succeeded => "succeeded",
+                CapabilityExecutionState::Cancelled => "cancelled",
+                CapabilityExecutionState::Unknown => "result_unknown",
+                _ => "failed",
+            },
             "retry_policy":"no_automatic_effect_retry"
         });
     }

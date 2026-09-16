@@ -567,7 +567,7 @@ impl ControlPlane {
             let result = kiana_domain::normalize_capability_result(request.request_id, result);
             recording_error = self.record_event(event_request_id, sequence, "run.tool_result", json!({
                 "run_id":run_id,"capability_request_id":request.request_id,"call_id":request.arguments["call_id"],
-                "result":result.output,"cancelled":reason.starts_with("cancelled:"),"not_executed":true,
+                "result":result.output,"cancelled":kiana_domain::CapabilityErrorCode::from_reason(reason) == kiana_domain::CapabilityErrorCode::Cancelled,"not_executed":true,
                 "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
                 "stop_state":"confirmed","stop_confirmed":true,"fenced":false,
             })).await.err();

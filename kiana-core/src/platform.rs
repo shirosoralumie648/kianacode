@@ -1,9 +1,9 @@
 //! Local human operations retain the original Approval/Company authorities and event facts.
 use super::*;
 use kiana_domain::{
-    json_digest, AcceptanceStatus, CompanyCommand, CompanyCommandRequest, CompanyState,
-    FailureClass, FailureIncident, FeedbackCandidate, HumanAction, HumanInboxItem, HumanInboxKind,
-    IncidentStatus, COMPANY_COMMAND_SCHEMA,
+    json_digest, AcceptanceStatus, CapabilityErrorCode, CompanyCommand, CompanyCommandRequest,
+    CompanyState, FailureClass, FailureIncident, FeedbackCandidate, HumanAction, HumanInboxItem,
+    HumanInboxKind, IncidentStatus, COMPANY_COMMAND_SCHEMA,
 };
 
 const PLATFORM_STREAM: &str = "human_operations";
@@ -254,9 +254,31 @@ impl ControlPlane {
                 .unwrap_or(&event.kind)
                 .to_owned();
             let lower = summary.to_ascii_lowercase();
-            let unknown = event.kind.ends_with("result_unknown")
-                || lower.contains("result_unknown")
-                || lower.contains("stop_unconfirmed");
+            let unknown = matches!(
+                event.kind.as_str(),
+                "run.result_unknown" | "capability.result_unknown" | "execution.result_unknown"
+            ) || event
+                .data
+                .get("effect_known")
+                .and_then(Value::as_bool)
+                .is_some_and(|known| !known)
+                || event
+                    .data
+                    .get("stop_confirmed")
+                    .and_then(Value::as_bool)
+                    .is_some_and(|confirmed| !confirmed)
+                || event
+                    .data
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .map(CapabilityErrorCode::from_reason)
+                    .is_some_and(|code| {
+                        matches!(
+                            code,
+                            CapabilityErrorCode::ResultUnknown
+                                | CapabilityErrorCode::CompensationRequired
+                        )
+                    });
             let class = if lower.contains("no space")
                 || lower.contains("disk_full")
                 || lower.contains("os error 28")
@@ -266,7 +288,15 @@ impl ControlPlane {
                 FailureClass::Timeout
             } else if lower.contains("mcp") {
                 FailureClass::McpFailure
-            } else if event.kind == "run.cancelled" || lower.contains("cancelled") {
+            } else if event.kind == "run.cancelled"
+                || event.data.get("cancelled") == Some(&Value::Bool(true))
+                || event
+                    .data
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .map(CapabilityErrorCode::from_reason)
+                    .is_some_and(|code| code == CapabilityErrorCode::Cancelled)
+            {
                 FailureClass::Cancel
             } else if unknown || lower.contains("provider") {
                 FailureClass::ProviderUnknown

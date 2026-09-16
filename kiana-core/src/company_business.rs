@@ -244,12 +244,22 @@ impl ControlPlane {
                 }) {
                     let result = &event.data["result"];
                     let output = &result["output"];
+                    let result_error_code = result
+                        .get("error_code")
+                        .and_then(Value::as_str)
+                        .or_else(|| output.get("error_code").and_then(Value::as_str))
+                        .or_else(|| result.get("error").and_then(Value::as_str))
+                        .or_else(|| output.get("error").and_then(Value::as_str))
+                        .map(CapabilityErrorCode::from_reason);
                     let status = if result["success"] == true {
                         ExecutionStatus::Completed
-                    } else if result["error"]
-                        .as_str()
-                        .is_some_and(|error| error.starts_with("result_unknown"))
-                    {
+                    } else if result_error_code.is_some_and(|code| {
+                        matches!(
+                            code,
+                            CapabilityErrorCode::ResultUnknown
+                                | CapabilityErrorCode::CompensationRequired
+                        )
+                    }) {
                         ExecutionStatus::ResultUnknown
                     } else {
                         ExecutionStatus::Failed
