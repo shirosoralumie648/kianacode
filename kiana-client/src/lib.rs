@@ -7,7 +7,8 @@
 use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, EntryPointKind,
-    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, WorkPacket,
+    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, UiHandshakeRequest,
+    UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
 
@@ -33,6 +34,56 @@ impl<T> KianaClient<T>
 where
     T: ClientTransport,
 {
+    /// Negotiate the versioned UI surface without performing a command or capability action.
+    pub async fn initialize(
+        &self,
+        metadata: RequestMetadata,
+        handshake: UiHandshakeRequest,
+    ) -> Result<UiHandshakeResponse, ClientError> {
+        handshake.validate().map_err(ClientError::Protocol)?;
+        let response = self
+            .transport
+            .send(RequestEnvelope::command(
+                metadata,
+                "ui.initialize",
+                serde_json::to_value(handshake).map_err(|error| {
+                    ClientError::Protocol(format!("ui_handshake_encode:{error}"))
+                })?,
+            ))
+            .await?;
+        if response.status != kiana_protocol::ExecutionStatus::Completed {
+            return Err(ClientError::Protocol(
+                kiana_protocol::stable_error_from_response(&response)
+                    .map(|error| error.message)
+                    .unwrap_or_else(|| "ui_handshake_rejected".to_owned()),
+            ));
+        }
+        let handshake: UiHandshakeResponse = serde_json::from_value(response.output)
+            .map_err(|error| ClientError::Protocol(format!("ui_handshake_response:{error}")))?;
+        handshake.validate().map_err(ClientError::Protocol)?;
+        Ok(handshake)
+    }
+
+    /// Read the bounded health projection; raw paths, tokens and internal errors never cross this
+    /// typed client boundary.
+    pub async fn health(&self, metadata: RequestMetadata) -> Result<UiHealth, ClientError> {
+        let response = self
+            .transport
+            .send(RequestEnvelope::command(metadata, "ui.health", Value::Null))
+            .await?;
+        if response.status != kiana_protocol::ExecutionStatus::Completed {
+            return Err(ClientError::Protocol(
+                kiana_protocol::stable_error_from_response(&response)
+                    .map(|error| error.message)
+                    .unwrap_or_else(|| "ui_health_unavailable".to_owned()),
+            ));
+        }
+        let health: UiHealth = serde_json::from_value(response.output)
+            .map_err(|error| ClientError::Protocol(format!("ui_health_response:{error}")))?;
+        health.validate().map_err(ClientError::Protocol)?;
+        Ok(health)
+    }
+
     /// 使用给定传输端口创建客户端。
     pub fn new(transport: T) -> Self {
         Self { transport }
@@ -319,6 +370,9 @@ pub enum ClientError {
     /// 传输层失败；不表示远端命令被执行或没有执行。
     #[error("client_transport_failed:{0}")]
     Transport(String),
+    /// Remote response or typed handshake validation failed; no local retry is implied.
+    #[error("client_protocol_failed:{0}")]
+    Protocol(String),
 }
 
 #[cfg(test)]

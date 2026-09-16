@@ -1587,6 +1587,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus UI-01 DTO/compatibility/digest source-boundary review; no runtime test reviewer
 ```
 
+### UI-02 unified error/capability/surface handshake evidence (2026-09-16)
+
+```text
+source_snapshot: 21d2b04 (UI-01 versioned DTO); kiana-protocol/src/{ui_contracts,lib}.rs; kiana-client/src/lib.rs; kiana-domain/src/contracts.rs; kiana-protocol/tests/ui02_handshake.rs; kiana-client/tests/ui02_handshake.rs; .github/workflows/ui02-handshake.yml; docs/roadmap/ui-handshake-baseline.md; docs/roadmap/ui-entrypoints.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: UI-02 typed initialize/health handshake, principal×surface capability intersection, stable error/retry mapping, fixed user-safe messages, remote fixtures and roadmap/status overlays are scoped to this step; client remains transport-only and no daemon route/second authorization path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-protocol/src/ui_contracts.rs kiana-protocol/src/lib.rs kiana-client/src/lib.rs kiana-domain/src/contracts.rs kiana-protocol/tests/ui02_handshake.rs kiana-client/tests/ui02_handshake.rs .github/workflows/ui02-handshake.yml docs/roadmap/ui-handshake-baseline.md
+  rg -n 'UiHandshakeRequest|UiHandshakeResponse|UiHealth|UiSurface|intersect_ui_capabilities|stable_error_from_response|ClientError::Protocol|client_initialize_and_health_return_typed_handshake_data|client_rejects_invalid_handshake_before_transport|handshake_capabilities_are_the_principal_surface_intersection' kiana-protocol/src kiana-client/src kiana-protocol/tests kiana-client/tests docs/roadmap/ui-handshake-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; protocol/client fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-protocol/tests/ui02_handshake.rs capability intersection, schema/unknown and stable error fixtures; kiana-client/tests/ui02_handshake.rs typed initialize/health and pre-transport invalid request fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions UI-02 job is queued by the next push and is not awaited
+status_change: UI-02 source slice is implemented. Protocol defines versioned handshake/health DTOs and capability requests; principal and surface capability sets are intersected by ID/scope/enabled/action without widening. Existing capability error/status codes map to fixed UI error/retry dispositions, with Unknown forced to QueryOriginal and no raw internal detail copied. KianaClient now offers typed initialize/health facades that validate before transport and after response.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; daemon has no dedicated ui.initialize/ui.health route or durable instance/epoch handshake yet, capability intersection does not authorize commands, transport/auth/health redaction/projector/reconnect/action journal remain UI-03+, and no business/external outcome is claimed
+reviewer: Codex root implementation review plus UI-02 handshake/capability/error source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

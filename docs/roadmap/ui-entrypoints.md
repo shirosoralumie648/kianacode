@@ -183,9 +183,9 @@ UiActionResult {
 
 
 
-#### UI-02 · 统一错误、能力和 surface handshake　⏳
+#### UI-02 · 统一错误、能力和 surface handshake　✅
 
-- 依赖：UI-01。代码：`kiana-protocol`/`kiana-client` 的 `StableError`、`UiCapability`、initialize/health handshake。
+- 依赖：UI-01。当前 source slice 与 CI-only 证据见 [`ui-handshake-baseline.md`](ui-handshake-baseline.md)。代码：`kiana-protocol`/`kiana-client` 的 `StableError`、`UiCapability`、initialize/health handshake。
 - 步骤：将 Input/PolicyDenied/ApprovalRequired/Conflict/Capacity/Unavailable/Cancelled/Failed/Unknown/Persistence 映射到机器码、用户文案、retry disposition 和 remediation；能力按 principal、workspace、surface、feature version 求交集。
 - 先拒绝：未知错误码、能力越权、把 `Unknown`/`PolicyDenied` 映射成成功或可自动重试；health 不泄漏路径/token/内部异常。
 - 成功/回归：每个 surface 生成相同 deny matrix；能力缺失时按钮/CLI action 不出现，直接构造请求仍被服务端拒绝。

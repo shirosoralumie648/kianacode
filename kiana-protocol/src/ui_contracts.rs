@@ -8,7 +8,7 @@ use kiana_domain::{
     ProjectId, ReceiptId, RunId, SessionId,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 pub const UI_SNAPSHOT_SCHEMA: &str = "kiana.ui-snapshot.v1";
@@ -17,6 +17,9 @@ pub const UI_ACTION_SCHEMA: &str = "kiana.ui-action.v1";
 pub const UI_ACTION_RESULT_SCHEMA: &str = "kiana.ui-action-result.v1";
 pub const UI_CAPABILITY_SCHEMA: &str = "kiana.ui-capability.v1";
 pub const UI_ERROR_SCHEMA: &str = "kiana.ui-error.v1";
+pub const UI_HANDSHAKE_REQUEST_SCHEMA: &str = "kiana.ui-handshake-request.v1";
+pub const UI_HANDSHAKE_RESPONSE_SCHEMA: &str = "kiana.ui-handshake-response.v1";
+pub const UI_HEALTH_SCHEMA: &str = "kiana.ui-health.v1";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -566,3 +569,265 @@ impl UiActionResult {
 // Names used by surface adapters while the legacy UiSnapshot/UiAction remain available.
 pub type VersionedUiSnapshot = UiSnapshotV1;
 pub type VersionedUiAction = UiActionV1;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSurface {
+    Cli,
+    Workbench,
+    Web,
+    Desktop,
+    Ide,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiCapabilityRequest {
+    pub capability_id: String,
+    pub feature_version: String,
+}
+
+impl UiCapabilityRequest {
+    fn validate(&self) -> Result<(), String> {
+        required(&self.capability_id, "ui_requested_capability", 128)?;
+        required(&self.feature_version, "ui_feature_version", 64)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHandshakeRequest {
+    pub schema: String,
+    pub client_version: String,
+    pub surface: UiSurface,
+    #[serde(default)]
+    pub requested_capabilities: Vec<UiCapabilityRequest>,
+    #[serde(default)]
+    pub known_instance_id: Option<String>,
+    #[serde(default)]
+    pub known_authority_epoch: Option<u64>,
+}
+
+impl UiHandshakeRequest {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HANDSHAKE_REQUEST_SCHEMA {
+            return Err("ui_handshake_request_schema_invalid".to_owned());
+        }
+        required(&self.client_version, "ui_client_version", 64)?;
+        if self.requested_capabilities.len() > 128 {
+            return Err("ui_handshake_capability_limit".to_owned());
+        }
+        let mut capabilities = BTreeSet::new();
+        for capability in &self.requested_capabilities {
+            capability.validate()?;
+            if !capabilities.insert(capability.capability_id.clone()) {
+                return Err("ui_handshake_capability_duplicate".to_owned());
+            }
+        }
+        if self.known_authority_epoch == Some(0)
+            || self
+                .known_instance_id
+                .as_deref()
+                .is_some_and(|value| value.trim().is_empty() || value.len() > 256)
+        {
+            return Err("ui_handshake_known_instance_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHandshakeResponse {
+    pub schema: String,
+    pub server_version: String,
+    pub instance_id: String,
+    pub authority_epoch: u64,
+    pub surface: UiSurface,
+    pub capabilities: Vec<UiCapability>,
+    #[serde(default)]
+    pub limitations: Vec<EvidenceLimitation>,
+}
+
+impl UiHandshakeResponse {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HANDSHAKE_RESPONSE_SCHEMA || self.authority_epoch == 0 {
+            return Err("ui_handshake_response_header_invalid".to_owned());
+        }
+        required(&self.server_version, "ui_server_version", 64)?;
+        required(&self.instance_id, "ui_instance_id", 256)?;
+        if self.capabilities.len() > 128 || self.limitations.len() > 128 {
+            return Err("ui_handshake_response_limit".to_owned());
+        }
+        let mut ids = BTreeSet::new();
+        for capability in &self.capabilities {
+            capability.validate()?;
+            if !ids.insert(capability.capability_id.clone()) {
+                return Err("ui_handshake_response_capability_duplicate".to_owned());
+            }
+        }
+        for limitation in &self.limitations {
+            limitation.validate()?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiHealth {
+    pub schema: String,
+    pub instance_id: String,
+    pub authority_epoch: u64,
+    pub status: String,
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub limitations: Vec<EvidenceLimitation>,
+}
+
+impl UiHealth {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_HEALTH_SCHEMA || self.authority_epoch == 0 {
+            return Err("ui_health_header_invalid".to_owned());
+        }
+        required(&self.instance_id, "ui_health_instance", 256)?;
+        required(&self.status, "ui_health_status", 64)?;
+        if self.capabilities.len() > 128 || self.limitations.len() > 128 {
+            return Err("ui_health_limit".to_owned());
+        }
+        if self
+            .capabilities
+            .iter()
+            .any(|capability| capability.trim().is_empty() || capability.len() > 128)
+        {
+            return Err("ui_health_capability_invalid".to_owned());
+        }
+        for limitation in &self.limitations {
+            limitation.validate()?;
+        }
+        Ok(())
+    }
+}
+
+/// Intersect server-derived principal and surface capability sets. Client requests can only
+/// narrow the result; a scope digest mismatch disables the capability rather than widening it.
+pub fn intersect_ui_capabilities(
+    principal: &[UiCapability],
+    surface: &[UiCapability],
+    requested: &[UiCapabilityRequest],
+) -> Result<Vec<UiCapability>, String> {
+    let mut requested_ids = BTreeSet::new();
+    for request in requested {
+        request.validate()?;
+        if !requested_ids.insert(request.capability_id.clone()) {
+            return Err("ui_handshake_capability_duplicate".to_owned());
+        }
+    }
+    let principal = principal
+        .iter()
+        .map(|capability| (capability.capability_id.clone(), capability))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let surface = surface
+        .iter()
+        .map(|capability| (capability.capability_id.clone(), capability))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut result = Vec::new();
+    for request in requested {
+        let Some(left) = principal.get(&request.capability_id) else {
+            result.push(UiCapability {
+                schema: UI_CAPABILITY_SCHEMA.to_owned(),
+                capability_id: request.capability_id.clone(),
+                enabled: false,
+                actions: Vec::new(),
+                reason: Some("principal_capability_missing".to_owned()),
+                scope_digest: kiana_domain::json_digest(
+                    &json!({"capability": request.capability_id}),
+                ),
+            });
+            continue;
+        };
+        let Some(right) = surface.get(&request.capability_id) else {
+            result.push(UiCapability {
+                schema: UI_CAPABILITY_SCHEMA.to_owned(),
+                capability_id: request.capability_id.clone(),
+                enabled: false,
+                actions: Vec::new(),
+                reason: Some("surface_capability_missing".to_owned()),
+                scope_digest: left.scope_digest.clone(),
+            });
+            continue;
+        };
+        let enabled = left.enabled && right.enabled && left.scope_digest == right.scope_digest;
+        let mut actions = left
+            .actions
+            .iter()
+            .filter(|action| right.actions.contains(action))
+            .cloned()
+            .collect::<Vec<_>>();
+        actions.sort();
+        result.push(UiCapability {
+            schema: UI_CAPABILITY_SCHEMA.to_owned(),
+            capability_id: request.capability_id.clone(),
+            enabled,
+            actions,
+            reason: (!enabled).then(|| {
+                if left.scope_digest != right.scope_digest {
+                    "ui_scope_intersection_empty".to_owned()
+                } else {
+                    "capability_disabled_by_intersection".to_owned()
+                }
+            }),
+            scope_digest: left.scope_digest.clone(),
+        });
+    }
+    Ok(result)
+}
+
+pub type StableError = UiError;
+
+pub fn stable_error_from_response(response: &super::ResponseEnvelope) -> Option<UiError> {
+    if response.status == kiana_domain::ExecutionStatus::Completed && response.error.is_none() {
+        return None;
+    }
+    let code = response
+        .failure_code()
+        .map(|code| match code {
+            kiana_domain::CapabilityErrorCode::InvalidArguments => UiErrorCode::InvalidRequest,
+            kiana_domain::CapabilityErrorCode::SchemaUnsupported => UiErrorCode::SchemaUnsupported,
+            kiana_domain::CapabilityErrorCode::PermissionDenied
+            | kiana_domain::CapabilityErrorCode::ProjectUntrusted => UiErrorCode::PermissionDenied,
+            kiana_domain::CapabilityErrorCode::ApprovalRequired => UiErrorCode::ApprovalRequired,
+            kiana_domain::CapabilityErrorCode::Conflict => UiErrorCode::Conflict,
+            kiana_domain::CapabilityErrorCode::BudgetExceeded => UiErrorCode::Capacity,
+            kiana_domain::CapabilityErrorCode::Unavailable => UiErrorCode::Unavailable,
+            kiana_domain::CapabilityErrorCode::Cancelled => UiErrorCode::Cancelled,
+            kiana_domain::CapabilityErrorCode::ResultUnknown => UiErrorCode::Unknown,
+            kiana_domain::CapabilityErrorCode::ExecutionFailed
+            | kiana_domain::CapabilityErrorCode::CompensationRequired
+            | kiana_domain::CapabilityErrorCode::TimedOut => UiErrorCode::Failed,
+            _ => UiErrorCode::Failed,
+        })
+        .unwrap_or(UiErrorCode::Failed);
+    let retry = match code {
+        UiErrorCode::Unknown => UiRetryDisposition::QueryOriginal,
+        UiErrorCode::Unavailable | UiErrorCode::Capacity => UiRetryDisposition::DoNotRetry,
+        _ => UiRetryDisposition::DoNotRetry,
+    };
+    Some(UiError::new(code, ui_error_message(code), retry))
+}
+
+fn ui_error_message(code: UiErrorCode) -> &'static str {
+    match code {
+        UiErrorCode::InvalidRequest => "Request is invalid",
+        UiErrorCode::SchemaUnsupported => "Protocol version is unsupported",
+        UiErrorCode::PermissionDenied => "Permission denied",
+        UiErrorCode::ApprovalRequired => "Approval is required",
+        UiErrorCode::Conflict => "State conflict; refresh and try again",
+        UiErrorCode::Capacity => "Capacity limit reached",
+        UiErrorCode::Unavailable => "Service is unavailable",
+        UiErrorCode::Cancelled => "Request cancelled",
+        UiErrorCode::Failed => "Request failed",
+        UiErrorCode::Unknown => "Request outcome is unknown; query the original command",
+        UiErrorCode::Persistence => "Persistence failed",
+    }
+}

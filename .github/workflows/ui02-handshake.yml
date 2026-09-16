@@ -1,0 +1,44 @@
+name: UI-02 handshake and stable errors
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui02_handshake.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/ui02_handshake.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "docs/roadmap/ui-handshake-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - ".github/workflows/ui02-handshake.yml"
+  pull_request:
+    paths:
+      - "kiana-protocol/src/ui_contracts.rs"
+      - "kiana-protocol/tests/ui02_handshake.rs"
+      - "kiana-client/src/lib.rs"
+      - "kiana-client/tests/ui02_handshake.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "docs/roadmap/ui-handshake-baseline.md"
+      - "docs/roadmap/ui-entrypoints.md"
+      - ".github/workflows/ui02-handshake.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-handshake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run UI-02 protocol handshake fixtures
+        run: cargo test -p kiana-protocol --test ui02_handshake --locked -- --test-threads=1
+      - name: Run UI-02 client handshake fixtures
+        run: cargo test -p kiana-client --test ui02_handshake --locked -- --test-threads=1
+      - name: Compile UI-02 targets
+        run: cargo check -p kiana-protocol -p kiana-client --tests --locked
