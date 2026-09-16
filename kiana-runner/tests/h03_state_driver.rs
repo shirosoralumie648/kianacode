@@ -4,6 +4,14 @@ use kiana_runner::{
 };
 
 #[test]
+fn harness_uses_one_explicit_driver_loop() {
+    let harness = include_str!("../src/harness.rs");
+    assert!(harness.contains("model_step_once"));
+    assert!(!harness.contains("Box::pin(self.model_step"));
+    assert!(harness.contains("DRIVER_OWNER"));
+}
+
+#[test]
 fn second_driver_for_same_turn_is_rejected() {
     let mut driver = RunDriver::new(RunId::new(), None);
     driver.claim("driver-a").unwrap();

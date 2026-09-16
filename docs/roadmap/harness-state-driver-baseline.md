@@ -20,7 +20,7 @@
 |---|---|---|
 | Pure state driver | `kiana-runner/src/state_driver.rs`, `kiana-runner/src/lib.rs` | `4c468299a4ab79ed348eb42b4e1d58304375c76ed751f666eb05c7c8d596d957`, `8a1cd24405b6e9fb7d3956f010a72c47683d509647981726389f973079280a55` |
 | Harness facade/integration | `kiana-runner/src/harness.rs`, `kiana-runner/src/inbox.rs` | `77bc0f48a4e886d0d0eb52dd861d3c551e2249555155372f77fe0df6888e1429`, `403f97d22be0254a22c2b1f2dc10066a934858bbb7e64b4345735056eff0b1eb` |
-| Remote fixtures/workflow | `kiana-runner/tests/h03_state_driver.rs`, `.github/workflows/h03-state-driver.yml` | `58104d2714945cd9cced8154e556a67adc5bcc279b02f531982ea40751618be4`, `de40313f9d0074229f83edf3ddd35e14a970c71e714e03300b519914f8c36df0` |
+| Remote fixtures/workflow | `kiana-runner/tests/h03_state_driver.rs`, `.github/workflows/h03-state-driver.yml` | `1024c060f867c4848143253ce57ba7eaca3a021694de544c62174e9de860e314`, `de40313f9d0074229f83edf3ddd35e14a970c71e714e03300b519914f8c36df0` |
 
 hash 只用于 H03 源码漂移复核，不构成模型、Broker、持久化或外部效果证明。
 
@@ -50,6 +50,7 @@ Steer/Inject 先通过 driver 的 mailbox admission，再写现有 Inbox；满�
 | `blocked_model_does_not_block_other_run_or_cancel` | 一个 run 的取消/阻塞状态不污染另一个独立 driver |
 | `stream_and_buffered_calls_share_transitions` | 纯 reducer 与门面调用得到同一 frame/intent |
 | `state_driver_frames_are_versioned_and_validated_without_io` | frame schema、run/turn 关联和边界可序列化校验 |
+| `harness_uses_one_explicit_driver_loop` | Harness 没有递归/第二 model loop，所有 step 通过同一 driver |
 
 `.github/workflows/h03-state-driver.yml` 在 GitHub runner 执行 runner 纯状态夹具与 fmt；本地只做格式、workspace test-target 静态编译和 diff 检查。
 
