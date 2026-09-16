@@ -21,6 +21,10 @@ pub struct SwarmPlan {
     pub max_model_calls: u64,
     pub merge_strategy: String,
     pub approval_ref: String,
+    /// Typed WorkGraph is optional during legacy migration; when present it is validated before
+    /// any Swarm state mutation and must cover exactly the packet set in this plan.
+    #[serde(default)]
+    pub work_graph: Option<SwarmWorkGraph>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SwarmController {
@@ -177,6 +181,14 @@ impl SwarmState {
                     || !p.evidence_refs.contains(&plan.approval_ref)
                 {
                     return Err("swarm_approval_or_partition_invalid");
+                }
+                if let Some(graph) = &plan.work_graph {
+                    graph.validate().map_err(|_| "swarm_work_graph_invalid")?;
+                    if graph.swarm_plan_id.to_string() != plan.swarm_id
+                        || graph.partitions.len() != plan.packet_ids.len()
+                    {
+                        return Err("swarm_work_graph_identity_invalid");
+                    }
                 }
                 let budget = p.budget.as_ref().ok_or("swarm_project_budget_required")?;
                 let count = plan.packet_ids.len() as u64;

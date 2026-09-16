@@ -1,0 +1,52 @@
+name: SW-02 typed swarm work graph
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/src/swarm.rs"
+      - "kiana-domain/src/swarm_graph.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/sw02_work_graph.rs"
+      - "kiana-core/src/swarm.rs"
+      - "kiana-core/tests/sw02_work_graph_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/swarm-work-graph-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw02-work-graph.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/packet_graph.rs"
+      - "kiana-domain/src/swarm.rs"
+      - "kiana-domain/src/swarm_graph.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/sw02_work_graph.rs"
+      - "kiana-core/src/swarm.rs"
+      - "kiana-core/tests/sw02_work_graph_guard.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/swarm-work-graph-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/sw02-work-graph.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  swarm-work-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run SW-02 work graph fixtures
+        run: cargo test -p kiana-domain --test sw02_work_graph --locked -- --test-threads=1
+      - name: Run SW-02 source guard
+        run: cargo test -p kiana-core --test sw02_work_graph_guard --locked -- --test-threads=1
+      - name: Compile work graph path
+        run: cargo check -p kiana-domain -p kiana-protocol -p kiana-core --tests --locked

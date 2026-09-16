@@ -1965,6 +1965,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus SW-01 typed identity/lineage and single-execution-spine source-boundary review; no runtime test reviewer
 ```
 
+### SW-02 typed Swarm WorkGraph evidence (2026-09-16)
+
+```text
+source_snapshot: f129e47 + SW-02 working-tree slice; kiana-domain/src/{packet_graph,swarm,swarm_graph,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/sw02_work_graph.rs; kiana-core/tests/sw02_work_graph_guard.rs; .github/workflows/sw02-work-graph.yml; docs/roadmap/swarm-work-graph-baseline.md; docs/roadmap.md
+worktree_status: SW-02 typed Partition/SwarmWorkGraph validator and deterministic ready/blocked/failed projection are scoped to this step; shared packet_graph topology is the only dependency implementation, and SwarmPlan typed graph validation is advisory to legacy migration while no queue/claim/scheduler/child execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/packet_graph.rs kiana-domain/src/swarm.rs kiana-domain/src/swarm_graph.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/sw02_work_graph.rs kiana-core/tests/sw02_work_graph_guard.rs .github/workflows/sw02-work-graph.yml docs/roadmap/swarm-work-graph-baseline.md docs/roadmap.md
+  rg -n 'Partition|SwarmWorkGraph|PartitionProjection|validate_dependency_graph|swarm_partition_overlap|swarm_partition_input_unbound|swarm_partition_dependency_(cycle|missing|duplicate)|swarm_duplicate_fingerprint|swarm_first_success_unsupported|swarm_(partition_count|depth|concurrency|spawn_rate|ttl|token|model_call)_|work_graph' kiana-domain/src kiana-protocol/src kiana-core/src kiana-domain/tests/sw02_work_graph.rs kiana-core/tests/sw02_work_graph_guard.rs docs/roadmap/swarm-work-graph-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; SW-02 fixture/source guard targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/sw02_work_graph.rs overlap/unbound input, cycle/missing/duplicate/fingerprint/first-success, count/depth/concurrency/spawn-rate/TTL/budget and stable projection fixtures; kiana-core/tests/sw02_work_graph_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SW-02 job is queued by the next push and is not awaited
+status_change: SW-02 source slice is implemented. Strict Partition and SwarmWorkGraph contracts now canonicalize input/path/scope, bind digest/output/fingerprint/typed IDs, reuse shared packet graph topology, reject unsafe overlap/limits/strategies and expose deterministic readiness without minting execution authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; `SwarmPlan.work_graph` remains optional for legacy plans, and typed partitions are not yet durable queue/attempt/dispatch facts; claim fencing, scheduler fairness, child lifecycle, replay/recovery and effect-time checks remain SW-03+
+reviewer: Codex root implementation review plus SW-02 WorkGraph/packet-graph reuse and single-execution-spine source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text

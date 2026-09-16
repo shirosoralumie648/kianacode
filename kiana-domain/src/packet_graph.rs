@@ -59,8 +59,13 @@ impl std::fmt::Display for PacketGraphError {
 }
 impl std::error::Error for PacketGraphError {}
 
-pub fn validate_dependency_dag(
-    packets: &BTreeMap<String, WorkPacket>,
+/// Validate a bounded dependency graph whose nodes are already represented by stable strings.
+///
+/// WorkPacket and Swarm Partition graphs share this one deterministic topological primitive so
+/// cycle normalization, missing-reference handling and duplicate-edge rejection cannot drift
+/// between the compatibility board and the typed Swarm planner.
+pub fn validate_dependency_graph(
+    dependencies: &BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<String>, PacketGraphError> {
     fn error(code: &str, id: &str) -> PacketGraphError {
         PacketGraphError {
@@ -71,7 +76,7 @@ pub fn validate_dependency_dag(
     }
     fn visit(
         id: &str,
-        packets: &BTreeMap<String, WorkPacket>,
+        dependencies: &BTreeMap<String, Vec<String>>,
         done: &mut BTreeSet<String>,
         stack: &mut Vec<String>,
         order: &mut Vec<String>,
@@ -79,13 +84,13 @@ pub fn validate_dependency_dag(
         if done.contains(id) {
             return Ok(());
         }
-        if let Some(offset) = stack.iter().position(|v| v == id) {
+        if let Some(offset) = stack.iter().position(|value| value == id) {
             let mut cycle = stack[offset..].to_vec();
             let first = cycle
                 .iter()
                 .enumerate()
                 .min_by_key(|(_, value)| *value)
-                .map(|(i, _)| i)
+                .map(|(index, _)| index)
                 .unwrap_or(0);
             cycle.rotate_left(first);
             cycle.push(cycle[0].clone());
@@ -95,38 +100,59 @@ pub fn validate_dependency_dag(
                 cycle,
             });
         }
-        stack.push(id.into());
-        let deps: BTreeSet<_> = packets[id].dependencies.iter().collect();
+        stack.push(id.to_owned());
+        let mut deps = dependencies[id].clone();
+        deps.sort();
+        deps.dedup();
         for dep in deps {
-            visit(dep, packets, done, stack, order)?;
+            visit(&dep, dependencies, done, stack, order)?;
         }
         stack.pop();
-        done.insert(id.into());
-        order.push(id.into());
+        done.insert(id.to_owned());
+        order.push(id.to_owned());
         Ok(())
     }
-    if packets.len() > 4096 {
+
+    if dependencies.len() > 4096 {
         return Err(error("packet_graph_too_large", ""));
     }
-    for (id, packet) in packets {
-        if id != &packet.id || id.trim().is_empty() {
+    for (id, deps) in dependencies {
+        if id.trim().is_empty() {
             return Err(error("packet_graph_identity_invalid", id));
         }
-        if packet.dependencies.len() != packet.dependencies.iter().collect::<BTreeSet<_>>().len() {
-            return Err(error("packet_dependency_duplicate", id));
-        }
-        for dep in &packet.dependencies {
-            if !packets.contains_key(dep) {
+        let mut seen = BTreeSet::new();
+        for dep in deps {
+            if !seen.insert(dep) {
+                return Err(error("packet_dependency_duplicate", id));
+            }
+            if !dependencies.contains_key(dep) {
                 return Err(error("packet_dependency_missing", dep));
             }
         }
     }
     let mut done = BTreeSet::new();
     let mut order = Vec::new();
-    for id in packets.keys() {
-        visit(id, packets, &mut done, &mut Vec::new(), &mut order)?;
+    for id in dependencies.keys() {
+        visit(id, dependencies, &mut done, &mut Vec::new(), &mut order)?;
     }
     Ok(order)
+}
+
+pub fn validate_dependency_dag(
+    packets: &BTreeMap<String, WorkPacket>,
+) -> Result<Vec<String>, PacketGraphError> {
+    let mut dependencies = BTreeMap::new();
+    for (id, packet) in packets {
+        if id != &packet.id {
+            return Err(PacketGraphError {
+                code: "packet_graph_identity_invalid".into(),
+                packet_id: id.clone(),
+                cycle: Vec::new(),
+            });
+        }
+        dependencies.insert(id.clone(), packet.dependencies.clone());
+    }
+    validate_dependency_graph(&dependencies)
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
