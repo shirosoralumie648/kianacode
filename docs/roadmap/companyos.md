@@ -157,11 +157,11 @@
 
 
 
-#### CO-07 · 版本化业务事实与稳定命令回执　⏳
+#### CO-07 · 版本化业务事实与稳定命令回执　✅
 
 - **归属**：`P3-I-02`、`P0-A-01b`、`P0-G-04`。
 - **依赖**：CO-05、CO-06。
-- **代码与产物**：domain CompanyCommand/Event/CommandReceipt、core `company.rs`、protocol、EventStore CAS；DispatchIntent 与消费事实。
+- **代码与产物**：domain CompanyCommand/Event/CommandReceipt、core `company.rs`、protocol、EventStore CAS；DispatchIntent 与消费事实；当前 source slice 与 CI-only 证据见 [`company-receipts-baseline.md`](company-receipts-baseline.md)。
 - **实现顺序**：①固定 logical command ID、payload digest 和预期 revision；②同一事务边界提交业务事实和后续效果意图；③重复命令返回原事件/结果引用，投影新状态另列；跨 session 查询 receipt 重新验证主体但不重复执行。
 - **先拒绝**：`company_duplicate_key_with_changed_payload_or_authority_is_rejected`；并发相同 expected revision 只有一方提交；错误响应不得掩盖已提交事实。
 - **再成功 / 退出**：`company_command_retry_after_reopen_returns_original_receipt_without_dispatch`；原 key/事件保持稳定，dispatch 次数为一或仍处待对账，绝不盲目重复。

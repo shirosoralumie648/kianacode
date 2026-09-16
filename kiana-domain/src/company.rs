@@ -873,6 +873,9 @@ pub struct CompanyProof {
     /// Typed immutable evidence links; legacy `events` strings remain replay-compatible.
     #[serde(default)]
     pub typed_evidence_refs: Vec<crate::EvidenceRef>,
+    /// Explicit post-commit effect handoff; its status never implies effect success.
+    #[serde(default)]
+    pub dispatch_intent: Option<crate::DispatchIntent>,
     /// Typed evidence references derived by ControlPlane, never trusted from command JSON.
     #[serde(default)]
     pub evidence_refs: Vec<crate::EvidenceRef>,

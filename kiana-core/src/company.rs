@@ -2,9 +2,9 @@
 //! not a second database or a model loop. A workspace stream serializes cross-object decisions.
 use super::*;
 use kiana_domain::{
-    CompanyAuthority, CompanyBusinessAction, CompanyCommand, CompanyCommandRequest, CompanyEvent,
-    CompanyProof, CompanyRun, CompanyState, DecisionActorKind, COMPANY_COMMAND_SCHEMA,
-    COMPANY_EVENT_SCHEMA, COMPANY_STATE_SCHEMA,
+    CompanyAuthority, CompanyBusinessAction, CompanyCommand, CompanyCommandReceipt,
+    CompanyCommandRequest, CompanyEvent, CompanyProof, CompanyRun, CompanyState, DecisionActorKind,
+    DispatchIntent, COMPANY_COMMAND_SCHEMA, COMPANY_EVENT_SCHEMA, COMPANY_STATE_SCHEMA,
 };
 
 const COMPANY_AGGREGATE: &str = "company";
@@ -294,9 +294,28 @@ impl ControlPlane {
                         )
                 })
                 .ok_or_else(|| company_error("company_command_receipt_missing"))?;
+            let mut original_context = context.clone();
+            original_context.actor_id = Some(previous.authority.actor_id.clone());
+            original_context.session_id = previous.authority.session_id.clone();
+            original_context.role_id = previous.authority.role_id.clone();
+            if let Some(role) = RoleSpec::lookup(&original_context.role_id) {
+                original_context.department_id = role.department_id;
+            }
+            let receipt = CompanyCommandReceipt::new(
+                &company_aggregate_id(&context),
+                &request.idempotency_key,
+                &request.command,
+                &original_context,
+                previous.request.expected_revision,
+                Some(previous.request.expected_revision.saturating_add(1)),
+                Some(original.event_id),
+                kiana_domain::CompanyReceiptStatus::Replayed,
+                previous.proof.dispatch_intent.clone(),
+            )
+            .map_err(|error| company_error(&error))?;
             return Ok(CoreResponse::completed(
                 context.request_id,
-                json!({"schema":COMPANY_STATE_SCHEMA,"replayed":true,"receipt":{"event_id":original.event_id,"revision":previous.request.expected_revision+1,"command_digest":kiana_domain::json_digest(&json!(previous.request)),"execution_request_id":previous.authority.execution_request_id},"state":self.company_view(&context,&state).await?}),
+                json!({"schema":COMPANY_STATE_SCHEMA,"replayed":true,"receipt":receipt,"legacy_receipt":{"event_id":original.event_id,"revision":previous.request.expected_revision+1,"command_digest":kiana_domain::json_digest(&json!(previous.request)),"execution_request_id":previous.authority.execution_request_id},"state":self.company_view(&context,&state).await?}),
             ));
         }
         if state.revision != request.expected_revision {
@@ -309,13 +328,30 @@ impl ControlPlane {
                 return self.reject_company(&context, &error.to_string()).await;
             }
         }
-        let proof = match self.company_proof(&context, &state, &request.command).await {
+        let mut proof = match self.company_proof(&context, &state, &request.command).await {
             Ok(proof) => proof,
             Err(PortError::Conflict(reason)) => {
                 return self.reject_company(&context, &reason).await
             }
             Err(error) => return Err(error.into()),
         };
+        let command_id = CompanyCommandReceipt::command_id(
+            &company_aggregate_id(&context),
+            &request.idempotency_key,
+        );
+        if let Some(kind) = company_dispatch_kind(&request.command) {
+            proof.dispatch_intent = Some(
+                DispatchIntent::new(
+                    command_id,
+                    kind,
+                    CompanyCommandReceipt::payload_digest(&request.command),
+                    CompanyCommandReceipt::authority_digest(&context),
+                    company_now(),
+                )
+                .map_err(|error| company_error(&error))?,
+            );
+        }
+        let dispatch_intent = proof.dispatch_intent.clone();
         let authority = CompanyAuthority {
             actor_id: context.actor_id.clone().unwrap_or_default(),
             role_id: context.role_id.clone(),
@@ -350,12 +386,28 @@ impl ControlPlane {
             }
             Err(error) => return Err(error),
         };
+        let receipt = CompanyCommandReceipt::new(
+            &company_aggregate_id(&context),
+            &request.idempotency_key,
+            &request.command,
+            &context,
+            request.expected_revision,
+            Some(next.revision),
+            Some(committed.event_id),
+            kiana_domain::CompanyReceiptStatus::Committed,
+            dispatch_intent,
+        )
+        .map_err(|error| company_error(&error))?;
         if let CompanyCommand::Business { action, .. } = &request.command {
             if let Some(mut response) = self
                 .company_business_effect(&context, &next, action)
                 .await?
             {
                 response.request_id = context.request_id;
+                if !response.output.is_object() {
+                    response.output = json!({"runtime_output":response.output});
+                }
+                response.output["company_receipt"] = json!(receipt);
                 return Ok(response);
             }
         }
@@ -395,12 +447,17 @@ impl ControlPlane {
                         response.output = json!({"runtime_output":response.output});
                     }
                     response.output["company"] = json!({"event_id":committed.event_id,"state":self.company_view(&context,&observed).await?});
+                    response.output["company_receipt"] = json!(receipt);
                 }
                 Err(error) => {
                     response.status = ExecutionStatus::ResultUnknown;
                     response.error = Some(format!("company_run_reconciliation_required:{error}"));
                 }
             }
+            if !response.output.is_object() {
+                response.output = json!({"runtime_output":response.output});
+            }
+            response.output["company_receipt"] = json!(receipt);
             response.request_id = context.request_id;
             return Ok(response);
         }
@@ -456,13 +513,13 @@ impl ControlPlane {
                 } else {
                     ExecutionStatus::Accepted
                 },
-                output: json!({"schema":COMPANY_STATE_SCHEMA,"event_id":committed.event_id,"state":self.company_view(&context,&next).await?,"cancellations":cancellations,"next_action":"confirm_cancel_project"}),
+                output: json!({"schema":COMPANY_STATE_SCHEMA,"event_id":committed.event_id,"company_receipt":receipt,"state":self.company_view(&context,&next).await?,"cancellations":cancellations,"next_action":"confirm_cancel_project"}),
                 error: unknown.then(|| "company_cancel_reconciliation_required".to_owned()),
             });
         }
         Ok(CoreResponse::completed(
             context.request_id,
-            json!({"schema":COMPANY_STATE_SCHEMA,"event_id":committed.event_id,"replayed":false,"state":self.company_view(&context,&next).await?}),
+            json!({"schema":COMPANY_STATE_SCHEMA,"event_id":committed.event_id,"replayed":false,"receipt":receipt,"state":self.company_view(&context,&next).await?}),
         ))
     }
 
@@ -1099,6 +1156,29 @@ pub(crate) fn company_aggregate_id(context: &RequestContext) -> String {
         company_root(context)
     )
 }
+
+fn company_dispatch_kind(command: &CompanyCommand) -> Option<&'static str> {
+    match command {
+        CompanyCommand::StartRun { .. } => Some("company.start_run"),
+        CompanyCommand::Business { action, .. } => match action.as_ref() {
+            CompanyBusinessAction::Closeout { action, .. } => match action.as_ref() {
+                kiana_domain::BusinessCloseoutAction::DispatchDelivery { .. } => {
+                    Some("company.delivery.dispatch")
+                }
+                kiana_domain::BusinessCloseoutAction::ReconcileDelivery { .. } => {
+                    Some("company.delivery.reconcile")
+                }
+                kiana_domain::BusinessCloseoutAction::ReconcileCancel { .. } => {
+                    Some("company.cancel.reconcile")
+                }
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn company_error(reason: &str) -> CoreError {
     CoreError::Port(PortError::Failed(reason.to_owned()))
 }

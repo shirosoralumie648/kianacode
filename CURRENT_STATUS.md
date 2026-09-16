@@ -1734,6 +1734,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-06 artifact/hash/scope/provenance/path-boundary source review; no runtime test reviewer
 ```
 
+### CO-07 versioned Company receipt evidence (2026-09-16)
+
+```text
+source_snapshot: 4f72c36 (CO-06 parent; CO-07 source files listed below); kiana-domain/src/{company_receipts,company,contracts,lib}.rs; kiana-core/src/{company,authority}.rs; kiana-ports/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/co07_receipt.rs; kiana-core/tests/co07_receipt_guard.rs; .github/workflows/co07-company-receipts.yml; docs/roadmap/company-receipts-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-07 typed CompanyCommandReceipt/DispatchIntent, deterministic logical command/payload/authority identity, Company replay receipt responses, and prepared effect handoff are scoped to this step; existing protected EventStore TransitionBatch/read_command CAS remains canonical and no second dispatcher/fact source was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/company_receipts.rs kiana-domain/src/company.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/company.rs kiana-core/src/authority.rs kiana-ports/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/co07_receipt.rs kiana-core/tests/co07_receipt_guard.rs .github/workflows/co07-company-receipts.yml docs/roadmap/company-receipts-baseline.md
+  rg -n 'CompanyCommandReceipt|DispatchIntent|CompanyReceiptStatus|company_dispatch_kind|protected.command|commit_transition|read_command|replayed|ResultUnknown' kiana-domain/src kiana-core/src kiana-ports/src kiana-protocol/src kiana-domain/tests kiana-core/tests docs/roadmap/company-receipts-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/ports/core/daemon/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co07_receipt.rs stable key/payload drift/intent/unknown fixtures and kiana-core/tests/co07_receipt_guard.rs existing EventStore CAS/source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-07 job is queued by the next push and is not awaited
+status_change: CO-07 source slice is implemented. CompanyCommandReceipt now binds deterministic logical command ID, payload digest, authority digest, expected/committed revisions, event ID and replay/unknown status. Company core preserves old event/state fields while returning typed receipts for new/replayed commands; StartRun and selected delivery/cancel paths carry prepared DispatchIntent in CompanyProof, and commit still uses the existing protected EventStore CAS/read_command boundary.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; typed receipts are not yet a standalone durable query API, DispatchIntent consumption/unknown recovery is not fully projected, and historical Company state migration/upcast remains CO-08+
+reviewer: Codex root implementation review plus CO-07 receipt/idempotency/dispatch-intent source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text
