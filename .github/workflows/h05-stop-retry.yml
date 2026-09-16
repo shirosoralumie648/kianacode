@@ -1,0 +1,42 @@
+name: H05 model stop and retry classification
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-domain/tests/h05_model_outcome.rs"
+      - "kiana-runner/tests/h05_stop_guard.rs"
+      - "docs/roadmap/harness-stop-retry-baseline.md"
+      - ".github/workflows/h05-stop-retry.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-provider/src/response.rs"
+      - "kiana-domain/tests/h05_model_outcome.rs"
+      - "kiana-runner/tests/h05_stop_guard.rs"
+      - "docs/roadmap/harness-stop-retry-baseline.md"
+      - ".github/workflows/h05-stop-retry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stop-retry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H05 domain outcome fixtures
+        run: cargo test -p kiana-domain --test h05_model_outcome --locked -- --test-threads=1
+      - name: Run H05 Harness stop guard
+        run: cargo test -p kiana-runner --test h05_stop_guard --locked -- --test-threads=1

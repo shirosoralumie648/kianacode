@@ -1335,6 +1335,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus H04 structured-content/provider-route/redaction source-boundary review; no runtime test reviewer
 ```
 
+### H05 model stop, error and retry evidence (2026-09-16)
+
+```text
+source_snapshot: dec35a1; kiana-domain/src/{model,contracts}.rs; kiana-runner/src/harness.rs; kiana-provider/src/response.rs; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; .github/workflows/h05-stop-retry.yml; docs/roadmap/harness-stop-retry-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/harness.md; docs/roadmap.md
+worktree_status: H05 typed ModelStopReason/ModelOutcome/ModelError side-effect classification, legacy stop compatibility, Harness pre-dispatch/completion gate, provider parser boundary, remote fixtures and roadmap/status overlays are scoped to this step; no second model loop, retry authority or transport was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/model.rs kiana-domain/src/contracts.rs kiana-runner/src/harness.rs kiana-provider/src/response.rs kiana-domain/tests/h05_model_outcome.rs kiana-runner/tests/h05_stop_guard.rs .github/workflows/h05-stop-retry.yml docs/roadmap/harness-stop-retry-baseline.md
+  rg -n 'ModelStopReason|ModelOutcome|side_effect_state|normalized_stop_reason|model_output_truncated|model_refused|model_transport_incomplete|ModelRetryClass::BeforeSend|ModelRetryClass::Rejected|harness_stop_and_retry_paths_are_typed_and_fail_closed' kiana-domain/src kiana-runner/src kiana-provider/src kiana-domain/tests/h05_model_outcome.rs kiana-runner/tests/h05_stop_guard.rs docs/roadmap/harness-stop-retry-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h05_model_outcome.rs length/refusal/unknown/text/tool stop fixtures; kiana-runner/tests/h05_stop_guard.rs typed stop/retry source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H05 job is queued by the push and is not awaited
+status_change: H05 source slice is implemented. Closed ModelStopReason and ModelOutcome contracts now separate end_turn/tool_use/length/refusal/pause/incomplete/unknown from provider strings; ModelError carries phase, retry class, request-sent and side-effect evidence with redacted safe detail. Legacy replies without stop metadata are explicitly normalized, while Harness rejects truncation/refusal/pause/incomplete/unknown before completion or tool dispatch. Provider response parsing and model-turn telemetry retain typed stop/retry/outcome evidence without persisting raw provider content.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; retry budgets/deadlines and provider-specific stream completeness remain bounded existing behavior, H06 stream accumulator/H07 budget/H08 quiet-I/O cancellation are not complete, model side-effect unknown does not prove capability effect, and no live provider/billing/external/physical outcome is claimed
+reviewer: Codex root implementation review plus H05 stop/error/retry/complete-gate source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

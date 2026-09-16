@@ -806,6 +806,27 @@ impl KianaHarness {
                 return Ok(StepProgress::Finished);
             }
         };
+        if matches!(
+            output.normalized_stop_reason(),
+            kiana_domain::ModelStopReason::Unknown
+                | kiana_domain::ModelStopReason::Length
+                | kiana_domain::ModelStopReason::Refusal
+                | kiana_domain::ModelStopReason::Pause
+                | kiana_domain::ModelStopReason::Incomplete
+        ) {
+            let reason = match output.normalized_stop_reason() {
+                kiana_domain::ModelStopReason::Length => "model_output_truncated",
+                kiana_domain::ModelStopReason::Refusal => "model_refused",
+                kiana_domain::ModelStopReason::Pause => "model_pause_requires_explicit_continue",
+                kiana_domain::ModelStopReason::Incomplete => "model_transport_incomplete",
+                _ => "model_stop_reason_unknown",
+            };
+            emitter.emit_event(RunnerEvent::Failed {
+                run_id,
+                error: reason.to_owned(),
+            })?;
+            return Ok(StepProgress::Finished);
+        }
         if !output.text.is_empty() {
             let redacted_text = redact_text(&output.text);
             run.last_text = redacted_text.clone();
@@ -1074,6 +1095,8 @@ impl KianaHarness {
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
                 "finish":result.as_ref().ok().map(|reply|reply.finish),
+                "stop_reason_normalized":result.as_ref().ok().map(|reply|kiana_domain::ModelStopReason::from(reply.finish)).or_else(||result.as_ref().err().map(|error|error.outcome().stop_reason)),
+                "outcome":result.as_ref().ok().map(|reply|reply.outcome()).or_else(||result.as_ref().err().map(|error|error.outcome())),
                 "retry_class":result.as_ref().err().map(|error|error.retry_class),
                 "assistant":result.as_ref().ok().map(|reply|kiana_domain::redact_value(&json!(reply.output))),
                 "error":result.as_ref().err(),

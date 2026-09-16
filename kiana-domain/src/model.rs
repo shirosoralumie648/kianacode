@@ -19,6 +19,7 @@ pub enum ModelRole {
 
 pub const MODEL_CONTENT_SCHEMA: &str = "kiana.model-content.v1";
 pub const PROVIDER_CONTINUATION_SCHEMA: &str = "kiana.provider-continuation.v1";
+pub const MODEL_OUTCOME_SCHEMA: &str = "kiana.model-outcome.v1";
 
 /// Structured message content. Legacy `ModelMessage.text/tool_calls` remains the wire-compatible
 /// fallback; new callers can use these blocks without flattening provider items into text.
@@ -481,6 +482,22 @@ impl ModelOutput {
         );
         Ok(blocks)
     }
+
+    /// Normalize provider stop text to the closed model stop vocabulary. Unknown or missing
+    /// values remain `Unknown` and therefore cannot be treated as a completed turn.
+    pub fn normalized_stop_reason(&self) -> ModelStopReason {
+        ModelFinish::parse(
+            self.stop_reason.as_deref(),
+            !self.tool_calls.is_empty()
+                || self
+                    .content
+                    .iter()
+                    .any(|block| matches!(block, ModelContent::ToolCall { .. })),
+            false,
+        )
+        .map(ModelStopReason::from)
+        .unwrap_or(ModelStopReason::Unknown)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -705,6 +722,32 @@ pub enum ModelFinish {
     Pause,
     Incomplete,
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelStopReason {
+    EndTurn,
+    ToolUse,
+    Length,
+    Refusal,
+    Pause,
+    Incomplete,
+    #[default]
+    Unknown,
+}
+
+impl From<ModelFinish> for ModelStopReason {
+    fn from(finish: ModelFinish) -> Self {
+        match finish {
+            ModelFinish::EndTurn => Self::EndTurn,
+            ModelFinish::ToolUse => Self::ToolUse,
+            ModelFinish::Length => Self::Length,
+            ModelFinish::Refusal => Self::Refusal,
+            ModelFinish::Pause => Self::Pause,
+            ModelFinish::Incomplete => Self::Incomplete,
+        }
+    }
+}
 impl ModelFinish {
     pub fn parse(reason: Option<&str>, tools: bool, legacy: bool) -> Result<Self, ModelError> {
         let finish = match reason {
@@ -755,7 +798,38 @@ pub struct ModelError {
     pub request_sent: bool,
     pub retry_after_ms: Option<u64>,
     pub safe_message: String,
+    #[serde(default, skip_serializing_if = "ModelSideEffectState::is_none")]
+    pub side_effect_state: ModelSideEffectState,
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelSideEffectState {
+    #[default]
+    None,
+    Unknown,
+}
+
+impl ModelSideEffectState {
+    fn is_none(&self) -> bool {
+        *self == Self::None
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelOutcome {
+    pub schema: String,
+    pub stop_reason: ModelStopReason,
+    pub phase: String,
+    pub retry_class: ModelRetryClass,
+    pub request_sent: bool,
+    pub side_effect_state: ModelSideEffectState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    pub safe_message: String,
+}
+
 impl ModelError {
     pub fn invalid(code: impl Into<String>) -> Self {
         let code = code.into();
@@ -766,6 +840,7 @@ impl ModelError {
             retry_class: ModelRetryClass::Never,
             request_sent: false,
             retry_after_ms: None,
+            side_effect_state: ModelSideEffectState::None,
         }
     }
     pub fn transport(code: &str, retry_class: ModelRetryClass, request_sent: bool) -> Self {
@@ -776,6 +851,31 @@ impl ModelError {
             request_sent,
             retry_after_ms: None,
             safe_message: code.to_owned(),
+            side_effect_state: if request_sent {
+                ModelSideEffectState::Unknown
+            } else {
+                ModelSideEffectState::None
+            },
+        }
+    }
+
+    pub fn outcome(&self) -> ModelOutcome {
+        let stop_reason = match self.code.as_str() {
+            "model_output_truncated" => ModelStopReason::Length,
+            "model_refused" => ModelStopReason::Refusal,
+            "model_pause_requires_explicit_continue" => ModelStopReason::Pause,
+            "model_transport_incomplete" => ModelStopReason::Incomplete,
+            _ => ModelStopReason::Unknown,
+        };
+        ModelOutcome {
+            schema: MODEL_OUTCOME_SCHEMA.to_owned(),
+            stop_reason,
+            phase: self.phase.clone(),
+            retry_class: self.retry_class,
+            request_sent: self.request_sent,
+            side_effect_state: self.side_effect_state,
+            error_code: Some(self.code.clone()),
+            safe_message: crate::redact_text(&self.safe_message),
         }
     }
 }
@@ -801,14 +901,29 @@ pub struct ModelReply {
     pub provider_response_id: Option<String>,
 }
 impl ModelReply {
-    pub fn legacy(output: ModelOutput) -> Result<Self, ModelError> {
-        validate_model_calls(&output.tool_calls)?;
-        let finish = ModelFinish::parse(
-            output.stop_reason.as_deref(),
-            !output.tool_calls.is_empty(),
-            true,
-        )?;
+    pub fn legacy(mut output: ModelOutput) -> Result<Self, ModelError> {
+        let blocks = output.content_blocks()?;
+        let tool_calls = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ModelContent::ToolCall { call } => Some(call.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        validate_model_calls(&tool_calls)?;
+        let finish =
+            ModelFinish::parse(output.stop_reason.as_deref(), !tool_calls.is_empty(), true)?;
         finish.require_complete()?;
+        if output.stop_reason.is_none() {
+            output.stop_reason = Some(
+                match finish {
+                    ModelFinish::EndTurn => "end_turn",
+                    ModelFinish::ToolUse => "tool_use",
+                    _ => "incomplete",
+                }
+                .to_owned(),
+            );
+        }
         Ok(Self {
             output,
             finish,
@@ -817,6 +932,19 @@ impl ModelReply {
             provider_request_id: None,
             provider_response_id: None,
         })
+    }
+
+    pub fn outcome(&self) -> ModelOutcome {
+        ModelOutcome {
+            schema: MODEL_OUTCOME_SCHEMA.to_owned(),
+            stop_reason: self.finish.into(),
+            phase: "completed".to_owned(),
+            retry_class: ModelRetryClass::Never,
+            request_sent: true,
+            side_effect_state: ModelSideEffectState::None,
+            error_code: None,
+            safe_message: String::new(),
+        }
     }
 }
 
