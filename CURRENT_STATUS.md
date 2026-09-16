@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-D-03 claim and lease recovery evidence (2026-09-16)
+
+```text
+source_snapshot: efd81cc + P1-D-03 working-tree slice; kiana-domain/src/{packet_graph,company}.rs; kiana-core/src/company.rs; kiana-domain/tests/p1_d03_lease.rs; kiana-core/tests/p1_d03_lease_guard.rs; .github/workflows/p1-d03-lease.yml; docs/roadmap/lease-recovery-baseline.md; docs/roadmap.md
+worktree_status: P1-D-03 owner-bound PacketClaim renewal, bounded expiry scan, CompanyCommand reclaim and no-double-dispatch guards are scoped to this step; no scheduler/second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/packet_graph.rs kiana-domain/src/company.rs kiana-core/src/company.rs kiana-domain/tests/p1_d03_lease.rs kiana-core/tests/p1_d03_lease_guard.rs .github/workflows/p1-d03-lease.yml docs/roadmap/lease-recovery-baseline.md
+  rg -n 'PacketClaim|lease_expires_at|heartbeat_at|CompanyCommand::RenewPacketClaim|CompanyCommand::ReclaimPacketClaim|company_claim_worker_not_stopped|reclaim_packet_leases|renew_company_claim|expired_lease_is_reclaimed_without_double_dispatch' kiana-domain/src kiana-core/src kiana-domain/tests/p1_d03_lease.rs kiana-core/tests/p1_d03_lease_guard.rs docs/roadmap/lease-recovery-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain lease fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: p1_d03_lease::expired_lease_is_reclaimed_without_double_dispatch and heartbeat_renewal_requires_the_current_owner_and_live_lease; core scan/renew/reclaim source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-D-03 job is queued by the push and is not awaited
+status_change: P1-D-03 source slice is implemented. Packet claims now reject foreign/expired/non-monotonic renewal, runtime turns renew only the current owner, and bounded reclaim commands clear stale claims through the Company state transition. In-flight expired claims require terminal worker evidence; ResultUnknown is incident/reconciliation state and cannot be dispatched again.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; claim/Company state remains limited to current adapters, no cross-process worker death or durable lease projection/queue fairness/backoff/scheduler heartbeat is proven, and no automatic retry follows an expired Unknown result
+reviewer: Codex root implementation review plus P1-D-03 claim/lease/recovery source-boundary review; no runtime test reviewer
+```
+
 ### P1-D-02 dependency graph validation evidence (2026-09-16)
 
 ```text

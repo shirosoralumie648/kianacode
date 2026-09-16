@@ -82,7 +82,7 @@
 | `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ✅ |
 | `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ✅ |
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ✅ |
-| `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
+| `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ✅ |
 | `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
 | `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ⏳ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01a` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
@@ -326,7 +326,7 @@
 | 157 | W2 | 基础 | [`P0-F-02`](#step-p0-f-02) | P0 基础 · 审批决定事件与单次消费 | `P0-F-01` | ⏳ | [基础卡](#step-p0-f-02) |
 | 158 | W2 | 基础 | [`P0-J1-01`](#step-p0-j1-01) | P0 基础 · 统一 cancellation token 与状态词表 | `P0-B-01` | ⏳ | [基础卡](#step-p0-j1-01) |
 | 159 | W2 | 基础 | [`P1-C-02`](#step-p1-c-02) | P1 基础 · Cell 生命周期与 retire | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-02) |
-| 160 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-03) |
+| 160 | W2 | 基础 | [`P1-D-03`](#step-p1-d-03) | P1 基础 · claim / lease 心跳回收 | `P1-D-01` | ✅ | [基础卡](#step-p1-d-03) |
 | 161 | W2 | 基础 | [`P1-J8-01`](#step-p1-j8-01) | P1 基础 · Observability 与 trace/receipt | `P0-G-04` | ⏳ | [基础卡](#step-p1-j8-01) |
 | 162 | W2 | 基础 | [`P1-K5-01`](#step-p1-k5-01) | P1 基础 · 成本与容量账本 | `P0-G-04` | ⏳ | [基础卡](#step-p1-k5-01) |
 | 163 | W2 | 基础 | [`P3-I-02`](#step-p3-i-02) | P3 基础 · 命令与事件冻结 | `P3-I-01` | ⏳ | [基础卡](#step-p3-i-02) |
@@ -1041,6 +1041,8 @@
 
 | 当前 96 | `P1-D-02` 依赖缺失 / 成环 fail-closed | `validate_dependency_dag` 拒绝 identity 错误、重复/缺失依赖和超大图，并将环规范化为稳定 cycle；CompanyState `ApprovePacket` 在追加候选前把完整项目图过 DAG 校验，PlanProject/Claim/dispatch 继续复用同一 helper；新增 domain deterministic graph fixtures、core source guard、CI workflow 与 dependency-graph baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；依赖图仍是结构校验，自动状态派生、claim reclaim、durable queue/scheduler 和完整跨入口行为留待 P1-D-03/AUT/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 97 | `P1-D-03` claim / lease 心跳回收 | `PacketClaim` 绑定 owner/session/heartbeat/expiry，ClaimPacket/StartRun/turn guard 只由当前 owner 在 live lease 内续租；ControlPlane 有界扫描过期 claims 并生成幂等 `ReclaimPacketClaim`，无 run 的 stale claim 才回到 ready，已 dispatch 必须 terminal observation，ResultUnknown 不自动 retry；新增 domain lease fixtures、core source guard、CI workflow 与 lease-recovery baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；claim/Company state 仍主要由现有 adapter 提供，跨进程 worker death、durable lease projector、queue fairness/backoff、scheduler heartbeat 和完整对账仍留待 AUT/SW/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1185,6 +1187,7 @@
 | 2026-09-16 | `P1-C-03` Role model routing：固定五部门九岗位 `RoleSpec.model_profile`，ControlPlane 将 server-owned profile 写入 `ModelAssignment`，ProviderGateway 只按 assignment 路由 planning/executing/quality 到不同 configured models；新增独立 provider fixture、core source guard、CI workflow 与 role-model-routing baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-D-01` Single WorkPacket readiness：确认 domain `ready_packets(graph, now)` 是唯一状态/依赖/deadline/claim 谓词，Company core/state 直接消费，legacy `kiana-tasks` 只委托该实现；新增跨 crate fixture、core source guard、CI workflow 与 ready-predicate baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-D-02` Dependency graph：`validate_dependency_dag` 拒绝缺失/重复边并输出确定性规范化 cycle；CompanyState `ApprovePacket` 追加前验证候选项目图；新增 domain/core fixtures、CI workflow 与 dependency-graph baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-D-03` Claim/lease recovery：PacketClaim owner/heartbeat/expiry 续租与过期扫描通过 CompanyCommand 回收，已 dispatch 的过期 claim 要求 terminal observation，Unknown 不自动重试；新增 domain/core fixtures、CI workflow 与 lease-recovery baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1659,14 +1662,14 @@
 
 <a id="step-p1-d-03"></a>
 
-### P1-D-03 claim / lease 心跳回收　⏳
+### P1-D-03 claim / lease 心跳回收　✅
 
-- **现状**：没有 claim(owner, lease_expires_at, heartbeat_at) 与过期扫描。
-- **做什么**：spawn / continue / 每个 turn 续租；后台确定性扫描过期 lease，把 packet 退回 ready 并记事件。
+- **现状**：PacketClaim 已绑定 owner/session/heartbeat/expiry；runtime guard 在 turn 边界续租，ControlPlane 提供有界过期扫描并通过 CompanyCommand 回收。
+- **做什么**：补过期 claim 回收、owner/heartbeat 负向验收和 no-double-dispatch 证明，保持 ready 查询与执行权分离。
 - **风险**：ready 只是查询，执行许可仍必须由 policy/gates/approval 产生。
 - **验收**：`expired_lease_is_reclaimed_without_double_dispatch`
-- **依赖 / 边界**：依赖 `P1-D-01`；worker 死亡后可回收且不重复派发。
-- **依据**：`company-os-implementation-outline.md` §Slice D
+- **依赖 / 边界**：依赖 `P1-D-01`；worker 死亡/过期只允许在有 terminal observation 时回收 in-flight claim，Unknown 不自动 retry。
+- **依据**：`company-os-implementation-outline.md` §Slice D；证据见 [`lease-recovery-baseline.md`](roadmap/lease-recovery-baseline.md)
 
 
 
