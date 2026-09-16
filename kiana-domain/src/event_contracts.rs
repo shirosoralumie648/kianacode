@@ -16,6 +16,7 @@ const RUN_IDS: &[&str] = &["run_id"];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
 const APPROVAL_IDS: &[&str] = &["approval_id"];
 const ACTION_IDS: &[&str] = &["request_id", "action_digest"];
+const COMMUNICATION_IDS: &[&str] = &["message"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
@@ -81,6 +82,14 @@ const REQUEST_FIELDS: &[&str] = &[
     "error",
     "reason",
     "action_digest",
+    "request_id",
+];
+const COMMUNICATION_FIELDS: &[&str] = &[
+    "message",
+    "authority_granted",
+    "project_root",
+    "actor_id",
+    "session_id",
     "request_id",
 ];
 const INVOCATION_FIELDS: &[&str] = &[
@@ -216,6 +225,62 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         REQUEST_IDS,
         REQUEST_FIELDS,
         true,
+        None
+    ),
+    spec!(
+        "communication.chat",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.command",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.handoff",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.decision",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.status_report",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.evidence",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "communication.incident",
+        "communication",
+        COMMUNICATION_IDS,
+        COMMUNICATION_FIELDS,
+        false,
         None
     ),
     spec!(
@@ -563,6 +628,7 @@ pub fn event_kind_is_required(kind: &str) -> bool {
         "action.",
         "result.",
         "session.",
+        "communication.",
     ]
     .iter()
     .any(|prefix| kind.starts_with(prefix))

@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-E-01 typed communication and accountability evidence (2026-09-16)
+
+```text
+source_snapshot: bb90094 + P1-E-01 working-tree slice; kiana-domain/src/{communication,handoff,contracts,event_contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-core/src/{communication,commands}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/p1_e01_communication.rs; kiana-core/tests/p1_e01_communication_guard.rs; .github/workflows/p1-e01-communication.yml; docs/roadmap/communication-baseline.md; docs/roadmap.md
+worktree_status: P1-E-01 typed seven-way communication contract, server sender check, Chat authority denial, Handoff ACK boundary and ControlPlane formal event route are scoped to this step; no notification delivery bus or second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/communication.rs kiana-domain/src/handoff.rs kiana-domain/src/contracts.rs kiana-domain/src/event_contracts.rs kiana-domain/src/lib.rs kiana-ports/src/lib.rs kiana-core/src/communication.rs kiana-core/src/commands.rs kiana-protocol/src/lib.rs kiana-domain/tests/p1_e01_communication.rs kiana-core/tests/p1_e01_communication_guard.rs .github/workflows/p1-e01-communication.yml docs/roadmap/communication-baseline.md
+  rg -n 'CommunicationMessageKind|Chat|Command|Handoff|Decision|StatusReport|Evidence|Incident|grants_authority|communication.send|communication_sender_mismatch|CommunicationPort|handoff_ack_reason_required|COMMUNICATION_FIELDS|communication.chat' kiana-domain/src kiana-ports/src kiana-core/src kiana-protocol/src kiana-domain/tests/p1_e01_communication.rs kiana-core/tests/p1_e01_communication_guard.rs docs/roadmap/communication-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain message fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: p1_e01_communication::free_chat_never_grants_authority and handoff_is_directed_and_requires_ack; core typed communication source guard; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-E-01 job is queued by the push and is not awaited
+status_change: P1-E-01 source slice is implemented. Seven message kinds are explicit; Chat cannot carry action/ACK authority fields and all messages report grants_authority=false. ControlPlane validates server-owned sender/project trust and appends communication.* facts, while Handoff requires a distinct target session/role, expiry and explicit ACK reason.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; CommunicationPort has no durable production adapter, notification outbox/delivery/read-state and cross-process delivery remain NM/ER/PD/INT work, and a communication fact never proves the referenced business command was approved or executed
+reviewer: Codex root implementation review plus P1-E-01 communication/hand-off authority source-boundary review; no runtime test reviewer
+```
+
 ### P1-D-03 claim and lease recovery evidence (2026-09-16)
 
 ```text

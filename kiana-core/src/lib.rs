@@ -10,6 +10,7 @@ mod capabilities;
 mod cell_registry;
 mod collaboration;
 mod commands;
+mod communication;
 mod company;
 mod company_governance;
 mod connectors;

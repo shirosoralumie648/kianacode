@@ -10,6 +10,7 @@ pub enum HandoffStatus {
     Rejected,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PacketHandoff {
     pub handoff_id: String,
     pub packet_id: String,
@@ -25,6 +26,7 @@ pub struct PacketHandoff {
     pub acknowledgement: Option<HandoffAck>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HandoffAck {
     pub handoff_id: String,
     pub receiver_session: SessionId,

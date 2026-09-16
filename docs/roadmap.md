@@ -83,7 +83,7 @@
 | `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ✅ |
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ✅ |
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ✅ |
-| `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ⏳ |
+| `P1-E-01` | P1 | E 通信与问责 | `P0-B-01` | 七类消息分离；Handoff 必须定向并 ACK | ✅ |
 | `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ⏳ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01a` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ⏳ |
 | `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ✅ |
@@ -246,7 +246,7 @@
 | 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ✅ | [基础卡](#step-p1-c-03) |
 | 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ✅ | [基础卡](#step-p1-d-01) |
 | 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ✅ | [基础卡](#step-p1-d-02) |
-| 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ⏳ | [基础卡](#step-p1-e-01) |
+| 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ✅ | [基础卡](#step-p1-e-01) |
 | 082 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ⏳ | [基础卡](#step-p1-h-01) |
 | 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ⏳ | [基础卡](#step-p1-h-03) |
 | 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p3-i-01) |
@@ -1043,6 +1043,8 @@
 
 | 当前 97 | `P1-D-03` claim / lease 心跳回收 | `PacketClaim` 绑定 owner/session/heartbeat/expiry，ClaimPacket/StartRun/turn guard 只由当前 owner 在 live lease 内续租；ControlPlane 有界扫描过期 claims 并生成幂等 `ReclaimPacketClaim`，无 run 的 stale claim 才回到 ready，已 dispatch 必须 terminal observation，ResultUnknown 不自动 retry；新增 domain lease fixtures、core source guard、CI workflow 与 lease-recovery baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；claim/Company state 仍主要由现有 adapter 提供，跨进程 worker death、durable lease projector、queue fairness/backoff、scheduler heartbeat 和完整对账仍留待 AUT/SW/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 98 | `P1-E-01` 通信与问责分层 | 新增七类 `CommunicationMessageKind`（Chat/Command/Handoff/Decision/StatusReport/Evidence/Incident）与 digest/unknown-field 校验；Chat 禁止 action/ACK 且 `grants_authority=false`，`communication.send` 由 ControlPlane 以 server sender 验证后记录 formal EventLog fact；Handoff 要求定向 recipient 和 ACK，既有 PacketHandoff 复用目标 role/session/expiry 校验；新增 domain/core fixtures、ports/core source guard、CI workflow 与 communication baseline；不运行本地测试 | `feature_status=implemented`（domain/ports/core/protocol source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；消息投影、通知 outbox/delivery/read-state、跨进程送达和外部 channel 仍由 NM/ER/PD/INT 后续步骤负责；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1188,6 +1190,7 @@
 | 2026-09-16 | `P1-D-01` Single WorkPacket readiness：确认 domain `ready_packets(graph, now)` 是唯一状态/依赖/deadline/claim 谓词，Company core/state 直接消费，legacy `kiana-tasks` 只委托该实现；新增跨 crate fixture、core source guard、CI workflow 与 ready-predicate baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-D-02` Dependency graph：`validate_dependency_dag` 拒绝缺失/重复边并输出确定性规范化 cycle；CompanyState `ApprovePacket` 追加前验证候选项目图；新增 domain/core fixtures、CI workflow 与 dependency-graph baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-D-03` Claim/lease recovery：PacketClaim owner/heartbeat/expiry 续租与过期扫描通过 CompanyCommand 回收，已 dispatch 的过期 claim 要求 terminal observation，Unknown 不自动重试；新增 domain/core fixtures、CI workflow 与 lease-recovery baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-E-01` Communication/accountability：新增七类 typed CommunicationMessage、Chat 无 authority/action/ACK、Handoff 定向 ACK、CommunicationPort 与 ControlPlane formal event 命令；新增 domain/core fixtures、CI workflow 与 communication baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1679,14 +1682,14 @@
 
 <a id="step-p1-e-01"></a>
 
-### P1-E-01 通信与问责分层　⏳
+### P1-E-01 通信与问责分层　✅
 
-- **现状**：Chat、Command、Handoff 等消息没有类型区分，自由聊天可能被当成授权。
-- **做什么**：区分 Chat、Command、Handoff、Decision、StatusReport、Evidence、Incident；Handoff 必须定向并 ACK。
+- **现状**：domain 已提供七类 `CommunicationMessageKind` 与 bounded/digest 合同，现有 PacketHandoff 继续绑定目标 role/session/expiry ACK。
+- **做什么**：将通信消息经 `CommunicationPort`/ControlPlane `communication.send` 记录为正式事件；Chat 禁止 action/ACK/authority 字段，sender 必须来自 server context。
 - **风险**：自由聊天一旦产生授权，问责链就断了。
 - **验收**：`free_chat_never_grants_authority`
-- **依赖 / 边界**：依赖 `P0-B-01`；`kiana-ports` 定义接口，`kiana-core` 产生正式事件。
-- **依据**：`company-os-implementation-outline.md` §Slice E
+- **依赖 / 边界**：依赖 `P0-B-01`；消息只产生 EventLog fact，任何业务/能力授权仍回到 ControlPlane policy/gate/approval。
+- **依据**：`company-os-implementation-outline.md` §Slice E；证据见 [`communication-baseline.md`](roadmap/communication-baseline.md)
 
 
 

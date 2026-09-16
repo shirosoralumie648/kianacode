@@ -193,6 +193,11 @@ impl ControlPlane {
                 .continue_new_turn(context, prompt, sandbox, previous)
                 .await;
         }
+        if intent.name == "communication.send" {
+            return self
+                .handle_communication_command(context, intent.arguments)
+                .await;
+        }
         if matches!(
             intent.name.as_str(),
             "trace.capture" | "trace.replay" | "version.drift"

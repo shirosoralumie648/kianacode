@@ -23,10 +23,11 @@ use kiana_domain::{
     AssignmentDirectory, AssignmentId, AuditActionKind, AuditDecision, AuditRecord,
     AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId,
     CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId, CellLifecycle,
-    CellSpec, CorrelationContext, CorrelationScope, HealthSnapshot, MetricPoint,
-    ObservabilityRecord, OrganizationId, PendingApproval, ProjectId, RequestContext, RequestId,
-    ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SignalKind,
-    SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary, WorkFingerprint,
+    CellSpec, CommunicationMessage, CorrelationContext, CorrelationScope, HealthSnapshot,
+    MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, ProjectId, RequestContext,
+    RequestId, ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent,
+    SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary,
+    WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -76,6 +77,17 @@ pub trait ArtifactContentPort: Send + Sync {
 }
 
 pub use ArtifactContentPort as ArtifactReadPort;
+
+/// Message persistence boundary. A communication record is an event/fact or a request for a
+/// later ControlPlane command; implementations must never interpret it as an authority grant.
+#[async_trait]
+pub trait CommunicationPort: Send + Sync {
+    async fn append_message(
+        &self,
+        context: &RequestContext,
+        message: &CommunicationMessage,
+    ) -> Result<RuntimeEvent, PortError>;
+}
 
 /// Non-durable fixture blob store implementing the artifact read boundary.
 #[derive(Clone, Debug, Default)]
