@@ -85,9 +85,13 @@ impl CapabilityHandler for CheckpointRestoreHandler {
                 .map_err(|_| failed("checkpoint_scope_required"))?;
         if checkpoint.files.is_empty()
             || checkpoint.files.iter().any(|file| {
-                !kiana_domain::allow_list_covers(&paths, &file.path)
+                kiana_domain::enforce_path_containment(&paths, &file.path).is_err()
                     || (!checkpoint.path_allow.is_empty()
-                        && !kiana_domain::allow_list_covers(&checkpoint.path_allow, &file.path))
+                        && kiana_domain::enforce_path_containment(
+                            &checkpoint.path_allow,
+                            &file.path,
+                        )
+                        .is_err())
             })
         {
             return Err(failed("checkpoint_path_denied"));

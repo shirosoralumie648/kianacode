@@ -520,12 +520,12 @@ pub(crate) fn stamp_request_identity(request: &mut CapabilityRequest, context: &
     } else {
         let mut intersection = Vec::new();
         for allowed in &context.path_allow {
-            if kiana_domain::allow_list_covers(&role_paths, allowed) {
+            if kiana_domain::enforce_path_containment(&role_paths, allowed).is_ok() {
                 intersection.push(allowed.clone());
             }
         }
         for allowed in &role_paths {
-            if kiana_domain::allow_list_covers(&context.path_allow, allowed) {
+            if kiana_domain::enforce_path_containment(&context.path_allow, allowed).is_ok() {
                 intersection.push(allowed.clone());
             }
         }

@@ -212,7 +212,7 @@ impl CapabilityHandler for ApplyPatchHandler {
                 {
                     return Err(PortError::Failed("apply_patch_protected_path".to_owned()));
                 }
-                if !kiana_domain::allow_list_covers(&paths, &target)
+                if kiana_domain::enforce_path_containment(&paths, &target).is_err()
                     || data_policy.revoked_sources.contains(&target)
                 {
                     return Err(PortError::Failed("apply_patch_scope_denied".to_owned()));
@@ -299,11 +299,8 @@ pub(crate) fn confined_workdir(
     let resolved = candidate
         .canonicalize()
         .map_err(|error| PortError::Failed(format!("harness_workdir_invalid:{error}")))?;
-    if !resolved.starts_with(project_root) {
-        return Err(PortError::Failed(
-            "harness_workdir_outside_project".to_owned(),
-        ));
-    }
+    kiana_domain::enforce_root_containment(project_root, &resolved)
+        .map_err(|_| PortError::Failed("harness_workdir_outside_project".to_owned()))?;
     if !resolved.is_dir() {
         return Err(PortError::Failed(
             "harness_workdir_invalid:not_directory".to_owned(),

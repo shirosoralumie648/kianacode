@@ -1724,10 +1724,8 @@ fn confined_candidate(root: &Path, relative: &Path) -> Result<PathBuf, PortError
 }
 
 fn ensure_inside(root: &Path, candidate: &Path) -> Result<(), PortError> {
-    if !candidate.starts_with(root) {
-        return Err(failed("apply_patch_path_outside_project"));
-    }
-    Ok(())
+    kiana_domain::enforce_root_containment(root, candidate)
+        .map_err(|_| failed("apply_patch_path_outside_project"))
 }
 
 fn display_relative(root: &Path, path: &Path) -> String {

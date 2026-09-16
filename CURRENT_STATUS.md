@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-H-03 shared path containment evidence (2026-09-16)
+
+```text
+source_snapshot: cd672b7 + P1-H-03 working-tree slice; kiana-domain/src/paths.rs; kiana-core/src/{cell_registry,events,workspace_checkpoints}.rs; kiana-daemon/src/{apply_patch,execution_control,execution_workspace,harness_capabilities,workspace_checkpoints}.rs; kiana-domain/tests/p1_h03_path_containment.rs; kiana-core/tests/p1_h03_path_containment_guard.rs; .github/workflows/p1-h03-path-containment.yml; docs/roadmap/path-containment-baseline.md; docs/roadmap.md
+worktree_status: P1-H-03 shared lexical path/root containment helper and side-effecting boundary migrations are scoped to this step; filesystem no-follow checks remain in adapters and no second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/paths.rs kiana-core/src/cell_registry.rs kiana-core/src/events.rs kiana-core/src/workspace_checkpoints.rs kiana-daemon/src/apply_patch.rs kiana-daemon/src/execution_control.rs kiana-daemon/src/execution_workspace.rs kiana-daemon/src/harness_capabilities.rs kiana-daemon/src/workspace_checkpoints.rs kiana-domain/tests/p1_h03_path_containment.rs kiana-core/tests/p1_h03_path_containment_guard.rs .github/workflows/p1-h03-path-containment.yml docs/roadmap/path-containment-baseline.md
+  rg -n 'enforce_path_containment|enforce_root_containment|path_not_relative|path_outside_scope|harness_workdir_outside_project|apply_patch_path_outside_project|package_path_denied|checkpoint_path_denied' kiana-domain/src kiana-core/src kiana-daemon/src kiana-domain/tests/p1_h03_path_containment.rs kiana-core/tests/p1_h03_path_containment_guard.rs docs/roadmap/path-containment-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; domain containment fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: p1_h03_path_containment::path_containment_is_shared_by_every_side_effecting_tool covers relative normalization, parent/absolute/escape rejection and root-prefix trap; core source guard covers patch/shell/package/checkpoint/Cell/event consumers; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-H-03 job is queued by the push and is not awaited
+status_change: P1-H-03 source slice is implemented. Domain now owns lexical path/root containment, and daemon/core side-effect boundaries consume the same helper before their adapter-specific symlink/hardlink/TOCTOU checks; no existing fail-closed errors were relaxed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; lexical checks do not prove fd-relative/no-follow or external rename resistance, MCP/Memory external scope and full network/secret containment remain CAP/SC/ER/PD work, and legacy allow_list_covers remains a compatibility API
+reviewer: Codex root implementation review plus P1-H-03 path containment/source-boundary review; no runtime test reviewer
+```
+
 ### P1-H-01 single tool authority registry evidence (2026-09-16)
 
 ```text

@@ -350,10 +350,10 @@ impl ControlPlane {
             kiana_domain::ProjectStatus::Closed | kiana_domain::ProjectStatus::Archived
         ) || packet.project_id != run.project_id
             || snapshot.path_allow != packet.packet.path_allow
-            || snapshot
-                .files
-                .iter()
-                .any(|file| !kiana_domain::allow_list_covers(&packet.packet.path_allow, &file.path))
+            || snapshot.files.iter().any(|file| {
+                kiana_domain::enforce_path_containment(&packet.packet.path_allow, &file.path)
+                    .is_err()
+            })
         {
             return Err(checkpoint_error("checkpoint_frozen_scope_invalid"));
         }
@@ -478,9 +478,9 @@ fn checkpoint_path_allowed(context: &RequestContext, path: &str) -> Result<(), C
     }
     let role =
         RoleSpec::lookup(&context.role_id).ok_or_else(|| checkpoint_error("role_unknown"))?;
-    if !kiana_domain::allow_list_covers(&role.path_allow, &normalized)
+    if kiana_domain::enforce_path_containment(&role.path_allow, &normalized).is_err()
         || (!context.path_allow.is_empty()
-            && !kiana_domain::allow_list_covers(&context.path_allow, &normalized))
+            && kiana_domain::enforce_path_containment(&context.path_allow, &normalized).is_err())
     {
         return Err(checkpoint_error("checkpoint_path_denied"));
     }

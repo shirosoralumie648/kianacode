@@ -160,7 +160,7 @@ impl ExecutionWorkspace {
             if before == after {
                 continue;
             }
-            if !kiana_domain::allow_list_covers(&self.path_allow, &path)
+            if kiana_domain::enforce_path_containment(&self.path_allow, &path).is_err()
                 || path
                     .split('/')
                     .any(crate::harness_sandbox::private_component)

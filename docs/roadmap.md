@@ -87,7 +87,7 @@
 | `P1-E-02` | P1 | E 通信与问责 | `P1-E-01` | 现有 symposium 会议路径有验收测试；决定事件 durable 可重放 | ⏳ |
 | `P1-H-01` | P1 | H Capability/Broker | `P0-A-01a` | 工具权威单一真源；不新增模型可见工具，保持 5 个 | ✅ |
 | `P1-H-02` | P1 | H Capability/Broker | — | 映射期拒绝非法参数；`additionalProperties` 不默认禁止 | ✅ |
-| `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ⏳ |
+| `P1-H-03` | P1 | H Capability/Broker | `P1-H-01` | 所有副作用工具共用同一 containment | ✅ |
 | `P1-J2-01` | P1 | J2 Context/Cache | `P0-G-04` | `PromptSection{name, order, text}` + `render_prompt()` + provenance | ⏳ |
 | `P1-J2-02` | P1 | J2 Context/Cache | `P1-J2-01` | `TokenBudget` 计入 tool schemas 与 system prompt；越界 fail-closed | ⏳ |
 | `P1-J2-03` | P1 | J2 Context/Cache | `P1-J2-01` | `RoleSpec.prompt` 进入 provider 的 system message | ⏳ |
@@ -248,7 +248,7 @@
 | 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ✅ | [基础卡](#step-p1-d-02) |
 | 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ✅ | [基础卡](#step-p1-e-01) |
 | 082 | W1 | 基础 | [`P1-H-01`](#step-p1-h-01) | P1 基础 · `ToolSpec` registry | `P0-A-01a` | ✅ | [基础卡](#step-p1-h-01) |
-| 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ⏳ | [基础卡](#step-p1-h-03) |
+| 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ✅ | [基础卡](#step-p1-h-03) |
 | 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ⏳ | [基础卡](#step-p3-i-01) |
 | 085 | W1 | 专项 | [`CI-02`](#step-ci-02) | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | `CI-01` | ⏳ | [专项卡](#step-ci-02) |
 | 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | ⏳ | [专项卡](#step-ci-03) |
@@ -1047,6 +1047,8 @@
 
 | 当前 99 | `P1-H-01` ToolSpec registry | 新增 domain `ToolSpec`/`TOOL_SPECS`，固定五个模型工具的 canonical name、alias、capability、operation、risk、side_effecting、schema；`model_tool_name` 与 Runner canonical mapping 统一消费 registry，DaemonHost 组合时校验 surface/alias/schema drift；新增 domain/core fixtures、CI workflow 与 tool-authority baseline；不运行本地测试 | `feature_status=implemented`（domain/runner/core/daemon source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；registry 仍不授予 capability/path/approval，operator-only action、containment、Broker handler 和完整跨入口 UAT 留待 P1-H-02/03、CAP/CP；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 100 | `P1-H-03` 路径 containment 共享实现 | domain 新增 `enforce_path_containment`/`enforce_root_containment`，统一 normalize/allow-list/root lexical checks；apply_patch、shell workdir/patch、package、checkpoint、execution workspace、Cell grant snapshot 与 event scope 均消费 helper，MCP/Memory 保留 project-root/scope guard；新增 domain/core negative fixture/source guard、CI workflow 与 path-containment baseline；不运行本地测试 | `feature_status=implemented`（domain/core/daemon source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；helper 不等价于 fd-relative/no-follow、symlink/hardlink/rename/effect-time TOCTOU，完整 filesystem/secret/network containment 留待 CAP/SC/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1194,6 +1196,7 @@
 | 2026-09-16 | `P1-D-03` Claim/lease recovery：PacketClaim owner/heartbeat/expiry 续租与过期扫描通过 CompanyCommand 回收，已 dispatch 的过期 claim 要求 terminal observation，Unknown 不自动重试；新增 domain/core fixtures、CI workflow 与 lease-recovery baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-E-01` Communication/accountability：新增七类 typed CommunicationMessage、Chat 无 authority/action/ACK、Handoff 定向 ACK、CommunicationPort 与 ControlPlane formal event 命令；新增 domain/core fixtures、CI workflow 与 communication baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-H-01` Tool authority：新增 domain `ToolSpec`/`TOOL_SPECS` 五工具单一 registry，`model_tool_name`/Runner canonical mapping 和 DaemonHost composition validation 统一消费，注册 schema/alias drift guard；新增 domain/core fixtures、CI workflow 与 tool-authority baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-H-03` Shared path containment：新增 domain lexical path/root containment helper，迁移 patch/shell/package/checkpoint/Cell/event scope 边界，保留 filesystem no-follow/TOCTOU 二次校验；新增 domain/core fixtures、CI workflow 与 path-containment baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1753,14 +1756,14 @@
 
 <a id="step-p1-h-03"></a>
 
-### P1-H-03 路径 containment 共享实现　⏳
+### P1-H-03 路径 containment 共享实现　✅
 
-- **现状**：策略层只对 `apply_patch` 提取路径，shell 全靠 bwrap/workdir。
-- **做什么**：抽出一份共享的 path containment，所有副作用工具共用。
+- **现状**：domain 已提供 shared `enforce_path_containment`/`enforce_root_containment`；patch/shell/package/checkpoint/Cell/event scope 边界均已迁移，MCP/Memory 继续使用 root/scope resolver。
+- **做什么**：固定 lexical containment API 与拒绝 reason，确保所有副作用边界不再新增独立 allow-list/root 检查。
 - **风险**：只对部分工具生效会留下绕过面（symlink / hardlink / rename）。
 - **验收**：`path_containment_is_shared_by_every_side_effecting_tool`
-- **依赖 / 边界**：依赖 `P1-H-01`；不得放宽现有 fail-closed 行为。
-- **依据**：`company-os-implementation-outline.md` §Slice H
+- **依赖 / 边界**：依赖 `P1-H-01`；lexical helper 不替代 filesystem no-follow/symlink/hardlink/TOCTOU fencing。
+- **依据**：`company-os-implementation-outline.md` §Slice H；证据见 [`path-containment-baseline.md`](roadmap/path-containment-baseline.md)
 
 
 

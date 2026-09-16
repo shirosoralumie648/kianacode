@@ -7,9 +7,8 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    allow_list_covers, builder_lock_paths, AgentTemplate, BudgetLease, BudgetLeaseId, CellId,
-    CellLifecycle, CellSpec, RequestId, RetirementRecord, RoleSpec, RunId, SpawnPlanId,
-    SpawnPlanStatus, WorkFingerprint,
+    builder_lock_paths, AgentTemplate, BudgetLease, BudgetLeaseId, CellId, CellLifecycle, CellSpec,
+    RequestId, RetirementRecord, RoleSpec, RunId, SpawnPlanId, SpawnPlanStatus, WorkFingerprint,
 };
 use kiana_ports::{
     CapabilityLease, CapabilityOutcome, CellRegistryPort, PortError, SpawnReservation,
@@ -320,7 +319,7 @@ impl CellRegistryPort for MemoryCellRegistry {
                 || cell
                     .owned_paths
                     .iter()
-                    .any(|path| !allow_list_covers(&grant.paths, path))
+                    .any(|path| kiana_domain::enforce_path_containment(&grant.paths, path).is_err())
             {
                 return Err(reject("cell_snapshot_authority_mismatch"));
             }
@@ -555,7 +554,7 @@ impl CellRegistryPort for MemoryCellRegistry {
         if cell
             .owned_paths
             .iter()
-            .any(|path| !allow_list_covers(&grant.paths, path))
+            .any(|path| kiana_domain::enforce_path_containment(&grant.paths, path).is_err())
         {
             return Err(PortError::Failed("spawn_grant_scope_invalid".to_owned()));
         }

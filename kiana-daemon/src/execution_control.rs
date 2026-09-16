@@ -773,7 +773,7 @@ fn local_package(arguments: &Value) -> Result<Value, PortError> {
         .filter_map(Value::as_str)
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if !kiana_domain::allow_list_covers(&paths, &destination) {
+    if kiana_domain::enforce_path_containment(&paths, &destination).is_err() {
         return Err(error("package_path_denied"));
     }
     if !arguments["manifest"].is_object() {

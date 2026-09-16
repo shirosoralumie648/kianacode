@@ -40,6 +40,33 @@ pub fn allow_list_covers(path_allow: &[String], path: &str) -> bool {
         !allow.is_empty() && (path == allow || path.starts_with(&format!("{allow}/")))
     })
 }
+
+/// Normalize and authorize one relative path against a server-owned allow-list.
+///
+/// This is the shared lexical containment boundary used by policy, Cell, workspace and daemon
+/// adapters. Filesystem adapters must still perform their own no-follow/symlink/hardlink checks
+/// after this pure check; a successful result never grants an effect by itself.
+pub fn enforce_path_containment(path_allow: &[String], path: &str) -> Result<String, &'static str> {
+    let normalized = normalize_role_path(path).ok_or("path_not_relative")?;
+    if allow_list_covers(path_allow, &normalized) {
+        Ok(normalized)
+    } else {
+        Err("path_outside_scope")
+    }
+}
+
+/// Shared lexical root check for already-resolved filesystem paths.
+pub fn enforce_root_containment<'a>(
+    root: &'a std::path::Path,
+    candidate: &'a std::path::Path,
+) -> Result<(), &'static str> {
+    if candidate == root || candidate.starts_with(root) {
+        Ok(())
+    } else {
+        Err("path_outside_project")
+    }
+}
+
 pub fn normalize_role_path(path: &str) -> Option<String> {
     let path = path.trim().replace('\\', "/");
     if path.is_empty() {
