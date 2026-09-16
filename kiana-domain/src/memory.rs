@@ -148,6 +148,10 @@ pub struct MemoryRecord {
     pub import_mode: MemoryImportMode,
     #[serde(default = "first_revision")]
     pub revision: u64,
+    /// Last server mutation key that materialized this record. It is an audit correlation value,
+    /// never an authorization grant or a user-visible memory field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_mutation_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reviewed_by: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -185,6 +189,13 @@ impl MemoryRecord {
             })
         {
             return Err("memory_record_dependencies_invalid".to_owned());
+        }
+        if self
+            .last_mutation_key
+            .as_deref()
+            .is_some_and(|key| key.trim().is_empty() || key.len() > 256 || key.contains('\0'))
+        {
+            return Err("memory_record_mutation_key_invalid".to_owned());
         }
         if self.import_mode == MemoryImportMode::LegacyImport
             && (self.origin != MemoryOrigin::Unknown

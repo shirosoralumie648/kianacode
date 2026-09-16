@@ -1440,6 +1440,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CM-03 MemoryScope intersection/Core derivation/daemon enforcement source-boundary review; no runtime test reviewer
 ```
 
+### CM-04 unified Memory mutation and idempotency evidence (2026-09-16)
+
+```text
+source_snapshot: 0fe99c4; kiana-domain/src/memory_mutation.rs; kiana-domain/src/{lib,contracts}.rs; kiana-daemon/src/harness_memory.rs; kiana-domain/tests/cm04_memory_mutation.rs; kiana-daemon/tests/cm04_memory_mutation_guard.rs; .github/workflows/cm04-memory-mutation.yml; docs/roadmap/memory-mutation-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/context-memory.md; docs/roadmap.md
+worktree_status: CM-04 server-owned MemoryMutation/Target/Receipt contracts cover ADD/UPDATE/DELETE/APPROVE/PUBLISH/EXPIRE/REVOKE with scope, actor, evidence, epochs, payload digest and idempotency; pure ledger preflights all targets and rejects stale/payload-drift requests; daemon memory.write/review construct the contract before JSONL append; remote fixtures and roadmap/status overlays are included; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/memory_mutation.rs kiana-domain/src/lib.rs kiana-domain/src/contracts.rs kiana-daemon/src/harness_memory.rs kiana-domain/tests/cm04_memory_mutation.rs kiana-daemon/tests/cm04_memory_mutation_guard.rs .github/workflows/cm04-memory-mutation.yml docs/roadmap/memory-mutation-baseline.md
+  rg -n 'MemoryMutationOperation|MemoryMutationLedger|duplicate_memory_mutation_returns_original_receipt|stale_revision_never_last_write_wins|batch_preflight_rejects_one_stale_target_without_advancing_the_other|memory_handlers_use_server_mutation_contract' kiana-domain/src kiana-daemon/src kiana-domain/tests/cm04_memory_mutation.rs kiana-daemon/tests/cm04_memory_mutation_guard.rs docs/roadmap/memory-mutation-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/cm04_memory_mutation.rs duplicate/replay, stale CAS and all-target preflight fixtures; kiana-daemon/tests/cm04_memory_mutation_guard.rs server mutation/append ordering source guard; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CM-04 job is queued by the next push and is not awaited
+status_change: CM-04 source slice is implemented. MemoryMutation validates the seven explicit verbs, server actor/scope identity, evidence SourceRefs, policy/data epochs, protected payload digest and idempotency key. MemoryMutationLedger returns the original receipt on an exact replay, rejects payload drift, and preflights every target before advancing revisions. memory.write uses a stable key-derived record identity and mutation receipt; memory.review maps promote/reject to APPROVE/REVOKE and preflights the exact record revision before append.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; daemon JSONL remains a projection until CM-05 binds Memory facts/body refs/review consumption/projection cursor to EventStore TransitionBatch; accept_proposal mixed batches, cross-process receipt/recovery, processing grants/retention/revocation/delete propagation, index generation and semantic recall remain CM-05+ / PD / SC; no business/external outcome is claimed
+reviewer: Codex root implementation review plus CM-04 mutation/CAS/idempotency source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

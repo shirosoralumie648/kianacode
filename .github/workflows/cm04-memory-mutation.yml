@@ -1,0 +1,42 @@
+name: CM-04 unified memory mutation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/memory_mutation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cm04_memory_mutation.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/tests/cm04_memory_mutation_guard.rs"
+      - "docs/roadmap/memory-mutation-baseline.md"
+      - ".github/workflows/cm04-memory-mutation.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/memory_mutation.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/tests/cm04_memory_mutation.rs"
+      - "kiana-daemon/src/harness_memory.rs"
+      - "kiana-daemon/tests/cm04_memory_mutation_guard.rs"
+      - "docs/roadmap/memory-mutation-baseline.md"
+      - ".github/workflows/cm04-memory-mutation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CM-04 domain mutation fixtures
+        run: cargo test -p kiana-domain --test cm04_memory_mutation --locked -- --test-threads=1
+      - name: Run CM-04 daemon contract guard
+        run: cargo test -p kiana-daemon --test cm04_memory_mutation_guard --locked -- --test-threads=1

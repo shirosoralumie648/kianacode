@@ -304,7 +304,9 @@ UPDATE 校验目标确切 revision 并生成 successor；DELETE 保留最小 tom
 
 
 
-##### CM-04 · 统一 Memory mutation 与幂等键　⏳
+##### CM-04 · 统一 Memory mutation 与幂等键　✅
+
+当前 source slice 与 CI-only 证据见 [`memory-mutation-baseline.md`](memory-mutation-baseline.md)。
 
 定义 ADD/UPDATE/DELETE/APPROVE/PUBLISH/EXPIRE/REVOKE 的规范 mutation，绑定 expected revision、scope、evidence、policy/data epoch、actor 和 idempotency key；先预检全部目标。验收：`duplicate_memory_mutation_returns_original_receipt`、`stale_revision_never_last_write_wins`。
 

@@ -5,12 +5,14 @@
 
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    memory_query_terms, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
-    MemoryAdmission, MemoryClassification, MemoryCollection, MemoryOrigin, MemoryRecord,
-    MemoryScope as DomainMemoryScope, MemorySensitivity, MemoryState, Purpose, RoleSpec,
-    MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH,
-    MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA,
-    MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
+    json_digest, memory_query_terms, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
+    EvidenceStatus, MemoryAdmission, MemoryClassification, MemoryCollection, MemoryMutation,
+    MemoryMutationLedger, MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt,
+    MemoryMutationTarget, MemoryOrigin, MemoryRecord, MemoryScope as DomainMemoryScope,
+    MemorySensitivity, MemoryState, Purpose, RoleSpec, SourceKind, SourceRef, MEMORY_LAYER_COMPANY,
+    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
+    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2,
+    MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::PortError;
 use serde_json::{json, Value};
@@ -139,10 +141,24 @@ impl CapabilityHandler for MemoryWriteHandler {
         let request_id = request.request.request_id;
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
-        server_memory_scope(&request, &arguments, true)?;
+        let mutation_scope = server_memory_scope(&request, &arguments, true)?;
+        let execution_scope = request
+            .request
+            .execution_scope
+            .as_ref()
+            .ok_or_else(|| failed("memory_scope_required"))?;
+        let policy_epoch = execution_scope.authority_epoch;
+        let data_epoch = execution_scope.data_epoch;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || {
-            write_record_scoped(&arguments, &scope, Some(request_id))
+            write_record_with_mutation(
+                &arguments,
+                &scope,
+                Some(request_id),
+                Some(&mutation_scope),
+                policy_epoch,
+                data_epoch,
+            )
         })
         .await
         .map_err(|error| PortError::Failed(format!("memory_write_join_failed:{error}")))??;
@@ -163,11 +179,26 @@ impl CapabilityHandler for MemoryReviewHandler {
         let request_id = request.request.request_id;
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
-        server_memory_scope(&request, &arguments, true)?;
+        let mutation_scope = server_memory_scope(&request, &arguments, true)?;
+        let execution_scope = request
+            .request
+            .execution_scope
+            .as_ref()
+            .ok_or_else(|| failed("memory_scope_required"))?;
+        let policy_epoch = execution_scope.authority_epoch;
+        let data_epoch = execution_scope.data_epoch;
         let scope = self.0.clone();
-        let output = tokio::task::spawn_blocking(move || review_records_scoped(&arguments, &scope))
-            .await
-            .map_err(|error| failed(format!("memory_review_join_failed:{error}")))??;
+        let output = tokio::task::spawn_blocking(move || {
+            review_records_with_mutation(
+                &arguments,
+                &scope,
+                Some(&mutation_scope),
+                policy_epoch,
+                data_epoch,
+            )
+        })
+        .await
+        .map_err(|error| failed(format!("memory_review_join_failed:{error}")))??;
         Ok(CapabilityResult::success(request_id, output))
     }
 }
@@ -238,6 +269,17 @@ fn write_record_scoped(
     scope: &MemoryScope,
     request_id: Option<kiana_domain::RequestId>,
 ) -> Result<Value, PortError> {
+    write_record_with_mutation(arguments, scope, request_id, None, 1, 1)
+}
+
+fn write_record_with_mutation(
+    arguments: &Value,
+    scope: &MemoryScope,
+    request_id: Option<kiana_domain::RequestId>,
+    mutation_scope: Option<&DomainMemoryScope>,
+    policy_epoch: u64,
+    data_epoch: u64,
+) -> Result<Value, PortError> {
     let collection = required_collection(arguments)?;
     if collection.collection == "user-private" {
         return Err(failed("memory_user_private_requires_operator"));
@@ -255,13 +297,17 @@ fn write_record_scoped(
     let session_id = required_string(arguments, "session_id", "memory_session_required")?;
     let project_root = optional_string(arguments, "project_root").unwrap_or_default();
     let scratch = collection.layer == MEMORY_LAYER_INSTANCE_SCRATCH;
+    let mutation_key = optional_string(arguments, "idempotency_key").unwrap_or_else(|| {
+        format!(
+            "memory.write:{}",
+            request_id.unwrap_or_else(kiana_domain::RequestId::new)
+        )
+    });
+    validate_memory_mutation_key(&mutation_key)?;
     let record = MemoryRecord {
         project_root: project_root.clone(),
         schema: MEMORY_RECORD_SCHEMA_V2.to_owned(),
-        id: format!(
-            "mem-{}",
-            request_id.unwrap_or_else(kiana_domain::RequestId::new)
-        ),
+        id: stable_memory_record_id(&mutation_key),
         layer: collection.layer.clone(),
         collection: collection.collection.clone(),
         content_hash: format!("{:x}", Sha256::digest(text.as_bytes())),
@@ -300,6 +346,7 @@ fn write_record_scoped(
         dependencies: Vec::new(),
         import_mode: kiana_domain::MemoryImportMode::Native,
         revision: 1,
+        last_mutation_key: Some(mutation_key.clone()),
         reviewed_by: None,
         review_reason: None,
         reviewed_at_ms: None,
@@ -320,32 +367,69 @@ fn write_record_scoped(
     {
         return Err(failed("data_source_revoked"));
     }
-    let (record, replayed) = if let Some(previous) = existing
-        .into_iter()
-        .find(|previous| previous.id == record.id)
-    {
-        if previous.content_hash != record.content_hash
-            || previous.text != record.text
-            || previous.source != record.source
-            || previous.collection != record.collection
-            || previous.session_id != record.session_id
-            || previous.project_root != record.project_root
-            || previous.role_id != record.role_id
-            || previous.department_id != record.department_id
-        {
-            return Err(failed("memory_idempotency_conflict"));
+    let (record, replayed) =
+        if let Some(previous) = existing.iter().find(|previous| previous.id == record.id) {
+            if previous.content_hash != record.content_hash
+                || previous.text != record.text
+                || previous.source != record.source
+                || previous.collection != record.collection
+                || previous.session_id != record.session_id
+                || previous.project_root != record.project_root
+                || previous.role_id != record.role_id
+                || previous.department_id != record.department_id
+            {
+                return Err(failed("memory_idempotency_conflict"));
+            }
+            (previous.clone(), true)
+        } else {
+            (record, false)
+        };
+    let mutation_receipt = if let Some(mutation_scope) = mutation_scope {
+        let payload = serde_json::to_value(&record).map_err(|_| failed("memory_record_invalid"))?;
+        let mutation = MemoryMutation::new(
+            format!("memory.write:{}", record.id),
+            MemoryMutationOperation::Add,
+            mutation_scope.principal.principal_id.clone(),
+            mutation_scope.clone(),
+            vec![MemoryMutationTarget::new(&record.id, &record.collection, 0)],
+            vec![memory_source_ref(&record.id, &record.source, &record.text)?],
+            policy_epoch,
+            data_epoch,
+            mutation_key.clone(),
+            &payload,
+        )
+        .map_err(failed)?;
+        if replayed {
+            Some(replayed_memory_receipt(&mutation, record.revision)?)
+        } else {
+            let mut ledger = MemoryMutationLedger::new();
+            for previous in &existing {
+                ledger
+                    .seed_record(&previous.id, &previous.collection, previous.revision)
+                    .map_err(failed)?;
+            }
+            let MemoryMutationOutcome::Committed { receipt } =
+                ledger.apply(mutation).map_err(failed)?
+            else {
+                return Err(failed("memory_mutation_unexpected_replay"));
+            };
+            append_record_file(&mut file, &record)?;
+            Some(receipt)
         }
-        (previous, true)
     } else {
-        append_record_file(&mut file, &record)?;
-        (record, false)
+        if !replayed {
+            append_record_file(&mut file, &record)?;
+        }
+        None
     };
     Ok(
         json!({"schema":MEMORY_WRITE_SCHEMA,"id":record.id,"layer":record.layer,
         "collection":record.collection,"source":record.source,"path":path.display().to_string(),
         "promoted":false,"origin":record.origin,"admission_state":record.admission_state,
         "state":record.state,"revision":record.revision,"classification":record.classification,
-        "effect_committed":true,"write_synced":true,"replayed":replayed,"stop_confirmed":true}),
+        "effect_committed":true,"write_synced":true,"replayed":replayed,
+        "idempotency_key":mutation_key,"mutation_receipt":mutation_receipt,
+        "stop_confirmed":true}),
     )
 }
 
@@ -356,6 +440,16 @@ fn review_records(arguments: &Value) -> Result<Value, PortError> {
     review_records_scoped(arguments, &MemoryScope::capture())
 }
 fn review_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value, PortError> {
+    review_records_with_mutation(arguments, scope, None, 1, 1)
+}
+
+fn review_records_with_mutation(
+    arguments: &Value,
+    scope: &MemoryScope,
+    mutation_scope: Option<&DomainMemoryScope>,
+    policy_epoch: u64,
+    data_epoch: u64,
+) -> Result<Value, PortError> {
     if arguments
         .get("operator_authorized")
         .and_then(Value::as_bool)
@@ -403,17 +497,102 @@ fn review_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
         .and_then(Value::as_u64)
         .filter(|r| *r > 0)
         .ok_or_else(|| failed("memory_review_revision_required"))?;
+    let mutation_key = optional_string(arguments, "idempotency_key")
+        .unwrap_or_else(|| format!("memory.review:{}:{}:{}", actor, id, expected));
+    validate_memory_mutation_key(&mutation_key)?;
     let mut file = open_record_file(&path, false, true)?;
-    let mut record = read_records_file(&file)?
-        .into_iter()
+    let existing = read_records_file(&file)?;
+    let mut record = existing
+        .iter()
         .find(|r| r.id == id && r.collection == collection.collection)
+        .cloned()
         .ok_or_else(|| failed("memory_record_not_found"))?;
     if record.revision != expected {
+        if mutation_scope.is_some()
+            && record.last_mutation_key.as_deref() == Some(mutation_key.as_str())
+        {
+            if record.review_reason.as_deref() != Some(reason.as_str())
+                || ((action == "promote") != (record.admission_state == MemoryAdmission::Qualified))
+            {
+                return Err(failed("memory_idempotency_conflict"));
+            }
+            let operation = if action == "promote" {
+                MemoryMutationOperation::Approve
+            } else {
+                MemoryMutationOperation::Revoke
+            };
+            let payload = json!({"action":action,"record_id":record.id,"reason":reason,
+                "expected_revision":expected,"collection":collection.collection});
+            let mutation_scope = mutation_scope.expect("checked above");
+            let mutation = MemoryMutation::new(
+                format!("memory.review:{}", record.id),
+                operation,
+                mutation_scope.principal.principal_id.clone(),
+                mutation_scope.clone(),
+                vec![MemoryMutationTarget::new(
+                    &record.id,
+                    &record.collection,
+                    expected,
+                )],
+                vec![memory_source_ref(&record.id, &record.source, &record.text)?],
+                policy_epoch,
+                data_epoch,
+                mutation_key.clone(),
+                &payload,
+            )
+            .map_err(failed)?;
+            let receipt = replayed_memory_receipt(&mutation, record.revision)?;
+            return Ok(
+                json!({"schema":MEMORY_REVIEW_SCHEMA,"action":action,"record":record.hit(),
+                "revision":record.revision,"idempotency_key":mutation_key,
+                "mutation_receipt":receipt,"replayed":true}),
+            );
+        }
         return Err(PortError::Conflict("memory_revision_conflict".to_owned()));
     }
     if record.admission_state != MemoryAdmission::Candidate || record.state != MemoryState::Draft {
         return Err(PortError::Conflict("memory_candidate_required".to_owned()));
     }
+    let operation = if action == "promote" {
+        MemoryMutationOperation::Approve
+    } else {
+        MemoryMutationOperation::Revoke
+    };
+    let payload = json!({"action":action,"record_id":record.id,"reason":reason,
+        "expected_revision":expected,"collection":collection.collection});
+    let mutation_receipt = if let Some(mutation_scope) = mutation_scope {
+        let mutation = MemoryMutation::new(
+            format!("memory.review:{}", record.id),
+            operation,
+            mutation_scope.principal.principal_id.clone(),
+            mutation_scope.clone(),
+            vec![MemoryMutationTarget::new(
+                &record.id,
+                &record.collection,
+                expected,
+            )],
+            vec![memory_source_ref(&record.id, &record.source, &record.text)?],
+            policy_epoch,
+            data_epoch,
+            mutation_key.clone(),
+            &payload,
+        )
+        .map_err(failed)?;
+        let mut ledger = MemoryMutationLedger::new();
+        for previous in &existing {
+            ledger
+                .seed_record(&previous.id, &previous.collection, previous.revision)
+                .map_err(failed)?;
+        }
+        let MemoryMutationOutcome::Committed { receipt } =
+            ledger.apply(mutation).map_err(failed)?
+        else {
+            return Err(failed("memory_mutation_unexpected_replay"));
+        };
+        Some(receipt)
+    } else {
+        None
+    };
     record.schema = MEMORY_RECORD_SCHEMA_V2.to_owned();
     record.revision = record
         .revision
@@ -430,12 +609,14 @@ fn review_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
         MemoryState::Rejected
     };
     record.classification = MemoryClassification::for_collection(&collection);
+    record.last_mutation_key = Some(mutation_key.clone());
     record.reviewed_by = Some(actor);
     record.review_reason = Some(reason);
     record.reviewed_at_ms = Some(now_ms());
     append_record_file(&mut file, &record)?;
     Ok(
-        json!({"schema":MEMORY_REVIEW_SCHEMA,"action":action,"record":record.hit(),"revision":record.revision}),
+        json!({"schema":MEMORY_REVIEW_SCHEMA,"action":action,"record":record.hit(),"revision":record.revision,
+            "idempotency_key":mutation_key,"mutation_receipt":mutation_receipt}),
     )
 }
 
@@ -570,6 +751,7 @@ fn accept_proposal(
                 dependencies: Vec::new(),
                 import_mode: kiana_domain::MemoryImportMode::Native,
                 revision: 1,
+                last_mutation_key: None,
                 reviewed_by: Some(actor.to_owned()),
                 review_reason: Some(reason.clone()),
                 reviewed_at_ms: Some(now_ms()),
@@ -729,6 +911,67 @@ fn confined_project_root(project_root: &str) -> Result<PathBuf, PortError> {
         return Err(PortError::Failed("memory_project_required".to_owned()));
     }
     Ok(root)
+}
+
+fn stable_memory_record_id(idempotency_key: &str) -> String {
+    format!("mem-{:x}", Sha256::digest(idempotency_key.as_bytes()))
+}
+
+fn validate_memory_mutation_key(key: &str) -> Result<(), PortError> {
+    if key.trim().is_empty() || key.len() > 256 || key.contains('\0') {
+        return Err(failed("memory_mutation_idempotency_key_invalid"));
+    }
+    Ok(())
+}
+
+fn memory_source_ref(record_id: &str, source: &str, text: &str) -> Result<SourceRef, PortError> {
+    SourceRef::new(
+        format!("memory-mutation:{record_id}"),
+        SourceKind::Memory,
+        if source.trim().is_empty() {
+            format!("memory:{record_id}")
+        } else {
+            source.to_owned()
+        },
+        "mutation-input:v1",
+        json_digest(&json!({"source":source,"text":text})),
+        None,
+        if source.trim().is_empty() {
+            EvidenceStatus::Unverifiable
+        } else {
+            EvidenceStatus::Attributed
+        },
+    )
+    .map_err(failed)
+}
+
+fn replayed_memory_receipt(
+    mutation: &MemoryMutation,
+    revision: u64,
+) -> Result<MemoryMutationReceipt, PortError> {
+    let receipt = MemoryMutationReceipt {
+        schema: kiana_domain::MEMORY_MUTATION_RECEIPT_SCHEMA.to_owned(),
+        mutation_id: mutation.mutation_id.clone(),
+        operation: mutation.operation,
+        actor: mutation.actor.clone(),
+        scope_digest: mutation.scope.scope_digest.clone(),
+        idempotency_key: mutation.idempotency_key.clone(),
+        mutation_digest: mutation.digest(),
+        committed_revision: revision,
+        target_revisions: mutation
+            .expected_revisions
+            .iter()
+            .map(|target| kiana_domain::MemoryMutationTargetRevision {
+                record_id: target.record_id.clone(),
+                collection: target.collection.clone(),
+                revision,
+            })
+            .collect(),
+        policy_epoch: mutation.policy_epoch,
+        data_epoch: mutation.data_epoch,
+    };
+    receipt.validate().map_err(failed)?;
+    Ok(receipt)
 }
 
 fn failed(reason: impl Into<String>) -> PortError {
