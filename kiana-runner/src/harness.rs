@@ -17,6 +17,7 @@ use crate::model::{
     ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelToolCall, ScriptedModel,
     UnavailableModel,
 };
+use crate::state_driver::RunDriver;
 use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
@@ -116,6 +117,7 @@ struct ActiveRun {
     run_id: RunId,
     turn_id: Option<TurnId>,
     step_id: Option<StepId>,
+    driver: RunDriver,
     sandbox: String,
     project_root: String,
     inbox: Inbox,
@@ -130,6 +132,12 @@ struct ActiveRun {
     wall_time_started_at: Instant,
     last_text: String,
     cancellation: Arc<RunCancellation>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StepProgress {
+    Continue,
+    Finished,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -148,6 +156,8 @@ struct HarnessCheckpoint {
     turn_id: Option<TurnId>,
     #[serde(default)]
     step_id: Option<StepId>,
+    #[serde(default)]
+    driver: Option<RunDriver>,
     sandbox: String,
     project_root: String,
     messages: Vec<ModelMessage>,
@@ -333,6 +343,9 @@ impl KianaHarness {
         let run = runs
             .get_mut(&run_id)
             .ok_or_else(|| KianaHarnessError::Failed("run_not_found".to_owned()))?;
+        run.driver
+            .queue_input()
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         run.inbox
             .insert(InboxTarget::NextStep, InboxMessage::user(text));
         Ok(())
@@ -436,6 +449,7 @@ impl KianaHarness {
             run_id,
             turn_id,
             step_id: None,
+            driver: RunDriver::new(run_id, turn_id),
             sandbox: sandbox.to_owned(),
             project_root,
             inbox: Inbox::default(),
@@ -457,6 +471,9 @@ impl KianaHarness {
             last_text: String::new(),
             cancellation: cancellation.clone(),
         };
+        run.driver
+            .begin_turn()
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         if let (Some(turn_id), Some(assignment)) = (run.turn_id, run.model_assignment.as_ref()) {
             if assignment.turn_id != turn_id {
                 return emitter.emit_event(RunnerEvent::Failed {
@@ -510,6 +527,9 @@ impl KianaHarness {
                     )),
                 }));
         }
+        run.driver
+            .queue_input()
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         run.inbox
             .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
         for message in run.inbox.claim(InboxTarget::NextTurn) {
@@ -546,12 +566,26 @@ impl KianaHarness {
                 error: "capability_result_mismatch".to_owned(),
             });
         }
+        let effect_known =
+            result.dimensions().effect != kiana_domain::CapabilityEffectState::Unknown;
+        run.driver
+            .tool_result(effect_known)
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+        if !effect_known {
+            return emitter.emit_event(RunnerEvent::Failed {
+                run_id,
+                error: "result_unknown:tool_effect_unknown".to_owned(),
+            });
+        }
 
         run.messages
             .push(ModelMessage::tool(call.id, tool_result_text(&result)));
 
         if let Some((request_id, next_call)) = run.pending_tools.front().cloned() {
             let _ = request_id;
+            run.driver
+                .model_output(run.pending_tools.len() as u32, false)
+                .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
             let cancellation = run.cancellation.clone();
             let state = cancellation.lock()?;
             if let Some(error) = state.as_ref() {
@@ -607,6 +641,12 @@ impl KianaHarness {
         run.wall_time_started_at = Instant::now();
         run.last_text.clear();
         run.last_tool_call = None;
+        run.driver
+            .begin_turn()
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+        run.driver
+            .queue_input()
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
         run.inbox
             .insert(InboxTarget::NextTurn, InboxMessage::user(prompt));
         for message in run.inbox.claim(InboxTarget::NextTurn) {
@@ -636,6 +676,9 @@ impl KianaHarness {
         }
         match self.take_run(run_id) {
             Ok(mut run) => {
+                run.driver
+                    .request_cancel()
+                    .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
                 // The first queued call may already be executing at the control plane.
                 // Only the remaining calls can be proven not to have been dispatched.
                 run.pending_tools.pop_front();
@@ -661,12 +704,35 @@ impl KianaHarness {
         run: &mut ActiveRun,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
+        const DRIVER_OWNER: &str = "model-driver";
+        run.driver
+            .claim(DRIVER_OWNER)
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+        let result = loop {
+            match self.model_step_once(run, emitter).await {
+                Ok(StepProgress::Continue) => continue,
+                Ok(StepProgress::Finished) => break Ok(()),
+                Err(error) => break Err(error),
+            }
+        };
+        let release = run
+            .driver
+            .release(DRIVER_OWNER)
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()));
+        result.and(release)
+    }
+
+    async fn model_step_once(
+        &self,
+        run: &mut ActiveRun,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<StepProgress, KianaHarnessError> {
         if let Some(error) = run.cancellation.error()? {
             emitter.emit_event(RunnerEvent::Failed {
                 run_id: run.run_id,
                 error,
             })?;
-            return Ok(());
+            return Ok(StepProgress::Finished);
         }
         let checkpoint = emitter.events.len();
         if run.steps >= run.max_steps_per_turn {
@@ -674,7 +740,7 @@ impl KianaHarness {
                 run_id: run.run_id,
                 error: "max_steps_per_turn".to_owned(),
             })?;
-            return Ok(());
+            return Ok(StepProgress::Finished);
         }
         if self
             .wall_time_budget
@@ -684,10 +750,13 @@ impl KianaHarness {
                 run_id: run.run_id,
                 error: RUN_BUDGET_EXCEEDED_WALL_TIME.to_owned(),
             })?;
-            return Ok(());
+            return Ok(StepProgress::Finished);
         }
         run.steps += 1;
         run.step_id = Some(StepId::new());
+        run.driver
+            .begin_step(run.step_id.expect("step ID was just assigned"), run.steps)
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
 
         for message in run.inbox.claim(InboxTarget::NextStep) {
             run.messages.push(ModelMessage::user(message.text));
@@ -728,13 +797,13 @@ impl KianaHarness {
         let emitted_delta = true;
         if let Some(error) = cancellation.error()? {
             emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
-            return Ok(());
+            return Ok(StepProgress::Finished);
         }
         let output = match output {
             Ok(output) => output,
             Err(error) => {
                 emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
-                return Ok(());
+                return Ok(StepProgress::Finished);
             }
         };
         if !output.text.is_empty() {
@@ -782,21 +851,26 @@ impl KianaHarness {
                 if let Some(model_id) = model_id {
                     completed.insert("model_id".to_owned(), json!(model_id));
                 }
+                run.driver
+                    .model_output(0, true)
+                    .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
                 let state = cancellation.lock()?;
                 if let Some(error) = state.as_ref() {
                     let error = error.clone();
                     drop(state);
                     emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
-                    return Ok(());
+                    return Ok(StepProgress::Finished);
                 }
                 emitter.emit_event(RunnerEvent::Completed {
                     run_id: run.run_id,
                     output: completed_output,
                 })?;
-                return Ok(());
+                return Ok(StepProgress::Finished);
             }
-            Box::pin(self.model_step(run, emitter)).await?;
-            return Ok(());
+            run.driver
+                .model_output(0, false)
+                .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+            return Ok(StepProgress::Continue);
         }
 
         let state = cancellation.lock()?;
@@ -804,7 +878,7 @@ impl KianaHarness {
             let error = error.clone();
             drop(state);
             emitter.emit_event(RunnerEvent::Failed { run_id, error })?;
-            return Ok(());
+            return Ok(StepProgress::Finished);
         }
         run.pending_tools.clear();
         kiana_domain::validate_model_calls(&output.tool_calls)
@@ -820,10 +894,13 @@ impl KianaHarness {
                             error,
                         },
                     )?;
-                    return Ok(());
+                    return Ok(StepProgress::Finished);
                 }
             }
         }
+        run.driver
+            .model_output(run.pending_tools.len() as u32, false)
+            .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
 
         match run.pending_tools.front().cloned() {
             Some((_, call)) => match self.emit_tool_request(run, &call) {
@@ -844,7 +921,7 @@ impl KianaHarness {
                 },
             )?,
         }
-        Ok(())
+        Ok(StepProgress::Finished)
     }
 
     async fn invoke_model(
@@ -1284,6 +1361,7 @@ impl RunnerPort for KianaHarness {
             run_id,
             turn_id: run.turn_id,
             step_id: run.step_id,
+            driver: Some(run.driver.clone()),
             sandbox: run.sandbox.clone(),
             project_root: run.project_root.clone(),
             messages: run.messages.clone(),
@@ -1316,6 +1394,16 @@ impl RunnerPort for KianaHarness {
                 .zip(checkpoint.model_assignment.as_ref().map(|a| a.turn_id))
                 .is_some_and(|(turn_id, assignment_turn)| turn_id != assignment_turn)
         {
+            return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
+        }
+        let driver = checkpoint
+            .driver
+            .clone()
+            .unwrap_or_else(|| RunDriver::new(run_id, checkpoint.turn_id));
+        driver
+            .validate()
+            .map_err(|error| PortError::Failed(error.to_string()))?;
+        if driver.frame.run_id != run_id || driver.frame.turn.turn_id != checkpoint.turn_id {
             return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
         }
         let sandbox = normalize_sandbox(&checkpoint.sandbox)?;
@@ -1355,6 +1443,7 @@ impl RunnerPort for KianaHarness {
                 run_id,
                 turn_id: checkpoint.turn_id,
                 step_id: checkpoint.step_id,
+                driver,
                 sandbox: checkpoint.sandbox,
                 project_root: checkpoint.project_root,
                 inbox: Inbox::default(),

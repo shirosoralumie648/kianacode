@@ -207,7 +207,9 @@ sequenceDiagram
 
 <a id="step-h03"></a>
 
-#### H03 — 将 KianaHarness 收敛为单一状态驱动器　⏳
+#### H03 — 将 KianaHarness 收敛为单一状态驱动器　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-state-driver-baseline.md`](harness-state-driver-baseline.md)。
 
 **关联原单元**：`P0-B-01`、`P0-J1-01`。**依赖**：H02。
 

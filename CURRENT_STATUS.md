@@ -1293,6 +1293,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus H02 Session/Run/Turn/Step/ModelAttempt identity and lifecycle source-boundary review; no runtime test reviewer
 ```
 
+### H03 Harness state driver evidence (2026-09-16)
+
+```text
+source_snapshot: 86673f6; kiana-runner/src/{state_driver,lib,harness}.rs; kiana-runner/src/inbox.rs; kiana-runner/tests/h03_state_driver.rs; .github/workflows/h03-state-driver.yml; docs/roadmap/harness-state-driver-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/harness.md; docs/roadmap.md
+worktree_status: H03 pure RunDriver/RunFrame/TurnFrame reducer, explicit phase/intents, driver ownership/mailbox bounds, non-recursive Harness step loop, ActiveRun/checkpoint/Inbox integration, remote fixtures and roadmap/status overlays are scoped to this step; no second model loop or authority path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-runner/src/state_driver.rs kiana-runner/src/lib.rs kiana-runner/src/harness.rs kiana-runner/src/inbox.rs kiana-runner/tests/h03_state_driver.rs .github/workflows/h03-state-driver.yml docs/roadmap/harness-state-driver-baseline.md
+  rg -n 'RunDriver|RunFrame|TurnFrame|DriverInput|DriverIntent|model_step_once|second_driver_for_same_turn_is_rejected|full_mailbox_does_not_drop_accepted_input|RecoveryRequired|harness_driver_mailbox_full' kiana-runner/src kiana-runner/tests/h03_state_driver.rs docs/roadmap/harness-state-driver-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source fixture/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-runner/tests/h03_state_driver.rs pure reducer fixtures for second driver, full mailbox, isolated cancellation, stream/buffered equivalence and frame validation; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H03 job is queued by the push and is not awaited
+status_change: H03 source slice is implemented. The new `RunDriver` is a pure reducer over versioned RunFrame/TurnFrame state and explicit DriverInput/DriverIntent values; it enforces one driver owner, bounded input admission, phase transitions and Unknown recovery without I/O. KianaHarness now uses an explicit loop over `model_step_once`, updates the same driver for step/model/tool/result/cancel boundaries, serializes it in checkpoints, and rejects unknown tool effect before continuing the model. Existing RunnerPort, ControlPlane and Broker paths remain unchanged.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; RunDriver/ActiveRun and Inbox remain process-local, Session durable queue/ACK and cross-process driver ownership/recovery are not proven, state reducer does not authorize effects, and structured Provider/stream/stop/retry contracts remain H04+ work
+reviewer: Codex root implementation review plus H03 pure-state/reducer/ownership/mailbox source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

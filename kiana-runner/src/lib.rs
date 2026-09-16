@@ -14,6 +14,7 @@ mod harness;
 mod inbox;
 mod model;
 mod protocol_runner;
+mod state_driver;
 mod tools;
 
 pub use harness::{
@@ -25,3 +26,8 @@ pub use model::{
     ModelRole, ModelToolCall, ModelUsage, ScriptedModel, UnavailableModel,
 };
 pub use protocol_runner::ProtocolRunner;
+pub use state_driver::{
+    transition, DriverError, DriverInput, DriverIntent, DriverTerminal, DriverTransition,
+    HarnessPhase, RunDriver, RunFrame, TurnFrame, DEFAULT_MAILBOX_CAPACITY, RUN_FRAME_SCHEMA,
+    TURN_FRAME_SCHEMA,
+};

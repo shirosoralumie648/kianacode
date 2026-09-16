@@ -1,0 +1,36 @@
+name: H03 harness state driver
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h03_state_driver.rs"
+      - "docs/roadmap/harness-state-driver-baseline.md"
+      - ".github/workflows/h03-state-driver.yml"
+  pull_request:
+    paths:
+      - "kiana-runner/src/state_driver.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-runner/src/lib.rs"
+      - "kiana-runner/tests/h03_state_driver.rs"
+      - "docs/roadmap/harness-state-driver-baseline.md"
+      - ".github/workflows/h03-state-driver.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  state-driver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H03 pure state-driver fixtures
+        run: cargo test -p kiana-runner --test h03_state_driver --locked -- --test-threads=1
