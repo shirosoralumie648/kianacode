@@ -1,0 +1,58 @@
+name: P4-J7-10 model capability catalog
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/model_catalog.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/tests/p4_j7_10_catalog.rs"
+      - "kiana-core/tests/p4_j7_10_catalog_guard.rs"
+      - "docs/roadmap/provider-catalog-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-10-model-catalog.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/model_catalog.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-provider/src/lib.rs"
+      - "kiana-provider/src/config.rs"
+      - "kiana-provider/src/request.rs"
+      - "kiana-provider/tests/p4_j7_10_catalog.rs"
+      - "kiana-core/tests/p4_j7_10_catalog_guard.rs"
+      - "docs/roadmap/provider-catalog-baseline.md"
+      - "docs/roadmap/provider.md"
+      - "docs/roadmap/README.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/p4-j7-10-model-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  model-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run P4-J7-10 catalog fixtures
+        run: cargo test -p kiana-provider --test p4_j7_10_catalog --locked -- --test-threads=1
+      - name: Run P4-J7-10 source guard
+        run: cargo test -p kiana-core --test p4_j7_10_catalog_guard --locked -- --test-threads=1
+      - name: Compile model catalog path
+        run: cargo check -p kiana-domain -p kiana-provider -p kiana-core --tests --locked

@@ -207,7 +207,9 @@ mod company_business;
 pub use company_business::*;
 
 mod model;
+mod model_catalog;
 pub use model::*;
+pub use model_catalog::*;
 mod observability;
 pub use observability::*;
 mod correlation;

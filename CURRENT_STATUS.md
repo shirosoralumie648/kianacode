@@ -1902,6 +1902,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-09 credential/endpoint/redirect source-boundary review; no runtime test reviewer
 ```
 
+### P4-J7-10 model capability catalog evidence (2026-09-16)
+
+```text
+source_snapshot: af5f448 (P4-J7-09 parent; P4-J7-10 source files listed below); kiana-domain/src/{model_catalog,model,contracts,lib}.rs; kiana-provider/src/{lib,config,request}.rs; kiana-provider/tests/p4_j7_10_catalog.rs; kiana-core/tests/p4_j7_10_catalog_guard.rs; .github/workflows/p4-j7-10-model-catalog.yml; docs/roadmap/provider-catalog-baseline.md; docs/roadmap/provider.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: P4-J7-10 typed ModelCatalog/Entry, source/expiry/revision and Supported/Unsupported/Unknown capability projection, deterministic `(model_id,connection_id)` resolution and Gateway catalog wiring are scoped to this step; discovery/list never grants capability or mutates active route; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/model_catalog.rs kiana-domain/src/model.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-provider/src/lib.rs kiana-provider/src/config.rs kiana-provider/src/request.rs kiana-provider/tests/p4_j7_10_catalog.rs kiana-core/tests/p4_j7_10_catalog_guard.rs .github/workflows/p4-j7-10-model-catalog.yml docs/roadmap/provider-catalog-baseline.md
+  rg -n 'ModelCatalog|ModelCatalogEntry|ModelCatalogSource|model_catalog_ambiguous|supports_tools|expires_at_unix_ms|capabilities.tools|configuration_revision' kiana-domain/src kiana-provider/src kiana-provider/tests kiana-core/tests docs/roadmap/provider-catalog-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/provider/core catalog fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-provider/tests/p4_j7_10_catalog.rs slash/same-name/connection ambiguity and Unknown capability fixtures; kiana-core/tests/p4_j7_10_catalog_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-10 job is queued by the next push and is not awaited
+status_change: P4-J7-10 source slice is implemented. ModelCatalog/Entry preserve full model IDs and connection identity, carry capability support state/source/expiry/revision, and resolve ambiguous names only with an explicit connection. Gateway exposes the configured catalog while request compilation and policy remain the capability authority; no discovery or model list can grant tools or alter a frozen route.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; Cache/LiveDiscovery refresh and expiry are not durable/signed, catalog declarations do not prove network/model support, and role/permit/codec/transport enforcement remains P4-J7-11+
+reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

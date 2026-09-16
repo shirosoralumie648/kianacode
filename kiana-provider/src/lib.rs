@@ -28,7 +28,11 @@ impl ProviderGateway {
             .configuration_snapshot()
             .ok()
             .and_then(|snapshot| serde_json::to_value(snapshot).ok());
-        serde_json::json!({"schema":"kiana.model-catalog.v1","connections":self.connections.values().map(|connection|serde_json::json!({"route":connection.route,"capabilities":connection.capabilities})).collect::<Vec<_>>(),"configuration":configuration})
+        let model_catalog = self
+            .model_catalog()
+            .ok()
+            .and_then(|catalog| serde_json::to_value(catalog).ok());
+        serde_json::json!({"schema":"kiana.model-catalog.v1","connections":self.connections.values().map(|connection|serde_json::json!({"route":connection.route,"capabilities":connection.capabilities})).collect::<Vec<_>>(),"configuration":configuration,"model_catalog":model_catalog})
     }
 
     pub fn configuration_snapshot(&self) -> Result<ProviderConfigSnapshot, ModelError> {
@@ -54,6 +58,28 @@ impl ProviderGateway {
             .collect::<Result<Vec<_>, _>>()?;
         ProviderConfigSnapshot::new(ProviderSelectionMode::Live, profiles)
             .map_err(ModelError::invalid)
+    }
+
+    pub fn model_catalog(&self) -> Result<ModelCatalog, ModelError> {
+        let entries = self
+            .connections
+            .values()
+            .map(|connection| ModelCatalogEntry {
+                schema: MODEL_CATALOG_ENTRY_SCHEMA.to_owned(),
+                provider_id: connection.route.provider_id.clone(),
+                connection_id: connection.route.connection_id.clone(),
+                model_id: connection.route.model_id.clone(),
+                capabilities: connection.capabilities.clone(),
+                source: if connection.route.profile == "default" {
+                    ModelCatalogSource::Builtin
+                } else {
+                    ModelCatalogSource::Configured
+                },
+                catalog_revision: connection.route.configuration_revision.clone(),
+                expires_at_unix_ms: None,
+            })
+            .collect();
+        ModelCatalog::new(entries).map_err(ModelError::invalid)
     }
     fn connection(&self, spec: &ModelCallSpec) -> Result<&config::Connection, ModelError> {
         let assignment = spec

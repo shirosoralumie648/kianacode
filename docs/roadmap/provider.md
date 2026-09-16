@@ -59,7 +59,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ✅ |
 | `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ✅ |
 | `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ✅ |
-| `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ⏳ |
+| `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ✅ |
 | `P4-J7-11` | 角色路由与调用准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | 服务端角色决定 route；每真实 attempt 有许可、预算与审计 | ⏳ |
 | `P4-J7-12` | 请求、schema 与 history 编译 | `P4-J7-06`、`P4-J7-11`、`P1-H-01`、`P1-J2-02`、`P1-J2-04` | 编译后 wire 与预算/授权 hash 一致；工具映射可逆、历史配对完整 | ⏳ |
 | `P4-J7-13` | 有界 HTTP/SSE/NDJSON 传输 | `P4-J7-07`、`P4-J7-09` | 任意切块正确；超时、配额、错误响应体和取消均有界 | ⏳ |
@@ -168,11 +168,11 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-10 能力目录、未知能力和显式 discovery　⏳
+#### P4-J7-10 能力目录、未知能力和显式 discovery　✅
 
 - **依赖**：`P4-J7-08`。
 - **改动位置**：provider/catalog、compatibility；现有 model catalog 查询与 DTO。
-- **步骤**：① 把任意 model 通用 true/固定窗口改成带来源的 supported/unsupported/unknown；② 分开 model 原生能力、codec 支持和 policy 允许；③ 为内置、用户配置、缓存和 live discovery 定义合并规则、过期和 revision；④ 模型列表只更新存在性，capability 需要声明与验证；⑤ 同名不同连接消歧，完整模型名中的 `/` 不拆错。
+- **步骤**：① 把任意 model 通用 true/固定窗口改成带来源的 supported/unsupported/unknown；② 分开 model 原生能力、codec 支持和 policy 允许；③ 为内置、用户配置、缓存和 live discovery 定义合并规则、过期和 revision；④ 模型列表只更新存在性，capability 需要声明与验证；⑤ 同名不同连接消歧，完整模型名中的 `/` 不拆错。当前 source slice 与 CI-only 证据见 [`provider-catalog-baseline.md`](provider-catalog-baseline.md)。
 - **先拒绝**：`unknown_tool_capability_fails_before_network`、`discovered_model_does_not_grant_capabilities`、`ambiguous_model_name_requires_connection`。
 - **再成功**：`pinned_catalog_is_usable_offline`、`catalog_refresh_does_not_mutate_active_route`、`model_ids_with_slashes_are_preserved`。
 - **退出 / 证据**：目录明确 native/synthetic/none，支持矩阵不能将 discovery 成功写成 tools/live 成功；默认不探测、不下载模型。
