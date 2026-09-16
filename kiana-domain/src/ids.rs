@@ -64,6 +64,7 @@ uuid_id!(ExtensionId);
 uuid_id!(ComponentId);
 uuid_id!(SnapshotId);
 uuid_id!(HookRunId);
+uuid_id!(WorkspaceId);
 
 impl RunId {
     /// 从字符串解析 run UUID；首尾空白会被忽略，格式错误返回 `None`。

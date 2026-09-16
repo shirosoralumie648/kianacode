@@ -1629,6 +1629,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus UI-03 instance/lock/discovery/peer source-boundary review; no runtime test reviewer
 ```
 
+### CO-02 organization/project/workspace scope evidence (2026-09-16)
+
+```text
+source_snapshot: 9b75d21 (UI-03 instance); kiana-domain/src/{company_scope,ids,contracts,lib}.rs; kiana-core/src/{company_scope,company,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/co02_scope.rs; .github/workflows/co02-company-scope.yml; docs/roadmap/company-scope-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-02 typed Organization/Workspace/Project bindings, CompanyScopeRegistry resolve/legacy import guard, stable WorkspaceId/root digest, core Company workspace spelling guard, remote fixtures and roadmap/status overlays are scoped to this step; existing CompanyEvent stream and ControlPlane authority remain canonical; no second EventStore or execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/company_scope.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-core/src/company_scope.rs kiana-core/src/company.rs kiana-core/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/co02_scope.rs .github/workflows/co02-company-scope.yml docs/roadmap/company-scope-baseline.md
+  rg -n 'OrganizationBinding|WorkspaceBinding|ProjectBinding|CompanyScope|CompanyScopeRegistry|WorkspaceId|import_legacy_stream|company_scope_binding_mismatch|validate_workspace_root|two_business_projects_share_a_workspace_without_sharing_authority|company_scope_rejects_foreign_project_and_ambiguous_legacy_root' kiana-domain/src kiana-core/src kiana-domain/tests docs/roadmap/company-scope-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/core/daemon/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co02_scope.rs shared workspace/two project isolation, foreign binding, legacy stream ambiguity, noncanonical root and digest tamper fixtures; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-02 job is queued by the next push and is not awaited
+status_change: CO-02 source slice is implemented. Stable WorkspaceId is derived from an explicitly canonical absolute root while OrganizationId/ProjectId stay separate. CompanyScopeRegistry enforces organization membership and workspace/project ownership, permits two projects to share one workspace without sharing scope digest, and makes legacy actor+root import idempotent only for the same project; remapping is ambiguous and denied. Core Company context rejects relative/`..` workspace roots before existing EventStore command handling.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; typed bindings are an in-process snapshot and are not yet persisted/upcast into CompanyState/CompanyEvent, assignments/expiry/revocation/authority epochs and durable recovery remain CO-03+; root digest does not prove filesystem existence/inode freshness or ProjectTrust, and no business/external outcome is claimed
+reviewer: Codex root implementation review plus CO-02 scope/binding/legacy migration source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

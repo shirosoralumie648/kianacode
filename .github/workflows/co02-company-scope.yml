@@ -1,0 +1,48 @@
+name: CO-02 company scope bindings
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/company_scope.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co02_scope.rs"
+      - "kiana-core/src/company_scope.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/company-scope-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - ".github/workflows/co02-company-scope.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/company_scope.rs"
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/lib.rs"
+      - "kiana-domain/tests/co02_scope.rs"
+      - "kiana-core/src/company_scope.rs"
+      - "kiana-core/src/company.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "docs/roadmap/company-scope-baseline.md"
+      - "docs/roadmap/companyos.md"
+      - ".github/workflows/co02-company-scope.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CO-02 domain scope fixtures
+        run: cargo test -p kiana-domain --test co02_scope --locked -- --test-threads=1
+      - name: Compile CO-02 core/daemon path
+        run: cargo check -p kiana-core -p kiana-daemon --tests --locked

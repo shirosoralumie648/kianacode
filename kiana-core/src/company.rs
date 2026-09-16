@@ -980,6 +980,7 @@ impl ControlPlane {
 }
 
 fn company_context(context: &RequestContext, write: bool) -> Result<(), &'static str> {
+    crate::company_scope::validate_workspace_root(&context.project_root)?;
     if context
         .actor_id
         .as_deref()

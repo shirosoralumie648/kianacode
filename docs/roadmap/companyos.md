@@ -82,11 +82,11 @@
 
 
 
-#### CO-02 · 稳定组织、业务项目与工作区绑定　⏳
+#### CO-02 · 稳定组织、业务项目与工作区绑定　✅
 
 - **归属**：`P1-C-01`、`P3-I-01`、`P0-A-01a`。
 - **依赖**：CO-01。
-- **代码与产物**：`kiana-domain` ID/contracts；拟新增 `organization.rs`；core Company scope resolver、daemon 现有路径解析器。
+- **代码与产物**：`kiana-domain` ID/contracts；`company_scope.rs`；core Company scope resolver、daemon 现有路径解析器。当前 source slice 与 CI-only 证据见 [`company-scope-baseline.md`](company-scope-baseline.md)。
 - **实现顺序**：①补 OrganizationId、Membership/WorkspaceBinding 引用；②ProjectId 与 canonical filesystem path 分离；③定义旧 principal+path stream 到稳定 scope 的显式迁移/只读映射，禁止同一历史流被双重导入。
 - **先拒绝**：`company_scope_rejects_foreign_project_and_ambiguous_legacy_root` 拒绝跨组织引用、错误项目根、歧义迁移；调用方填写 organization_id 不能扩权。
 - **再成功 / 退出**：`two_business_projects_share_a_workspace_without_sharing_authority` 可明确区分同目录中的两个项目；工作区迁移后的历史查询仍定位原 ID；standalone Run 不成为项目证据。

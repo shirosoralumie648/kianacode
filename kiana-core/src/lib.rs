@@ -251,3 +251,4 @@ mod automation;
 mod swarm;
 
 mod company_business;
+mod company_scope;
