@@ -52,6 +52,7 @@ mod redaction;
 mod roles;
 mod scope;
 mod states;
+mod swarm_identity;
 mod symposiums;
 #[cfg(test)]
 mod tests;
@@ -101,6 +102,7 @@ pub use redaction::*;
 pub use roles::*;
 pub use scope::*;
 pub use states::*;
+pub use swarm_identity::*;
 pub use symposiums::*;
 pub use usage::*;
 pub use work_packets::*;

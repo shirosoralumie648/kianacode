@@ -27,8 +27,8 @@ use kiana_domain::{
     CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
     PendingApproval, Principal, ProjectId, ProjectIdentity, RequestContext, RequestId,
     ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef,
-    SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary,
-    WorkFingerprint,
+    SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, SwarmLineage, SwarmPlanId,
+    TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::{BTreeMap, HashSet};
@@ -172,6 +172,18 @@ pub trait CredentialRotationPort: Send + Sync {
 }
 
 pub use CredentialRotationPort as RotationRevokePort;
+
+/// Append/read typed Swarm lineage without granting dispatch authority. Implementations must
+/// preserve the lineage digest and reject cross-swarm or stale-epoch records.
+#[async_trait]
+pub trait SwarmLineagePort: Send + Sync {
+    async fn append_lineage(&self, lineage: SwarmLineage) -> Result<(), PortError>;
+
+    async fn read_lineage(
+        &self,
+        swarm_plan_id: SwarmPlanId,
+    ) -> Result<Vec<SwarmLineage>, PortError>;
+}
 
 /// Read-only artifact blob boundary used when an immutable EvidenceRef is rechecked.
 ///

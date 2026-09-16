@@ -1944,6 +1944,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CI-05 authority ledger/epoch/scope source-boundary review; no runtime test reviewer
 ```
 
+### SW-01 typed Swarm lineage evidence (2026-09-16)
+
+```text
+source_snapshot: 41175d8 + SW-01 working-tree slice; kiana-domain/src/{ids,contracts,swarm_identity,lib}.rs; kiana-protocol/src/lib.rs; kiana-ports/src/lib.rs; kiana-core/src/swarm.rs; kiana-domain/tests/sw01_lineage.rs; kiana-core/tests/sw01_lineage_guard.rs; .github/workflows/sw01-lineage.yml; docs/roadmap/swarm-lineage-baseline.md; docs/roadmap.md
+worktree_status: SW-01 typed Swarm IDs, strict lineage schema/digest, cross-swarm and monotonic epoch/revision guards are scoped to this step; existing Swarm/Company EventLog path remains the only execution spine and no scheduler/child execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/swarm_identity.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-ports/src/lib.rs kiana-core/src/swarm.rs kiana-domain/tests/sw01_lineage.rs kiana-core/tests/sw01_lineage_guard.rs .github/workflows/sw01-lineage.yml docs/roadmap/swarm-lineage-baseline.md docs/roadmap.md
+  rg -n 'SwarmPlanId|PartitionId|ChildCellId|AttemptId|DispatchIntentId|QueueEntryId|MergeDecisionId|SwarmLineage|validate_for_swarm|validate_against|swarm_lineage_(id|swarm_mismatch|revision_regression|epoch_regression)|SWARM_LINEAGE_SCHEMA|SwarmLineagePort' kiana-domain/src kiana-protocol/src kiana-ports/src kiana-core/src kiana-domain/tests/sw01_lineage.rs kiana-core/tests/sw01_lineage_guard.rs docs/roadmap/swarm-lineage-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; SW-01 fixture/source guard targets compiled only; no test or smoke command executed locally
+fixture or cassette: kiana-domain/tests/sw01_lineage.rs typed-ID round-trip, unknown-field/schema, nil-ID, cross-swarm, self-parent, zero epoch, monotonic revision/epoch and canonical digest fixtures; kiana-core/tests/sw01_lineage_guard.rs source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions SW-01 job is queued by the next push and is not awaited
+status_change: SW-01 source slice is implemented. Seven domain-owned UUID IDs and strict SwarmLineage now locate partition/child/attempt/dispatch/queue/merge facts across parent/root/workflow/correlation/causation, while nil IDs, unknown schema/fields, cross-swarm use, self-parent and non-monotonic epoch/revision are fail-closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; lineage is not yet persisted on every Swarm Partition/Attempt/DispatchIntent/QueueEntry fact, and WorkGraph validation, scheduler capacity/fairness, child lifecycle, replay/recovery and effect-time fencing remain SW-02+
+reviewer: Codex root implementation review plus SW-01 typed identity/lineage and single-execution-spine source-boundary review; no runtime test reviewer
+```
+
 ### CI-04 protected daemon ingress evidence (2026-09-16)
 
 ```text
