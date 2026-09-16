@@ -1004,6 +1004,36 @@ fn company_context(context: &RequestContext, write: bool) -> Result<(), &'static
 pub(crate) fn company_context_for_read(context: &RequestContext) -> Result<(), &'static str> {
     company_context(context, false)
 }
+
+/// Revalidate a server-resolved assignment at every Company authority boundary.
+///
+/// A `ResolvedAssignment` is a short-lived snapshot, not a grant that can be copied between
+/// requests. Callers should resolve it again from [`kiana_ports::AssignmentDirectoryPort`] before
+/// invoking this helper after a Continue, approval consumption or effect dispatch.
+pub fn validate_company_assignment(
+    context: &RequestContext,
+    assignment: &kiana_domain::ResolvedAssignment,
+    now_unix_ms: u64,
+    write: bool,
+) -> Result<(), &'static str> {
+    company_context(context, write)?;
+    assignment.validate().map_err(|_| "assignment_invalid")?;
+    if assignment.principal.principal_id != context.actor_id.as_deref().unwrap_or_default() {
+        return Err("assignment_actor_mismatch");
+    }
+    if assignment.role_id != context.role_id || assignment.department_id != context.department_id {
+        return Err("assignment_role_mismatch");
+    }
+    if now_unix_ms < assignment.valid_from_unix_ms
+        || now_unix_ms >= assignment.expires_at_unix_ms
+        || now_unix_ms < assignment.resolved_at_unix_ms
+        || now_unix_ms >= assignment.principal.expires_at_unix_ms
+    {
+        return Err("assignment_expired_or_missing");
+    }
+    Ok(())
+}
+
 fn company_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

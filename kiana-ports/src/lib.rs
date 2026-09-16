@@ -19,12 +19,14 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AgentTemplate, ApprovalChallenge, ApprovalId, AuditActionKind, AuditDecision, AuditRecord,
+    AgentTemplate, ApprovalChallenge, ApprovalId, AssignmentDirectory, AssignmentId,
+    AuditActionKind, AuditDecision, AuditRecord, AuthenticatedPrincipalRef,
     AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId, CapabilityGrant, CapabilityGrantId,
     CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, CorrelationContext,
-    CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, PendingApproval,
-    RequestContext, RequestId, RetirementRecord, RunId, RuntimeEvent, SignalKind, SpanLinkKind,
-    SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary, WorkFingerprint,
+    CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
+    PendingApproval, ProjectId, RequestContext, RequestId, ResolvedAssignment, RetirementRecord,
+    RoleAssignment, RunId, RuntimeEvent, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId,
+    SupervisionLease, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use std::collections::HashSet;
@@ -35,6 +37,101 @@ pub use observability_queue::{
     ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats,
     QueuedObservabilityItem,
 };
+
+/// Server-side identity assignment lookup boundary.
+///
+/// The caller supplies only the already-authenticated principal and a server-derived project
+/// scope. Implementations must resolve the role, department, validity window and authority epoch
+/// from their own assignment store; a role string from a wire request is only a lookup key and
+/// can never create authority. A revocation must be visible to both dispatch and approval
+/// consumers before they mint or consume a new effect.
+#[async_trait]
+pub trait AssignmentDirectoryPort: Send + Sync {
+    async fn resolve_assignment(
+        &self,
+        principal: &AuthenticatedPrincipalRef,
+        organization_id: OrganizationId,
+        project_id: ProjectId,
+        role_id: &str,
+        now_unix_ms: u64,
+    ) -> Result<ResolvedAssignment, PortError>;
+
+    async fn revoke_assignment(
+        &self,
+        assignment_id: AssignmentId,
+    ) -> Result<RoleAssignment, PortError>;
+}
+
+/// Alias used by adapters that expose the same port as an authenticated identity provider.
+pub use AssignmentDirectoryPort as IdentityAssignmentPort;
+
+/// Explicitly non-durable in-process assignment adapter for fixtures and the local daemon.
+///
+/// It is a server-owned snapshot and therefore rejects malformed or cross-boundary bindings, but
+/// it does not claim persistence or cross-process recovery. Production adapters can implement
+/// [`AssignmentDirectoryPort`] against the durable identity store without changing core callers.
+#[derive(Clone, Debug, Default)]
+pub struct InMemoryAssignmentDirectory {
+    inner: Arc<tokio::sync::RwLock<AssignmentDirectory>>,
+}
+
+impl InMemoryAssignmentDirectory {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn register_role(&self, assignment: RoleAssignment) -> Result<(), PortError> {
+        self.inner
+            .write()
+            .await
+            .register_role(assignment)
+            .map_err(PortError::Failed)
+    }
+
+    pub async fn register_project(
+        &self,
+        assignment: kiana_domain::ProjectAssignment,
+    ) -> Result<(), PortError> {
+        self.inner
+            .write()
+            .await
+            .register_project(assignment)
+            .map_err(PortError::Failed)
+    }
+
+    pub async fn snapshot(&self) -> AssignmentDirectory {
+        self.inner.read().await.clone()
+    }
+}
+
+#[async_trait]
+impl AssignmentDirectoryPort for InMemoryAssignmentDirectory {
+    async fn resolve_assignment(
+        &self,
+        principal: &AuthenticatedPrincipalRef,
+        organization_id: OrganizationId,
+        project_id: ProjectId,
+        role_id: &str,
+        now_unix_ms: u64,
+    ) -> Result<ResolvedAssignment, PortError> {
+        self.inner
+            .read()
+            .await
+            .resolve(principal, organization_id, project_id, role_id, now_unix_ms)
+            .map_err(PortError::Failed)
+    }
+
+    async fn revoke_assignment(
+        &self,
+        assignment_id: AssignmentId,
+    ) -> Result<RoleAssignment, PortError> {
+        self.inner
+            .write()
+            .await
+            .revoke_role(assignment_id)
+            .map_err(PortError::Failed)
+    }
+}
 
 /// Read-only edit checkpoint adapter. Restoring files is deliberately absent: it is brokered.
 #[async_trait]

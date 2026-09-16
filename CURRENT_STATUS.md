@@ -1650,6 +1650,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CO-02 scope/binding/legacy migration source-boundary review; no runtime test reviewer
 ```
 
+### CO-03 server-owned assignment evidence (2026-09-16)
+
+```text
+source_snapshot: 9b75d21 (UI-03 parent; CO-03 source files listed below); kiana-domain/src/{assignment,ids,contracts,lib}.rs; kiana-ports/src/lib.rs; kiana-core/src/{company,lib}.rs; kiana-core/tests/co03_assignment_guard.rs; kiana-daemon/src/lib.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/co03_assignment.rs; .github/workflows/co03-assignments.yml; docs/roadmap/assignment-baseline.md; docs/roadmap/companyos.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: CO-03 typed RoleAssignment/ProjectAssignment/ResolvedAssignment, validated AssignmentDirectoryPort, daemon server-principal/root-derived project resolution and core Company revalidation are scoped to this step; existing CompanyEvent/ControlPlane spine remains canonical; current assignment adapter is an explicit in-process snapshot and no second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/assignment.rs kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-ports/src/lib.rs kiana-core/src/company.rs kiana-core/src/lib.rs kiana-core/tests/co03_assignment_guard.rs kiana-core/tests/co03_assignment.rs kiana-daemon/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/co03_assignment.rs .github/workflows/co03-assignments.yml docs/roadmap/assignment-baseline.md
+  rg -n 'RoleAssignment|ProjectAssignment|ResolvedAssignment|AssignmentDirectory|AssignmentDirectoryPort|resolve_assignment_for_project|context_from_assignment|validate_company_assignment|assignment_expired_or_missing' kiana-domain/src kiana-ports/src kiana-core/src kiana-daemon/src kiana-domain/tests kiana-core/tests docs/roadmap/assignment-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/ports/core/daemon/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/co03_assignment.rs revoke/expiry/impersonation/reopen fixtures and kiana-core/tests/co03_assignment.rs plus co03_assignment_guard.rs core boundary checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CO-03 job is queued by the next push and is not awaited
+status_change: CO-03 source slice is implemented. Role templates remain separate from server-owned assignments; project assignment bindings are bounded by organization/principal/project and role windows; revoke increments authority epoch/revision and cascades project revocation. Daemon resolves against its authenticated principal and filesystem-derived ProjectIdentity, rejects client actor/role impersonation, and core can revalidate Company context before write, Continue, approval consumption or effect dispatch.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; InMemoryAssignmentDirectory is not durable and assignment/membership/epoch facts are not yet persisted or upcast into CompanyEvent; existing legacy RequestContext/entrypoints still require later CO-05+ path-by-path integration and full capability/approval/effect revalidation
+reviewer: Codex root implementation review plus CO-03 identity/expiry/revocation/impersonation source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

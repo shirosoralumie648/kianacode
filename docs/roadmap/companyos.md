@@ -97,11 +97,11 @@
 
 
 
-#### CO-03 · 角色任命、有效期与撤销接入服务端身份　⏳
+#### CO-03 · 角色任命、有效期与撤销接入服务端身份　✅
 
 - **归属**：`P0-K1-01`、`P1-C-01`。
 - **依赖**：CO-02；`P0-K1-01` 的本地 authenticated principal 前置须可用。
-- **代码与产物**：domain RoleAssignment/ProjectAssignment、`kiana-ports` 身份接口、daemon context 构造、core capability/approval/company guards。
+- **代码与产物**：domain RoleAssignment/ProjectAssignment、`kiana-ports` 身份接口、daemon context 构造、core capability/approval/company guards；当前 source slice 与 CI-only 证据见 [`assignment-baseline.md`](assignment-baseline.md)。
 - **实现顺序**：①角色模板与任命分离；②从持久 assignment 解析角色、部门、项目范围、有效期；③撤销/收窄递增 authority epoch，在派发、Continue、审批消费和效果前重新核验。
 - **先拒绝**：`revoked_assignment_blocks_company_command_and_approved_continuation`、`client_role_name_cannot_impersonate_sponsor`；拒绝后无新效果，旧批准不能被消费执行。
 - **再成功 / 退出**：`active_assignment_survives_reopen_with_the_same_scope`；角色实例、session 和 actor 在 Receipt 中可定位，原始 owner 不由角色切换改写。

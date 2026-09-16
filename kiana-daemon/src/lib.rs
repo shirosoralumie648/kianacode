@@ -33,15 +33,16 @@ use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     AuthenticatedPrincipalRef, CommandIntent, ComponentHealth, ComponentHealthState,
-    HealthProbeKind, HealthSnapshot, PermissionProfile, ProjectIdentity, RequestContext, RoleSpec,
-    RunId, RuntimeEvent,
+    HealthProbeKind, HealthSnapshot, OrganizationId, PermissionProfile, ProjectIdentity,
+    RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{
-    ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats,
-    PortError, QueuedObservabilityItem, RunnerPort,
+    AssignmentDirectoryPort, InMemoryAssignmentDirectory, ObservabilityQueue,
+    ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats, PortError,
+    QueuedObservabilityItem, RunnerPort,
 };
 use kiana_protocol::{
     RequestBody, RequestEnvelope, ResponseEnvelope, UiAction, UiCursor, UiSnapshot, PROTOCOL_SCHEMA,
@@ -60,6 +61,7 @@ const OBSERVABILITY_QUEUE_CAPACITY: usize = 1_024;
 pub struct DaemonHost {
     core: Arc<ControlPlane>,
     principal: AuthenticatedPrincipal,
+    assignment_directory: InMemoryAssignmentDirectory,
     project_authority: Arc<dyn ProjectTrustAuthority>,
     run_stream: Arc<RunStreamBus>,
     observability_queue: Arc<ObservabilityQueue>,
@@ -130,6 +132,7 @@ impl DaemonHost {
         Self {
             core,
             principal: AuthenticatedPrincipal::local(),
+            assignment_directory: InMemoryAssignmentDirectory::new(),
             project_authority,
             run_stream,
             observability_queue: Arc::new(
@@ -152,6 +155,70 @@ impl DaemonHost {
     /// Return the daemon-resolved principal without exposing a credential value.
     pub fn authenticated_principal(&self) -> AuthenticatedPrincipalRef {
         self.principal.identity.clone()
+    }
+
+    /// Return the server-owned assignment port. The returned adapter is a shared snapshot handle;
+    /// registration and revocation still pass through its validated directory methods.
+    pub fn assignment_directory(&self) -> InMemoryAssignmentDirectory {
+        self.assignment_directory.clone()
+    }
+
+    /// Resolve an assignment for a filesystem project using only daemon-owned identity material.
+    /// The organization and requested role are lookup inputs; they do not grant authority when the
+    /// directory has no matching server assignment.
+    pub async fn resolve_assignment_for_project(
+        &self,
+        project_root: &str,
+        organization_id: OrganizationId,
+        role_id: &str,
+        now_unix_ms: u64,
+    ) -> Result<ResolvedAssignment, PortError> {
+        let project = self.project_identity(project_root)?;
+        self.assignment_directory
+            .resolve_assignment(
+                &self.principal.identity,
+                organization_id,
+                project.project_id,
+                role_id,
+                now_unix_ms,
+            )
+            .await
+    }
+
+    /// Build a Company request context from a resolved server assignment. A caller-supplied actor
+    /// or role that conflicts with the assignment is rejected before ControlPlane admission.
+    pub fn context_from_assignment(
+        &self,
+        mut context: RequestContext,
+        assignment: &ResolvedAssignment,
+        requested_role_id: Option<&str>,
+        now_unix_ms: u64,
+        write: bool,
+    ) -> Result<RequestContext, PortError> {
+        assignment
+            .validate()
+            .map_err(|error| PortError::Failed(format!("assignment_invalid:{error}")))?;
+        if assignment.principal != self.principal.identity {
+            return Err(PortError::Failed(
+                "assignment_principal_mismatch".to_owned(),
+            ));
+        }
+        if requested_role_id.is_some_and(|role| role != assignment.role_id) {
+            return Err(PortError::Failed("assignment_role_mismatch".to_owned()));
+        }
+        if context
+            .actor_id
+            .as_deref()
+            .is_some_and(|actor| actor != assignment.principal.principal_id)
+        {
+            return Err(PortError::Failed("assignment_actor_mismatch".to_owned()));
+        }
+        context.actor_id = Some(assignment.principal.principal_id.clone());
+        context.role_id = assignment.role_id.clone();
+        context.department_id = assignment.department_id.clone();
+        kiana_core::validate_company_assignment(&context, assignment, now_unix_ms, write)
+            .map_err(|reason| PortError::Failed(reason.to_owned()))?;
+        Ok(context)
     }
 
     /// Resolve a stable project identity from the daemon's filesystem authority.
