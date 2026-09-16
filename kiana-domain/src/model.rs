@@ -594,7 +594,7 @@ pub enum CapabilitySupport {
     Unsupported,
     Unknown,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelCapabilities {
     pub tools: CapabilitySupport,

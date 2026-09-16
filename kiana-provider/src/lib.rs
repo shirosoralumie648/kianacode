@@ -24,7 +24,36 @@ impl ProviderGateway {
         })
     }
     pub fn catalog(&self) -> serde_json::Value {
-        serde_json::json!({"schema":"kiana.model-catalog.v1","connections":self.connections.values().map(|connection|serde_json::json!({"route":connection.route,"capabilities":connection.capabilities})).collect::<Vec<_>>()})
+        let configuration = self
+            .configuration_snapshot()
+            .ok()
+            .and_then(|snapshot| serde_json::to_value(snapshot).ok());
+        serde_json::json!({"schema":"kiana.model-catalog.v1","connections":self.connections.values().map(|connection|serde_json::json!({"route":connection.route,"capabilities":connection.capabilities})).collect::<Vec<_>>(),"configuration":configuration})
+    }
+
+    pub fn configuration_snapshot(&self) -> Result<ProviderConfigSnapshot, ModelError> {
+        let profiles = self
+            .connections
+            .values()
+            .map(|connection| {
+                ProviderProfileSnapshot::new(
+                    connection.route.clone(),
+                    connection.capabilities.clone(),
+                    connection
+                        .credential
+                        .as_ref()
+                        .map(|secret| json_digest(&serde_json::json!(secret))),
+                    if connection.route.profile == "default" {
+                        ProviderConfigSource::BuiltinDefault
+                    } else {
+                        ProviderConfigSource::Profile
+                    },
+                )
+                .map_err(ModelError::invalid)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        ProviderConfigSnapshot::new(ProviderSelectionMode::Live, profiles)
+            .map_err(ModelError::invalid)
     }
     fn connection(&self, spec: &ModelCallSpec) -> Result<&config::Connection, ModelError> {
         let assignment = spec

@@ -4,10 +4,39 @@ use async_trait::async_trait;
 use kiana_ports::ModelClient;
 use kiana_runner::{ScriptedModel, UnavailableModel};
 use std::sync::Arc;
+const ENV_MODEL_MODE: &str = "KIANA_MODEL_MODE";
+const ENV_STREAMING: &str = "KIANA_STREAMING";
+
 pub(crate) fn from_env() -> Arc<dyn ModelClient> {
     from_config(LocalModelConfig::default())
 }
 pub(crate) fn from_config(config: LocalModelConfig) -> Arc<dyn ModelClient> {
+    let cassette = std::env::var("KIANA_HARNESS_SCRIPT")
+        .ok()
+        .is_some_and(|path| !path.trim().is_empty());
+    let mode = match selection_mode_from_env() {
+        Ok(mode) => mode,
+        Err(error) => {
+            return Arc::new(InstrumentedModelClient {
+                inner: Arc::new(UnavailableModel::new(error)),
+            })
+        }
+    };
+    if cassette && mode == Some("live") {
+        return Arc::new(InstrumentedModelClient {
+            inner: Arc::new(UnavailableModel::new("model_selection_conflict")),
+        });
+    }
+    if !cassette && mode == Some("cassette") {
+        return Arc::new(InstrumentedModelClient {
+            inner: Arc::new(UnavailableModel::new("cassette_required")),
+        });
+    }
+    if let Err(error) = validate_streaming_environment() {
+        return Arc::new(InstrumentedModelClient {
+            inner: Arc::new(UnavailableModel::new(error)),
+        });
+    }
     let client: Arc<dyn ModelClient> = match std::env::var("KIANA_HARNESS_SCRIPT") {
         Ok(path) if !path.trim().is_empty() => match ScriptedModel::from_json_path(path.trim()) {
             Ok(model) => Arc::new(model),
@@ -38,6 +67,31 @@ pub(crate) fn from_config(config: LocalModelConfig) -> Arc<dyn ModelClient> {
         },
     };
     Arc::new(InstrumentedModelClient { inner: client })
+}
+
+fn selection_mode_from_env() -> Result<Option<&'static str>, String> {
+    match std::env::var(ENV_MODEL_MODE)
+        .ok()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .as_deref()
+    {
+        None => Ok(None),
+        Some("live") => Ok(Some("live")),
+        Some("cassette") => Ok(Some("cassette")),
+        Some(_) => Err("model_mode_invalid".to_owned()),
+    }
+}
+
+fn validate_streaming_environment() -> Result<(), String> {
+    match std::env::var(ENV_STREAMING)
+        .ok()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        None | Some("auto" | "on" | "1" | "true" | "yes" | "off" | "0" | "false" | "no") => Ok(()),
+        Some(_) => Err("model_streaming_policy_invalid".to_owned()),
+    }
 }
 
 /// The daemon composition root keeps the provider's request summary on the same model port as

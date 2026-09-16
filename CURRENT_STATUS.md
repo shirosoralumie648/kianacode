@@ -1860,6 +1860,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-07 dependency/assembly source-boundary review; no runtime test reviewer
 ```
 
+### P4-J7-08 provider configuration snapshot evidence (2026-09-16)
+
+```text
+source_snapshot: bd67223 (P4-J7-07 parent; P4-J7-08 source files listed below); kiana-domain/src/{provider_config,contracts,lib}.rs; kiana-provider/src/{config,lib}.rs; kiana-provider/tests/p4_j7_08_config.rs; kiana-daemon/src/model_client.rs; kiana-core/tests/p4_j7_08_config_guard.rs; kiana-protocol/src/lib.rs; .github/workflows/p4-j7-08-provider-config.yml; docs/roadmap/provider-config-baseline.md; docs/roadmap/provider.md; docs/roadmap/README.md; docs/roadmap.md
+worktree_status: P4-J7-08 typed provider/profile configuration snapshots, secret-free credential references, route revision/catalog projection, daemon live/cassette selection guard and streaming validation are scoped to this step; active route remains frozen by PreparedModelCall and no second model path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/provider_config.rs kiana-domain/src/contracts.rs kiana-domain/src/lib.rs kiana-provider/src/config.rs kiana-provider/src/lib.rs kiana-provider/tests/p4_j7_08_config.rs kiana-daemon/src/model_client.rs kiana-core/tests/p4_j7_08_config_guard.rs kiana-protocol/src/lib.rs .github/workflows/p4-j7-08-provider-config.yml docs/roadmap/provider-config-baseline.md
+  rg -n 'ProviderConfigSnapshot|ProviderProfileSnapshot|credential_ref|configuration_snapshot|configuration_revision|model_profile_unknown|model_selection_conflict|cassette_required|model_streaming_policy_invalid|inherit_default' kiana-domain/src kiana-provider/src kiana-daemon/src kiana-protocol/src kiana-provider/tests kiana-core/tests docs/roadmap/provider-config-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; locked offline dependency resolution; domain/provider/daemon/core/protocol fixture targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-provider/tests/p4_j7_08_config.rs snapshot/secret/route revision/unknown profile/invalid streaming fixtures and kiana-core/tests/p4_j7_08_config_guard.rs selection source checks; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P4-J7-08 job is queued by the next push and is not awaited
+status_change: P4-J7-08 source slice is implemented. ProviderConfigSnapshot/ProviderProfileSnapshot separate route fields and digest-only credential references; Gateway catalog exposes the snapshot while preserving legacy route fields. Provider profile maps reject unknown/inherit/key/capability/concurrency/streaming errors, and daemon explicitly rejects live+cassette conflicts or cassette mode without a script before selecting a client.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; snapshots and route revisions are process-local, there is no durable ConfigSnapshotStore/hot-update CAS/active-run restart epoch or SecretStore rotation, and live HTTP evidence remains P4-J7-09+
+reviewer: Codex root implementation review plus P4-J7-08 config/profile/source/mode boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

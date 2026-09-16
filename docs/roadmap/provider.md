@@ -57,7 +57,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-05` | 非流式工具解析拒绝路径 | `P4-J7-04` | malformed/缺身份/重复 ID 不被默认值修成合法调用；零 dispatch | ✅ |
 | `P4-J7-06` | 中立合同与模型端口 | `P4-J7-05`、`P0-A-01b`、`P0-A-02`、`CP-02` | 有序内容/错误/usage/attempt 合同唯一；旧 cassette 可读，矛盾版本拒绝 | ✅ |
 | `P4-J7-07` | Provider crate 与兼容 facade | `P4-J7-06` | 产品模型分支迁出 services；仅一个模型端口与实现；离线行为可对照 | ✅ |
-| `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ⏳ |
+| `P4-J7-08` | 连接配置与不可变快照 | `P4-J7-07` | 来源/优先级明确，显式 profile 缺失拒绝，运行中配置不漂移 | ✅ |
 | `P4-J7-09` | 凭据与出站目标 | `P4-J7-08` | secret 不出诊断；跨 origin 重定向/非法 header/未授权地址拒绝 | ⏳ |
 | `P4-J7-10` | 模型能力与 discovery | `P4-J7-08` | 未知能力保留未知；模型列表不能授予能力；目录带版本/来源 | ⏳ |
 | `P4-J7-11` | 角色路由与调用准入 | `P4-J7-09`、`P4-J7-10`、`P1-C-03`、`P0-K1-01`、`P1-K5-01`、`CP-11`、`CP-13` | 服务端角色决定 route；每真实 attempt 有许可、预算与审计 | ⏳ |
@@ -142,11 +142,11 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-08 连接、profile 和配置快照　⏳
+#### P4-J7-08 连接、profile 和配置快照　✅
 
 - **依赖**：`P4-J7-07`。
 - **改动位置**：provider/config、daemon 的 LocalModelConfig/ProfileRouter 构造、既有用户配置解析与协议设置 DTO。
-- **步骤**：① 分开 provider_id、protocol、connection_id、model_id、credential_ref 和 profile_version；② 将 CLI/用户配置/env 解析为一次性快照，记录每个字段来源；③ 明确 legacy cassette 优先与新显式 mode 冲突规则；④ 将无 profile 的历史默认、显式 default 继承、未配置 profile 拒绝分别实现；⑤ 拒绝无效数字/streaming 值，配置热更新生成新 revision。
+- **步骤**：① 分开 provider_id、protocol、connection_id、model_id、credential_ref 和 profile_version；② 将 CLI/用户配置/env 解析为一次性快照，记录每个字段来源；③ 明确 legacy cassette 优先与新显式 mode 冲突规则；④ 将无 profile 的历史默认、显式 default 继承、未配置 profile 拒绝分别实现；⑤ 拒绝无效数字/streaming 值，配置热更新生成新 revision。当前 source slice 与 CI-only 证据见 [`provider-config-baseline.md`](provider-config-baseline.md)。
 - **先拒绝**：`explicit_unknown_profile_does_not_fall_back`、`live_and_cassette_selection_conflict_is_rejected`、`invalid_streaming_policy_is_rejected`。
 - **再成功**：`legacy_cassette_precedence_is_preserved`、`active_runs_keep_their_config_snapshot`、`connection_change_does_not_inherit_another_connections_key`。
 - **退出 / 证据**：角色包/项目文本不能提供 secret 或扩大连接白名单；在同 host 运行两个不同 profile 时互不串配置。
