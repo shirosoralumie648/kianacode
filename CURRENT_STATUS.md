@@ -1461,6 +1461,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CM-04 mutation/CAS/idempotency source-boundary review; no runtime test reviewer
 ```
 
+### EXT-01 stable extension contracts evidence (2026-09-16)
+
+```text
+source_snapshot: 05c3b288 (EXT-00 baseline closure); kiana-domain/src/{ids,contracts,context_scope,extension_contracts,lib}.rs; kiana-protocol/src/lib.rs; kiana-domain/tests/ext01_contracts.rs; kiana-protocol/tests/ext01_protocol.rs; .github/workflows/ext01-extension-contracts.yml; docs/roadmap/extension-contracts-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/skills-plugins-hooks.md; docs/roadmap.md
+worktree_status: EXT-01 stable ExtensionId/ComponentId/SnapshotId/HookRunId IDs, versioned Skill/Hook/Plugin/Snapshot/Error contracts, protocol re-export, remote fixtures and roadmap/status overlays are scoped to this step; descriptor validation is deny-first and no loader, hook process, capability grant or second execution path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/context_scope.rs kiana-domain/src/extension_contracts.rs kiana-domain/src/lib.rs kiana-protocol/src/lib.rs kiana-domain/tests/ext01_contracts.rs kiana-protocol/tests/ext01_protocol.rs .github/workflows/ext01-extension-contracts.yml docs/roadmap/extension-contracts-baseline.md
+  rg -n 'ExtensionId|ComponentId|SnapshotId|HookRunId|SkillDescriptor|HookDecision|PluginLifecycle|ExtensionSnapshot|ExtensionError|extension_contracts_round_trip_and_reject_unknown_fields|extension_snapshot_digest_and_duplicate_identity_fail_closed|protocol_reexports_versioned_extension_contracts' kiana-domain/src kiana-protocol/src kiana-domain/tests/ext01_contracts.rs kiana-protocol/tests/ext01_protocol.rs docs/roadmap/extension-contracts-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/ext01_contracts.rs round-trip/unknown/digest/duplicate/error fixtures; kiana-protocol/tests/ext01_protocol.rs re-export fixture; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions EXT-01 job is queued by the next push and is not awaited
+status_change: EXT-01 source slice is implemented. Domain now owns stable extension/component/snapshot/hook-run IDs and closed contracts for skill descriptors, hook phases/decisions, plugin lifecycle, extension snapshots and bounded error codes. Source/content/trust/snapshot digests, generation/revision, duplicate identities and unknown fields fail closed; protocol exposes only serializable contract types and no execution authority.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; SourceResolver/ProjectTrust/path containment, strict SKILL/manifest parser, catalog generation/invalidation, signature/package verification, Hook process supervision, capability re-authorization and cross-process snapshot recovery remain EXT-02+; SourceRef locator still requires redacted projection before client display; no business/external outcome is claimed
+reviewer: Codex root implementation review plus EXT-01 identity/schema/snapshot/error source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

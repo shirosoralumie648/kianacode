@@ -60,6 +60,10 @@ uuid_id!(BudgetLeaseId);
 uuid_id!(CapabilityGrantId);
 uuid_id!(SupervisionLeaseId);
 uuid_id!(DelegationId);
+uuid_id!(ExtensionId);
+uuid_id!(ComponentId);
+uuid_id!(SnapshotId);
+uuid_id!(HookRunId);
 
 impl RunId {
     /// 从字符串解析 run UUID；首尾空白会被忽略，格式错误返回 `None`。
