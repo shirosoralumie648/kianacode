@@ -79,7 +79,7 @@
 | `P0-M1-01` | P0 | M1 Workbench | — | CLI/TTY/Web/Desktop 对同一 run 的 terminal state 一致 | ⏳ |
 | `P1-C-01` | P1 | C 组织与 Cell | `P0-A-01a` | 六类组织契约定义齐备；子权限只减不增 | ✅ |
 | `P1-C-02` | P1 | C 组织与 Cell | `P1-C-01` | reserve→commit→terminal→retire 全链；retire 撤销 grant、释放锁与预算 | ⏳ |
-| `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ⏳ |
+| `P1-C-03` | P1 | C 组织与 Cell | `P1-C-01` | 五部门 × 角色 RoleSpec 数据集；`model_profile` 到达 provider 路由 | ✅ |
 | `P1-D-01` | P1 | D WorkPacket | `P0-A-01a` | `ready_packets(graph, now)` 单实现；三处调用结果一致 | ⏳ |
 | `P1-D-02` | P1 | D WorkPacket | `P1-D-01` | `validate_dependency_dag` 输出确定性规范化环；缺依赖不推进状态 | ⏳ |
 | `P1-D-03` | P1 | D WorkPacket | `P1-D-01` | 过期 lease 退回 ready 并记事件；worker 死亡后可回收且不重复派发 | ⏳ |
@@ -243,7 +243,7 @@
 | 075 | W1 | 基础 | [`P0-B-01`](#step-p0-b-01) | P0 基础 · 正式状态机转移表 | `P0-A-01a` | ✅ | [基础卡](#step-p0-b-01) |
 | 076 | W1 | 基础 | [`P0-K1-01`](#step-p0-k1-01) | P0 基础 · 服务端身份与 authority epoch | `P0-A-01a` | ✅ | [基础卡](#step-p0-k1-01) |
 | 077 | W1 | 基础 | [`P1-C-01`](#step-p1-c-01) | P1 基础 · 组织与 Cell 契约 | `P0-A-01a` | ✅ | [基础卡](#step-p1-c-01) |
-| 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ⏳ | [基础卡](#step-p1-c-03) |
+| 078 | W1 | 基础 | [`P1-C-03`](#step-p1-c-03) | P1 基础 · 五部门角色目录与 model_profile 接线 | `P1-C-01` | ✅ | [基础卡](#step-p1-c-03) |
 | 079 | W1 | 基础 | [`P1-D-01`](#step-p1-d-01) | P1 基础 · WorkPacket 单一 ready 谓词 | `P0-A-01a` | ⏳ | [基础卡](#step-p1-d-01) |
 | 080 | W1 | 基础 | [`P1-D-02`](#step-p1-d-02) | P1 基础 · 依赖缺失 / 成环 fail-closed | `P1-D-01` | ⏳ | [基础卡](#step-p1-d-02) |
 | 081 | W1 | 基础 | [`P1-E-01`](#step-p1-e-01) | P1 基础 · 通信与问责分层 | `P0-B-01` | ⏳ | [基础卡](#step-p1-e-01) |
@@ -1035,6 +1035,8 @@
 
 | 当前 93 | `P1-C-01` 组织与 Cell 契约 | `AgentTemplate`、`CellSpec`、`SpawnPlan`、`BudgetLease`、`CapabilityGrant`、`SupervisionLease` 六类合同统一由 domain 暴露，DTO 拒绝 unknown fields；模板 version/id 与 Cell 绑定，默认不委派，child grant 的 capability/operation/resource/path/expiry/delegation 只能是 parent 子集；CellRegistry 在 reserve 与 snapshot 恢复重复检查并 fail-closed；新增 domain fixture、core source guard、CI workflow 与 cell-contract baseline；不运行本地测试 | `feature_status=implemented`（domain/core source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；MemoryCellRegistry 仍是进程内 adapter，durable Cell/Grant/Budget/Lease projector、跨进程恢复和完整 scheduler/Swarm 生命周期留待 P1-C-02/SW/AUT/ER/PD；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 94 | `P1-C-03` 五部门角色目录与 model_profile 接线 | RoleCatalog/DepartmentCatalog 固定五部门九岗位，RoleSpec 校验 department/profile/prompt/I/O/tool metadata；ControlPlane 将 server-owned ModelAssignment.profile 写入每次 run，ProviderGateway 只按该 assignment 选择 configured connection，planning/executing/quality 可落到不同模型；新增独立 provider route fixture、core source guard、CI workflow 与 role-model-routing baseline；不运行本地测试 | `feature_status=implemented`（domain/core/provider source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；catalog 仍是 built-in snapshot，assignment/durable catalog/permit/真实 provider transport 与 live 多模型证据留待 CO/CI/P4-J7-11+；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1176,6 +1178,7 @@
 | 2026-09-16 | `P0-B-01` State transition matrix：复核 domain Approval/Capability/RunCancellation/WorkPacket/Execution/Company 状态图与 terminal predicates，新增 illegal/terminal/result_unknown fixtures 和 core/runner source guard；不改变既有状态语义，CI-only 验证，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P0-K1-01` Server identity/authority epoch：DaemonHost 覆盖 wire actor，按 ProjectTrust 与 canonical root/device/inode 派生 ProjectIdentity；SessionAssignment 经 CAS 固化角色/部门，authority stream 单调版本写入 assignment 与 `run.authorized` epoch；新增 ingress fixture、core source guard、CI workflow 与 identity-authority baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P1-C-01` Organization/Cell contracts：统一 AgentTemplate、CellSpec、SpawnPlan、BudgetLease、CapabilityGrant、SupervisionLease 的 domain 合同，补 unknown-field fence、模板版本绑定、默认不可委派和 parent grant 子集校验；新增 domain fixture、core source guard、CI workflow 与 cell-contract baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `P1-C-03` Role model routing：固定五部门九岗位 `RoleSpec.model_profile`，ControlPlane 将 server-owned profile 写入 `ModelAssignment`，ProviderGateway 只按 assignment 路由 planning/executing/quality 到不同 configured models；新增独立 provider fixture、core source guard、CI workflow 与 role-model-routing baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
@@ -1599,14 +1602,14 @@
 
 <a id="step-p1-c-03"></a>
 
-### P1-C-03 五部门角色目录与 model_profile 接线　⏳
+### P1-C-03 五部门角色目录与 model_profile 接线　✅
 
-- **现状**：`RoleSpec` 十二字段齐备（`kiana-domain/src/roles.rs:116-133`），但角色实例只有写死的构造函数（如 `RoleSpec::builder()`）；`model_profile` 在 `roles.rs` 之外零消费，规划/执行无法异模型。
-- **做什么**：按 `COMPANY.md` §3/§4 把五部门 × 角色落成数据集（角色目录），并把 `RoleSpec.model_profile` 接到 provider 路由。
+- **现状**：RoleCatalog/DepartmentCatalog 已固定五部门九岗位，ControlPlane 为每次 run 安装带 role/profile/revision 的 ModelAssignment，ProviderGateway 按 assignment profile 选择连接。
+- **做什么**：补齐 P1 基础卡的独立 model-profile route 验收，固定 planning/executing/quality 的不同模型选择与 drift 拒绝边界。
 - **风险**：角色目录若散落各 crate 会形成第二真相；「规划用强模型、执行用便宜模型」必须可在收据里复现。
 - **验收**：`planning_and_execution_roles_can_use_different_models`
-- **依赖 / 边界**：依赖 `P1-C-01`；不新增模型可见工具。
-- **依据**：`COMPANY.md` §3、§4
+- **依赖 / 边界**：依赖 `P1-C-01`；不新增模型可见工具，Provider 不能成为身份或权限事实源。
+- **依据**：`COMPANY.md` §3、§4；证据见 [`role-model-routing-baseline.md`](roadmap/role-model-routing-baseline.md)
 
 
 

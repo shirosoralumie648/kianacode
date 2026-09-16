@@ -13,7 +13,7 @@ fn route<'a>(catalog: &'a Value, profile: &str) -> &'a Value {
 }
 
 #[test]
-fn planning_execution_and_quality_roles_select_distinct_configured_models() {
+fn planning_and_execution_roles_can_use_different_models() {
     let previous = std::env::var_os("KIANA_MODEL_PROFILES_JSON");
     let previous_streaming = std::env::var_os("KIANA_STREAMING");
     let previous_concurrency = std::env::var_os("KIANA_MODEL_MAX_CONCURRENCY");

@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### P1-C-03 role model routing evidence (2026-09-16)
+
+```text
+source_snapshot: 763e89a + P1-C-03 working-tree slice; kiana-domain/src/{roles,model,prompts}.rs; kiana-core/src/lifecycle.rs; kiana-provider/src/{lib,config}.rs; kiana-provider/tests/co04_role_model_routes.rs; kiana-core/tests/p1_c03_model_routing_guard.rs; .github/workflows/p1-c03-model-routing.yml; docs/roadmap/role-model-routing-baseline.md; docs/roadmap.md
+worktree_status: P1-C-03 role catalog/profile route fixture and source guard are scoped to this step; ControlPlane remains the sole ModelAssignment authority and ProviderGateway consumes assignment.profile; no new model-visible tool or second execution loop was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/roles.rs kiana-domain/src/model.rs kiana-domain/src/prompts.rs kiana-core/src/lifecycle.rs kiana-provider/src/lib.rs kiana-provider/src/config.rs kiana-provider/tests/co04_role_model_routes.rs kiana-core/tests/p1_c03_model_routing_guard.rs .github/workflows/p1-c03-model-routing.yml docs/roadmap/role-model-routing-baseline.md
+  rg -n 'model_profile|RoleCatalog|DepartmentCatalog|ModelAssignment|profile: role.model_profile|assignment.profile|model_profile_unconfigured|planning_and_execution_roles_can_use_different_models' kiana-domain/src kiana-core/src kiana-provider/src kiana-provider/tests/co04_role_model_routes.rs kiana-core/tests/p1_c03_model_routing_guard.rs docs/roadmap/role-model-routing-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; provider fixture/source guard compiled only; no test or smoke binary executed locally
+fixture or cassette: p1-c03 provider route fixture uses explicit planning/executing/quality loopback profiles and checks distinct model/connection selection; CO-04 role catalog/provenance fixtures remain the shared compatibility contract; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions P1-C-03 job is queued by the push and is not awaited
+status_change: P1-C-03 source slice is implemented. The five-department/role catalog supplies fixed model_profile values, ControlPlane records them in server-owned ModelAssignment, and ProviderGateway requires that assignment before selecting a configured connection; profile/role drift and unknown profiles remain fail-closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; the catalog is a built-in snapshot, profile configuration is process-local/non-durable, no live provider request or model quality is proven, and per-attempt permit/usage/retry/reconciliation remain P4-J7-11+ work
+reviewer: Codex root implementation review plus P1-C-03 role/profile/provider source-boundary review; no runtime test reviewer
+```
+
 ### P1-C-01 organization and Cell contract evidence (2026-09-16)
 
 ```text
