@@ -6,9 +6,9 @@
 //! are never copied into the projection.
 
 use kiana_domain::{
-    json_digest, redact_text, EventId, ModelAttemptRecord, ModelCacheUsage, ModelFinish,
-    ModelPurpose, ModelRetryClass, ModelUsage, RequestId, RunId, RuntimeEvent, SpanId, TraceId,
-    TraceStatus, TurnId,
+    json_digest, redact_text, EventId, ModelAttemptId, ModelAttemptRecord, ModelCacheUsage,
+    ModelFinish, ModelPurpose, ModelRetryClass, ModelUsage, RequestId, RunId, RuntimeEvent, SpanId,
+    StepId, TraceId, TraceStatus, TurnId,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -486,6 +486,8 @@ pub fn project_model_attempts(
         let (model_call_id, call_malformed) = id_field(event, "model_call_id", event.request_id);
         let (model_request_id, request_malformed) =
             id_field(event, "model_request_id", model_call_id);
+        let step_id = optional_field::<StepId>(event, "step_id")?;
+        let model_attempt_id = optional_field::<ModelAttemptId>(event, "model_attempt_id")?;
         let mut malformed = call_malformed || request_malformed;
         let attempt = match event.data.get("attempt").and_then(Value::as_u64) {
             Some(value) if value > 0 && value <= u64::from(u32::MAX) => value as u32,
@@ -619,6 +621,8 @@ pub fn project_model_attempts(
             error_code,
             attributes,
         )
+        .map_err(ModelAttemptProjectionError::RecordInvalid)?
+        .with_identity(step_id, model_attempt_id)
         .map_err(ModelAttemptProjectionError::RecordInvalid)?;
         records.push(record);
     }

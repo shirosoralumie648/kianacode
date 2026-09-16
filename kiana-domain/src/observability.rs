@@ -7,8 +7,8 @@
 
 use crate::{
     canonical_journal_bytes, json_digest, DataClass, EventId, ExecutionId, InvocationId,
-    ModelFinish, ModelPurpose, ModelRetryClass, ModelUsage, RequestId, RunId, SchemaVersion,
-    SpanId, TraceId, TurnId,
+    ModelAttemptId, ModelFinish, ModelPurpose, ModelRetryClass, ModelUsage, RequestId, RunId,
+    SchemaVersion, SpanId, StepId, TraceId, TurnId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -2743,6 +2743,10 @@ pub struct ModelAttemptRecord {
     pub run_id: RunId,
     #[serde(default)]
     pub turn_id: Option<TurnId>,
+    #[serde(default)]
+    pub step_id: Option<StepId>,
+    #[serde(default)]
+    pub model_attempt_id: Option<ModelAttemptId>,
     pub model_call_id: RequestId,
     pub model_request_id: RequestId,
     pub attempt: u32,
@@ -2812,6 +2816,8 @@ impl ModelAttemptRecord {
             span_id,
             run_id,
             turn_id,
+            step_id: None,
+            model_attempt_id: None,
             model_call_id,
             model_request_id,
             attempt,
@@ -2915,6 +2921,21 @@ impl ModelAttemptRecord {
             return Err("model_attempt_record_digest_mismatch".to_owned());
         }
         Ok(())
+    }
+
+    /// Attach server-owned Step/ModelAttempt identity after constructing a legacy-compatible
+    /// record. Recompute the record digest so the optional fields are covered by the projection
+    /// contract.
+    pub fn with_identity(
+        mut self,
+        step_id: Option<StepId>,
+        model_attempt_id: Option<ModelAttemptId>,
+    ) -> Result<Self, String> {
+        self.step_id = step_id;
+        self.model_attempt_id = model_attempt_id;
+        self.record_digest = self.digest();
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {

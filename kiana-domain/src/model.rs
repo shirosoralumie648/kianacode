@@ -1,5 +1,5 @@
 //! Shared model values. Provider wire content is compiled before admission.
-use crate::{RequestId, RunId, TokenBudget, TurnId};
+use crate::{ModelAttemptId, RequestId, RunId, StepId, TokenBudget, TurnId};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -347,6 +347,10 @@ pub struct ProtectedReplayRef {
 pub struct ModelCallSpec {
     pub call_id: RequestId,
     pub attempt_id: RequestId,
+    #[serde(default)]
+    pub model_attempt_id: Option<ModelAttemptId>,
+    #[serde(default)]
+    pub step_id: Option<StepId>,
     pub step: u32,
     pub purpose: ModelPurpose,
     pub assignment: Option<ModelAssignment>,
@@ -412,6 +416,7 @@ impl PreparedModelCall {
             "streaming": self.route.streaming,
         });
         json!({"schema":self.schema,"model_call_id":self.spec.call_id,"model_request_id":self.spec.attempt_id,
+            "model_attempt_id":self.spec.model_attempt_id,"step_id":self.spec.step_id,
             "run_id":self.spec.assignment.as_ref().map(|a|a.run_id),"step":self.spec.step,
             "purpose":self.spec.purpose,"route":self.route,"route_digest":crate::json_digest(&route_identity),
             "prompt_version":self.request_hash,"request_hash":self.request_hash,

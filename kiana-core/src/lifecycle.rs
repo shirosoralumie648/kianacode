@@ -285,7 +285,7 @@ impl ControlPlane {
 
         let pending_events = match self
             .runner
-            .send(RunnerCommand::start_in_with_history(
+            .send(RunnerCommand::start_in_with_history_and_turn(
                 run_id,
                 prompt,
                 history,
@@ -296,6 +296,7 @@ impl ControlPlane {
                 })?,
                 context.project_trusted,
                 max_steps_per_turn,
+                Some(turn_id),
             ))
             .await
         {

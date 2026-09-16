@@ -18,6 +18,8 @@ fn prepared() -> PreparedModelCall {
         spec: ModelCallSpec {
             call_id: RequestId::new(),
             attempt_id: RequestId::new(),
+            model_attempt_id: None,
+            step_id: None,
             step: 1,
             purpose: ModelPurpose::Task,
             assignment: None,

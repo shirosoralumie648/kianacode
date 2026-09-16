@@ -19,7 +19,10 @@ use crate::model::{
 };
 use crate::tools::{capability_for_tool, tool_schemas};
 use async_trait::async_trait;
-use kiana_domain::{redact_text, CapabilityResult, PromptBundle, RunId, StreamingRedactor};
+use kiana_domain::{
+    redact_text, CapabilityResult, ModelAttemptId, ModelAttemptIdentity, PromptBundle, RunId,
+    StepId, StepIdentity, StreamingRedactor, TurnId,
+};
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
     RunnerCommand, RunnerEvent, DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE,
@@ -111,6 +114,8 @@ impl<'a> EventEmitter<'a> {
 
 struct ActiveRun {
     run_id: RunId,
+    turn_id: Option<TurnId>,
+    step_id: Option<StepId>,
     sandbox: String,
     project_root: String,
     inbox: Inbox,
@@ -139,6 +144,10 @@ struct RepeatedToolCall {
 struct HarnessCheckpoint {
     schema: String,
     run_id: RunId,
+    #[serde(default)]
+    turn_id: Option<TurnId>,
+    #[serde(default)]
+    step_id: Option<StepId>,
     sandbox: String,
     project_root: String,
     messages: Vec<ModelMessage>,
@@ -200,6 +209,7 @@ impl RunCancellation {
 
 struct StartInput {
     run_id: RunId,
+    turn_id: Option<TurnId>,
     prompt: String,
     history: Vec<kiana_domain::ConversationMessage>,
     sandbox: String,
@@ -356,6 +366,7 @@ impl KianaHarness {
         match command {
             RunnerCommand::Start {
                 run_id,
+                turn_id,
                 prompt,
                 history,
                 project_root,
@@ -367,6 +378,7 @@ impl KianaHarness {
                 self.start(
                     StartInput {
                         run_id,
+                        turn_id,
                         prompt,
                         history,
                         sandbox,
@@ -398,6 +410,7 @@ impl KianaHarness {
         let wall_time_started_at = Instant::now();
         let StartInput {
             run_id,
+            turn_id,
             prompt,
             history,
             sandbox,
@@ -421,6 +434,8 @@ impl KianaHarness {
         let cancellation = Arc::new(RunCancellation::default());
         let mut run = ActiveRun {
             run_id,
+            turn_id,
+            step_id: None,
             sandbox: sandbox.to_owned(),
             project_root,
             inbox: Inbox::default(),
@@ -442,6 +457,14 @@ impl KianaHarness {
             last_text: String::new(),
             cancellation: cancellation.clone(),
         };
+        if let (Some(turn_id), Some(assignment)) = (run.turn_id, run.model_assignment.as_ref()) {
+            if assignment.turn_id != turn_id {
+                return emitter.emit_event(RunnerEvent::Failed {
+                    run_id,
+                    error: "model_assignment_turn_mismatch".to_owned(),
+                });
+            }
+        }
         if !instructions.trim().is_empty() {
             if instructions.trim_start().starts_with('{') {
                 let bundle =
@@ -580,6 +603,7 @@ impl KianaHarness {
             return Ok(());
         }
         run.steps = 0;
+        run.step_id = None;
         run.wall_time_started_at = Instant::now();
         run.last_text.clear();
         run.last_tool_call = None;
@@ -663,6 +687,7 @@ impl KianaHarness {
             return Ok(());
         }
         run.steps += 1;
+        run.step_id = Some(StepId::new());
 
         for message in run.inbox.claim(InboxTarget::NextStep) {
             run.messages.push(ModelMessage::user(message.text));
@@ -858,14 +883,34 @@ impl KianaHarness {
             .min(u128::from(u64::MAX)) as u64;
         let deadline = now.saturating_add(remaining.as_millis().min(u128::from(u64::MAX)) as u64);
         let started = Instant::now();
+        let step_id = run
+            .step_id
+            .ok_or_else(|| "step_identity_missing".to_owned())?;
+        let turn_id = run
+            .turn_id
+            .unwrap_or_else(|| TurnId::from_uuid(run.run_id.as_uuid()));
+        let step_identity = StepIdentity::new(run.run_id, turn_id, step_id, run.steps)
+            .map_err(|error| format!("step_identity_invalid:{error}"))?;
         for attempt in 0..3u32 {
             if let Some(error) = run.cancellation.error().map_err(|e| e.to_string())? {
                 return Err(error);
             }
             let attempt_id = RequestId::new();
+            let model_attempt_id = ModelAttemptId::new();
+            let attempt_identity = ModelAttemptIdentity::new(
+                run.run_id,
+                turn_id,
+                step_id,
+                model_attempt_id,
+                call_id,
+                attempt + 1,
+            )
+            .map_err(|error| format!("model_attempt_identity_invalid:{error}"))?;
             let spec = ModelCallSpec {
                 call_id,
                 attempt_id,
+                model_attempt_id: Some(model_attempt_id),
+                step_id: Some(step_id),
                 step: run.steps,
                 purpose,
                 assignment: run.model_assignment.clone(),
@@ -944,7 +989,8 @@ impl KianaHarness {
                 .ok()
                 .and_then(|reply| reply.output.usage.as_ref());
             emitter.emit(RunnerEvent::ModelTurn {run_id,step:run.steps,metadata:json!({
-                "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"attempt":attempt+1,
+                "schema":"kiana.model-turn.v2","model_call_id":call_id,"model_request_id":attempt_id,"model_attempt_id":model_attempt_id,
+                "turn_id":run.turn_id,"step_id":step_id,"step_identity":step_identity.clone(),"attempt_identity":attempt_identity,"attempt":attempt+1,
                 "provider_id":route.provider_id,"model_id":result.as_ref().ok().and_then(|reply|reply.output.model_id.as_ref()).unwrap_or(&route.model_id),
                 "prepared":audit.clone(),"route_digest":audit["route_digest"],"prompt_version":audit["prompt_version"],
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
@@ -1236,6 +1282,8 @@ impl RunnerPort for KianaHarness {
         serde_json::to_value(HarnessCheckpoint {
             schema: "kiana.harness-checkpoint.v1".to_owned(),
             run_id,
+            turn_id: run.turn_id,
+            step_id: run.step_id,
             sandbox: run.sandbox.clone(),
             project_root: run.project_root.clone(),
             messages: run.messages.clone(),
@@ -1263,6 +1311,10 @@ impl RunnerPort for KianaHarness {
             || checkpoint.run_id != run_id
             || checkpoint.max_steps_per_turn == 0
             || checkpoint.steps > checkpoint.max_steps_per_turn
+            || checkpoint
+                .turn_id
+                .zip(checkpoint.model_assignment.as_ref().map(|a| a.turn_id))
+                .is_some_and(|(turn_id, assignment_turn)| turn_id != assignment_turn)
         {
             return Err(PortError::Failed("runner_checkpoint_invalid".to_owned()));
         }
@@ -1301,6 +1353,8 @@ impl RunnerPort for KianaHarness {
             run_id,
             ActiveRun {
                 run_id,
+                turn_id: checkpoint.turn_id,
+                step_id: checkpoint.step_id,
                 sandbox: checkpoint.sandbox,
                 project_root: checkpoint.project_root,
                 inbox: Inbox::default(),

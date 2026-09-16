@@ -95,6 +95,7 @@ async fn with_skill_and_extension_instructions(
 ) -> Result<RunnerCommand, PortError> {
     let RunnerCommand::Start {
         run_id,
+        turn_id,
         prompt,
         history,
         project_root,
@@ -167,6 +168,7 @@ async fn with_skill_and_extension_instructions(
         .map_err(|e| PortError::Failed(format!("prompt_bundle_invalid:{e}")))?;
     Ok(RunnerCommand::Start {
         run_id,
+        turn_id,
         prompt,
         history,
         project_root,

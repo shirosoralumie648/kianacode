@@ -5,7 +5,7 @@
 | 专项 | 局部索引 | 位置 |
 |---|---:|---|
 | ControlPlane | CP-00–CP-30（31） | [CP-01 身份基线](control-plane-identity-baseline.md) · [CP-02 执行身份基线](control-plane-execution-identity-baseline.md) · [CP-03 action 基线](control-plane-action-baseline.md) · [CP-04 ScopeSet 基线](control-plane-scope-baseline.md) · [CP-05 入口一致性](control-plane-entry-path-baseline.md) · [CP-06 原子转移基线](control-plane-transition-baseline.md) · [授权、状态转移与恢复设计](control-plane.md) |
-| Harness | H01–H36（36） | [Agent 运行时设计与实施步骤](harness.md) |
+| Harness | H01–H36（36） | [H02 身份基线](harness-identity-baseline.md) · [Agent 运行时设计与实施步骤](harness.md) |
 | Provider | P4-J7-04–P4-J7-31（28） | [Provider 协议与 streaming 设计](provider.md) |
 | CompanyOS | CO-01–CO-48（48） | [组织、业务流程与交付闭环](companyos.md) |
 | Capability | CAP-00–CAP-34（35） | [CAP-01 authority 基线](capability-authority-baseline.md) · [CAP-02 input/digest 基线](capability-input-baseline.md) · [CAP-03 ExecutionScope](capability-execution-scope-baseline.md) · [CAP-04 状态/outcome 基线](capability-state-baseline.md) · [能力目录、Broker 与执行边界](capability.md) |

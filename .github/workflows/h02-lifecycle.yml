@@ -1,0 +1,60 @@
+name: H02 harness identity and lifecycle
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/observability.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-runner-protocol/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/model_attempt_projection.rs"
+      - "kiana-domain/tests/h02_identity.rs"
+      - "kiana-core/tests/h02_lifecycle.rs"
+      - "kiana-runner-protocol/tests/h02_wire.rs"
+      - "docs/roadmap/harness-identity-baseline.md"
+      - ".github/workflows/h02-lifecycle.yml"
+  pull_request:
+    paths:
+      - "kiana-domain/src/ids.rs"
+      - "kiana-domain/src/contracts.rs"
+      - "kiana-domain/src/execution_identity.rs"
+      - "kiana-domain/src/event_contracts.rs"
+      - "kiana-domain/src/model.rs"
+      - "kiana-domain/src/observability.rs"
+      - "kiana-protocol/src/lib.rs"
+      - "kiana-runner-protocol/src/lib.rs"
+      - "kiana-runner/src/harness.rs"
+      - "kiana-core/src/lifecycle.rs"
+      - "kiana-core/src/model_attempt_projection.rs"
+      - "kiana-domain/tests/h02_identity.rs"
+      - "kiana-core/tests/h02_lifecycle.rs"
+      - "kiana-runner-protocol/tests/h02_wire.rs"
+      - "docs/roadmap/harness-identity-baseline.md"
+      - ".github/workflows/h02-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run H02 domain identity fixtures
+        run: cargo test -p kiana-domain --test h02_identity --locked -- --test-threads=1
+      - name: Run H02 runner wire fixtures
+        run: cargo test -p kiana-runner-protocol --test h02_wire --locked -- --test-threads=1
+      - name: Run H02 core lifecycle fixtures
+        run: cargo test -p kiana-core --test h02_lifecycle --locked -- --test-threads=1

@@ -5,7 +5,9 @@
 //! 必须按 run ID 关联。`project_trusted`、sandbox 和 instructions 是上游快照/输入，不是
 //! runner 自行授予权限的依据。
 
-use kiana_domain::{CapabilityRequest, CapabilityResult, ConversationMessage, RequestId, RunId};
+use kiana_domain::{
+    CapabilityRequest, CapabilityResult, ConversationMessage, RequestId, RunId, TurnId,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -22,6 +24,9 @@ pub enum RunnerCommand {
     Start {
         /// run 稳定 ID。
         run_id: RunId,
+        /// server-derived turn identity; absent only for legacy v1 callers.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_id: Option<TurnId>,
         /// 当前提示词。
         prompt: String,
         #[serde(default)]
@@ -79,6 +84,7 @@ impl RunnerCommand {
     pub fn start(run_id: RunId, prompt: impl Into<String>) -> Self {
         Self::Start {
             run_id,
+            turn_id: None,
             prompt: prompt.into(),
             history: Vec::new(),
             project_root: String::new(),
@@ -117,6 +123,7 @@ impl RunnerCommand {
     ) -> Self {
         Self::Start {
             run_id,
+            turn_id: None,
             prompt: prompt.into(),
             history: Vec::new(),
             project_root: project_root.into(),
@@ -138,8 +145,34 @@ impl RunnerCommand {
         project_trusted: bool,
         max_steps_per_turn: u32,
     ) -> Self {
+        Self::start_in_with_history_and_turn(
+            run_id,
+            prompt,
+            history,
+            project_root,
+            sandbox,
+            instructions,
+            project_trusted,
+            max_steps_per_turn,
+            None,
+        )
+    }
+
+    /// Construct a new run command with the server-owned Turn identity.
+    pub fn start_in_with_history_and_turn(
+        run_id: RunId,
+        prompt: impl Into<String>,
+        history: Vec<ConversationMessage>,
+        project_root: impl Into<String>,
+        sandbox: impl Into<String>,
+        instructions: impl Into<String>,
+        project_trusted: bool,
+        max_steps_per_turn: u32,
+        turn_id: Option<TurnId>,
+    ) -> Self {
         Self::Start {
             run_id,
+            turn_id,
             prompt: prompt.into(),
             history,
             project_root: project_root.into(),

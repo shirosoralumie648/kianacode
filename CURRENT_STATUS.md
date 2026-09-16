@@ -1272,6 +1272,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus CAP-04 state-transition/outcome/error/projection source-boundary review; no runtime test reviewer
 ```
 
+### H02 Harness identity and lifecycle evidence (2026-09-16)
+
+```text
+source_snapshot: 8d6f3a3; kiana-domain/src/{ids,contracts,execution_identity,event_contracts,model,observability}.rs; kiana-protocol/src/lib.rs; kiana-runner-protocol/src/lib.rs; kiana-runner/src/harness.rs; kiana-daemon/src/harness_skills.rs; kiana-core/src/{lifecycle,model_attempt_projection}.rs; kiana-domain/tests/h02_identity.rs; kiana-core/tests/h02_lifecycle.rs; kiana-runner-protocol/tests/h02_wire.rs; kiana-provider/tests/oa08_provider_telemetry.rs; .github/workflows/h02-lifecycle.yml; docs/roadmap/harness-identity-baseline.md; docs/module-map.md; docs/roadmap/README.md; docs/roadmap/harness.md; docs/roadmap.md
+worktree_status: H02 Step/ModelAttempt typed identities, optional Start TurnId wire field, native ControlPlane propagation, Harness ActiveRun/checkpoint/model facts, ModelAttemptRecord identity projection, legacy reader compatibility and focused remote fixtures/roadmap/status overlays are scoped to this step; no second runner loop or authority path was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-domain/src/ids.rs kiana-domain/src/contracts.rs kiana-domain/src/execution_identity.rs kiana-domain/src/model.rs kiana-domain/src/observability.rs kiana-protocol/src/lib.rs kiana-runner-protocol/src/lib.rs kiana-runner/src/harness.rs kiana-daemon/src/harness_skills.rs kiana-core/src/lifecycle.rs kiana-core/src/model_attempt_projection.rs kiana-provider/tests/oa08_provider_telemetry.rs kiana-domain/tests/h02_identity.rs kiana-core/tests/h02_lifecycle.rs kiana-runner-protocol/tests/h02_wire.rs .github/workflows/h02-lifecycle.yml docs/roadmap/harness-identity-baseline.md
+  rg -n 'StepId|ModelAttemptId|StepIdentity|ModelAttemptIdentity|run.model_turn|turn_id: Option<TurnId>|start_in_with_history_and_turn|native_continue_creates_new_run_while_legacy_contract_is_preserved|duplicate_run_terminal_is_rejected|late_result_cannot_complete_a_new_turn' kiana-domain/src kiana-protocol/src kiana-runner-protocol/src kiana-runner/src kiana-daemon/src kiana-core/src kiana-domain/tests/h02_identity.rs kiana-core/tests/h02_lifecycle.rs kiana-runner-protocol/tests/h02_wire.rs docs/roadmap/harness-identity-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; source guard/test targets compiled only; no test or smoke binary executed locally
+fixture or cassette: kiana-domain/tests/h02_identity.rs Step/ModelAttempt digest and tamper fixtures; kiana-core/tests/h02_lifecycle.rs Run terminal/cross-run projection and source guard fixtures; kiana-runner-protocol/tests/h02_wire.rs Start TurnId round-trip and legacy decode; GitHub Actions only
+exit_code: 0 for format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions H02 job is queued by the push and is not awaited
+status_change: H02 source slice is implemented. `StepId` and `ModelAttemptId` are registered UUID contracts with typed `StepIdentity` and `ModelAttemptIdentity` digests. Native ControlPlane Start/Continue now sends a server-owned TurnId through the optional runner Start field; the Harness retains turn identity across ActiveRun/checkpoint, creates one StepId per model step and one ModelAttemptId per provider attempt, and records both in bounded `run.model_turn` metadata. `ModelAttemptRecord` can project these IDs while legacy facts remain read-compatible. Closed-run/new-turn and cross-run late-result guards are covered by remote fixtures.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; Session-level durable input queue/driver lease, durable RunSnapshot/InvocationLedger, cross-process restore, full H03 state driver, H10 stable invocation identity, provider receipt and external/live/physical effects remain later work; legacy records without Step/ModelAttempt fields stay conservative query-only compatibility
+reviewer: Codex root implementation review plus H02 Session/Run/Turn/Step/ModelAttempt identity and lifecycle source-boundary review; no runtime test reviewer
+```
+
 ### CO-01 CompanyOS handoff baseline evidence (2026-09-14)
 
 ```text

@@ -192,7 +192,9 @@ sequenceDiagram
 
 <a id="step-h02"></a>
 
-#### H02 — Session / Run / Turn / Step 的身份与生命周期　⏳
+#### H02 — Session / Run / Turn / Step 的身份与生命周期　✅
+
+当前 source slice 与 CI-only 证据见 [`harness-identity-baseline.md`](harness-identity-baseline.md)。
 
 **关联原单元**：`P0-A-01a/01b`、`P0-B-01`、`P0-J1-01`。**依赖**：H01。
 

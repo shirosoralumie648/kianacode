@@ -43,10 +43,12 @@ macro_rules! uuid_id {
 uuid_id!(RequestId);
 uuid_id!(RunId);
 uuid_id!(TurnId);
+uuid_id!(StepId);
 uuid_id!(CellId);
 uuid_id!(EventId);
 uuid_id!(ExecutionId);
 uuid_id!(InvocationId);
+uuid_id!(ModelAttemptId);
 uuid_id!(ApprovalId);
 uuid_id!(ArtifactId);
 uuid_id!(ReceiptId);
