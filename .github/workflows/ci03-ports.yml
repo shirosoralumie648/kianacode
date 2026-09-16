@@ -1,0 +1,44 @@
+name: CI-03 identity and credential ports
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/ci03_ports.rs"
+      - "kiana-core/tests/ci03_ports_guard.rs"
+      - "kiana-domain/src/identity_contracts.rs"
+      - "docs/roadmap/ports-identity-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci03-ports.yml"
+  pull_request:
+    paths:
+      - "kiana-ports/src/lib.rs"
+      - "kiana-ports/tests/ci03_ports.rs"
+      - "kiana-core/tests/ci03_ports_guard.rs"
+      - "kiana-domain/src/identity_contracts.rs"
+      - "docs/roadmap/ports-identity-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/ci03-ports.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fetch --locked
+      - run: cargo fmt --all --check
+      - name: Run CI-03 port fixtures
+        run: cargo test -p kiana-ports --test ci03_ports --locked -- --test-threads=1
+      - name: Run CI-03 source guard
+        run: cargo test -p kiana-core --test ci03_ports_guard --locked -- --test-threads=1
+      - name: Compile port path
+        run: cargo check -p kiana-domain -p kiana-ports -p kiana-core --tests --locked

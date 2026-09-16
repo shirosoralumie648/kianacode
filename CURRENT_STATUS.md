@@ -1923,6 +1923,27 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus P4-J7-10 catalog/capability/discovery source-boundary review; no runtime test reviewer
 ```
 
+### CI-03 identity/config/credential ports evidence (2026-09-16)
+
+```text
+source_snapshot: f4cab0d + CI-03 working-tree slice; kiana-ports/src/lib.rs; kiana-domain/src/identity_contracts.rs; kiana-ports/tests/ci03_ports.rs; kiana-core/tests/ci03_ports_guard.rs; .github/workflows/ci03-ports.yml; docs/roadmap/ports-identity-baseline.md; docs/roadmap.md
+worktree_status: CI-03 IdentityResolver/CredentialResolver/ConfigSnapshotStore/CredentialRotationPort layering and secret-free CredentialResolution contract are scoped to this step; no production secret adapter or second authority was added; static verification is complete and commit/push are pending
+command_argv:
+  sha256sum kiana-ports/src/lib.rs kiana-domain/src/identity_contracts.rs kiana-ports/tests/ci03_ports.rs kiana-core/tests/ci03_ports_guard.rs .github/workflows/ci03-ports.yml docs/roadmap/ports-identity-baseline.md
+  rg -n 'IdentityResolver|CredentialResolver|ConfigSnapshotStore|CredentialRotationPort|RotationRevokePort|CredentialResolution|CredentialState|resolved_digest|raw secret' kiana-ports/src kiana-domain/src/identity_contracts.rs kiana-ports/tests/ci03_ports.rs kiana-core/tests/ci03_ports_guard.rs docs/roadmap/ports-identity-baseline.md
+  cargo fmt --all
+  cargo fmt --all --check
+  cargo check --workspace --tests --locked --offline
+  git diff --check
+cwd/environment: repository root; Linux x86_64; rustc/cargo 1.97.1; locked offline dependency resolution; ports fixture/source guard compiled only; no test or smoke command executed locally
+fixture or cassette: ci03_ports::ports_never_return_raw_secret_to_core plus compile-only fake Identity/Credential/Config/Rotation adapters; GitHub Actions only
+exit_code: 0 for source hashes, format, workspace test-target compilation and diff checks; local tests deliberately not run per user instruction; GitHub Actions CI-03 job is queued by the push and is not awaited
+status_change: CI-03 source slice is implemented. Ports now separate identity/authority resolution, non-secret config snapshots, credential status/ref resolution and generation-aware rotation/revoke; CredentialResolution never carries raw secret bytes/strings and unsupported adapters fail closed.
+proof-level_change: source plus static compile evidence only; no local_behavior, durable, live or physical promotion
+limitations: CI result was intentionally not awaited; no local test or smoke command was run; no production adapter, SecretStore, CredentialLease, OAuth/PKCE, durable identity/config store or provider transport is implemented, and Available metadata does not prove credential validity or action authorization
+reviewer: Codex root implementation review plus CI-03 ports/secret-boundary source review; no runtime test reviewer
+```
+
 ### CI-02 identity and authority contract evidence (2026-09-16)
 
 ```text

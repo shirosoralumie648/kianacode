@@ -21,11 +21,12 @@ use async_trait::async_trait;
 use kiana_domain::{
     AgentTemplate, ApprovalChallenge, ApprovalId, ArtifactRef, ArtifactVersion,
     AssignmentDirectory, AssignmentId, AuditActionKind, AuditDecision, AuditRecord,
-    AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId,
-    CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId, CellLifecycle,
-    CellSpec, CommunicationMessage, CorrelationContext, CorrelationScope, HealthSnapshot,
-    MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, ProjectId, RequestContext,
-    RequestId, ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent,
+    AuthenticatedPrincipalRef, AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease,
+    BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
+    CellLifecycle, CellSpec, CommunicationMessage, ConfigSnapshot, CorrelationContext,
+    CorrelationScope, HealthSnapshot, MetricPoint, ObservabilityRecord, OrganizationId,
+    PendingApproval, Principal, ProjectId, ProjectIdentity, RequestContext, RequestId,
+    ResolvedAssignment, RetirementRecord, RoleAssignment, RunId, RuntimeEvent, SecretRef,
     SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, SupervisionLease, TraceSummary,
     WorkFingerprint,
 };
@@ -65,6 +66,112 @@ pub trait AssignmentDirectoryPort: Send + Sync {
 
 /// Alias used by adapters that expose the same port as an authenticated identity provider.
 pub use AssignmentDirectoryPort as IdentityAssignmentPort;
+
+/// Protected ingress identity resolver. Implementations authenticate the transport and derive
+/// principal/authority metadata from their own store; wire actor/role/project fields are never
+/// accepted as authority inputs.
+#[async_trait]
+pub trait IdentityResolver: Send + Sync {
+    async fn resolve_principal(
+        &self,
+        authenticated: &AuthenticatedPrincipalRef,
+    ) -> Result<Principal, PortError>;
+
+    async fn resolve_authority(
+        &self,
+        principal: &Principal,
+        project: &ProjectIdentity,
+        session_owner: &str,
+        requested_role: &str,
+        now_unix_ms: u64,
+    ) -> Result<AuthoritySnapshot, PortError>;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CredentialState {
+    Available,
+    Missing,
+    Expired,
+    Revoked,
+    Unknown,
+}
+
+/// Credential availability returned to core/runner. It carries only the opaque SecretRef,
+/// generation, expiry and a digest; a provider transport may resolve the actual value later at
+/// the effect boundary, but this port never returns raw secret bytes or strings.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CredentialResolution {
+    pub secret_ref: SecretRef,
+    pub state: CredentialState,
+    pub expires_at_unix_ms: Option<u64>,
+    pub resolved_digest: Option<String>,
+}
+
+impl CredentialResolution {
+    pub fn validate(&self, now_unix_ms: u64) -> Result<(), PortError> {
+        self.secret_ref
+            .validate()
+            .map_err(|error| PortError::Failed(format!("credential_ref_invalid:{error}")))?;
+        if self
+            .expires_at_unix_ms
+            .is_some_and(|expires| expires == 0 || expires <= now_unix_ms)
+            && self.state == CredentialState::Available
+        {
+            return Err(PortError::Conflict(
+                "credential_resolution_expired".to_owned(),
+            ));
+        }
+        if let Some(digest) = &self.resolved_digest {
+            if !digest.starts_with("sha256:") || digest.len() != 71 {
+                return Err(PortError::Failed(
+                    "credential_resolution_digest_invalid".to_owned(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Resolve an opaque SecretRef without exposing the secret value to core, runner or EventLog.
+#[async_trait]
+pub trait CredentialResolver: Send + Sync {
+    async fn resolve_credential(
+        &self,
+        secret_ref: &SecretRef,
+        now_unix_ms: u64,
+    ) -> Result<CredentialResolution, PortError>;
+}
+
+/// Read/publish the immutable, non-secret configuration snapshot for a project.
+#[async_trait]
+pub trait ConfigSnapshotStore: Send + Sync {
+    async fn read_snapshot(&self, project: &ProjectIdentity) -> Result<ConfigSnapshot, PortError>;
+
+    async fn publish_snapshot(
+        &self,
+        snapshot: ConfigSnapshot,
+        expected_revision: Option<&str>,
+    ) -> Result<ConfigSnapshot, PortError>;
+}
+
+/// Rotate or revoke a SecretRef using compare-and-swap generation semantics. Returned values are
+/// references only; a stale generation must fail without mutating the store.
+#[async_trait]
+pub trait CredentialRotationPort: Send + Sync {
+    async fn rotate_credential(
+        &self,
+        secret_ref: &SecretRef,
+        observed_generation: u64,
+    ) -> Result<SecretRef, PortError>;
+
+    async fn revoke_credential(
+        &self,
+        secret_ref: &SecretRef,
+        observed_generation: u64,
+    ) -> Result<SecretRef, PortError>;
+}
+
+pub use CredentialRotationPort as RotationRevokePort;
 
 /// Read-only artifact blob boundary used when an immutable EvidenceRef is rechecked.
 ///

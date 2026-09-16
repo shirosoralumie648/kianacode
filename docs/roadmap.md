@@ -251,7 +251,7 @@
 | 083 | W1 | 基础 | [`P1-H-03`](#step-p1-h-03) | P1 基础 · 路径 containment 共享实现 | `P1-H-01` | ✅ | [基础卡](#step-p1-h-03) |
 | 084 | W1 | 基础 | [`P3-I-01`](#step-p3-i-01) | P3 基础 · Company 业务对象契约 | `P0-A-01a` | ✅ | [基础卡](#step-p3-i-01) |
 | 085 | W1 | 专项 | [`CI-02`](#step-ci-02) | Domain 稳定 ID、Principal/Assignment/ProviderAccount/SecretRef/ConfigSnapshot/AuthoritySnapshot 合同；`kiana-domain` | `CI-01` | ✅ | [专项卡](#step-ci-02) |
-| 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | ⏳ | [专项卡](#step-ci-03) |
+| 086 | W1 | 专项 | [`CI-03`](#step-ci-03) | Ports 分层；`IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`Rotation/Revoke`；`kiana-ports` | `CI-02` | ✅ | [专项卡](#step-ci-03) |
 | 087 | W1 | 专项 | [`CI-04`](#step-ci-04) | 受保护 Daemon ingress 与本地主体迁移；`kiana-daemon`、`kiana-client`、`kiana-protocol` | `CI-02`、`CI-03` | ⏳ | [专项卡](#step-ci-04) |
 | 088 | W1 | 专项 | [`CI-05`](#step-ci-05) | Durable Membership/RoleAssignment/ProjectAssignment/PolicyProfile/DataBoundary/SharingGrant 与 authority epoch；`kiana-core`、`kiana-domain` | `CI-02`、`CI-04` | ⏳ | [专项卡](#step-ci-05) |
 | 089 | W1 | 专项 | [`SW-01`](#step-sw-01) | 稳定 ID、schema 和 lineage；domain + protocol + ports | `SW-00` | ⏳ | [专项卡](#step-sw-01) |
@@ -1053,6 +1053,8 @@
 
 | 当前 102 | `CI-02` Domain identity/config/authority contracts | 新增稳定 PrincipalId/ProviderAccountId/ServiceIdentityId 与 Principal/Membership/SecretRef/ProviderAccount/ServiceIdentity/ConfigSnapshot/AuthoritySnapshot typed DTO；全部 strict/digest/expiry/epoch 校验，ConfigSnapshot 拒绝 raw token/bearer/key，AuthoritySnapshot 拒绝 rollback/stale epoch；协议重导出并新增 domain/core CI-only fixtures/source guard；不运行本地测试 | `feature_status=implemented`（domain/protocol source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；SecretStore/CredentialLease/OAuth、durable identity/assignment/revoke projector、跨进程 authority recovery 和 provider effect boundary 仍由 CI-03..12、CP/SC/PD 负责；下一步领取总 roadmap 中下一个无前置且未完成 step |
 
+| 当前 103 | `CI-03` Identity/config/credential ports | `kiana-ports` 新增 `IdentityResolver`、`CredentialResolver`、`ConfigSnapshotStore`、`CredentialRotationPort`/`RotationRevokePort`，返回 Principal/AuthoritySnapshot、immutable ConfigSnapshot 和仅含 SecretRef/status/expiry/digest 的 CredentialResolution；generation CAS/错误 resolver/版本边界 fail-closed；新增 ports fixture、core source guard、CI workflow 与 ports-identity baseline；不运行本地测试 | `feature_status=implemented`（ports/domain source + remote fixture wiring）、`proof_level=source`；本地只做格式与 workspace test-target 静态编译，GitHub Actions 已触发且未等待；无生产 IdentityResolver/ConfigSnapshotStore/CredentialStore adapter，SecretStore/lease/OAuth、durable identity/revoke、provider effect boundary 仍由 CI-04+、CP/SC/PD 负责；下一步领取总 roadmap 中下一个无前置且未完成 step |
+
 **当前切片的验收断言（CAP-00；仅由 GitHub CI 执行运行时测试）**
 
 | 顺序 | 测试名 | 必须观察到的断言 |
@@ -1203,6 +1205,7 @@
 | 2026-09-16 | `P1-H-03` Shared path containment：新增 domain lexical path/root containment helper，迁移 patch/shell/package/checkpoint/Cell/event scope 边界，保留 filesystem no-follow/TOCTOU 二次校验；新增 domain/core fixtures、CI workflow 与 path-containment baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `P3-I-01` Company object contracts：冻结十类 Company domain 对象/状态与 validate 不变量，补 Acceptance/CriteriaSnapshot/CompanyReview/MetricObservation strict fields/criteria/measurement checks；新增 domain/core fixtures、CI workflow 与 company-object baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-16 | `CI-02` Identity contracts：新增 Principal/Membership/SecretRef/ProviderAccount/ServiceIdentity/ConfigSnapshot/AuthoritySnapshot 与稳定 ID，strict/digest/expiry/epoch/raw-secret 校验并协议导出；新增 domain/core fixtures、CI workflow 与 identity-contracts baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
+| 2026-09-16 | `CI-03` Ports layering：新增 IdentityResolver、CredentialResolver、ConfigSnapshotStore、CredentialRotationPort/RotationRevokePort 与 secret-free CredentialResolution，明确 generation CAS 和 adapter fail-closed 边界；新增 ports/core fixtures、CI workflow 与 ports-identity baseline；不运行本地测试，格式与 workspace 静态编译通过，CI 已触发但未等待 | 待本提交 |
 | 2026-09-10 | 记忆架构设计 spec + J3-01/J3-02 实施计划入库；roadmap 新增 `P1-J3-03`/`P1-J3-04`/`P4-J3-05` | `0bb624e` + `28fe392` + `a1fb227` |
 | 2026-09-12 | 按 `db77c24` 核对当前窗口：`05b` 已有提交但真实链路未证明；重开 `05a` 的 wall-time 回归和 `G-04` 未交付范围，补齐审批/记忆依赖；历史证据不删除 | 文档修订未提交；证据块「Roadmap source reconciliation evidence (2026-09-12)」；无新增 CI |
 | 2026-09-13 | 追加配置、凭据与身份专项设计：三域事实模型、SecretRef/Lease、assignment/authority epoch、OAuth/工作负载身份、deny-first 验收与 CI-01..CI-12 实施批次 | 文档规划未提交；基于 reference 与当前源码调研；无源码状态变更 |
